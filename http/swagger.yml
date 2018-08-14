@@ -794,13 +794,13 @@ paths:
           schema:
             type: string
             format: date-time
-          description: filter runs to those queued after this time
+          description: filter runs to those scheduled after this time, RFC3339
         - in: query
           name: beforeTime
           schema:
             type: string
             format: date-time
-          description: filter runs to those queued before this time
+          description: filter runs to those scheduled before this time, RFC3339
       responses:
         '200':
           description: a list of task runs
@@ -1236,33 +1236,43 @@ components:
         id:
           readOnly: true
           type: string
+        taskId:
+          readOnly: true
+          type: string
         status:
+          readOnly: true
           type: string
           enum: [
-            "queued",
+            "scheduled",
             "executing",
             "failed",
             "success"
           ]
-        queuedAt:
-          readOnly: true
+        scheduledFor:
+          description: Time used for run's "now" option, RFC3339.
           type: string
           format: date-time
-        startTime:
+        startedAt:
           readOnly: true
+          description: Time run started executing, RFC3339Nano.
           type: string
           format: date-time
-        endTime:
+        finishedAt:
           readOnly: true
+          description: Time run finished executing, RFC3339Nano.
+          type: string
+          format: date-time
+        requestedAt:
+          readOnly: true
+          description: Time run was manually requested, RFC3339Nano.
           type: string
           format: date-time
         error:
           $ref: "#/components/schemas/Error"
         log:
           readOnly: true
-          description: A url to a relevant log.
+          description: Link to the full logs for a run.
           type: string
-      required: [queuedAt, status]
     Task:
       properties:
         id:

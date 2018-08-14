@@ -254,7 +254,7 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
+		qr := backend.ScheduledRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -304,7 +304,7 @@ func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
+		qr := backend.ScheduledRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -330,7 +330,7 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
+		qr := backend.ScheduledRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -355,7 +355,7 @@ func testExecutorServiceError(t *testing.T, fn createSysFn) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
+		qr := backend.ScheduledRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
 
 		var forced = errors.New("forced")
 		sys.svc.FailNextQuery(forced)

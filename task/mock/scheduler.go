@@ -129,7 +129,7 @@ type DesiredState struct {
 	runIDs map[string]uint32
 
 	// Map of stringified, concatenated task and platform ID, to runs that have been created.
-	created map[string]backend.QueuedRun
+	created map[string]backend.ScheduledRun
 }
 
 var _ backend.DesiredState = (*DesiredState)(nil)
@@ -137,12 +137,12 @@ var _ backend.DesiredState = (*DesiredState)(nil)
 func NewDesiredState() *DesiredState {
 	return &DesiredState{
 		runIDs:  make(map[string]uint32),
-		created: make(map[string]backend.QueuedRun),
+		created: make(map[string]backend.ScheduledRun),
 	}
 }
 
 // TODO(mr): inject a way to treat CreateRun as blocking?
-func (d *DesiredState) CreateRun(_ context.Context, taskID platform.ID, now int64) (backend.QueuedRun, error) {
+func (d *DesiredState) CreateRun(_ context.Context, taskID platform.ID, now int64) (backend.ScheduledRun, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -151,7 +151,7 @@ func (d *DesiredState) CreateRun(_ context.Context, taskID platform.ID, now int6
 
 	runID := make([]byte, 4)
 	binary.BigEndian.PutUint32(runID, d.runIDs[tid])
-	qr := backend.QueuedRun{
+	qr := backend.ScheduledRun{
 		TaskID: taskID,
 		RunID:  runID,
 		Now:    now,
@@ -170,11 +170,11 @@ func (d *DesiredState) FinishRun(_ context.Context, taskID, runID platform.ID) e
 	return nil
 }
 
-func (d *DesiredState) CreatedFor(taskID platform.ID) []backend.QueuedRun {
+func (d *DesiredState) CreatedFor(taskID platform.ID) []backend.ScheduledRun {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	var qrs []backend.QueuedRun
+	var qrs []backend.ScheduledRun
 	for _, qr := range d.created {
 		if bytes.Equal(qr.TaskID, taskID) {
 			qrs = append(qrs, qr)
@@ -188,10 +188,10 @@ func (d *DesiredState) CreatedFor(taskID platform.ID) []backend.QueuedRun {
 // If the expected number isn't found in time, it returns an error.
 //
 // Because the scheduler and executor do a lot of state changes asynchronously, this is useful in test.
-func (d *DesiredState) PollForNumberCreated(taskID platform.ID, count int) ([]scheduler.QueuedRun, error) {
+func (d *DesiredState) PollForNumberCreated(taskID platform.ID, count int) ([]scheduler.ScheduledRun, error) {
 	const numAttempts = 50
 	actualCount := 0
-	var created []scheduler.QueuedRun
+	var created []scheduler.ScheduledRun
 	for i := 0; i < numAttempts; i++ {
 		time.Sleep(2 * time.Millisecond) // we sleep even on first so it becomes more likely that we catch when too many are produced.
 		created = d.CreatedFor(taskID)
@@ -222,7 +222,7 @@ func NewExecutor() *Executor {
 	}
 }
 
-func (e *Executor) Execute(_ context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
+func (e *Executor) Execute(_ context.Context, run backend.ScheduledRun) (backend.RunPromise, error) {
 	rp := NewRunPromise(run)
 
 	id := run.TaskID.String() + run.RunID.String()
@@ -275,7 +275,7 @@ func (e *Executor) PollForNumberRunning(taskID platform.ID, count int) ([]*RunPr
 
 // RunPromise is a mock RunPromise.
 type RunPromise struct {
-	qr backend.QueuedRun
+	qr backend.ScheduledRun
 
 	setResultOnce sync.Once
 
@@ -286,7 +286,7 @@ type RunPromise struct {
 
 var _ backend.RunPromise = (*RunPromise)(nil)
 
-func NewRunPromise(qr backend.QueuedRun) *RunPromise {
+func NewRunPromise(qr backend.ScheduledRun) *RunPromise {
 	p := &RunPromise{
 		qr: qr,
 	}
@@ -294,7 +294,7 @@ func NewRunPromise(qr backend.QueuedRun) *RunPromise {
 	return p
 }
 
-func (p *RunPromise) Run() backend.QueuedRun {
+func (p *RunPromise) Run() backend.ScheduledRun {
 	return p.qr
 }
 

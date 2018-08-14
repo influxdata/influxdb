@@ -34,7 +34,7 @@ const (
 type RunStatus int
 
 const (
-	RunQueued RunStatus = iota
+	RunScheduled RunStatus = iota
 	RunStarted
 	RunSuccess
 	RunFail
@@ -43,8 +43,8 @@ const (
 
 func (r RunStatus) String() string {
 	switch r {
-	case RunQueued:
-		return "queued"
+	case RunScheduled:
+		return "scheduled"
 	case RunStarted:
 		return "started"
 	case RunSuccess:
@@ -92,7 +92,7 @@ type Store interface {
 	DeleteTask(ctx context.Context, id platform.ID) (deleted bool, err error)
 
 	// CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
-	CreateRun(ctx context.Context, taskID platform.ID, now int64) (QueuedRun, error)
+	CreateRun(ctx context.Context, taskID platform.ID, now int64) (ScheduledRun, error)
 
 	// FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 	FinishRun(ctx context.Context, taskID, runID platform.ID) error

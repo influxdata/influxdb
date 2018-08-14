@@ -22,7 +22,7 @@ var ErrTaskNotClaimed = errors.New("task not claimed")
 type DesiredState interface {
 	// CreateRun returns a run ID for a task and a now timestamp.
 	// If a run already exists for taskID and now, CreateRun must return an error without queuing a new run.
-	CreateRun(ctx context.Context, taskID platform.ID, now int64) (QueuedRun, error)
+	CreateRun(ctx context.Context, taskID platform.ID, now int64) (ScheduledRun, error)
 
 	// FinishRun indicates that the given run is no longer intended to be executed.
 	// This may be called after a successful or failed execution, or upon cancellation.
@@ -35,12 +35,12 @@ type Executor interface {
 	// If there is an error invoking execution, that error is returned and RunPromise is nil.
 	// TODO(mr): this assumes you can execute a run just from a taskID and a now time.
 	// We may need to include the script content in this method signature.
-	Execute(ctx context.Context, run QueuedRun) (RunPromise, error)
+	Execute(ctx context.Context, run ScheduledRun) (RunPromise, error)
 }
 
-// QueuedRun is a task run that has been assigned an ID,
+// ScheduledRun is a task run that has been assigned an ID,
 // but whose execution has not necessarily started.
-type QueuedRun struct {
+type ScheduledRun struct {
 	TaskID, RunID platform.ID
 
 	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set
@@ -51,7 +51,7 @@ type QueuedRun struct {
 // RunPromise represents an in-progress run whose result is not yet known.
 type RunPromise interface {
 	// Run returns the details about the queued run.
-	Run() QueuedRun
+	Run() ScheduledRun
 
 	// Wait blocks until the run completes.
 	// Wait may be called concurrently.
@@ -496,7 +496,7 @@ func (r *runner) startFromWorking() {
 	atomic.StoreUint32(r.state, runnerIdle)
 }
 
-func (r *runner) executeAndWait(qr QueuedRun, runLogger *zap.Logger) {
+func (r *runner) executeAndWait(qr ScheduledRun, runLogger *zap.Logger) {
 	rp, err := r.executor.Execute(r.ctx, qr)
 	if err != nil {
 		// TODO(mr): retry? and log error.
@@ -547,7 +547,7 @@ func (r *runner) executeAndWait(qr QueuedRun, runLogger *zap.Logger) {
 	r.startFromWorking()
 }
 
-func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger) {
+func (r *runner) updateRunState(qr ScheduledRun, s RunStatus, runLogger *zap.Logger) {
 	switch s {
 	case RunStarted:
 		r.tt.metrics.StartRun(r.task.ID.String())
@@ -556,7 +556,7 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger
 	case RunFail, RunCanceled:
 		r.tt.metrics.FinishRun(r.task.ID.String(), false)
 	default:
-		// We are deliberately not handling RunQueued yet.
+		// We are deliberately not handling RunScheduled yet.
 		// There is not really a notion of being queued in this runner architecture.
 		runLogger.Warn("Unhandled run state", zap.Stringer("state", s))
 	}

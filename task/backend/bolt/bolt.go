@@ -535,8 +535,8 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 }
 
 // CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
-func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (backend.QueuedRun, error) {
-	queuedRun := backend.QueuedRun{TaskID: append([]byte(nil), taskID...), Now: now}
+func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (backend.ScheduledRun, error) {
+	ScheduledRun := backend.ScheduledRun{TaskID: append([]byte(nil), taskID...), Now: now}
 	stm := backend.StoreTaskMeta{}
 	paddedID := padID(taskID)
 	if err := s.db.Update(func(tx *bolt.Tx) error {
@@ -568,14 +568,14 @@ func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (b
 			return err
 		}
 
-		queuedRun.RunID = id
+		ScheduledRun.RunID = id
 
 		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(paddedID, stmBytes)
 	}); err != nil {
-		return queuedRun, err
+		return ScheduledRun, err
 	}
 
-	return queuedRun, nil
+	return ScheduledRun, nil
 }
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.

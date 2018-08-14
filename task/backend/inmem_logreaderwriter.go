@@ -29,12 +29,12 @@ func (r *runReaderWriter) UpdateRunState(ctx context.Context, task *StoreTask, r
 	timeSetter := func(r *platform.Run) {
 		whenStr := when.Format(time.RFC3339)
 		switch status {
-		case RunQueued:
-			r.QueuedAt = whenStr
+		case RunScheduled:
+			r.ScheduledFor = whenStr
 		case RunStarted:
-			r.StartTime = whenStr
+			r.StartedAt = whenStr
 		case RunFail, RunSuccess, RunCanceled:
-			r.EndTime = whenStr
+			r.FinishedAt = whenStr
 		}
 	}
 
@@ -85,7 +85,7 @@ func (r *runReaderWriter) ListRuns(ctx context.Context, runFilter platform.RunFi
 	copy(runs, r.byTaskID[runFilter.Task.String()])
 
 	sort.Slice(runs, func(i int, j int) bool {
-		return runs[i].QueuedAt < runs[j].QueuedAt
+		return runs[i].ScheduledFor < runs[j].ScheduledFor
 	})
 
 	beforeCheck := runFilter.BeforeTime != ""
@@ -99,12 +99,12 @@ func (r *runReaderWriter) ListRuns(ctx context.Context, runFilter platform.RunFi
 			afterIndex = i
 		}
 
-		if run.QueuedAt != "" {
-			if afterCheck && afterIndex == 0 && run.QueuedAt > runFilter.AfterTime {
+		if run.ScheduledFor != "" {
+			if afterCheck && afterIndex == 0 && run.ScheduledFor > runFilter.AfterTime {
 				afterIndex = i
 			}
 
-			if beforeCheck && beforeIndex == len(runs) && runFilter.BeforeTime < run.QueuedAt {
+			if beforeCheck && beforeIndex == len(runs) && runFilter.BeforeTime < run.ScheduledFor {
 				beforeIndex = i
 				break
 			}

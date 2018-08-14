@@ -29,7 +29,7 @@ func NewQueryServiceExecutor(logger *zap.Logger, svc query.QueryService, st back
 	return &queryServiceExecutor{logger: logger, svc: svc, st: st}
 }
 
-func (e *queryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
+func (e *queryServiceExecutor) Execute(ctx context.Context, run backend.ScheduledRun) (backend.RunPromise, error) {
 	t, err := e.st.FindTaskByID(ctx, run.TaskID)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (e *queryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRu
 
 // syncRunPromise implements backend.RunPromise for a synchronous QueryService.
 type syncRunPromise struct {
-	qr     backend.QueuedRun
+	qr     backend.ScheduledRun
 	svc    query.QueryService
 	t      *backend.StoreTask
 	ctx    context.Context
@@ -56,7 +56,7 @@ type syncRunPromise struct {
 
 var _ backend.RunPromise = (*syncRunPromise)(nil)
 
-func newSyncRunPromise(ctx context.Context, qr backend.QueuedRun, e *queryServiceExecutor, t *backend.StoreTask) *syncRunPromise {
+func newSyncRunPromise(ctx context.Context, qr backend.ScheduledRun, e *queryServiceExecutor, t *backend.StoreTask) *syncRunPromise {
 	ctx, cancel := context.WithCancel(ctx)
 	log, logEnd := logger.NewOperation(e.logger, "Executing task", "execute")
 	rp := &syncRunPromise{
@@ -76,7 +76,7 @@ func newSyncRunPromise(ctx context.Context, qr backend.QueuedRun, e *queryServic
 	return rp
 }
 
-func (p *syncRunPromise) Run() backend.QueuedRun {
+func (p *syncRunPromise) Run() backend.ScheduledRun {
 	return p.qr
 }
 
@@ -171,7 +171,7 @@ func NewAsyncQueryServiceExecutor(logger *zap.Logger, svc query.AsyncQueryServic
 	return &asyncQueryServiceExecutor{logger: logger, svc: svc, st: st}
 }
 
-func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
+func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.ScheduledRun) (backend.RunPromise, error) {
 	t, err := e.st.FindTaskByID(ctx, run.TaskID)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 
 // asyncRunPromise implements backend.RunPromise for an AsyncQueryService.
 type asyncRunPromise struct {
-	qr backend.QueuedRun
+	qr backend.ScheduledRun
 	q  query.Query
 
 	logger *zap.Logger
@@ -212,7 +212,7 @@ type asyncRunPromise struct {
 
 var _ backend.RunPromise = (*asyncRunPromise)(nil)
 
-func newAsyncRunPromise(qr backend.QueuedRun, q query.Query, e *asyncQueryServiceExecutor) *asyncRunPromise {
+func newAsyncRunPromise(qr backend.ScheduledRun, q query.Query, e *asyncQueryServiceExecutor) *asyncRunPromise {
 	log, logEnd := logger.NewOperation(e.logger, "Executing task", "execute")
 
 	p := &asyncRunPromise{
@@ -228,7 +228,7 @@ func newAsyncRunPromise(qr backend.QueuedRun, q query.Query, e *asyncQueryServic
 	return p
 }
 
-func (p *asyncRunPromise) Run() backend.QueuedRun {
+func (p *asyncRunPromise) Run() backend.ScheduledRun {
 	return p.qr
 }
 
