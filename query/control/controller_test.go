@@ -96,6 +96,53 @@ func TestController_EnqueueQuery_Failure(t *testing.T) {
 	}
 }
 
+func TestController_ExecuteQuery_Failure(t *testing.T) {
+	executor := mock.NewExecutor()
+	executor.ExecuteFn = func(context.Context, platform.ID, *plan.PlanSpec, *execute.Allocator) (map[string]query.Result, error) {
+		return nil, errors.New("expected")
+	}
+
+	ctrl := New(Config{})
+	ctrl.executor = executor
+	req := &query.Request{
+		OrganizationID: platform.ID("a"),
+		Compiler:       mockCompiler,
+	}
+
+	// Run a query and then wait for it to be ready.
+	q, err := ctrl.Query(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// We do not care about the results, just that the query is ready.
+	<-q.Ready()
+
+	if err := q.Err(); err == nil {
+		t.Fatal("expected error")
+	} else if got, want := err.Error(), "failed to execute query: expected"; got != want {
+		t.Fatalf("unexpected error: exp=%s want=%s", want, got)
+	}
+
+	// Now finish the query by using Done.
+	q.Done()
+
+	// Verify the metrics say there are no queries.
+	gauge, err := ctrl.metrics.all.GetMetricWithLabelValues(req.OrganizationID.String())
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	metric := &dto.Metric{}
+	if err := gauge.Write(metric); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if got, exp := int(metric.Gauge.GetValue()), 0; got != exp {
+		t.Fatalf("unexpected metric value: exp=%d got=%d", exp, got)
+	}
+}
+
 func TestController_CancelQuery(t *testing.T) {
 	executor := mock.NewExecutor()
 	executor.ExecuteFn = func(context.Context, platform.ID, *plan.PlanSpec, *execute.Allocator) (map[string]query.Result, error) {
