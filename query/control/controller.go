@@ -157,6 +157,7 @@ func (c *Controller) enqueueQuery(q *Query) error {
 		return errors.New("failed to transition query to queueing state")
 	}
 	if err := q.spec.Validate(); err != nil {
+		q.queueSpan.Finish()
 		return errors.Wrap(err, "invalid query")
 	}
 	// Add query to the queue
@@ -164,6 +165,7 @@ func (c *Controller) enqueueQuery(q *Query) error {
 	case c.newQueries <- q:
 		return nil
 	case <-q.parentCtx.Done():
+		q.queueSpan.Finish()
 		return q.parentCtx.Err()
 	}
 }
