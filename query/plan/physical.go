@@ -15,9 +15,7 @@ const DefaultYieldName = "_result"
 
 type PlanSpec struct {
 	// Now represents the relative current time of the plan.
-	Now    time.Time
-	Bounds BoundsSpec
-
+	Now time.Time
 	// Procedures is a set of all operations
 	Procedures map[ProcedureID]*Procedure
 	Order      []ProcedureID
@@ -134,14 +132,38 @@ func (p *planner) Plan(lp *LogicalPlanSpec, s Storage) (*PlanSpec, error) {
 	var yields []*Procedure
 	for _, id := range p.plan.Order {
 		pr := p.plan.Procedures[id]
+
+		// The bounds of the current procedure are always the union
+		// of the bounds of any parent procedure
+		pr.DoParents(func(parent *Procedure) {
+			if pr.Bounds.HasZero() {
+				pr.Bounds = parent.Bounds
+			} else {
+				pr.Bounds = pr.Bounds.Union(parent.Bounds, now)
+			}
+		})
+
+		// If the procedure is bounded and provides its own additional bounds,
+		// the procedure's new bounds are the intersection of any bounds it inherited
+		// from its parents, and its own bounds.
 		if bounded, ok := pr.Spec.(BoundedProcedureSpec); ok {
-			bounds := bounded.TimeBounds()
-			p.plan.Bounds = p.plan.Bounds.Union(bounds, now)
+			if pr.Bounds.HasZero() {
+				pr.Bounds = bounded.TimeBounds()
+			} else {
+				newBounds := pr.Bounds.Intersect(bounded.TimeBounds(), now)
+				if newBounds != EmptyBoundsSpec {
+					pr.Bounds = newBounds
+				} else {
+					pr.Bounds = bounded.TimeBounds()
+				}
+			}
 		}
+
 		if yield, ok := pr.Spec.(YieldProcedureSpec); ok {
 			if len(pr.Parents) != 1 {
 				return nil, errors.New("yield procedures must have exactly one parent")
 			}
+
 			parent := pr.Parents[0]
 			name := yield.YieldName()
 			_, ok := p.plan.Results[name]
@@ -169,8 +191,12 @@ func (p *planner) Plan(lp *LogicalPlanSpec, s Storage) (*PlanSpec, error) {
 		}
 	}
 
-	if p.plan.Bounds.Start.IsZero() && p.plan.Bounds.Stop.IsZero() {
-		return nil, errors.New("unbounded queries are not supported. Add a 'range' call to bound the query.")
+	for name, yield := range p.plan.Results {
+		if pr, ok := p.plan.Procedures[yield.ID]; ok {
+			if pr.Bounds.HasZero() {
+				return nil, fmt.Errorf(`result '%s' is unbounded. Add a 'range' call to bound the query.`, name)
+			}
+		}
 	}
 
 	// Update concurrency quota

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"runtime/debug"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
@@ -27,6 +28,20 @@ func NewExecutor(deps Dependencies) Executor {
 	return e
 }
 
+type streamContext struct {
+	bounds Bounds
+}
+
+func newStreamContext(b Bounds) streamContext {
+	return streamContext{
+		bounds: b,
+	}
+}
+
+func (ctx streamContext) Bounds() Bounds {
+	return ctx.bounds
+}
+
 type executionState struct {
 	p    *plan.PlanSpec
 	deps Dependencies
@@ -36,8 +51,6 @@ type executionState struct {
 	alloc *Allocator
 
 	resources query.ResourceManagement
-
-	bounds Bounds
 
 	results map[string]query.Result
 	sources []Source
@@ -78,10 +91,6 @@ func (e *executor) createExecutionState(ctx context.Context, orgID platform.ID, 
 		results:   make(map[string]query.Result, len(p.Results)),
 		// TODO(nathanielc): Have the planner specify the dispatcher throughput
 		dispatcher: newPoolDispatcher(10),
-		bounds: Bounds{
-			Start: Time(p.Bounds.Start.Time(p.Now).UnixNano()),
-			Stop:  Time(p.Bounds.Stop.Time(p.Now).UnixNano()),
-		},
 	}
 	nodes := make(map[plan.ProcedureID]Node, len(p.Procedures))
 	for name, yield := range p.Results {
@@ -109,10 +118,16 @@ func (es *executionState) createNode(ctx context.Context, pr *plan.Procedure, no
 	if n, ok := nodes[pr.ID]; ok {
 		return n, nil
 	}
+
 	// Build execution context
 	ec := executionContext{
 		es: es,
+		streamContext: newStreamContext(Bounds{
+			Start: resolveTime(pr.Bounds.Start, es.p.Now),
+			Stop:  resolveTime(pr.Bounds.Stop, es.p.Now),
+		}),
 	}
+
 	if len(pr.Parents) > 0 {
 		ec.parents = make([]DatasetID, len(pr.Parents))
 		for i, parentID := range pr.Parents {
@@ -212,9 +227,11 @@ func (es *executionState) do(ctx context.Context) {
 	}()
 }
 
+// Need a unique stream context per execution context
 type executionContext struct {
-	es      *executionState
-	parents []DatasetID
+	es            *executionState
+	parents       []DatasetID
+	streamContext streamContext
 }
 
 // Satisfy the ExecutionContext interface
@@ -222,11 +239,16 @@ func (ec executionContext) OrganizationID() platform.ID {
 	return ec.es.orgID
 }
 
-func (ec executionContext) ResolveTime(qt query.Time) Time {
-	return Time(qt.Time(ec.es.p.Now).UnixNano())
+func resolveTime(qt query.Time, now time.Time) Time {
+	return Time(qt.Time(now).UnixNano())
 }
-func (ec executionContext) Bounds() Bounds {
-	return ec.es.bounds
+
+func (ec executionContext) ResolveTime(qt query.Time) Time {
+	return resolveTime(qt, ec.es.p.Now)
+}
+
+func (ec executionContext) StreamContext() StreamContext {
+	return ec.streamContext
 }
 
 func (ec executionContext) Allocator() *Allocator {

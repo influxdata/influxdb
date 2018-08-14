@@ -52,7 +52,7 @@ func createRangeOpSpec(args query.Arguments, a *query.Administration) (query.Ope
 		spec.Stop = stop
 	} else {
 		// Make stop time implicit "now"
-		spec.Stop.IsRelative = true
+		spec.Stop = query.Now
 	}
 
 	if col, ok, err := args.GetString("timeCol"); err != nil {

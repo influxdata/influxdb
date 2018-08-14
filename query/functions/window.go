@@ -188,7 +188,7 @@ func createWindowTransformation(id execute.DatasetID, mode execute.AccumulationM
 	t := NewFixedWindowTransformation(
 		d,
 		cache,
-		a.Bounds(),
+		a.StreamContext().Bounds(),
 		execute.Window{
 			Every:  execute.Duration(s.Window.Every),
 			Period: execute.Duration(s.Window.Period),

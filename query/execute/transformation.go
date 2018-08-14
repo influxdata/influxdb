@@ -16,11 +16,17 @@ type Transformation interface {
 	Finish(id DatasetID, err error)
 }
 
+// StreamContext represents necessary context for a single stream of
+// query data.
+type StreamContext interface {
+	Bounds() Bounds
+}
+
 type Administration interface {
 	OrganizationID() platform.ID
 
 	ResolveTime(qt query.Time) Time
-	Bounds() Bounds
+	StreamContext() StreamContext
 	Allocator() *Allocator
 	Parents() []DatasetID
 	ConvertID(plan.ProcedureID) DatasetID
