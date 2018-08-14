@@ -265,19 +265,7 @@ func (s *inmem) FinishRun(ctx context.Context, taskID, runID platform.ID) error 
 		return errors.New("taskRunner not found")
 	}
 
-	found := false
-	for i, runner := range stm.CurrentlyRunning {
-		if string(runner.RunID) == string([]byte(runID)) {
-			found = true
-			stm.CurrentlyRunning = append(stm.CurrentlyRunning[:i], stm.CurrentlyRunning[i+1:]...)
-			if runner.Now > stm.LastCompleted {
-				stm.LastCompleted = runner.Now
-				break
-			}
-		}
-	}
-
-	if !found {
+	if !stm.FinishRun(runID) {
 		return errors.New("run not found")
 	}
 

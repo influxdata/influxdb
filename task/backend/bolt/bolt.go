@@ -580,27 +580,16 @@ func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (b
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 func (s *Store) FinishRun(ctx context.Context, taskID, runID platform.ID) error {
-	stm := backend.StoreTaskMeta{}
 	paddedID := padID(taskID)
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
 		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
+		var stm backend.StoreTaskMeta
 		if err := stm.Unmarshal(stmBytes); err != nil {
 			return err
 		}
-		found := false
-		for i, runner := range stm.CurrentlyRunning {
-			if platform.ID(runner.RunID).String() == runID.String() {
-				found = true
-				stm.CurrentlyRunning = append(stm.CurrentlyRunning[:i], stm.CurrentlyRunning[i+1:]...)
-				if runner.Now > stm.LastCompleted {
-					stm.LastCompleted = runner.Now
-					break
-				}
-			}
-		}
-		if !found {
+		if !stm.FinishRun(runID) {
 			return ErrRunNotFound
 		}
 
