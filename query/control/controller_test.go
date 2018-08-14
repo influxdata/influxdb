@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/platform/query/mock"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -81,18 +82,23 @@ func TestController_EnqueueQuery_Failure(t *testing.T) {
 	}
 
 	// Verify the metrics say there are no queries.
-	gauge, err := ctrl.metrics.all.GetMetricWithLabelValues(req.OrganizationID.String())
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+	for name, gaugeVec := range map[string]*prometheus.GaugeVec{
+		"all":      ctrl.metrics.all,
+		"queueing": ctrl.metrics.queueing,
+	} {
+		gauge, err := gaugeVec.GetMetricWithLabelValues(req.OrganizationID.String())
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
 
-	metric := &dto.Metric{}
-	if err := gauge.Write(metric); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+		metric := &dto.Metric{}
+		if err := gauge.Write(metric); err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
 
-	if got, exp := int(metric.Gauge.GetValue()), 0; got != exp {
-		t.Fatalf("unexpected metric value: exp=%d got=%d", exp, got)
+		if got, exp := int(metric.Gauge.GetValue()), 0; got != exp {
+			t.Fatalf("unexpected %s metric value: exp=%d got=%d", name, exp, got)
+		}
 	}
 }
 
