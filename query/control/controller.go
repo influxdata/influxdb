@@ -218,11 +218,11 @@ func (c *Controller) run() {
 		q := pq.Peek()
 		if q != nil {
 			pop, err := c.processQuery(q)
-			if err != nil {
-				go q.setErr(err)
-			}
 			if pop {
 				pq.Pop()
+			}
+			if err != nil {
+				go q.setErr(err)
 			}
 		}
 	}
