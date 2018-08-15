@@ -93,6 +93,7 @@ func fluxF(cmd *cobra.Command, args []string) {
 		ExecutorDependencies: make(execute.Dependencies),
 		ConcurrencyQuota:     concurrencyQuota,
 		MemoryBytesQuota:     int64(memoryBytesQuota),
+		Logger:               logger,
 		Verbose:              viper.GetBool("verbose"),
 	}
 	if err := injectDeps(config.ExecutorDependencies); err != nil {
