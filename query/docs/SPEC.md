@@ -163,10 +163,10 @@ Examples:
 
 A duration literal is a representation of a length of time.
 It has an integer part and a duration unit part.
-Multiple duration may be specified together and the resulting duration is the sum of each smaller part.
+Multiple durations may be specified together and the resulting duration is the sum of each smaller part.
 
-    duration_lit        = { int_lit duration_unit } .
-    duration_unit       = "ns" | "us" | "µs" | "ms" | "s" | "m" | "h" | "d" | "w" | "mo" | "y" .
+    duration_lit  = { int_lit duration_unit } .
+    duration_unit = "ns" | "us" | "µs" | "ms" | "s" | "m" | "h" | "d" | "w" | "mo" | "y" .
 
 | Units    | Meaning                                 |
 | -----    | -------                                 |
@@ -182,12 +182,14 @@ Multiple duration may be specified together and the resulting duration is the su
 | y        | year (12 months)                        |
 
 Durations represent a length of time.
-Durations can be combined via addition and subtraction.
-Durations can be multiplied by an integer value.
-
-Durations track the basic units of seconds, days and months independently.
+Lengths of time are dependent on specific instants in time they occur and as such, durations do not represent a fixed amount of time.
 No amount of seconds is equal to a day, as days vary in their number of seconds.
 No amount of days is equal to a month, as months vary in their number of days.
+A duration consists of three basic time units: seconds, days and months.
+
+Durations can be combined via addition and subtraction.
+Durations can be multiplied by an integer value.
+These operations are performed on each time unit independently.
 
 Examples:
 
@@ -197,6 +199,30 @@ Examples:
     5w
     1mo5d // 1 month and 5 days
 
+Durations can be added to date times to produce a new date time.
+Adding and subtracting durations to date times normalizes the dates.
+For example July 32 converts to August 1.
+
+Addition and subtraction of durations to date times do not commute and are left associative.
+Addition and subtraction of durations to date times applies months, days and seconds in that order and then normalizes.
+
+Examples:
+
+    2018-01-01T00:00:00Z + 1d       // 2018-01-02T00:00:00Z
+    2018-01-01T00:00:00Z + 1mo      // 2018-02-01T00:00:00Z
+    2018-01-01T00:00:00Z + 2mo30d   // 2018-03-30T00:00:00Z
+    2018-01-01T00:00:00Z + 1mo30d   // 2018-03-02T00:00:00Z, February 30th is normalized to March 2 in 2018 since it is not a leap year.
+
+    // Addition and subtraction of durations to date times does not commute
+    2018-02-28T00:00:00Z + 1mo + 1d // 2018-03-29T00:00:00Z
+    2018-02-28T00:00:00Z + 1d + 1mo // 2018-04-01T00:00:00Z
+    2018-01-01T00:00:00Z + 3mo - 1d // 2018-02-28T00:00:00Z
+    2018-01-01T00:00:00Z - 1d + 3mo // 2018-03-03T00:00:00Z, December 31st + 3m0 is February 31st which is normalized to March 3 in 2018.
+
+    // Addition and subtraction of durations to date times applies months, days and seconds in that order.
+    2018-02-28T00:00:00Z + 1mo + 1d // 2018-03-29T00:00:00Z
+    2018-02-28T00:00:00Z + 1mo1d    // 2018-03-29T00:00:00Z
+    2018-02-28T00:00:00Z + 1d + 1mo // 2018-04-01T00:00:00Z, explicit left associative add of 1d first changes the result
 
 [IMPL#311](https://github.com/influxdata/platform/query/issues/311) Parse duration literals
 
@@ -205,18 +231,27 @@ Examples:
 A date and time literal represents a specific moment in time.
 It has a date part, a time part and a time offset part.
 The format follows the RFC 3339 specification.
+The time is optional, when it is omitted the time is assumed to be midnight for the default location.
+The time_offset is optional, when it is omitted the location option is used to determine the offset.
 
-    date_time_lit     = date "T" time .
+    date_time_lit     = date [ "T" time ] .
     date              = year_lit "-" month "-" day .
     year              = decimal_digit decimal_digit decimal_digit decimal_digit .
     month             = decimal_digit decimal_digit .
     day               = decimal_digit decimal_digit .
-    time              = hour ":" minute ":" second [ fractional_second ] time_offset .
+    time              = hour ":" minute ":" second [ fractional_second ] [ time_offset ] .
     hour              = decimal_digit decimal_digit .
     minute            = decimal_digit decimal_digit .
     second            = decimal_digit decimal_digit .
     fractional_second = "."  { decimal_digit } .
     time_offset       = "Z" | ("+" | "-" ) hour ":" minute .
+
+Examples:
+
+    1952-01-25T12:35:51Z
+    2018-08-15T13:36:23-07:00
+    2009-10-15T09:00:00       // October 15th 2009 at 9 AM in the default location
+    2018-01-01                // midnight on January 1st 2018 in the default location
 
 #### String literals
 
@@ -590,9 +625,9 @@ The `task` option is used by a scheduler to schedule the execution of a Flux que
 
 ##### location
 
-The `location` option is used to set the time zone of all times in the script.
+The `location` option is used to set the default time zone of all times in the script.
 The location maps the UTC offset in use at that location for a given time.
-The default value is the location of the running process.
+The default value is set using the time zone of the running process.
 
     option location = fixedZone(offset:-5h) // set timezone to be 5 hours west of UTC
     option location = loadLocation(name:"America/Denver") // set location to be America/Denver
@@ -804,6 +839,7 @@ Examples:
     intervals(every:1h, period:2h, offset:30m) // 2 hour long intervals every 1 hour starting at 30m past the hour
     intervals(every:1w, offset:1d)             // 1 week intervals starting on Monday (by default weeks start on Sunday)
     intervals(every:1d, period:-1h)            // the hour from 11PM - 12AM every night
+    intervals(every:1mo, period:-1d)           // the last day of each month
 
 Examples using a predicate:
 
@@ -824,7 +860,7 @@ Examples using a predicate:
 [IMPL#XXX](https://github.com/influxdata/platform/query/issues/XXX) Implement intervals function
 
 
-### Builtin Intervals
+##### Builtin Intervals
 
 The following builtin intervals exist:
 
@@ -849,6 +885,40 @@ The following builtin intervals exist:
     // 1 year intervals starting on the 1st of January
     years = intervals(every:1y)
 
+
+
+#### FixedZone
+
+FixedZone creates a location based on a fixed time offset from UTC.
+
+
+FixedZone has the following parameters:
+
+* offset duration
+    Offset is the offset from UTC for the time zone.
+    Offset must be less than 24h.
+    Defaults to 0, which produces the UTC location.
+
+Examples:
+
+    fixedZone(offset:-5h) // time zone 5 hours west of UTC
+    fixedZone(offset:4h30m) // time zone 4 and a half hours east of UTC
+
+#### LoadLocation
+
+LoadLoacation loads a locations from a time zone database.
+
+LoadLocation has the following parameters:
+
+* name string
+    Name is the name of the location to load.
+    The names correspond to names in the [IANA tzdb](https://www.iana.org/time-zones).
+
+Examples:
+
+    loadLocation(name:"America/Denver")
+    loadLocation(name:"America/Chicago")
+    loadLocation(name:"Africa/Tunis")
 
 ## Query engine
 
