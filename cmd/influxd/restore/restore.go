@@ -440,7 +440,7 @@ func (cmd *Command) uploadShardsLegacy() error {
 	}
 
 	for _, fn := range backupFiles {
-		parts := strings.Split(fn, ".")
+		parts := strings.Split(filepath.Base(fn), ".")
 
 		if len(parts) != 4 {
 			cmd.StderrLogger.Printf("Skipping mis-named backup file: %s", fn)
