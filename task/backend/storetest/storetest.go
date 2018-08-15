@@ -433,6 +433,10 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatalf("last completed should have been set to 6000, got %d", meta.LastCompleted)
 	}
 
+	if meta.EffectiveCron != "* * * * *" {
+		t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
+	}
+
 	badID := []byte("bad")
 	meta, err = s.FindTaskMetaByID(context.Background(), badID)
 	if err == nil {

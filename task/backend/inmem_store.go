@@ -62,7 +62,12 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 		}
 	}
 	s.tasks = append(s.tasks, task)
-	s.runners[id.String()] = StoreTaskMeta{MaxConcurrency: int32(o.Concurrency), Status: string(TaskEnabled), LastCompleted: scheduleAfter}
+	s.runners[id.String()] = StoreTaskMeta{
+		MaxConcurrency: int32(o.Concurrency),
+		Status:         string(TaskEnabled),
+		LastCompleted:  scheduleAfter,
+		EffectiveCron:  o.EffectiveCronString(),
+	}
 
 	return id, nil
 }

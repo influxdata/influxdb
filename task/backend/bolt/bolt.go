@@ -211,6 +211,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 			MaxConcurrency: int32(o.Concurrency),
 			Status:         string(backend.TaskEnabled),
 			LastCompleted:  scheduleAfter,
+			EffectiveCron:  o.EffectiveCronString(),
 		}
 
 		stmBytes, err := stm.Marshal()
