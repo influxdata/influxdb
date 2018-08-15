@@ -53,7 +53,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
-	opts := &options.Options{Every: time.Minute}
+	opts := &options.Options{Every: time.Minute, Name: "x", Retry: 1, Concurrency: 1}
 	if err := o.ClaimTask(task, 3, opts); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	task = &backend.StoreTask{
 		ID: platform.ID{2},
 	}
-	opts = &options.Options{Every: time.Second, Concurrency: 99}
+	opts = &options.Options{Every: time.Second, Concurrency: 99, Retry: 1, Name: "y"}
 	if err := o.ClaimTask(task, 3, opts); err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestScheduler_CreateRunOnTick(t *testing.T) {
 		ID: platform.ID{1},
 	}
 
-	opts := &options.Options{Every: time.Second, Concurrency: 2}
+	opts := &options.Options{Every: time.Second, Concurrency: 2, Name: "x", Retry: 1}
 	if err := o.ClaimTask(task, 5, opts); err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestScheduler_Release(t *testing.T) {
 		ID: platform.ID{1},
 	}
 
-	opts := &options.Options{Every: time.Second, Concurrency: 99}
+	opts := &options.Options{Every: time.Second, Concurrency: 99, Name: "x", Retry: 1}
 	if err := o.ClaimTask(task, 5, opts); err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestScheduler_RunLog(t *testing.T) {
 		ID: platform.ID{1},
 	}
 
-	opts := &options.Options{Every: time.Second, Concurrency: 99}
+	opts := &options.Options{Every: time.Second, Concurrency: 99, Name: "x", Retry: 1}
 	if err := s.ClaimTask(task, 5, opts); err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func TestScheduler_Metrics(t *testing.T) {
 		ID: platform.ID{1},
 	}
 
-	opts := &options.Options{Every: time.Second, Concurrency: 99}
+	opts := &options.Options{Every: time.Second, Concurrency: 99, Name: "x", Retry: 1}
 	if err := s.ClaimTask(task, 5, opts); err != nil {
 		t.Fatal(err)
 	}

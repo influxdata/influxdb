@@ -74,3 +74,21 @@ func TestFromScript(t *testing.T) {
 		}
 	}
 }
+
+func TestEffectiveCronString(t *testing.T) {
+	for _, c := range []struct {
+		c   string
+		e   time.Duration
+		exp string
+	}{
+		{c: "10 * * * *", exp: "10 * * * *"},
+		{e: 10 * time.Second, exp: "@every 10s"},
+		{exp: ""},
+	} {
+		o := options.Options{Cron: c.c, Every: c.e}
+		got := o.EffectiveCronString()
+		if got != c.exp {
+			t.Fatalf("exp cron string %q, got %q for %v", c.exp, got, o)
+		}
+	}
+}

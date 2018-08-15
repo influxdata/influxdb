@@ -91,9 +91,8 @@ type Scheduler interface {
 	// The timing schedule for the task is parsed from the script.
 	// startExecutionFrom is an exclusive timestamp, after which execution should start;
 	// you can set startExecutionFrom in the past to backfill a task.
-	// concurrencyLimit is how many runs may be concurrently queued or executing.
-	// concurrencyLimit must be positive.
 	ClaimTask(task *StoreTask, startExecutionFrom int64, opt *options.Options) error
+
 	// ReleaseTask immediately cancels any in-progress runs for the given task ID,
 	// and releases any resources related to management of that task.
 	ReleaseTask(taskID platform.ID) error
@@ -195,19 +194,14 @@ func (s *outerScheduler) Tick(now int64) {
 func (s *outerScheduler) ClaimTask(task *StoreTask, startExecutionFrom int64, opts *options.Options) (err error) {
 	defer s.metrics.ClaimTask(err == nil)
 
-	timer := opts.Cron
-
-	if timer == "" {
-		if opts.Every < time.Second {
-			return errors.New("timing options not set or set too quick")
-		}
-
-		if opts.Every.Truncate(time.Second) != opts.Every {
-			return errors.New("invalid every granularity")
-		}
-		timer = "@every " + opts.Every.String()
+	if err := opts.Validate(); err != nil {
+		return fmt.Errorf("cannot claim task with invalid options: %v", err)
 	}
 
+	timer := opts.EffectiveCronString()
+	if timer == "" {
+		return errors.New("cannot claim task without a schedule")
+	}
 	sch, err := cron.Parse(timer)
 	if err != nil {
 		return fmt.Errorf("error parsing cron expression: %v", err)
