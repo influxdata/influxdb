@@ -11,6 +11,8 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type Executor interface {
@@ -18,12 +20,17 @@ type Executor interface {
 }
 
 type executor struct {
-	deps Dependencies
+	deps   Dependencies
+	logger *zap.Logger
 }
 
-func NewExecutor(deps Dependencies) Executor {
+func NewExecutor(deps Dependencies, logger *zap.Logger) Executor {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	e := &executor{
-		deps: deps,
+		deps:   deps,
+		logger: logger,
 	}
 	return e
 }
@@ -58,6 +65,7 @@ type executionState struct {
 	transports []Transport
 
 	dispatcher *poolDispatcher
+	logger     *zap.Logger
 }
 
 func (e *executor) Execute(ctx context.Context, orgID platform.ID, p *plan.PlanSpec, a *Allocator) (map[string]query.Result, error) {
@@ -65,6 +73,7 @@ func (e *executor) Execute(ctx context.Context, orgID platform.ID, p *plan.PlanS
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to initialize execute state")
 	}
+	es.logger = e.logger
 	es.do(ctx)
 	return es.results, nil
 }
@@ -90,7 +99,7 @@ func (e *executor) createExecutionState(ctx context.Context, orgID platform.ID, 
 		resources: p.Resources,
 		results:   make(map[string]query.Result, len(p.Results)),
 		// TODO(nathanielc): Have the planner specify the dispatcher throughput
-		dispatcher: newPoolDispatcher(10),
+		dispatcher: newPoolDispatcher(10, e.logger),
 	}
 	nodes := make(map[plan.ProcedureID]Node, len(p.Procedures))
 	for name, yield := range p.Results {
@@ -200,6 +209,10 @@ func (es *executionState) do(ctx context.Context) {
 						err = fmt.Errorf("%v", e)
 					}
 					es.abort(fmt.Errorf("panic: %v\n%s", err, debug.Stack()))
+					if entry := es.logger.Check(zapcore.InfoLevel, "Execute source panic"); entry != nil {
+						entry.Stack = string(debug.Stack())
+						entry.Write(zap.Error(err))
+					}
 				}
 			}()
 			src.Run(ctx)

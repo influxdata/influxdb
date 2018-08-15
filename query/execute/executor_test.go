@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/plan"
 	uuid "github.com/satori/go.uuid"
+	"go.uber.org/zap/zaptest"
 )
 
 var epoch = time.Unix(0, 0)
@@ -488,7 +489,7 @@ func TestExecutor_Execute(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			exe := execute.NewExecutor(nil)
+			exe := execute.NewExecutor(nil, zaptest.NewLogger(t))
 			results, err := exe.Execute(context.Background(), orgID, tc.plan, executetest.UnlimitedAllocator)
 			if err != nil {
 				t.Fatal(err)

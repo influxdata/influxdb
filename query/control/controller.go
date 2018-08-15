@@ -35,6 +35,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 // Controller provides a central location to manage all incoming queries.
@@ -54,6 +55,7 @@ type Controller struct {
 	lplanner plan.LogicalPlanner
 	pplanner plan.Planner
 	executor execute.Executor
+	logger   *zap.Logger
 
 	maxConcurrency       int
 	availableConcurrency int
@@ -64,12 +66,17 @@ type Config struct {
 	ConcurrencyQuota     int
 	MemoryBytesQuota     int64
 	ExecutorDependencies execute.Dependencies
+	Logger               *zap.Logger
 	Verbose              bool
 }
 
 type QueryID uint64
 
 func New(c Config) *Controller {
+	logger := c.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	ctrl := &Controller{
 		newQueries:           make(chan *Query),
 		queries:              make(map[QueryID]*Query),
@@ -80,7 +87,8 @@ func New(c Config) *Controller {
 		availableMemory:      c.MemoryBytesQuota,
 		lplanner:             plan.NewLogicalPlanner(),
 		pplanner:             plan.NewPlanner(),
-		executor:             execute.NewExecutor(c.ExecutorDependencies),
+		executor:             execute.NewExecutor(c.ExecutorDependencies, logger),
+		logger:               logger,
 		metrics:              newControllerMetrics(),
 		verbose:              c.Verbose,
 	}
