@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"runtime/debug"
 	"sync"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Dispatcher schedules work for a query.
@@ -31,14 +34,17 @@ type poolDispatcher struct {
 	wg      sync.WaitGroup
 	err     error
 	errC    chan error
+
+	logger *zap.Logger
 }
 
-func newPoolDispatcher(throughput int) *poolDispatcher {
+func newPoolDispatcher(throughput int, logger *zap.Logger) *poolDispatcher {
 	return &poolDispatcher{
 		throughput: throughput,
 		work:       make(chan ScheduleFunc, 100),
 		closing:    make(chan struct{}),
 		errC:       make(chan error, 1),
+		logger:     logger.With(zap.String("component", "dispatcher")),
 	}
 }
 
@@ -65,6 +71,10 @@ func (d *poolDispatcher) Start(n int, ctx context.Context) {
 						err = fmt.Errorf("%v", e)
 					}
 					d.setErr(fmt.Errorf("panic: %v\n%s", err, debug.Stack()))
+					if entry := d.logger.Check(zapcore.InfoLevel, "Dispatcher panic"); entry != nil {
+						entry.Stack = string(debug.Stack())
+						entry.Write(zap.Error(err))
+					}
 				}
 			}()
 			d.run(ctx)
