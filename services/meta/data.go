@@ -1579,6 +1579,7 @@ type UserInfo struct {
 type User interface {
 	query.Authorizer
 	ID() string
+	AuthorizeUnrestricted() bool
 }
 
 func (u *UserInfo) ID() string {
@@ -1602,6 +1603,11 @@ func (u *UserInfo) AuthorizeSeriesRead(database string, measurement []byte, tags
 // AuthorizeSeriesWrite is used to limit access per-series (enterprise only)
 func (u *UserInfo) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
+}
+
+// AuthorizeUnrestricted allows admins to shortcut access checks.
+func (u *UserInfo) AuthorizeUnrestricted() bool {
+	return u.Admin
 }
 
 // clone returns a deep copy of si.
