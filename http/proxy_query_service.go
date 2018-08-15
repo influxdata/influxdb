@@ -104,6 +104,7 @@ func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.P
 		return 0, err
 	}
 	hreq.Header.Set("Authorization", s.Token)
+	hreq = hreq.WithContext(ctx)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)

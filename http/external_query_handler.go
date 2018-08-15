@@ -138,10 +138,14 @@ func decodeQueryRequest(r *http.Request, req *query.ProxyRequest, orgSvc platfor
 		if dialect.Delimiter != "" {
 			delimiter, _ = utf8.DecodeRuneInString(dialect.Delimiter)
 		}
+		noHeader := false
+		if dialect.Header != nil {
+			noHeader = !*dialect.Header
+		}
 		// TODO(nathanielc): Use commentPrefix and dateTimeFormat
 		// once they are supported.
 		config := csv.ResultEncoderConfig{
-			NoHeader:    !*dialect.Header,
+			NoHeader:    noHeader,
 			Delimiter:   delimiter,
 			Annotations: dialect.Annotations,
 		}

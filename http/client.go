@@ -23,13 +23,26 @@ func newURL(addr, path string) (*url.URL, error) {
 	return u, nil
 }
 
-func newClient(scheme string, insecure bool) *http.Client {
-	hc := &http.Client{
-		Transport: defaultTransport,
+func newClient(scheme string, insecure bool) *traceClient {
+	hc := &traceClient{
+		Client: http.Client{
+			Transport: defaultTransport,
+		},
 	}
 	if scheme == "https" && insecure {
 		hc.Transport = skipVerifyTransport
 	}
 
 	return hc
+}
+
+// traceClient always injects any opentracing trace into the client requests.
+type traceClient struct {
+	http.Client
+}
+
+// Do injects the trace and then performs the request.
+func (c *traceClient) Do(r *http.Request) (*http.Response, error) {
+	InjectTrace(r)
+	return c.Client.Do(r)
 }

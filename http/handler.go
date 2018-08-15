@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"strings"
 	"time"
 
 	"github.com/influxdata/platform/kit/prom"
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -39,6 +43,9 @@ type Handler struct {
 
 	// Logger if set will log all HTTP requests as they are served
 	Logger *zap.Logger
+
+	// Tracer if set will be used to propagate traces through HTTP requests
+	Tracer opentracing.Tracer
 }
 
 // NewHandler creates a new handler with the given name.
@@ -76,6 +83,27 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// TODO: better way to do this?
 	statusW := newStatusResponseWriter(w)
 	w = statusW
+
+	if h.Tracer != nil {
+		// Extract opentracing Span
+		var serverSpan opentracing.Span
+		opName := fmt.Sprintf("%s:%s", h.name, r.URL.Path)
+		wireContext, _ := h.Tracer.Extract(
+			opentracing.HTTPHeaders,
+			opentracing.HTTPHeadersCarrier(r.Header),
+		)
+
+		// Create the span referring to the RPC client if available.
+		// If wireContext == nil, a root span will be created.
+		serverSpan = h.Tracer.StartSpan(
+			opName,
+			ext.RPCServerOption(wireContext),
+		)
+		serverSpan.LogFields(log.String("handler", h.name))
+		defer serverSpan.Finish()
+
+		r = r.WithContext(opentracing.ContextWithSpan(r.Context(), serverSpan))
+	}
 
 	// TODO: This could be problematic eventually. But for now it should be fine.
 	defer func(start time.Time) {
@@ -155,4 +183,15 @@ func (h *Handler) initMetrics() {
 		// TODO(desa): determine what spacing these buckets should have.
 		Buckets: prometheus.ExponentialBuckets(0.001, 1.5, 25),
 	}, []string{"handler", "method", "path", "status"})
+}
+
+// InjectTrace writes any span from the request's context into the request headers.
+func InjectTrace(r *http.Request) {
+	if span := opentracing.SpanFromContext(r.Context()); span != nil {
+		span.Tracer().Inject(
+			span.Context(),
+			opentracing.HTTPHeaders,
+			opentracing.HTTPHeadersCarrier(r.Header),
+		)
+	}
 }
