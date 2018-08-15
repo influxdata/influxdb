@@ -1282,7 +1282,8 @@ components:
           description: The ID of the organization that owns this Task.
           type: string
         name:
-          description: A modifiable description of the task.
+          readOnly: true
+          description: A read-only description of the task.
           type: string
         status:
           description: The current status of the task. When updated to 'disabled', cancels all queued jobs of this task.
