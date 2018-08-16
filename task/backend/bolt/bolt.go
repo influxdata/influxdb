@@ -24,6 +24,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
@@ -212,6 +213,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 			Status:         string(backend.TaskEnabled),
 			LastCompleted:  scheduleAfter,
 			EffectiveCron:  o.EffectiveCronString(),
+			Delay:          int32(o.Delay / time.Second),
 		}
 
 		stmBytes, err := stm.Marshal()

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/snowflake"
@@ -67,6 +68,7 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 		Status:         string(TaskEnabled),
 		LastCompleted:  scheduleAfter,
 		EffectiveCron:  o.EffectiveCronString(),
+		Delay:          int32(o.Delay / time.Second),
 	}
 
 	return id, nil

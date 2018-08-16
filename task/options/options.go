@@ -144,6 +144,11 @@ func (o *Options) Validate() error {
 		}
 	}
 
+	if o.Delay.Truncate(time.Second) != o.Delay {
+		// For now, allowing negative delays. Maybe they're useful for forecasting?
+		errs = append(errs, "delay option must be expressible as whole seconds")
+	}
+
 	if o.Concurrency < 1 {
 		errs = append(errs, "concurrency must be at least 1")
 	} else if o.Concurrency > maxConcurrency {

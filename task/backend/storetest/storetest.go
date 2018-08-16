@@ -8,6 +8,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
@@ -405,6 +406,7 @@ func testStoreFindMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStor
 		name: "a task",
 		cron: "* * * * *",
 		concurrency: 3,
+		delay: 2m,
 	}
 
 from(db:"test") |> range(start:-1h)`
@@ -435,6 +437,10 @@ from(db:"test") |> range(start:-1h)`
 
 	if meta.EffectiveCron != "* * * * *" {
 		t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
+	}
+
+	if time.Duration(meta.Delay)*time.Second != 2*time.Minute {
+		t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
 	}
 
 	badID := []byte("bad")
