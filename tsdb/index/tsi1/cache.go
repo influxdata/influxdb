@@ -21,7 +21,7 @@ import (
 // order by which items should be evicted from the cache, and a hashmap implementation
 // to provide constant time retrievals of items from the cache.
 type TagValueSeriesIDCache struct {
-	mu      sync.RWMutex
+	sync.RWMutex
 	cache   map[string]map[string]map[string]*list.Element
 	evictor *list.List
 
@@ -40,8 +40,8 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 // Get returns the SeriesIDSet associated with the {name, key, value} tuple if it
 // exists.
 func (c *TagValueSeriesIDCache) Get(name, key, value []byte) *tsdb.SeriesIDSet {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.Lock()
+	defer c.Unlock()
 	return c.get(name, key, value)
 }
 
@@ -97,13 +97,13 @@ func (c *TagValueSeriesIDCache) measurementContainsSets(name []byte) bool {
 // Put adds the SeriesIDSet to the cache under the tuple {name, key, value}. If
 // the cache is at its limit, then the least recently used item is evicted.
 func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSet) {
-	c.mu.Lock()
+	c.Lock()
 	// Check under the write lock if the relevant item is now in the cache.
 	if c.exists(name, key, value) {
-		c.mu.Unlock()
+		c.Unlock()
 		return
 	}
-	defer c.mu.Unlock()
+	defer c.Unlock()
 
 	// Create list item, and add to the front of the eviction list.
 	listElement := c.evictor.PushFront(&seriesIDCacheElement{
