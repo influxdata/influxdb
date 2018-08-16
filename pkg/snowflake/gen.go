@@ -46,13 +46,25 @@ func (g *Generator) Next() uint64 {
 	for i := 0; i < 100; i++ {
 		t := (now() - epoch) & timeMask
 		current := atomic.LoadUint64(&g.state)
+		currentTime := current >> timeShift & timeMask
+		currentSeq := current & sequenceMask
 
-		// if the timestamp is right, we just need to add 1 to the sequence
-		// stored in the lowest bits.
-		if current>>timeShift&timeMask == t {
-			state = current + 1
-		} else {
+		// this sequence of conditionals ensures a monotonically increasing
+		// state.
+
+		switch {
+		// if our time is in the future, use that with a zero sequence number.
+		case t > currentTime:
 			state = t << timeShift
+
+		// we now know that our time is at or before the current time.
+		// if we're at the maximum sequence, bump to the next millisecond
+		case currentSeq == sequenceMask:
+			state = (currentTime + 1) << timeShift
+
+		// otherwise, increment the sequence.
+		default:
+			state = current + 1
 		}
 
 		if atomic.CompareAndSwapUint64(&g.state, current, state) {
@@ -65,8 +77,10 @@ func (g *Generator) Next() uint64 {
 	// since we failed 100 times, there's high contention. bail out of the
 	// loop to bound the time we'll spend in this method, and just add
 	// one to the counter. this can cause millisecond drift, but hopefully
-	// some CAS eventually succeeds and fixes the milliseconds. giving
-	// the CAS 10 attempts helps to avoid this problem.
+	// some CAS eventually succeeds and fixes the milliseconds. additionally,
+	// if the sequence is already at the maximum, adding 1 here can cause
+	// it to roll over into the machine id. giving the CAS 100 attempts
+	// helps to avoid these problems.
 	if state == 0 {
 		state = atomic.AddUint64(&g.state, 1)
 	}

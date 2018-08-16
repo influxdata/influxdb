@@ -59,6 +59,22 @@ func TestMachineID(t *testing.T) {
 	}
 }
 
+func TestNextMonotonic(t *testing.T) {
+	g := New(10)
+	out := make([]string, 10000)
+
+	for i := range out {
+		out[i] = g.NextString()
+	}
+
+	// ensure they are all distinct and increasing
+	for i := range out[1:] {
+		if out[i] >= out[i+1] {
+			t.Fatal("bad entries:", out[i], out[i+1])
+		}
+	}
+}
+
 func BenchmarkEncode(b *testing.B) {
 	b.ReportAllocs()
 	var s [11]byte
