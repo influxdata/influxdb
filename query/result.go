@@ -186,8 +186,8 @@ func (e *DelimitedMultiResultEncoder) Encode(w io.Writer, results ResultIterator
 			}
 			// Otherwise, the error is from query execution,
 			// so we encode it instead.
-			e.Encoder.EncodeError(wc, err)
-			return wc.Count(), nil
+			err := e.Encoder.EncodeError(wc, err)
+			return wc.Count(), err
 		}
 		if _, err := wc.Write(e.Delimiter); err != nil {
 			return wc.Count(), err
