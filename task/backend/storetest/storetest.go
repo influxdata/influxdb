@@ -30,6 +30,7 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 			"EnableDisableTask",
 			"DeleteTask",
 			"CreateRun",
+			"CreateNextRun",
 			"FinishRun",
 		}
 	}
@@ -42,6 +43,7 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 		"EnableDisableTask": testStoreTaskEnableDisable,
 		"DeleteTask":        testStoreDelete,
 		"CreateRun":         testStoreCreateRun,
+		"CreateNextRun":     testStoreCreateNextRun,
 		"FinishRun":         testStoreFinishRun,
 		"DeleteOrg":         testStoreDeleteOrg,
 		"DeleteUser":        testStoreDeleteUser,
@@ -613,6 +615,68 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("expected error for exceeding MaxConcurrency")
 	} else if !strings.Contains(err.Error(), "MaxConcurrency") {
 		t.Fatalf("expected error for MaxConcurrency, got %v", err)
+	}
+}
+
+func testStoreCreateNextRun(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
+	const script = `option task = {
+		name: "a task",
+		cron: "* * * * *",
+		delay: 5s,
+		concurrency: 2,
+	}
+
+from(db:"test") |> range(start:-1h)`
+
+	s := create(t)
+	defer destroy(t, s)
+
+	taskID, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	badID := append([]byte(nil), taskID...)
+	badID[len(badID)-1]++
+	if _, err := s.CreateNextRun(context.Background(), badID, 999); err == nil {
+		t.Fatal("expected error for CreateNextRun with bad ID, got none")
+	}
+
+	_, err = s.CreateNextRun(context.Background(), taskID, 64)
+	if e, ok := err.(backend.RunNotYetDueError); !ok {
+		t.Fatalf("expected RunNotYetDueError, got %v (%T)", err, err)
+	} else if e.DueAt != 65 {
+		t.Fatalf("expected run due at 65, got %d", e.DueAt)
+	}
+
+	rc, err := s.CreateNextRun(context.Background(), taskID, 65)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(rc.Created.TaskID, taskID) {
+		t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
+	}
+	if rc.Created.Now != 60 {
+		t.Fatalf("unexpected time for created run: %d", rc.Created.Now)
+	}
+	if rc.NextDue != 125 {
+		t.Fatalf("unexpected next due time: %d", rc.NextDue)
+	}
+
+	rc, err = s.CreateNextRun(context.Background(), taskID, 125)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(rc.Created.TaskID, taskID) {
+		t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
+	}
+	if rc.Created.Now != 120 {
+		t.Fatalf("unexpected time for created run: %d", rc.Created.Now)
+	}
+	if rc.NextDue != 185 {
+		t.Fatalf("unexpected next due time: %d", rc.NextDue)
 	}
 }
 

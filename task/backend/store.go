@@ -116,6 +116,10 @@ type Store interface {
 	// CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
 	CreateRun(ctx context.Context, taskID platform.ID, now int64) (QueuedRun, error)
 
+	// CreateNextRun creates the earliest needed run scheduled no later than the given Unix timestamp now.
+	// Internally, the Store should rely on the underlying task's StoreTaskMeta to create the next run.
+	CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (RunCreation, error)
+
 	// FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 	FinishRun(ctx context.Context, taskID, runID platform.ID) error
 

@@ -265,6 +265,28 @@ func (s *inmem) CreateRun(ctx context.Context, taskID platform.ID, now int64) (Q
 	return queuedRun, nil
 }
 
+func (s *inmem) CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (RunCreation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stm, ok := s.runners[taskID.String()]
+	if !ok {
+		return RunCreation{}, errors.New("task not found")
+	}
+
+	makeID := func() (platform.ID, error) {
+		return s.idgen.ID(), nil
+	}
+	rc, err := stm.CreateNextRun(now, makeID)
+	if err != nil {
+		return RunCreation{}, err
+	}
+	rc.Created.TaskID = append([]byte(nil), taskID...)
+
+	s.runners[taskID.String()] = stm
+	return rc, nil
+}
+
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 func (s *inmem) FinishRun(ctx context.Context, taskID, runID platform.ID) error {
 	stm, ok := s.runners[taskID.String()]

@@ -581,6 +581,48 @@ func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (b
 	return queuedRun, nil
 }
 
+func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (backend.RunCreation, error) {
+	var rc backend.RunCreation
+	paddedID := padID(taskID)
+	if err := s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(s.bucket)
+		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
+
+		var stm backend.StoreTaskMeta
+		if err := stm.Unmarshal(stmBytes); err != nil {
+			return err
+		}
+
+		makeID := func() (platform.ID, error) {
+			id := make(platform.ID, 8)
+			idi, err := b.Bucket(runIDs).NextSequence()
+			if err != nil {
+				return nil, err
+			}
+
+			binary.BigEndian.PutUint64(id, idi)
+			return id, nil
+		}
+
+		var err error
+		rc, err = stm.CreateNextRun(now, makeID)
+		if err != nil {
+			return err
+		}
+		rc.Created.TaskID = append([]byte(nil), taskID...)
+
+		stmBytes, err = stm.Marshal()
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(paddedID, stmBytes)
+	}); err != nil {
+		return backend.RunCreation{}, err
+	}
+
+	return rc, nil
+}
+
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 func (s *Store) FinishRun(ctx context.Context, taskID, runID platform.ID) error {
 	paddedID := padID(taskID)
