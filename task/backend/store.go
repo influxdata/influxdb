@@ -57,6 +57,28 @@ func (r RunStatus) String() string {
 	panic(fmt.Sprintf("unknown RunStatus: %d", r))
 }
 
+// RunNotYetDueError is returned from CreateNextRun if a run is not yet due.
+type RunNotYetDueError struct {
+	// DueAt is the unix timestamp of when the next run is due.
+	DueAt int64
+}
+
+func (e RunNotYetDueError) Error() string {
+	return "run not due until " + time.Unix(e.DueAt, 0).Format(time.RFC3339)
+}
+
+// RunCreation is returned by CreateNextRun.
+type RunCreation struct {
+	Created QueuedRun
+
+	// Unix timestamp for when the next run is due.
+	NextDue int64
+
+	// Whether there are any manual runs queued for this task.
+	// If so, the scheduler should begin executing them after handling real-time tasks.
+	HasQueue bool
+}
+
 // Store is the interface around persisted tasks.
 type Store interface {
 	// CreateTask creates a task with the given script, belonging to the given org and user.
