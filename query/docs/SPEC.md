@@ -96,8 +96,8 @@ The following keywords are reserved and may not be used as identifiers:
     and    import  not  return
     empty  in      or
 
-[IMPL#308](https://github.com/influxdata/platform/query/issues/308) Add in and empty operator support
-[IMPL#142](https://github.com/influxdata/platform/query/issues/142) Add "import" support
+[IMPL#256](https://github.com/influxdata/platform/issues/256) Add in and empty operator support  
+[IMPL#334](https://github.com/influxdata/platform/issues/334) Add "import" support  
 
 #### Operators
 
@@ -121,7 +121,7 @@ The following coercion rules apply to numeric literals:
 * an error will occur if the coerced type cannot represent the literal value.
 
 
-[IMPL#309](https://github.com/influxdata/platform/query/issues/309) Allow numeric literal coercion.
+[IMPL#255](https://github.com/influxdata/platform/issues/255) Allow numeric literal coercion.
 
 ##### Integer literals
 
@@ -156,7 +156,7 @@ Examples:
     2.71828
     .26
 
-[IMPL#310](https://github.com/influxdata/platform/query/issues/310) Parse float literals
+[IMPL#254](https://github.com/influxdata/platform/issues/254) Parse float literals
 
 #### Duration literals
 
@@ -223,7 +223,7 @@ Examples:
     2018-02-28T00:00:00Z + 1mo1d    // 2018-03-29T00:00:00Z
     2018-02-28T00:00:00Z + 1d + 1mo // 2018-04-01T00:00:00Z, explicit left associative add of 1d first changes the result
 
-[IMPL#311](https://github.com/influxdata/platform/query/issues/311) Parse duration literals
+[IMPL#253](https://github.com/influxdata/platform/issues/253) Parse duration literals
 
 #### Date and time literals
 
@@ -279,7 +279,7 @@ Additionally any byte value may be specified via a hex encoding using `\x` as th
 TODO(nathanielc): With string interpolation string_lit is not longer a lexical token as part of a literal, but an entire expression in and of itself.
 
 
-[IMPL#312](https://github.com/influxdata/platform/query/issues/312) Parse string literals
+[IMPL#252](https://github.com/influxdata/platform/issues/252) Parse string literals
 
 
 Examples:
@@ -299,7 +299,7 @@ A function "printf" exists to allow more precise control over formatting of vari
 To include the literal curly brackets within a string they must be escaped.
 
 
-[IMPL#316](https://github.com/influxdata/platform/query/issues/316) Add printf function
+[IMPL#248](https://github.com/influxdata/platform/issues/248) Add printf function
 
 Interpolation example:
 
@@ -309,7 +309,7 @@ Interpolation example:
     "openinng curly bracket \{" // openinng curly bracket {
     "closing curly bracket \}" // closing curly bracket }
 
-[IMPL#313](https://github.com/influxdata/platform/query/issues/313) Add string interpolation support
+[IMPL#251](https://github.com/influxdata/platform/issues/251) Add string interpolation support
 
 
 #### Regular expression literals
@@ -338,7 +338,7 @@ Examples:
 The regular expression syntax is defined by [RE2](https://github.com/google/re2/wiki/Syntax).
 
 
-[IMPL#314](https://github.com/influxdata/platform/query/issues/314) Parse regular expression literals
+[IMPL#250](https://github.com/influxdata/platform/issues/250) Parse regular expression literals
 
 ### Variables
 
@@ -351,7 +351,7 @@ A type defines the set of values and operations on those values.
 Types are never explicitly declared as part of the syntax.
 Types are always inferred from the usage of the value.
 
-[IMPL#315](https://github.com/influxdata/platform/query/issues/315) Specify type inference rules
+[IMPL#249](https://github.com/influxdata/platform/issues/249) Specify type inference rules
 
 #### Boolean types
 
@@ -417,7 +417,7 @@ The value may be any other type, and need not be the same as other values within
 A _function type_ represents a set of all functions with the same argument and result types.
 
 
-[IMPL#315](https://github.com/influxdata/platform/query/issues/315) Specify type inference rules
+[IMPL#249](https://github.com/influxdata/platform/issues/249) Specify type inference rules
 
 #### Generator types
 
@@ -471,7 +471,7 @@ The package clause is not a assignment; the package name does not appear in any 
 Its purpose is to identify the files belonging to the same package and to specify the default package name for import declarations.
 
 
-[IMPL#317](https://github.com/influxdata/platform/query/issues/317) Add package/namespace support
+[IMPL#247](https://github.com/influxdata/platform/issues/247) Add package/namespace support
 
 #### Variable assignment
 
@@ -505,7 +505,7 @@ We should simplify it and use the EBNF grammar.
 This requires redoing the parser in something besides PEG.
 
 
-[IMPL#318](https://github.com/influxdata/platform/query/issues/318) Update parser to use formal EBNF grammar.
+[IMPL#246](https://github.com/influxdata/platform/issues/246) Update parser to use formal EBNF grammar.
 
 #### Function literals
 
@@ -1022,10 +1022,6 @@ These common values are referred to as the group key value, and can be represent
 A tables schema consists of its group key, and its column's labels and types.
 
 
-[IMPL#294](https://github.com/influxdata/platform/query/issues/294) Remove concept of Kind from table columns
-[IMPL#319](https://github.com/influxdata/platform/query/issues/319) Remove concept of Bounds from tables
-[IMPL#320](https://github.com/influxdata/platform/query/issues/320) Rename block to table
-
 #### Stream
 
 A stream represents a potentially unbounded dataset.
@@ -1039,7 +1035,7 @@ Missing values are represented with a special _null_ value.
 The _null_ value can be of any data type.
 
 
-[IMPL#219](https://github.com/influxdata/platform/query/issues/219) Design how nulls behave
+[IMPL#300](https://github.com/influxdata/platform/issues/300) Design how nulls behave
 
 #### Operations
 
@@ -1122,8 +1118,6 @@ All aggregate operations have the following properties:
 * `timeDst` string
     timeDst is the destination column to use for the resulting aggregate record.
     Defaults to `_time`.
-
-[IMPL#294](https://github.com/influxdata/platform/query/issues/294) Remove concept of Kind from table columns
 
 ##### Covariance
 
@@ -1245,8 +1239,6 @@ All selector operations have the following properties:
 * `column` string
     column specifies a which column to use when selecting.
 
-[IMPL#294](https://github.com/influxdata/platform/query/issues/294) Remove concept of Kind from table columns
-
 ##### First
 
 First is a selector operation.
@@ -1338,7 +1330,7 @@ Each input table's group key value is modified to fit within the time bounds.
 Tables where all records exists outside the time bounds are filtered entirely.
 
 
-[IMPL#321](https://github.com/influxdata/platform/query/issues/321) Update range to default to aligned window ranges.
+[IMPL#244](https://github.com/influxdata/platform/issues/244) Update range to default to aligned window ranges.
 
 Range has the following properties:
 
@@ -1458,7 +1450,6 @@ Examples:
     group(by:[]) // group all records into a single group
     group(except:[]) // group records into all unique groups
 
-[IMPL#322](https://github.com/influxdata/platform/query/issues/322) Investigate always keeping all columns in group.
 
 #### Window
 
@@ -1859,7 +1850,7 @@ The function `toUInt` is defined as `toUInt = (table=<-) => table |> map(fn:(r) 
 If you need to convert other columns use the `map` function directly with the `uint` function.
 
 
-[IMPL#324](https://github.com/influxdata/platform/query/issues/324) Update specification around type conversion functions.
+[IMPL#242](https://github.com/influxdata/platform/issues/242) Update specification around type conversion functions.
 
 
 ### Composite data types
@@ -1871,7 +1862,7 @@ A composite data type is a collection of primitive data types that together have
 Histogram is a composite type that represents a discrete cumulative distribution.
 Given a histogram with N buckets there will be N columns with the label `le_X` where `X` is replaced with the upper bucket boundary.
 
-[IMPL#325](https://github.com/influxdata/platform/query/issues/325) Add support for a histogram composite data type.
+[IMPL#241](https://github.com/influxdata/platform/issues/241) Add support for a histogram composite data type.
 
 ### Triggers
 
@@ -1896,7 +1887,7 @@ Currently all tables use an _after watermark_ trigger which fires only once the 
 
 Data sources are responsible for informing about updates to the watermark.
 
-[IMPL#326](https://github.com/influxdata/platform/query/issues/326) Make trigger support not dependent on specific columns
+[IMPL#240](https://github.com/influxdata/platform/issues/240) Make trigger support not dependent on specific columns
 
 ### Execution model
 
@@ -2234,7 +2225,3 @@ Example error encoding with after a valid table has already been encoded.
 ,error,reference
 ,query terminated: reached maximum allowed memory limits,576
 ```
-
-[IMPL#327](https://github.com/influxdata/platform/query/issues/327) Finalize csv encoding specification
-
-
