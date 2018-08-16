@@ -688,7 +688,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 			}
 
 			if err := writeSchema(writer, &e.c, row, cols, tbl.Empty(), tbl.Key(), result.Name(), tableIDStr); err != nil {
-				return err
+				return query.NewEncoderError(err.Error())
 			}
 		}
 
@@ -724,7 +724,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 			return writer.Error()
 		})
 		if err != nil {
-			return err
+			return query.NewEncoderError(err.Error())
 		}
 
 		tableID++
@@ -732,7 +732,11 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 		lastCols = cols
 		lastEmpty = tbl.Empty()
 		writer.Flush()
-		return writer.Error()
+		err = writer.Error()
+		if err != nil {
+			return query.NewEncoderError(err.Error())
+		}
+		return nil
 	})
 	return writeCounter.Count(), err
 }

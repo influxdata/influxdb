@@ -50,12 +50,6 @@ var skipTests = map[string]string{
 	"null_as_value":             "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
 	"difference_panic":          "difference() panics when no table is supplied",
 	"string_interp":             "string interpolation not working as expected in flux (https://github.com/influxdata/platform/issues/404)",
-	// TODO(adamperlin): remove these skips and add expected error handling to the test framework
-	// Expected query errors:
-	"drop_after_rename":   `failed to run query: drop error: column "old" doesn't exist`,
-	"drop_before_rename":  `failed to run query: rename error: column "old" doesn't exist`,
-	"drop_newname_before": `failed to run query: drop error: column "new" doesn't exist`,
-	"drop_referenced":     `failed to run query: function references unknown column "_field"`,
 }
 
 var pqs = querytest.GetProxyQueryServiceBridge()

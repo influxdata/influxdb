@@ -132,14 +132,32 @@ type MultiResultDecoder interface {
 // MultiResultEncoder can encode multiple results into a writer.
 type MultiResultEncoder interface {
 	// Encode writes multiple results from r into w.
-	// Returns the number of bytes written to w and any error.
+	// Returns the number of bytes written to w and any error resulting from the encoding process.
+	// Errors obtained from the results object should be encoded to w and then discarded.
 	Encode(w io.Writer, results ResultIterator) (int64, error)
+}
+
+type EncoderError struct {
+	msg string
+}
+
+func (err *EncoderError) Error() string {
+	return err.msg
+}
+
+func NewEncoderError(msg string) *EncoderError {
+	return &EncoderError{
+		msg: msg,
+	}
 }
 
 // DelimitedMultiResultEncoder encodes multiple results using a trailing delimiter.
 // The delimiter is written after every result.
 //
-// If an error is encountered when iterating EncodeError will be called on the Encoder.
+// If an error is encountered when iterating and the error is of type
+// EncoderError, the error will be returned. Otherwise, the error is assumed
+// have arisen from query execution, and said error will be encoded with the
+// EncodeError method of the Encoder field.
 //
 // If the io.Writer implements flusher, it will be flushed after each delimiter.
 type DelimitedMultiResultEncoder struct {
@@ -157,10 +175,19 @@ type flusher interface {
 
 func (e *DelimitedMultiResultEncoder) Encode(w io.Writer, results ResultIterator) (int64, error) {
 	wc := &iocounter.Writer{Writer: w}
+
 	for results.More() {
 		result := results.Next()
 		if _, err := e.Encoder.Encode(wc, result); err != nil {
-			return wc.Count(), err
+			// If we have an error that's from
+			// encoding specifically, return it
+			if _, ok := err.(*EncoderError); ok {
+				return wc.Count(), err
+			}
+			// Otherwise, the error is from query execution,
+			// so we encode it instead.
+			e.Encoder.EncodeError(wc, err)
+			return wc.Count(), nil
 		}
 		if _, err := wc.Write(e.Delimiter); err != nil {
 			return wc.Count(), err
@@ -170,6 +197,7 @@ func (e *DelimitedMultiResultEncoder) Encode(w io.Writer, results ResultIterator
 			f.Flush()
 		}
 	}
+	// If we have any outlying errors in results, encode them
 	err := results.Err()
 	if err != nil {
 		err := e.Encoder.EncodeError(wc, err)

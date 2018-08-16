@@ -151,12 +151,11 @@ func (b ProxyQueryServiceBridge) Query(ctx context.Context, w io.Writer, req *Pr
 		return 0, err
 	}
 	defer results.Cancel()
-
 	encoder := req.Dialect.Encoder()
 	n, err = encoder.Encode(w, results)
 	if err != nil {
 		return n, err
 	}
-	// The results iterator may have had an error independent of encoding errors.
-	return n, results.Err()
+
+	return n, nil
 }
