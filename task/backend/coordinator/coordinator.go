@@ -3,11 +3,9 @@ package coordinator
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
-	"github.com/influxdata/platform/task/options"
 )
 
 type Coordinator struct {
@@ -41,11 +39,6 @@ func New(scheduler backend.Scheduler, st backend.Store, opts ...Option) backend.
 }
 
 func (c *Coordinator) CreateTask(ctx context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
-	opt, err := options.FromScript(script)
-	if err != nil {
-		return nil, err
-	}
-
 	id, err := c.Store.CreateTask(ctx, org, user, script, scheduleAfter)
 	if err != nil {
 		return id, err
@@ -56,7 +49,12 @@ func (c *Coordinator) CreateTask(ctx context.Context, org, user platform.ID, scr
 		return id, err
 	}
 
-	if err := c.sch.ClaimTask(task, time.Now().UTC().Unix(), &opt); err != nil {
+	meta, err := c.Store.FindTaskMetaByID(ctx, id)
+	if err != nil {
+		return id, err
+	}
+
+	if err := c.sch.ClaimTask(task, meta); err != nil {
 		_, delErr := c.Store.DeleteTask(ctx, id)
 		if delErr != nil {
 			return id, fmt.Errorf("schedule task failed: %s\n\tcleanup also failed: %s", err, delErr)
@@ -68,11 +66,6 @@ func (c *Coordinator) CreateTask(ctx context.Context, org, user platform.ID, scr
 }
 
 func (c *Coordinator) ModifyTask(ctx context.Context, id platform.ID, newScript string) error {
-	opt, err := options.FromScript(newScript)
-	if err != nil {
-		return err
-	}
-
 	if err := c.Store.ModifyTask(ctx, id, newScript); err != nil {
 		return err
 	}
@@ -91,7 +84,7 @@ func (c *Coordinator) ModifyTask(ctx context.Context, id platform.ID, newScript 
 		return err
 	}
 
-	if err := c.sch.ClaimTask(task, meta.LastCompleted, &opt); err != nil {
+	if err := c.sch.ClaimTask(task, meta); err != nil {
 		return err
 	}
 
@@ -108,12 +101,12 @@ func (c *Coordinator) EnableTask(ctx context.Context, id platform.ID) error {
 		return err
 	}
 
-	opt, err := options.FromScript(task.Script)
+	meta, err := c.Store.FindTaskMetaByID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	if err := c.sch.ClaimTask(task, time.Now().UTC().Unix(), &opt); err != nil {
+	if err := c.sch.ClaimTask(task, meta); err != nil {
 		return err
 	}
 

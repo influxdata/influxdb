@@ -38,6 +38,8 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 		return RunCreation{}, errors.New("cannot create next run when max concurrency already reached")
 	}
 
+	// Not calling stm.DueAt here because we use sch a second time later.
+	// We can definitely optimize (minimize) cron parsing at a later point in time.
 	sch, err := cron.Parse(stm.EffectiveCron)
 	if err != nil {
 		return RunCreation{}, err
@@ -75,4 +77,20 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 		},
 		NextDue: sch.Next(nextScheduled).Unix() + int64(stm.Delay),
 	}, nil
+}
+
+func (stm *StoreTaskMeta) NextDueRun() (int64, error) {
+	sch, err := cron.Parse(stm.EffectiveCron)
+	if err != nil {
+		return 0, err
+	}
+
+	latest := stm.LastCompleted
+	for _, cr := range stm.CurrentlyRunning {
+		if cr.Now > latest {
+			latest = cr.Now
+		}
+	}
+
+	return sch.Next(time.Unix(latest, 0)).Unix() + int64(stm.Delay), nil
 }
