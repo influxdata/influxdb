@@ -94,6 +94,19 @@ func (c *CommandLine) Run() error {
 		return errors.New("unable to prompt for a password with no TTY")
 	}
 
+	if c.ClientConfig.UnixSocket == "" && c.Host == "" && c.Port == 0 {
+		fi, err := os.Stat(client.DefaultUnixSocket)
+		if (err == nil && fi.Mode() & os.ModeSocket != 0) {
+			c.ClientConfig.UnixSocket = client.DefaultUnixSocket
+		}
+	}
+	if c.Host == "" {
+		c.Host = client.DefaultHost
+	}
+	if c.Port == 0 {
+		c.Port = client.DefaultPort
+	}
+
 	// Read environment variables for username/password.
 	if c.ClientConfig.Username == "" {
 		c.ClientConfig.Username = os.Getenv("INFLUX_USERNAME")

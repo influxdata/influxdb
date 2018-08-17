@@ -29,6 +29,9 @@ const (
 	// DefaultPort is the default port used to connect to an InfluxDB instance
 	DefaultPort = 8086
 
+	// DefaultUnixSocket is the default unix socket used to connect to an InfluxDB instance
+	DefaultUnixSocket = "/run/influxdb/influxdb.sock"
+
 	// DefaultTimeout is the default connection timeout used to connect to an InfluxDB instance
 	DefaultTimeout = 0
 )

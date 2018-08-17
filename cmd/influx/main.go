@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/cmd/influx/cli"
 )
 
@@ -39,8 +38,8 @@ func main() {
 	c := cli.New(version)
 
 	fs := flag.NewFlagSet("InfluxDB shell version "+version, flag.ExitOnError)
-	fs.StringVar(&c.Host, "host", client.DefaultHost, "Influxdb host to connect to.")
-	fs.IntVar(&c.Port, "port", client.DefaultPort, "Influxdb port to connect to.")
+	fs.StringVar(&c.Host, "host", c.Host, "Influxdb host to connect to.")
+	fs.IntVar(&c.Port, "port", c.Port, "Influxdb port to connect to.")
 	fs.StringVar(&c.ClientConfig.UnixSocket, "socket", "", "Influxdb unix socket to connect to.")
 	fs.StringVar(&c.ClientConfig.Username, "username", "", "Username to connect to the server.")
 	fs.StringVar(&c.ClientConfig.Password, "password", "", `Password to connect to the server.  Leaving blank will prompt for password (--password="").`)
