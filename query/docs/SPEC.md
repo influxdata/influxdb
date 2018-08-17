@@ -1145,6 +1145,26 @@ Additionally exactly two columns must be provided to the `columns` property.
 Count is an aggregate operation.
 For each aggregated column, it outputs the number of non null records as an integer.
 
+#### Duplicate 
+Duplicate will duplicate a specified column in a table
+
+Duplicate has the following properties:
+
+* `column` string
+	The column to duplicate
+* `as` string
+	The name that should be assigned to the duplicate column
+
+Example usage:
+
+Duplicate column `server` under the name `host`:
+```
+from(db: "telegraf")
+	|> range(start:-5m)
+	|> filter(fn: (r) => r._measurement == "cpu")
+	|> duplicate(column: "host", as: "server")
+```
+
 ##### Integral
 
 Integral is an aggregate operation.
