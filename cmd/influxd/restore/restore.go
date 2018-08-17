@@ -195,8 +195,12 @@ func (cmd *Command) parseFlags(args []string) error {
 		}
 	} else {
 		// validate the arguments
+		if cmd.destinationDatabase == "" {
+			cmd.destinationDatabase = cmd.sourceDatabase
+		}
+
 		if cmd.metadir == "" && cmd.destinationDatabase == "" {
-			return fmt.Errorf("-metadir or -destinationDatabase are required to restore")
+			return fmt.Errorf("-metadir or -newdb are required to restore")
 		}
 
 		if cmd.destinationDatabase != "" && cmd.datadir == "" {
@@ -205,13 +209,13 @@ func (cmd *Command) parseFlags(args []string) error {
 
 		if cmd.shard != 0 {
 			if cmd.destinationDatabase == "" {
-				return fmt.Errorf("-destinationDatabase is required to restore shard")
+				return fmt.Errorf("-newdb is required to restore shard")
 			}
 			if cmd.backupRetention == "" {
 				return fmt.Errorf("-retention is required to restore shard")
 			}
 		} else if cmd.backupRetention != "" && cmd.destinationDatabase == "" {
-			return fmt.Errorf("-destinationDatabase is required to restore retention policy")
+			return fmt.Errorf("-newdb is required to restore retention policy")
 		}
 	}
 
