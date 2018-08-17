@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/prom"
@@ -12,49 +11,24 @@ import (
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/task/backend"
 	"github.com/influxdata/platform/task/mock"
-	"github.com/influxdata/platform/task/options"
+	"go.uber.org/zap/zaptest"
 )
-
-func TestScheduler_EveryValidation(t *testing.T) {
-	d := mock.NewDesiredState()
-	e := mock.NewExecutor()
-	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
-	task := &backend.StoreTask{
-		ID: platform.ID{1},
-	}
-
-	badOptions := []options.Options{
-		{
-			Every: time.Millisecond,
-		},
-		{
-			Every: time.Hour * -1,
-		},
-		{
-			Every: 1500 * time.Millisecond,
-		},
-		{
-			Every: 1232 * time.Millisecond,
-		},
-	}
-
-	for _, badOption := range badOptions {
-		if err := o.ClaimTask(task, 3, &badOption); err == nil {
-			t.Fatal("no error returned for :", badOption)
-		}
-	}
-}
 
 func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
-	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
+	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5, backend.WithLogger(zaptest.NewLogger(t)))
 
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
-	opts := &options.Options{Every: time.Minute, Name: "x", Retry: 1, Concurrency: 1}
-	if err := o.ClaimTask(task, 3, opts); err != nil {
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency: 1,
+		EffectiveCron:  "* * * * *",
+		LastCompleted:  3,
+	}
+	d.SetTaskMeta(task.ID, *meta)
+	if err := o.ClaimTask(task, meta); err != nil {
 		t.Fatal(err)
 	}
 
@@ -67,8 +41,13 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	task = &backend.StoreTask{
 		ID: platform.ID{2},
 	}
-	opts = &options.Options{Every: time.Second, Concurrency: 99, Retry: 1, Name: "y"}
-	if err := o.ClaimTask(task, 3, opts); err != nil {
+	meta = &backend.StoreTaskMeta{
+		MaxConcurrency: 99,
+		EffectiveCron:  "@every 1s",
+		LastCompleted:  3,
+	}
+	d.SetTaskMeta(task.ID, *meta)
+	if err := o.ClaimTask(task, meta); err != nil {
 		t.Fatal(err)
 	}
 
@@ -77,7 +56,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	}
 }
 
-func TestScheduler_CreateRunOnTick(t *testing.T) {
+func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
@@ -85,9 +64,14 @@ func TestScheduler_CreateRunOnTick(t *testing.T) {
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency: 2,
+		EffectiveCron:  "@every 1s",
+		LastCompleted:  5,
+	}
 
-	opts := &options.Options{Every: time.Second, Concurrency: 2, Name: "x", Retry: 1}
-	if err := o.ClaimTask(task, 5, opts); err != nil {
+	d.SetTaskMeta(task.ID, *meta)
+	if err := o.ClaimTask(task, meta); err != nil {
 		t.Fatal(err)
 	}
 
@@ -128,9 +112,14 @@ func TestScheduler_Release(t *testing.T) {
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency: 99,
+		EffectiveCron:  "@every 1s",
+		LastCompleted:  5,
+	}
 
-	opts := &options.Options{Every: time.Second, Concurrency: 99, Name: "x", Retry: 1}
-	if err := o.ClaimTask(task, 5, opts); err != nil {
+	d.SetTaskMeta(task.ID, *meta)
+	if err := o.ClaimTask(task, meta); err != nil {
 		t.Fatal(err)
 	}
 
@@ -159,9 +148,14 @@ func TestScheduler_RunLog(t *testing.T) {
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency: 99,
+		EffectiveCron:  "@every 1s",
+		LastCompleted:  5,
+	}
 
-	opts := &options.Options{Every: time.Second, Concurrency: 99, Name: "x", Retry: 1}
-	if err := s.ClaimTask(task, 5, opts); err != nil {
+	d.SetTaskMeta(task.ID, *meta)
+	if err := s.ClaimTask(task, meta); err != nil {
 		t.Fatal(err)
 	}
 
@@ -294,9 +288,14 @@ func TestScheduler_Metrics(t *testing.T) {
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency: 99,
+		EffectiveCron:  "@every 1s",
+		LastCompleted:  5,
+	}
 
-	opts := &options.Options{Every: time.Second, Concurrency: 99, Name: "x", Retry: 1}
-	if err := s.ClaimTask(task, 5, opts); err != nil {
+	d.SetTaskMeta(task.ID, *meta)
+	if err := s.ClaimTask(task, meta); err != nil {
 		t.Fatal(err)
 	}
 

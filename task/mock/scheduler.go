@@ -13,7 +13,6 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
 	scheduler "github.com/influxdata/platform/task/backend"
-	"github.com/influxdata/platform/task/options"
 	"go.uber.org/zap"
 )
 
@@ -24,6 +23,7 @@ type Scheduler struct {
 	lastTick int64
 
 	claims map[string]*Task
+	meta   map[string]backend.StoreTaskMeta
 
 	createChan  chan *Task
 	releaseChan chan *Task
@@ -42,6 +42,7 @@ type Task struct {
 func NewScheduler() *Scheduler {
 	return &Scheduler{
 		claims: map[string]*Task{},
+		meta:   map[string]backend.StoreTaskMeta{},
 	}
 }
 
@@ -54,7 +55,7 @@ func (s *Scheduler) Tick(now int64) {
 
 func (s *Scheduler) WithLogger(l *zap.Logger) {}
 
-func (s *Scheduler) ClaimTask(task *backend.StoreTask, startExecutionFrom int64, opts *options.Options) error {
+func (s *Scheduler) ClaimTask(task *backend.StoreTask, meta *backend.StoreTaskMeta) error {
 	if s.claimError != nil {
 		return s.claimError
 	}
@@ -66,8 +67,9 @@ func (s *Scheduler) ClaimTask(task *backend.StoreTask, startExecutionFrom int64,
 	if ok {
 		return errors.New("task already in list")
 	}
+	s.meta[task.ID.String()] = *meta
 
-	t := &Task{task.Script, startExecutionFrom, uint8(opts.Concurrency)}
+	t := &Task{task.Script, meta.LastCompleted, uint8(meta.MaxConcurrency)}
 
 	s.claims[task.ID.String()] = t
 
@@ -95,6 +97,7 @@ func (s *Scheduler) ReleaseTask(taskID platform.ID) error {
 	}
 
 	delete(s.claims, taskID.String())
+	delete(s.meta, taskID.String())
 
 	return nil
 }
@@ -130,6 +133,9 @@ type DesiredState struct {
 
 	// Map of stringified, concatenated task and platform ID, to runs that have been created.
 	created map[string]backend.QueuedRun
+
+	// Map of stringified task ID to task meta.
+	meta map[string]backend.StoreTaskMeta
 }
 
 var _ backend.DesiredState = (*DesiredState)(nil)
@@ -138,28 +144,47 @@ func NewDesiredState() *DesiredState {
 	return &DesiredState{
 		runIDs:  make(map[string]uint32),
 		created: make(map[string]backend.QueuedRun),
+		meta:    make(map[string]backend.StoreTaskMeta),
 	}
 }
 
-// TODO(mr): inject a way to treat CreateRun as blocking?
-func (d *DesiredState) CreateRun(_ context.Context, taskID platform.ID, now int64) (backend.QueuedRun, error) {
+// SetTaskMeta sets the task meta for the given task ID.
+// SetTaskMeta must be called before CreateNextRun, for a given task ID.
+func (d *DesiredState) SetTaskMeta(taskID platform.ID, meta backend.StoreTaskMeta) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.meta[taskID.String()] = meta
+}
+
+// CreateNextRun creates the next run for the given task.
+// Refer to the documentation for SetTaskPeriod to understand how the times are determined.
+func (d *DesiredState) CreateNextRun(_ context.Context, taskID platform.ID, now int64) (backend.RunCreation, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	tid := taskID.String()
-	d.runIDs[tid]++
 
-	runID := make([]byte, 4)
-	binary.BigEndian.PutUint32(runID, d.runIDs[tid])
-	qr := backend.QueuedRun{
-		TaskID: taskID,
-		RunID:  runID,
-		Now:    now,
+	meta, ok := d.meta[tid]
+	if !ok {
+		panic(fmt.Sprintf("meta not set for task with ID %s", tid))
 	}
 
-	d.created[tid+platform.ID(runID).String()] = qr
+	makeID := func() (platform.ID, error) {
+		d.runIDs[tid]++
+		runID := make([]byte, 4)
+		binary.BigEndian.PutUint32(runID, d.runIDs[tid])
+		return platform.ID(runID), nil
+	}
 
-	return qr, nil
+	rc, err := meta.CreateNextRun(now, makeID)
+	if err != nil {
+		return backend.RunCreation{}, err
+	}
+	d.meta[tid] = meta
+	rc.Created.TaskID = append([]byte(nil), taskID...)
+	d.created[tid+rc.Created.RunID.String()] = rc.Created
+	return rc, nil
 }
 
 func (d *DesiredState) FinishRun(_ context.Context, taskID, runID platform.ID) error {

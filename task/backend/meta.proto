@@ -10,15 +10,57 @@ option go_package = "backend";
 message StoreTaskMeta {
   int32 max_concurrency = 1;
 
-  // last_completed is a unix time stamp of the last completed run.
+  // last_completed is the unix timestamp of the last "naturally" completed run.
   int64 last_completed = 2;
+
+  // status indicates if the task is enabled or disabled.
   string status = 3;
+
+  // currently_running is the collection of runs in-progress.
+  // If a runner crashes or otherwise disappears, this indicates to the new runner what needs to be picked up.
   repeated StoreTaskMetaRun currently_running = 4;
+
+  // effective_cron is the effective cron string as reported by the task's options.
+  string effective_cron = 5;
+
+  // Task's configured delay, in seconds.
+  int32 delay = 6;
+
+  // Fields below here are less likely to be present, so we're counting from 16 in order to
+  // use the 1-byte-encodable values where we can be more sure they're present.
+
+  repeated StoreTaskMetaManualRun manual_runs = 16;
 }
 
 message StoreTaskMetaRun {
-  // now represents a unix timestamp
+  // now is the unix timestamp of the "now" value for the run.
   int64 now = 1;
   uint32 try = 2;
   bytes run_id = 3 [(gogoproto.customname) = "RunID"];
+
+  // range_start is the start of the manual run's time range.
+  int64 range_start = 4;
+
+  // range_end is the end of the manual run's time range.
+  int64 range_end = 5;
+
+  // requested_at is the unix timestamp indicating when this run was requested.
+  // It is the same value as the "parent" StoreTaskMetaManualRun, if this run was the result of a manual request.
+  int64 requested_at = 6;
+}
+
+// StoreTaskMetaManualRun indicates a manually requested run for a time range.
+// It has a start and end pair of unix timestamps indicating the time range covered by the request.
+message StoreTaskMetaManualRun {
+  // start is the earliest allowable unix time stamp for this queue of runs.
+  int64 start = 1;
+
+  // end is the latest allowable unix time stamp for this queue of runs.
+  int64 end = 2;
+
+  // latest_completed is the timestamp of the latest completed run from this queue.
+  int64 latest_completed = 3;
+
+  // requested_at is the unix timestamp indicating when this run was requested.
+  int64 requested_at = 4;
 }

@@ -24,6 +24,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
@@ -211,6 +212,8 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 			MaxConcurrency: int32(o.Concurrency),
 			Status:         string(backend.TaskEnabled),
 			LastCompleted:  scheduleAfter,
+			EffectiveCron:  o.EffectiveCronString(),
+			Delay:          int32(o.Delay / time.Second),
 		}
 
 		stmBytes, err := stm.Marshal()
@@ -534,48 +537,46 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 	return true, nil
 }
 
-// CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
-func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (backend.QueuedRun, error) {
-	queuedRun := backend.QueuedRun{TaskID: append([]byte(nil), taskID...), Now: now}
-	stm := backend.StoreTaskMeta{}
+func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (backend.RunCreation, error) {
+	var rc backend.RunCreation
 	paddedID := padID(taskID)
 	if err := s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
 		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
+
+		var stm backend.StoreTaskMeta
 		if err := stm.Unmarshal(stmBytes); err != nil {
 			return err
 		}
-		if len(stm.CurrentlyRunning) >= int(stm.MaxConcurrency) {
-			return ErrMaxConcurrency
+
+		makeID := func() (platform.ID, error) {
+			id := make(platform.ID, 8)
+			idi, err := b.Bucket(runIDs).NextSequence()
+			if err != nil {
+				return nil, err
+			}
+
+			binary.BigEndian.PutUint64(id, idi)
+			return id, nil
 		}
 
-		id := make(platform.ID, 8)
-		idi, err := b.Bucket(runIDs).NextSequence()
+		var err error
+		rc, err = stm.CreateNextRun(now, makeID)
 		if err != nil {
 			return err
 		}
+		rc.Created.TaskID = append([]byte(nil), taskID...)
 
-		binary.BigEndian.PutUint64(id, idi)
-		running := &backend.StoreTaskMetaRun{
-			Now:   now,
-			Try:   1,
-			RunID: id,
-		}
-
-		stm.CurrentlyRunning = append(stm.CurrentlyRunning, running)
 		stmBytes, err = stm.Marshal()
 		if err != nil {
 			return err
 		}
-
-		queuedRun.RunID = id
-
 		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(paddedID, stmBytes)
 	}); err != nil {
-		return queuedRun, err
+		return backend.RunCreation{}, err
 	}
 
-	return queuedRun, nil
+	return rc, nil
 }
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.

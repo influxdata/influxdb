@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/snowflake"
@@ -62,7 +63,13 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 		}
 	}
 	s.tasks = append(s.tasks, task)
-	s.runners[id.String()] = StoreTaskMeta{MaxConcurrency: int32(o.Concurrency), Status: string(TaskEnabled), LastCompleted: scheduleAfter}
+	s.runners[id.String()] = StoreTaskMeta{
+		MaxConcurrency: int32(o.Concurrency),
+		Status:         string(TaskEnabled),
+		LastCompleted:  scheduleAfter,
+		EffectiveCron:  o.EffectiveCronString(),
+		Delay:          int32(o.Delay / time.Second),
+	}
 
 	return id, nil
 }
@@ -226,36 +233,26 @@ func (s *inmem) Close() error {
 	return nil
 }
 
-// CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
-func (s *inmem) CreateRun(ctx context.Context, taskID platform.ID, now int64) (QueuedRun, error) {
-	queuedRun := QueuedRun{}
+func (s *inmem) CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (RunCreation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	stm, ok := s.runners[taskID.String()]
 	if !ok {
-		return queuedRun, errors.New("taskRunner not found")
+		return RunCreation{}, errors.New("task not found")
 	}
 
-	if len(stm.CurrentlyRunning) >= int(stm.MaxConcurrency) {
-		return queuedRun, errors.New("MaxConcurrency reached")
+	makeID := func() (platform.ID, error) {
+		return s.idgen.ID(), nil
 	}
-
-	runID := s.idgen.ID()
-
-	running := &StoreTaskMetaRun{
-		Now:   now,
-		Try:   1,
-		RunID: runID,
+	rc, err := stm.CreateNextRun(now, makeID)
+	if err != nil {
+		return RunCreation{}, err
 	}
+	rc.Created.TaskID = append([]byte(nil), taskID...)
 
-	stm.CurrentlyRunning = append(stm.CurrentlyRunning, running)
-	s.mu.Lock()
 	s.runners[taskID.String()] = stm
-	s.mu.Unlock()
-
-	queuedRun.TaskID = taskID
-	queuedRun.RunID = runID
-	queuedRun.Now = now
-	return queuedRun, nil
+	return rc, nil
 }
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
