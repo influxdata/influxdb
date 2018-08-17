@@ -5,6 +5,7 @@ import (
 
 	"github.com/influxdata/platform/query/iocounter"
 	"github.com/influxdata/platform/query/values"
+	"github.com/pkg/errors"
 )
 
 type Result interface {
@@ -137,25 +138,26 @@ type MultiResultEncoder interface {
 	Encode(w io.Writer, results ResultIterator) (int64, error)
 }
 
-type EncoderError struct {
-	msg string
+// EncoderError is an interface that any error produced from
+// a ResultEncoder implementation should conform to.
+// It allows for differentiation
+// between errors that occur in results, and errors that occur while encoding results.
+type EncoderError interface {
+	IsEncoderError() bool
 }
 
-func (err *EncoderError) Error() string {
-	return err.msg
-}
-
-func NewEncoderError(msg string) *EncoderError {
-	return &EncoderError{
-		msg: msg,
-	}
+// IsEncoderError reports whether or not the underlying cause of
+// an error is a valid EncoderError.
+func IsEncoderError(err error) bool {
+	encErr, ok := errors.Cause(err).(EncoderError)
+	return ok && encErr.IsEncoderError()
 }
 
 // DelimitedMultiResultEncoder encodes multiple results using a trailing delimiter.
 // The delimiter is written after every result.
 //
-// If an error is encountered when iterating and the error is of type
-// EncoderError, the error will be returned. Otherwise, the error is assumed
+// If an error is encountered when iterating and the error is an encoder error,
+// the error will be returned. Otherwise, the error is assumed to
 // have arisen from query execution, and said error will be encoded with the
 // EncodeError method of the Encoder field.
 //
@@ -181,7 +183,7 @@ func (e *DelimitedMultiResultEncoder) Encode(w io.Writer, results ResultIterator
 		if _, err := e.Encoder.Encode(wc, result); err != nil {
 			// If we have an error that's from
 			// encoding specifically, return it
-			if _, ok := err.(*EncoderError); ok {
+			if IsEncoderError(err) {
 				return wc.Count(), err
 			}
 			// Otherwise, the error is from query execution,

@@ -651,6 +651,28 @@ func (e *ResultEncoder) csvWriter(w io.Writer) *csv.Writer {
 	return writer
 }
 
+type csvEncoderError struct {
+	msg string
+}
+
+func (e *csvEncoderError) Error() string {
+	return e.msg
+}
+
+func (e *csvEncoderError) IsEncoderError() bool {
+	return true
+}
+
+func newCSVEncoderError(msg string) *csvEncoderError {
+	return &csvEncoderError{
+		msg: msg,
+	}
+}
+
+func wrapEncodingError(err error) error {
+	return errors.Wrap(newCSVEncoderError(err.Error()), "csv encoder error")
+}
+
 func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) {
 	tableID := 0
 	tableIDStr := "0"
@@ -688,7 +710,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 			}
 
 			if err := writeSchema(writer, &e.c, row, cols, tbl.Empty(), tbl.Key(), result.Name(), tableIDStr); err != nil {
-				return query.NewEncoderError(err.Error())
+				return wrapEncodingError(err)
 			}
 		}
 
@@ -724,7 +746,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 			return writer.Error()
 		})
 		if err != nil {
-			return query.NewEncoderError(err.Error())
+			return wrapEncodingError(err)
 		}
 
 		tableID++
@@ -734,7 +756,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 		writer.Flush()
 		err = writer.Error()
 		if err != nil {
-			return query.NewEncoderError(err.Error())
+			return wrapEncodingError(err)
 		}
 		return nil
 	})

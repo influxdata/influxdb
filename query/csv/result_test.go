@@ -506,7 +506,7 @@ func TestResultDecoder(t *testing.T) {
 
 func TestResultEncoder(t *testing.T) {
 	testCases := []TestCase{
-	// Add tests cases specific to encoding here
+		// Add tests cases specific to encoding here
 	}
 	testCases = append(testCases, symetricalTestCases...)
 	for _, tc := range testCases {
@@ -531,11 +531,12 @@ func TestResultEncoder(t *testing.T) {
 		})
 	}
 }
-func TestMutliResultEncoder(t *testing.T) {
+func TestMultiResultEncoder(t *testing.T) {
 	testCases := []struct {
 		name    string
 		results query.ResultIterator
 		encoded []byte
+		err     error
 		config  csv.ResultEncoderConfig
 	}{
 		{
@@ -677,6 +678,49 @@ func TestMutliResultEncoder(t *testing.T) {
 test error,
 `),
 		},
+		{
+			name:   "returns query errors",
+			config: csv.DefaultEncoderConfig(),
+			results: query.NewSliceResultIterator([]query.Result{
+				&executetest.Result{
+					Err: errors.New("execution error"),
+				},
+			}),
+			encoded: toCRLF(`error,reference
+execution error,
+`),
+		},
+		{
+			name:   "returns encoding errors",
+			config: csv.DefaultEncoderConfig(),
+			results: query.NewSliceResultIterator([]query.Result{&executetest.Result{
+				Nm: "mean",
+				Tbls: []*executetest.Table{{
+					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						// Deliberately use invalid column type
+						{Label: "_value", Type: query.TInvalid},
+					},
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							"cpu",
+							"A",
+							40.0,
+						},
+					},
+				}},
+			}}),
+			encoded: nil,
+			err:     errors.New("csv encoder error: unknown column type invalid"),
+		},
 	}
 	for _, tc := range testCases {
 		tc := tc
@@ -684,8 +728,14 @@ test error,
 			encoder := csv.NewMultiResultEncoder(tc.config)
 			var got bytes.Buffer
 			n, err := encoder.Encode(&got, tc.results)
-			if err != nil {
-				t.Fatal(err)
+			if err != nil && tc.err != nil {
+				if err.Error() != tc.err.Error() {
+					t.Errorf("unexpected error want: %s\n got: %s\n", tc.err.Error(), err.Error())
+				}
+			} else if err != nil {
+				t.Errorf("unexpected error want: none\n got: %s\n", err.Error())
+			} else if tc.err != nil {
+				t.Errorf("unexpected error want: %s\n got: none", tc.err.Error())
 			}
 
 			if g, w := got.String(), string(tc.encoded); g != w {
