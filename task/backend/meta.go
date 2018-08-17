@@ -29,10 +29,15 @@ func (stm *StoreTaskMeta) FinishRun(runID platform.ID) bool {
 	return false
 }
 
-// CreateNextRun attempts to update stm's CurrentlyRunning slice with a new run
-// whose now time is no later than the given now.
+// CreateNextRun attempts to update stm's CurrentlyRunning slice with a new run.
+// The new run's now is assigned the earliest possible time according to stm.EffectiveCron,
+// that is later than any in-progress run and stm's LastCompleted timestamp.
+// If the run's now would be later than the passed-in now, CreateNextRun returns a RunNotYetDueError.
+//
 // makeID is a function provided by the caller to create an ID, in case we can create a run.
 // Because a StoreTaskMeta doesn't know the ID of the task it belongs to, it never sets RunCreation.Created.TaskID.
+//
+// TODO: if a run is not yet due, and stm contains a manual run request, create a run for the manual request.
 func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, error)) (RunCreation, error) {
 	if len(stm.CurrentlyRunning) >= int(stm.MaxConcurrency) {
 		return RunCreation{}, errors.New("cannot create next run when max concurrency already reached")

@@ -19,7 +19,12 @@ var ErrTaskNotClaimed = errors.New("task not claimed")
 
 // DesiredState persists the desired state of a run.
 type DesiredState interface {
-	// CreateNextRun requests the next run from the desired state, occurring no later than the Unix timestamp now.
+	// CreateNextRun requests the next run from the desired state, delegating to (*StoreTaskMeta).CreateNextRun.
+	// This allows the scheduler to be "dumb" and just tell DesiredState what time the scheduler thinks it is,
+	// and the DesiredState will create the appropriate run according to the task's cron schedule,
+	// and according to what's in progress and what's been finished.
+	//
+	// If a Run is requested and the cron schedule says the schedule isn't ready, a RunNotYetDueError is returned.
 	CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (RunCreation, error)
 
 	// FinishRun indicates that the given run is no longer intended to be executed.
@@ -392,9 +397,6 @@ func (r *runner) startFromWorking(now int64) {
 	// We can't do r.logger = r.logger.With(zap.String("run_id", qr.RunID.String()) because zap doesn't deduplicate fields,
 	// and we'll quickly end up with many run_ids associated with the log.
 	runLogger := r.logger.With(zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
-
-	// TODO(mr): this used to record metrics or something?
-	// r.tt.StartRun(next)
 
 	runLogger.Info("Beginning execution")
 	go r.executeAndWait(now, qr, runLogger)
