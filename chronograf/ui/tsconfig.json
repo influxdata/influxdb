@@ -1,22 +1,9 @@
 {
   "compilerOptions": {
-    "types": [
-      "node",
-      "chai",
-      "lodash",
-      "enzyme",
-      "react",
-      "prop-types",
-      "jest",
-      "react-router",
-      "text-encoding",
-      "react-dnd",
-      "react-dnd-html5-backend"
-    ],
     "target": "es6",
     "module": "es2015",
     "moduleResolution": "node",
-    "lib": ["es6", "es2017", "dom"],
+    "lib": ["es2017", "dom"],
     "skipLibCheck": true,
     "isolatedModules": false,
     "jsx": "react",
@@ -36,8 +23,7 @@
     "allowJs": true,
     "checkJs": false,
     "sourceMap": true,
-    "baseUrl": "./",
-    "rootDir": "./src"
+    "baseUrl": "./"
   },
-  "exclude": ["./assets/*", "./build/*", "./node_modules/*"]
+  "exclude": ["assets", "build", "node_modules"]
 }

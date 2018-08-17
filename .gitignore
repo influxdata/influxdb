@@ -1,8 +1,8 @@
-node_modules
 vendor
 .netrc
 .vscode
 .vs
+.tern-project
 
 # binary databases
 idpdb.bolt
@@ -16,3 +16,8 @@ idpdb.bolt
 /fluxd
 /transpilerd
 /bin
+
+chronograf/ui/node_modules
+chronograf/ui/yarn-error.log
+chronograf/ui/build
+chronograf/ui/.cache

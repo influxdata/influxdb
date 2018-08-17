@@ -3,8 +3,18 @@
     "syntax-trailing-function-commas",
     "transform-decorators-legacy",
     "transform-object-rest-spread",
+    "transform-class-properties",
     "transform-runtime",
-    "lodash"
+    "lodash",
+    ["module-resolver", {
+      "root": ["./src"],
+      "alias": {
+        "src": "./src",
+	"shared": "./src/shared",
+	"style": "./src/style",
+	"utils": "./src/utils"
+      }
+    }]
   ],
   "presets": ["env", "react", "stage-0"],
   "env": {

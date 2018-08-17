@@ -16,6 +16,7 @@ backup/
 .jssrc
 .dev-jssrc
 .bindata
+.eslintcache
 
 # Files
 chronograf*.db

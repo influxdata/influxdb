@@ -83,7 +83,7 @@ endif
 ifndef YARN
 	$(error Please install yarn 0.19.1+)
 else
-	cd ui && yarn --no-progress --no-emoji
+	cd ui && yarn --no-progress
 	@touch .jsdep
 endif
 
@@ -92,7 +92,8 @@ gen: internal.pb.go
 internal.pb.go: bolt/internal/internal.proto
 	go generate -x ./bolt/internal
 
-test: jstest gotest gotestrace
+test: jstest jslint gotest gotestrace
+
 
 gotest:
 	go test -timeout 10s ./...
@@ -100,20 +101,18 @@ gotest:
 gotestrace:
 	go test -race ./...
 
+
 jstest:
 	cd ui && yarn test --runInBand
 
 jslint:
-	cd ui && yarn run lint:fix
+	cd ui && yarn run eslint && yarn run tslint && yarn run tsc # fail fast for ci process
 
 run: ${BINARY}
 	./chronograf
 
 run-dev: chronogiraffe
 	./chronograf -d --log-level=debug
-
-run-hmr:
-	cd ui && npm run start:hmr
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi

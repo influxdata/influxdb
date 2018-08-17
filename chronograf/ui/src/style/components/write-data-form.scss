@@ -87,7 +87,7 @@ textarea.form-control.write-data-form--input {
   }
 }
 .write-data-form--graphic {
-  background-image: url(assets/images/drag-drop-icon.svg);
+  background-image: url('../../assets/images/drag-drop-icon.svg');
   background-size: 100% 100%;
   background-position: center center;
   width: 90px;
@@ -95,7 +95,7 @@ textarea.form-control.write-data-form--input {
   margin-bottom: 68px;
 
   &.write-data-form--graphic_success {
-    background-image: url(assets/images/drag-drop-icon--success.svg);
+    background-image: url('../../assets/images/drag-drop-icon--success.svg');
     margin-bottom: 0;
   }
 }

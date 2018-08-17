@@ -17,12 +17,11 @@
 @import 'theme/chronograf-theme';
 
 // Vendor
-@import 'external/react-grid-layout';
 @import 'external/fixed-data-table-base';
 @import 'external/fixed-data-table-style';
 @import 'external/fixed-data-table';
 @import 'external/codemirror';
-@import '../../node_modules/codemirror/theme/material.css';
+@import 'external/react-grid-layout';
 
 // Layout
 @import 'layout/page';
@@ -78,7 +77,6 @@
 
 // Pages
 @import 'pages/config-endpoints';
-@import 'pages/signup';
 @import 'pages/auth-page';
 @import 'pages/kapacitor';
 @import 'pages/dashboards';

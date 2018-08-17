@@ -22,14 +22,14 @@ input[type='file'].drag-and-drop--input {
 }
 
 .drag-and-drop--graphic {
-  background-image: url(assets/images/drag-drop-icon.svg);
+  background-image: url('../../assets/images/drag-drop-icon.svg');
   background-size: 100% 100%;
   background-position: center center;
   width: 90px;
   height: 90px;
 
   &.success {
-    background-image: url(assets/images/drag-drop-icon--success.svg);
+    background-image: url('../../assets/images/drag-drop-icon--success.svg');
   }
 }
 

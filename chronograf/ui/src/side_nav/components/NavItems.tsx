@@ -75,7 +75,8 @@ class NavBlock extends PureComponent<NavBlockProps> {
     const children = React.Children.map(
       this.props.children,
       (child: ReactElement<any>) => {
-        if (child && child.type === NavListItem) {
+        // FIXME
+        if (child && String(child.type) === String(NavListItem)) {
           return React.cloneElement(child, {location})
         }
 
