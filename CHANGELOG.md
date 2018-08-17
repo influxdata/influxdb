@@ -11,6 +11,10 @@ v1.7.0 [unreleased]
 -	[#9996](https://github.com/influxdata/influxdb/pull/9996): Ensure read service regexes get optimised.
 -	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation
 
+### Bugfixes
+
+-   [#10206](https://github.com/influxdata/influxdb/pull/10206): Fix legacy restore bug #10072
+
 v1.6.0 [2018-07-05]
 -------------------
 
