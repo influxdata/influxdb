@@ -789,8 +789,18 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 		return nil
 	}
 
-	// Extract measurement name.
-	name, _ := models.ParseKeyBytes(key)
+	// Extract measurement name & tags.
+	name, tags := models.ParseKeyBytes(key)
+
+	// If there are cached sets for any of the tag pairs, they will need to be
+	// updated with the series id.
+	i.tagValueCache.RLock()
+	if i.tagValueCache.measurementContainsSets(name) {
+		for _, pair := range tags {
+			i.tagValueCache.delete(name, pair.Key, pair.Value, seriesID) // Takes a lock on the series id set
+		}
+	}
+	i.tagValueCache.RUnlock()
 
 	// Check if that was the last series for the measurement in the entire index.
 	if ok, err := i.MeasurementHasSeries(name); err != nil {

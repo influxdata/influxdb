@@ -141,28 +141,51 @@ EVICT:
 	c.checkEviction()
 }
 
+// Delete removes x from the tuple {name, key, value} if it exists.
+// This method takes a lock on the underlying SeriesIDSet.
+func (c *TagValueSeriesIDCache) Delete(name, key, value []byte, x uint64) {
+	c.Lock()
+	c.delete(name, key, value, x)
+	c.Unlock()
+}
+
+// delete removes x from the tuple {name, key, value} if it exists.
+func (c *TagValueSeriesIDCache) delete(name, key, value []byte, x uint64) {
+	if mmap, ok := c.cache[string(name)]; ok {
+		if tkmap, ok := mmap[string(key)]; ok {
+			if ele, ok := tkmap[string(value)]; ok {
+				if ss := ele.Value.(*seriesIDCacheElement).SeriesIDSet; ss != nil {
+					ele.Value.(*seriesIDCacheElement).SeriesIDSet.Remove(x)
+				}
+			}
+		}
+	}
+}
+
 // checkEviction checks if the cache is too big, and evicts the least recently used
 // item if it is.
 func (c *TagValueSeriesIDCache) checkEviction() {
-	if c.evictor.Len() > c.capacity {
-		e := c.evictor.Back() // Least recently used item.
-		listElement := e.Value.(*seriesIDCacheElement)
-		name := listElement.name
-		key := listElement.key
-		value := listElement.value
+	if c.evictor.Len() <= c.capacity {
+		return
+	}
 
-		c.evictor.Remove(e)                                       // Remove from evictor
-		delete(c.cache[string(name)][string(key)], string(value)) // Remove from hashmap of items.
+	e := c.evictor.Back() // Least recently used item.
+	listElement := e.Value.(*seriesIDCacheElement)
+	name := listElement.name
+	key := listElement.key
+	value := listElement.value
 
-		// Check if there are no more tag values for the tag key.
-		if len(c.cache[string(name)][string(key)]) == 0 {
-			delete(c.cache[string(name)], string(key))
-		}
+	c.evictor.Remove(e)                                       // Remove from evictor
+	delete(c.cache[string(name)][string(key)], string(value)) // Remove from hashmap of items.
 
-		// Check there are no more tag keys for the measurement.
-		if len(c.cache[string(name)]) == 0 {
-			delete(c.cache, string(name))
-		}
+	// Check if there are no more tag values for the tag key.
+	if len(c.cache[string(name)][string(key)]) == 0 {
+		delete(c.cache[string(name)], string(key))
+	}
+
+	// Check there are no more tag keys for the measurement.
+	if len(c.cache[string(name)]) == 0 {
+		delete(c.cache, string(name))
 	}
 }
 
