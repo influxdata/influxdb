@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"os"
 	"testing"
 	"time"
 
@@ -262,6 +263,12 @@ from(db:"test") |> range(start:-1h)`
 	})
 
 	t.Run("multiple, large pages", func(t *testing.T) {
+		if os.Getenv("JENKINS_URL") != "" {
+			t.Skip("Skipping test that parses a lot of Flux on Jenkins. Unskip when https://github.com/influxdata/platform/issues/484 is fixed.")
+		}
+		if testing.Short() {
+			t.Skip("Skipping test in short mode.")
+		}
 		s := create(t)
 		defer destroy(t, s)
 
