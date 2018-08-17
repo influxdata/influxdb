@@ -15,8 +15,7 @@ import (
 )
 
 const (
-	traceIDKey = "__trace_id__"
-	spanIDKey  = "__span_id__"
+	traceHTTPHeader = "Zap-Trace-Span"
 
 	logTraceIDKey     = "ot_trace_id"
 	logSpanIDKey      = "ot_span_id"
@@ -78,15 +77,13 @@ func (t *Tracer) Inject(sm opentracing.SpanContext, format interface{}, carrier 
 		if !ok {
 			return fmt.Errorf("carrier must be an opentracing.TextMapWriter for text map format, got %T", carrier)
 		}
-		injectTextMapWriter(ctx, w)
-		return nil
+		return injectTextMapWriter(ctx, w)
 	case opentracing.HTTPHeaders:
 		w, ok := carrier.(opentracing.TextMapWriter)
 		if !ok {
 			return fmt.Errorf("carrier must be an opentracing.TextMapWriter for http header format, got %T", carrier)
 		}
-		injectTextMapWriter(ctx, w)
-		return nil
+		return injectTextMapWriter(ctx, w)
 	default:
 		return fmt.Errorf("unsupported format %v", format)
 	}
@@ -126,33 +123,24 @@ func (t *Tracer) Extract(format interface{}, carrier interface{}) (opentracing.S
 	return ctx, err
 }
 
-func injectTextMapWriter(ctx SpanContext, w opentracing.TextMapWriter) {
-	ctx.ForeachBaggageItem(func(k, v string) bool {
-		w.Set(k, v)
-		return true
-	})
-	w.Set(traceIDKey, ctx.traceID.String())
-	w.Set(spanIDKey, ctx.spanID.String())
+func injectTextMapWriter(ctx SpanContext, w opentracing.TextMapWriter) error {
+	data, err := json.Marshal(ctx)
+	if err != nil {
+		return err
+	}
+	w.Set(traceHTTPHeader, string(data))
+	return nil
 }
 
 func extractTextMapReader(ctx *SpanContext, r opentracing.TextMapReader) error {
-	return r.ForeachKey(func(k, v string) error {
-		switch k {
-		case traceIDKey:
-			err := ctx.traceID.DecodeFromString(v)
-			if err != nil {
-				return err
-			}
-		case spanIDKey:
-			err := ctx.spanID.DecodeFromString(v)
-			if err != nil {
-				return err
-			}
-		default:
-			ctx.baggage[k] = v
+	var data []byte
+	r.ForeachKey(func(k, v string) error {
+		if k == traceHTTPHeader {
+			data = []byte(v)
 		}
 		return nil
 	})
+	return json.Unmarshal(data, ctx)
 }
 
 // Span implements opentracing.Span, all Spans must be created using  the Tracer.
@@ -290,9 +278,9 @@ func (c SpanContext) ForeachBaggageItem(handler func(k, v string) bool) {
 
 func (c SpanContext) MarshalJSON() ([]byte, error) {
 	raw := struct {
-		TraceID platform.ID
-		SpanID  platform.ID
-		Baggage map[string]string
+		TraceID platform.ID       `json:"trace_id"`
+		SpanID  platform.ID       `json:"span_id"`
+		Baggage map[string]string `json:"baggage"`
 	}{
 		TraceID: c.traceID,
 		SpanID:  c.spanID,
@@ -303,9 +291,9 @@ func (c SpanContext) MarshalJSON() ([]byte, error) {
 
 func (c *SpanContext) UnmarshalJSON(data []byte) error {
 	raw := struct {
-		TraceID platform.ID
-		SpanID  platform.ID
-		Baggage map[string]string
+		TraceID platform.ID       `json:"trace_id"`
+		SpanID  platform.ID       `json:"span_id"`
+		Baggage map[string]string `json:"baggage"`
 	}{
 		TraceID: c.traceID,
 		SpanID:  c.spanID,
