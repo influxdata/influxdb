@@ -113,9 +113,6 @@ type Store interface {
 	// or deleted is true if there was a matching entry and it was deleted.
 	DeleteTask(ctx context.Context, id platform.ID) (deleted bool, err error)
 
-	// CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
-	CreateRun(ctx context.Context, taskID platform.ID, now int64) (QueuedRun, error)
-
 	// CreateNextRun creates the earliest needed run scheduled no later than the given Unix timestamp now.
 	// Internally, the Store should rely on the underlying task's StoreTaskMeta to create the next run.
 	CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (RunCreation, error)

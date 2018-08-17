@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"strings"
 	"testing"
 	"time"
 
@@ -29,7 +28,6 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 			"FindMeta",
 			"EnableDisableTask",
 			"DeleteTask",
-			"CreateRun",
 			"CreateNextRun",
 			"FinishRun",
 		}
@@ -42,7 +40,6 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 		"FindMeta":          testStoreFindMeta,
 		"EnableDisableTask": testStoreTaskEnableDisable,
 		"DeleteTask":        testStoreDelete,
-		"CreateRun":         testStoreCreateRun,
 		"CreateNextRun":     testStoreCreateNextRun,
 		"FinishRun":         testStoreFinishRun,
 		"DeleteOrg":         testStoreDeleteOrg,
@@ -408,7 +405,7 @@ func testStoreFindMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStor
 		name: "a task",
 		cron: "* * * * *",
 		concurrency: 3,
-		delay: 2m,
+		delay: 5s,
 	}
 
 from(db:"test") |> range(start:-1h)`
@@ -441,7 +438,7 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
 	}
 
-	if time.Duration(meta.Delay)*time.Second != 2*time.Minute {
+	if time.Duration(meta.Delay)*time.Second != 5*time.Second {
 		t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
 	}
 
@@ -454,17 +451,17 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatalf("expected nil meta when finding nonexistent ID, got %#v", meta)
 	}
 
-	qr, err := s.CreateRun(context.Background(), id, 6060)
+	rc, err := s.CreateNextRun(context.Background(), id, 6065)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = s.CreateRun(context.Background(), id, 6120)
+	_, err = s.CreateNextRun(context.Background(), id, 6125)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = s.FinishRun(context.Background(), id, qr.RunID)
+	err = s.FinishRun(context.Background(), id, rc.Created.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -583,41 +580,6 @@ from(db:"test") |> range(start:-1h)`
 	})
 }
 
-func testStoreCreateRun(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
-	const script = `option task = {
-		name: "a task",
-		cron: "* * * * *",
-	}
-
-from(db:"test") |> range(start:-1h)`
-	s := create(t)
-	defer destroy(t, s)
-
-	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	run, err := s.CreateRun(context.Background(), task, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if run.TaskID.String() != task.String() {
-		t.Fatalf("task id mismatch: want %q, got %q", task.String(), run.TaskID.String())
-	}
-
-	if run.Now != 1 {
-		t.Fatal("run now mismatch")
-	}
-
-	if _, err := s.CreateRun(context.Background(), task, 1); err == nil {
-		t.Fatal("expected error for exceeding MaxConcurrency")
-	} else if !strings.Contains(err.Error(), "MaxConcurrency") {
-		t.Fatalf("expected error for MaxConcurrency, got %v", err)
-	}
-}
-
 func testStoreCreateNextRun(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
 	const script = `option task = {
 		name: "a task",
@@ -695,16 +657,16 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal(err)
 	}
 
-	run, err := s.CreateRun(context.Background(), task, 1)
+	rc, err := s.CreateNextRun(context.Background(), task, 60)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.FinishRun(context.Background(), task, run.RunID); err != nil {
+	if err := s.FinishRun(context.Background(), task, rc.Created.RunID); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.FinishRun(context.Background(), task, run.RunID); err == nil {
+	if err := s.FinishRun(context.Background(), task, rc.Created.RunID); err == nil {
 		t.Fatal("expected failure when removing run that doesnt exist")
 	}
 }

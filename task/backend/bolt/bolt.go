@@ -537,50 +537,6 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 	return true, nil
 }
 
-// CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
-func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (backend.QueuedRun, error) {
-	queuedRun := backend.QueuedRun{TaskID: append([]byte(nil), taskID...), Now: now}
-	stm := backend.StoreTaskMeta{}
-	paddedID := padID(taskID)
-	if err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(s.bucket)
-		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
-		if err := stm.Unmarshal(stmBytes); err != nil {
-			return err
-		}
-		if len(stm.CurrentlyRunning) >= int(stm.MaxConcurrency) {
-			return ErrMaxConcurrency
-		}
-
-		id := make(platform.ID, 8)
-		idi, err := b.Bucket(runIDs).NextSequence()
-		if err != nil {
-			return err
-		}
-
-		binary.BigEndian.PutUint64(id, idi)
-		running := &backend.StoreTaskMetaRun{
-			Now:   now,
-			Try:   1,
-			RunID: id,
-		}
-
-		stm.CurrentlyRunning = append(stm.CurrentlyRunning, running)
-		stmBytes, err = stm.Marshal()
-		if err != nil {
-			return err
-		}
-
-		queuedRun.RunID = id
-
-		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(paddedID, stmBytes)
-	}); err != nil {
-		return queuedRun, err
-	}
-
-	return queuedRun, nil
-}
-
 func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (backend.RunCreation, error) {
 	var rc backend.RunCreation
 	paddedID := padID(taskID)

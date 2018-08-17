@@ -148,27 +148,6 @@ func NewDesiredState() *DesiredState {
 	}
 }
 
-// TODO(mr): inject a way to treat CreateRun as blocking?
-func (d *DesiredState) CreateRun(_ context.Context, taskID platform.ID, now int64) (backend.QueuedRun, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	tid := taskID.String()
-	d.runIDs[tid]++
-
-	runID := make([]byte, 4)
-	binary.BigEndian.PutUint32(runID, d.runIDs[tid])
-	qr := backend.QueuedRun{
-		TaskID: taskID,
-		RunID:  runID,
-		Now:    now,
-	}
-
-	d.created[tid+platform.ID(runID).String()] = qr
-
-	return qr, nil
-}
-
 // SetTaskMeta sets the task meta for the given task ID.
 // SetTaskMeta must be called before CreateNextRun, for a given task ID.
 func (d *DesiredState) SetTaskMeta(taskID platform.ID, meta backend.StoreTaskMeta) {

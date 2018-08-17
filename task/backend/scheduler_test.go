@@ -56,7 +56,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	}
 }
 
-func TestScheduler_CreateRunOnTick(t *testing.T) {
+func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)

@@ -233,38 +233,6 @@ func (s *inmem) Close() error {
 	return nil
 }
 
-// CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
-func (s *inmem) CreateRun(ctx context.Context, taskID platform.ID, now int64) (QueuedRun, error) {
-	queuedRun := QueuedRun{}
-
-	stm, ok := s.runners[taskID.String()]
-	if !ok {
-		return queuedRun, errors.New("taskRunner not found")
-	}
-
-	if len(stm.CurrentlyRunning) >= int(stm.MaxConcurrency) {
-		return queuedRun, errors.New("MaxConcurrency reached")
-	}
-
-	runID := s.idgen.ID()
-
-	running := &StoreTaskMetaRun{
-		Now:   now,
-		Try:   1,
-		RunID: runID,
-	}
-
-	stm.CurrentlyRunning = append(stm.CurrentlyRunning, running)
-	s.mu.Lock()
-	s.runners[taskID.String()] = stm
-	s.mu.Unlock()
-
-	queuedRun.TaskID = taskID
-	queuedRun.RunID = runID
-	queuedRun.Now = now
-	return queuedRun, nil
-}
-
 func (s *inmem) CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (RunCreation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
