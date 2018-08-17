@@ -21,7 +21,7 @@ const (
 	DefaultRealm = "InfluxDB"
 
 	// DefaultBindSocket is the default unix socket to bind to.
-	DefaultBindSocket = "/var/run/influxdb.sock"
+	DefaultBindSocket = "/run/influxdb/influxdb.sock"
 
 	// DefaultMaxBodySize is the default maximum size of a client request body, in bytes. Specify 0 for no limit.
 	DefaultMaxBodySize = 25e6

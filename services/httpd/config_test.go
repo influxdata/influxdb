@@ -19,7 +19,7 @@ write-tracing = true
 https-enabled = true
 https-certificate = "/dev/null"
 unix-socket-enabled = true
-bind-socket = "/var/run/influxdb.sock"
+bind-socket = "/run/influxdb/influxdb.sock"
 max-body-size = 100
 `, &c); err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ max-body-size = 100
 		t.Fatalf("unexpected https certificate: %v", c.HTTPSCertificate)
 	} else if !c.UnixSocketEnabled {
 		t.Fatalf("unexpected unix socket enabled: %v", c.UnixSocketEnabled)
-	} else if c.BindSocket != "/var/run/influxdb.sock" {
+	} else if c.BindSocket != "/run/influxdb/influxdb.sock" {
 		t.Fatalf("unexpected bind unix socket: %v", c.BindSocket)
 	} else if c.MaxBodySize != 100 {
 		t.Fatalf("unexpected max-body-size: %v", c.MaxBodySize)

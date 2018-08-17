@@ -34,7 +34,7 @@ OPTIONS
   Port to use when connecting to the host. Default is 8086.
 
 -socket <path>::
-  Unix socket to use when connecting to the local server. Default is /var/run/influxdb.sock.
+  Unix socket to use when connecting to the local server. Default is /run/influxdb/influxdb.sock.
 
 -database <database>::
   Database to use when connecting to the database.

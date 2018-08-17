@@ -298,7 +298,7 @@
   # unix-socket-enabled = false
 
   # The path of the unix domain socket.
-  # bind-socket = "/var/run/influxdb.sock"
+  # bind-socket = "/run/influxdb/influxdb.sock"
 
   # The maximum size of a client request body, in bytes. Setting this value to 0 disables the limit.
   # max-body-size = 25000000
