@@ -47,7 +47,7 @@ func NewWriterWithRate(w io.WriteCloser, limiter Rate) *Writer {
 	}
 }
 
-// Write writes bytes from p.
+// Write writes bytes from b.
 func (s *Writer) Write(b []byte) (int, error) {
 	if s.limiter == nil {
 		return s.w.Write(b)
