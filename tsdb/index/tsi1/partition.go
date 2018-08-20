@@ -51,6 +51,10 @@ type Partition struct {
 	// in this partition. This set tracks both insertions and deletions of a series.
 	seriesIDSet *tsdb.SeriesIDSet
 
+	// Fast series lookup of series IDs per measurement.
+	// Tracks both insertions and deletions.
+	measurementSeriesIDSets map[string]*tsdb.SeriesIDSet
+
 	// Compaction management
 	levels          []CompactionLevel // compaction levels
 	levelCompacting []bool            // level compaction status
@@ -88,10 +92,12 @@ type Partition struct {
 // NewPartition returns a new instance of Partition.
 func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	return &Partition{
-		closing:     make(chan struct{}),
-		path:        path,
-		sfile:       sfile,
-		seriesIDSet: tsdb.NewSeriesIDSet(),
+		closing: make(chan struct{}),
+		path:    path,
+		sfile:   sfile,
+
+		seriesIDSet:             tsdb.NewSeriesIDSet(),
+		measurementSeriesIDSets: make(map[string]*tsdb.SeriesIDSet),
 
 		MaxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
 
@@ -113,6 +119,9 @@ func (p *Partition) bytes() int {
 	b += int(unsafe.Sizeof(p.fileSet)) + p.fileSet.bytes()
 	b += int(unsafe.Sizeof(p.seq))
 	b += int(unsafe.Sizeof(p.seriesIDSet)) + p.seriesIDSet.Bytes()
+	for _, ss := range p.measurementSeriesIDSets {
+		b += int(unsafe.Sizeof(ss)) + ss.Bytes()
+	}
 	b += int(unsafe.Sizeof(p.levels))
 	for _, level := range p.levels {
 		b += int(unsafe.Sizeof(level))
@@ -654,24 +663,66 @@ func (p *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 	defer fs.Release()
 
 	// Ensure fileset cannot change during insert.
-	p.mu.RLock()
-	// Insert series into log file.
-	if err := p.activeLogFile.AddSeriesList(p.seriesIDSet, names, tagsSlice); err != nil {
-		p.mu.RUnlock()
+	if err := func() error {
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+
+		// Insert series into log file.
+		seriesIDs, err := p.activeLogFile.AddSeriesList(p.seriesIDSet, names, tagsSlice)
+		if err != nil {
+			return err
+		}
+
+		// Maintain a local set of already locked series id sets.
+		sets := make(map[string]*tsdb.SeriesIDSet)
+
+		// Insert into meaurement series id sets, if available.
+		for i := range names {
+			name := names[i]
+
+			// Search for already unlocked set first, then find locked set, if available.
+			// Sets are not available until they are used by a query.
+			// If unavailable, just skip it.
+			ss := sets[string(name)]
+			if ss == nil {
+				if ss = p.measurementSeriesIDSets[string(name)]; ss == nil {
+					continue
+				}
+				ss.Lock()
+			}
+
+			// Add series id to measurement set.
+			ss.AddNoLock(seriesIDs[i])
+		}
+
+		// Unlock all used sets.
+		for _, ss := range sets {
+			ss.Unlock()
+		}
+
+		return nil
+	}(); err != nil {
 		return err
 	}
-	p.mu.RUnlock()
 
 	return p.CheckLogFile()
 }
 
-func (p *Partition) DropSeries(seriesID uint64) error {
+func (p *Partition) DropSeries(name []byte, seriesID uint64) error {
 	// Delete series from index.
 	if err := p.activeLogFile.DeleteSeriesID(seriesID); err != nil {
 		return err
 	}
 
+	// Remove from partition-wide series id set.
 	p.seriesIDSet.Remove(seriesID)
+
+	// Remove from per-measurement series id set.
+	p.mu.RLock()
+	if ss := p.measurementSeriesIDSets[string(name)]; ss != nil {
+		ss.Remove(seriesID)
+	}
+	p.mu.RUnlock()
 
 	// Swap log file, if necessary.
 	return p.CheckLogFile()

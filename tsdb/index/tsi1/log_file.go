@@ -520,10 +520,11 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
-func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) error {
+// Returns the inserted series ids.
+func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
 	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice)
 	if err != nil {
-		return err
+		return seriesIDs, err
 	}
 
 	var writeRequired bool
@@ -541,7 +542,7 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 
 	// Exit if all series already exist.
 	if !writeRequired {
-		return nil
+		return seriesIDs, nil
 	}
 
 	f.mu.Lock()
@@ -557,14 +558,14 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 			continue
 		}
 		if err := f.appendEntry(entry); err != nil {
-			return err
+			return seriesIDs, err
 		}
 		f.execEntry(entry)
 		seriesSet.AddNoLock(entry.SeriesID)
 	}
 
 	// Flush buffer and sync to disk.
-	return f.FlushAndSync()
+	return seriesIDs, f.FlushAndSync()
 }
 
 // DeleteSeriesID adds a tombstone for a series id.

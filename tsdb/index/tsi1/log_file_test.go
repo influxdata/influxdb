@@ -29,7 +29,7 @@ func TestLogFile_AddSeriesList(t *testing.T) {
 	seriesSet := tsdb.NewSeriesIDSet()
 
 	// Add test data.
-	if err := f.AddSeriesList(seriesSet, [][]byte{
+	if _, err := f.AddSeriesList(seriesSet, [][]byte{
 		[]byte("mem"),
 		[]byte("cpu"),
 		[]byte("cpu"),
@@ -82,7 +82,7 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 		tv := fmt.Sprintf("server-%d", rand.Intn(50)) // Encourage adding duplicate series.
 		tvm[tv] = struct{}{}
 
-		if err := f.AddSeriesList(seriesSet, [][]byte{
+		if _, err := f.AddSeriesList(seriesSet, [][]byte{
 			[]byte("mem"),
 			[]byte("cpu"),
 		}, []models.Tags{
@@ -133,7 +133,7 @@ func TestLogFile_DeleteMeasurement(t *testing.T) {
 	seriesSet := tsdb.NewSeriesIDSet()
 
 	// Add test data.
-	if err := f.AddSeriesList(seriesSet, [][]byte{
+	if _, err := f.AddSeriesList(seriesSet, [][]byte{
 		[]byte("mem"),
 		[]byte("cpu"),
 		[]byte("cpu"),
@@ -172,7 +172,7 @@ func TestLogFile_Open(t *testing.T) {
 		defer f.Close()
 
 		// Add test data & close.
-		if err := f.AddSeriesList(seriesSet, [][]byte{[]byte("cpu"), []byte("mem")}, []models.Tags{{{}}, {{}}}); err != nil {
+		if _, err := f.AddSeriesList(seriesSet, [][]byte{[]byte("cpu"), []byte("mem")}, []models.Tags{{{}}, {{}}}); err != nil {
 			t.Fatal(err)
 		} else if err := f.LogFile.Close(); err != nil {
 			t.Fatal(err)
@@ -200,7 +200,7 @@ func TestLogFile_Open(t *testing.T) {
 		}
 
 		// Add more data & reopen.
-		if err := f.AddSeriesList(seriesSet, [][]byte{[]byte("disk")}, []models.Tags{{{}}}); err != nil {
+		if _, err := f.AddSeriesList(seriesSet, [][]byte{[]byte("disk")}, []models.Tags{{{}}}); err != nil {
 			t.Fatal(err)
 		} else if err := f.Reopen(); err != nil {
 			t.Fatal(err)
@@ -232,7 +232,7 @@ func TestLogFile_Open(t *testing.T) {
 		defer f.Close()
 
 		// Add test data & close.
-		if err := f.AddSeriesList(seriesSet, [][]byte{[]byte("cpu"), []byte("mem")}, []models.Tags{{{}}, {{}}}); err != nil {
+		if _, err := f.AddSeriesList(seriesSet, [][]byte{[]byte("cpu"), []byte("mem")}, []models.Tags{{{}}, {{}}}); err != nil {
 			t.Fatal(err)
 		} else if err := f.LogFile.Close(); err != nil {
 			t.Fatal(err)
@@ -313,7 +313,7 @@ func CreateLogFile(sfile *tsdb.SeriesFile, series []Series) (*LogFile, error) {
 	f := MustOpenLogFile(sfile)
 	seriesSet := tsdb.NewSeriesIDSet()
 	for _, serie := range series {
-		if err := f.AddSeriesList(seriesSet, [][]byte{serie.Name}, []models.Tags{serie.Tags}); err != nil {
+		if _, err := f.AddSeriesList(seriesSet, [][]byte{serie.Name}, []models.Tags{serie.Tags}); err != nil {
 			return nil, err
 		}
 	}
@@ -338,7 +338,7 @@ func GenerateLogFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (*L
 				value := []byte(fmt.Sprintf("value%d", (j / pow(valueN, k) % valueN)))
 				tags = append(tags, models.NewTag(key, value))
 			}
-			if err := f.AddSeriesList(seriesSet, [][]byte{name}, []models.Tags{tags}); err != nil {
+			if _, err := f.AddSeriesList(seriesSet, [][]byte{name}, []models.Tags{tags}); err != nil {
 				return nil, err
 			}
 		}
@@ -385,7 +385,7 @@ func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesVa
 
 	for i := 0; i < b.N; i++ {
 		for _, d := range data {
-			if err := f.AddSeriesList(seriesSet, [][]byte{d.Name}, []models.Tags{d.Tags}); err != nil {
+			if _, err := f.AddSeriesList(seriesSet, [][]byte{d.Name}, []models.Tags{d.Tags}); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -417,7 +417,7 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 
 			// Initialize log file with series data.
 			for i := 0; i < seriesN; i++ {
-				if err := f.AddSeriesList(
+				if _, err := f.AddSeriesList(
 					seriesSet,
 					[][]byte{[]byte("cpu")},
 					[]models.Tags{{
