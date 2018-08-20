@@ -15,9 +15,9 @@ const RangeKind = "range"
 type RangeOpSpec struct {
 	Start    query.Time `json:"start"`
 	Stop     query.Time `json:"stop"`
-	TimeCol  string     `json:"time_col"`
-	StartCol string     `json:"start_col"`
-	StopCol  string     `json:"stop_col"`
+	TimeCol  string     `json:"timeCol"`
+	StartCol string     `json:"startCol"`
+	StopCol  string     `json:"stopCol"`
 }
 
 var rangeSignature = query.DefaultFunctionSignature()
@@ -25,7 +25,9 @@ var rangeSignature = query.DefaultFunctionSignature()
 func init() {
 	rangeSignature.Params["start"] = semantic.Time
 	rangeSignature.Params["stop"] = semantic.Time
-	rangeSignature.Params["column"] = semantic.String
+	rangeSignature.Params["timeCol"] = semantic.String
+	rangeSignature.Params["startCol"] = semantic.String
+	rangeSignature.Params["stopCol"] = semantic.String
 
 	query.RegisterFunction(RangeKind, createRangeOpSpec, rangeSignature)
 	query.RegisterOpSpec(RangeKind, newRangeOp)

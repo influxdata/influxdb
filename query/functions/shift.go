@@ -22,6 +22,7 @@ var shiftSignature = query.DefaultFunctionSignature()
 
 func init() {
 	shiftSignature.Params["shift"] = semantic.Duration
+	shiftSignature.Params["columns"] = semantic.NewArrayType(semantic.String)
 
 	query.RegisterFunction(ShiftKind, createShiftOpSpec, shiftSignature)
 	query.RegisterOpSpec(ShiftKind, newShiftOp)

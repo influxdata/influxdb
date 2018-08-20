@@ -6,7 +6,6 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/plan"
-	"github.com/influxdata/platform/query/semantic"
 )
 
 const LastKind = "last"
@@ -18,9 +17,6 @@ type LastOpSpec struct {
 var lastSignature = query.DefaultFunctionSignature()
 
 func init() {
-	lastSignature.Params["column"] = semantic.String
-	lastSignature.Params["useRowTime"] = semantic.Bool
-
 	query.RegisterFunction(LastKind, createLastOpSpec, lastSignature)
 	query.RegisterOpSpec(LastKind, newLastOp)
 	plan.RegisterProcedureSpec(LastKind, newLastProcedure, LastKind)

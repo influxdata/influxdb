@@ -20,10 +20,10 @@ type WindowOpSpec struct {
 	Start              query.Time        `json:"start"`
 	Round              query.Duration    `json:"round"`
 	Triggering         query.TriggerSpec `json:"triggering"`
-	IgnoreGlobalBounds bool              `json:"ignore_global_bounds"`
-	TimeCol            string            `json:"time_col"`
-	StopColLabel       string            `json:"stop_col_label"`
-	StartColLabel      string            `json:"start_col_label"`
+	IgnoreGlobalBounds bool              `json:"ignoreGlobalBounds"`
+	TimeCol            string            `json:"timeCol"`
+	StopColLabel       string            `json:"stopColLabel"`
+	StartColLabel      string            `json:"startColLabel"`
 }
 
 var infinityVar = values.NewDurationValue(math.MaxInt64)
@@ -36,6 +36,9 @@ func init() {
 	windowSignature.Params["round"] = semantic.Duration
 	windowSignature.Params["start"] = semantic.Time
 	windowSignature.Params["ignoreGlobalBounds"] = semantic.Bool
+	windowSignature.Params["timeCol"] = semantic.String
+	windowSignature.Params["startColLabel"] = semantic.String
+	windowSignature.Params["stopColLabel"] = semantic.String
 
 	query.RegisterFunction(WindowKind, createWindowOpSpec, windowSignature)
 	query.RegisterOpSpec(WindowKind, newWindowOp)

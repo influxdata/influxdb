@@ -14,7 +14,7 @@ import (
 const DifferenceKind = "difference"
 
 type DifferenceOpSpec struct {
-	NonNegative bool     `json:"non_negative"`
+	NonNegative bool     `json:"nonNegative"`
 	Columns     []string `json:"columns"`
 }
 

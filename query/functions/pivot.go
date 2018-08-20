@@ -15,9 +15,9 @@ import (
 const PivotKind = "pivot"
 
 type PivotOpSpec struct {
-	RowKey   []string `json:"row_key"`
-	ColKey   []string `json:"col_key"`
-	ValueCol string   `json:"value_col"`
+	RowKey   []string `json:"rowKey"`
+	ColKey   []string `json:"colKey"`
+	ValueCol string   `json:"valueCol"`
 }
 
 var pivotSignature = query.DefaultFunctionSignature()

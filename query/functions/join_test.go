@@ -168,7 +168,7 @@ func TestJoinOperation_Marshaling(t *testing.T) {
 		"kind":"join",
 		"spec":{
 			"on":["t1","t2"],
-			"table_names":{"sum1":"a","count3":"b"}
+			"tableNames":{"sum1":"a","count3":"b"}
 		}
 	}`)
 	op := &query.Operation{

@@ -6,7 +6,6 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/plan"
-	"github.com/influxdata/platform/query/semantic"
 )
 
 const FirstKind = "first"
@@ -18,9 +17,6 @@ type FirstOpSpec struct {
 var firstSignature = query.DefaultFunctionSignature()
 
 func init() {
-	firstSignature.Params["column"] = semantic.String
-	firstSignature.Params["useRowTime"] = semantic.Bool
-
 	query.RegisterFunction(FirstKind, createFirstOpSpec, firstSignature)
 	query.RegisterOpSpec(FirstKind, newFirstOp)
 	plan.RegisterProcedureSpec(FirstKind, newFirstProcedure, FirstKind)

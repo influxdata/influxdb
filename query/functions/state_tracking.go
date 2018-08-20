@@ -17,10 +17,10 @@ const StateTrackingKind = "stateTracking"
 
 type StateTrackingOpSpec struct {
 	Fn            *semantic.FunctionExpression `json:"fn"`
-	CountLabel    string                       `json:"count_label"`
-	DurationLabel string                       `json:"duration_label"`
-	DurationUnit  query.Duration               `json:"duration_unit"`
-	TimeCol       string                       `json:"time_col"`
+	CountLabel    string                       `json:"countLabel"`
+	DurationLabel string                       `json:"durationLabel"`
+	DurationUnit  query.Duration               `json:"durationUnit"`
+	TimeCol       string                       `json:"timeCol"`
 }
 
 var stateTrackingSignature = query.DefaultFunctionSignature()
@@ -30,6 +30,7 @@ func init() {
 	stateTrackingSignature.Params["countLabel"] = semantic.String
 	stateTrackingSignature.Params["durationLabel"] = semantic.String
 	stateTrackingSignature.Params["durationUnit"] = semantic.Duration
+	stateTrackingSignature.Params["timeCol"] = semantic.String
 
 	query.RegisterFunction(StateTrackingKind, createStateTrackingOpSpec, stateTrackingSignature)
 	query.RegisterBuiltIn("state-tracking", stateTrackingBuiltin)

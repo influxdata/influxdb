@@ -14,7 +14,7 @@ import (
 )
 
 func TestStateTrackingOperation_Marshaling(t *testing.T) {
-	data := []byte(`{"id":"id","kind":"stateTracking","spec":{"count_label":"c","duration_label":"d","duration_unit":"1m"}}`)
+	data := []byte(`{"id":"id","kind":"stateTracking","spec":{"countLabel":"c","durationLabel":"d","durationUnit":"1m"}}`)
 	op := &query.Operation{
 		ID: "id",
 		Spec: &functions.StateTrackingOpSpec{

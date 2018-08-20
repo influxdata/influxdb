@@ -30,14 +30,24 @@ type ToKafkaOpSpec struct {
 	Topic        string   `json:"topic"`
 	Balancer     string   `json:"balancer"`
 	Name         string   `json:"name"`
-	NameColumn   string   `json:"name_column"` // either name or name_column must be set, if none is set try to use the "_measurement" column.
-	TimeColumn   string   `json:"time_column"`
-	TagColumns   []string `json:"tag_columns"`
-	ValueColumns []string `json:"value_columns"`
-	MsgBufSize   int      `json:"msg_buffer_size"` // the maximim number of messages to buffer before sending to kafka, the library we use defaults to 100
+	NameColumn   string   `json:"nameColumn"` // either name or name_column must be set, if none is set try to use the "_measurement" column.
+	TimeColumn   string   `json:"timeColumn"`
+	TagColumns   []string `json:"tagColumns"`
+	ValueColumns []string `json:"valueColumns"`
+	MsgBufSize   int      `json:"msgBufferSize"` // the maximim number of messages to buffer before sending to kafka, the library we use defaults to 100
 }
 
+var ToKafkaSignature = query.DefaultFunctionSignature()
+
 func init() {
+	ToKafkaSignature.Params["brokers"] = semantic.NewArrayType(semantic.String)
+	ToKafkaSignature.Params["topic"] = semantic.String
+	ToKafkaSignature.Params["balancer"] = semantic.String
+	ToKafkaSignature.Params["name"] = semantic.String
+	ToKafkaSignature.Params["nameColumn"] = semantic.String
+	ToKafkaSignature.Params["timeColumn"] = semantic.String
+	ToKafkaSignature.Params["tagColumns"] = semantic.NewArrayType(semantic.String)
+	ToKafkaSignature.Params["valueColumns"] = semantic.NewArrayType(semantic.String)
 	query.RegisterFunctionWithSideEffect(ToKafkaKind, createToKafkaOpSpec, ToKafkaSignature)
 	query.RegisterOpSpec(ToKafkaKind,
 		func() query.OperationSpec { return &ToKafkaOpSpec{} })
@@ -95,7 +105,7 @@ func (o *ToKafkaOpSpec) ReadArgs(args query.Arguments) error {
 		return err
 	}
 	if !ok {
-		o.NameColumn, ok, err = args.GetString("name_column")
+		o.NameColumn, ok, err = args.GetString("nameColumn")
 		if err != nil {
 			return err
 		}
@@ -103,14 +113,14 @@ func (o *ToKafkaOpSpec) ReadArgs(args query.Arguments) error {
 			o.NameColumn = "_measurement"
 		}
 	}
-	o.TimeColumn, ok, err = args.GetString("time_column")
+	o.TimeColumn, ok, err = args.GetString("timeColumn")
 	if err != nil {
 		return err
 	}
 	if !ok {
 		o.TimeColumn = execute.DefaultTimeColLabel
 	}
-	tagColumns, ok, err := args.GetArray("tag_columns", semantic.String)
+	tagColumns, ok, err := args.GetArray("tagColumns", semantic.String)
 	if err != nil {
 		return err
 	}
@@ -121,7 +131,7 @@ func (o *ToKafkaOpSpec) ReadArgs(args query.Arguments) error {
 		}
 		sort.Strings(o.TagColumns)
 	}
-	valueColumns, ok, err := args.GetArray("value_columns", semantic.String)
+	valueColumns, ok, err := args.GetArray("valueColumns", semantic.String)
 	if err != nil {
 		return err
 	}
@@ -135,7 +145,7 @@ func (o *ToKafkaOpSpec) ReadArgs(args query.Arguments) error {
 		sort.Strings(o.TagColumns)
 	}
 
-	msgBufSize, ok, err := args.GetInt("msg_buffer_size")
+	msgBufSize, ok, err := args.GetInt("msgBufferSize")
 	o.MsgBufSize = int(msgBufSize)
 	if err != nil {
 		return err
@@ -156,8 +166,6 @@ func createToKafkaOpSpec(args query.Arguments, a *query.Administration) (query.O
 	}
 	return s, nil
 }
-
-var ToKafkaSignature = query.DefaultFunctionSignature()
 
 func (ToKafkaOpSpec) Kind() query.OperationKind {
 	return ToKafkaKind

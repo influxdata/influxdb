@@ -34,6 +34,8 @@ var percentileSignature = query.DefaultFunctionSignature()
 
 func init() {
 	percentileSignature.Params["p"] = semantic.Float
+	percentileSignature.Params["compression"] = semantic.Float
+	percentileSignature.Params["method"] = semantic.String
 
 	query.RegisterFunction(PercentileKind, createPercentileOpSpec, percentileSignature)
 	query.RegisterBuiltIn("median", medianBuiltin)
