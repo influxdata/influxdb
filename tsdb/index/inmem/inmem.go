@@ -773,7 +773,7 @@ func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
 }
 
 // DropSeriesGlobal removes the series key and its tags from the index.
-func (i *Index) DropSeriesGlobal(key []byte, ts int64) error {
+func (i *Index) DropSeriesGlobal(key []byte) error {
 	if key == nil {
 		return nil
 	}
