@@ -643,6 +643,9 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	return nil
 }
 
+// DropSeriesGlobal is a no-op on the tsi1 index.
+func (i *Index) DropSeriesGlobal(key []byte) error { return nil }
+
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
 // series for the measurment.
 func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {

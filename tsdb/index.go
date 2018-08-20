@@ -34,6 +34,9 @@ type Index interface {
 	DropSeries(seriesID uint64, key []byte, cascade bool) error
 	DropMeasurementIfSeriesNotExist(name []byte) error
 
+	// Used to clean up series in inmem index that were dropped with a shard.
+	DropSeriesGlobal(key []byte) error
+
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
