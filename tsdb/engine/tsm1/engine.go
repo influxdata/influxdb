@@ -1324,7 +1324,6 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 // does not update the index or disable compactions.  This should mainly be called by DeleteSeriesRange
 // and not directly.
 func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
-	ts := time.Now().UTC().UnixNano()
 	if len(seriesKeys) == 0 {
 		return nil
 	}
@@ -1534,7 +1533,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			// the global index (all shards).
 			if index, ok := e.index.(*inmem.ShardIndex); ok {
 				key := models.MakeKey(name, tags)
-				if e := index.Index.DropSeriesGlobal(key, ts); e != nil {
+				if e := index.Index.DropSeriesGlobal(key); e != nil {
 					err = e
 				}
 			}
