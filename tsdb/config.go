@@ -82,6 +82,9 @@ type Config struct {
 	// disks or when WAL write contention is seen.  A value of 0 fsyncs every write to the WAL.
 	WALFsyncDelay toml.Duration `toml:"wal-fsync-delay"`
 
+	// Enables unicode validation on series keys on write.
+	ValidateKeys bool `toml:"validate-keys"`
+
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 
