@@ -9,17 +9,20 @@ import (
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // TaskHandler represents an HTTP API handler for tasks.
 type TaskHandler struct {
 	*httprouter.Router
+	logger      *zap.Logger
 	TaskService platform.TaskService
 }
 
 // NewTaskHandler returns a new instance of TaskHandler.
-func NewTaskHandler() *TaskHandler {
+func NewTaskHandler(logger *zap.Logger) *TaskHandler {
 	h := &TaskHandler{
+		logger: logger,
 		Router: httprouter.New(),
 	}
 
@@ -103,6 +106,9 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.TaskService.CreateTask(ctx, req.Task); err != nil {
+		if e, ok := err.(AuthzError); ok {
+			h.logger.Error("failed authentication", zap.Errors("error messages", []error{err, e.AuthzError()}))
+		}
 		EncodeError(ctx, err, w)
 		return
 	}

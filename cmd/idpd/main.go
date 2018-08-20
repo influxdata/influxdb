@@ -147,6 +147,8 @@ func platformF(cmd *cobra.Command, args []string) {
 
 		// TODO(lh): Replace NopLogReader with real log reader
 		taskSvc = task.PlatformAdapter(coordinator.New(scheduler, boltStore), taskbackend.NopLogReader{})
+		// TODO(lh): Add in `taskSvc = task.NewValidator(taskSvc)` once we have Authentication coming in the context.
+		// see issue #563
 	}
 
 	chronografSvc, err := server.NewServiceV2(context.TODO(), c.DB())
@@ -188,7 +190,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		sourceHandler := http.NewSourceHandler()
 		sourceHandler.SourceService = sourceSvc
 
-		taskHandler := http.NewTaskHandler()
+		taskHandler := http.NewTaskHandler(logger)
 		taskHandler.TaskService = taskSvc
 
 		// TODO(desa): what to do about idpe.

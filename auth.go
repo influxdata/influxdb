@@ -64,6 +64,11 @@ const (
 	OrganizationResource = resource("org")
 )
 
+// TaskResource represents the task resource scoped to an organization.
+func TaskResource(orgID ID) resource {
+	return resource(fmt.Sprintf("org/%s/task", orgID))
+}
+
 // BucketResource constructs a bucket resource.
 func BucketResource(id ID) resource {
 	return resource(fmt.Sprintf("bucket/%s", id))
