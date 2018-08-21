@@ -440,6 +440,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:1a1206efd03a54d336dce7bb8719e74f2f8932f661cb9f57d5813a1d99c083d8"
+  name = "github.com/grpc-ecosystem/grpc-opentracing"
+  packages = ["go/otgrpc"]
+  pruneopts = "UT"
+  revision = "8e809c8a86450a29b90dcc9efbf062d0fe6d9746"
+
+[[projects]]
+  branch = "master"
   digest = "1:a361611b8c8c75a1091f00027767f7779b29cb37c456a71b8f2604c88057ab40"
   name = "github.com/hashicorp/hcl"
   packages = [
@@ -1081,6 +1089,7 @@
     "github.com/google/go-cmp/cmp/cmpopts",
     "github.com/google/go-github/github",
     "github.com/goreleaser/goreleaser",
+    "github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc",
     "github.com/influxdata/influxdb/logger",
     "github.com/influxdata/influxdb/pkg/snowflake",
     "github.com/influxdata/influxql",
@@ -1119,6 +1128,7 @@
     "golang.org/x/text/unicode/norm",
     "google.golang.org/api/oauth2/v2",
     "google.golang.org/grpc",
+    "google.golang.org/grpc/metadata",
     "gopkg.in/robfig/cron.v2",
   ]
   solver-name = "gps-cdcl"

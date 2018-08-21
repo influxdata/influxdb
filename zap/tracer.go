@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/influxdata/platform"
@@ -135,7 +136,7 @@ func injectTextMapWriter(ctx SpanContext, w opentracing.TextMapWriter) error {
 func extractTextMapReader(ctx *SpanContext, r opentracing.TextMapReader) error {
 	var data []byte
 	r.ForeachKey(func(k, v string) error {
-		if k == traceHTTPHeader {
+		if http.CanonicalHeaderKey(k) == traceHTTPHeader {
 			data = []byte(v)
 		}
 		return nil

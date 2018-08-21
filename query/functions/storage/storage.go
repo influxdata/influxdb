@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/semantic"
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 )
 
@@ -99,17 +98,10 @@ func (s *source) Run(ctx context.Context) {
 		t.Finish(s.id, err)
 	}
 }
+
 func (s *source) run(ctx context.Context) error {
-
-	var trace map[string]string
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		trace = make(map[string]string)
-		span = opentracing.StartSpan("storage_source.run", opentracing.ChildOf(span.Context()))
-		_ = opentracing.GlobalTracer().Inject(span.Context(), opentracing.TextMap, opentracing.TextMapCarrier(trace))
-	}
-
 	//TODO(nathanielc): Pass through context to actual network I/O.
-	for tables, mark, ok := s.next(ctx, trace); ok; tables, mark, ok = s.next(ctx, trace) {
+	for tables, mark, ok := s.next(ctx); ok; tables, mark, ok = s.next(ctx) {
 		err := tables.Do(func(tbl query.Table) error {
 			for _, t := range s.ts {
 				if err := t.Process(s.id, tbl); err != nil {
@@ -135,7 +127,7 @@ func (s *source) run(ctx context.Context) error {
 	return nil
 }
 
-func (s *source) next(ctx context.Context, trace map[string]string) (query.TableIterator, execute.Time, bool) {
+func (s *source) next(ctx context.Context) (query.TableIterator, execute.Time, bool) {
 	if s.overflow {
 		return nil, 0, false
 	}
@@ -157,7 +149,6 @@ func (s *source) next(ctx context.Context, trace map[string]string) (query.Table
 
 	bi, err := s.reader.Read(
 		ctx,
-		trace,
 		s.readSpec,
 		start,
 		stop,
@@ -213,6 +204,6 @@ type ReadSpec struct {
 }
 
 type Reader interface {
-	Read(ctx context.Context, trace map[string]string, rs ReadSpec, start, stop execute.Time) (query.TableIterator, error)
+	Read(ctx context.Context, rs ReadSpec, start, stop execute.Time) (query.TableIterator, error)
 	Close()
 }
