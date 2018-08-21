@@ -31,7 +31,7 @@ import (
 )
 
 // IndexName is the name of this index.
-const IndexName = "inmem"
+const IndexName = tsdb.InmemIndexName
 
 func init() {
 	tsdb.NewInmemIndex = func(name string, sfile *tsdb.SeriesFile) (interface{}, error) { return NewIndex(name, sfile), nil }

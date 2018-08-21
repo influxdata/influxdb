@@ -2060,7 +2060,7 @@ func NewShards(index string, n int) Shards {
 		opt := tsdb.NewEngineOptions()
 		opt.IndexVersion = index
 		opt.Config.WALDir = filepath.Join(dir, "wal")
-		if index == "inmem" {
+		if index == tsdb.InmemIndexName {
 			opt.InmemIndex = inmem.NewIndex(filepath.Base(dir), sfile.SeriesFile)
 		}
 

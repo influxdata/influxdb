@@ -17,6 +17,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// Available index types.
+const (
+	InmemIndexName = "inmem"
+	TSI1IndexName  = "tsi1"
+)
+
 type Index interface {
 	Open() error
 	Close() error
@@ -1210,7 +1216,7 @@ type IndexSet struct {
 // HasInmemIndex returns true if any in-memory index is in use.
 func (is IndexSet) HasInmemIndex() bool {
 	for _, idx := range is.Indexes {
-		if idx.Type() == "inmem" {
+		if idx.Type() == InmemIndexName {
 			return true
 		}
 	}
@@ -2651,7 +2657,7 @@ func NewIndex(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile 
 	} else if err != nil {
 		return nil, err
 	} else if err == nil {
-		format = "tsi1"
+		format = TSI1IndexName
 	}
 
 	// Lookup index by format.

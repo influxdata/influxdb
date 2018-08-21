@@ -2345,7 +2345,7 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == "inmem" {
+	if e.index.Type() == tsdb.InmemIndexName {
 		ts := e.index.(indexTagSets)
 		tagSets, err = ts.TagSets([]byte(measurement), opt)
 	} else {
@@ -2425,7 +2425,7 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == "inmem" {
+	if e.index.Type() == tsdb.InmemIndexName {
 		ts := e.index.(indexTagSets)
 		tagSets, err = ts.TagSets([]byte(measurement), opt)
 	} else {

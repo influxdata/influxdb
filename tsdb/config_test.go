@@ -61,12 +61,12 @@ func TestConfig_Validate_Error(t *testing.T) {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	c.Index = "inmem"
+	c.Index = tsdb.InmemIndexName
 	if err := c.Validate(); err != nil {
 		t.Error(err)
 	}
 
-	c.Index = "tsi1"
+	c.Index = tsdb.TSI1IndexName
 	if err := c.Validate(); err != nil {
 		t.Error(err)
 	}
