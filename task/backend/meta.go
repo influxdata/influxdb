@@ -12,16 +12,16 @@ import (
 // This file contains helper methods for the StoreTaskMeta type defined in protobuf.
 
 // FinishRun removes the run matching runID from m's CurrentlyRunning slice,
-// and if that run's Now value is greater than m's LastCompleted value,
-// updates the value of LastCompleted to the run's Now value.
+// and if that run's Now value is greater than m's LatestCompleted value,
+// updates the value of LatestCompleted to the run's Now value.
 //
 // If runID matched a run, FinishRun returns true. Otherwise it returns false.
 func (stm *StoreTaskMeta) FinishRun(runID platform.ID) bool {
 	for i, runner := range stm.CurrentlyRunning {
 		if bytes.Equal(runner.RunID, runID) {
 			stm.CurrentlyRunning = append(stm.CurrentlyRunning[:i], stm.CurrentlyRunning[i+1:]...)
-			if runner.Now > stm.LastCompleted {
-				stm.LastCompleted = runner.Now
+			if runner.Now > stm.LatestCompleted {
+				stm.LatestCompleted = runner.Now
 				return true
 			}
 		}
@@ -31,7 +31,7 @@ func (stm *StoreTaskMeta) FinishRun(runID platform.ID) bool {
 
 // CreateNextRun attempts to update stm's CurrentlyRunning slice with a new run.
 // The new run's now is assigned the earliest possible time according to stm.EffectiveCron,
-// that is later than any in-progress run and stm's LastCompleted timestamp.
+// that is later than any in-progress run and stm's LatestCompleted timestamp.
 // If the run's now would be later than the passed-in now, CreateNextRun returns a RunNotYetDueError.
 //
 // makeID is a function provided by the caller to create an ID, in case we can create a run.
@@ -50,7 +50,7 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 		return RunCreation{}, err
 	}
 
-	latest := stm.LastCompleted
+	latest := stm.LatestCompleted
 	for _, cr := range stm.CurrentlyRunning {
 		if cr.Now > latest {
 			latest = cr.Now
@@ -90,7 +90,7 @@ func (stm *StoreTaskMeta) NextDueRun() (int64, error) {
 		return 0, err
 	}
 
-	latest := stm.LastCompleted
+	latest := stm.LatestCompleted
 	for _, cr := range stm.CurrentlyRunning {
 		if cr.Now > latest {
 			latest = cr.Now

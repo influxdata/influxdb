@@ -209,11 +209,11 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 
 		// metadata
 		stm := backend.StoreTaskMeta{
-			MaxConcurrency: int32(o.Concurrency),
-			Status:         string(backend.TaskEnabled),
-			LastCompleted:  scheduleAfter,
-			EffectiveCron:  o.EffectiveCronString(),
-			Delay:          int32(o.Delay / time.Second),
+			MaxConcurrency:  int32(o.Concurrency),
+			Status:          string(backend.TaskEnabled),
+			LatestCompleted: scheduleAfter,
+			EffectiveCron:   o.EffectiveCronString(),
+			Delay:           int32(o.Delay / time.Second),
 		}
 
 		stmBytes, err := stm.Marshal()

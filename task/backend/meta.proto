@@ -10,8 +10,9 @@ option go_package = "backend";
 message StoreTaskMeta {
   int32 max_concurrency = 1;
 
-  // last_completed is the unix timestamp of the last "naturally" completed run.
-  int64 last_completed = 2;
+  // latest_completed is the unix timestamp of the latest "naturally" completed run.
+  // If a run for time t finishes before a run for time t - u, latest_completed will reflect time t.
+  int64 latest_completed = 2;
 
   // status indicates if the task is enabled or disabled.
   string status = 3;

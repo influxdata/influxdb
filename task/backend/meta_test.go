@@ -18,10 +18,10 @@ func makeID() (platform.ID, error) {
 
 func TestMeta_CreateNextRun(t *testing.T) {
 	good := backend.StoreTaskMeta{
-		MaxConcurrency: 2,
-		Status:         "enabled",
-		EffectiveCron:  "* * * * *", // Every minute.
-		LastCompleted:  60,          // It has run once for the first minute.
+		MaxConcurrency:  2,
+		Status:          "enabled",
+		EffectiveCron:   "* * * * *", // Every minute.
+		LatestCompleted: 60,          // It has run once for the first minute.
 	}
 
 	_, err := good.CreateNextRun(59, makeID)
@@ -91,11 +91,11 @@ func TestMeta_CreateNextRun(t *testing.T) {
 
 func TestMeta_CreateNextRun_Delay(t *testing.T) {
 	stm := backend.StoreTaskMeta{
-		MaxConcurrency: 2,
-		Status:         "enabled",
-		EffectiveCron:  "* * * * *", // Every minute.
-		Delay:          5,
-		LastCompleted:  30, // Arbitrary non-overlap starting point.
+		MaxConcurrency:  2,
+		Status:          "enabled",
+		EffectiveCron:   "* * * * *", // Every minute.
+		Delay:           5,
+		LatestCompleted: 30, // Arbitrary non-overlap starting point.
 	}
 
 	_, err := stm.CreateNextRun(61, makeID)

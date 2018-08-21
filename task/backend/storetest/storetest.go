@@ -437,8 +437,8 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("failed to set max concurrency")
 	}
 
-	if meta.LastCompleted != 6000 {
-		t.Fatalf("last completed should have been set to 6000, got %d", meta.LastCompleted)
+	if meta.LatestCompleted != 6000 {
+		t.Fatalf("LatestCompleted should have been set to 6000, got %d", meta.LatestCompleted)
 	}
 
 	if meta.EffectiveCron != "* * * * *" {
@@ -482,8 +482,8 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("creating and finishing runs doesn't work")
 	}
 
-	if meta.LastCompleted != 6060 {
-		t.Fatalf("expected LastCompleted to be updated by finished run, but it wasn't; LastCompleted=%d", meta.LastCompleted)
+	if meta.LatestCompleted != 6060 {
+		t.Fatalf("expected LatestCompleted to be updated by finished run, but it wasn't; LatestCompleted=%d", meta.LatestCompleted)
 	}
 }
 

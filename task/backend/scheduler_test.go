@@ -23,9 +23,9 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 		ID: platform.ID{1},
 	}
 	meta := &backend.StoreTaskMeta{
-		MaxConcurrency: 1,
-		EffectiveCron:  "* * * * *",
-		LastCompleted:  3,
+		MaxConcurrency:  1,
+		EffectiveCron:   "* * * * *",
+		LatestCompleted: 3,
 	}
 	d.SetTaskMeta(task.ID, *meta)
 	if err := o.ClaimTask(task, meta); err != nil {
@@ -42,9 +42,9 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 		ID: platform.ID{2},
 	}
 	meta = &backend.StoreTaskMeta{
-		MaxConcurrency: 99,
-		EffectiveCron:  "@every 1s",
-		LastCompleted:  3,
+		MaxConcurrency:  99,
+		EffectiveCron:   "@every 1s",
+		LatestCompleted: 3,
 	}
 	d.SetTaskMeta(task.ID, *meta)
 	if err := o.ClaimTask(task, meta); err != nil {
@@ -65,9 +65,9 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 		ID: platform.ID{1},
 	}
 	meta := &backend.StoreTaskMeta{
-		MaxConcurrency: 2,
-		EffectiveCron:  "@every 1s",
-		LastCompleted:  5,
+		MaxConcurrency:  2,
+		EffectiveCron:   "@every 1s",
+		LatestCompleted: 5,
 	}
 
 	d.SetTaskMeta(task.ID, *meta)
@@ -113,9 +113,9 @@ func TestScheduler_Release(t *testing.T) {
 		ID: platform.ID{1},
 	}
 	meta := &backend.StoreTaskMeta{
-		MaxConcurrency: 99,
-		EffectiveCron:  "@every 1s",
-		LastCompleted:  5,
+		MaxConcurrency:  99,
+		EffectiveCron:   "@every 1s",
+		LatestCompleted: 5,
 	}
 
 	d.SetTaskMeta(task.ID, *meta)
@@ -149,9 +149,9 @@ func TestScheduler_RunLog(t *testing.T) {
 		ID: platform.ID{1},
 	}
 	meta := &backend.StoreTaskMeta{
-		MaxConcurrency: 99,
-		EffectiveCron:  "@every 1s",
-		LastCompleted:  5,
+		MaxConcurrency:  99,
+		EffectiveCron:   "@every 1s",
+		LatestCompleted: 5,
 	}
 
 	d.SetTaskMeta(task.ID, *meta)
@@ -289,9 +289,9 @@ func TestScheduler_Metrics(t *testing.T) {
 		ID: platform.ID{1},
 	}
 	meta := &backend.StoreTaskMeta{
-		MaxConcurrency: 99,
-		EffectiveCron:  "@every 1s",
-		LastCompleted:  5,
+		MaxConcurrency:  99,
+		EffectiveCron:   "@every 1s",
+		LatestCompleted: 5,
 	}
 
 	d.SetTaskMeta(task.ID, *meta)

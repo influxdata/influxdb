@@ -69,7 +69,7 @@ func (s *Scheduler) ClaimTask(task *backend.StoreTask, meta *backend.StoreTaskMe
 	}
 	s.meta[task.ID.String()] = *meta
 
-	t := &Task{task.Script, meta.LastCompleted, uint8(meta.MaxConcurrency)}
+	t := &Task{Script: task.Script, StartExecution: meta.LatestCompleted, ConcurrencyLimit: uint8(meta.MaxConcurrency)}
 
 	s.claims[task.ID.String()] = t
 
