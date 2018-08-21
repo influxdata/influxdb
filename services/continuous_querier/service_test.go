@@ -784,6 +784,7 @@ func (ms *MetaClient) CreateDatabase(name, defaultRetentionPolicy string) error 
 	// Create database.
 	ms.DatabaseInfos = append(ms.DatabaseInfos, meta.DatabaseInfo{
 		Name: name,
+
 		DefaultRetentionPolicy: defaultRetentionPolicy,
 	})
 
