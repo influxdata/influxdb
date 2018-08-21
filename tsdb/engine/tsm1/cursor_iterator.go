@@ -69,7 +69,7 @@ func (q *cursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (tsdb.
 	case influxql.String:
 		return q.buildStringBatchCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
 	case influxql.Boolean:
-		return q.buildStringBatchCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildBooleanBatchCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
 	default:
 		panic(fmt.Sprintf("unreachable: %T", f.Type))
 	}
