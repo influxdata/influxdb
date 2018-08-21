@@ -26,7 +26,7 @@ RUN gem install fpm
 ENV GOPATH /root/go
 
 # TODO(edd) this needs to be updated to 1.11 when the branch is available.
-ENV GO_VERSION 1.10.3
+ENV GO_VERSION 1.11rc1
 
 ENV GO_ARCH amd64
 RUN wget --no-verbose https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
