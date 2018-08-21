@@ -18,6 +18,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// Available index types.
+const (
+	InmemIndexName = "inmem"
+	TSI1IndexName  = "tsi1"
+)
+
 type Index interface {
 	Open() error
 	Close() error
@@ -2491,7 +2497,7 @@ func NewIndex(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile 
 	} else if err != nil {
 		return nil, err
 	} else if err == nil {
-		format = "tsi1"
+		format = TSI1IndexName
 	}
 
 	// Lookup index by format.
