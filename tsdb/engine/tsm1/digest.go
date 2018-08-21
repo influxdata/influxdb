@@ -142,6 +142,7 @@ func DigestFresh(dir string, files []string, shardLastMod time.Time) (bool, stri
 	if err != nil {
 		return false, fmt.Sprintf("Can't read digest: err=%s", err)
 	}
+	defer dr.Close()
 
 	mfest, err := dr.ReadManifest()
 	if err != nil {
