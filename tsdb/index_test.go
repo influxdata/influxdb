@@ -507,7 +507,7 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 			// TODO(edd): this is somewhat awkward. We should unify this difference somewhere higher
 			// up than the engine. I don't want to open an engine do a benchmark on
 			// different index implementations.
-			if indexType == "inmem" {
+			if indexType == tsdb.InmemIndexName {
 				ts = func() ([]*query.TagSet, error) {
 					return idx.Index.(indexTagSets).TagSets(name, opt)
 				}

@@ -352,7 +352,7 @@ func (s *Store) loadShards() error {
 
 					// Existing shards should continue to use inmem index.
 					if _, err := os.Stat(filepath.Join(path, "index")); os.IsNotExist(err) {
-						opt.IndexVersion = "inmem"
+						opt.IndexVersion = InmemIndexName
 					}
 
 					// Open engine.
@@ -678,9 +678,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	ss := index.SeriesIDSet()
 
 	db := sh.Database()
-	if err := sh.Close(); err != nil {
-		return err
-	}
 
 	// Determine if the shard contained any series that are not present in any
 	// other shards in the database.
@@ -701,10 +698,42 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	if ss.Cardinality() > 0 {
 		sfile := s.seriesFile(db)
 		if sfile != nil {
+			// If the inmem index is in use, then the series being removed from the
+			// series file will also need to be removed from the index.
+			if index.Type() == InmemIndexName {
+				var keyBuf []byte // Series key buffer.
+				var name []byte
+				var tagsBuf models.Tags // Buffer for tags container.
+				var err error
+
+				ss.ForEach(func(id uint64) {
+					skey := sfile.SeriesKey(id) // Series File series key
+					if skey == nil {
+						return
+					}
+
+					name, tagsBuf = ParseSeriesKeyInto(skey, tagsBuf)
+					keyBuf = models.AppendMakeKey(keyBuf, name, tagsBuf)
+					if err = index.DropSeriesGlobal(keyBuf); err != nil {
+						return
+					}
+				})
+
+				if err != nil {
+					return err
+				}
+			}
+
 			ss.ForEach(func(id uint64) {
 				sfile.DeleteSeriesID(id)
 			})
 		}
+
+	}
+
+	// Close the shard.
+	if err := sh.Close(); err != nil {
+		return err
 	}
 
 	// Remove the on-disk shard data.
@@ -1784,7 +1813,7 @@ func (s *Store) monitorShards() {
 
 			s.mu.RLock()
 			shards := s.filterShards(func(sh *Shard) bool {
-				return sh.IndexType() == "inmem"
+				return sh.IndexType() == InmemIndexName
 			})
 			s.mu.RUnlock()
 
