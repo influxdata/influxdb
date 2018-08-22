@@ -19,6 +19,8 @@ type CumulativeSumOpSpec struct {
 var cumulativeSumSignature = query.DefaultFunctionSignature()
 
 func init() {
+	cumulativeSumSignature.Params["columns"] = semantic.NewArrayType(semantic.String)
+
 	query.RegisterFunction(CumulativeSumKind, createCumulativeSumOpSpec, cumulativeSumSignature)
 	query.RegisterOpSpec(CumulativeSumKind, newCumulativeSumOp)
 	plan.RegisterProcedureSpec(CumulativeSumKind, newCumulativeSumProcedure, CumulativeSumKind)

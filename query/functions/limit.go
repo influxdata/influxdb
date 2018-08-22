@@ -23,6 +23,7 @@ var limitSignature = query.DefaultFunctionSignature()
 
 func init() {
 	limitSignature.Params["n"] = semantic.Int
+	limitSignature.Params["offset"] = semantic.Int
 
 	query.RegisterFunction(LimitKind, createLimitOpSpec, limitSignature)
 	query.RegisterOpSpec(LimitKind, newLimitOp)

@@ -18,13 +18,16 @@ const FromKind = "from"
 type FromOpSpec struct {
 	Database string      `json:"db,omitempty"`
 	Bucket   string      `json:"bucket,omitempty"`
-	BucketID platform.ID `json:"bucket_id,omitempty"`
+	BucketID platform.ID `json:"bucketID,omitempty"`
 	Hosts    []string    `json:"hosts"`
 }
 
 var fromSignature = semantic.FunctionSignature{
 	Params: map[string]semantic.Type{
-		"db": semantic.String,
+		"db":       semantic.String,
+		"bucket":   semantic.String,
+		"bucketID": semantic.String,
+		"hosts":    semantic.NewArrayType(semantic.String),
 	},
 	ReturnType: query.TableObjectType,
 }

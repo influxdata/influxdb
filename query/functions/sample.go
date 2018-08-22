@@ -22,8 +22,8 @@ type SampleOpSpec struct {
 var sampleSignature = query.DefaultFunctionSignature()
 
 func init() {
-	sampleSignature.Params["column"] = semantic.String
-	sampleSignature.Params["useRowTime"] = semantic.Bool
+	sampleSignature.Params["n"] = semantic.Int
+	sampleSignature.Params["pos"] = semantic.Int
 
 	query.RegisterFunction(SampleKind, createSampleOpSpec, sampleSignature)
 	query.RegisterOpSpec(SampleKind, newSampleOp)

@@ -22,6 +22,7 @@ var sortSignature = query.DefaultFunctionSignature()
 
 func init() {
 	sortSignature.Params["cols"] = semantic.NewArrayType(semantic.String)
+	sortSignature.Params["desc"] = semantic.Bool
 
 	query.RegisterFunction(SortKind, createSortOpSpec, sortSignature)
 	query.RegisterOpSpec(SortKind, newSortOp)

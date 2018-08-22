@@ -16,9 +16,9 @@ const DerivativeKind = "derivative"
 
 type DerivativeOpSpec struct {
 	Unit        query.Duration `json:"unit"`
-	NonNegative bool           `json:"non_negative"`
+	NonNegative bool           `json:"nonNegative"`
 	Columns     []string       `json:"columns"`
-	TimeSrc     string         `json:"time_src"`
+	TimeSrc     string         `json:"timeSrc"`
 }
 
 var derivativeSignature = query.DefaultFunctionSignature()

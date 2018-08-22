@@ -30,7 +30,7 @@ type JoinOpSpec struct {
 	// The first parent is referenced by the first name and so forth.
 	// TODO(nathanielc): Change this to a map of parent operation IDs to names.
 	// Then make it possible for the transformation to map operation IDs to parent IDs.
-	TableNames map[query.OperationID]string `json:"table_names"`
+	TableNames map[query.OperationID]string `json:"tableNames"`
 	// Method is a the type of join to perform
 	Method string `json:"method"`
 	// tableNames maps each TableObject being joined to the parameter that holds it.

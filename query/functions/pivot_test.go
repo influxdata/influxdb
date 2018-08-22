@@ -70,9 +70,9 @@ func TestPivotOperation_Marshaling(t *testing.T) {
 		"id":"pivot",
 		"kind":"pivot",
 		"spec":{
-			"row_key":["_time"],
-			"col_key":["_measurement", "_field"], 
-			"value_col":"_value"
+			"rowKey":["_time"],
+			"colKey":["_measurement", "_field"], 
+			"valueCol":"_value"
 		}
 	}`)
 	op := &query.Operation{

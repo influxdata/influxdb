@@ -24,6 +24,7 @@ var mapSignature = query.DefaultFunctionSignature()
 
 func init() {
 	mapSignature.Params["fn"] = semantic.Function
+	mapSignature.Params["mergeKey"] = semantic.Bool
 
 	query.RegisterFunction(MapKind, createMapOpSpec, mapSignature)
 	query.RegisterOpSpec(MapKind, newMapOp)

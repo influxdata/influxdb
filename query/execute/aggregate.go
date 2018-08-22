@@ -19,8 +19,8 @@ type aggregateTransformation struct {
 
 type AggregateConfig struct {
 	Columns []string `json:"columns"`
-	TimeSrc string   `json:"time_src"`
-	TimeDst string   `json:"time_dst"`
+	TimeSrc string   `json:"timeSrc"`
+	TimeDst string   `json:"timeDst"`
 }
 
 var DefaultAggregateConfig = AggregateConfig{
