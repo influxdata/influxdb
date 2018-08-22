@@ -602,53 +602,143 @@ from(db:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	taskID, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 30)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Run("no queue", func(t *testing.T) {
+		taskID, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 30)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	badID := append([]byte(nil), taskID...)
-	badID[len(badID)-1]++
-	if _, err := s.CreateNextRun(context.Background(), badID, 999); err == nil {
-		t.Fatal("expected error for CreateNextRun with bad ID, got none")
-	}
+		badID := append([]byte(nil), taskID...)
+		badID[len(badID)-1]++
+		if _, err := s.CreateNextRun(context.Background(), badID, 999); err == nil {
+			t.Fatal("expected error for CreateNextRun with bad ID, got none")
+		}
 
-	_, err = s.CreateNextRun(context.Background(), taskID, 64)
-	if e, ok := err.(backend.RunNotYetDueError); !ok {
-		t.Fatalf("expected RunNotYetDueError, got %v (%T)", err, err)
-	} else if e.DueAt != 65 {
-		t.Fatalf("expected run due at 65, got %d", e.DueAt)
-	}
+		_, err = s.CreateNextRun(context.Background(), taskID, 64)
+		if e, ok := err.(backend.RunNotYetDueError); !ok {
+			t.Fatalf("expected RunNotYetDueError, got %v (%T)", err, err)
+		} else if e.DueAt != 65 {
+			t.Fatalf("expected run due at 65, got %d", e.DueAt)
+		}
 
-	rc, err := s.CreateNextRun(context.Background(), taskID, 65)
-	if err != nil {
-		t.Fatal(err)
-	}
+		rc, err := s.CreateNextRun(context.Background(), taskID, 65)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if !bytes.Equal(rc.Created.TaskID, taskID) {
-		t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
-	}
-	if rc.Created.Now != 60 {
-		t.Fatalf("unexpected time for created run: %d", rc.Created.Now)
-	}
-	if rc.NextDue != 125 {
-		t.Fatalf("unexpected next due time: %d", rc.NextDue)
-	}
+		if !bytes.Equal(rc.Created.TaskID, taskID) {
+			t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
+		}
+		if rc.Created.Now != 60 {
+			t.Fatalf("unexpected time for created run: %d", rc.Created.Now)
+		}
+		if rc.NextDue != 125 {
+			t.Fatalf("unexpected next due time: %d", rc.NextDue)
+		}
 
-	rc, err = s.CreateNextRun(context.Background(), taskID, 125)
-	if err != nil {
-		t.Fatal(err)
-	}
+		rc, err = s.CreateNextRun(context.Background(), taskID, 125)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if !bytes.Equal(rc.Created.TaskID, taskID) {
-		t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
-	}
-	if rc.Created.Now != 120 {
-		t.Fatalf("unexpected time for created run: %d", rc.Created.Now)
-	}
-	if rc.NextDue != 185 {
-		t.Fatalf("unexpected next due time: %d", rc.NextDue)
-	}
+		if !bytes.Equal(rc.Created.TaskID, taskID) {
+			t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
+		}
+		if rc.Created.Now != 120 {
+			t.Fatalf("unexpected time for created run: %d", rc.Created.Now)
+		}
+		if rc.NextDue != 185 {
+			t.Fatalf("unexpected next due time: %d", rc.NextDue)
+		}
+	})
+
+	t.Run("with a queue", func(t *testing.T) {
+		const script = `option task = {
+			name: "a task",
+			cron: "* * * * *",
+			delay: 5s,
+			concurrency: 9,
+		}
+
+	from(db:"test") |> range(start:-1h)`
+		taskID, err := s.CreateTask(context.Background(), []byte{5}, []byte{6}, script, 2999)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Task is set to every minute. Should schedule once on 0 and once on 60.
+		if err := s.ManuallyRunTimeRange(context.Background(), taskID, 0, 60, 3000); err != nil {
+			t.Fatal(err)
+		}
+
+		// Should schedule once exactly on 180.
+		if err := s.ManuallyRunTimeRange(context.Background(), taskID, 180, 180, 3001); err != nil {
+			t.Fatal(err)
+		}
+
+		rc, err := s.CreateNextRun(context.Background(), taskID, 3005)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if rc.Created.Now != 3000 {
+			t.Fatalf("expected run to be created with time 3000, got %d", rc.Created.Now)
+		}
+		if rc.NextDue != 3065 {
+			t.Fatalf("expected next due run to be 3065, got %d", rc.NextDue)
+		}
+		if !rc.HasQueue {
+			t.Fatal("expected run to have queue but it didn't")
+		}
+
+		// Queue: 0
+		rc, err = s.CreateNextRun(context.Background(), taskID, 3005)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rc.Created.Now != 0 {
+			t.Fatalf("expected run to be scheduled for 0, got %d", rc.Created.Now)
+		}
+		if rc.NextDue != 3065 {
+			// NextDue doesn't change with queue.
+			t.Fatalf("expected next due run to be 3065, got %d", rc.NextDue)
+		}
+		if !rc.HasQueue {
+			t.Fatal("expected run to have queue but it didn't")
+		}
+
+		// Queue: 60
+		rc, err = s.CreateNextRun(context.Background(), taskID, 3005)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rc.Created.Now != 60 {
+			t.Fatalf("expected run to be scheduled for 0, got %d", rc.Created.Now)
+		}
+		if rc.NextDue != 3065 {
+			// NextDue doesn't change with queue.
+			t.Fatalf("expected next due run to be 3065, got %d", rc.NextDue)
+		}
+		if !rc.HasQueue {
+			t.Fatal("expected run to have queue but it didn't")
+		}
+
+		// Queue: 180
+		rc, err = s.CreateNextRun(context.Background(), taskID, 3005)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rc.Created.Now != 180 {
+			t.Fatalf("expected run to be scheduled for 0, got %d", rc.Created.Now)
+		}
+		if rc.NextDue != 3065 {
+			// NextDue doesn't change with queue.
+			t.Fatalf("expected next due run to be 3065, got %d", rc.NextDue)
+		}
+		if rc.HasQueue {
+			t.Fatal("expected run to have empty queue but it didn't")
+		}
+	})
 }
 
 func testStoreFinishRun(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
@@ -705,6 +795,15 @@ from(db:"test") |> range(start:-1h)`
 	}
 	if len(meta.ManualRuns) != 1 {
 		t.Fatalf("expected 1 manual run to be created, got %d", len(meta.ManualRuns))
+	}
+
+	rc, err := s.CreateNextRun(context.Background(), taskID, 9999)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !rc.HasQueue {
+		t.Fatal("CreateNextRun should have reported that there is a queue")
 	}
 }
 

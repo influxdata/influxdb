@@ -90,6 +90,99 @@ func TestMeta_CreateNextRun(t *testing.T) {
 	}
 }
 
+func TestMeta_CreateNextRun_Queue(t *testing.T) {
+	stm := backend.StoreTaskMeta{
+		MaxConcurrency:  9,
+		Status:          "enabled",
+		EffectiveCron:   "* * * * *", // Every minute.
+		LatestCompleted: 3000,        // It has run once for the first minute.
+	}
+
+	// Should run on 0, 60, and 120.
+	if err := stm.ManuallyRunTimeRange(0, 120, 3005); err != nil {
+		t.Fatal(err)
+	}
+	// Should run once: 240.
+	if err := stm.ManuallyRunTimeRange(240, 240, 3005); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run once on the next natural schedule.
+	rc, err := stm.CreateNextRun(3060, makeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc.Created.Now != 3060 {
+		t.Fatalf("expected created now of 3060, got %d", rc.Created.Now)
+	}
+	if rc.NextDue != 3120 {
+		t.Fatalf("expected NextDue = 3120, got %d", rc.NextDue)
+	}
+	if !rc.HasQueue {
+		t.Fatal("expected to have queue but didn't")
+	}
+
+	// 0 from queue.
+	rc, err = stm.CreateNextRun(3060, makeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc.Created.Now != 0 {
+		t.Fatalf("expected created now of 0, got %d", rc.Created.Now)
+	}
+	if rc.NextDue != 3120 {
+		t.Fatalf("expected NextDue = 3120, got %d", rc.NextDue)
+	}
+	if !rc.HasQueue {
+		t.Fatal("expected to have queue but didn't")
+	}
+
+	// 60 from queue.
+	rc, err = stm.CreateNextRun(3060, makeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc.Created.Now != 60 {
+		t.Fatalf("expected created now of 60, got %d", rc.Created.Now)
+	}
+	if rc.NextDue != 3120 {
+		t.Fatalf("expected NextDue = 3120, got %d", rc.NextDue)
+	}
+	if !rc.HasQueue {
+		t.Fatal("expected to have queue but didn't")
+	}
+
+	// 120 from queue.
+	rc, err = stm.CreateNextRun(3060, makeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc.Created.Now != 120 {
+		t.Fatalf("expected created now of 120, got %d", rc.Created.Now)
+	}
+	if rc.NextDue != 3120 {
+		t.Fatalf("expected NextDue = 3120, got %d", rc.NextDue)
+	}
+	if !rc.HasQueue {
+		t.Fatal("expected to have queue but didn't")
+	}
+
+	// 240 from queue.
+	rc, err = stm.CreateNextRun(3060, makeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc.Created.Now != 240 {
+		t.Fatalf("expected created now of 240, got %d", rc.Created.Now)
+	}
+	if rc.NextDue != 3120 {
+		t.Fatalf("expected NextDue = 3120, got %d", rc.NextDue)
+	}
+	if rc.HasQueue {
+		t.Fatal("expected to have empty queue but didn't")
+	}
+}
+
 func TestMeta_CreateNextRun_Delay(t *testing.T) {
 	stm := backend.StoreTaskMeta{
 		MaxConcurrency:  2,

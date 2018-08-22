@@ -57,8 +57,8 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i := range s.tasks {
-		if s.tasks[i].Name == task.Name {
+	for _, t := range s.tasks {
+		if t.Name == task.Name && (bytes.Equal(t.Org, org) || bytes.Equal(t.User, user)) {
 			return nil, ErrTaskNameTaken
 		}
 	}

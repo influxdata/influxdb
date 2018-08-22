@@ -37,14 +37,12 @@ func (stm *StoreTaskMeta) FinishRun(runID platform.ID) bool {
 //
 // makeID is a function provided by the caller to create an ID, in case we can create a run.
 // Because a StoreTaskMeta doesn't know the ID of the task it belongs to, it never sets RunCreation.Created.TaskID.
-//
-// TODO: if a run is not yet due, and stm contains a manual run request, create a run for the manual request.
 func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, error)) (RunCreation, error) {
 	if len(stm.CurrentlyRunning) >= int(stm.MaxConcurrency) {
 		return RunCreation{}, errors.New("cannot create next run when max concurrency already reached")
 	}
 
-	// Not calling stm.DueAt here because we use sch a second time later.
+	// Not calling stm.DueAt here because we reuse sch.
 	// We can definitely optimize (minimize) cron parsing at a later point in time.
 	sch, err := cron.Parse(stm.EffectiveCron)
 	if err != nil {
@@ -62,6 +60,9 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 	nextScheduledUnix := nextScheduled.Unix()
 	if dueAt := nextScheduledUnix + int64(stm.Delay); dueAt > now {
 		// Can't schedule yet.
+		if len(stm.ManualRuns) > 0 {
+			return stm.createNextRunFromQueue(now, dueAt, sch, makeID)
+		}
 		return RunCreation{}, RunNotYetDueError{DueAt: dueAt}
 	}
 
@@ -81,7 +82,59 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 			RunID: id,
 			Now:   nextScheduledUnix,
 		},
-		NextDue: sch.Next(nextScheduled).Unix() + int64(stm.Delay),
+		NextDue:  sch.Next(nextScheduled).Unix() + int64(stm.Delay),
+		HasQueue: len(stm.ManualRuns) > 0,
+	}, nil
+}
+
+// createNextRunFromQueue creates the next run from a queue.
+// This should only be called when the queue is not empty.
+func (stm *StoreTaskMeta) createNextRunFromQueue(now, nextDue int64, sch cron.Schedule, makeID func() (platform.ID, error)) (RunCreation, error) {
+	if len(stm.ManualRuns) == 0 {
+		return RunCreation{}, errors.New("cannot create run from empty queue")
+	}
+
+	q := stm.ManualRuns[0]
+	latest := q.LatestCompleted
+	for _, r := range stm.CurrentlyRunning {
+		if r.RangeStart != q.Start || r.RangeEnd != q.End || r.RequestedAt != q.RequestedAt {
+			// Doesn't match our queue.
+			continue
+		}
+		if r.Now > latest {
+			latest = r.Now
+		}
+	}
+
+	runNow := sch.Next(time.Unix(latest, 0)).Unix()
+
+	// Already validated that we have room to create another run, in CreateNextRun.
+	id, err := makeID()
+	if err != nil {
+		return RunCreation{}, err
+	}
+	stm.CurrentlyRunning = append(stm.CurrentlyRunning, &StoreTaskMetaRun{
+		Now:   runNow,
+		Try:   1,
+		RunID: id,
+
+		RangeStart:  q.Start,
+		RangeEnd:    q.End,
+		RequestedAt: q.RequestedAt,
+	})
+
+	if runNow >= q.End {
+		// Drop the queue.
+		stm.ManualRuns = append(stm.ManualRuns[:0], stm.ManualRuns[1:]...)
+	}
+
+	return RunCreation{
+		Created: QueuedRun{
+			RunID: id,
+			Now:   runNow,
+		},
+		NextDue:  nextDue,
+		HasQueue: len(stm.ManualRuns) > 0,
 	}, nil
 }
 

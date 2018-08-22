@@ -67,7 +67,7 @@ type RunNotYetDueError struct {
 }
 
 func (e RunNotYetDueError) Error() string {
-	return "run not due until " + time.Unix(e.DueAt, 0).Format(time.RFC3339)
+	return "run not due until " + time.Unix(e.DueAt, 0).UTC().Format(time.RFC3339)
 }
 
 // RunCreation is returned by CreateNextRun.
