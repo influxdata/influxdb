@@ -210,8 +210,10 @@ func (c *floatArrayDescendingCursor) reset(seek, end int64, cacheValues Values, 
 func (c *floatArrayDescendingCursor) Err() error { return nil }
 
 func (c *floatArrayDescendingCursor) Close() {
-	c.tsm.keyCursor.Close()
-	c.tsm.keyCursor = nil
+	if c.tsm.keyCursor != nil {
+		c.tsm.keyCursor.Close()
+		c.tsm.keyCursor = nil
+	}
 	c.cache.values = nil
 	c.tsm.values = nil
 }
@@ -491,8 +493,10 @@ func (c *integerArrayDescendingCursor) reset(seek, end int64, cacheValues Values
 func (c *integerArrayDescendingCursor) Err() error { return nil }
 
 func (c *integerArrayDescendingCursor) Close() {
-	c.tsm.keyCursor.Close()
-	c.tsm.keyCursor = nil
+	if c.tsm.keyCursor != nil {
+		c.tsm.keyCursor.Close()
+		c.tsm.keyCursor = nil
+	}
 	c.cache.values = nil
 	c.tsm.values = nil
 }
@@ -772,8 +776,10 @@ func (c *unsignedArrayDescendingCursor) reset(seek, end int64, cacheValues Value
 func (c *unsignedArrayDescendingCursor) Err() error { return nil }
 
 func (c *unsignedArrayDescendingCursor) Close() {
-	c.tsm.keyCursor.Close()
-	c.tsm.keyCursor = nil
+	if c.tsm.keyCursor != nil {
+		c.tsm.keyCursor.Close()
+		c.tsm.keyCursor = nil
+	}
 	c.cache.values = nil
 	c.tsm.values = nil
 }
@@ -1053,8 +1059,10 @@ func (c *stringArrayDescendingCursor) reset(seek, end int64, cacheValues Values,
 func (c *stringArrayDescendingCursor) Err() error { return nil }
 
 func (c *stringArrayDescendingCursor) Close() {
-	c.tsm.keyCursor.Close()
-	c.tsm.keyCursor = nil
+	if c.tsm.keyCursor != nil {
+		c.tsm.keyCursor.Close()
+		c.tsm.keyCursor = nil
+	}
 	c.cache.values = nil
 	c.tsm.values = nil
 }
@@ -1334,8 +1342,10 @@ func (c *booleanArrayDescendingCursor) reset(seek, end int64, cacheValues Values
 func (c *booleanArrayDescendingCursor) Err() error { return nil }
 
 func (c *booleanArrayDescendingCursor) Close() {
-	c.tsm.keyCursor.Close()
-	c.tsm.keyCursor = nil
+	if c.tsm.keyCursor != nil {
+		c.tsm.keyCursor.Close()
+		c.tsm.keyCursor = nil
+	}
 	c.cache.values = nil
 	c.tsm.values = nil
 }
