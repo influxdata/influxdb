@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/snowflake"
@@ -114,5 +115,51 @@ func TestMeta_CreateNextRun_Delay(t *testing.T) {
 	}
 	if rc.NextDue != 125 {
 		t.Fatalf("unexpected next run time: %d", rc.NextDue)
+	}
+}
+
+func TestMeta_ManuallyRunTimeRange(t *testing.T) {
+	now := time.Now().Unix()
+	stm := backend.StoreTaskMeta{
+		MaxConcurrency:  2,
+		Status:          "enabled",
+		EffectiveCron:   "* * * * *", // Every minute.
+		Delay:           5,
+		LatestCompleted: 30, // Arbitrary non-overlap starting point.
+	}
+
+	// Constant defined in (*StoreTaskMeta).ManuallyRunTimeRange.
+	const maxQueueSize = 32
+
+	for i := int64(0); i < maxQueueSize; i++ {
+		j := i * 10
+		if err := stm.ManuallyRunTimeRange(j, j+5, j+now); err != nil {
+			t.Fatal(err)
+		}
+		if int64(len(stm.ManualRuns)) != i+1 {
+			t.Fatalf("expected %d runs queued, got %d", i+1, len(stm.ManualRuns))
+		}
+
+		run := stm.ManualRuns[len(stm.ManualRuns)-1]
+		if run.Start != j {
+			t.Fatalf("expected start %d, got %d", j, run.Start)
+		}
+		if run.End != j+5 {
+			t.Fatalf("expected end %d, got %d", j+5, run.End)
+		}
+		if run.LatestCompleted != j-1 {
+			t.Fatalf("expected LatestCompleted %d, got %d", j-1, run.LatestCompleted)
+		}
+		if run.RequestedAt != j+now {
+			t.Fatalf("expected RequestedAt %d, got %d", j+now, run.RequestedAt)
+		}
+	}
+
+	// One more should cause ErrManualQueueFull.
+	if err := stm.ManuallyRunTimeRange(maxQueueSize*100, maxQueueSize*200, maxQueueSize+now); err != backend.ErrManualQueueFull {
+		t.Fatalf("expected ErrManualQueueFull, got %v", err)
+	}
+	if len(stm.ManualRuns) != maxQueueSize {
+		t.Fatalf("expected to be unable to exceed queue size of %d; got %d", maxQueueSize, len(stm.ManualRuns))
 	}
 }

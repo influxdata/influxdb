@@ -273,6 +273,25 @@ func (s *inmem) FinishRun(ctx context.Context, taskID, runID platform.ID) error 
 	return nil
 }
 
+func (s *inmem) ManuallyRunTimeRange(_ context.Context, taskID platform.ID, start, end, requestedAt int64) error {
+	tid := taskID.String()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stm, ok := s.runners[tid]
+	if !ok {
+		return errors.New("task not found")
+	}
+
+	if err := stm.ManuallyRunTimeRange(start, end, requestedAt); err != nil {
+		return err
+	}
+
+	s.runners[tid] = stm
+	return nil
+}
+
 func (s *inmem) delete(ctx context.Context, id platform.ID, f func(StoreTask) platform.ID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

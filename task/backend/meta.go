@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"errors"
+	"math"
 	"time"
 
 	"github.com/influxdata/platform"
@@ -84,6 +85,8 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 	}, nil
 }
 
+// NextDueRun returns the Unix timestamp of when the next call to CreateNextRun will be ready.
+// The returned timestamp reflects the task's delay, so it does not necessarily exactly match the schedule time.
 func (stm *StoreTaskMeta) NextDueRun() (int64, error) {
 	sch, err := cron.Parse(stm.EffectiveCron)
 	if err != nil {
@@ -98,4 +101,33 @@ func (stm *StoreTaskMeta) NextDueRun() (int64, error) {
 	}
 
 	return sch.Next(time.Unix(latest, 0)).Unix() + int64(stm.Delay), nil
+}
+
+// ManuallyRunTimeRange requests a manual run covering the approximate range specified by the Unix timestamps start and end.
+// More specifically, it requests runs scheduled no earlier than start, but possibly later than start,
+// if start does not land on the task's schedule; and as late as, but not necessarily equal to, end.
+// requestedAt is the Unix timestamp indicating when this run range was requested.
+//
+// If adding the range would exceed the queue size, ManuallyRunTimeRange returns ErrManualQueueFull.
+func (stm *StoreTaskMeta) ManuallyRunTimeRange(start, end, requestedAt int64) error {
+	// Arbitrarily chosen upper limit that seems unlikely to be reached except in pathological cases.
+	const maxQueueSize = 32
+	if len(stm.ManualRuns) >= maxQueueSize {
+		return ErrManualQueueFull
+	}
+
+	lc := start - 1
+	if start == math.MinInt64 {
+		// Don't roll over in pathological case of starting at minimum int64.
+		lc = start
+	}
+	run := &StoreTaskMetaManualRun{
+		Start:           start,
+		End:             end,
+		LatestCompleted: lc,
+		RequestedAt:     requestedAt,
+	}
+	stm.ManualRuns = append(stm.ManualRuns, run)
+
+	return nil
 }

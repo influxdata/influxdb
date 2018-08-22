@@ -603,6 +603,29 @@ func (s *Store) FinishRun(ctx context.Context, taskID, runID platform.ID) error 
 	})
 }
 
+func (s *Store) ManuallyRunTimeRange(_ context.Context, taskID platform.ID, start, end, requestedAt int64) error {
+	paddedID := padID(taskID)
+
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(s.bucket)
+		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
+		var stm backend.StoreTaskMeta
+		if err := stm.Unmarshal(stmBytes); err != nil {
+			return err
+		}
+		if err := stm.ManuallyRunTimeRange(start, end, requestedAt); err != nil {
+			return err
+		}
+
+		stmBytes, err := stm.Marshal()
+		if err != nil {
+			return err
+		}
+
+		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(paddedID, stmBytes)
+	})
+}
+
 // Close closes the store
 func (s *Store) Close() error {
 	return s.db.Close()

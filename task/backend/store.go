@@ -24,6 +24,9 @@ var ErrOrgNotFound = errors.New("org not found")
 // ErrTaskNameTaken is an error for when a task name is already taken
 var ErrTaskNameTaken = errors.New("task name already in use by current user or target organization")
 
+// ErrManualQueueFull is returned when a manual run request cannot be completed.
+var ErrManualQueueFull = errors.New("manual queue at capacity")
+
 type TaskStatus string
 
 const (
@@ -119,6 +122,11 @@ type Store interface {
 
 	// FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 	FinishRun(ctx context.Context, taskID, runID platform.ID) error
+
+	// ManuallyRunTimeRange enqueues a request to run the task with the given ID for all schedules no earlier than start and no later than end (Unix timestamps).
+	// requestedAt is the Unix timestamp when the request was initiated.
+	// ManuallyRunTimeRange must delegate to an underlying StoreTaskMeta's ManuallyRunTimeRange method.
+	ManuallyRunTimeRange(ctx context.Context, taskID platform.ID, start, end, requestedAt int64) error
 
 	// DeleteOrg deletes the org.
 	DeleteOrg(ctx context.Context, orgID platform.ID) error

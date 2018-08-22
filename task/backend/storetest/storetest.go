@@ -31,20 +31,22 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 			"DeleteTask",
 			"CreateNextRun",
 			"FinishRun",
+			"ManuallyRunTimeRange",
 		}
 	}
 	availableFuncs := map[string]TestFunc{
-		"CreateTask":        testStoreCreate,
-		"ModifyTask":        testStoreModify,
-		"ListTasks":         testStoreListTasks,
-		"FindTask":          testStoreFindTask,
-		"FindMeta":          testStoreFindMeta,
-		"EnableDisableTask": testStoreTaskEnableDisable,
-		"DeleteTask":        testStoreDelete,
-		"CreateNextRun":     testStoreCreateNextRun,
-		"FinishRun":         testStoreFinishRun,
-		"DeleteOrg":         testStoreDeleteOrg,
-		"DeleteUser":        testStoreDeleteUser,
+		"CreateTask":           testStoreCreate,
+		"ModifyTask":           testStoreModify,
+		"ListTasks":            testStoreListTasks,
+		"FindTask":             testStoreFindTask,
+		"FindMeta":             testStoreFindMeta,
+		"EnableDisableTask":    testStoreTaskEnableDisable,
+		"DeleteTask":           testStoreDelete,
+		"CreateNextRun":        testStoreCreateNextRun,
+		"FinishRun":            testStoreFinishRun,
+		"ManuallyRunTimeRange": testStoreManuallyRunTimeRange,
+		"DeleteOrg":            testStoreDeleteOrg,
+		"DeleteUser":           testStoreDeleteUser,
 	}
 
 	return func(t *testing.T) {
@@ -675,6 +677,34 @@ from(db:"test") |> range(start:-1h)`
 
 	if err := s.FinishRun(context.Background(), task, rc.Created.RunID); err == nil {
 		t.Fatal("expected failure when removing run that doesnt exist")
+	}
+}
+
+func testStoreManuallyRunTimeRange(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
+	const script = `option task = {
+		name: "a task",
+		cron: "* * * * *",
+	}
+
+from(db:"test") |> range(start:-1h)`
+	s := create(t)
+	defer destroy(t, s)
+
+	taskID, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.ManuallyRunTimeRange(context.Background(), taskID, 1, 10, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	meta, err := s.FindTaskMetaByID(context.Background(), taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(meta.ManualRuns) != 1 {
+		t.Fatalf("expected 1 manual run to be created, got %d", len(meta.ManualRuns))
 	}
 }
 
