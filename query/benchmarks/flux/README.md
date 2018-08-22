@@ -50,7 +50,7 @@ Query #1
 
 ```sh
 HOST=localhost:8093; curl -w "@curl-format.txt" -H 'Accept: text/plain' -o /dev/null -s http://${HOST}/query \
-    --data-urlencode 'q=from(db:"db").range(start:2017-11-01T00:00:00Z, stop:2017-11-02T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and $ > 0}).sum()'
+    --data-urlencode 'q=from(bucket:"db/autogen").range(start:2017-11-01T00:00:00Z, stop:2017-11-02T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and $ > 0}).sum()'
 
     
 time_starttransfer: 0.138
@@ -63,7 +63,7 @@ Query #2
 
 ```sh
 HOST=localhost:8093; curl -w "@curl-format.txt" -H 'Accept: text/plain' -o /dev/null -s http://${HOST}/query \
-    --data-urlencode 'q=from(db:"db").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and $ > 0}).sum()'
+    --data-urlencode 'q=from(bucket:"db/autogen").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and $ > 0}).sum()'
 
     
 time_starttransfer: 0.305
@@ -75,7 +75,7 @@ Query #3
 
 ```sh
 HOST=localhost:8093; curl -w "@curl-format.txt" -H 'Accept: text/plain' -o /dev/null -s http://${HOST}/query \
-    --data-urlencode 'q=from(db:"db").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and $ > 0}).group(by:["tag0"]).sum()'
+    --data-urlencode 'q=from(bucket:"db/autogen").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and $ > 0}).group(by:["tag0"]).sum()'
 
     
 time_starttransfer: 22.727
@@ -87,7 +87,7 @@ Query #4
 
 ```sh
 HOST=localhost:8093; curl -w "@curl-format.txt" -H 'Accept: text/plain' -o /dev/null -s http://${HOST}/query \
-    --data-urlencode 'q=from(db:"db").range(start:2017-11-01T00:00:00Z, stop:2017-11-13T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and $ > 0}).sum()'
+    --data-urlencode 'q=from(bucket:"db/autogen").range(start:2017-11-01T00:00:00Z, stop:2017-11-13T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and $ > 0}).sum()'
 
     
 time_starttransfer: 0.713
@@ -99,7 +99,7 @@ Query #5
 
 ```sh
 HOST=localhost:8093; curl -w "@curl-format.txt" -H 'Accept: text/plain' -o /dev/null -s http://${HOST}/query \
-    --data-urlencode 'q=from(db:"db").range(start:2017-11-01T00:00:00Z, stop:2017-11-13T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and $ > 0}).group(by:["tag0"]).sum()'
+    --data-urlencode 'q=from(bucket:"db/autogen").range(start:2017-11-01T00:00:00Z, stop:2017-11-13T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and $ > 0}).group(by:["tag0"]).sum()'
 
     
 time_starttransfer: 56.257
@@ -151,7 +151,7 @@ Query #1
 
 ```sh
 HOST=localhost:8093; curl -w "@curl-format.txt" -H 'Accept: text/plain' -o /dev/null -s http://${HOST}/query \
-    --data-urlencode 'q=from(db:"db").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and "tag1" == "value00"}).group(by:["tag0"]).sum()'
+    --data-urlencode 'q=from(bucket:"db/autogen").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and "tag1" == "value00"}).group(by:["tag0"]).sum()'
 
     
 time_starttransfer: 0.325
@@ -163,7 +163,7 @@ Query #2
 
 ```sh
 HOST=localhost:8093; curl -w "@curl-format.txt" -H 'Accept: text/plain' -o /dev/null -s http://${HOST}/query \
-    --data-urlencode 'q=from(db:"db").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and "tag1" == "value00"}).group(by:["tag0"]).sum()'
+    --data-urlencode 'q=from(bucket:"db/autogen").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0" and "tag1" == "value00"}).group(by:["tag0"]).sum()'
 
     
 time_starttransfer: 13.174
@@ -175,7 +175,7 @@ Query #3
 
 ```sh
 HOST=localhost:8093; curl -w "@curl-format.txt" -H 'Accept: text/plain' -o /dev/null -s http://${HOST}/query \
-    --data-urlencode 'q=from(db:"db").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0"}).group(by:["tag0"]).sum()'
+    --data-urlencode 'q=from(bucket:"db/autogen").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0"}).group(by:["tag0"]).sum()'
 
     
 time_starttransfer: 1190.204
@@ -187,7 +187,7 @@ Query #4
 
 ```sh
 HOST=localhost:8093; curl -w "@curl-format.txt" -H 'Accept: text/plain' -o /dev/null -s http://${HOST}/query \
-    --data-urlencode 'q=from(db:"db").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0"}).sum()'
+    --data-urlencode 'q=from(bucket:"db/autogen").range(start:2017-11-01T00:00:00Z, stop:2017-11-05T00:00:00Z).filter(exp:{"_measurement" == "m0" and "_field" == "v0"}).sum()'
 
     
 time_starttransfer: 23.975

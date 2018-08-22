@@ -69,12 +69,12 @@ func testStoreCreate(t *testing.T, create CreateStoreFunc, destroy DestroyStoreF
 		cron: "* * * * *",
 	}
 
-from(db:"test") |> range(start:-1h)`
+from(bucket:"test") |> range(start:-1h)`
 	const scriptNoName = `option task = {
 	cron: "* * * * *",
 }
 
-from(db:"test") |> range(start:-1h)`
+from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
@@ -196,7 +196,7 @@ func testStoreListTasks(t *testing.T, create CreateStoreFunc, destroy DestroySto
 		cron: "* * * * *",
 	}
 
-from(db:"test") |> range(start:-1h)`
+from(bucket:"test") |> range(start:-1h)`
 	t.Run("happy path", func(t *testing.T) {
 		s := create(t)
 		defer destroy(t, s)
@@ -361,7 +361,7 @@ func testStoreFindTask(t *testing.T, create CreateStoreFunc, destroy DestroyStor
 		cron: "* * * * *",
 	}
 
-from(db:"test") |> range(start:-1h)`
+from(bucket:"test") |> range(start:-1h)`
 
 	t.Run("happy path", func(t *testing.T) {
 		s := create(t)
@@ -417,7 +417,7 @@ func testStoreFindMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStor
 		delay: 5s,
 	}
 
-from(db:"test") |> range(start:-1h)`
+from(bucket:"test") |> range(start:-1h)`
 
 	s := create(t)
 	defer destroy(t, s)
@@ -495,7 +495,7 @@ func testStoreTaskEnableDisable(t *testing.T, create CreateStoreFunc, destroy De
 		cron: "* * * * *",
 	}
 
-	from(db:"test") |> range(start:-1h)`
+	from(bucket:"test") |> range(start:-1h)`
 
 	s := create(t)
 	defer destroy(t, s)
@@ -550,7 +550,7 @@ func testStoreDelete(t *testing.T, create CreateStoreFunc, destroy DestroyStoreF
 		cron: "* * * * *",
 	}
 
-from(db:"test") |> range(start:-1h)`
+from(bucket:"test") |> range(start:-1h)`
 
 	t.Run("happy path", func(t *testing.T) {
 		s := create(t)
@@ -597,7 +597,7 @@ func testStoreCreateNextRun(t *testing.T, create CreateStoreFunc, destroy Destro
 		concurrency: 2,
 	}
 
-from(db:"test") |> range(start:-1h)`
+from(bucket:"test") |> range(start:-1h)`
 
 	s := create(t)
 	defer destroy(t, s)
@@ -660,7 +660,7 @@ from(db:"test") |> range(start:-1h)`
 			concurrency: 9,
 		}
 
-	from(db:"test") |> range(start:-1h)`
+	from(bucket:"test") |> range(start:-1h)`
 		taskID, err := s.CreateTask(context.Background(), []byte{5}, []byte{6}, script, 2999)
 		if err != nil {
 			t.Fatal(err)
@@ -747,7 +747,7 @@ func testStoreFinishRun(t *testing.T, create CreateStoreFunc, destroy DestroySto
 		cron: "* * * * *",
 	}
 
-from(db:"test") |> range(start:-1h)`
+from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
@@ -776,7 +776,7 @@ func testStoreManuallyRunTimeRange(t *testing.T, create CreateStoreFunc, destroy
 		cron: "* * * * *",
 	}
 
-from(db:"test") |> range(start:-1h)`
+from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
@@ -861,7 +861,7 @@ func createABunchOFTasks(t *testing.T, s backend.Store, filter func(user, org ui
 		cron: "* * * * *",
 	}
 
-from(db:"test") |> range(start:-1h)`
+from(bucket:"test") |> range(start:-1h)`
 	var id platform.ID
 	var ids []platform.ID
 	var err error

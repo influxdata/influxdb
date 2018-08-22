@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/ast"
 	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/semantic"
 	"github.com/influxdata/platform/query/semantic/semantictest"
 )
@@ -363,7 +363,7 @@ func TestBuild(t *testing.T) {
 				Operations: []*query.Operation{
 					{
 						ID:   query.OperationID("from"),
-						Spec: &functions.FromOpSpec{Database: "prometheus"},
+						Spec: &functions.FromOpSpec{Bucket: "prometheus"},
 					},
 					{
 						ID: "where",
@@ -438,7 +438,7 @@ func TestBuild(t *testing.T) {
 				Operations: []*query.Operation{
 					{
 						ID:   query.OperationID("from"),
-						Spec: &functions.FromOpSpec{Database: "prometheus"},
+						Spec: &functions.FromOpSpec{Bucket: "prometheus"},
 					},
 					{
 						ID: query.OperationID("range"),
@@ -502,7 +502,7 @@ func TestBuild(t *testing.T) {
 				Operations: []*query.Operation{
 					{
 						ID:   query.OperationID("from"),
-						Spec: &functions.FromOpSpec{Database: "prometheus"},
+						Spec: &functions.FromOpSpec{Bucket: "prometheus"},
 					},
 					{
 						ID: query.OperationID("range"),

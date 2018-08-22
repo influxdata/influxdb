@@ -24,7 +24,7 @@ var pivotSignature = query.DefaultFunctionSignature()
 
 var fromRowsBuiltin = `
 // fromRows will access a database and retrieve data aligned into time-aligned tuples, grouped by measurement.  
-fromRows = (db) => from(db:db) |> pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")
+fromRows = (bucket="",bucketID="") => from(bucket:bucket,bucketID:bucketID) |> pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")
 `
 
 func init() {

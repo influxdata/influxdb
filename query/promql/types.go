@@ -146,7 +146,7 @@ func (s *Selector) QuerySpec() (*query.Spec, error) {
 		{
 			ID: "from", // TODO: Change this to a UUID
 			Spec: &functions.FromOpSpec{
-				Database: "prometheus",
+				Bucket: "prometheus",
 			},
 		},
 	}

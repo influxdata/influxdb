@@ -1,4 +1,4 @@
-from(db:"testdb")
+from(bucket:"testdb")
   |> range(start: 2018-05-21T13:09:22.885021542Z)
   |> filter(fn: (r) => r._measurement ==  "swap")
   |> group(by: ["_measurement", "_start"])

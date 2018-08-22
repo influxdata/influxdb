@@ -21,13 +21,13 @@ func TestToKafka_NewQuery(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
 		{
 			Name: "from with database",
-			Raw:  `from(db:"mydb") |> toKafka(brokers:["brokerurl:8989"], name:"series1", topic:"totallynotfaketopic")`,
+			Raw:  `from(bucket:"mybucket") |> toKafka(brokers:["brokerurl:8989"], name:"series1", topic:"totallynotfaketopic")`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{

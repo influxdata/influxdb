@@ -30,8 +30,8 @@ fluxd --storage-hosts localhost:8082
 
 ```sh
 curl -XPOST --data-urlencode \
-'query=from(db:"telegraf")
-    |> filter(fn: (r) => r["_measurement"] == "cpu" AND r["_field"] == "usage_user")
+'query=from(bucket:"telegraf/autogen")
+    |> filter(fn: (r) => r._measurement == "cpu" AND r._field == "usage_user")
     |> range(start:-170h)
     |> sum()' \
 http://localhost:8093/query?organization=my-org
@@ -94,7 +94,7 @@ Flux runs a query by reading a data source into a collection of tables and then 
 All queries begin with the function `from`. It is a source function that does not accept any input, but produces a stream of tables as output. All queries must be followed by a `range` function which will limit the time range that data is selected from. Even if you want all data, you must specify a time range. This is so it is explicit that a user wants to query the entire database instead of the much more common range of time data.
 
 ```
-from(db: "telegraf") |> range(start: -5m)
+from(bucket: "telegraf/autogen") |> range(start: -5m)
 ```
 
 Function parameters are all keyword arguments. There are no positional arguments. The `from` function takes a single parameter: `db`. This specifies the InfluxDB database it should read from. At the moment, it is not possible to read from anything other than the default retention policy for a database. The `from` function will organize the data so that each series is its own table. That means that all transformations will happen _per series_ unless this is changed by using `group` or `window` (explained below). If you are familiar with InfluxDB 1.x, this is the opposite of InfluxQL's default behavior. InfluxQL would automatically group all series into the same table.
@@ -117,7 +117,7 @@ The `|>` operator is used extensively in flux so you will see it in all of the q
 The rows can be filtered by using the `filter` function. When communicating with `influxd`, the measurement name is put into the `_measurement` tag and the field name is put into the `_field` tag. If you wanted to filter by a specific measurement or field, you could do that by using filter like this:
 
 ```
-from(db: "telegraf") |> range(start: -5m)
+from(bucket: "telegraf/autogen") |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
 ```
 
@@ -132,7 +132,7 @@ It is also common in flux to break up longer lines by including a newline betwee
 The `limit` function can be used to limit the number of points in each table. It takes a single parameter which is `n`.
 
 ```
-from(db: "telegraf") |> range(start: -5m) |> limit(n: 1)
+from(bucket: "telegraf/autogen") |> range(start: -5m) |> limit(n: 1)
 ```
 
 ### Aggregates and Selectors
@@ -142,13 +142,13 @@ Aggregates and selectors will execute the aggregation/selection function on each
 To find the mean of each table, you could use the `mean()` function.
 
 ```
-from(db: "telegraf") |> range(start: -5m) |> mean()
+from(bucket: "telegraf/autogen") |> range(start: -5m) |> mean()
 ```
 
 If you wanted to find the maximum value in each table, you could use `max()`.
 
 ```
-from(db: "telegraf") |> range(start: -5m) |> max()
+from(bucket: "telegraf/autogen") |> range(start: -5m) |> max()
 ```
 
 The full list of aggregation and selection functions is located in the spec.
@@ -158,7 +158,7 @@ The full list of aggregation and selection functions is located in the spec.
 Since flux will group each series into its own table, we sometimes need to modify this grouping if we wanted to combine different series. As an example, what if we wanted to know the average user cpu usage for each AWS region? A common schema would be to have two tags: `region` and `host`. We would write that query like this:
 
 ```
-from(db: "telegraf") |> range(start: -5m)
+from(bucket: "telegraf/autogen") |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
     |> group(by: ["region"])
     |> mean()
@@ -169,7 +169,7 @@ The `group` function would take every row that had the same `region` value and p
 Similarly, if we wanted to group points into buckets of time, the `window` function can do that. We can modify the above function to give us the mean for every minute pretty easily.
 
 ```
-from(db: "telegraf") |> range(start: -5m)
+from(bucket: "telegraf/autogen") |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
     |> group(by: ["region"])
     |> window(every: 1m)
@@ -181,7 +181,7 @@ from(db: "telegraf") |> range(start: -5m)
 It is also possible to perform math and rename the columns by using the `map` function. The `map` function takes a function and will execute that function on each row to output a new row for the output table.
 
 ```
-from(db: "telegraf") |> range(start: -5m)
+from(bucket: "telegraf/autogen") |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
     |> map(fn: (r) => {_value: r._value / 100})
 ```
@@ -196,7 +196,7 @@ A user can define their own function which can then be reused. To do this, we us
 
 ```
 add = (table=<-, n) => map(table: table, fn: (r) => {_value: r._value + n})
-from(db: "telegraf") |> range(start: -5m)
+from(bucket: "telegraf/autogen") |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
     |> add(n: 5)
 ```
@@ -205,7 +205,7 @@ When defining a function, default arguments can be specified by using an equals 
 
 ```
 add = (table=<-, n) => table |> map(fn: (r) => {_value: r._value + n})
-from(db: "telegraf") |> range(start: -5m)
+from(bucket: "telegraf/autogen") |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
     |> add(n: 5)
 ```

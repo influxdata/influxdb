@@ -20,13 +20,13 @@ func TestFilter_NewQuery(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
 		{
 			Name: "from with database filter and range",
-			Raw:  `from(db:"mydb") |> filter(fn: (r) => r["t1"]=="val1" and r["t2"]=="val2") |> range(start:-4h, stop:-2h) |> count()`,
+			Raw:  `from(bucket:"mybucket") |> filter(fn: (r) => r["t1"]=="val1" and r["t2"]=="val2") |> range(start:-4h, stop:-2h) |> count()`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -88,7 +88,7 @@ func TestFilter_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "from with database filter (and with or) and range",
-			Raw: `from(db:"mydb")
+			Raw: `from(bucket:"mybucket")
 						|> filter(fn: (r) =>
 								(
 									(r["t1"]=="val1")
@@ -105,7 +105,7 @@ func TestFilter_NewQuery(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -178,7 +178,7 @@ func TestFilter_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "from with database filter including fields",
-			Raw: `from(db:"mydb")
+			Raw: `from(bucket:"mybucket")
 						|> filter(fn: (r) =>
 							(r["t1"] =="val1")
 							and
@@ -191,7 +191,7 @@ func TestFilter_NewQuery(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -253,7 +253,7 @@ func TestFilter_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "from with database filter with no parens including fields",
-			Raw: `from(db:"mydb")
+			Raw: `from(bucket:"mybucket")
 						|> filter(fn: (r) =>
 							r["t1"]=="val1"
 							and
@@ -266,7 +266,7 @@ func TestFilter_NewQuery(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -328,7 +328,7 @@ func TestFilter_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "from with database filter with no parens including regex and field",
-			Raw: `from(db:"mydb")
+			Raw: `from(bucket:"mybucket")
 						|> filter(fn: (r) =>
 							r["t1"]==/val1/
 							and
@@ -341,7 +341,7 @@ func TestFilter_NewQuery(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -403,7 +403,7 @@ func TestFilter_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "from with database regex with escape",
-			Raw: `from(db:"mydb")
+			Raw: `from(bucket:"mybucket")
 						|> filter(fn: (r) =>
 							r["t1"]==/va\/l1/
 						)`,
@@ -412,7 +412,7 @@ func TestFilter_NewQuery(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -439,7 +439,7 @@ func TestFilter_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "from with database with two regex",
-			Raw: `from(db:"mydb")
+			Raw: `from(bucket:"mybucket")
 						|> filter(fn: (r) =>
 							r["t1"]==/va\/l1/
 							and
@@ -450,7 +450,7 @@ func TestFilter_NewQuery(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{

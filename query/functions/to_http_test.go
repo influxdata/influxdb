@@ -19,13 +19,13 @@ func TestToHTTP_NewQuery(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
 		{
 			Name: "from with database with range",
-			Raw:  `from(db:"mydb") |> toHTTP(url: "https://localhost:8081", name:"series1", method:"POST",  timeout: 50s)`,
+			Raw:  `from(bucket:"mybucket") |> toHTTP(url: "https://localhost:8081", name:"series1", method:"POST",  timeout: 50s)`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{

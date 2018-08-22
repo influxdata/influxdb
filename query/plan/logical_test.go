@@ -23,7 +23,7 @@ func TestLogicalPlanner_Plan(t *testing.T) {
 					{
 						ID: "0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -48,7 +48,7 @@ func TestLogicalPlanner_Plan(t *testing.T) {
 					plan.ProcedureIDFromOperationID("0"): {
 						ID: plan.ProcedureIDFromOperationID("0"),
 						Spec: &functions.FromProcedureSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 						Parents:  nil,
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("1")},
@@ -89,7 +89,7 @@ func TestLogicalPlanner_Plan(t *testing.T) {
 					plan.ProcedureIDFromOperationID("select0"): {
 						ID: plan.ProcedureIDFromOperationID("select0"),
 						Spec: &functions.FromProcedureSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 						Parents:  nil,
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("range0")},
@@ -118,7 +118,7 @@ func TestLogicalPlanner_Plan(t *testing.T) {
 					plan.ProcedureIDFromOperationID("select1"): {
 						ID: plan.ProcedureIDFromOperationID("select1"),
 						Spec: &functions.FromProcedureSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 						Parents:  nil,
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("range1")},
@@ -195,7 +195,7 @@ var benchmarkQuery = &query.Spec{
 		{
 			ID: "select0",
 			Spec: &functions.FromOpSpec{
-				Database: "mydb",
+				Bucket: "mybucket",
 			},
 		},
 		{
@@ -212,7 +212,7 @@ var benchmarkQuery = &query.Spec{
 		{
 			ID: "select1",
 			Spec: &functions.FromOpSpec{
-				Database: "mydb",
+				Bucket: "mybucket",
 			},
 		},
 		{

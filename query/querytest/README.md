@@ -13,7 +13,7 @@ As an example, consider the test `simple_max` which is defined by the file `simp
 
 ### simple_max.flux
 ```
-from(db:"test") |> range(start:-5m)  |> group(by:["_measurement"]) |> max(useRowTime:true) |> map(fn: (r) => {max:r._value})
+from(bucket:"test") |> range(start:-5m)  |> group(by:["_measurement"]) |> max(useRowTime:true) |> map(fn: (r) => {max:r._value})
 ```
 
 The test will read in this query, as well as the associated CSV files that are in the flux-spec compatible CSV format:

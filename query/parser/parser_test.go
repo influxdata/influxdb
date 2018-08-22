@@ -465,7 +465,7 @@ func TestParse(t *testing.T) {
 		},
 		{
 			name: "from with database",
-			raw:  `from(db:"telegraf")`,
+			raw:  `from(bucket:"telegraf/autogen")`,
 			want: &ast.Program{
 				Body: []ast.Statement{
 					&ast.ExpressionStatement{
@@ -478,10 +478,10 @@ func TestParse(t *testing.T) {
 									Properties: []*ast.Property{
 										{
 											Key: &ast.Identifier{
-												Name: "db",
+												Name: "bucket",
 											},
 											Value: &ast.StringLiteral{
-												Value: "telegraf",
+												Value: "telegraf/autogen",
 											},
 										},
 									},
@@ -1033,7 +1033,7 @@ a = 5.0
 		},
 		{
 			name: "from with filter with no parens",
-			raw:  `from(db:"telegraf").filter(fn: (r) => r["other"]=="mem" and r["this"]=="that" or r["these"]!="those")`,
+			raw:  `from(bucket:"telegraf/autogen").filter(fn: (r) => r["other"]=="mem" and r["this"]=="that" or r["these"]!="those")`,
 			want: &ast.Program{
 				Body: []ast.Statement{
 					&ast.ExpressionStatement{
@@ -1048,8 +1048,8 @@ a = 5.0
 										&ast.ObjectExpression{
 											Properties: []*ast.Property{
 												{
-													Key:   &ast.Identifier{Name: "db"},
-													Value: &ast.StringLiteral{Value: "telegraf"},
+													Key:   &ast.Identifier{Name: "bucket"},
+													Value: &ast.StringLiteral{Value: "telegraf/autogen"},
 												},
 											},
 										},
@@ -1105,7 +1105,7 @@ a = 5.0
 		},
 		{
 			name: "from with range",
-			raw:  `from(db:"telegraf")|>range(start:-1h, end:10m)`,
+			raw:  `from(bucket:"telegraf/autogen")|>range(start:-1h, end:10m)`,
 			want: &ast.Program{
 				Body: []ast.Statement{
 					&ast.ExpressionStatement{
@@ -1116,8 +1116,8 @@ a = 5.0
 									&ast.ObjectExpression{
 										Properties: []*ast.Property{
 											{
-												Key:   &ast.Identifier{Name: "db"},
-												Value: &ast.StringLiteral{Value: "telegraf"},
+												Key:   &ast.Identifier{Name: "bucket"},
+												Value: &ast.StringLiteral{Value: "telegraf/autogen"},
 											},
 										},
 									},
@@ -1164,7 +1164,7 @@ a = 5.0
 		},
 		{
 			name: "from with limit",
-			raw:  `from(db:"telegraf")|>limit(limit:100, offset:10)`,
+			raw:  `from(bucket:"telegraf/autogen")|>limit(limit:100, offset:10)`,
 			want: &ast.Program{
 				Body: []ast.Statement{
 					&ast.ExpressionStatement{
@@ -1175,8 +1175,8 @@ a = 5.0
 									&ast.ObjectExpression{
 										Properties: []*ast.Property{
 											{
-												Key:   &ast.Identifier{Name: "db"},
-												Value: &ast.StringLiteral{Value: "telegraf"},
+												Key:   &ast.Identifier{Name: "bucket"},
+												Value: &ast.StringLiteral{Value: "telegraf/autogen"},
 											},
 										},
 									},
@@ -1206,7 +1206,7 @@ a = 5.0
 		},
 		{
 			name: "from with range and count",
-			raw: `from(db:"mydb")
+			raw: `from(bucket:"mydb/autogen")
 						|> range(start:-4h, stop:-2h)
 						|> count()`,
 			want: &ast.Program{
@@ -1220,8 +1220,8 @@ a = 5.0
 										&ast.ObjectExpression{
 											Properties: []*ast.Property{
 												{
-													Key:   &ast.Identifier{Name: "db"},
-													Value: &ast.StringLiteral{Value: "mydb"},
+													Key:   &ast.Identifier{Name: "bucket"},
+													Value: &ast.StringLiteral{Value: "mydb/autogen"},
 												},
 											},
 										},
@@ -1275,7 +1275,7 @@ a = 5.0
 		},
 		{
 			name: "from with range, limit and count",
-			raw: `from(db:"mydb")
+			raw: `from(bucket:"mydb/autogen")
 						|> range(start:-4h, stop:-2h)
 						|> limit(n:10)
 						|> count()`,
@@ -1291,8 +1291,8 @@ a = 5.0
 											&ast.ObjectExpression{
 												Properties: []*ast.Property{
 													{
-														Key:   &ast.Identifier{Name: "db"},
-														Value: &ast.StringLiteral{Value: "mydb"},
+														Key:   &ast.Identifier{Name: "bucket"},
+														Value: &ast.StringLiteral{Value: "mydb/autogen"},
 													},
 												},
 											},
@@ -1359,8 +1359,8 @@ a = 5.0
 		{
 			name: "from with join",
 			raw: `
-a = from(db:"dbA") |> range(start:-1h)
-b = from(db:"dbB") |> range(start:-1h)
+a = from(bucket:"dbA/autogen") |> range(start:-1h)
+b = from(bucket:"dbB/autogen") |> range(start:-1h)
 join(tables:[a,b], on:["host"], fn: (a,b) => a["_field"] + b["_field"])`,
 			want: &ast.Program{
 				Body: []ast.Statement{
@@ -1376,8 +1376,8 @@ join(tables:[a,b], on:["host"], fn: (a,b) => a["_field"] + b["_field"])`,
 										&ast.ObjectExpression{
 											Properties: []*ast.Property{
 												{
-													Key:   &ast.Identifier{Name: "db"},
-													Value: &ast.StringLiteral{Value: "dbA"},
+													Key:   &ast.Identifier{Name: "bucket"},
+													Value: &ast.StringLiteral{Value: "dbA/autogen"},
 												},
 											},
 										},
@@ -1421,8 +1421,8 @@ join(tables:[a,b], on:["host"], fn: (a,b) => a["_field"] + b["_field"])`,
 										&ast.ObjectExpression{
 											Properties: []*ast.Property{
 												{
-													Key:   &ast.Identifier{Name: "db"},
-													Value: &ast.StringLiteral{Value: "dbB"},
+													Key:   &ast.Identifier{Name: "bucket"},
+													Value: &ast.StringLiteral{Value: "dbB/autogen"},
 												},
 											},
 										},
@@ -1506,11 +1506,11 @@ join(tables:[a,b], on:["host"], fn: (a,b) => a["_field"] + b["_field"])`,
 		{
 			name: "from with join with complex expression",
 			raw: `
-a = from(db:"Flux")
+a = from(bucket:"Flux/autogen")
 	|> filter(fn: (r) => r["_measurement"] == "a")
 	|> range(start:-1h)
 
-b = from(db:"Flux")
+b = from(bucket:"Flux/autogen")
 	|> filter(fn: (r) => r["_measurement"] == "b")
 	|> range(start:-1h)
 
@@ -1531,8 +1531,8 @@ join(tables:[a,b], on:["t1"], fn: (a,b) => (a["_field"] - b["_field"]) / b["_fie
 											&ast.ObjectExpression{
 												Properties: []*ast.Property{
 													{
-														Key:   &ast.Identifier{Name: "db"},
-														Value: &ast.StringLiteral{Value: "Flux"},
+														Key:   &ast.Identifier{Name: "bucket"},
+														Value: &ast.StringLiteral{Value: "Flux/autogen"},
 													},
 												},
 											},
@@ -1601,8 +1601,8 @@ join(tables:[a,b], on:["t1"], fn: (a,b) => (a["_field"] - b["_field"]) / b["_fie
 											&ast.ObjectExpression{
 												Properties: []*ast.Property{
 													{
-														Key:   &ast.Identifier{Name: "db"},
-														Value: &ast.StringLiteral{Value: "Flux"},
+														Key:   &ast.Identifier{Name: "bucket"},
+														Value: &ast.StringLiteral{Value: "Flux/autogen"},
 													},
 												},
 											},
@@ -1720,12 +1720,12 @@ join(tables:[a,b], on:["t1"], fn: (a,b) => (a["_field"] - b["_field"]) / b["_fie
 		},
 		{
 			name:    "parse error extra gibberish",
-			raw:     `from(db:"Flux") &^*&H#IUJBN`,
+			raw:     `from(bucket:"Flux/autogen") &^*&H#IUJBN`,
 			wantErr: true,
 		},
 		{
 			name:    "parse error extra gibberish and valid content",
-			raw:     `from(db:"Flux") &^*&H#IUJBN from(db:"other")`,
+			raw:     `from(bucket:"Flux/autogen") &^*&H#IUJBN from(bucket:"other/autogen")`,
 			wantErr: true,
 		},
 	}
@@ -1754,7 +1754,7 @@ var benchmarkQuery = []byte(`
 start = -10s
 
 do = (cpu) =>
-    from(db:"telegraf")
+    from(bucket:"telegraf/autogen")
         .filter(fn: (r) =>
              r["_measurement"] == "cpu"
              and

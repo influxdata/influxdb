@@ -33,7 +33,7 @@ func TestSpec_JSON(t *testing.T) {
 			"id": "from",
 			"kind": "from",
 			"spec": {
-				"db":"mydb"
+				"bucket":"mybucket"
 			}
 		},
 		{
@@ -66,7 +66,7 @@ func TestSpec_JSON(t *testing.T) {
 			{
 				ID: "from",
 				Spec: &functions.FromOpSpec{
-					Database: "mydb",
+					Bucket: "mybucket",
 				},
 			},
 			{
