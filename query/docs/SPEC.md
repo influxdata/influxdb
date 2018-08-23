@@ -1090,6 +1090,9 @@ Yield has the following properties:
 * `name` string
     unique name to give to yielded results
 
+Example:
+`from(db: "telegraf") |> range(start: -5m) |> yield(name:"1")`
+
 #### Aggregate operations
 
 Aggregate operations output a table for every input table they receive.
@@ -1134,10 +1137,16 @@ Covariance has the following properties:
 
 Additionally exactly two columns must be provided to the `columns` property.
 
+Example:
+`from(db: "telegraf) |> range(start:-5m) |> covariance(columns: ["x", "y"])`
+
 ##### Count
 
 Count is an aggregate operation.
 For each aggregated column, it outputs the number of non null records as an integer.
+
+Example:
+`from(db: "telegraf") |> range(start: -5m) |> count()`
 
 #### Duplicate 
 Duplicate will duplicate a specified column in a table
@@ -1170,10 +1179,29 @@ Integral has the following properties:
 * `unit` duration
     unit is the time duration to use when computing the integral
 
+Example: 
+
+```
+from(db: "telegraf") 
+    |> range(start: -5m) 
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system") 
+    |> integral(unit:10s)
+```
+
 ##### Mean
 
 Mean is an aggregate operation.
 For each aggregated column, it outputs the mean of the non null records as a float.
+
+Example: 
+```
+from(db:"telegraf")
+    |> filter(fn: (r) => r._measurement == "mem" AND
+            r._field == "used_percent")
+    |> range(start:-12h)
+    |> window(every:10m)
+    |> mean()
+```
 
 ##### Percentile
 
@@ -1193,10 +1221,27 @@ Percentile has the following properties:
    A larger number produces a more accurate result at the cost of increased memory requirements.
    Defaults to 1000.
 
+Example:
+```
+// Determine 99th percentile cpu system usage:
+from(db: "telegraf")
+	|> range(start: -5m)
+	|> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
+	|> percentile(p: 0.99)
+```
+
 ##### Skew
 
 Skew is an aggregate operation.
 For each aggregated column, it outputs the skew of the non null record as a float.
+
+Example:
+```
+from(db: "telegraf") 
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
+    |> skew()
+```
 
 ##### Spread
 
@@ -1205,16 +1250,39 @@ For each aggregated column, it outputs the difference between the min and max va
 The type of the output column depends on the type of input column: for input columns with type `uint` or `int`, the output is an `int`; for `float` input columns the output is a `float`.
 All other input types are invalid.
 
+Example:
+```
+from(db: "telegraf") 
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
+    |> spread()
+```
 ##### Stddev
 
 Stddev is an aggregate operation.
 For each aggregated column, it outputs the standard deviation of the non null record as a float.
+
+Example:
+```
+from(db: "telegraf") 
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
+    |> stddev()
+```
 
 ##### Sum
 
 Stddev is an aggregate operation.
 For each aggregated column, it outputs the sum of the non null record.
 The output column type is the same as the input column type.
+
+Example:
+```
+from(db: "telegraf") 
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
+    |> sum()
+```
 
 #### Multiple aggregates
 
@@ -1244,20 +1312,43 @@ All selector operations have the following properties:
 First is a selector operation.
 First selects the first non null record from the input table.
 
+Example:
+`from(db:"telegraf") |> first()`
+
 ##### Last
 
 Last is a selector operation.
 Last selects the last non null record from the input table.
+
+Example:
+`from(db: "telegraf") |> last()`
 
 ##### Max
 
 Max is a selector operation.
 Max selects the maximum record from the input table.
 
+Example:
+```
+from(db:"telegraf")
+    |> range(start:-12h)
+    |> filter(fn: (r) => r._measurement == "cpu" AND r._field == "usage_system")
+    |> max()
+```
+
 ##### Min
 
 Min is a selector operation.
 Min selects the minimum record from the input table.
+
+Example: 
+
+```
+from(db:"telegraf")
+    |> range(start:-12h)
+    |> filter(fn: (r) => r._measurement == "cpu" AND r._field == "usage_system")
+    |> min()
+```
 
 ##### Sample
 
@@ -1273,6 +1364,16 @@ The following properties define how the sample is selected.
     The `pos` must be less than `n`.
     If `pos` is less than 0, a random offset is used.
     Default is -1 (random offset).
+
+Example:
+
+```
+from(db:"telegraf")
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+               r._field == "usage_system")
+    |> range(start:-1d)
+    |> sample(n: 5, pos: 1)
+```
 
 
 #### Filter
@@ -1290,6 +1391,16 @@ Filter has the following properties:
     Records which evaluate to true, will be included in the output tables.
     TODO(nathanielc): Do we need a syntax for expressing type signatures?
 
+Example: 
+
+```
+from(db:"telegraf")
+    |> range(start:-12h)
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+                r._field == "usage_system" AND
+                r.service == "app-server")
+```
+
 #### Limit
 
 Limit caps the number of records in output tables to a fixed size n.
@@ -1301,6 +1412,8 @@ Limit has the following properties:
 
 * `n` int
     The maximum number of records to output.
+
+Example: `from(db: "telegraf") |> limit(n: 10)`
 
 #### Map
 
@@ -1322,6 +1435,27 @@ Map has the following properties:
     When not merging, only columns defined on the returned record will be present on the output records.
     Defaults to true.
 
+Example:
+```
+from(db:"telegraf")
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+                r._field == "usage_system" AND
+                r.service == "app-server")
+    |> range(start:-12h)
+    // Square the value
+    |> map(fn: (r) => r._value * r._value)
+```
+Example (creating a new table):
+```
+from(db:"telegraf")
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+                r._field == "usage_system" AND
+                r.service == "app-server")
+    |> range(start:-12h)
+    // create a new table by copying each row into a new format
+    |> map(fn: (r) => {_time: r._time, app_server: r._service})
+```
+
 #### Range
 
 Range filters records based on provided time bounds.
@@ -1340,6 +1474,20 @@ Range has the following properties:
     Specifies the exclusive newest time to be included in the results.
     Defaults to the value of the `now` option time.
 
+Example:
+```
+from(db:"telegraf")
+    |> range(start:-12h, stop: -15m)
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+               r._field == "usage_system")
+```
+Example:
+```
+from(db:"telegraf")
+    |> range(start:2018-05-22T23:30:00Z, stop: 2018-05-23T00:00:00Z)
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+               r._field == "usage_system")
+```
 #### Rename 
 
 Rename will rename specified columns in a table. 
@@ -1356,9 +1504,18 @@ Rename has the following properties:
 
 Example usage:
 
-Rename a single column: `rename(columns:{host: "server"})`
-
-Rename all columns with `fn` parameter: `rename(fn: (col) => "{col}_new")`
+Rename a single column: 
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> rename(columns:{host: "server"})
+```
+Rename all columns using `fn` parameter: 
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> rename(fn: (col) => "{col}_new")
+```
 
 #### Drop 
 
@@ -1375,9 +1532,18 @@ Drop has the following properties:
 
 Example Usage:
 
-Drop a list of columns: `drop(columns: ["host", "_measurement"])`
-
-Drop all columns matching a predicate: `drop(fn: (col) => col =~ /usage*/)`
+Drop a list of columns
+```
+from(db: "telegraf")
+	|> range(start: -5m)
+	|> drop(columns: ["host", "_measurement"])
+```
+Drop columns matching a predicate:
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> drop(fn: (col) => col =~ /usage*/)
+```
 
 #### Keep 
 
@@ -1398,6 +1564,18 @@ Keep a list of columns: `keep(columns: ["_time", "_value"])`
 
 Keep all columns matching a predicate: `keep(fn: (col) => col =~ /inodes*/)`
 
+Keep a list of columns:
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> keep(columns: ["_time", "_value"])
+```
+Keep all columns matching a predicate:
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> keep(fn: (col) => col =~ /inodes*/) 
+```
 
 #### Set
 
@@ -1413,6 +1591,10 @@ Set has the following properties:
 * `value` string
     value is the string value to set
 
+Example: 
+```
+from(db: "telegraf") |> set(key: "mykey", value: "myvalue")
+```
 
 #### Sort
 
@@ -1428,7 +1610,14 @@ Sort has the following properties:
 * `desc` bool
     Sort results in descending order.
 
-
+Example:
+```
+from(db:"telegraf")
+    |> filter(fn: (r) => r._measurement == "system" AND
+               r._field == "uptime")
+    |> range(start:-12h)
+    |> sort(cols:["region", "host", "value"])
+```
 #### Group
 
 Group groups records based on their values for specific columns.
@@ -1440,15 +1629,28 @@ Group has the following properties:
     Group by these specific columns.
     Cannot be used with `except`.
 *  `except` list of strings
-    Group by all other column except this list of columns.
+    Group by all other columns except this list.
     Cannot be used with `by`.
 
 Examples:
-
     group(by:["host"]) // group records by their "host" value
     group(except:["_time", "region", "_value"]) // group records by all other columns except for _time, region, and _value
     group(by:[]) // group all records into a single group
     group(except:[]) // group records into all unique groups
+
+```
+from(db: "telegraf") 
+    |> range(start: -30m) 
+    |> group(by: ["host", "_measurement"])
+```
+All records are grouped by the "host" and "_measurement" columns. The resulting group key would be ["host, "_measurement"]
+
+```
+from(db: "telegraf")
+    |> range(start: -30m)
+    |> group(except: ["_time"])
+```
+All records are grouped by the set of all columns in the table, excluding "_time". For example, if the table has columns ["_time", "host", "_measurement", "_field", "_value"] then the group key would be ["host", "_measurement", "_field", "_value"]
 
 
 #### Window
@@ -1488,10 +1690,18 @@ Window has the following properties:
     Name of the column containing the window stop time.
     Defaults to `_stop`.
 
-Examples:
+Example: 
+```
+from(db:"telegraf")
+    |> range(start:-12h)
+    |> window(every:10m)
+    |> max()
+```
 
-    window(every:1h) // window the data into 1 hour intervals
-    window(intervals: intervals(every:1d, period:8h, offset:9h)) // window the data into 8 hour intervals starting at 9AM every day.
+```
+window(every:1h) // window the data into 1 hour intervals
+window(intervals: intervals(every:1d, period:8h, offset:9h)) // window the data into 8 hour intervals starting at 9AM every day.
+```
 
 #### Pivot
 
@@ -1664,6 +1874,14 @@ Cumulative sum has the following properties:
 * `columns` list string
     columns is a list of columns on which to operate.
 
+Example:
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "disk" and r._field == "used_percent")
+    |> cumulativeSum(columns: ["_value"])
+```
+
 #### Derivative
 
 Derivative computes the time based difference between subsequent non null records.
@@ -1681,6 +1899,13 @@ Derivative has the following properties:
     timeSrc is the source column for the time values.
     Defaults to `_time`.
 
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "disk" and r._field == "used_percent")
+    |> derivative(nonNegative: true, columns: ["used_percent"])
+```
+
 #### Difference
 
 Difference computes the difference between subsequent non null records.
@@ -1693,6 +1918,12 @@ Difference has the following properties:
 * `columns` list strings
     columns is a list of columns on which to compute the difference.
 
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
+    |> difference()
+```
 #### Distinct
 
 Distinct produces the unique values for a given column.
@@ -1702,6 +1933,13 @@ Distinct has the following properties:
 * `column` string
     column the column on which to track unique values.
 
+Example: 
+```
+from(db: "telegraf")
+	|> range(start: -5m)
+	|> filter(fn: (r) => r._measurement == "cpu")
+	|> distinct(column: "host")
+```
 
 #### Shift
 
@@ -1716,6 +1954,12 @@ Shift has the following properties:
 * `columns` list of strings
     columns is the list of all columns that should be shifted.
     Defaults to `["_start", "_stop", "_time"]`
+Example:
+```
+from(db: "telegraf")
+	|> range(start: -5m)
+	|> shift(shift: 1000h)
+```
 
 
 #### To
