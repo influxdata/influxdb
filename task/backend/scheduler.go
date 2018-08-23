@@ -168,8 +168,8 @@ func (s *outerScheduler) Tick(now int64) {
 	defer s.schedulerMu.Unlock()
 
 	for _, ts := range s.taskSchedulers {
-		if now >= ts.NextDue() {
-			ts.Work(now)
+		if nextDue, hasQueue := ts.NextDue(); now >= nextDue || hasQueue {
+			ts.Work()
 		}
 	}
 }
@@ -196,8 +196,8 @@ func (s *outerScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err er
 
 	// Okay to read ts.nextDue without locking,
 	// because we just created it and there won't be any concurrent access.
-	if now := atomic.LoadInt64(&s.now); now >= ts.nextDue {
-		ts.Work(now)
+	if now := atomic.LoadInt64(&s.now); now >= ts.nextDue || len(meta.ManualRuns) > 0 {
+		ts.Work()
 	}
 	return nil
 }
@@ -226,6 +226,9 @@ func (s *outerScheduler) PrometheusCollectors() []prometheus.Collector {
 
 // taskScheduler is a lightweight wrapper around a collection of runners.
 type taskScheduler struct {
+	// Reference to outerScheduler.now. Must be accessed atomically.
+	now *int64
+
 	// Task we are scheduling for.
 	task *StoreTask
 
@@ -242,6 +245,7 @@ type taskScheduler struct {
 	nextDueMu     sync.RWMutex // Protects following fields.
 	nextDue       int64        // Unix timestamp of next due.
 	nextDueSource int64        // Run time that produced nextDue.
+	hasQueue      bool         // Whether there is a queue of manual runs.
 }
 
 func newTaskScheduler(
@@ -257,6 +261,7 @@ func newTaskScheduler(
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ts := &taskScheduler{
+		now:           &s.now,
 		task:          task,
 		cancel:        cancel,
 		runners:       make([]*runner, meta.MaxConcurrency),
@@ -264,6 +269,7 @@ func newTaskScheduler(
 		metrics:       s.metrics,
 		nextDue:       firstDue,
 		nextDueSource: math.MinInt64,
+		hasQueue:      len(meta.ManualRuns) > 0,
 	}
 
 	for i := range ts.runners {
@@ -276,9 +282,9 @@ func newTaskScheduler(
 
 // Work begins a work cycle on the taskScheduler.
 // As many runners are started as possible.
-func (ts *taskScheduler) Work(now int64) {
+func (ts *taskScheduler) Work() {
 	for _, r := range ts.runners {
-		r.Start(now)
+		r.Start()
 		if r.IsIdle() {
 			// Ran out of jobs to start.
 			break
@@ -291,20 +297,22 @@ func (ts *taskScheduler) Cancel() {
 	ts.cancel()
 }
 
-// NextDue returns the next due timestamp.
-func (ts *taskScheduler) NextDue() int64 {
+// NextDue returns the next due timestamp, and whether there is a queue.
+func (ts *taskScheduler) NextDue() (int64, bool) {
 	ts.nextDueMu.RLock()
 	defer ts.nextDueMu.RUnlock()
-	return ts.nextDue
+	return ts.nextDue, ts.hasQueue
 }
 
-// SetNextDue sets the next due timestamp and records the source (the now value of the run who reported nextDue).
-func (ts *taskScheduler) SetNextDue(nextDue, source int64) {
+// SetNextDue sets the next due timestamp and whether the task has a queue,
+// and records the source (the now value of the run who reported nextDue).
+func (ts *taskScheduler) SetNextDue(nextDue int64, hasQueue bool, source int64) {
 	// TODO(mr): we may need some logic around source to handle if SetNextDue is called out of order.
 	ts.nextDueMu.Lock()
 	defer ts.nextDueMu.Unlock()
 	ts.nextDue = nextDue
 	ts.nextDueSource = source
+	ts.hasQueue = hasQueue
 }
 
 // A runner is one eligible "concurrency slot" for a given task.
@@ -366,19 +374,19 @@ func (r *runner) IsIdle() bool {
 
 // Start checks if a new run is ready to be scheduled, and if so,
 // creates a run on this goroutine and begins executing it on a separate goroutine.
-func (r *runner) Start(now int64) {
+func (r *runner) Start() {
 	if !atomic.CompareAndSwapUint32(r.state, runnerIdle, runnerWorking) {
 		// Already working. Cannot start.
 		return
 	}
 
-	r.startFromWorking(now)
+	r.startFromWorking(atomic.LoadInt64(r.ts.now))
 }
 
 // startFromWorking attempts to create a run if one is due, and then begins execution on a separate goroutine.
 // r.state must be runnerWorking when this is called.
 func (r *runner) startFromWorking(now int64) {
-	if now < r.ts.NextDue() {
+	if nextDue, hasQueue := r.ts.NextDue(); now < nextDue && !hasQueue {
 		// Not ready for a new run. Go idle again.
 		atomic.StoreUint32(r.state, runnerIdle)
 		return
@@ -391,14 +399,14 @@ func (r *runner) startFromWorking(now int64) {
 		return
 	}
 	qr := rc.Created
-	r.ts.SetNextDue(rc.NextDue, qr.Now)
+	r.ts.SetNextDue(rc.NextDue, rc.HasQueue, qr.Now)
 
 	// Create a new child logger for the individual run.
 	// We can't do r.logger = r.logger.With(zap.String("run_id", qr.RunID.String()) because zap doesn't deduplicate fields,
 	// and we'll quickly end up with many run_ids associated with the log.
 	runLogger := r.logger.With(zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
 
-	runLogger.Info("Beginning execution")
+	runLogger.Info("Created run; beginning execution")
 	go r.executeAndWait(now, qr, runLogger)
 
 	r.updateRunState(qr, RunStarted, runLogger)
@@ -432,11 +440,15 @@ func (r *runner) executeAndWait(now int64, qr QueuedRun, runLogger *zap.Logger) 
 		if err == ErrRunCanceled {
 			_ = r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID)
 			r.updateRunState(qr, RunCanceled, runLogger)
-		} else {
-			runLogger.Info("Failed to wait for execution result", zap.Error(err))
-			// TODO(mr): retry?
-			r.updateRunState(qr, RunFail, runLogger)
+
+			// Move on to the next execution, for a canceled run.
+			r.startFromWorking(atomic.LoadInt64(r.ts.now))
+			return
 		}
+
+		runLogger.Info("Failed to wait for execution result", zap.Error(err))
+		// TODO(mr): retry?
+		r.updateRunState(qr, RunFail, runLogger)
 		atomic.StoreUint32(r.state, runnerIdle)
 		return
 	}
@@ -453,7 +465,7 @@ func (r *runner) executeAndWait(now int64, qr QueuedRun, runLogger *zap.Logger) 
 	runLogger.Info("Execution succeeded")
 
 	// Check again if there is a new run available, without returning to idle state.
-	r.startFromWorking(now)
+	r.startFromWorking(atomic.LoadInt64(r.ts.now))
 }
 
 func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger) {

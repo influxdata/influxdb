@@ -3,7 +3,10 @@ package backend_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/prom"
@@ -88,19 +91,33 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 		t.Fatal(err)
 	}
 	run6 := running[0]
+	if run6.Run().Now != 6 {
+		t.Fatalf("unexpected now for run 6: %d", run6.Run().Now)
+	}
 
 	o.Tick(7)
 	if x, err := d.PollForNumberCreated(task.ID, 2); err != nil {
 		t.Fatalf("expected 2 runs queued, but got %d", len(x))
 	}
+	running, err = e.PollForNumberRunning(task.ID, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run7 := running[1]
+	if run7.Run().Now != 7 {
+		t.Fatalf("unexpected now for run 7: %d", run7.Run().Now)
+	}
+
 	o.Tick(8) // Can't exceed concurrency of 2.
 	if x, err := d.PollForNumberCreated(task.ID, 2); err != nil {
 		t.Fatalf("expected 2 runs queued, but got %d", len(x))
 	}
-	run6.Cancel()
+	run6.Cancel() // 7 and 8 should be running.
+	run7.Cancel()
 
-	if x, err := d.PollForNumberCreated(task.ID, 1); err != nil {
-		t.Fatal(err, x)
+	// Run 8 should be remaining.
+	if _, err := e.PollForNumberRunning(task.ID, 1); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -134,6 +151,86 @@ func TestScheduler_Release(t *testing.T) {
 	}
 
 	if _, err := d.PollForNumberCreated(task.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestScheduler_Queue(t *testing.T) {
+	d := mock.NewDesiredState()
+	e := mock.NewExecutor()
+	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 3059, backend.WithLogger(zaptest.NewLogger(t)))
+
+	task := &backend.StoreTask{
+		ID: platform.ID{1},
+	}
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency:  1,
+		EffectiveCron:   "* * * * *", // Every minute.
+		LatestCompleted: 3000,
+		ManualRuns: []*backend.StoreTaskMetaManualRun{
+			{Start: 120, End: 240, LatestCompleted: 119, RequestedAt: 3001},
+		},
+	}
+
+	d.SetTaskMeta(task.ID, *meta)
+	if err := o.ClaimTask(task, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	cs, err := d.PollForNumberCreated(task.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := cs[0]
+	if c.Now != 120 {
+		t.Fatalf("expected run from queue at 120, got %d", c.Now)
+	}
+
+	// Finish that run. Next one should start.
+	promises, err := e.PollForNumberRunning(task.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	promises[0].Finish(mock.NewRunResult(nil, false), nil)
+
+	// The scheduler will start the next queued run immediately, so we can't poll for 0 running then 1 running.
+	// But we can poll for a specific run.Now.
+	pollForRun := func(expNow int64) {
+		const numAttempts = 50
+		found := false
+		for i := 0; i < numAttempts; i++ {
+			rps := e.RunningFor(task.ID)
+			if len(rps) > 0 && rps[0].Run().Now == expNow {
+				found = true
+				break
+			}
+			time.Sleep(2 * time.Millisecond)
+		}
+		if !found {
+			var nows []string
+			for _, rp := range e.RunningFor(task.ID) {
+				nows = append(nows, fmt.Sprint(rp.Run().Now))
+			}
+			t.Fatalf("polled but could not find run with now = %d in time; got: %s", expNow, strings.Join(nows, ", "))
+		}
+	}
+	pollForRun(180)
+
+	// The manual run for 180 is still going.
+	// Tick the scheduler so the next natural run will happen once 180 finishes.
+	o.Tick(3062)
+
+	// Cancel 180. Next run should be 3060, the next natural schedule.
+	e.RunningFor(task.ID)[0].Cancel()
+	pollForRun(3060)
+
+	// Cancel the 3060 run; 240 should pick up.
+	e.RunningFor(task.ID)[0].Cancel()
+	pollForRun(240)
+
+	// Cancel 240; jobs should be idle.
+	e.RunningFor(task.ID)[0].Cancel()
+	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -19,13 +19,32 @@ import (
 // If runID matched a run, FinishRun returns true. Otherwise it returns false.
 func (stm *StoreTaskMeta) FinishRun(runID platform.ID) bool {
 	for i, runner := range stm.CurrentlyRunning {
-		if bytes.Equal(runner.RunID, runID) {
-			stm.CurrentlyRunning = append(stm.CurrentlyRunning[:i], stm.CurrentlyRunning[i+1:]...)
+		if !bytes.Equal(runner.RunID, runID) {
+			continue
+		}
+
+		stm.CurrentlyRunning = append(stm.CurrentlyRunning[:i], stm.CurrentlyRunning[i+1:]...)
+
+		rs, re, ra := runner.RangeStart, runner.RangeEnd, runner.RequestedAt
+		if rs == 0 && re == 0 && ra == 0 {
+			// It must be a naturally scheduled run.
 			if runner.Now > stm.LatestCompleted {
 				stm.LatestCompleted = runner.Now
-				return true
+			}
+		} else {
+			// It was a requested run. Check if we need to update a latest completed.
+			for _, q := range stm.ManualRuns {
+				if q.Start == rs && q.End == re && q.RequestedAt == ra {
+					// Match.
+					if runner.Now > q.LatestCompleted {
+						q.LatestCompleted = runner.Now
+					}
+					break
+				}
 			}
 		}
+
+		return true
 	}
 	return false
 }

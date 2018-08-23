@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -191,7 +192,18 @@ func (d *DesiredState) FinishRun(_ context.Context, taskID, runID platform.ID) e
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	delete(d.created, taskID.String()+runID.String())
+	tid := taskID.String()
+	rid := runID.String()
+	m := d.meta[tid]
+	if !m.FinishRun(runID) {
+		var knownIDs []string
+		for _, r := range m.CurrentlyRunning {
+			knownIDs = append(knownIDs, platform.ID(r.RunID).String())
+		}
+		return fmt.Errorf("unknown run ID %s; known run IDs: %s", rid, strings.Join(knownIDs, ", "))
+	}
+	d.meta[tid] = m
+	delete(d.created, tid+rid)
 	return nil
 }
 
@@ -287,15 +299,17 @@ func (e *Executor) RunningFor(taskID platform.ID) []*RunPromise {
 // Because the scheduler and executor do a lot of state changes asynchronously, this is useful in test.
 func (e *Executor) PollForNumberRunning(taskID platform.ID, count int) ([]*RunPromise, error) {
 	const numAttempts = 20
+	var running []*RunPromise
 	for i := 0; i < numAttempts; i++ {
 		if i > 0 {
 			time.Sleep(10 * time.Millisecond)
 		}
-		if running := e.RunningFor(taskID); len(running) == count {
+		running = e.RunningFor(taskID)
+		if len(running) == count {
 			return running, nil
 		}
 	}
-	return nil, fmt.Errorf("did not see count of %d running task(s) for ID %s in time", count, taskID.String())
+	return nil, fmt.Errorf("did not see count of %d running task(s) for ID %s in time; last count was %d", count, taskID.String(), len(running))
 }
 
 // RunPromise is a mock RunPromise.
