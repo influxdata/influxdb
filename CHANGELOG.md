@@ -8,6 +8,7 @@ v1.5.5 [unreleased]
 ### Bugfixes
 
 -	[#10184](https://github.com/influxdata/influxdb/pull/10184): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr
+-	[#10221](https://github.com/influxdata/influxdb/pull/10221): Ensure orhpaned series cleaned up with shard drop.
 
 v1.5.4 [2018-06-21]
 -------------------
