@@ -1,6 +1,10 @@
 v1.5.5 [unreleased]
 -------------------
 
+### Features
+
+-	[#10220](https://github.com/influxdata/influxdb/pull/10220): Reduce allocations in TSI TagSets implementation.
+
 ### Bugfixes
 
 -	[#10184](https://github.com/influxdata/influxdb/pull/10184): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr
