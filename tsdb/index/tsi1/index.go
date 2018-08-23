@@ -24,7 +24,7 @@ import (
 )
 
 // IndexName is the name of the index.
-const IndexName = "tsi1"
+const IndexName = tsdb.TSI1IndexName
 
 // ErrCompactionInterrupted is returned if compactions are disabled or
 // an index is closed while a compaction is occurring.
@@ -642,6 +642,9 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	}
 	return nil
 }
+
+// DropSeriesGlobal is a no-op on the tsi1 index.
+func (i *Index) DropSeriesGlobal(key []byte) error { return nil }
 
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
 // series for the measurment.
