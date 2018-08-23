@@ -18,6 +18,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// Available index types.
+const (
+	InmemIndexName = "inmem"
+	TSI1IndexName  = "tsi1"
+)
+
 type Index interface {
 	Open() error
 	Close() error
@@ -34,6 +40,9 @@ type Index interface {
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
 	DropSeries(seriesID uint64, key []byte, cascade bool) error
 	DropMeasurementIfSeriesNotExist(name []byte) error
+
+	// Used to clean up series in inmem index that were dropped with a shard.
+	DropSeriesGlobal(key []byte) error
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
@@ -2488,7 +2497,7 @@ func NewIndex(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile 
 	} else if err != nil {
 		return nil, err
 	} else if err == nil {
-		format = "tsi1"
+		format = TSI1IndexName
 	}
 
 	// Lookup index by format.

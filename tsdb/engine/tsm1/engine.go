@@ -1324,7 +1324,6 @@ func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) erro
 // does not update the index or disable compactions.  This should mainly be called by DeleteSeriesRange
 // and not directly.
 func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
-	ts := time.Now().UTC().UnixNano()
 	if len(seriesKeys) == 0 {
 		return nil
 	}
@@ -1534,7 +1533,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			// the global index (all shards).
 			if index, ok := e.index.(*inmem.ShardIndex); ok {
 				key := models.MakeKey(name, tags)
-				if e := index.Index.DropSeriesGlobal(key, ts); e != nil {
+				if e := index.Index.DropSeriesGlobal(key); e != nil {
 					err = e
 				}
 			}
@@ -2192,7 +2191,7 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == "inmem" {
+	if e.index.Type() == tsdb.InmemIndexName {
 		ts := e.index.(indexTagSets)
 		tagSets, err = ts.TagSets([]byte(measurement), opt)
 	} else {
@@ -2272,7 +2271,7 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == "inmem" {
+	if e.index.Type() == tsdb.InmemIndexName {
 		ts := e.index.(indexTagSets)
 		tagSets, err = ts.TagSets([]byte(measurement), opt)
 	} else {
