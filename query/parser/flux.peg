@@ -344,11 +344,136 @@ DateTimeLiteral
       return datetime(c.text, c.pos)
     }
 
+// The order of the choices in this rule and those below matters.
+// Minutes (m) must appear before milliseconds (ms) and months (mo),
+// otherwise "10ms" will be parsed as 10 minutes and an extraneous "s".
+DurationLiteral
+  = durations:(
+        DayDuration
+      / HourDuration
+      / MicroSecondDuration
+      / MilliSecondDuration
+      / MonthDuration
+      / MinuteDuration
+      / NanoSecondDuration
+      / SecondDuration
+      / WeekDuration
+      / YearDuration
+    ) {
+      return durationLiteral(durations, c.text, c.pos)
+    }
+
+YearDuration
+  = mag:IntegerLiteral unit:YearUnits otherParts:(
+        DayDuration
+      / HourDuration
+      / MicroSecondDuration
+      / MilliSecondDuration
+      / MonthDuration
+      / MinuteDuration
+      / NanoSecondDuration
+      / SecondDuration
+      / WeekDuration
+    )? {
+      return appendSingleDurations(mag, unit, otherParts, c.text, c.pos)
+    }
+
+MonthDuration
+  = mag:IntegerLiteral unit:MonthUnits otherParts:(
+        DayDuration
+      / HourDuration
+      / MicroSecondDuration
+      / MilliSecondDuration
+      / MinuteDuration
+      / NanoSecondDuration
+      / SecondDuration
+      / WeekDuration
+    )?  {
+      return appendSingleDurations(mag, unit, otherParts, c.text, c.pos)
+    }
+
+WeekDuration
+  = mag:IntegerLiteral unit:WeekUnits otherParts:(
+        DayDuration
+      / HourDuration
+      / MicroSecondDuration
+      / MilliSecondDuration
+      / MinuteDuration
+      / NanoSecondDuration
+      / SecondDuration
+    )? {
+      return appendSingleDurations(mag, unit, otherParts, c.text, c.pos)
+    }
+
+DayDuration
+  = mag:IntegerLiteral unit:DayUnits otherParts:(
+        HourDuration
+      / MicroSecondDuration
+      / MilliSecondDuration
+      / MinuteDuration
+      / NanoSecondDuration
+      / SecondDuration
+    )? {
+      return appendSingleDurations(mag, unit, otherParts, c.text, c.pos)
+    }
+
+HourDuration
+  = mag:IntegerLiteral unit:HourUnits otherParts:(
+        MicroSecondDuration
+      / MilliSecondDuration
+      / MinuteDuration
+      / NanoSecondDuration
+      / SecondDuration
+    )? {
+      return appendSingleDurations(mag, unit, otherParts, c.text, c.pos)
+    }
+
+MinuteDuration
+  = mag:IntegerLiteral unit:MinuteUnits otherParts:(
+        MicroSecondDuration
+      / MilliSecondDuration
+      / NanoSecondDuration
+      / SecondDuration
+    )? {
+      return appendSingleDurations(mag, unit, otherParts, c.text, c.pos)
+    }
+
+SecondDuration
+  = mag:IntegerLiteral unit:SecondUnits otherParts:(
+        MicroSecondDuration
+      / MilliSecondDuration
+      / NanoSecondDuration
+    )? {
+      return appendSingleDurations(mag, unit, otherParts, c.text, c.pos)
+    }
+
+MilliSecondDuration
+  = mag:IntegerLiteral unit:MilliSecondUnits otherParts:(
+        MicroSecondDuration
+      / NanoSecondDuration
+    )? {
+      return appendSingleDurations(mag, unit, otherParts, c.text, c.pos)
+    }
+
+MicroSecondDuration
+  = mag:IntegerLiteral unit:MicroSecondUnits otherParts:(
+      NanoSecondDuration
+    )? {
+      return appendSingleDurations(mag, unit, otherParts, c.text, c.pos)
+    }
+
+NanoSecondDuration
+  = mag:IntegerLiteral unit:NanoSecondUnits {
+      return appendSingleDurations(mag, unit, nil, c.text, c.pos)
+    }
+
 NanoSecondUnits
   = "ns"
 
 MicroSecondUnits
-  = ("us" / "µs" / "μs")
+  = ("us" / "µs" / "μs") {
+      return []byte("us"), nil
+    }
 
 MilliSecondUnits
   = "ms"
@@ -368,27 +493,11 @@ DayUnits
 WeekUnits
   = "w"
 
-DurationUnits
-  = (
-        NanoSecondUnits
-      / MicroSecondUnits
-      / MilliSecondUnits
-      / SecondUnits
-      / MinuteUnits
-      / HourUnits
-      / DayUnits
-      / WeekUnits
-    )
+MonthUnits
+  = "mo"
 
-SingleDuration
-  = mag:IntegerLiteral unit:DurationUnits {
-    return singleDuration(mag, unit, c.text, c.pos)
-  }
-
-DurationLiteral
-  = durations:SingleDuration+ {
-      return durationLiteral(durations, c.text, c.pos)
-    }
+YearUnits
+  = "y"
 
 StringLiteral
   = ( '"' DoubleStringChar* '"' ) {

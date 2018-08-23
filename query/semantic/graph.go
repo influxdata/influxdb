@@ -1367,11 +1367,22 @@ func analyzeRegexpLiteral(lit *ast.RegexpLiteral, declarations DeclarationScope)
 	}, nil
 }
 func toDuration(lit ast.Duration) (time.Duration, error) {
+	// TODO: This is temporary code until we have proper duration type that takes different months, DST, etc into account
 	var dur time.Duration
 	var err error
 	mag := lit.Magnitude
 	unit := lit.Unit
+
 	switch unit {
+	case "y":
+		mag *= 12
+		unit = "mo"
+		fallthrough
+	case "mo":
+		const weeksPerMonth = 365.25 / 12 / 7
+		mag = int64(float64(mag) * weeksPerMonth)
+		unit = "w"
+		fallthrough
 	case "w":
 		mag *= 7
 		unit = "d"
@@ -1381,6 +1392,7 @@ func toDuration(lit ast.Duration) (time.Duration, error) {
 		unit = "h"
 		fallthrough
 	default:
+		// ParseDuration will handle h, m, s, ms, us, ns.
 		dur, err = time.ParseDuration(strconv.FormatInt(mag, 10) + unit)
 	}
 	return dur, err

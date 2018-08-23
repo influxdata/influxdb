@@ -1719,6 +1719,81 @@ join(tables:[a,b], on:["t1"], fn: (a,b) => (a["_field"] - b["_field"]) / b["_fie
 			},
 		},
 		{
+			name: "duration literal, all units",
+			raw:  `dur = 1y3mo2w1d4h1m30s1ms2µs70ns`,
+			want: &ast.Program{
+				Body: []ast.Statement{&ast.VariableDeclaration{
+					Declarations: []*ast.VariableDeclarator{{
+						ID: &ast.Identifier{Name: "dur"},
+						Init: &ast.DurationLiteral{
+							Values: []ast.Duration{
+								{Magnitude: 1, Unit: "y"},
+								{Magnitude: 3, Unit: "mo"},
+								{Magnitude: 2, Unit: "w"},
+								{Magnitude: 1, Unit: "d"},
+								{Magnitude: 4, Unit: "h"},
+								{Magnitude: 1, Unit: "m"},
+								{Magnitude: 30, Unit: "s"},
+								{Magnitude: 1, Unit: "ms"},
+								{Magnitude: 2, Unit: "us"},
+								{Magnitude: 70, Unit: "ns"},
+							},
+						},
+					}},
+				}},
+			},
+		},
+		{
+			name: "duration literal, months",
+			raw:  `dur = 6mo`,
+			want: &ast.Program{
+				Body: []ast.Statement{&ast.VariableDeclaration{
+					Declarations: []*ast.VariableDeclarator{{
+						ID: &ast.Identifier{Name: "dur"},
+						Init: &ast.DurationLiteral{
+							Values: []ast.Duration{
+								{Magnitude: 6, Unit: "mo"},
+							},
+						},
+					}},
+				}},
+			},
+		},
+		{
+			name: "duration literal, milliseconds",
+			raw:  `dur = 500ms`,
+			want: &ast.Program{
+				Body: []ast.Statement{&ast.VariableDeclaration{
+					Declarations: []*ast.VariableDeclarator{{
+						ID: &ast.Identifier{Name: "dur"},
+						Init: &ast.DurationLiteral{
+							Values: []ast.Duration{
+								{Magnitude: 500, Unit: "ms"},
+							},
+						},
+					}},
+				}},
+			},
+		},
+		{
+			name: "duration literal, months, minutes, milliseconds",
+			raw:  `dur = 6mo30m500ms`,
+			want: &ast.Program{
+				Body: []ast.Statement{&ast.VariableDeclaration{
+					Declarations: []*ast.VariableDeclarator{{
+						ID: &ast.Identifier{Name: "dur"},
+						Init: &ast.DurationLiteral{
+							Values: []ast.Duration{
+								{Magnitude: 6, Unit: "mo"},
+								{Magnitude: 30, Unit: "m"},
+								{Magnitude: 500, Unit: "ms"},
+							},
+						},
+					}},
+				}},
+			},
+		},
+		{
 			name:    "parse error extra gibberish",
 			raw:     `from(bucket:"Flux/autogen") &^*&H#IUJBN`,
 			wantErr: true,
@@ -1726,6 +1801,21 @@ join(tables:[a,b], on:["t1"], fn: (a,b) => (a["_field"] - b["_field"]) / b["_fie
 		{
 			name:    "parse error extra gibberish and valid content",
 			raw:     `from(bucket:"Flux/autogen") &^*&H#IUJBN from(bucket:"other/autogen")`,
+			wantErr: true,
+		},
+		{
+			name:    "parse error from duration literal with repeated units",
+			raw:     `from(bucket:"my_bucket") |> range(start: -1d3h2h1m)`,
+			wantErr: true,
+		},
+		{
+			name:    "parser error from duration literal with smaller unit before larger one",
+			raw:     `from(bucket:"my_bucket") |> range(start: -1s5m)`,
+			wantErr: true,
+		},
+		{
+			name:    "parser error from duration literal with invalid unit",
+			raw:     `from(bucket:"my_bucket") |> range(start: -1s5v)`,
 			wantErr: true,
 		},
 	}

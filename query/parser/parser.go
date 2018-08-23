@@ -2,7 +2,7 @@
 
 package parser
 
-//go:generate pigeon -optimize-parser -optimize-grammar -o flux.go flux.peg
+//go:generate pigeon -optimize-parser -o flux.go flux.peg
 
 import (
 	"github.com/influxdata/platform/query/ast"

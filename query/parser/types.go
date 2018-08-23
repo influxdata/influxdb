@@ -341,28 +341,39 @@ func regexLiteral(chars interface{}, text []byte, pos position) (*ast.RegexpLite
 }
 
 func durationLiteral(durations interface{}, text []byte, pos position) (*ast.DurationLiteral, error) {
-	durs := toIfaceSlice(durations)
-	literals := make([]*singleDurationLiteral, len(durs))
-	for i, d := range durs {
-		literals[i] = d.(*singleDurationLiteral)
+	literals := durations.([]*singleDurationLiteral)
+	// The slice built by the parser goes from smallest units to largest (opposite of syntax),
+	// reverse it for the AST produced.
+	for i := 0; i < len(literals) / 2; i++ {
+		j := len(literals) - i - 1
+		literals[i], literals[j] = literals[j], literals[i]
 	}
+
 	return &ast.DurationLiteral{
 		BaseNode: base(text, pos),
 		Values:   toDurationSlice(literals),
 	}, nil
 }
 
-func singleDuration(mag, unit interface{}, text []byte, pos position) (*singleDurationLiteral, error) {
-	return &singleDurationLiteral{
-		// Not an AST node
-		magnitude: mag.(*ast.IntegerLiteral),
-		unit:      string(unit.([]byte)),
-	}, nil
-}
-
 type singleDurationLiteral struct {
 	magnitude *ast.IntegerLiteral
 	unit      string
+}
+
+func appendSingleDurations(mag, unit, otherParts interface{}, text []byte, pos position) ([]*singleDurationLiteral, error) {
+	sdl := &singleDurationLiteral{
+		magnitude: mag.(*ast.IntegerLiteral),
+		unit: string(unit.([]byte)),
+	}
+
+	if otherParts == nil {
+		slice := make([]*singleDurationLiteral, 1, 10)
+		slice[0] = sdl
+		return slice, nil
+	}
+
+	others := otherParts.([]*singleDurationLiteral)
+	return append(others, sdl), nil
 }
 
 func datetime(text []byte, pos position) (*ast.DateTimeLiteral, error) {

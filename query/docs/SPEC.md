@@ -163,22 +163,23 @@ Examples:
 A duration literal is a representation of a length of time.
 It has an integer part and a duration unit part.
 Multiple durations may be specified together and the resulting duration is the sum of each smaller part.
+When several durations are specified together, larger units must appear before smaller ones, and there can be no repeated units.
 
     duration_lit  = { int_lit duration_unit } .
-    duration_unit = "ns" | "us" | "µs" | "ms" | "s" | "m" | "h" | "d" | "w" | "mo" | "y" .
+    duration_unit = "y" | "mo" | "w" | "d" | "h" | "m" | "s" | "ms" | "us" | "µs" | "ns" .
 
 | Units    | Meaning                                 |
 | -----    | -------                                 |
-| ns       | nanoseconds (1 billionth of a second)   |
-| us or µs | microseconds (1 millionth of a second)  |
-| ms       | milliseconds (1 thousandth of a second) |
-| s        | second                                  |
-| m        | minute (60 seconds)                     |
-| h        | hour (60 minutes)                       |
-| d        | day                                     |
-| w        | week (7 days)                           |
-| mo       | month                                   |
 | y        | year (12 months)                        |
+| mo       | month                                   |
+| w        | week (7 days)                           |
+| d        | day                                     |
+| h        | hour (60 minutes)                       |
+| m        | minute (60 seconds)                     |
+| s        | second                                  |
+| ms       | milliseconds (1 thousandth of a second) |
+| us or µs | microseconds (1 millionth of a second)  |
+| ns       | nanoseconds (1 billionth of a second)   |
 
 Durations represent a length of time.
 Lengths of time are dependent on specific instants in time they occur and as such, durations do not represent a fixed amount of time.
