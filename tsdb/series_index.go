@@ -150,7 +150,7 @@ func (idx *SeriesIndex) Insert(key []byte, id SeriesIDTyped, offset int64) {
 
 // Delete marks the series id as deleted.
 func (idx *SeriesIndex) Delete(id SeriesID) {
-	// TODO(jeff): WithType(0) kinda sucks here, but we know it will be masked off.
+	// NOTE: WithType(0) kinda sucks here, but we know it will be masked off.
 	idx.execEntry(SeriesEntryTombstoneFlag, id.WithType(0), 0, nil)
 }
 

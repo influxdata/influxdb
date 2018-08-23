@@ -95,25 +95,25 @@ func (s *SeriesCollection) Copy(dst, src int) {
 		return
 	}
 	udst, usrc := uint(dst), uint(src)
-	if len := uint(len(s.Points)); udst < len && usrc < len {
+	if n := uint(len(s.Points)); udst < n && usrc < n {
 		s.Points[udst] = s.Points[usrc]
 	}
-	if len := uint(len(s.Keys)); udst < len && usrc < len {
+	if n := uint(len(s.Keys)); udst < n && usrc < n {
 		s.Keys[udst] = s.Keys[usrc]
 	}
-	if len := uint(len(s.SeriesKeys)); udst < len && usrc < len {
+	if n := uint(len(s.SeriesKeys)); udst < n && usrc < n {
 		s.SeriesKeys[udst] = s.SeriesKeys[usrc]
 	}
-	if len := uint(len(s.Names)); udst < len && usrc < len {
+	if n := uint(len(s.Names)); udst < n && usrc < n {
 		s.Names[udst] = s.Names[usrc]
 	}
-	if len := uint(len(s.Tags)); udst < len && usrc < len {
+	if n := uint(len(s.Tags)); udst < n && usrc < n {
 		s.Tags[udst] = s.Tags[usrc]
 	}
-	if len := uint(len(s.Types)); udst < len && usrc < len {
+	if n := uint(len(s.Types)); udst < n && usrc < n {
 		s.Types[udst] = s.Types[usrc]
 	}
-	if len := uint(len(s.SeriesIDs)); udst < len && usrc < len {
+	if n := uint(len(s.SeriesIDs)); udst < n && usrc < n {
 		s.SeriesIDs[udst] = s.SeriesIDs[usrc]
 	}
 }
@@ -124,25 +124,25 @@ func (s *SeriesCollection) Swap(i, j int) {
 		return
 	}
 	ui, uj := uint(i), uint(j)
-	if len := uint(len(s.Points)); ui < len && uj < len {
+	if n := uint(len(s.Points)); ui < n && uj < n {
 		s.Points[ui], s.Points[uj] = s.Points[uj], s.Points[ui]
 	}
-	if len := uint(len(s.Keys)); ui < len && uj < len {
+	if n := uint(len(s.Keys)); ui < n && uj < n {
 		s.Keys[ui], s.Keys[uj] = s.Keys[uj], s.Keys[ui]
 	}
-	if len := uint(len(s.SeriesKeys)); ui < len && uj < len {
+	if n := uint(len(s.SeriesKeys)); ui < n && uj < n {
 		s.SeriesKeys[ui], s.SeriesKeys[uj] = s.SeriesKeys[uj], s.SeriesKeys[ui]
 	}
-	if len := uint(len(s.Names)); ui < len && uj < len {
+	if n := uint(len(s.Names)); ui < n && uj < n {
 		s.Names[ui], s.Names[uj] = s.Names[uj], s.Names[ui]
 	}
-	if len := uint(len(s.Tags)); ui < len && uj < len {
+	if n := uint(len(s.Tags)); ui < n && uj < n {
 		s.Tags[ui], s.Tags[uj] = s.Tags[uj], s.Tags[ui]
 	}
-	if len := uint(len(s.Types)); ui < len && uj < len {
+	if n := uint(len(s.Types)); ui < n && uj < n {
 		s.Types[ui], s.Types[uj] = s.Types[uj], s.Types[ui]
 	}
-	if len := uint(len(s.SeriesIDs)); ui < len && uj < len {
+	if n := uint(len(s.SeriesIDs)); ui < n && uj < n {
 		s.SeriesIDs[ui], s.SeriesIDs[uj] = s.SeriesIDs[uj], s.SeriesIDs[ui]
 	}
 }
