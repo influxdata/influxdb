@@ -1,6 +1,7 @@
 package tsdb_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -10,6 +11,43 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 )
+
+func TestParseSeriesKeyInto(t *testing.T) {
+	name := []byte("cpu")
+	tags := models.NewTags(map[string]string{"region": "east", "server": "a"})
+	key := tsdb.AppendSeriesKey(nil, name, tags)
+
+	dst := make(models.Tags, 0)
+	gotName, gotTags := tsdb.ParseSeriesKeyInto(key, dst)
+
+	if !bytes.Equal(gotName, name) {
+		t.Fatalf("got %q, expected %q", gotName, name)
+	}
+
+	if got, exp := len(gotTags), 2; got != exp {
+		t.Fatalf("got tags length %d, expected %d", got, exp)
+	} else if got, exp := gotTags, tags; !got.Equal(exp) {
+		t.Fatalf("got tags %v, expected %v", got, exp)
+	}
+
+	dst = make(models.Tags, 0, 5)
+	_, gotTags = tsdb.ParseSeriesKeyInto(key, dst)
+	if got, exp := len(gotTags), 2; got != exp {
+		t.Fatalf("got tags length %d, expected %d", got, exp)
+	} else if got, exp := cap(gotTags), 5; got != exp {
+		t.Fatalf("got tags capacity %d, expected %d", got, exp)
+	} else if got, exp := gotTags, tags; !got.Equal(exp) {
+		t.Fatalf("got tags %v, expected %v", got, exp)
+	}
+
+	dst = make(models.Tags, 1)
+	_, gotTags = tsdb.ParseSeriesKeyInto(key, dst)
+	if got, exp := len(gotTags), 2; got != exp {
+		t.Fatalf("got tags length %d, expected %d", got, exp)
+	} else if got, exp := gotTags, tags; !got.Equal(exp) {
+		t.Fatalf("got tags %v, expected %v", got, exp)
+	}
+}
 
 // Ensure series file contains the correct set of series.
 func TestSeriesFile_Series(t *testing.T) {

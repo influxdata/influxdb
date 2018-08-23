@@ -871,7 +871,7 @@ func (data *Data) importOneDB(other Data, backupDBName, restoreDBName, backupRPN
 		for j, sgImport := range rpImport.ShardGroups {
 			data.MaxShardGroupID++
 			rpImport.ShardGroups[j].ID = data.MaxShardGroupID
-			for k, _ := range sgImport.Shards {
+			for k := range sgImport.Shards {
 				data.MaxShardID++
 				shardIDMap[sgImport.Shards[k].ID] = data.MaxShardID
 				sgImport.Shards[k].ID = data.MaxShardID
