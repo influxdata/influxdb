@@ -247,6 +247,7 @@ type Statistics struct {
 	RecoveredPanics              int64
 	PromWriteRequests            int64
 	PromReadRequests             int64
+	HitMaxRowLimit               int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -276,6 +277,7 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 			statRecoveredPanics:              atomic.LoadInt64(&h.stats.RecoveredPanics),
 			statPromWriteRequest:             atomic.LoadInt64(&h.stats.PromWriteRequests),
 			statPromReadRequest:              atomic.LoadInt64(&h.stats.PromReadRequests),
+			statHitMaxRowLimit:               atomic.LoadInt64(&h.stats.HitMaxRowLimit),
 		},
 	}}
 }
@@ -627,6 +629,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 
 		// Drop out of this loop and do not process further results when we hit the row limit.
 		if h.Config.MaxRowLimit > 0 && rows >= h.Config.MaxRowLimit {
+			atomic.AddInt64(&h.stats.HitMaxRowLimit, 1)
 			// If the result is marked as partial, remove that partial marking
 			// here. While the series is partial and we would normally have
 			// tried to return the rest in the next chunk, we are not using
