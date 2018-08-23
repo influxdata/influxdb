@@ -347,7 +347,7 @@ func TestDigest_Manifest(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := df.Close(); err != nil {
+		if err := r.Close(); err != nil {
 			t.Fatal(err)
 		}
 
