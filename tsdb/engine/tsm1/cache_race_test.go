@@ -181,7 +181,7 @@ func TestCacheRace2Compacters(t *testing.T) {
 			c.ClearSnapshot(true)
 			mu.Lock()
 			defer mu.Unlock()
-			for k, _ := range myFiles {
+			for k := range myFiles {
 				if _, ok := mapFiles[k]; !ok {
 					errC <- fmt.Errorf("something else deleted one of my files")
 					return

@@ -866,7 +866,7 @@ func (s *Store) Databases() []string {
 	defer s.mu.RUnlock()
 
 	databases := make([]string, 0, len(s.databases))
-	for k, _ := range s.databases {
+	for k := range s.databases {
 		databases = append(databases, k)
 	}
 	return databases

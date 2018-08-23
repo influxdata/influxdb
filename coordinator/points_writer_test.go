@@ -523,7 +523,7 @@ func TestBufferedPointsWriter(t *testing.T) {
 	reset()
 
 	// Test writing points one at a time.
-	for i, _ := range r.Points {
+	for i := range r.Points {
 		if err := w.WritePointsInto(&coordinator.IntoWriteRequest{
 			Database:        db,
 			RetentionPolicy: rp,
