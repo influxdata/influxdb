@@ -36,16 +36,16 @@ func NewExecutor(deps Dependencies, logger *zap.Logger) Executor {
 }
 
 type streamContext struct {
-	bounds Bounds
+	bounds *Bounds
 }
 
-func newStreamContext(b Bounds) streamContext {
+func newStreamContext(b *Bounds) streamContext {
 	return streamContext{
 		bounds: b,
 	}
 }
 
-func (ctx streamContext) Bounds() Bounds {
+func (ctx streamContext) Bounds() *Bounds {
 	return ctx.bounds
 }
 
@@ -128,13 +128,19 @@ func (es *executionState) createNode(ctx context.Context, pr *plan.Procedure, no
 		return n, nil
 	}
 
+	// Add explicit stream context if bounds are set on this node
+	var streamContext streamContext
+	if pr.Bounds != nil {
+		streamContext.bounds = &Bounds{
+			Start: pr.Bounds.Start,
+			Stop:  pr.Bounds.Stop,
+		}
+	}
+
 	// Build execution context
 	ec := executionContext{
-		es: es,
-		streamContext: newStreamContext(Bounds{
-			Start: resolveTime(pr.Bounds.Start, es.p.Now),
-			Stop:  resolveTime(pr.Bounds.Stop, es.p.Now),
-		}),
+		es:            es,
+		streamContext: streamContext,
 	}
 
 	if len(pr.Parents) > 0 {

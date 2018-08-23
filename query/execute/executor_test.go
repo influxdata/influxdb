@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/platform/query/values"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
@@ -60,9 +62,9 @@ func TestExecutor_Execute(t *testing.T) {
 								},
 							}},
 						},
-						Bounds: plan.BoundsSpec{
-							Start: query.Time{Absolute: time.Unix(0, 1)},
-							Stop:  query.Time{Absolute: time.Unix(0, 5)},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
 						},
 						Parents:  nil,
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("sum")},
@@ -74,6 +76,10 @@ func TestExecutor_Execute(t *testing.T) {
 						},
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("from"),
+						},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
 						},
 						Children: nil,
 					},
@@ -126,9 +132,9 @@ func TestExecutor_Execute(t *testing.T) {
 								},
 							}},
 						},
-						Bounds: plan.BoundsSpec{
-							Start: query.Time{Absolute: time.Unix(0, 1)},
-							Stop:  query.Time{Absolute: time.Unix(0, 5)},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
 						},
 						Parents:  nil,
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("sum")},
@@ -141,6 +147,10 @@ func TestExecutor_Execute(t *testing.T) {
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("from"),
 						},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
+						},
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("join")},
 					},
 					plan.ProcedureIDFromOperationID("count"): {
@@ -150,6 +160,10 @@ func TestExecutor_Execute(t *testing.T) {
 						},
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("from"),
+						},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
 						},
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("join")},
 					},
@@ -165,6 +179,10 @@ func TestExecutor_Execute(t *testing.T) {
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("sum"),
 							plan.ProcedureIDFromOperationID("count"),
+						},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
 						},
 						Children: nil,
 					},
@@ -269,7 +287,11 @@ func TestExecutor_Execute(t *testing.T) {
 								},
 							},
 						},
-						Parents:  nil,
+						Parents: nil,
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
+						},
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("sum")},
 					},
 					plan.ProcedureIDFromOperationID("sum"): {
@@ -280,6 +302,10 @@ func TestExecutor_Execute(t *testing.T) {
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("from"),
 						},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
+						},
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("join")},
 					},
 					plan.ProcedureIDFromOperationID("count"): {
@@ -289,6 +315,10 @@ func TestExecutor_Execute(t *testing.T) {
 						},
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("from"),
+						},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
 						},
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("join")},
 					},
@@ -304,6 +334,10 @@ func TestExecutor_Execute(t *testing.T) {
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("sum"),
 							plan.ProcedureIDFromOperationID("count"),
+						},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
 						},
 						Children: nil,
 					},
@@ -421,9 +455,9 @@ func TestExecutor_Execute(t *testing.T) {
 								},
 							}},
 						},
-						Bounds: plan.BoundsSpec{
-							Start: query.Time{Absolute: time.Unix(0, 1)},
-							Stop:  query.Time{Absolute: time.Unix(0, 5)},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
 						},
 						Parents: nil,
 						Children: []plan.ProcedureID{
@@ -439,6 +473,10 @@ func TestExecutor_Execute(t *testing.T) {
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("from"),
 						},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
+						},
 						Children: nil,
 					},
 					plan.ProcedureIDFromOperationID("mean"): {
@@ -448,6 +486,10 @@ func TestExecutor_Execute(t *testing.T) {
 						},
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("from"),
+						},
+						Bounds: &plan.BoundsSpec{
+							Start: values.ConvertTime(time.Unix(0, 1)),
+							Stop:  values.ConvertTime(time.Unix(0, 5)),
 						},
 						Children: nil,
 					},

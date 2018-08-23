@@ -86,13 +86,17 @@ func TestFixedWindow_PassThrough(t *testing.T) {
 				Every:  execute.Duration(time.Minute),
 				Period: execute.Duration(time.Minute),
 			},
-			false,
 			execute.DefaultTimeColLabel,
 			execute.DefaultStartColLabel,
 			execute.DefaultStopColLabel,
 		)
 		return fw
 	})
+}
+
+var EmptyBounds = &execute.Bounds{
+	Start: execute.Time(0),
+	Stop:  execute.Time(0),
 }
 
 func TestFixedWindow_Process(t *testing.T) {
@@ -102,6 +106,7 @@ func TestFixedWindow_Process(t *testing.T) {
 		start         execute.Time
 		every, period execute.Duration
 		num           int
+		bounds        *execute.Bounds
 		want          func(start execute.Time) []*executetest.Table
 	}{
 		{
@@ -555,13 +560,46 @@ func TestFixedWindow_Process(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:     "empty bounds start == stop",
+			valueCol: query.ColMeta{Label: "_value", Type: query.TInt},
+			start:    execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
+			every:    execute.Duration(time.Minute),
+			period:   execute.Duration(time.Minute),
+			num:      15,
+			bounds:   EmptyBounds,
+			want: func(start execute.Time) []*executetest.Table {
+				return nil
+			},
+		},
+		{
+			name:     "empty bounds start > stop",
+			valueCol: query.ColMeta{Label: "_value", Type: query.TInt},
+			start:    execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
+			every:    execute.Duration(time.Minute),
+			period:   execute.Duration(time.Minute),
+			num:      15,
+			bounds: &execute.Bounds{
+				Start: execute.Time(time.Date(2017, 10, 10, 12, 0, 0, 0, time.UTC).UnixNano()),
+				Stop:  execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
+			},
+			want: func(start execute.Time) []*executetest.Table {
+				return nil
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			start := tc.start
-			stop := start + execute.Time(time.Hour)
+			var start, stop execute.Time
+			if tc.bounds != nil {
+				start = tc.bounds.Start
+				stop = tc.bounds.Stop
+			} else {
+				start = tc.start
+				stop = start + execute.Time(time.Hour)
+			}
 
 			d := executetest.NewDataset(executetest.RandomDatasetID())
 			c := execute.NewTableBuilderCache(executetest.UnlimitedAllocator)
@@ -579,7 +617,6 @@ func TestFixedWindow_Process(t *testing.T) {
 					Period: tc.period,
 					Start:  start,
 				},
-				false,
 				execute.DefaultTimeColLabel,
 				execute.DefaultStartColLabel,
 				execute.DefaultStopColLabel,

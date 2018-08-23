@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 	"github.com/influxdata/platform/query/values"
+	"github.com/pkg/errors"
 )
 
 const RangeKind = "range"
@@ -93,7 +94,7 @@ func (s *RangeOpSpec) Kind() query.OperationKind {
 }
 
 type RangeProcedureSpec struct {
-	Bounds   plan.BoundsSpec
+	Bounds   query.Bounds
 	TimeCol  string
 	StartCol string
 	StopCol  string
@@ -111,7 +112,7 @@ func newRangeProcedure(qs query.OperationSpec, pa plan.Administration) (plan.Pro
 	}
 
 	return &RangeProcedureSpec{
-		Bounds: plan.BoundsSpec{
+		Bounds: query.Bounds{
 			Start: spec.Start,
 			Stop:  spec.Stop,
 		},
@@ -139,6 +140,7 @@ func (s *RangeProcedureSpec) PushDownRules() []plan.PushDownRule {
 		},
 	}}
 }
+
 func (s *RangeProcedureSpec) PushDown(root *plan.Procedure, dup func() *plan.Procedure) {
 	selectSpec := root.Spec.(*FromProcedureSpec)
 	if selectSpec.BoundsSet {
@@ -149,14 +151,14 @@ func (s *RangeProcedureSpec) PushDown(root *plan.Procedure, dup func() *plan.Pro
 		root = dup()
 		selectSpec = root.Spec.(*FromProcedureSpec)
 		selectSpec.BoundsSet = false
-		selectSpec.Bounds = plan.BoundsSpec{}
+		selectSpec.Bounds = query.Bounds{}
 		return
 	}
 	selectSpec.BoundsSet = true
 	selectSpec.Bounds = s.Bounds
 }
 
-func (s *RangeProcedureSpec) TimeBounds() plan.BoundsSpec {
+func (s *RangeProcedureSpec) TimeBounds() query.Bounds {
 	return s.Bounds
 }
 
@@ -168,21 +170,12 @@ func createRangeTransformation(id execute.DatasetID, mode execute.AccumulationMo
 	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 
-	// Resolve range transformation bounds against current execution now value if they're relative
-	start := a.ResolveTime(s.Bounds.Start)
-	stop := a.ResolveTime(s.Bounds.Stop)
-
-	// Range behavior is invalid if start > stop
-	if start > stop {
-		return nil, nil, fmt.Errorf("range error: start bound greater than stop")
+	bounds := a.StreamContext().Bounds()
+	if bounds == nil {
+		return nil, nil, errors.New("nil bounds supplied to range")
 	}
 
-	absoluteBounds := execute.Bounds{
-		Start: start,
-		Stop:  stop,
-	}
-
-	t, err := NewRangeTransformation(d, cache, s, absoluteBounds)
+	t, err := NewRangeTransformation(d, cache, s, *bounds)
 	if err != nil {
 		return nil, nil, err
 	}

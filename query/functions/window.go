@@ -15,15 +15,14 @@ import (
 const WindowKind = "window"
 
 type WindowOpSpec struct {
-	Every              query.Duration    `json:"every"`
-	Period             query.Duration    `json:"period"`
-	Start              query.Time        `json:"start"`
-	Round              query.Duration    `json:"round"`
-	Triggering         query.TriggerSpec `json:"triggering"`
-	IgnoreGlobalBounds bool              `json:"ignoreGlobalBounds"`
-	TimeCol            string            `json:"timeCol"`
-	StopColLabel       string            `json:"stopColLabel"`
-	StartColLabel      string            `json:"startColLabel"`
+	Every         query.Duration    `json:"every"`
+	Period        query.Duration    `json:"period"`
+	Start         query.Time        `json:"start"`
+	Round         query.Duration    `json:"round"`
+	Triggering    query.TriggerSpec `json:"triggering"`
+	TimeCol       string            `json:"time_col"`
+	StopColLabel  string            `json:"stop_col_label"`
+	StartColLabel string            `json:"start_col_label"`
 }
 
 var infinityVar = values.NewDurationValue(math.MaxInt64)
@@ -35,7 +34,6 @@ func init() {
 	windowSignature.Params["period"] = semantic.Duration
 	windowSignature.Params["round"] = semantic.Duration
 	windowSignature.Params["start"] = semantic.Time
-	windowSignature.Params["ignoreGlobalBounds"] = semantic.Bool
 	windowSignature.Params["timeCol"] = semantic.String
 	windowSignature.Params["startColLabel"] = semantic.String
 	windowSignature.Params["stopColLabel"] = semantic.String
@@ -82,12 +80,6 @@ func createWindowOpSpec(args query.Arguments, a *query.Administration) (query.Op
 		return nil, errors.New(`window function requires at least one of "every" or "period" to be set`)
 	}
 
-	if v, ok, err := args.GetBool("ignoreGlobalBounds"); err != nil {
-		return nil, err
-	} else if ok {
-		spec.IgnoreGlobalBounds = v
-	}
-
 	if label, ok, err := args.GetString("timeCol"); err != nil {
 		return nil, err
 	} else if ok {
@@ -129,9 +121,8 @@ func (s *WindowOpSpec) Kind() query.OperationKind {
 }
 
 type WindowProcedureSpec struct {
-	Window             plan.WindowSpec
-	IgnoreGlobalBounds bool
-	Triggering         query.TriggerSpec
+	Window     plan.WindowSpec
+	Triggering query.TriggerSpec
 	TimeCol,
 	StartColLabel,
 	StopColLabel string
@@ -149,11 +140,10 @@ func newWindowProcedure(qs query.OperationSpec, pa plan.Administration) (plan.Pr
 			Round:  s.Round,
 			Start:  s.Start,
 		},
-		IgnoreGlobalBounds: s.IgnoreGlobalBounds,
-		Triggering:         s.Triggering,
-		TimeCol:            s.TimeCol,
-		StartColLabel:      s.StartColLabel,
-		StopColLabel:       s.StopColLabel,
+		Triggering:    s.Triggering,
+		TimeCol:       s.TimeCol,
+		StartColLabel: s.StartColLabel,
+		StopColLabel:  s.StopColLabel,
 	}
 	if p.Triggering == nil {
 		p.Triggering = query.DefaultTrigger
@@ -188,17 +178,22 @@ func createWindowTransformation(id execute.DatasetID, mode execute.AccumulationM
 	} else {
 		start = a.ResolveTime(s.Window.Start)
 	}
+
+	bounds := a.StreamContext().Bounds()
+	if bounds == nil {
+		return nil, nil, errors.New("nil bounds passed to window")
+	}
+
 	t := NewFixedWindowTransformation(
 		d,
 		cache,
-		a.StreamContext().Bounds(),
+		*bounds,
 		execute.Window{
 			Every:  execute.Duration(s.Window.Every),
 			Period: execute.Duration(s.Window.Period),
 			Round:  execute.Duration(s.Window.Round),
 			Start:  start,
 		},
-		s.IgnoreGlobalBounds,
 		s.TimeCol,
 		s.StartColLabel,
 		s.StopColLabel,
@@ -212,8 +207,7 @@ type fixedWindowTransformation struct {
 	w      execute.Window
 	bounds execute.Bounds
 
-	offset             execute.Duration
-	ignoreGlobalBounds bool
+	offset execute.Duration
 
 	timeCol,
 	startColLabel,
@@ -225,22 +219,20 @@ func NewFixedWindowTransformation(
 	cache execute.TableBuilderCache,
 	bounds execute.Bounds,
 	w execute.Window,
-	ignoreGlobalBounds bool,
 	timeCol,
 	startColLabel,
 	stopColLabel string,
 ) execute.Transformation {
 	offset := execute.Duration(w.Start - w.Start.Truncate(w.Every))
 	return &fixedWindowTransformation{
-		d:                  d,
-		cache:              cache,
-		w:                  w,
-		bounds:             bounds,
-		offset:             offset,
-		ignoreGlobalBounds: ignoreGlobalBounds,
-		timeCol:            timeCol,
-		startColLabel:      startColLabel,
-		stopColLabel:       stopColLabel,
+		d:             d,
+		cache:         cache,
+		w:             w,
+		bounds:        bounds,
+		offset:        offset,
+		timeCol:       timeCol,
+		startColLabel: startColLabel,
+		stopColLabel:  stopColLabel,
 	}
 }
 
@@ -373,21 +365,17 @@ func (t *fixedWindowTransformation) getWindowBounds(now execute.Time) []execute.
 			Stop:  stop,
 		}
 
-		// Check global bounds
-		if !t.ignoreGlobalBounds {
-			if bnds.Stop > t.bounds.Stop {
-				bnds.Stop = t.bounds.Stop
-			}
+		// Check against procedure bounds
+		if bnds.Stop > t.bounds.Stop {
+			bnds.Stop = t.bounds.Stop
+		}
 
-			if bnds.Start < t.bounds.Start {
-				bnds.Start = t.bounds.Start
-			}
+		if bnds.Start < t.bounds.Start {
+			bnds.Start = t.bounds.Start
+		}
 
-			// Check bounds again since we just clamped them.
-			if bnds.Contains(now) {
-				bounds = append(bounds, bnds)
-			}
-		} else {
+		// Check bounds again since we just clamped them.
+		if bnds.Contains(now) {
 			bounds = append(bounds, bnds)
 		}
 

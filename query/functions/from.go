@@ -97,7 +97,7 @@ type FromProcedureSpec struct {
 	Hosts    []string
 
 	BoundsSet bool
-	Bounds    plan.BoundsSpec
+	Bounds    query.Bounds
 
 	FilterSet bool
 	Filter    *semantic.FunctionExpression
@@ -139,7 +139,7 @@ func newFromProcedure(qs query.OperationSpec, pa plan.Administration) (plan.Proc
 func (s *FromProcedureSpec) Kind() plan.ProcedureKind {
 	return FromKind
 }
-func (s *FromProcedureSpec) TimeBounds() plan.BoundsSpec {
+func (s *FromProcedureSpec) TimeBounds() query.Bounds {
 	return s.Bounds
 }
 func (s *FromProcedureSpec) Copy() plan.ProcedureSpec {
@@ -184,26 +184,27 @@ func (s *FromProcedureSpec) Copy() plan.ProcedureSpec {
 func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
 	spec := prSpec.(*FromProcedureSpec)
 	var w execute.Window
+	bounds := a.StreamContext().Bounds()
+	if bounds == nil {
+		return nil, errors.New("nil bounds passed to from")
+	}
+
 	if spec.WindowSet {
 		w = execute.Window{
 			Every:  execute.Duration(spec.Window.Every),
 			Period: execute.Duration(spec.Window.Period),
 			Round:  execute.Duration(spec.Window.Round),
-			Start:  a.ResolveTime(spec.Window.Start),
+			Start:  bounds.Start,
 		}
 	} else {
-		duration := execute.Duration(a.ResolveTime(spec.Bounds.Stop)) - execute.Duration(a.ResolveTime(spec.Bounds.Start))
+		duration := execute.Duration(bounds.Stop) - execute.Duration(bounds.Start)
 		w = execute.Window{
 			Every:  duration,
 			Period: duration,
-			Start:  a.ResolveTime(spec.Bounds.Start),
+			Start:  bounds.Start,
 		}
 	}
 	currentTime := w.Start + execute.Time(w.Period)
-	bounds := execute.Bounds{
-		Start: a.ResolveTime(spec.Bounds.Start),
-		Stop:  a.ResolveTime(spec.Bounds.Stop),
-	}
 
 	deps := a.Dependencies()[FromKind].(storage.Dependencies)
 	orgID := a.OrganizationID()
@@ -241,7 +242,7 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 			GroupKeys:       spec.GroupKeys,
 			AggregateMethod: spec.AggregateMethod,
 		},
-		bounds,
+		*bounds,
 		w,
 		currentTime,
 	), nil

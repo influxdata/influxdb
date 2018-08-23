@@ -2,7 +2,8 @@ package plan
 
 import (
 	"fmt"
-	"time"
+
+	"github.com/influxdata/platform/query/values"
 
 	"github.com/influxdata/platform/query"
 	uuid "github.com/satori/go.uuid"
@@ -22,7 +23,7 @@ type Procedure struct {
 	Parents  []ProcedureID
 	Children []ProcedureID
 	Spec     ProcedureSpec
-	Bounds   BoundsSpec
+	Bounds   *BoundsSpec
 }
 
 func (p *Procedure) Copy() *Procedure {
@@ -38,6 +39,11 @@ func (p *Procedure) Copy() *Procedure {
 	copy(np.Children, p.Children)
 
 	np.Spec = p.Spec.Copy()
+
+	if p.Bounds != nil {
+		bounds := *p.Bounds
+		np.Bounds = &bounds
+	}
 
 	return np
 }
@@ -75,7 +81,7 @@ type PushDownProcedureSpec interface {
 }
 
 type BoundedProcedureSpec interface {
-	TimeBounds() BoundsSpec
+	TimeBounds() query.Bounds
 }
 
 type YieldProcedureSpec interface {
@@ -102,91 +108,78 @@ type PushDownRule struct {
 // ProcedureKind denotes the kind of operations.
 type ProcedureKind string
 
-// TODO(adamperlin): make plan.BoundsSpec always use resolved absolute times, and remove
-// the `now` parameter from all associated methods.
 type BoundsSpec struct {
-	Start query.Time
-	Stop  query.Time
+	Start values.Time
+	Stop  values.Time
 }
 
-var EmptyBoundsSpec = BoundsSpec{
-	Start: query.Now,
-	Stop:  query.Now,
+var EmptyBoundsSpec = &BoundsSpec{
+	Start: values.Time(0),
+	Stop:  values.Time(0),
 }
 
 // IsEmpty reports whether the given bounds
 // are empty, i.e., if start >= stop.
-func (b BoundsSpec) IsEmpty(now time.Time) bool {
-	return b.Start.Time(now).Equal(b.Stop.Time(now)) || b.Start.Time(now).After(b.Stop.Time(now))
-}
-
-// HasZero returns true if the given bounds contain a Go zero time value as either Start or Stop.
-func (b BoundsSpec) HasZero() bool {
-	return b.Start.IsZero() || b.Stop.IsZero()
+func (b *BoundsSpec) IsEmpty() bool {
+	return b.Start >= b.Stop
 }
 
 // Contains reports whether a given time is contained within the range
 // a given BoundsSpec represents
-func (b BoundsSpec) Contains(t time.Time, now time.Time) bool {
-	return (t.After(b.Start.Time(now)) || t.Equal(b.Start.Time(now))) && t.Before(b.Stop.Time(now))
+func (b *BoundsSpec) Contains(t values.Time) bool {
+	return t >= b.Start && t < b.Stop
 }
 
 // Overlaps reports whether two given bounds have overlapping time ranges.
-func (b BoundsSpec) Overlaps(o BoundsSpec, now time.Time) bool {
-	return b.Contains(o.Start.Time(now), now) ||
-		(b.Contains(o.Stop.Time(now), now) && o.Stop.Time(now).After(b.Start.Time(now))) ||
-		o.Contains(b.Start.Time(now), now)
+func (b *BoundsSpec) Overlaps(o *BoundsSpec) bool {
+	return b.Contains(o.Start) ||
+		(b.Contains(o.Stop) && o.Stop > b.Start) ||
+		o.Contains(b.Start)
 }
 
 // Union returns the union of two time bounds (the smallest bounds which contain both input bounds)
 // If either of the bounds have zeroes, Union will return a zero-valued BoundsSpec.
 // Union with EmptyBoundsSpec always returns EmptyBoundsSpec.
-func (b BoundsSpec) Union(o BoundsSpec, now time.Time) (u BoundsSpec) {
-	if b.HasZero() || o.HasZero() {
-		return
-	}
-
-	if b.IsEmpty(now) || o.IsEmpty(now) {
+func (b *BoundsSpec) Union(o *BoundsSpec) *BoundsSpec {
+	if b.IsEmpty() || o.IsEmpty() {
 		return EmptyBoundsSpec
 	}
+	u := new(BoundsSpec)
 
 	u.Start = b.Start
-	if o.Start.Time(now).Before(b.Start.Time(now)) {
+	if o.Start < b.Start {
 		u.Start = o.Start
 	}
 
 	u.Stop = b.Stop
-	if o.Stop.Time(now).After(b.Stop.Time(now)) {
+	if o.Stop > b.Stop {
 		u.Stop = o.Stop
 	}
 
-	return
+	return u
 }
 
 // Intersect returns the intersection of two bounds (the range over which they overlap).
 // If either of the bounds have zeroes, it will return a zero-valued BoundsSpec.
 // If there is no intersection, EmptyBoundsSpec is returned.
 // Intersect with EmptyBoundsSpec will always return EmptyBoundsSpec.
-func (b BoundsSpec) Intersect(o BoundsSpec, now time.Time) (i BoundsSpec) {
-	if b.HasZero() || o.HasZero() {
-		return
-	}
-
-	if b.IsEmpty(now) || o.IsEmpty(now) || !b.Overlaps(o, now) {
+func (b *BoundsSpec) Intersect(o *BoundsSpec) *BoundsSpec {
+	if b.IsEmpty() || o.IsEmpty() || !b.Overlaps(o) {
 		return EmptyBoundsSpec
 	}
+	i := new(BoundsSpec)
 
 	i.Start = b.Start
-	if o.Start.Time(now).After(b.Start.Time(now)) {
+	if o.Start > b.Start {
 		i.Start = o.Start
 	}
 
 	i.Stop = b.Stop
-	if o.Stop.Time(now).Before(b.Stop.Time(now)) {
+	if o.Stop < b.Stop {
 		i.Stop = o.Stop
 	}
 
-	return
+	return i
 }
 
 type WindowSpec struct {

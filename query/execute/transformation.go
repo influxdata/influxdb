@@ -19,7 +19,7 @@ type Transformation interface {
 // StreamContext represents necessary context for a single stream of
 // query data.
 type StreamContext interface {
-	Bounds() Bounds
+	Bounds() *Bounds
 }
 
 type Administration interface {
