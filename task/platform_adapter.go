@@ -148,9 +148,9 @@ func (p pAdapter) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*p
 }
 
 func (p pAdapter) FindRunByID(ctx context.Context, id platform.ID) (*platform.Run, error) {
-	// TODO(lh): the inmem FindRunByID method doesnt need the taskId but we will need it PlatformAdapter
-	// this call to the store is a filler until platform.TaskService gets the update to add the id
-	return p.r.FindRunByID(ctx, platform.ID([]byte("replace")), id)
+	// TODO(lh): the inmem FindRunByID method doesnt need the taskId or orgId but we will need it PlatformAdapter
+	// this call to the store is a filler until platform.TaskService gets the update to add the IDs
+	return p.r.FindRunByID(ctx, platform.ID([]byte("replace")), platform.ID([]byte("replace")), id)
 }
 
 func (p pAdapter) RetryRun(ctx context.Context, id platform.ID) (*platform.Run, error) {

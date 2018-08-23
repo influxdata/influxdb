@@ -157,7 +157,7 @@ type LogReader interface {
 	ListRuns(ctx context.Context, runFilter platform.RunFilter) ([]*platform.Run, error)
 
 	// FindRunByID finds a run given a taskID and runID.
-	FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error)
+	FindRunByID(ctx context.Context, orgID, taskID, runID platform.ID) (*platform.Run, error)
 
 	// ListLogs lists logs for a task or a specified run of a task.
 	ListLogs(ctx context.Context, logFilter platform.LogFilter) ([]platform.Log, error)
@@ -171,7 +171,7 @@ func (NopLogReader) ListRuns(ctx context.Context, runFilter platform.RunFilter) 
 	return nil, nil
 }
 
-func (NopLogReader) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+func (NopLogReader) FindRunByID(ctx context.Context, orgID, taskID, runID platform.ID) (*platform.Run, error) {
 	return nil, nil
 }
 

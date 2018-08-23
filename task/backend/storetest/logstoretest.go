@@ -56,7 +56,7 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 		t.Fatal(err)
 	}
 
-	returnedRun, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
+	returnedRun, err := reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	run.StartedAt = startAt.Format(time.RFC3339Nano)
 	run.Status = "started"
 
-	returnedRun, err = reader.FindRunByID(context.Background(), task.ID, run.ID)
+	returnedRun, err = reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	run.FinishedAt = endAt.Format(time.RFC3339Nano)
 	run.Status = "success"
 
-	returnedRun, err = reader.FindRunByID(context.Background(), task.ID, run.ID)
+	returnedRun, err = reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 
 	fmtLogTime := logTime.Format(time.RFC3339)
 	run.Log = platform.Log(fmt.Sprintf("%s: first\n%s: second\n%s: third", fmtLogTime, fmtLogTime, fmtLogTime))
-	returnedRun, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
+	returnedRun, err := reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	if _, err := reader.FindRunByID(context.Background(), platform.ID([]byte("ugly")), platform.ID([]byte("bad"))); err == nil {
+	if _, err := reader.FindRunByID(context.Background(), platform.ID([]byte("fat")), platform.ID([]byte("ugly")), platform.ID([]byte("bad"))); err == nil {
 		t.Fatal("failed to error with bad id")
 	}
 
@@ -264,7 +264,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 		t.Fatal(err)
 	}
 
-	returnedRun, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
+	returnedRun, err := reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 
 	returnedRun.Log = "cows"
 
-	rr2, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
+	rr2, err := reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
