@@ -5,6 +5,10 @@ v1.6.2 [unreleased]
 
 -	[#10191](https://github.com/influxdata/influxdb/pull/10191): Code Issues 759 Pull requests 37 Projects 0 Wiki Insights Settings Reduce allocations in TSI TagSets implementation.
 
+### Bugfixes
+
+-	[#10219](https://github.com/influxdata/influxdb/pull/10219): Ensure orhpaned series cleaned up with shard drop.
+
 v1.6.1 [2018-08-03]
 -------------------
 
