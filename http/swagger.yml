@@ -901,12 +901,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  logs:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Link"
+                $ref: "#/components/schemas/Logs"
         default:
           description: unexpected error
           content:
@@ -937,12 +932,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  logs:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Link"
+                $ref: "#/components/schemas/Logs"
         default:
           description: unexpected error
           content:
@@ -1211,6 +1201,27 @@ components:
         prev:
           $ref: "#/components/schemas/Link"
       required: [self]
+    Logs:
+      type: object
+      properties:
+        events:
+          readOnly: true
+          type: array
+          items:
+            $ref: "#/components/schemas/LogEvent"
+    LogEvent:
+      type: object
+      properties:
+        time:
+          readOnly: true
+          description: Time event occurred, RFC3339Nano.
+          type: string
+          format: date-time
+        message:
+          readOnly: true
+          description: A description of the event that occurred.
+          type: string
+          example: Halt and catch fire
     Organization:
       properties:
         id:
