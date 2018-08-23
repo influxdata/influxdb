@@ -44,6 +44,7 @@ v1.6.0 [2018-07-05]
 -	[#10152](https://github.com/influxdata/influxdb/pull/10152): Add option to hint MADV_WILLNEED to kernel.
 -	[#9939](https://github.com/influxdata/influxdb/pull/9939): Add configuration parameter to expose rate limit for TSM compaction.
 -	[#10190](https://github.com/influxdata/influxdb/pull/10190): Reduce allocations in TSI TagSets implementation.
+-	[#10215](https://github.com/influxdata/influxdb/pull/10215): Switch digests to use snappy compression.
 
 ### Bugfixes
 
