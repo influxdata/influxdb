@@ -201,7 +201,11 @@ func (t *objectType) Kind() Kind {
 	return Object
 }
 func (t *objectType) PropertyType(name string) Type {
-	return t.properties[name]
+	typ, ok := t.properties[name]
+	if ok {
+		return typ
+	}
+	return Invalid
 }
 func (t *objectType) Properties() map[string]Type {
 	return t.properties
