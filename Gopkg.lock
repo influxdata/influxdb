@@ -522,7 +522,7 @@
 
 [[projects]]
   branch = "platform"
-  digest = "1:89f2168d053182245ee5013a4e1d96e40fe59c5d423dc2bb3c94e25ec98cc4ab"
+  digest = "1:1b1b92b94cca1cd7de230ee3468cd3cf462b0aa47030f3524f4c971ec53a5e32"
   name = "github.com/influxdata/influxdb"
   packages = [
     ".",
@@ -566,7 +566,7 @@
     "tsdb/internal",
   ]
   pruneopts = "UT"
-  revision = "59bd822af9cd2328e8d8c22a692e045456c6bb70"
+  revision = "badc1d8ed3056e46f0855223c500152eae0c5f1f"
 
 [[projects]]
   branch = "master"
