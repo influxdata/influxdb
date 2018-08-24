@@ -10,6 +10,14 @@
   version = "v1.0.1"
 
 [[projects]]
+  digest = "1:071bc10aade52ea2b6f919474e18900671903b24b12074b9bcc1c17698035586"
+  name = "github.com/RoaringBitmap/roaring"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "4c23670306840b0f8755db247d2e9b8369fc356e"
+  version = "v0.4.15"
+
+[[projects]]
   digest = "1:c06d9e11d955af78ac3bbb26bd02e01d2f61f689e1a3bce2ef6fb683ef8a7f2d"
   name = "github.com/alecthomas/kingpin"
   packages = ["."]
@@ -43,6 +51,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "c7f18ee00883bfd3b00e0a2bf7607827e0148ad4"
+
+[[projects]]
+  digest = "1:e64acfe8cda1955db545ede8e863c54d69f1ac6cd058df4349be4040320840fd"
+  name = "github.com/apache/thrift"
+  packages = ["lib/go/thrift"]
+  pruneopts = "UT"
+  revision = "327ebb6c2b6df8bf075da02ef45a2a034e9b79ba"
+  version = "0.11.0"
 
 [[projects]]
   branch = "master"
@@ -176,6 +192,14 @@
   version = "v3.2.0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:c57df9dedbc4d7bcb1a014b7023838b8c121a8e07de939ceee2724fb9fd392c7"
+  name = "github.com/dgryski/go-bitstream"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "3522498ce2c8ea06df73e55df58edfbfb33cfdd6"
+
+[[projects]]
   digest = "1:f4f6279cb37479954644babd8f8ef00584ff9fa63555d2c6718c1c3517170202"
   name = "github.com/elazarl/go-bindata-assetfs"
   packages = ["."]
@@ -198,6 +222,14 @@
   pruneopts = "UT"
   revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
   version = "v1.4.7"
+
+[[projects]]
+  branch = "master"
+  digest = "1:981722e5ee549ef844285c2b370c19e58b7dc30bc19ba3537f3df284b551b54a"
+  name = "github.com/glycerine/go-unsnap-stream"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "9f0cb55181dd3a0a4c168d3dbc72d4aca4853126"
 
 [[projects]]
   digest = "1:fe8a03a8222d5b913f256972933d26d24ad7c8286692a42943bc01633cc8fce3"
@@ -256,6 +288,13 @@
   pruneopts = "UT"
   revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
   version = "v1.1.0"
+
+[[projects]]
+  digest = "1:06c8168453decb3d6db47d2fcac0f58332a535631fae7e63238e481e827f5258"
+  name = "github.com/golang/snappy"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "d9eb7a3d35ec988b8585d4a0068e462c27d28380"
 
 [[projects]]
   branch = "master"
@@ -483,14 +522,51 @@
 
 [[projects]]
   branch = "platform"
-  digest = "1:df76ff18681306ead8b17e7e3b7983fdd86910b4f923dd2856fbe7264aca034a"
+  digest = "1:89f2168d053182245ee5013a4e1d96e40fe59c5d423dc2bb3c94e25ec98cc4ab"
   name = "github.com/influxdata/influxdb"
   packages = [
+    ".",
     "logger",
+    "models",
+    "monitor/diagnostics",
+    "pkg/binaryutil",
+    "pkg/bloom",
+    "pkg/bytesutil",
+    "pkg/encoding/simple8b",
+    "pkg/escape",
+    "pkg/estimator",
+    "pkg/estimator/hll",
+    "pkg/file",
+    "pkg/limiter",
+    "pkg/metrics",
+    "pkg/mmap",
+    "pkg/pool",
+    "pkg/radix",
+    "pkg/rhh",
+    "pkg/slices",
     "pkg/snowflake",
+    "pkg/tar",
+    "pkg/tracing",
+    "pkg/tracing/fields",
+    "pkg/tracing/labels",
+    "pkg/tracing/wire",
+    "query",
+    "query/internal",
+    "query/internal/gota",
+    "query/neldermead",
+    "services/meta",
+    "services/meta/internal",
+    "services/storage",
+    "toml",
+    "tsdb",
+    "tsdb/engine/tsm1",
+    "tsdb/index",
+    "tsdb/index/inmem",
+    "tsdb/index/tsi1",
+    "tsdb/internal",
   ]
   pruneopts = "UT"
-  revision = "12f7f457079a7d3b62f8596eec6197cbb84086b2"
+  revision = "59bd822af9cd2328e8d8c22a692e045456c6bb70"
 
 [[projects]]
   branch = "master"
@@ -556,6 +632,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "d1898390779332322e6b5ca5011da4bf249bb056"
+
+[[projects]]
+  branch = "master"
+  digest = "1:b0a450ba626dd247151de6209d6e4a7f8156af1ebc1169186e641814d548ed16"
+  name = "github.com/jwilder/encoding"
+  packages = ["simple8b"]
+  pruneopts = "UT"
+  revision = "b4e1701a28efcc637d9afcca7d38e495fe909a09"
 
 [[projects]]
   digest = "1:d65b917f934f8a870c0d4c251dbc524cef0cf8d6bdf7da8275213b75c1205019"
@@ -653,7 +737,16 @@
   revision = "2ad051b8b508f69e7dcf8febdea2856ec2db73ed"
 
 [[projects]]
-  digest = "1:450b7623b185031f3a456801155c8320209f75d0d4c4e633c6b1e59d44d6e392"
+  branch = "master"
+  digest = "1:c22fdadfe2de0e1df75987cac34f1c721157dc24f180c76b4ef66a3c9637a799"
+  name = "github.com/mschoch/smat"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "90eadee771aeab36e8bf796039b8c261bebebe4f"
+
+[[projects]]
+  branch = "master"
+  digest = "1:f97482f69f8d8e853db82a02f036dfad1ba6250d29d870fdebca4683deaa117c"
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
@@ -661,8 +754,7 @@
     "log",
   ]
   pruneopts = "UT"
-  revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
-  version = "v1.0.2"
+  revision = "bd9c3193394760d98b2fa6ebb2291f0cd1d06a7d"
 
 [[projects]]
   digest = "1:7231124c9669dfb54b82ef8b89f2735cf5d5d2529a23c6ac93a8c4b8bbb28b28"
@@ -671,6 +763,14 @@
   pruneopts = "UT"
   revision = "acdc4509485b587f5e675510c4f2c63e90ff68a8"
   version = "v1.1.0"
+
+[[projects]]
+  digest = "1:5e73b34a27d827212102605789de00bd411b2e434812133c83935fe9897c75e1"
+  name = "github.com/philhofer/fwd"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "bb6d471dc95d4fe11e432687f8b70ff496cf3136"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
@@ -815,6 +915,14 @@
   version = "v1.0.2"
 
 [[projects]]
+  digest = "1:eaa6698f44de8f2977e93c9b946e60a8af75f565058658aad2df8032b55c84e5"
+  name = "github.com/tinylib/msgp"
+  packages = ["msgp"]
+  pruneopts = "UT"
+  revision = "b2b6a672cf1e5b90748f79b8b81fc8c5cf0571a1"
+  version = "1.0.2"
+
+[[projects]]
   digest = "1:43b8a34f6390d8fbdcfd300ed52103064e9eaaecc7e50b7e3518fe246ebe8403"
   name = "github.com/tylerb/graceful"
   packages = ["."]
@@ -823,7 +931,7 @@
   version = "v1.2.15"
 
 [[projects]]
-  digest = "1:104a2d7446f4628e4663d7c029b18da1aad4313735de775f37b6e7720b1d0aa7"
+  digest = "1:6d3c0668f51d86fe4989365fa72f2a4fa451b09d3bf747f701648f9714405a44"
   name = "github.com/uber/jaeger-client-go"
   packages = [
     ".",
@@ -831,11 +939,8 @@
     "internal/baggage",
     "internal/baggage/remote",
     "internal/spanlog",
-    "internal/throttler",
-    "internal/throttler/remote",
     "log",
     "rpcmetrics",
-    "thrift",
     "thrift-gen/agent",
     "thrift-gen/baggage",
     "thrift-gen/jaeger",
@@ -844,8 +949,8 @@
     "utils",
   ]
   pruneopts = "UT"
-  revision = "b043381d944715b469fd6b37addfd30145ca1758"
-  version = "v2.14.0"
+  revision = "f54d8ece0a66e3db6a9247e946eb1e2bd79029ea"
+  version = "v2.11.1"
 
 [[projects]]
   digest = "1:0f09db8429e19d57c8346ad76fbbc679341fa86073d3b8fb5ac919f0357d8f4c"
@@ -854,6 +959,22 @@
   pruneopts = "UT"
   revision = "ed3a127ec5fef7ae9ea95b01b542c47fbd999ce5"
   version = "v1.5.0"
+
+[[projects]]
+  digest = "1:211f9cf21d532e2da93a420426d714af492743f4c602389cb0cd14ec8eebe256"
+  name = "github.com/willf/bitset"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e553b05586428962bf7058d1044519d87ca72d74"
+  version = "v1.1.9"
+
+[[projects]]
+  branch = "master"
+  digest = "1:530b61e812573f3600e7c23b1c63ce685217482389bfd85e4b7bfd21692c2f70"
+  name = "github.com/xlab/treeprint"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "d6fb6747feb6e7cfdc44682a024bddf87ef07ec2"
 
 [[projects]]
   digest = "1:777e729b475d3895c7229552aa10076f0d177daf37c0a72258006d046d329960"
@@ -891,9 +1012,13 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3f3a05ae0b95893d90b9b3b5afdb79a9b3d96e4e36e099d841ae602e4aca0da8"
+  digest = "1:001a4e7a40e50ff2ef32e2556bca50c4f77daa457db3ac6afc8bea9bb2122cfb"
   name = "golang.org/x/crypto"
-  packages = ["ssh/terminal"]
+  packages = [
+    "bcrypt",
+    "blowfish",
+    "ssh/terminal",
+  ]
   pruneopts = "UT"
   revision = "c126467f60eb25f8f27e5a981f32a87e3965053f"
 
@@ -968,6 +1093,14 @@
   pruneopts = "UT"
   revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
   version = "v0.3.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:c9e7a4b4d47c0ed205d257648b0e5b0440880cb728506e318f8ac7cd36270bc4"
+  name = "golang.org/x/time"
+  packages = ["rate"]
+  pruneopts = "UT"
+  revision = "fbb02b2291d28baffd63558aa44b4b56f178d650"
 
 [[projects]]
   branch = "master"
@@ -1092,6 +1225,7 @@
     "github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc",
     "github.com/influxdata/influxdb/logger",
     "github.com/influxdata/influxdb/pkg/snowflake",
+    "github.com/influxdata/influxdb/services/storage",
     "github.com/influxdata/influxql",
     "github.com/influxdata/line-protocol",
     "github.com/influxdata/tdigest",
@@ -1128,7 +1262,6 @@
     "golang.org/x/text/unicode/norm",
     "google.golang.org/api/oauth2/v2",
     "google.golang.org/grpc",
-    "google.golang.org/grpc/metadata",
     "gopkg.in/robfig/cron.v2",
   ]
   solver-name = "gps-cdcl"

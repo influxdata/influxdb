@@ -3,12 +3,13 @@ package pb
 import (
 	"fmt"
 
+	ostorage "github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/platform/query/ast"
 	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"
 )
 
-func ToStoragePredicate(f *semantic.FunctionExpression) (*Predicate, error) {
+func ToStoragePredicate(f *semantic.FunctionExpression) (*ostorage.Predicate, error) {
 	if len(f.Params) != 1 {
 		return nil, errors.New("storage predicate functions must have exactly one parameter")
 	}
@@ -18,12 +19,12 @@ func ToStoragePredicate(f *semantic.FunctionExpression) (*Predicate, error) {
 		return nil, err
 	}
 
-	return &Predicate{
+	return &ostorage.Predicate{
 		Root: root,
 	}, nil
 }
 
-func toStoragePredicate(n semantic.Expression, objectName string) (*Node, error) {
+func toStoragePredicate(n semantic.Expression, objectName string) (*ostorage.Node, error) {
 	switch n := n.(type) {
 	case *semantic.LogicalExpression:
 		left, err := toStoragePredicate(n.Left, objectName)
@@ -34,18 +35,18 @@ func toStoragePredicate(n semantic.Expression, objectName string) (*Node, error)
 		if err != nil {
 			return nil, errors.Wrap(err, "right hand side")
 		}
-		children := []*Node{left, right}
+		children := []*ostorage.Node{left, right}
 		switch n.Operator {
 		case ast.AndOperator:
-			return &Node{
-				NodeType: NodeTypeLogicalExpression,
-				Value:    &Node_Logical_{Logical: LogicalAnd},
+			return &ostorage.Node{
+				NodeType: ostorage.NodeTypeLogicalExpression,
+				Value:    &ostorage.Node_Logical_{Logical: ostorage.LogicalAnd},
 				Children: children,
 			}, nil
 		case ast.OrOperator:
-			return &Node{
-				NodeType: NodeTypeLogicalExpression,
-				Value:    &Node_Logical_{Logical: LogicalOr},
+			return &ostorage.Node{
+				NodeType: ostorage.NodeTypeLogicalExpression,
+				Value:    &ostorage.Node_Logical_{Logical: ostorage.LogicalOr},
 				Children: children,
 			}, nil
 		default:
@@ -60,48 +61,48 @@ func toStoragePredicate(n semantic.Expression, objectName string) (*Node, error)
 		if err != nil {
 			return nil, errors.Wrap(err, "right hand side")
 		}
-		children := []*Node{left, right}
+		children := []*ostorage.Node{left, right}
 		op, err := toComparisonOperator(n.Operator)
 		if err != nil {
 			return nil, err
 		}
-		return &Node{
-			NodeType: NodeTypeComparisonExpression,
-			Value:    &Node_Comparison_{Comparison: op},
+		return &ostorage.Node{
+			NodeType: ostorage.NodeTypeComparisonExpression,
+			Value:    &ostorage.Node_Comparison_{Comparison: op},
 			Children: children,
 		}, nil
 	case *semantic.StringLiteral:
-		return &Node{
-			NodeType: NodeTypeLiteral,
-			Value: &Node_StringValue{
+		return &ostorage.Node{
+			NodeType: ostorage.NodeTypeLiteral,
+			Value: &ostorage.Node_StringValue{
 				StringValue: n.Value,
 			},
 		}, nil
 	case *semantic.IntegerLiteral:
-		return &Node{
-			NodeType: NodeTypeLiteral,
-			Value: &Node_IntegerValue{
+		return &ostorage.Node{
+			NodeType: ostorage.NodeTypeLiteral,
+			Value: &ostorage.Node_IntegerValue{
 				IntegerValue: n.Value,
 			},
 		}, nil
 	case *semantic.BooleanLiteral:
-		return &Node{
-			NodeType: NodeTypeLiteral,
-			Value: &Node_BooleanValue{
+		return &ostorage.Node{
+			NodeType: ostorage.NodeTypeLiteral,
+			Value: &ostorage.Node_BooleanValue{
 				BooleanValue: n.Value,
 			},
 		}, nil
 	case *semantic.FloatLiteral:
-		return &Node{
-			NodeType: NodeTypeLiteral,
-			Value: &Node_FloatValue{
+		return &ostorage.Node{
+			NodeType: ostorage.NodeTypeLiteral,
+			Value: &ostorage.Node_FloatValue{
 				FloatValue: n.Value,
 			},
 		}, nil
 	case *semantic.RegexpLiteral:
-		return &Node{
-			NodeType: NodeTypeLiteral,
-			Value: &Node_RegexValue{
+		return &ostorage.Node{
+			NodeType: ostorage.NodeTypeLiteral,
+			Value: &ostorage.Node_RegexValue{
 				RegexValue: n.Value.String(),
 			},
 		}, nil
@@ -111,16 +112,16 @@ func toStoragePredicate(n semantic.Expression, objectName string) (*Node, error)
 			return nil, fmt.Errorf("unknown object %q", n.Object)
 		}
 		if n.Property == "_value" {
-			return &Node{
-				NodeType: NodeTypeFieldRef,
-				Value: &Node_FieldRefValue{
+			return &ostorage.Node{
+				NodeType: ostorage.NodeTypeFieldRef,
+				Value: &ostorage.Node_FieldRefValue{
 					FieldRefValue: "_value",
 				},
 			}, nil
 		}
-		return &Node{
-			NodeType: NodeTypeTagRef,
-			Value: &Node_TagRefValue{
+		return &ostorage.Node{
+			NodeType: ostorage.NodeTypeTagRef,
+			Value: &ostorage.Node_TagRefValue{
 				TagRefValue: n.Property,
 			},
 		}, nil
@@ -133,26 +134,26 @@ func toStoragePredicate(n semantic.Expression, objectName string) (*Node, error)
 	}
 }
 
-func toComparisonOperator(o ast.OperatorKind) (Node_Comparison, error) {
+func toComparisonOperator(o ast.OperatorKind) (ostorage.Node_Comparison, error) {
 	switch o {
 	case ast.EqualOperator:
-		return ComparisonEqual, nil
+		return ostorage.ComparisonEqual, nil
 	case ast.NotEqualOperator:
-		return ComparisonNotEqual, nil
+		return ostorage.ComparisonNotEqual, nil
 	case ast.RegexpMatchOperator:
-		return ComparisonRegex, nil
+		return ostorage.ComparisonRegex, nil
 	case ast.NotRegexpMatchOperator:
-		return ComparisonNotRegex, nil
+		return ostorage.ComparisonNotRegex, nil
 	case ast.StartsWithOperator:
-		return ComparisonStartsWith, nil
+		return ostorage.ComparisonStartsWith, nil
 	case ast.LessThanOperator:
-		return ComparisonLess, nil
+		return ostorage.ComparisonLess, nil
 	case ast.LessThanEqualOperator:
-		return ComparisonLessEqual, nil
+		return ostorage.ComparisonLessEqual, nil
 	case ast.GreaterThanOperator:
-		return ComparisonGreater, nil
+		return ostorage.ComparisonGreater, nil
 	case ast.GreaterThanEqualOperator:
-		return ComparisonGreaterEqual, nil
+		return ostorage.ComparisonGreaterEqual, nil
 	default:
 		return 0, fmt.Errorf("unknown operator %v", o)
 	}

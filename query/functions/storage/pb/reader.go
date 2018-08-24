@@ -7,7 +7,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
+	ostorage "github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions/storage"
@@ -36,7 +38,7 @@ func NewReader(hl storage.HostLookup) (*reader, error) {
 		conns[i] = connection{
 			host:   h,
 			conn:   conn,
-			client: NewStorageClient(conn),
+			client: ostorage.NewStorageClient(conn),
 		}
 	}
 	return &reader{
@@ -51,11 +53,11 @@ type reader struct {
 type connection struct {
 	host   string
 	conn   *grpc.ClientConn
-	client StorageClient
+	client ostorage.StorageClient
 }
 
 func (sr *reader) Read(ctx context.Context, readSpec storage.ReadSpec, start, stop execute.Time) (query.TableIterator, error) {
-	var predicate *Predicate
+	var predicate *ostorage.Predicate
 	if readSpec.Predicate != nil {
 		p, err := ToStoragePredicate(readSpec.Predicate)
 		if err != nil {
@@ -88,13 +90,23 @@ type tableIterator struct {
 	bounds    execute.Bounds
 	conns     []connection
 	readSpec  storage.ReadSpec
-	predicate *Predicate
+	predicate *ostorage.Predicate
 }
 
 func (bi *tableIterator) Do(f func(query.Table) error) error {
+	src := ostorage.ReadSource{Database: string(bi.readSpec.BucketID)}
+	if i := strings.IndexByte(src.Database, '/'); i > -1 {
+		src.RetentionPolicy = src.Database[i+1:]
+		src.Database = src.Database[:i]
+	}
+
 	// Setup read request
-	var req ReadRequest
-	req.Database = string(bi.readSpec.BucketID)
+	var req ostorage.ReadRequest
+	if any, err := types.MarshalAny(&src); err != nil {
+		return err
+	} else {
+		req.ReadSource = any
+	}
 	req.Predicate = bi.predicate
 	req.Descending = bi.readSpec.Descending
 	req.TimestampRange.Start = int64(bi.bounds.Start)
@@ -111,10 +123,10 @@ func (bi *tableIterator) Do(f func(query.Table) error) error {
 
 	if agg, err := determineAggregateMethod(bi.readSpec.AggregateMethod); err != nil {
 		return err
-	} else if agg != AggregateTypeNone {
-		req.Aggregate = &Aggregate{Type: agg}
+	} else if agg != ostorage.AggregateTypeNone {
+		req.Aggregate = &ostorage.Aggregate{Type: agg}
 	}
-	isGrouping := req.Group != GroupAll
+	isGrouping := req.Group != ostorage.GroupAll
 	streams := make([]*streamState, 0, len(bi.conns))
 	for _, c := range bi.conns {
 		if len(bi.readSpec.Hosts) > 0 {
@@ -205,44 +217,44 @@ func (bi *tableIterator) handleGroupRead(f func(query.Table) error, ms *mergedSt
 	return nil
 }
 
-func determineAggregateMethod(agg string) (Aggregate_AggregateType, error) {
+func determineAggregateMethod(agg string) (ostorage.Aggregate_AggregateType, error) {
 	if agg == "" {
-		return AggregateTypeNone, nil
+		return ostorage.AggregateTypeNone, nil
 	}
 
-	if t, ok := Aggregate_AggregateType_value[strings.ToUpper(agg)]; ok {
-		return Aggregate_AggregateType(t), nil
+	if t, ok := ostorage.Aggregate_AggregateType_value[strings.ToUpper(agg)]; ok {
+		return ostorage.Aggregate_AggregateType(t), nil
 	}
 	return 0, fmt.Errorf("unknown aggregate type %q", agg)
 }
 
-func convertGroupMode(m storage.GroupMode) ReadRequest_Group {
+func convertGroupMode(m storage.GroupMode) ostorage.ReadRequest_Group {
 	switch m {
 	case storage.GroupModeNone:
-		return GroupNone
+		return ostorage.GroupNone
 	case storage.GroupModeBy:
-		return GroupBy
+		return ostorage.GroupBy
 	case storage.GroupModeExcept:
-		return GroupExcept
+		return ostorage.GroupExcept
 
 	case storage.GroupModeDefault, storage.GroupModeAll:
 		fallthrough
 	default:
-		return GroupAll
+		return ostorage.GroupAll
 	}
 }
 
-func convertDataType(t ReadResponse_DataType) query.DataType {
+func convertDataType(t ostorage.ReadResponse_DataType) query.DataType {
 	switch t {
-	case DataTypeFloat:
+	case ostorage.DataTypeFloat:
 		return query.TFloat
-	case DataTypeInteger:
+	case ostorage.DataTypeInteger:
 		return query.TInt
-	case DataTypeUnsigned:
+	case ostorage.DataTypeUnsigned:
 		return query.TUInt
-	case DataTypeBoolean:
+	case ostorage.DataTypeBoolean:
 		return query.TBool
-	case DataTypeString:
+	case ostorage.DataTypeString:
 		return query.TString
 	default:
 		return query.TInvalid
@@ -256,7 +268,7 @@ const (
 	valueColIdx = 3
 )
 
-func determineTableColsForSeries(s *ReadResponse_SeriesFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
+func determineTableColsForSeries(s *ostorage.ReadResponse_SeriesFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
 	cols := make([]query.ColMeta, 4+len(s.Tags))
 	defs := make([][]byte, 4+len(s.Tags))
 	cols[startColIdx] = query.ColMeta{
@@ -285,7 +297,7 @@ func determineTableColsForSeries(s *ReadResponse_SeriesFrame, typ query.DataType
 	return cols, defs
 }
 
-func groupKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.GroupKey {
+func groupKeyForSeries(s *ostorage.ReadResponse_SeriesFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.GroupKey {
 	cols := make([]query.ColMeta, 2, len(s.Tags))
 	vs := make([]values.Value, 2, len(s.Tags))
 	cols[0] = query.ColMeta{
@@ -333,7 +345,7 @@ func groupKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSpec, 
 	return execute.NewGroupKey(cols, vs)
 }
 
-func determineTableColsForGroup(f *ReadResponse_GroupFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
+func determineTableColsForGroup(f *ostorage.ReadResponse_GroupFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
 	cols := make([]query.ColMeta, 4+len(f.TagKeys))
 	defs := make([][]byte, 4+len(f.TagKeys))
 	cols[startColIdx] = query.ColMeta{
@@ -363,7 +375,7 @@ func determineTableColsForGroup(f *ReadResponse_GroupFrame, typ query.DataType) 
 	return cols, defs
 }
 
-func groupKeyForGroup(g *ReadResponse_GroupFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.GroupKey {
+func groupKeyForGroup(g *ostorage.ReadResponse_GroupFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.GroupKey {
 	cols := make([]query.ColMeta, 2, len(readSpec.GroupKeys)+2)
 	vs := make([]values.Value, 2, len(readSpec.GroupKeys)+2)
 	cols[0] = query.ColMeta{
@@ -431,7 +443,7 @@ func newTable(
 	cols []query.ColMeta,
 	ms *mergedStreams,
 	readSpec *storage.ReadSpec,
-	tags []Tag,
+	tags []ostorage.Tag,
 	defs [][]byte,
 ) *table {
 	b := &table{
@@ -518,7 +530,7 @@ func (t *table) Times(j int) []execute.Time {
 }
 
 // readTags populates b.tags with the provided tags
-func (t *table) readTags(tags []Tag) {
+func (t *table) readTags(tags []ostorage.Tag) {
 	for j := range t.tags {
 		t.tags[j] = t.defs[j]
 	}
@@ -784,15 +796,15 @@ func (t *table) Empty() bool {
 
 type streamState struct {
 	bounds     execute.Bounds
-	stream     Storage_ReadClient
-	rep        ReadResponse
+	stream     ostorage.Storage_ReadClient
+	rep        ostorage.ReadResponse
 	currentKey query.GroupKey
 	readSpec   *storage.ReadSpec
 	finished   bool
 	group      bool
 }
 
-func (s *streamState) peek() ReadResponse_Frame {
+func (s *streamState) peek() ostorage.ReadResponse_Frame {
 	return s.rep.Frames[0]
 }
 
@@ -840,7 +852,7 @@ func (s *streamState) computeKey() {
 	}
 }
 
-func (s *streamState) next() ReadResponse_Frame {
+func (s *streamState) next() ostorage.ReadResponse_Frame {
 	frame := s.rep.Frames[0]
 	s.rep.Frames = s.rep.Frames[1:]
 	if len(s.rep.Frames) > 0 {
@@ -861,11 +873,11 @@ func (s *mergedStreams) key() query.GroupKey {
 	}
 	return s.currentKey
 }
-func (s *mergedStreams) peek() ReadResponse_Frame {
+func (s *mergedStreams) peek() ostorage.ReadResponse_Frame {
 	return s.streams[s.i].peek()
 }
 
-func (s *mergedStreams) next() ReadResponse_Frame {
+func (s *mergedStreams) next() ostorage.ReadResponse_Frame {
 	return s.streams[s.i].next()
 }
 
@@ -930,27 +942,27 @@ const (
 	stringPointsType
 )
 
-func readFrameType(frame ReadResponse_Frame) frameType {
+func readFrameType(frame ostorage.ReadResponse_Frame) frameType {
 	switch frame.Data.(type) {
-	case *ReadResponse_Frame_Series:
+	case *ostorage.ReadResponse_Frame_Series:
 		return seriesType
-	case *ReadResponse_Frame_Group:
+	case *ostorage.ReadResponse_Frame_Group:
 		return groupType
-	case *ReadResponse_Frame_BooleanPoints:
+	case *ostorage.ReadResponse_Frame_BooleanPoints:
 		return boolPointsType
-	case *ReadResponse_Frame_IntegerPoints:
+	case *ostorage.ReadResponse_Frame_IntegerPoints:
 		return intPointsType
-	case *ReadResponse_Frame_UnsignedPoints:
+	case *ostorage.ReadResponse_Frame_UnsignedPoints:
 		return uintPointsType
-	case *ReadResponse_Frame_FloatPoints:
+	case *ostorage.ReadResponse_Frame_FloatPoints:
 		return floatPointsType
-	case *ReadResponse_Frame_StringPoints:
+	case *ostorage.ReadResponse_Frame_StringPoints:
 		return stringPointsType
 	default:
 		panic(fmt.Errorf("unknown read response frame type: %T", frame.Data))
 	}
 }
 
-func indexOfTag(t []Tag, k string) int {
+func indexOfTag(t []ostorage.Tag, k string) int {
 	return sort.Search(len(t), func(i int) bool { return string(t[i].Key) >= k })
 }
