@@ -11,7 +11,7 @@ type grpcServer struct {
 	addr           string
 	loggingEnabled bool
 	rpc            *grpc.Server
-	store          *Store
+	store          Store
 	logger         *zap.Logger
 }
 

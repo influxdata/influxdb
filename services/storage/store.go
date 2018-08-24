@@ -4,31 +4,74 @@ import (
 	"context"
 	"errors"
 	"sort"
-	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
 
-type Store struct {
+type ResultSet interface {
+	Close()
+	Next() bool
+	Cursor() tsdb.Cursor
+	Tags() models.Tags
+}
+
+type GroupResultSet interface {
+	Next() GroupCursor
+	Close()
+}
+
+type GroupCursor interface {
+	Tags() models.Tags
+	Keys() [][]byte
+	PartitionKeyVals() [][]byte
+	Next() bool
+	Cursor() tsdb.Cursor
+	Close()
+}
+
+type Store interface {
+	Read(ctx context.Context, req *ReadRequest) (ResultSet, error)
+	GroupRead(ctx context.Context, req *ReadRequest) (GroupResultSet, error)
+	WithLogger(log *zap.Logger)
+}
+
+func getReadSource(req *ReadRequest) (*ReadSource, error) {
+	if req.ReadSource == nil {
+		return nil, ErrMissingReadSource
+	}
+
+	var source ReadSource
+	if err := types.UnmarshalAny(req.ReadSource, &source); err != nil {
+		return nil, err
+	}
+	return &source, nil
+}
+
+type localStore struct {
 	TSDBStore  *tsdb.Store
-	MetaClient StorageMetaClient
+	MetaClient MetaClient
 	Logger     *zap.Logger
 }
 
-func NewStore() *Store {
-	return &Store{Logger: zap.NewNop()}
+func NewStore(store *tsdb.Store, metaClient MetaClient) Store {
+	return &localStore{
+		TSDBStore:  store,
+		MetaClient: metaClient,
+		Logger:     zap.NewNop(),
+	}
 }
 
 // WithLogger sets the logger for the service.
-func (s *Store) WithLogger(log *zap.Logger) {
+func (s *localStore) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "store"))
 }
 
-func (s *Store) findShardIDs(database, rp string, desc bool, start, end int64) ([]uint64, error) {
+func (s *localStore) findShardIDs(database, rp string, desc bool, start, end int64) ([]uint64, error) {
 	groups, err := s.MetaClient.ShardGroupsByTimeRange(database, rp, time.Unix(0, start), time.Unix(0, end))
 	if err != nil {
 		return nil, err
@@ -53,12 +96,7 @@ func (s *Store) findShardIDs(database, rp string, desc bool, start, end int64) (
 	return shardIDs, nil
 }
 
-func (s *Store) validateArgs(database string, start, end int64) (string, string, int64, int64, error) {
-	rp := ""
-	if p := strings.IndexByte(database, '/'); p > -1 {
-		database, rp = database[:p], database[p+1:]
-	}
-
+func (s *localStore) validateArgs(database, rp string, start, end int64) (string, string, int64, int64, error) {
 	di := s.MetaClient.Database(database)
 	if di == nil {
 		return "", "", 0, 0, errors.New("no database")
@@ -82,19 +120,17 @@ func (s *Store) validateArgs(database string, start, end int64) (string, string,
 	return database, rp, start, end, nil
 }
 
-type Results interface {
-	Close()
-	Next() bool
-	Cursor() tsdb.Cursor
-	Tags() models.Tags
-}
-
-func (s *Store) Read(ctx context.Context, req *ReadRequest) (Results, error) {
+func (s *localStore) Read(ctx context.Context, req *ReadRequest) (ResultSet, error) {
 	if len(req.GroupKeys) > 0 {
 		panic("Read: len(Grouping) > 0")
 	}
 
-	database, rp, start, end, err := s.validateArgs(req.Database, req.TimestampRange.Start, req.TimestampRange.End)
+	source, err := getReadSource(req)
+	if err != nil {
+		return nil, err
+	}
+
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.TimestampRange.Start, req.TimestampRange.End)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +143,7 @@ func (s *Store) Read(ctx context.Context, req *ReadRequest) (Results, error) {
 		return (*resultSet)(nil), nil
 	}
 
-	var cur seriesCursor
+	var cur SeriesCursor
 	if ic, err := newIndexSeriesCursor(ctx, req.Predicate, s.TSDBStore.Shards(shardIDs)); err != nil {
 		return nil, err
 	} else if ic == nil {
@@ -117,31 +153,26 @@ func (s *Store) Read(ctx context.Context, req *ReadRequest) (Results, error) {
 	}
 
 	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
-		cur = newLimitSeriesCursor(ctx, cur, req.SeriesLimit, req.SeriesOffset)
+		cur = NewLimitSeriesCursor(ctx, cur, req.SeriesLimit, req.SeriesOffset)
 	}
 
-	rr := readRequest{
-		ctx:       ctx,
-		start:     start,
-		end:       end,
-		asc:       !req.Descending,
-		limit:     req.PointsLimit,
-		aggregate: req.Aggregate,
-	}
+	req.TimestampRange.Start = start
+	req.TimestampRange.End = end
 
-	return &resultSet{
-		req: rr,
-		cur: cur,
-		mb:  newMultiShardArrayCursors(ctx, &rr),
-	}, nil
+	return NewResultSet(ctx, req, cur), nil
 }
 
-func (s *Store) GroupRead(ctx context.Context, req *ReadRequest) (*groupResultSet, error) {
+func (s *localStore) GroupRead(ctx context.Context, req *ReadRequest) (GroupResultSet, error) {
 	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
 		return nil, errors.New("GroupRead: SeriesLimit and SeriesOffset not supported when Grouping")
 	}
 
-	database, rp, start, end, err := s.validateArgs(req.Database, req.TimestampRange.Start, req.TimestampRange.End)
+	source, err := getReadSource(req)
+	if err != nil {
+		return nil, err
+	}
+
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.TimestampRange.Start, req.TimestampRange.End)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +190,7 @@ func (s *Store) GroupRead(ctx context.Context, req *ReadRequest) (*groupResultSe
 	req.TimestampRange.Start = start
 	req.TimestampRange.End = end
 
-	newCursor := func() (seriesCursor, error) {
+	newCursor := func() (SeriesCursor, error) {
 		cur, err := newIndexSeriesCursor(ctx, req.Predicate, shards)
 		if cur == nil || err != nil {
 			return nil, err
@@ -167,5 +198,10 @@ func (s *Store) GroupRead(ctx context.Context, req *ReadRequest) (*groupResultSe
 		return cur, nil
 	}
 
-	return newGroupResultSet(ctx, req, newCursor), nil
+	rs := NewGroupResultSet(ctx, req, newCursor)
+	if rs == nil {
+		return nil, nil
+	}
+
+	return rs, nil
 }
