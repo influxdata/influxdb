@@ -21,6 +21,9 @@ var ErrUserNotFound = errors.New("user not found")
 // ErrOrgNotFound is an error for when we can't find an org
 var ErrOrgNotFound = errors.New("org not found")
 
+// ErrTaskNameTaken is an error for when a task name is already taken
+var ErrTaskNameTaken = errors.New("task name already in use by current user or target organization")
+
 type TaskStatus string
 
 const (
@@ -31,7 +34,7 @@ const (
 type RunStatus int
 
 const (
-	RunQueued RunStatus = iota
+	RunScheduled RunStatus = iota
 	RunStarted
 	RunSuccess
 	RunFail
@@ -40,8 +43,8 @@ const (
 
 func (r RunStatus) String() string {
 	switch r {
-	case RunQueued:
-		return "queued"
+	case RunScheduled:
+		return "scheduled"
 	case RunStarted:
 		return "started"
 	case RunSuccess:
@@ -54,10 +57,35 @@ func (r RunStatus) String() string {
 	panic(fmt.Sprintf("unknown RunStatus: %d", r))
 }
 
+// RunNotYetDueError is returned from CreateNextRun if a run is not yet due.
+type RunNotYetDueError struct {
+	// DueAt is the unix timestamp of when the next run is due.
+	DueAt int64
+}
+
+func (e RunNotYetDueError) Error() string {
+	return "run not due until " + time.Unix(e.DueAt, 0).Format(time.RFC3339)
+}
+
+// RunCreation is returned by CreateNextRun.
+type RunCreation struct {
+	Created QueuedRun
+
+	// Unix timestamp for when the next run is due.
+	NextDue int64
+
+	// Whether there are any manual runs queued for this task.
+	// If so, the scheduler should begin executing them after handling real-time tasks.
+	HasQueue bool
+}
+
 // Store is the interface around persisted tasks.
 type Store interface {
-	// CreateTask saves the given task.
-	CreateTask(ctx context.Context, org, user platform.ID, script string) (platform.ID, error)
+	// CreateTask creates a task with the given script, belonging to the given org and user.
+	// The scheduleAfter parameter is a Unix timestamp (seconds elapsed since January 1, 1970 UTC),
+	// and the first run of the task will be run according to the earliest time after scheduleAfter,
+	// matching the task's schedule via its cron or every option.
+	CreateTask(ctx context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error)
 
 	// ModifyTask updates the script of an existing task.
 	// It returns an error if there was no task matching the given ID.
@@ -85,8 +113,9 @@ type Store interface {
 	// or deleted is true if there was a matching entry and it was deleted.
 	DeleteTask(ctx context.Context, id platform.ID) (deleted bool, err error)
 
-	// CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
-	CreateRun(ctx context.Context, taskID platform.ID, now int64) (QueuedRun, error)
+	// CreateNextRun creates the earliest needed run scheduled no later than the given Unix timestamp now.
+	// Internally, the Store should rely on the underlying task's StoreTaskMeta to create the next run.
+	CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (RunCreation, error)
 
 	// FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 	FinishRun(ctx context.Context, taskID, runID platform.ID) error
@@ -128,7 +157,7 @@ type LogReader interface {
 	ListRuns(ctx context.Context, runFilter platform.RunFilter) ([]*platform.Run, error)
 
 	// FindRunByID finds a run given a taskID and runID.
-	FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error)
+	FindRunByID(ctx context.Context, orgID, taskID, runID platform.ID) (*platform.Run, error)
 
 	// ListLogs lists logs for a task or a specified run of a task.
 	ListLogs(ctx context.Context, logFilter platform.LogFilter) ([]platform.Log, error)
@@ -142,7 +171,7 @@ func (NopLogReader) ListRuns(ctx context.Context, runFilter platform.RunFilter) 
 	return nil, nil
 }
 
-func (NopLogReader) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+func (NopLogReader) FindRunByID(ctx context.Context, orgID, taskID, runID platform.ID) (*platform.Run, error) {
 	return nil, nil
 }
 

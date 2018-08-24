@@ -1,16 +1,22 @@
+// Libraries
 import React, {PureComponent} from 'react'
+import _ from 'lodash'
 
-import {NotificationContext} from 'src/flux/containers/CheckServices'
+// Components
 import DatabaseListItem from 'src/flux/components/DatabaseListItem'
 
-import {showDatabases} from 'src/shared/apis/metaQuery'
-import showDatabasesParser from 'src/shared/parsing/showDatabases'
+// APIs
+import {getBuckets} from 'src/shared/apis/v2/buckets'
+
+// Types
+import {Source} from 'src/types/v2'
+import {NotificationAction} from 'src/types/notifications'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Service} from 'src/types'
 
 interface Props {
-  service: Service
+  source: Source
+  notify: NotificationAction
 }
 
 interface State {
@@ -32,14 +38,14 @@ class DatabaseList extends PureComponent<Props, State> {
   }
 
   public async getDatabases() {
-    const {service} = this.props
+    const {source} = this.props
 
     try {
-      const {data} = await showDatabases(`${service.links.source}/proxy`)
-      const {databases} = showDatabasesParser(data)
-      const sorted = databases.sort()
+      const buckets = await getBuckets(source.links.buckets)
+      const sorted = _.sortBy(buckets, b => b.name.toLocaleLowerCase())
+      const databases = sorted.map(db => db.name)
 
-      this.setState({databases: sorted})
+      this.setState({databases})
     } catch (err) {
       console.error(err)
     }
@@ -47,15 +53,11 @@ class DatabaseList extends PureComponent<Props, State> {
 
   public render() {
     const {databases} = this.state
-    const {service} = this.props
+    const {source, notify} = this.props
 
     return databases.map(db => {
       return (
-        <NotificationContext.Consumer key={db}>
-          {({notify}) => (
-            <DatabaseListItem db={db} service={service} notify={notify} />
-          )}
-        </NotificationContext.Consumer>
+        <DatabaseListItem key={db} db={db} source={source} notify={notify} />
       )
     })
   }

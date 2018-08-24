@@ -58,17 +58,27 @@ type ToHTTPOpSpec struct {
 	URL          string            `json:"url"`
 	Method       string            `json:"method"` // default behavior should be POST
 	Name         string            `json:"name"`
-	NameColumn   string            `json:"name_column"` // either name or name_column must be set, if none is set try to use the "_measurement" column.
-	Headers      map[string]string `json:"headers"`     // TODO: implement Headers after bug with keys and arrays and objects is fixed (new parser implemented, with string literals as keys)
-	URLParams    map[string]string `json:"urlparams"`   // TODO: implement URLParams after bug with keys and arrays and objects is fixed (new parser implemented, with string literals as keys)
-	Timeout      time.Duration     `json:"timeout"`     // default to something reasonable if zero
-	NoKeepAlive  bool              `json:"nokeepalive"`
-	TimeColumn   string            `json:"time_column"`
-	TagColumns   []string          `json:"tag_columns"`
-	ValueColumns []string          `json:"value_columns"`
+	NameColumn   string            `json:"nameColumn"` // either name or name_column must be set, if none is set try to use the "_measurement" column.
+	Headers      map[string]string `json:"headers"`    // TODO: implement Headers after bug with keys and arrays and objects is fixed (new parser implemented, with string literals as keys)
+	URLParams    map[string]string `json:"urlParams"`  // TODO: implement URLParams after bug with keys and arrays and objects is fixed (new parser implemented, with string literals as keys)
+	Timeout      time.Duration     `json:"timeout"`    // default to something reasonable if zero
+	NoKeepAlive  bool              `json:"noKeepAlive"`
+	TimeColumn   string            `json:"timeColumn"`
+	TagColumns   []string          `json:"tagColumns"`
+	ValueColumns []string          `json:"valueColumns"`
 }
 
+var ToHTTPSignature = query.DefaultFunctionSignature()
+
 func init() {
+	ToHTTPSignature.Params["url"] = semantic.String
+	ToHTTPSignature.Params["method"] = semantic.String
+	ToHTTPSignature.Params["name"] = semantic.String
+	ToHTTPSignature.Params["timeout"] = semantic.Duration
+	ToHTTPSignature.Params["timeColumn"] = semantic.String
+	ToHTTPSignature.Params["tagColumns"] = semantic.NewArrayType(semantic.String)
+	ToHTTPSignature.Params["valueColumns"] = semantic.NewArrayType(semantic.String)
+
 	query.RegisterFunctionWithSideEffect(ToHTTPKind, createToHTTPOpSpec, ToHTTPSignature)
 	query.RegisterOpSpec(ToHTTPKind,
 		func() query.OperationSpec { return &ToHTTPOpSpec{} })
@@ -93,7 +103,7 @@ func (o *ToHTTPOpSpec) ReadArgs(args query.Arguments) error {
 		return err
 	}
 	if !ok {
-		o.NameColumn, ok, err = args.GetString("name_column")
+		o.NameColumn, ok, err = args.GetString("nameColumn")
 		if err != nil {
 			return err
 		}
@@ -121,7 +131,7 @@ func (o *ToHTTPOpSpec) ReadArgs(args query.Arguments) error {
 		o.Timeout = time.Duration(timeout)
 	}
 
-	o.TimeColumn, ok, err = args.GetString("time_column")
+	o.TimeColumn, ok, err = args.GetString("timeColumn")
 	if err != nil {
 		return err
 	}
@@ -129,7 +139,7 @@ func (o *ToHTTPOpSpec) ReadArgs(args query.Arguments) error {
 		o.TimeColumn = execute.DefaultTimeColLabel
 	}
 
-	tagColumns, ok, err := args.GetArray("tag_columns", semantic.String)
+	tagColumns, ok, err := args.GetArray("tagColumns", semantic.String)
 	if err != nil {
 		return err
 	}
@@ -141,7 +151,7 @@ func (o *ToHTTPOpSpec) ReadArgs(args query.Arguments) error {
 		sort.Strings(o.TagColumns)
 	}
 
-	valueColumns, ok, err := args.GetArray("value_columns", semantic.String)
+	valueColumns, ok, err := args.GetArray("valueColumns", semantic.String)
 	if err != nil {
 		return err
 	}
@@ -192,8 +202,6 @@ func (o *ToHTTPOpSpec) UnmarshalJSON(b []byte) (err error) {
 	}
 	return nil
 }
-
-var ToHTTPSignature = query.DefaultFunctionSignature()
 
 func (ToHTTPOpSpec) Kind() query.OperationKind {
 	return ToHTTPKind

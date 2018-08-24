@@ -1,8 +1,6 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
-import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import TemplateControl from 'src/tempVars/components/TemplateControl'
 import TextTemplateSelector from 'src/tempVars/components/TextTemplateSelector'
 import TemplateDropdown from 'src/tempVars/components/TemplateDropdown'
@@ -38,31 +36,6 @@ const defaultProps = ({template = defaultTemplate()} = {}) => ({
 })
 
 describe('TemplateControl', () => {
-  it('should show a TemplateVariableEditor overlay when the settings icon is clicked', () => {
-    const wrapper = shallow(<TemplateControl {...defaultProps()} />, {
-      context: {
-        store: {},
-      },
-    })
-
-    const children = wrapper
-      .find(OverlayTechnology)
-      .dive()
-      .find("[data-test='overlay-children']")
-      .children()
-
-    expect(children).toHaveLength(0)
-
-    wrapper.find("[data-test='edit']").simulate('click')
-
-    const elements = wrapper
-      .find(OverlayTechnology)
-      .dive()
-      .find(TemplateVariableEditor)
-
-    expect(elements).toHaveLength(1)
-  })
-
   it('displays a TextTemplateSelector for text templates', () => {
     const props = defaultProps({
       template: {

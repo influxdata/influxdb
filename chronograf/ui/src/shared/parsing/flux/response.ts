@@ -11,20 +11,20 @@ export const parseResponseError = (response: string): FluxTable[] => {
     {
       id: uuid.v4(),
       name: 'Error',
-      partitionKey: {},
+      groupKey: {},
       data,
     },
   ]
 }
 
 export const parseResponse = (response: string): FluxTable[] => {
-  const trimmedReponse = response.trim()
+  const trimmedResponse = response.trim()
 
-  if (_.isEmpty(trimmedReponse)) {
+  if (_.isEmpty(trimmedResponse)) {
     return []
   }
 
-  return trimmedReponse.split(/\n\s*\n/).reduce((acc, chunk) => {
+  return trimmedResponse.split(/\n\s*\n/).reduce((acc, chunk) => {
     return [...acc, ...parseTables(chunk)]
   }, [])
 }
@@ -65,11 +65,11 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
     )
   )
 
-  const partitionRow = annotationData.find(row => row[0] === '#partition')
+  const groupRow = annotationData.find(row => row[0] === '#group')
   const defaultsRow = annotationData.find(row => row[0] === '#default')
 
-  // partitionRow = ['#partition', 'false', 'true', 'true', 'false']
-  const partitionKeyIndices = partitionRow.reduce((acc, value, i) => {
+  // groupRow = ['#group', 'false', 'true', 'true', 'false']
+  const groupKeyIndices = groupRow.reduce((acc, value, i) => {
     if (value === 'true') {
       return [...acc, i]
     }
@@ -79,11 +79,11 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
 
   const tables = tablesData.map(tableData => {
     const dataRow = _.get(tableData, '0', defaultsRow)
-    const partitionKey = partitionKeyIndices.reduce((acc, i) => {
+    const groupKey = groupKeyIndices.reduce((acc, i) => {
       return {...acc, [headerRow[i]]: _.get(dataRow, i, '')}
     }, {})
 
-    const name = Object.entries(partitionKey)
+    const name = Object.entries(groupKey)
       .filter(([k]) => !['_start', '_stop'].includes(k))
       .map(([k, v]) => `${k}=${v}`)
       .join(' ')
@@ -92,7 +92,7 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
       id: uuid.v4(),
       data: [[...headerRow], ...tableData],
       name,
-      partitionKey,
+      groupKey,
     }
   })
 

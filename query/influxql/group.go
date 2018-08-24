@@ -231,12 +231,11 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		if interval > 0 {
 			cur = &groupCursor{
 				id: t.op("window", &functions.WindowOpSpec{
-					Every:              query.Duration(math.MaxInt64),
-					Period:             query.Duration(math.MaxInt64),
-					IgnoreGlobalBounds: true,
-					TimeCol:            execute.DefaultTimeColLabel,
-					StartColLabel:      execute.DefaultStartColLabel,
-					StopColLabel:       execute.DefaultStopColLabel,
+					Every:         query.Duration(math.MaxInt64),
+					Period:        query.Duration(math.MaxInt64),
+					TimeCol:       execute.DefaultTimeColLabel,
+					StartColLabel: execute.DefaultStartColLabel,
+					StopColLabel:  execute.DefaultStopColLabel,
 				}, cur.ID()),
 				cursor: cur,
 			}
@@ -357,12 +356,11 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 
 	if windowEvery > 0 {
 		windowOp := &functions.WindowOpSpec{
-			Every:              query.Duration(windowEvery),
-			Period:             query.Duration(windowEvery),
-			IgnoreGlobalBounds: true,
-			TimeCol:            execute.DefaultTimeColLabel,
-			StartColLabel:      execute.DefaultStartColLabel,
-			StopColLabel:       execute.DefaultStopColLabel,
+			Every:         query.Duration(windowEvery),
+			Period:        query.Duration(windowEvery),
+			TimeCol:       execute.DefaultTimeColLabel,
+			StartColLabel: execute.DefaultStartColLabel,
+			StopColLabel:  execute.DefaultStopColLabel,
 		}
 
 		if !windowStart.IsZero() {

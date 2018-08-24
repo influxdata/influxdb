@@ -45,13 +45,13 @@ export default class TableSidebar extends PureComponent<Props, State> {
         )}
         <FancyScrollbar>
           <div className="yield-node--tabs">
-            {this.data.map(({partitionKey, id}) => {
+            {this.data.map(({groupKey, id}) => {
               return (
                 <TableSidebarItem
                   id={id}
                   key={id}
                   name={name}
-                  partitionKey={partitionKey}
+                  groupKey={groupKey}
                   onSelect={onSelectResult}
                   isSelected={id === selectedResultID}
                 />

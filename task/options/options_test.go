@@ -2,6 +2,7 @@ package options_test
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -71,6 +72,93 @@ func TestFromScript(t *testing.T) {
 		}
 		if !cmp.Equal(o, c.exp) {
 			t.Fatalf("script %q got unexpected result -got/+exp\n%s", c.script, cmp.Diff(o, c.exp))
+		}
+	}
+}
+
+func TestValidate(t *testing.T) {
+	good := options.Options{Name: "x", Cron: "* * * * *", Concurrency: 1, Retry: 1}
+	if err := good.Validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	bad := new(options.Options)
+	*bad = good
+	bad.Name = ""
+	if err := bad.Validate(); err == nil {
+		t.Error("expected error for options without name")
+	}
+
+	*bad = good
+	bad.Cron = ""
+	if err := bad.Validate(); err == nil {
+		t.Error("expected error for options without cron or every")
+	}
+
+	*bad = good
+	bad.Every = time.Minute
+	if err := bad.Validate(); err == nil {
+		t.Error("expected error for options with both cron and every")
+	}
+
+	*bad = good
+	bad.Cron = "not a cron string"
+	if err := bad.Validate(); err == nil {
+		t.Error("expected error for options with invalid cron")
+	}
+
+	*bad = good
+	bad.Cron = ""
+	bad.Every = -1 * time.Minute
+	if err := bad.Validate(); err == nil {
+		t.Error("expected error for negative every")
+	}
+
+	*bad = good
+	bad.Delay = 1500 * time.Millisecond
+	if err := bad.Validate(); err == nil {
+		t.Error("expected error for sub-second delay resolution")
+	}
+
+	*bad = good
+	bad.Concurrency = 0
+	if err := bad.Validate(); err == nil {
+		t.Error("expected error for 0 concurrency")
+	}
+
+	*bad = good
+	bad.Concurrency = math.MaxInt64
+	if err := bad.Validate(); err == nil {
+		t.Error("expected error for concurrency too large")
+	}
+
+	*bad = good
+	bad.Retry = 0
+	if err := bad.Validate(); err == nil {
+		t.Error("expected error for 0 retry")
+	}
+
+	*bad = good
+	bad.Retry = math.MaxInt64
+	if err := bad.Validate(); err == nil {
+		t.Error("expected error for retry too large")
+	}
+}
+
+func TestEffectiveCronString(t *testing.T) {
+	for _, c := range []struct {
+		c   string
+		e   time.Duration
+		exp string
+	}{
+		{c: "10 * * * *", exp: "10 * * * *"},
+		{e: 10 * time.Second, exp: "@every 10s"},
+		{exp: ""},
+	} {
+		o := options.Options{Cron: c.c, Every: c.e}
+		got := o.EffectiveCronString()
+		if got != c.exp {
+			t.Fatalf("exp cron string %q, got %q for %v", c.exp, got, o)
 		}
 	}
 }

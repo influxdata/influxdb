@@ -12,7 +12,7 @@ import (
 )
 
 func TestDerivativeOperation_Marshaling(t *testing.T) {
-	data := []byte(`{"id":"derivative","kind":"derivative","spec":{"unit":"1m","non_negative":true}}`)
+	data := []byte(`{"id":"derivative","kind":"derivative","spec":{"unit":"1m","nonNegative":true}}`)
 	op := &query.Operation{
 		ID: "derivative",
 		Spec: &functions.DerivativeOpSpec{

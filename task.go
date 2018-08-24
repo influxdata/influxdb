@@ -15,14 +15,16 @@ type Task struct {
 	Last         Run    `json:"last,omitempty"`
 }
 
-// Run is a record created when a run of a task is queued.
+// Run is a record created when a run of a task is scheduled.
 type Run struct {
-	ID        ID     `json:"id,omitempty"`
-	Status    string `json:"status"`
-	QueuedAt  string `json:"queuedAt"`
-	StartTime string `json:"startTime"`
-	EndTime   string `json:"endTime"`
-	Log       Log    `json:"log"`
+	ID           ID     `json:"id,omitempty"`
+	TaskID       ID     `json:"taskId"`
+	Status       string `json:"status"`
+	ScheduledFor string `json:"scheduledFor"`
+	StartedAt    string `json:"startedAt,omitempty"`
+	FinishedAt   string `json:"finishedAt,omitempty"`
+	RequestedAt  string `json:"requestedAt,omitempty"`
+	Log          Log    `json:"log"`
 }
 
 // Log represents a link to a log resource
@@ -74,6 +76,9 @@ type TaskFilter struct {
 
 // RunFilter represents a set of filters that restrict the returned results
 type RunFilter struct {
+	// TODO(lh): Org is temporary here.
+	// We will be removing it when the token in context contains org information.
+	Org        *ID
 	Task       *ID
 	After      *ID
 	Limit      int
@@ -83,6 +88,9 @@ type RunFilter struct {
 
 // LogFilter represents a set of filters that restrict the returned results
 type LogFilter struct {
+	// TODO(lh): Org is temporary here.
+	// We will be removing it when the token in context contains org information.
+	Org  *ID
 	Task *ID
 	Run  *ID
 }

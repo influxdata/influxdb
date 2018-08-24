@@ -6,7 +6,6 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/plan"
-	"github.com/influxdata/platform/query/semantic"
 )
 
 const MaxKind = "max"
@@ -18,9 +17,6 @@ type MaxOpSpec struct {
 var maxSignature = query.DefaultFunctionSignature()
 
 func init() {
-	maxSignature.Params["column"] = semantic.String
-	maxSignature.Params["useRowTime"] = semantic.Bool
-
 	query.RegisterFunction(MaxKind, createMaxOpSpec, maxSignature)
 	query.RegisterOpSpec(MaxKind, newMaxOp)
 	plan.RegisterProcedureSpec(MaxKind, newMaxProcedure, MaxKind)

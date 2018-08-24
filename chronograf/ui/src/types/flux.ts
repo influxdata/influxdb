@@ -1,5 +1,5 @@
-import {Service} from 'src/types'
 // function definitions
+import {Source} from 'src/types/v2'
 export type OnDeleteFuncNode = (ids: DeleteFuncNodeArgs) => void
 export type OnChangeArg = (inputArg: InputArg) => void
 export type OnAddNode = (
@@ -29,6 +29,7 @@ export interface ScriptStatus {
 }
 
 export interface Context {
+  source: Source
   onAddNode: OnAddNode
   onChangeArg: OnChangeArg
   onSubmitScript: OnSubmitScript
@@ -36,7 +37,6 @@ export interface Context {
   onDeleteFuncNode: OnDeleteFuncNode
   onGenerateScript: OnGenerateScript
   onToggleYield: OnToggleYield
-  service: Service
   data: FluxTable[]
   scriptUpToYield: ScriptUpToYield
 }
@@ -158,7 +158,7 @@ export interface FluxTable {
   id: string
   name: string
   data: string[][]
-  partitionKey: {
+  groupKey: {
     [key: string]: string
   }
 }

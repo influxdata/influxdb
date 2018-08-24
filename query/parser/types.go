@@ -16,6 +16,17 @@ func toIfaceSlice(v interface{}) []interface{} {
 	return v.([]interface{})
 }
 
+func toDurationSlice(durations []*singleDurationLiteral) []ast.Duration {
+	durs := make([]ast.Duration, len(durations))
+	for i, d := range durations {
+		durs[i] = ast.Duration{
+			Magnitude: d.magnitude.Value,
+			Unit:      d.unit,
+		}
+	}
+	return durs
+}
+
 func program(body interface{}, text []byte, pos position) (*ast.Program, error) {
 	return &ast.Program{
 		Body:     body.([]ast.Statement),
@@ -329,15 +340,29 @@ func regexLiteral(chars interface{}, text []byte, pos position) (*ast.RegexpLite
 	}, nil
 }
 
-func durationLiteral(text []byte, pos position) (*ast.DurationLiteral, error) {
-	d, err := time.ParseDuration(string(text))
-	if err != nil {
-		return nil, err
+func durationLiteral(durations interface{}, text []byte, pos position) (*ast.DurationLiteral, error) {
+	durs := toIfaceSlice(durations)
+	literals := make([]*singleDurationLiteral, len(durs))
+	for i, d := range durs {
+		literals[i] = d.(*singleDurationLiteral)
 	}
 	return &ast.DurationLiteral{
 		BaseNode: base(text, pos),
-		Value:    d,
+		Values:   toDurationSlice(literals),
 	}, nil
+}
+
+func singleDuration(mag, unit interface{}, text []byte, pos position) (*singleDurationLiteral, error) {
+	return &singleDurationLiteral{
+		// Not an AST node
+		magnitude: mag.(*ast.IntegerLiteral),
+		unit:      string(unit.([]byte)),
+	}, nil
+}
+
+type singleDurationLiteral struct {
+	magnitude *ast.IntegerLiteral
+	unit      string
 }
 
 func datetime(text []byte, pos position) (*ast.DateTimeLiteral, error) {

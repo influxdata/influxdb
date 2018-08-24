@@ -1,0 +1,6 @@
+#datatype,string,long,dateTime:RFC3339,string,string,double,double
+#group,false,false,true,true,true,false,false
+#default,0,,,,,,
+,result,table,_stop,_field,_measurement,host.local,host.remote
+,,0,2018-05-22T19:54:16Z,used_percent,disk,34.98237980753337,34.98224706603858
+

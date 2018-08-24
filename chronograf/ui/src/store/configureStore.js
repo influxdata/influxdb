@@ -8,8 +8,6 @@ import {queryStringConfig} from 'src/shared/middleware/queryStringConfig'
 import statusReducers from 'src/status/reducers'
 import logsReducer from 'src/logs/reducers'
 import sharedReducers from 'src/shared/reducers'
-import dataExplorerReducers from 'src/data_explorer/reducers'
-import kapacitorReducers from 'src/kapacitor/reducers'
 import dashboardUI from 'src/dashboards/reducers/ui'
 import cellEditorOverlay from 'src/dashboards/reducers/cellEditorOverlay'
 import dashTimeV1 from 'src/dashboards/reducers/dashTimeV1'
@@ -20,8 +18,6 @@ import scriptReducer from 'src/flux/reducers/script'
 const rootReducer = combineReducers({
   ...statusReducers,
   ...sharedReducers,
-  ...dataExplorerReducers,
-  ...kapacitorReducers,
   dashboardUI,
   cellEditorOverlay,
   dashTimeV1,

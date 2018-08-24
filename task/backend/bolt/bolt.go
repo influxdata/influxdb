@@ -8,12 +8,11 @@
 //    bucket(/tasks/v1/org_by_task_id) key(task_id) -> The organization ID (stored as encoded string) associated with given task.
 //    bucket(/tasks/v1/user_by_task_id) key(:task_id) -> The user ID (stored as encoded string) associated with given task.
 //    buket(/tasks/v1/name_by_task_id) key(:task_id) -> The user-supplied name of the script.
-//                                         Maybe we don't need this after name becomes a script option?
-//                                         Or maybe we do need it as part of ensuring uniqueness.
+//    bucket(/tasks/v1/name_by_org) key(:org_id) -> Task ID. This allows us to make task names unique for org
+//    bucket(/tasks/v1/name_by_user) key(:user_id)  -> Task ID. This allows us to make task names unique for user
 //    bucket(/tasks/v1/run_ids) -> Counter for run IDs
 //    bucket(/tasks/v1/orgs).bucket(:org_id) key(:task_id) -> Empty content; presence of :task_id allows for lookup from org to tasks.
 //    bucket(/tasks/v1/users).bucket(:user_id) key(:task_id) -> Empty content; presence of :task_id allows for lookup from user to tasks.
-//
 // Note that task IDs are stored big-endian uint64s for sorting purposes,
 // but presented to the users with leading 0-bytes stripped.
 // Like other components of the system, IDs presented to users may be `0f12` rather than `f12`.
@@ -25,6 +24,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
@@ -60,6 +60,8 @@ var (
 	taskMetaPath = []byte(basePath + "task_meta")
 	orgByTaskID  = []byte(basePath + "org_by_task_id")
 	userByTaskID = []byte(basePath + "user_by_task_id")
+	nameByUser   = []byte(basePath + "name_by_user")
+	nameByOrg    = []byte(basePath + "name_by_org")
 	nameByTaskID = []byte(basePath + "name_by_task_id")
 	runIDs       = []byte(basePath + "run_ids")
 )
@@ -80,7 +82,8 @@ func New(db *bolt.DB, rootBucket string) (*Store, error) {
 		// create the buckets inside the root
 		for _, b := range [][]byte{
 			tasksPath, orgsPath, usersPath, taskMetaPath,
-			orgByTaskID, userByTaskID, nameByTaskID, runIDs,
+			orgByTaskID, userByTaskID, nameByUser, nameByOrg,
+			nameByTaskID, runIDs,
 		} {
 			_, err := root.CreateBucketIfNotExists(b)
 			if err != nil {
@@ -95,22 +98,50 @@ func New(db *bolt.DB, rootBucket string) (*Store, error) {
 	return &Store{db: db, bucket: bucket}, nil
 }
 
+// checkIfNameIsUsed is a helper function that returns an error if a name if already used
+func (s *Store) checkIfNameIsUsed(b *bolt.Bucket, name []byte, org, user, taskID platform.ID) error {
+	var bNameByOrg *bolt.Bucket
+	if bNameByOrg = b.Bucket(nameByOrg); bNameByOrg != nil {
+		if bnameByOrgOrg := bNameByOrg.Bucket([]byte(org)); bnameByOrgOrg != nil {
+			gName := bnameByOrgOrg.Get(name)
+			if gName != nil && !bytes.Equal(gName, taskID) {
+				return backend.ErrTaskNameTaken
+			}
+		}
+	}
+
+	var bNameByUser *bolt.Bucket
+	if bNameByUser = b.Bucket(nameByUser); bNameByUser != nil {
+		if bnameByUserUser := bNameByUser.Bucket([]byte(user)); bnameByUserUser != nil {
+			gUser := bnameByUserUser.Get(name)
+			if gUser != nil && !bytes.Equal(gUser, taskID) {
+				return backend.ErrTaskNameTaken
+			}
+		}
+	}
+	return nil
+}
+
 // CreateTask creates a task in the boltdb task store.
-func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script string) (platform.ID, error) {
+func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
 	o, err := backend.StoreValidator.CreateArgs(org, user, script)
 	if err != nil {
 		return nil, err
 	}
 
 	id := make(platform.ID, 8)
-
+	var upid []byte
 	err = s.db.Update(func(tx *bolt.Tx) error {
 		// get the root bucket
 		b := tx.Bucket(s.bucket)
+		name := []byte(o.Name)
 		// Get ID
 		idi, _ := b.NextSequence() // we ignore this err check, because this can't err inside an Update call
 		binary.BigEndian.PutUint64(id, idi)
-
+		upid = unpadID(id)
+		if err := s.checkIfNameIsUsed(b, name, org, user, upid); err != nil {
+			return err
+		}
 		// write script
 		err := b.Bucket(tasksPath).Put(id, []byte(script))
 		if err != nil {
@@ -118,7 +149,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		}
 
 		// name
-		err = b.Bucket(nameByTaskID).Put(id, []byte(o.Name))
+		err = b.Bucket(nameByTaskID).Put(id, name)
 		if err != nil {
 			return err
 		}
@@ -130,6 +161,17 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		}
 
 		err = orgB.Put(id, nil)
+		if err != nil {
+			return err
+		}
+
+		// name by org
+		orgB, err = b.Bucket(nameByOrg).CreateBucketIfNotExists([]byte(org))
+		if err != nil {
+			return err
+		}
+
+		err = orgB.Put(name, upid)
 		if err != nil {
 			return err
 		}
@@ -149,6 +191,16 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		if err != nil {
 			return err
 		}
+		// name by user
+		userB, err = b.Bucket(nameByUser).CreateBucketIfNotExists([]byte(user))
+		if err != nil {
+			return err
+		}
+
+		err = userB.Put(name, upid)
+		if err != nil {
+			return err
+		}
 
 		err = b.Bucket(userByTaskID).Put(id, []byte(user))
 		if err != nil {
@@ -157,8 +209,11 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 
 		// metadata
 		stm := backend.StoreTaskMeta{
-			MaxConcurrency: int32(o.Concurrency),
-			Status:         string(backend.TaskEnabled),
+			MaxConcurrency:  int32(o.Concurrency),
+			Status:          string(backend.TaskEnabled),
+			LatestCompleted: scheduleAfter,
+			EffectiveCron:   o.EffectiveCronString(),
+			Delay:           int32(o.Delay / time.Second),
 		}
 
 		stmBytes, err := stm.Marshal()
@@ -171,22 +226,40 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 	if err != nil {
 		return nil, err
 	}
-	return unpadID(id), nil
+	return upid, nil
 }
 
 // ModifyTask changes a task with a new script, it should error if the task does not exist.
 func (s *Store) ModifyTask(ctx context.Context, id platform.ID, newScript string) error {
-	if _, err := backend.StoreValidator.ModifyArgs(id, newScript); err != nil {
+	op, err := backend.StoreValidator.ModifyArgs(id, newScript)
+	if err != nil {
 		return err
 	}
-
 	paddedID := padID(id)
 	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(s.bucket).Bucket(tasksPath)
-		if v := b.Get(paddedID); v == nil { // this is so we can error if the task doesn't exist
+		b := tx.Bucket(s.bucket)
+		bt := b.Bucket(tasksPath)
+		if v := bt.Get(paddedID); v == nil { // this is so we can error if the task doesn't exist
 			return ErrNotFound
 		}
-		return b.Put(paddedID, []byte(newScript))
+		err = bt.Put(paddedID, []byte(newScript))
+		if err != nil {
+			return err
+		}
+		// TODO(docmerlin): org and user should be passed in, somehow, maybe via context or as an arg or something, these lookups are unecessairly expensive
+		org := b.Bucket(orgByTaskID).Get(paddedID)
+		user := b.Bucket(userByTaskID).Get(paddedID)
+		name := []byte(op.Name)
+		if err := s.checkIfNameIsUsed(b, name, org, user, id); err != nil {
+			return err
+		}
+		if err = b.Bucket(nameByOrg).Bucket(org).Put(name, id); err != nil {
+			return err
+		}
+		if b.Bucket(nameByUser).Bucket(user).Put(name, id); err != nil {
+			return err
+		}
+		return b.Bucket(nameByTaskID).Put(paddedID, name)
 	})
 }
 
@@ -464,73 +537,60 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 	return true, nil
 }
 
-// CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
-func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (backend.QueuedRun, error) {
-	queuedRun := backend.QueuedRun{TaskID: append([]byte(nil), taskID...), Now: now}
-	stm := backend.StoreTaskMeta{}
+func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (backend.RunCreation, error) {
+	var rc backend.RunCreation
 	paddedID := padID(taskID)
 	if err := s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
 		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
+
+		var stm backend.StoreTaskMeta
 		if err := stm.Unmarshal(stmBytes); err != nil {
 			return err
 		}
-		if len(stm.CurrentlyRunning) >= int(stm.MaxConcurrency) {
-			return ErrMaxConcurrency
+
+		makeID := func() (platform.ID, error) {
+			id := make(platform.ID, 8)
+			idi, err := b.Bucket(runIDs).NextSequence()
+			if err != nil {
+				return nil, err
+			}
+
+			binary.BigEndian.PutUint64(id, idi)
+			return id, nil
 		}
 
-		id := make(platform.ID, 8)
-		idi, err := b.Bucket(runIDs).NextSequence()
+		var err error
+		rc, err = stm.CreateNextRun(now, makeID)
 		if err != nil {
 			return err
 		}
+		rc.Created.TaskID = append([]byte(nil), taskID...)
 
-		binary.BigEndian.PutUint64(id, idi)
-		running := &backend.StoreTaskMetaRun{
-			Now:   now,
-			Try:   1,
-			RunID: id,
-		}
-
-		stm.CurrentlyRunning = append(stm.CurrentlyRunning, running)
 		stmBytes, err = stm.Marshal()
 		if err != nil {
 			return err
 		}
-
-		queuedRun.RunID = id
-
 		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(paddedID, stmBytes)
 	}); err != nil {
-		return queuedRun, err
+		return backend.RunCreation{}, err
 	}
 
-	return queuedRun, nil
+	return rc, nil
 }
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 func (s *Store) FinishRun(ctx context.Context, taskID, runID platform.ID) error {
-	stm := backend.StoreTaskMeta{}
 	paddedID := padID(taskID)
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
 		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
+		var stm backend.StoreTaskMeta
 		if err := stm.Unmarshal(stmBytes); err != nil {
 			return err
 		}
-		found := false
-		for i, runner := range stm.CurrentlyRunning {
-			if platform.ID(runner.RunID).String() == runID.String() {
-				found = true
-				stm.CurrentlyRunning = append(stm.CurrentlyRunning[:i], stm.CurrentlyRunning[i+1:]...)
-				if runner.Now > stm.LastCompleted {
-					stm.LastCompleted = runner.Now
-					break
-				}
-			}
-		}
-		if !found {
+		if !stm.FinishRun(runID) {
 			return ErrRunNotFound
 		}
 

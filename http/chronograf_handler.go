@@ -45,12 +45,6 @@ func NewChronografHandler(s *server.Service) *ChronografHandler {
 	h.HandlerFunc("DELETE", "/chronograf/v1/sources/:id", h.Service.RemoveSource)
 	h.HandlerFunc("GET", "/chronograf/v1/sources/:id/health", h.Service.SourceHealth)
 
-	// Flux
-	h.HandlerFunc("GET", "/chronograf/v1/flux", h.Service.Flux)
-	h.HandlerFunc("POST", "/chronograf/v1/flux/ast", h.Service.FluxAST)
-	h.HandlerFunc("GET", "/chronograf/v1/flux/suggestions", h.Service.FluxSuggestions)
-	h.HandlerFunc("GET", "/chronograf/v1/flux/suggestions/:name", h.Service.FluxSuggestion)
-
 	// Source Proxy to Influx; Has gzip compression around the handler
 	influx := gziphandler.GzipHandler(http.HandlerFunc(h.Service.Influx))
 	h.Handler("POST", "/chronograf/v1/sources/:id/proxy", influx)

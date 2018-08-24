@@ -7,7 +7,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   onApply: (item: string[]) => void
   selectedItems: string[]
-  singleSelect: boolean
 }
 
 interface State {
@@ -31,22 +30,18 @@ class FunctionSelector extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {singleSelect} = this.props
-
     return (
       <div className="function-selector">
-        {!singleSelect && (
-          <div className="function-selector--header">
-            <span>{this.headerText}</span>
-            <div
-              className="btn btn-xs btn-success"
-              onClick={this.handleApplyFunctions}
-              data-test="function-selector-apply"
-            >
-              Apply
-            </div>
+        <div className="function-selector--header">
+          <span>{this.headerText}</span>
+          <div
+            className="btn btn-xs btn-success"
+            onClick={this.handleApplyFunctions}
+            data-test="function-selector-apply"
+          >
+            Apply
           </div>
-        )}
+        </div>
         <div className="function-selector--grid">
           {INFLUXQL_FUNCTIONS.map((f, i) => {
             return (
@@ -55,10 +50,7 @@ class FunctionSelector extends PureComponent<Props, State> {
                 className={classnames('function-selector--item', {
                   active: this.isSelected(f),
                 })}
-                onClick={_.wrap(
-                  f,
-                  singleSelect ? this.onSingleSelect : this.onSelect
-                )}
+                onClick={_.wrap(f, this.onSelect)}
                 data-test={`function-selector-item-${f}`}
               >
                 {f}
@@ -92,16 +84,6 @@ class FunctionSelector extends PureComponent<Props, State> {
     }
 
     this.setState({localSelectedItems: nextItems})
-  }
-
-  private onSingleSelect = (item: string): void => {
-    if (item === this.state.localSelectedItems[0]) {
-      this.props.onApply([])
-      this.setState({localSelectedItems: []})
-    } else {
-      this.props.onApply([item])
-      this.setState({localSelectedItems: [item]})
-    }
   }
 
   private isSelected = (item: string): boolean => {

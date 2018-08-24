@@ -1,3 +1,23 @@
+// Package control controls which resources a query may consume.
+//
+// The Controller manages the resources available to each query and ensures
+// an optimal use of those resources to execute queries in a timely manner.
+// The controller also maintains the state of a query as it goes through the
+// various stages of execution and is responsible for killing currently
+// executing queries when requested by the user.
+//
+// The Controller manages when a query is executed. This can be based on
+// anything within the query's requested resources. For example, a basic
+// implementation of the Controller may decide to execute anything with a high
+// priority before anything with a low priority.  The implementation of the
+// Controller will vary and change over time and this package may provide
+// multiple implementations for different controller algorithms.
+//
+// During execution, the Controller manages the resources used by the query and
+// provides observabiility into what resources are being used and by which
+// queries. The Controller also imposes limitations so a query that uses more
+// than its allocated resources or more resources than available on the system
+// will be aborted.
 package control
 
 import (
@@ -15,6 +35,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 // Controller provides a central location to manage all incoming queries.
@@ -34,6 +55,7 @@ type Controller struct {
 	lplanner plan.LogicalPlanner
 	pplanner plan.Planner
 	executor execute.Executor
+	logger   *zap.Logger
 
 	maxConcurrency       int
 	availableConcurrency int
@@ -44,12 +66,17 @@ type Config struct {
 	ConcurrencyQuota     int
 	MemoryBytesQuota     int64
 	ExecutorDependencies execute.Dependencies
+	Logger               *zap.Logger
 	Verbose              bool
 }
 
 type QueryID uint64
 
 func New(c Config) *Controller {
+	logger := c.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	ctrl := &Controller{
 		newQueries:           make(chan *Query),
 		queries:              make(map[QueryID]*Query),
@@ -60,7 +87,8 @@ func New(c Config) *Controller {
 		availableMemory:      c.MemoryBytesQuota,
 		lplanner:             plan.NewLogicalPlanner(),
 		pplanner:             plan.NewPlanner(),
-		executor:             execute.NewExecutor(c.ExecutorDependencies),
+		executor:             execute.NewExecutor(c.ExecutorDependencies, logger),
+		logger:               logger,
 		metrics:              newControllerMetrics(),
 		verbose:              c.Verbose,
 	}
@@ -72,12 +100,15 @@ func New(c Config) *Controller {
 // Done must be called on any returned Query objects.
 func (c *Controller) Query(ctx context.Context, req *query.Request) (query.Query, error) {
 	q := c.createQuery(ctx, req.OrganizationID)
-	err := c.compileQuery(q, req.Compiler)
-	if err != nil {
+	if err := c.compileQuery(q, req.Compiler); err != nil {
+		q.parentSpan.Finish()
 		return nil, err
 	}
-	err = c.enqueueQuery(q)
-	return q, err
+	if err := c.enqueueQuery(q); err != nil {
+		q.parentSpan.Finish()
+		return nil, err
+	}
+	return q, nil
 }
 
 func (c *Controller) createQuery(ctx context.Context, orgID platform.ID) *Query {
@@ -134,6 +165,7 @@ func (c *Controller) enqueueQuery(q *Query) error {
 		return errors.New("failed to transition query to queueing state")
 	}
 	if err := q.spec.Validate(); err != nil {
+		q.queueSpan.Finish()
 		return errors.Wrap(err, "invalid query")
 	}
 	// Add query to the queue
@@ -141,6 +173,7 @@ func (c *Controller) enqueueQuery(q *Query) error {
 	case c.newQueries <- q:
 		return nil
 	case <-q.parentCtx.Done():
+		q.queueSpan.Finish()
 		return q.parentCtx.Err()
 	}
 }
@@ -195,11 +228,11 @@ func (c *Controller) run() {
 		q := pq.Peek()
 		if q != nil {
 			pop, err := c.processQuery(q)
-			if err != nil {
-				go q.setErr(err)
-			}
 			if pop {
 				pq.Pop()
+			}
+			if err != nil {
+				go q.setErr(err)
 			}
 		}
 	}
@@ -394,8 +427,6 @@ func (q *Query) Ready() <-chan map[string]query.Result {
 
 // finish informs the controller and the Ready channel that the query is finished.
 func (q *Query) finish() {
-	defer q.parentSpan.Finish()
-
 	switch q.state {
 	case Compiling:
 		q.compileSpan.Finish()
@@ -420,6 +451,7 @@ func (q *Query) finish() {
 		panic("unreachable, all states have been accounted for")
 	}
 
+	q.parentSpan.Finish()
 	q.c.queryDone <- q
 	close(q.ready)
 }

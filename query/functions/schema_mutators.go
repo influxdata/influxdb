@@ -88,6 +88,13 @@ func toStringSet(arr []string) map[string]bool {
 	return set
 }
 
+func checkCol(label string, cols []query.ColMeta) error {
+	if execute.ColIdx(label, cols) < 0 {
+		return fmt.Errorf(`column "%s" doesn't exist`, label)
+	}
+	return nil
+}
+
 type RenameMutator struct {
 	Cols      map[string]string
 	Fn        compiler.Func
@@ -120,17 +127,6 @@ func NewRenameMutator(qs query.OperationSpec) (*RenameMutator, error) {
 	return m, nil
 }
 
-func (m *RenameMutator) checkColumnReferences(cols []query.ColMeta) error {
-	if m.Cols != nil {
-		for c := range m.Cols {
-			if execute.ColIdx(c, cols) < 0 {
-				return fmt.Errorf(`rename error: column "%s" doesn't exist`, c)
-			}
-		}
-	}
-	return nil
-}
-
 func (m *RenameMutator) renameCol(col *query.ColMeta) error {
 	if col == nil {
 		return errors.New("rename error: cannot rename nil column")
@@ -150,8 +146,17 @@ func (m *RenameMutator) renameCol(col *query.ColMeta) error {
 	return nil
 }
 
+func (m *RenameMutator) checkColumns(tableCols []query.ColMeta) error {
+	for c := range m.Cols {
+		if err := checkCol(c, tableCols); err != nil {
+			return errors.Wrap(err, "rename error")
+		}
+	}
+	return nil
+}
+
 func (m *RenameMutator) Mutate(ctx *BuilderContext) error {
-	if err := m.checkColumnReferences(ctx.Cols()); err != nil {
+	if err := m.checkColumns(ctx.Cols()); err != nil {
 		return err
 	}
 
@@ -225,21 +230,23 @@ func NewDropKeepMutator(qs query.OperationSpec) (*DropKeepMutator, error) {
 	return m, nil
 }
 
-func (m *DropKeepMutator) checkColumnReferences(cols []query.ColMeta) error {
+func (m *DropKeepMutator) checkColumns(tableCols []query.ColMeta) error {
 	if m.DropCols != nil {
 		for c := range m.DropCols {
-			if execute.ColIdx(c, cols) < 0 {
-				return fmt.Errorf(`drop error: column "%s" doesn't exist`, c)
+			if err := checkCol(c, tableCols); err != nil {
+				return errors.Wrap(err, "drop error")
 			}
 		}
 	}
+
 	if m.KeepCols != nil {
 		for c := range m.KeepCols {
-			if execute.ColIdx(c, cols) < 0 {
-				return fmt.Errorf(`keep error: column "%s" doesn't exist`, c)
+			if err := checkCol(c, tableCols); err != nil {
+				return errors.Wrap(err, "keep error")
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -282,7 +289,7 @@ func (m *DropKeepMutator) keepToDropCols(cols []query.ColMeta) {
 }
 
 func (m *DropKeepMutator) Mutate(ctx *BuilderContext) error {
-	if err := m.checkColumnReferences(ctx.Cols()); err != nil {
+	if err := m.checkColumns(ctx.Cols()); err != nil {
 		return err
 	}
 
@@ -316,6 +323,55 @@ func (m *DropKeepMutator) Mutate(ctx *BuilderContext) error {
 	ctx.ColIdxMap = newColMap
 
 	return nil
+}
+
+type DuplicateMutator struct {
+	Col string
+	As  string
+}
+
+func NewDuplicateMutator(qs query.OperationSpec) (*DuplicateMutator, error) {
+	s, ok := qs.(*DuplicateOpSpec)
+	if !ok {
+		return nil, fmt.Errorf("invalid spec type %T", qs)
+	}
+
+	return &DuplicateMutator{
+		Col: s.Col,
+		As:  s.As,
+	}, nil
+}
+
+func (m *DuplicateMutator) Mutate(ctx *BuilderContext) error {
+	if err := checkCol(m.Col, ctx.Cols()); err != nil {
+		return errors.Wrap(err, "duplicate error")
+	}
+
+	newCols := make([]query.ColMeta, 0, len(ctx.Cols())+1)
+	newColMap := make([]int, 0, len(ctx.Cols())+1)
+	oldColMap := ctx.ColMap()
+
+	for i, c := range ctx.Cols() {
+		newCols = append(newCols, c)
+		newColMap = append(newColMap, oldColMap[i])
+
+		if c.Label == m.Col {
+			newCols = append(newCols, duplicate(c, m.As))
+			newColMap = append(newColMap, oldColMap[i])
+		}
+	}
+
+	ctx.TableColumns = newCols
+	ctx.ColIdxMap = newColMap
+
+	return nil
+}
+
+func duplicate(col query.ColMeta, dupName string) query.ColMeta {
+	return query.ColMeta{
+		Type:  col.Type,
+		Label: dupName,
+	}
 }
 
 // TODO: determine pushdown rules

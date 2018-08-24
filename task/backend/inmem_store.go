@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/snowflake"
@@ -27,6 +28,7 @@ type inmem struct {
 }
 
 // NewInMemStore returns a new in-memory store.
+// This store is not designed to be efficient, it is here for testing purposes.
 func NewInMemStore() Store {
 	return &inmem{
 		idgen:   snowflake.NewIDGenerator(),
@@ -34,7 +36,7 @@ func NewInMemStore() Store {
 	}
 }
 
-func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script string) (platform.ID, error) {
+func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
 	o, err := StoreValidator.CreateArgs(org, user, script)
 	if err != nil {
 		return nil, err
@@ -54,15 +56,27 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 	}
 
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.tasks {
+		if s.tasks[i].Name == task.Name {
+			return nil, ErrTaskNameTaken
+		}
+	}
 	s.tasks = append(s.tasks, task)
-	s.runners[id.String()] = StoreTaskMeta{MaxConcurrency: int32(o.Concurrency), Status: string(TaskEnabled)}
-	s.mu.Unlock()
+	s.runners[id.String()] = StoreTaskMeta{
+		MaxConcurrency:  int32(o.Concurrency),
+		Status:          string(TaskEnabled),
+		LatestCompleted: scheduleAfter,
+		EffectiveCron:   o.EffectiveCronString(),
+		Delay:           int32(o.Delay / time.Second),
+	}
 
 	return id, nil
 }
 
 func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) error {
-	if _, err := StoreValidator.ModifyArgs(id, script); err != nil {
+	op, err := StoreValidator.ModifyArgs(id, script)
+	if err != nil {
 		return err
 	}
 
@@ -71,6 +85,14 @@ func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) err
 
 	for n, t := range s.tasks {
 		if bytes.Equal(t.ID, id) {
+			if t.Name != op.Name {
+				for i := range s.tasks {
+					if s.tasks[i].Name == op.Name && i != n {
+						return ErrTaskNameTaken
+					}
+				}
+				t.Name = op.Name
+			}
 			t.Script = script
 			s.tasks[n] = t
 			return nil
@@ -211,36 +233,26 @@ func (s *inmem) Close() error {
 	return nil
 }
 
-// CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
-func (s *inmem) CreateRun(ctx context.Context, taskID platform.ID, now int64) (QueuedRun, error) {
-	queuedRun := QueuedRun{}
+func (s *inmem) CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (RunCreation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	stm, ok := s.runners[taskID.String()]
 	if !ok {
-		return queuedRun, errors.New("taskRunner not found")
+		return RunCreation{}, errors.New("task not found")
 	}
 
-	if len(stm.CurrentlyRunning) >= int(stm.MaxConcurrency) {
-		return queuedRun, errors.New("MaxConcurrency reached")
+	makeID := func() (platform.ID, error) {
+		return s.idgen.ID(), nil
 	}
-
-	runID := s.idgen.ID()
-
-	running := &StoreTaskMetaRun{
-		Now:   now,
-		Try:   1,
-		RunID: runID,
+	rc, err := stm.CreateNextRun(now, makeID)
+	if err != nil {
+		return RunCreation{}, err
 	}
+	rc.Created.TaskID = append([]byte(nil), taskID...)
 
-	stm.CurrentlyRunning = append(stm.CurrentlyRunning, running)
-	s.mu.Lock()
 	s.runners[taskID.String()] = stm
-	s.mu.Unlock()
-
-	queuedRun.TaskID = taskID
-	queuedRun.RunID = runID
-	queuedRun.Now = now
-	return queuedRun, nil
+	return rc, nil
 }
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
@@ -250,19 +262,7 @@ func (s *inmem) FinishRun(ctx context.Context, taskID, runID platform.ID) error 
 		return errors.New("taskRunner not found")
 	}
 
-	found := false
-	for i, runner := range stm.CurrentlyRunning {
-		if string(runner.RunID) == string([]byte(runID)) {
-			found = true
-			stm.CurrentlyRunning = append(stm.CurrentlyRunning[:i], stm.CurrentlyRunning[i+1:]...)
-			if runner.Now > stm.LastCompleted {
-				stm.LastCompleted = runner.Now
-				break
-			}
-		}
-	}
-
-	if !found {
+	if !stm.FinishRun(runID) {
 		return errors.New("run not found")
 	}
 

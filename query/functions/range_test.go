@@ -129,7 +129,7 @@ func TestRangeOperation_Marshaling(t *testing.T) {
 
 func TestRange_PushDown(t *testing.T) {
 	spec := &functions.RangeProcedureSpec{
-		Bounds: plan.BoundsSpec{
+		Bounds: query.Bounds{
 			Stop: query.Now,
 		},
 	}
@@ -139,7 +139,7 @@ func TestRange_PushDown(t *testing.T) {
 	want := &plan.Procedure{
 		Spec: &functions.FromProcedureSpec{
 			BoundsSet: true,
-			Bounds: plan.BoundsSpec{
+			Bounds: query.Bounds{
 				Stop: query.Now,
 			},
 		},
@@ -161,7 +161,7 @@ func TestRange_Process(t *testing.T) {
 		{
 			name: "from csv",
 			spec: &functions.RangeProcedureSpec{
-				Bounds: plan.BoundsSpec{
+				Bounds: query.Bounds{
 					Start: query.Time{
 						IsRelative: true,
 						Relative:   -5 * time.Minute,
@@ -208,7 +208,7 @@ func TestRange_Process(t *testing.T) {
 		{
 			name: "invalid column",
 			spec: &functions.RangeProcedureSpec{
-				Bounds: plan.BoundsSpec{
+				Bounds: query.Bounds{
 					Start: query.Time{
 						IsRelative: true,
 						Relative:   -5 * time.Minute,
@@ -250,7 +250,7 @@ func TestRange_Process(t *testing.T) {
 		{
 			name: "specified column",
 			spec: &functions.RangeProcedureSpec{
-				Bounds: plan.BoundsSpec{
+				Bounds: query.Bounds{
 					Start: query.Time{
 						IsRelative: true,
 						Relative:   -2 * time.Minute,
@@ -293,7 +293,7 @@ func TestRange_Process(t *testing.T) {
 		{
 			name: "group key no overlap",
 			spec: &functions.RangeProcedureSpec{
-				Bounds: plan.BoundsSpec{
+				Bounds: query.Bounds{
 					Start: query.Time{
 						IsRelative: true,
 						Relative:   -2 * time.Minute,
@@ -338,7 +338,7 @@ func TestRange_Process(t *testing.T) {
 		{
 			name: "group key overlap",
 			spec: &functions.RangeProcedureSpec{
-				Bounds: plan.BoundsSpec{
+				Bounds: query.Bounds{
 					Start: query.Time{
 						Absolute: time.Unix(12*time.Minute.Nanoseconds(), 0),
 					},
@@ -400,6 +400,91 @@ func TestRange_Process(t *testing.T) {
 				)
 			},
 		},
+		{
+			name: "empty bounds start == stop",
+			spec: &functions.RangeProcedureSpec{
+				Bounds: query.Bounds{
+					Start: query.Time{
+						Absolute: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
+					},
+					Stop: query.Time{
+						Absolute: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
+					},
+				},
+
+				TimeCol:  "_time",
+				StartCol: "_start",
+				StopCol:  "_stop",
+			},
+			data: []query.Table{&executetest.Table{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(time.Minute.Nanoseconds()), 10.0},
+					{execute.Time(3 * time.Minute.Nanoseconds()), 9.0},
+					{execute.Time(7 * time.Minute.Nanoseconds()), 1.0},
+					{execute.Time(2 * time.Minute.Nanoseconds()), 5.0},
+					{execute.Time(4 * time.Minute.Nanoseconds()), 4.0},
+					{execute.Time(6 * time.Minute.Nanoseconds()), 8.0},
+					{execute.Time(5 * time.Minute.Nanoseconds()), 6.0},
+				},
+			}},
+			want: []*executetest.Table{{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+				},
+				Data: [][]interface{}(nil),
+			}},
+			now: values.Time(7 * time.Minute.Nanoseconds()),
+		},
+		{
+			name: "empty bounds start > stop",
+			spec: &functions.RangeProcedureSpec{
+				Bounds: query.Bounds{
+					Start: query.Time{
+						IsRelative: true,
+						Relative:   -2 * time.Minute,
+					},
+					Stop: query.Time{
+						IsRelative: true,
+						Relative:   -5 * time.Minute,
+					},
+				},
+				TimeCol:  "_time",
+				StartCol: "_start",
+				StopCol:  "_stop",
+			},
+			data: []query.Table{&executetest.Table{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(time.Minute.Nanoseconds()), 10.0},
+					{execute.Time(3 * time.Minute.Nanoseconds()), 9.0},
+					{execute.Time(7 * time.Minute.Nanoseconds()), 1.0},
+					{execute.Time(2 * time.Minute.Nanoseconds()), 5.0},
+					{execute.Time(4 * time.Minute.Nanoseconds()), 4.0},
+					{execute.Time(6 * time.Minute.Nanoseconds()), 8.0},
+					{execute.Time(5 * time.Minute.Nanoseconds()), 6.0},
+				},
+			}},
+			want: []*executetest.Table{{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+				},
+				Data: [][]interface{}(nil),
+			}},
+			now: values.Time(7 * time.Minute.Nanoseconds()),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -450,14 +535,14 @@ func TestRange_Process(t *testing.T) {
 }
 func TestRange_PushDown_Duplicate(t *testing.T) {
 	spec := &functions.RangeProcedureSpec{
-		Bounds: plan.BoundsSpec{
+		Bounds: query.Bounds{
 			Stop: query.Now,
 		},
 	}
 	root := &plan.Procedure{
 		Spec: &functions.FromProcedureSpec{
 			BoundsSet: true,
-			Bounds: plan.BoundsSpec{
+			Bounds: query.Bounds{
 				Start: query.MinTime,
 				Stop:  query.Now,
 			},
@@ -473,7 +558,7 @@ func TestRange_PushDown_Duplicate(t *testing.T) {
 
 func TestRange_PushDown_Match(t *testing.T) {
 	spec := &functions.RangeProcedureSpec{
-		Bounds: plan.BoundsSpec{
+		Bounds: query.Bounds{
 			Stop: query.Now,
 		},
 		TimeCol: "_time",

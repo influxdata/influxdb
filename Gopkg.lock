@@ -440,6 +440,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:1a1206efd03a54d336dce7bb8719e74f2f8932f661cb9f57d5813a1d99c083d8"
+  name = "github.com/grpc-ecosystem/grpc-opentracing"
+  packages = ["go/otgrpc"]
+  pruneopts = "UT"
+  revision = "8e809c8a86450a29b90dcc9efbf062d0fe6d9746"
+
+[[projects]]
+  branch = "master"
   digest = "1:a361611b8c8c75a1091f00027767f7779b29cb37c456a71b8f2604c88057ab40"
   name = "github.com/hashicorp/hcl"
   packages = [
@@ -474,15 +482,15 @@
   version = "v1.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:2fc879f3aea6394bcf801604a723d1e2c922a533b5cd0503ef36e293e06afe7e"
+  branch = "platform"
+  digest = "1:df76ff18681306ead8b17e7e3b7983fdd86910b4f923dd2856fbe7264aca034a"
   name = "github.com/influxdata/influxdb"
   packages = [
     "logger",
     "pkg/snowflake",
   ]
   pruneopts = "UT"
-  revision = "200fda999f915dfc13c2b4030a2db6e0b08c689f"
+  revision = "12f7f457079a7d3b62f8596eec6197cbb84086b2"
 
 [[projects]]
   branch = "master"
@@ -535,12 +543,12 @@
   revision = "0b12d6b5"
 
 [[projects]]
-  digest = "1:78867fbb25230fd7dacdc62eab84f78593d74adee03ce974038cfd8299615167"
+  digest = "1:e788f8a9bd113b97bf37e03cb98be2df72dff19714ee17fdd887417c46bd46dd"
   name = "github.com/jsternberg/zap-logfmt"
   packages = ["."]
   pruneopts = "UT"
-  revision = "ac4bd917e18a4548ce6e0e765b29a4e7f397b0b6"
-  version = "v1.0.0"
+  revision = "9a5340c241253a529cbf359db5038e5b3549bd53"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:86228f0e4ff0f954420afeee30b44fedebc2ceebc78228e4f9dd0a4e0c93bf68"
@@ -864,7 +872,7 @@
   version = "v1.1.0"
 
 [[projects]]
-  digest = "1:973def4d3d414173bbc236b72680b76ec9509a62433b1814fcfd70c0386e272f"
+  digest = "1:ec84c73fae08866389c8ffb608073553cdbe0eea4c3236fddbe33a2f114e2453"
   name = "go.uber.org/zap"
   packages = [
     ".",
@@ -872,7 +880,9 @@
     "internal/bufferpool",
     "internal/color",
     "internal/exit",
+    "internal/ztest",
     "zapcore",
+    "zaptest",
     "zaptest/observer",
   ]
   pruneopts = "UT"
@@ -1079,6 +1089,7 @@
     "github.com/google/go-cmp/cmp/cmpopts",
     "github.com/google/go-github/github",
     "github.com/goreleaser/goreleaser",
+    "github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc",
     "github.com/influxdata/influxdb/logger",
     "github.com/influxdata/influxdb/pkg/snowflake",
     "github.com/influxdata/influxql",
@@ -1090,6 +1101,8 @@
     "github.com/kevinburke/go-bindata",
     "github.com/mna/pigeon",
     "github.com/opentracing/opentracing-go",
+    "github.com/opentracing/opentracing-go/ext",
+    "github.com/opentracing/opentracing-go/log",
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
@@ -1105,6 +1118,8 @@
     "github.com/uber/jaeger-client-go/log",
     "github.com/uber/jaeger-lib/metrics",
     "go.uber.org/zap",
+    "go.uber.org/zap/zapcore",
+    "go.uber.org/zap/zaptest",
     "go.uber.org/zap/zaptest/observer",
     "golang.org/x/net/context",
     "golang.org/x/oauth2",
@@ -1113,6 +1128,7 @@
     "golang.org/x/text/unicode/norm",
     "google.golang.org/api/oauth2/v2",
     "google.golang.org/grpc",
+    "google.golang.org/grpc/metadata",
     "gopkg.in/robfig/cron.v2",
   ]
   solver-name = "gps-cdcl"

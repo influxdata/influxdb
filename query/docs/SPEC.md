@@ -10,7 +10,6 @@ Any section that is not currently implemented is commented with a IMPL#XXX where
 The Flux language is centered on querying and manipulating time series data.
 
 ### Notation
-
 The syntax of the language is specified using Extended Backus-Naur Form (EBNF):
 
     Production  = production_name "=" [ Expression ] "." .
@@ -97,8 +96,8 @@ The following keywords are reserved and may not be used as identifiers:
     and    import  not  return
     empty  in      or
 
-[IMPL#308](https://github.com/influxdata/platform/query/issues/308) Add in and empty operator support
-[IMPL#142](https://github.com/influxdata/platform/query/issues/142) Add "import" support
+[IMPL#256](https://github.com/influxdata/platform/issues/256) Add in and empty operator support  
+[IMPL#334](https://github.com/influxdata/platform/issues/334) Add "import" support  
 
 #### Operators
 
@@ -122,7 +121,7 @@ The following coercion rules apply to numeric literals:
 * an error will occur if the coerced type cannot represent the literal value.
 
 
-[IMPL#309](https://github.com/influxdata/platform/query/issues/309) Allow numeric literal coercion.
+[IMPL#255](https://github.com/influxdata/platform/issues/255) Allow numeric literal coercion.
 
 ##### Integer literals
 
@@ -157,16 +156,16 @@ Examples:
     2.71828
     .26
 
-[IMPL#310](https://github.com/influxdata/platform/query/issues/310) Parse float literals
+[IMPL#254](https://github.com/influxdata/platform/issues/254) Parse float literals
 
 #### Duration literals
 
 A duration literal is a representation of a length of time.
 It has an integer part and a duration unit part.
-Multiple duration may be specified together and the resulting duration is the sum of each smaller part.
+Multiple durations may be specified together and the resulting duration is the sum of each smaller part.
 
-    duration_lit        = { int_lit duration_unit } .
-    duration_unit       = "ns" | "u" | "µ" | "ms" | "s" | "m" | "h" | "d" | "w" .
+    duration_lit  = { int_lit duration_unit } .
+    duration_unit = "ns" | "us" | "µs" | "ms" | "s" | "m" | "h" | "d" | "w" | "mo" | "y" .
 
 | Units    | Meaning                                 |
 | -----    | -------                                 |
@@ -176,11 +175,20 @@ Multiple duration may be specified together and the resulting duration is the su
 | s        | second                                  |
 | m        | minute (60 seconds)                     |
 | h        | hour (60 minutes)                       |
-| d        | day (24 hours)                          |
+| d        | day                                     |
 | w        | week (7 days)                           |
+| mo       | month                                   |
+| y        | year (12 months)                        |
 
-Durations represent a fixed length of time.
-They do not change based on time zones or other time related events like daylight savings or leap seconds.
+Durations represent a length of time.
+Lengths of time are dependent on specific instants in time they occur and as such, durations do not represent a fixed amount of time.
+No amount of seconds is equal to a day, as days vary in their number of seconds.
+No amount of days is equal to a month, as months vary in their number of days.
+A duration consists of three basic time units: seconds, days and months.
+
+Durations can be combined via addition and subtraction.
+Durations can be multiplied by an integer value.
+These operations are performed on each time unit independently.
 
 Examples:
 
@@ -188,27 +196,61 @@ Examples:
     10d
     1h15m // 1 hour and 15 minutes
     5w
+    1mo5d // 1 month and 5 days
 
-[IMPL#311](https://github.com/influxdata/platform/query/issues/311) Parse duration literals
+Durations can be added to date times to produce a new date time.
+Adding and subtracting durations to date times normalizes the dates.
+For example July 32 converts to August 1.
+
+Addition and subtraction of durations to date times do not commute and are left associative.
+Addition and subtraction of durations to date times applies months, days and seconds in that order and then normalizes.
+
+Examples:
+
+    2018-01-01T00:00:00Z + 1d       // 2018-01-02T00:00:00Z
+    2018-01-01T00:00:00Z + 1mo      // 2018-02-01T00:00:00Z
+    2018-01-01T00:00:00Z + 2mo30d   // 2018-03-30T00:00:00Z
+    2018-01-01T00:00:00Z + 1mo30d   // 2018-03-02T00:00:00Z, February 30th is normalized to March 2 in 2018 since it is not a leap year.
+
+    // Addition and subtraction of durations to date times does not commute
+    2018-02-28T00:00:00Z + 1mo + 1d // 2018-03-29T00:00:00Z
+    2018-02-28T00:00:00Z + 1d + 1mo // 2018-04-01T00:00:00Z
+    2018-01-01T00:00:00Z + 3mo - 1d // 2018-02-28T00:00:00Z
+    2018-01-01T00:00:00Z - 1d + 3mo // 2018-03-03T00:00:00Z, December 31st + 3m0 is February 31st which is normalized to March 3 in 2018.
+
+    // Addition and subtraction of durations to date times applies months, days and seconds in that order.
+    2018-02-28T00:00:00Z + 1mo + 1d // 2018-03-29T00:00:00Z
+    2018-02-28T00:00:00Z + 1mo1d    // 2018-03-29T00:00:00Z
+    2018-02-28T00:00:00Z + 1d + 1mo // 2018-04-01T00:00:00Z, explicit left associative add of 1d first changes the result
+
+[IMPL#253](https://github.com/influxdata/platform/issues/253) Parse duration literals
 
 #### Date and time literals
 
 A date and time literal represents a specific moment in time.
 It has a date part, a time part and a time offset part.
 The format follows the RFC 3339 specification.
+The time is optional, when it is omitted the time is assumed to be midnight for the default location.
+The time_offset is optional, when it is omitted the location option is used to determine the offset.
 
-    date_time_lit     = date "T" time .
+    date_time_lit     = date [ "T" time ] .
     date              = year_lit "-" month "-" day .
     year              = decimal_digit decimal_digit decimal_digit decimal_digit .
     month             = decimal_digit decimal_digit .
     day               = decimal_digit decimal_digit .
-    time              = hour ":" minute ":" second [ fractional_second ] time_offset .
+    time              = hour ":" minute ":" second [ fractional_second ] [ time_offset ] .
     hour              = decimal_digit decimal_digit .
     minute            = decimal_digit decimal_digit .
     second            = decimal_digit decimal_digit .
     fractional_second = "."  { decimal_digit } .
     time_offset       = "Z" | ("+" | "-" ) hour ":" minute .
 
+Examples:
+
+    1952-01-25T12:35:51Z
+    2018-08-15T13:36:23-07:00
+    2009-10-15T09:00:00       // October 15th 2009 at 9 AM in the default location
+    2018-01-01                // midnight on January 1st 2018 in the default location
 
 #### String literals
 
@@ -237,7 +279,7 @@ Additionally any byte value may be specified via a hex encoding using `\x` as th
 TODO(nathanielc): With string interpolation string_lit is not longer a lexical token as part of a literal, but an entire expression in and of itself.
 
 
-[IMPL#312](https://github.com/influxdata/platform/query/issues/312) Parse string literals
+[IMPL#252](https://github.com/influxdata/platform/issues/252) Parse string literals
 
 
 Examples:
@@ -257,7 +299,7 @@ A function "printf" exists to allow more precise control over formatting of vari
 To include the literal curly brackets within a string they must be escaped.
 
 
-[IMPL#316](https://github.com/influxdata/platform/query/issues/316) Add printf function
+[IMPL#248](https://github.com/influxdata/platform/issues/248) Add printf function
 
 Interpolation example:
 
@@ -267,7 +309,7 @@ Interpolation example:
     "openinng curly bracket \{" // openinng curly bracket {
     "closing curly bracket \}" // closing curly bracket }
 
-[IMPL#313](https://github.com/influxdata/platform/query/issues/313) Add string interpolation support
+[IMPL#251](https://github.com/influxdata/platform/issues/251) Add string interpolation support
 
 
 #### Regular expression literals
@@ -296,7 +338,7 @@ Examples:
 The regular expression syntax is defined by [RE2](https://github.com/google/re2/wiki/Syntax).
 
 
-[IMPL#314](https://github.com/influxdata/platform/query/issues/314) Parse regular expression literals
+[IMPL#250](https://github.com/influxdata/platform/issues/250) Parse regular expression literals
 
 ### Variables
 
@@ -309,7 +351,7 @@ A type defines the set of values and operations on those values.
 Types are never explicitly declared as part of the syntax.
 Types are always inferred from the usage of the value.
 
-[IMPL#315](https://github.com/influxdata/platform/query/issues/315) Specify type inference rules
+[IMPL#249](https://github.com/influxdata/platform/issues/249) Specify type inference rules
 
 #### Boolean types
 
@@ -336,6 +378,14 @@ The time type name is `time`.
 
 A _duration type_ represents a length of time with nanosecond precision.
 The duration type name is `duration`.
+
+Durations can be added to times to produce a new time.
+
+Examples:
+
+    2018-07-01T00:00:00Z + 1mo // 2018-08-01T00:00:00Z
+    2018-07-01T00:00:00Z + 2y  // 2020-07-01T00:00:00Z
+    2018-07-01T00:00:00Z + 5h  // 2018-07-01T05:00:00Z
 
 #### String types
 
@@ -367,7 +417,14 @@ The value may be any other type, and need not be the same as other values within
 A _function type_ represents a set of all functions with the same argument and result types.
 
 
-[IMPL#315](https://github.com/influxdata/platform/query/issues/315) Specify type inference rules
+[IMPL#249](https://github.com/influxdata/platform/issues/249) Specify type inference rules
+
+#### Generator types
+
+A _generator type_ represents a value that produces an unknown number of other values.
+The generated values may be of any other type but must all be the same type.
+
+[IMPL#XXX](https://github.com/influxdata/platform/query/issues/XXX) Implement generators
 
 ### Blocks
 
@@ -414,7 +471,7 @@ The package clause is not a assignment; the package name does not appear in any 
 Its purpose is to identify the files belonging to the same package and to specify the default package name for import declarations.
 
 
-[IMPL#317](https://github.com/influxdata/platform/query/issues/317) Add package/namespace support
+[IMPL#247](https://github.com/influxdata/platform/issues/247) Add package/namespace support
 
 #### Variable assignment
 
@@ -448,7 +505,7 @@ We should simplify it and use the EBNF grammar.
 This requires redoing the parser in something besides PEG.
 
 
-[IMPL#318](https://github.com/influxdata/platform/query/issues/318) Update parser to use formal EBNF grammar.
+[IMPL#246](https://github.com/influxdata/platform/issues/246) Update parser to use formal EBNF grammar.
 
 #### Function literals
 
@@ -542,8 +599,16 @@ Grammatically, an option statement is just a variable assignment preceded by the
 
 Below is a list of all options that are currently implemented in the Flux language:
 
-* task
 * now
+* task
+* location
+
+##### now
+
+The `now` option is a function that returns a time value to be used as a proxy for the current system time.
+
+    // Query should execute as if the below time is the current system time
+    option now = () => 2006-01-02T15:04:05-07:00
 
 ##### task
 
@@ -557,12 +622,14 @@ The `task` option is used by a scheduler to schedule the execution of a Flux que
         retry: 5,           // number of times to retry a failed query
     }
 
-##### now
+##### location
 
-The `now` option is a function that returns a time value to be used as a proxy for the current system time.
+The `location` option is used to set the default time zone of all times in the script.
+The location maps the UTC offset in use at that location for a given time.
+The default value is set using the time zone of the running process.
 
-    // Query should execute as if the below time is the current system time
-    option now = () => 2006-01-02T15:04:05Z07:00
+    option location = fixedZone(offset:-5h) // set timezone to be 5 hours west of UTC
+    option location = loadLocation(name:"America/Denver") // set location to be America/Denver
 
 #### Return statements
 
@@ -617,6 +684,7 @@ Details about their arguments and behavior can be found in the Operations sectio
 * min
 * percentile
 * range
+* to
 * sample
 * set
 * shift
@@ -676,6 +744,182 @@ StateDuration computes the duration of a given state.
 
 Top and Bottom sort a table and limits the table to only n records.
 
+##### Time constants
+
+###### Days of the week
+
+Days of the week are represented as integers in the range `[0-6]`.
+The following builtin values are defined:
+
+```
+Sunday    = 0
+Monday    = 1
+Tuesday   = 2
+Wednesday = 3
+Thursday  = 4
+Friday    = 5
+Saturday  = 6
+```
+
+###### Months of the year
+
+Months are represented as integers in the range `[1-12]`.
+The following builtin values are defined:
+
+```
+January   = 1
+February  = 2
+March     = 3
+April     = 4
+May       = 5
+June      = 6
+July      = 7
+August    = 8
+September = 9
+October   = 10
+November  = 11
+December  = 12
+```
+
+##### Time and date functions
+
+These are builtin functions that all take a single `time` argument and return an integer.
+
+* `second` - integer
+    Second returns the second of the minute for the provided time in the range `[0-59]`.
+* `minute` - integer
+    Minute returns the minute of the hour for the provided time in the range `[0-59]`.
+* `hour` - integer
+    Hour returns the hour of the day for the provided time in the range `[0-59]`.
+* `weekDay` - integer
+    WeekDay returns the day of the week for the provided time in the range `[0-6]`.
+* `monthDay` - integer
+    MonthDay returns the day of the month for the provided time in the range `[1-31]`.
+* `yearDay` - integer
+    YearDay returns the day of the year for the provided time in the range `[1-366]`.
+* `month` - integer
+    Month returns the month of the year for the provided time in the range `[1-12]`.
+
+##### System Time
+
+The builtin function `systemTime` returns the current system time.
+All calls to `systemTime` within a single evaluation of a Flux script return the same time.
+
+[IMPL#XXX](https://github.com/influxdata/platform/query/issues/XXX) Make systemTime consistent for a single evaluation.
+
+#### Intervals
+
+Intervals is a function that produces a set of time intervals over an interval.
+An interval is an object with `start` and `stop` properties that correspond to the inclusive start and exclusive stop times of the time interval.
+The return value of `intervals` is another function that accepts `start` and `stop` time parameters and returns an interval generator.
+The generator is then used to produce the set of intervals.
+The `intervals` function is designed to be used with the `intervals` parameter of the `window` function.
+
+Intervals has the following parameters:
+
+* `every` duration
+    Every is the duration between starts of each of the intervals
+* `period` duration
+    Period is the length of each interval.
+    It can be negative, indicating the start and stop boundaries are reversed.
+    Defaults to the value of the `every` duration.
+* `offset` duration
+    Offset is the offset duration relative to the location offset.
+    It can be negative, indicating that the offset goes backwards in time.
+    Defaults to zero.
+* `filter` function
+    Filter accepts an interval object and returns a boolean value.
+    Each potential interval is passed to the filter function, when the function returns false, that interval is excluded from the set of intervals.
+    Defaults to include all intervals.
+
+Examples:
+
+    intervals(every:1h)                        // 1 hour intervals
+    intervals(every:1h, period:2h)             // 2 hour long intervals every 1 hour
+    intervals(every:1h, period:2h, offset:30m) // 2 hour long intervals every 1 hour starting at 30m past the hour
+    intervals(every:1w, offset:1d)             // 1 week intervals starting on Monday (by default weeks start on Sunday)
+    intervals(every:1d, period:-1h)            // the hour from 11PM - 12AM every night
+    intervals(every:1mo, period:-1d)           // the last day of each month
+
+Examples using a predicate:
+
+    // 1 day intervals excluding weekends
+    intervals(
+        every:1d,
+        filter: (interval) => !(weekday(time: interval.start) in [Sunday, Saturday]),
+    )
+    // Work hours from 9AM - 5PM on work days.
+    intervals(
+        every:1d,
+        period:8h,
+        offset:9h,
+        filter:(interval) => !(weekday(time: interval.start) in [Sunday, Saturday]),
+    )
+
+
+[IMPL#XXX](https://github.com/influxdata/platform/query/issues/XXX) Implement intervals function
+
+
+##### Builtin Intervals
+
+The following builtin intervals exist:
+
+    // 1 second intervals starting at the 0th millisecond
+    seconds = intervals(every:1s)
+    // 1 minute intervals starting at the 0th second
+    minutes = intervals(every:1m)
+    // 1 hour intervals starting at the 0th minute
+    hours = intervals(every:1h)
+    // 1 day intervals starting at midnight
+    days = intervals(every:1d)
+    // 1 day intervals excluding Sundays and Saturdays
+    weekdays = intervals(every:1d, filter: (interval) => weekday(time:interval.start) not in [Sunday, Saturday])
+    // 1 day intervals including only Sundays and Saturdays
+    weekdends = intervals(every:1d, filter: (interval) => weekday(time:interval.start) in [Sunday, Saturday])
+    // 1 week intervals starting on Sunday
+    weeks = intervals(every:1w)
+    // 1 month interval starting on the 1st of each month
+    months = intervals(every:1mo)
+    // 3 month intervals starting in January on the 1st of each month.
+    quarters = intervals(every:3mo)
+    // 1 year intervals starting on the 1st of January
+    years = intervals(every:1y)
+
+
+
+#### FixedZone
+
+FixedZone creates a location based on a fixed time offset from UTC.
+
+
+FixedZone has the following parameters:
+
+* offset duration
+    Offset is the offset from UTC for the time zone.
+    Offset must be less than 24h.
+    Defaults to 0, which produces the UTC location.
+
+Examples:
+
+    fixedZone(offset:-5h) // time zone 5 hours west of UTC
+    fixedZone(offset:4h30m) // time zone 4 and a half hours east of UTC
+
+#### LoadLocation
+
+LoadLoacation loads a locations from a time zone database.
+
+LoadLocation has the following parameters:
+
+* name string
+    Name is the name of the location to load.
+    The names correspond to names in the [IANA tzdb](https://www.iana.org/time-zones).
+
+Examples:
+
+    loadLocation(name:"America/Denver")
+    loadLocation(name:"America/Chicago")
+    loadLocation(name:"Africa/Tunis")
+
 ## Query engine
 
 The execution of a query is separate and distinct from the execution of Flux the language.
@@ -695,7 +939,7 @@ An encoding must consist of three properties:
 
 * operations -  a list of operations and their specification.
 * edges - a list of edges declaring a parent child relation between operations.
-* resources - an optional set of contraints on the resources the query can consume.
+* resources - an optional set of constraints on the resources the query can consume.
 
 Each operation has three properties:
 
@@ -778,10 +1022,6 @@ These common values are referred to as the group key value, and can be represent
 A tables schema consists of its group key, and its column's labels and types.
 
 
-[IMPL#294](https://github.com/influxdata/platform/query/issues/294) Remove concept of Kind from table columns
-[IMPL#319](https://github.com/influxdata/platform/query/issues/319) Remove concept of Bounds from tables
-[IMPL#320](https://github.com/influxdata/platform/query/issues/320) Rename block to table
-
 #### Stream
 
 A stream represents a potentially unbounded dataset.
@@ -795,7 +1035,7 @@ Missing values are represented with a special _null_ value.
 The _null_ value can be of any data type.
 
 
-[IMPL#219](https://github.com/influxdata/platform/query/issues/219) Design how nulls behave
+[IMPL#300](https://github.com/influxdata/platform/issues/300) Design how nulls behave
 
 #### Operations
 
@@ -850,6 +1090,9 @@ Yield has the following properties:
 * `name` string
     unique name to give to yielded results
 
+Example:
+`from(db: "telegraf") |> range(start: -5m) |> yield(name:"1")`
+
 #### Aggregate operations
 
 Aggregate operations output a table for every input table they receive.
@@ -879,8 +1122,6 @@ All aggregate operations have the following properties:
     timeDst is the destination column to use for the resulting aggregate record.
     Defaults to `_time`.
 
-[IMPL#294](https://github.com/influxdata/platform/query/issues/294) Remove concept of Kind from table columns
-
 ##### Covariance
 
 Covariance is an aggregate operation.
@@ -896,10 +1137,36 @@ Covariance has the following properties:
 
 Additionally exactly two columns must be provided to the `columns` property.
 
+Example:
+`from(db: "telegraf) |> range(start:-5m) |> covariance(columns: ["x", "y"])`
+
 ##### Count
 
 Count is an aggregate operation.
 For each aggregated column, it outputs the number of non null records as an integer.
+
+Example:
+`from(db: "telegraf") |> range(start: -5m) |> count()`
+
+#### Duplicate 
+Duplicate will duplicate a specified column in a table
+
+Duplicate has the following properties:
+
+* `column` string
+	The column to duplicate
+* `as` string
+	The name that should be assigned to the duplicate column
+
+Example usage:
+
+Duplicate column `server` under the name `host`:
+```
+from(db: "telegraf")
+	|> range(start:-5m)
+	|> filter(fn: (r) => r._measurement == "cpu")
+	|> duplicate(column: "host", as: "server")
+```
 
 ##### Integral
 
@@ -912,10 +1179,29 @@ Integral has the following properties:
 * `unit` duration
     unit is the time duration to use when computing the integral
 
+Example: 
+
+```
+from(db: "telegraf") 
+    |> range(start: -5m) 
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system") 
+    |> integral(unit:10s)
+```
+
 ##### Mean
 
 Mean is an aggregate operation.
 For each aggregated column, it outputs the mean of the non null records as a float.
+
+Example: 
+```
+from(db:"telegraf")
+    |> filter(fn: (r) => r._measurement == "mem" AND
+            r._field == "used_percent")
+    |> range(start:-12h)
+    |> window(every:10m)
+    |> mean()
+```
 
 ##### Percentile
 
@@ -935,10 +1221,27 @@ Percentile has the following properties:
    A larger number produces a more accurate result at the cost of increased memory requirements.
    Defaults to 1000.
 
+Example:
+```
+// Determine 99th percentile cpu system usage:
+from(db: "telegraf")
+	|> range(start: -5m)
+	|> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
+	|> percentile(p: 0.99)
+```
+
 ##### Skew
 
 Skew is an aggregate operation.
 For each aggregated column, it outputs the skew of the non null record as a float.
+
+Example:
+```
+from(db: "telegraf") 
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
+    |> skew()
+```
 
 ##### Spread
 
@@ -947,16 +1250,39 @@ For each aggregated column, it outputs the difference between the min and max va
 The type of the output column depends on the type of input column: for input columns with type `uint` or `int`, the output is an `int`; for `float` input columns the output is a `float`.
 All other input types are invalid.
 
+Example:
+```
+from(db: "telegraf") 
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
+    |> spread()
+```
 ##### Stddev
 
 Stddev is an aggregate operation.
 For each aggregated column, it outputs the standard deviation of the non null record as a float.
+
+Example:
+```
+from(db: "telegraf") 
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
+    |> stddev()
+```
 
 ##### Sum
 
 Stddev is an aggregate operation.
 For each aggregated column, it outputs the sum of the non null record.
 The output column type is the same as the input column type.
+
+Example:
+```
+from(db: "telegraf") 
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
+    |> sum()
+```
 
 #### Multiple aggregates
 
@@ -981,27 +1307,48 @@ All selector operations have the following properties:
 * `column` string
     column specifies a which column to use when selecting.
 
-[IMPL#294](https://github.com/influxdata/platform/query/issues/294) Remove concept of Kind from table columns
-
 ##### First
 
 First is a selector operation.
 First selects the first non null record from the input table.
+
+Example:
+`from(db:"telegraf") |> first()`
 
 ##### Last
 
 Last is a selector operation.
 Last selects the last non null record from the input table.
 
+Example:
+`from(db: "telegraf") |> last()`
+
 ##### Max
 
 Max is a selector operation.
 Max selects the maximum record from the input table.
 
+Example:
+```
+from(db:"telegraf")
+    |> range(start:-12h)
+    |> filter(fn: (r) => r._measurement == "cpu" AND r._field == "usage_system")
+    |> max()
+```
+
 ##### Min
 
 Min is a selector operation.
 Min selects the minimum record from the input table.
+
+Example: 
+
+```
+from(db:"telegraf")
+    |> range(start:-12h)
+    |> filter(fn: (r) => r._measurement == "cpu" AND r._field == "usage_system")
+    |> min()
+```
 
 ##### Sample
 
@@ -1017,6 +1364,16 @@ The following properties define how the sample is selected.
     The `pos` must be less than `n`.
     If `pos` is less than 0, a random offset is used.
     Default is -1 (random offset).
+
+Example:
+
+```
+from(db:"telegraf")
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+               r._field == "usage_system")
+    |> range(start:-1d)
+    |> sample(n: 5, pos: 1)
+```
 
 
 #### Filter
@@ -1034,6 +1391,16 @@ Filter has the following properties:
     Records which evaluate to true, will be included in the output tables.
     TODO(nathanielc): Do we need a syntax for expressing type signatures?
 
+Example: 
+
+```
+from(db:"telegraf")
+    |> range(start:-12h)
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+                r._field == "usage_system" AND
+                r.service == "app-server")
+```
+
 #### Limit
 
 Limit caps the number of records in output tables to a fixed size n.
@@ -1045,6 +1412,8 @@ Limit has the following properties:
 
 * `n` int
     The maximum number of records to output.
+
+Example: `from(db: "telegraf") |> limit(n: 10)`
 
 #### Map
 
@@ -1066,6 +1435,27 @@ Map has the following properties:
     When not merging, only columns defined on the returned record will be present on the output records.
     Defaults to true.
 
+Example:
+```
+from(db:"telegraf")
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+                r._field == "usage_system" AND
+                r.service == "app-server")
+    |> range(start:-12h)
+    // Square the value
+    |> map(fn: (r) => r._value * r._value)
+```
+Example (creating a new table):
+```
+from(db:"telegraf")
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+                r._field == "usage_system" AND
+                r.service == "app-server")
+    |> range(start:-12h)
+    // create a new table by copying each row into a new format
+    |> map(fn: (r) => {_time: r._time, app_server: r._service})
+```
+
 #### Range
 
 Range filters records based on provided time bounds.
@@ -1074,7 +1464,7 @@ Each input table's group key value is modified to fit within the time bounds.
 Tables where all records exists outside the time bounds are filtered entirely.
 
 
-[IMPL#321](https://github.com/influxdata/platform/query/issues/321) Update range to default to aligned window ranges.
+[IMPL#244](https://github.com/influxdata/platform/issues/244) Update range to default to aligned window ranges.
 
 Range has the following properties:
 
@@ -1082,8 +1472,22 @@ Range has the following properties:
     Specifies the oldest time to be included in the results
 * `stop` duration or timestamp
     Specifies the exclusive newest time to be included in the results.
-    Defaults to "now"
+    Defaults to the value of the `now` option time.
 
+Example:
+```
+from(db:"telegraf")
+    |> range(start:-12h, stop: -15m)
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+               r._field == "usage_system")
+```
+Example:
+```
+from(db:"telegraf")
+    |> range(start:2018-05-22T23:30:00Z, stop: 2018-05-23T00:00:00Z)
+    |> filter(fn: (r) => r._measurement == "cpu" AND
+               r._field == "usage_system")
+```
 #### Rename 
 
 Rename will rename specified columns in a table. 
@@ -1100,9 +1504,18 @@ Rename has the following properties:
 
 Example usage:
 
-Rename a single column: `rename(columns:{host: "server"})`
-
-Rename all columns with `fn` parameter: `rename(fn: (col) => "{col}_new")`
+Rename a single column: 
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> rename(columns:{host: "server"})
+```
+Rename all columns using `fn` parameter: 
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> rename(fn: (col) => "{col}_new")
+```
 
 #### Drop 
 
@@ -1119,9 +1532,18 @@ Drop has the following properties:
 
 Example Usage:
 
-Drop a list of columns: `drop(columns: ["host", "_measurement"])`
-
-Drop all columns matching a predicate: `drop(fn: (col) => col =~ /usage*/)`
+Drop a list of columns
+```
+from(db: "telegraf")
+	|> range(start: -5m)
+	|> drop(columns: ["host", "_measurement"])
+```
+Drop columns matching a predicate:
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> drop(fn: (col) => col =~ /usage*/)
+```
 
 #### Keep 
 
@@ -1142,6 +1564,18 @@ Keep a list of columns: `keep(columns: ["_time", "_value"])`
 
 Keep all columns matching a predicate: `keep(fn: (col) => col =~ /inodes*/)`
 
+Keep a list of columns:
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> keep(columns: ["_time", "_value"])
+```
+Keep all columns matching a predicate:
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> keep(fn: (col) => col =~ /inodes*/) 
+```
 
 #### Set
 
@@ -1157,6 +1591,10 @@ Set has the following properties:
 * `value` string
     value is the string value to set
 
+Example: 
+```
+from(db: "telegraf") |> set(key: "mykey", value: "myvalue")
+```
 
 #### Sort
 
@@ -1172,7 +1610,14 @@ Sort has the following properties:
 * `desc` bool
     Sort results in descending order.
 
-
+Example:
+```
+from(db:"telegraf")
+    |> filter(fn: (r) => r._measurement == "system" AND
+               r._field == "uptime")
+    |> range(start:-12h)
+    |> sort(cols:["region", "host", "value"])
+```
 #### Group
 
 Group groups records based on their values for specific columns.
@@ -1184,17 +1629,29 @@ Group has the following properties:
     Group by these specific columns.
     Cannot be used with `except`.
 *  `except` list of strings
-    Group by all other column except this list of columns.
+    Group by all other columns except this list.
     Cannot be used with `by`.
 
 Examples:
-
     group(by:["host"]) // group records by their "host" value
     group(except:["_time", "region", "_value"]) // group records by all other columns except for _time, region, and _value
     group(by:[]) // group all records into a single group
     group(except:[]) // group records into all unique groups
 
-[IMPL#322](https://github.com/influxdata/platform/query/issues/322) Investigate always keeping all columns in group.
+```
+from(db: "telegraf") 
+    |> range(start: -30m) 
+    |> group(by: ["host", "_measurement"])
+```
+All records are grouped by the "host" and "_measurement" columns. The resulting group key would be ["host, "_measurement"]
+
+```
+from(db: "telegraf")
+    |> range(start: -30m)
+    |> group(except: ["_time"])
+```
+All records are grouped by the set of all columns in the table, excluding "_time". For example, if the table has columns ["_time", "host", "_measurement", "_field", "_value"] then the group key would be ["host", "_measurement", "_field", "_value"]
+
 
 #### Window
 
@@ -1206,49 +1663,205 @@ A single input record will be placed into zero or more output tables, depending 
 Window has the following properties:
 
 * `every` duration
-    Duration of time between windows
+    Duration of time between windows.
     Defaults to `period`'s value
+    One of `every`, `period` or `intervals` must be provided.
 * `period` duration
-    Duration of the windowed group
-    Default to `every`'s value
-* `start` time
-    The time of the initial window group
-* `round` duration
-    Rounds a window's bounds to the nearest duration
+    Duration of the window.
+    Period is the length of each interval.
+    It can be negative, indicating the start and stop boundaries are reversed.
     Defaults to `every`'s value
-* `column` string
-    Name of the time column to use. Defaults to `_time`.
+    One of `every`, `period` or `intervals` must be provided.
+* `offset` time
+    The offset duration relative to the location offset.
+    It can be negative, indicating that the offset goes backwards in time.
+    The default aligns the window boundaries to line up with the `now` option time.
+* `intervals` function that returns an interval generator
+    A set of intervals to be used as the windows.
+    One of `every`, `period` or `intervals` must be provided.
+    When `intervals` is provided, `every`, `period`, and `offset` must be zero.
+* `timeCol` string
+    Name of the time column to use.
+    Defaults to `_time`.
 * `startCol` string
-    Name of the column containing the window start time. Defaults to `_start`.
+    Name of the column containing the window start time.
+    Defaults to `_start`.
 * `stopCol` string
-    Name of the column containing the window stop time. Defaults to `_stop`.
+    Name of the column containing the window stop time.
+    Defaults to `_stop`.
 
-[IMPL#319](https://github.com/influxdata/platform/query/issues/319) Remove concept of Bounds from tables
+Example: 
+```
+from(db:"telegraf")
+    |> range(start:-12h)
+    |> window(every:10m)
+    |> max()
+```
 
-#### Collate
+```
+window(every:1h) // window the data into 1 hour intervals
+window(intervals: intervals(every:1d, period:8h, offset:9h)) // window the data into 8 hour intervals starting at 9AM every day.
+```
 
-[IMPL#323](https://github.com/influxdata/platform/query/issues/323) Add function that makes it easy to get all fields as columns given a set of tags.
+#### Pivot
+
+Pivot collects values stored vertically (column-wise) in a table and aligns them horizontally (row-wise) into logical sets.  
+
+
+Pivot has the following properties:
+
+* `rowKey` array of strings
+    List of columns used to uniquely identify a row for the output.
+* `colKey` array of strings
+    List of columns used to pivot values onto each row identified by the rowKey. 
+* `valueCol` string
+    Identifies the single column that contains the value to be moved around the pivot
+    
+
+The group key of the resulting table will be the same as the input tables, excluding the columns found in the colKey and valueCol. 
+This is because these columns are not part of the resulting output table.  
+
+Every input row should have a 1:1 mapping to a particular row + column in the output table, determined by its values for the rowKey and colKey.   
+In the case where more than one value is identified for the same row+column pair in the output, the last value 
+encountered in the set of table rows is taken as the result.
+
+The output table will have columns based on the row key, plus the group key (minus any group key colums in the column key) 
+plus new columns for each unique tuple of values identified by the column key.  
+Any columns in the original table that are not referenced in the rowKey or the original table's group key will be dropped.  
+
+The output is constructed as follows:
+1. A new row is created for each unique value identified in the input by the rowKey parameter.
+2. The initial set of columns for the new row is the row key unioned with the group key, but excluding the columns indicated by the colKey and the valueCol.
+3. A set of value columns are added to the row for each unique value identified in the input by the columnKey parameter. 
+The label is a concatenation of the valueCol string and the colKey values using '_' as a separator. 
+4. For each rowKey, columnKey pair, the appropriate value is determined from the input table by the valueCol. 
+If no value is found, the value is set to `null`.
+
+[IMPL#353](https://github.com/influxdata/platform/issues/353) Null defined in spec but not implemented.  
+
+#### FromRows
+
+FromRows is a special application of pivot that will automatically align fields within each measurement that have the same time stamp.
+Its definition is: 
+
+```
+  fromRows = (db) => from(db:db) |> pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")
+```
+
+Example: 
+
+```
+fromRows(db:"telegraf")
+  |> range(start: 2018-05-22T19:53:26Z)
+```
 
 #### Join
 
-Join merges two or more input streams into a single output stream.
-Input tables are matched on their group keys and then each of their records are joined into a single output table.
-The output table group key will be the same as the input table.
+Join merges two or more input streams, whose values are equal on a set of common columns, into a single output stream.
+The resulting schema is the union of the input schemas, and the resulting group key is the union of the input group keys.
 
-The join operation compares values based on equality.
+For example, given the following two streams of data:
 
-Join has the following properties:
+* SF_Temperature
 
-* `tables` map of tables
-    Map of tables to join. Currently only two tables are allowed.
-* `on` array of strings
-    List of columns on which to join the tables.
-* `fn`
-    Defines the function that merges the values of the tables.
-    The function must defined to accept a single parameter.
-    The parameter is an object where the value of each key is a corresponding record from the input streams.
-    The return value must be an object which defines the output record structure.
+    | _time | _field | _value |
+    | ----- | ------ | ------ |
+    | 0001  | "temp" | 70 |
+    | 0002  | "temp" | 75 |
+    | 0003  | "temp" | 72 |
 
+* NY_Temperature
+
+    | _time | _field | _value |
+    | ----- | ------ | ------ |
+    | 0001  | "temp" | 55 |
+    | 0002  | "temp" | 56 |
+    | 0003  | "temp" | 55 |
+
+And the following join query: `join(tables: {sf: SF_Temperature, ny: NY_Temperature}, on: ["_time", "_field"])`
+
+The output will be:
+
+| _time | _field | ny__value | sf__value |
+| ----- | ------ |---------- | --------- |
+| 0001  | "temp" | 55 | 70 |
+| 0002  | "temp" | 56 | 75 |
+| 0003  | "temp" | 55 | 72 |
+
+
+##### options
+
+The join operator accepts the following named parameters:
+
+| Name | Type | Required | Default Value | Possible Values |
+| ---- | ---- | -------- | ------- | ------ |
+| tables    | map           | yes   | no default value - must be specified with every call | N/A |
+| on        | string array  | no    | list of columns to join on | N/A |
+| method    | string        | no    | inner | inner, cross, left, right, or outer |
+
+* tables
+
+    Map of tables (or streams) to join together. It is the one required parameter of the join.
+
+* on
+
+    An optional parameter for specifying a list of columns to join on.
+    Defaults to the set of columns that are common to all of the input streams.
+
+* method
+
+    An optional parameter that specifies the type of join to be performed.
+    When not specified, an inner join is performed.
+    The **method** parameter may take on any one of the following values:
+
+    * inner - inner join
+
+    * cross - cross product
+
+    * left - left outer join
+
+    * right - right outer join
+
+    * outer - full outer join
+
+The **on** parameter and the **cross** method are mutually exclusive.
+
+
+##### output schema
+
+The column schema of the output stream is the union of the input schemas, and the same goes for the output group key.
+Columns that must be renamed due to ambiguity (i.e. columns that occur in more than one input stream) are renamed
+according to the template `<table>_<column>`.
+
+Examples:
+
+* SF_Temperature
+* Group Key {"_field"}
+
+    | _time | _field | _value |
+    | ----- | ------ | ------ |
+    | 0001  | "temp" | 70 |
+    | 0002  | "temp" | 75 |
+    | 0003  | "temp" | 72 |
+
+* NY_Temperature
+* Group Key {"_time", "_field"}
+
+    | _time | _field | _value |
+    | ----- | ------ | ------ |
+    | 0001  | "temp" | 55 |
+    | 0002  | "temp" | 56 |
+    | 0003  | "temp" | 55 |
+
+`join(tables: {sf: SF_Temperature, ny: NY_Temperature}, on: ["_time"])` produces:
+
+* Group Key {"_time", "sf__field", "ny__field"}
+
+    | _time | sf__field | sf__value | ny__field | ny__value |
+    | ----- | ------ | ---------- | -------- |--------- |
+    | 0001  | "temp" | 70 | "temp" | 55 |
+    | 0002  | "temp" | 75 | "temp" | 56 |
+    | 0003  | "temp" | 72 | "temp: | 55 |
 
 
 #### Cumulative sum
@@ -1260,6 +1873,14 @@ Cumulative sum has the following properties:
 
 * `columns` list string
     columns is a list of columns on which to operate.
+
+Example:
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "disk" and r._field == "used_percent")
+    |> cumulativeSum(columns: ["_value"])
+```
 
 #### Derivative
 
@@ -1278,6 +1899,13 @@ Derivative has the following properties:
     timeSrc is the source column for the time values.
     Defaults to `_time`.
 
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "disk" and r._field == "used_percent")
+    |> derivative(nonNegative: true, columns: ["used_percent"])
+```
+
 #### Difference
 
 Difference computes the difference between subsequent non null records.
@@ -1290,6 +1918,12 @@ Difference has the following properties:
 * `columns` list strings
     columns is a list of columns on which to compute the difference.
 
+```
+from(db: "telegraf")
+    |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
+    |> difference()
+```
 #### Distinct
 
 Distinct produces the unique values for a given column.
@@ -1299,6 +1933,13 @@ Distinct has the following properties:
 * `column` string
     column the column on which to track unique values.
 
+Example: 
+```
+from(db: "telegraf")
+	|> range(start: -5m)
+	|> filter(fn: (r) => r._measurement == "cpu")
+	|> distinct(column: "host")
+```
 
 #### Shift
 
@@ -1313,6 +1954,79 @@ Shift has the following properties:
 * `columns` list of strings
     columns is the list of all columns that should be shifted.
     Defaults to `["_start", "_stop", "_time"]`
+Example:
+```
+from(db: "telegraf")
+	|> range(start: -5m)
+	|> shift(shift: 1000h)
+```
+
+
+#### To
+
+The To operation takes data from a stream and writes it to a bucket.
+To has the following properties:
+
+* `bucket` string  
+    The bucket to which data will be written.
+* `bucketID` string  
+    The ID of the bucket to which data will be written.
+* `org` string  
+    The organization name of the above bucket.
+* `orgID` string  
+    The organization ID of the above bucket.
+* `host` string  
+    The remote host to write to. 
+* `token` string  
+    The authorization token to use when writing to a remote host.
+* `timeColumn` string  
+    The time column of the output.  
+    **Default:** `"_time"`
+* `tagColumns` list of strings  
+    The tag columns of the output.  
+    **Default:** All columns of type string, excluding all value columns and the `_field` column if present.
+* `fieldFn` function(record) object  
+    Function that takes a record from the input table and returns an object.  
+    For each record from the input table `fieldFn` returns on object that maps output field key to output value.  
+    **Default:** `(r) => ({ [r._field]: r._value })`
+
+Either `bucket` or `bucketID` is required.
+Both are mutually exclusive.
+Similarly `org` and `orgID` are mutually exclusive and only required when writing to a remote host.
+Both `host` and `token` are optional parameters, however if `host` is specified, `token` is required.
+
+
+For example, given the following table:
+
+| _time | _start | _stop | _measurement | _field | _value |
+| ----- | ------ | ----- | ------------ | ------ | ------ |
+| 0005  | 0000   | 0009  | "a"          | "temp" | 100.1  |
+| 0006  | 0000   | 0009  | "a"          | "temp" | 99.3   |
+| 0007  | 0000   | 0009  | "a"          | "temp" | 99.9   |
+
+The default `to` operation `to(bucket:"my-bucket", org:"my-org")` is equivalent to writing the above data using the following line protocol:
+
+```
+_measurement=a temp=100.1 0005
+_measurement=a temp=99.3 0006
+_measurement=a temp=99.9 0007
+```
+
+For an example overriding `to`'s default settings, given the following table:
+
+| _time | _start | _stop | tag1 | tag2 | hum | temp |
+| ----- | ------ | ----- | ---- | ---- | ---- | ---- |
+| 0005  | 0000   | 0009  | "a"  | "b"  | 55.3 | 100.1  |
+| 0006  | 0000   | 0009  | "a"  | "b"  | 55.4 | 99.3   |
+| 0007  | 0000   | 0009  | "a"  | "b"  | 55.5 | 99.9   |
+
+The operation `to(bucket:"my-bucket", org:"my-org", tagColumns:["tag1"], fieldFn: (r) => return {"hum": r.hum, "temp": r.temp})` is equivalent to writing the above data using the following line protocol:
+
+```
+_tag1=a hum=55.3,temp=100.1 0005
+_tag1=a hum=55.4,temp=99.3 0006
+_tag1=a hum=55.5,temp=99.9 0007
+```
 
 #### Type conversion operations
 
@@ -1380,7 +2094,7 @@ The function `toUInt` is defined as `toUInt = (table=<-) => table |> map(fn:(r) 
 If you need to convert other columns use the `map` function directly with the `uint` function.
 
 
-[IMPL#324](https://github.com/influxdata/platform/query/issues/324) Update specification around type conversion functions.
+[IMPL#242](https://github.com/influxdata/platform/issues/242) Update specification around type conversion functions.
 
 
 ### Composite data types
@@ -1392,7 +2106,7 @@ A composite data type is a collection of primitive data types that together have
 Histogram is a composite type that represents a discrete cumulative distribution.
 Given a histogram with N buckets there will be N columns with the label `le_X` where `X` is replaced with the upper bucket boundary.
 
-[IMPL#325](https://github.com/influxdata/platform/query/issues/325) Add support for a histogram composite data type.
+[IMPL#241](https://github.com/influxdata/platform/issues/241) Add support for a histogram composite data type.
 
 ### Triggers
 
@@ -1417,7 +2131,7 @@ Currently all tables use an _after watermark_ trigger which fires only once the 
 
 Data sources are responsible for informing about updates to the watermark.
 
-[IMPL#326](https://github.com/influxdata/platform/query/issues/326) Make trigger support not dependent on specific columns
+[IMPL#240](https://github.com/influxdata/platform/issues/240) Make trigger support not dependent on specific columns
 
 ### Execution model
 
@@ -1755,5 +2469,3 @@ Example error encoding with after a valid table has already been encoded.
 ,error,reference
 ,query terminated: reached maximum allowed memory limits,576
 ```
-
-[IMPL#327](https://github.com/influxdata/platform/query/issues/327) Finalize csv encoding specification

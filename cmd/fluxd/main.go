@@ -20,6 +20,9 @@ import (
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/functions/storage/pb"
+	"github.com/influxdata/platform/snowflake"
+	pzap "github.com/influxdata/platform/zap"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -85,6 +88,11 @@ func fluxF(cmd *cobra.Command, args []string) {
 	// Create top level logger
 	logger = influxlogger.New(os.Stdout)
 
+	tracer := new(pzap.Tracer)
+	tracer.Logger = logger
+	tracer.IDGenerator = snowflake.NewIDGenerator()
+	opentracing.SetGlobalTracer(tracer)
+
 	reg := prom.NewRegistry()
 	reg.MustRegister(prometheus.NewGoCollector())
 	reg.WithLogger(logger)
@@ -93,6 +101,7 @@ func fluxF(cmd *cobra.Command, args []string) {
 		ExecutorDependencies: make(execute.Dependencies),
 		ConcurrencyQuota:     concurrencyQuota,
 		MemoryBytesQuota:     int64(memoryBytesQuota),
+		Logger:               logger,
 		Verbose:              viper.GetBool("verbose"),
 	}
 	if err := injectDeps(config.ExecutorDependencies); err != nil {
@@ -120,6 +129,7 @@ func fluxF(cmd *cobra.Command, args []string) {
 	handler := http.NewHandlerFromRegistry("query", reg)
 	handler.Handler = queryHandler
 	handler.Logger = logger
+	handler.Tracer = tracer
 
 	logger.Info("listening", zap.String("transport", "http"), zap.String("addr", bindAddr))
 	if err := nethttp.ListenAndServe(bindAddr, handler); err != nil {

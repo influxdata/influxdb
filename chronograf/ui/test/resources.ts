@@ -30,6 +30,7 @@ export const me = {
 }
 
 export const sourceLinks: SourceLinks = {
+  query: '/chronograf/v1/sources/16/query',
   services: '/chronograf/v1/sources/16/services',
   self: '/chronograf/v1/sources/16',
   kapacitors: '/chronograf/v1/sources/16/kapacitors',
@@ -52,9 +53,6 @@ export const source: Source = {
   insecureSkipVerify: true,
   default: false,
   telegraf: 'telegraf',
-  organization: '0',
-  role: 'viewer',
-  defaultRP: '',
   links: sourceLinks,
   authentication: SourceAuthenticationMethod.Basic,
 }
@@ -507,8 +505,22 @@ export const layout = {
         },
       ],
       axes: {
-        x: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
-        y: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
+        x: {
+          bounds: [],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '',
+          scale: '',
+        },
+        y: {
+          bounds: [],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '',
+          scale: '',
+        },
         y2: {
           bounds: [],
           label: '',
@@ -537,8 +549,22 @@ export const layout = {
         },
       ],
       axes: {
-        x: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
-        y: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
+        x: {
+          bounds: [],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '',
+          scale: '',
+        },
+        y: {
+          bounds: [],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '',
+          scale: '',
+        },
         y2: {
           bounds: [],
           label: '',
@@ -567,8 +593,22 @@ export const layout = {
         },
       ],
       axes: {
-        x: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
-        y: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
+        x: {
+          bounds: [],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '',
+          scale: '',
+        },
+        y: {
+          bounds: [],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '',
+          scale: '',
+        },
         y2: {
           bounds: [],
           label: '',

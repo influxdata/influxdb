@@ -11,7 +11,7 @@ import (
 )
 
 func TestDifferenceOperation_Marshaling(t *testing.T) {
-	data := []byte(`{"id":"difference","kind":"difference","spec":{"non_negative":true}}`)
+	data := []byte(`{"id":"difference","kind":"difference","spec":{"nonNegative":true}}`)
 	op := &query.Operation{
 		ID: "difference",
 		Spec: &functions.DifferenceOpSpec{

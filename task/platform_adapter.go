@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
@@ -66,7 +67,9 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 		return err
 	}
 
-	id, err := p.s.CreateTask(ctx, t.Organization, t.Owner.ID, t.Flux)
+	// TODO(mr): decide whether we allow user to configure scheduleAfter. https://github.com/influxdata/platform/issues/595
+	scheduleAfter := time.Now().Unix()
+	id, err := p.s.CreateTask(ctx, t.Organization, t.Owner.ID, t.Flux, scheduleAfter)
 	if err != nil {
 		return err
 	}
@@ -145,9 +148,9 @@ func (p pAdapter) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*p
 }
 
 func (p pAdapter) FindRunByID(ctx context.Context, id platform.ID) (*platform.Run, error) {
-	// TODO(lh): the inmem FindRunByID method doesnt need the taskId but we will need it PlatformAdapter
-	// this call to the store is a filler until platform.TaskService gets the update to add the id
-	return p.r.FindRunByID(ctx, platform.ID([]byte("replace")), id)
+	// TODO(lh): the inmem FindRunByID method doesnt need the taskId or orgId but we will need it PlatformAdapter
+	// this call to the store is a filler until platform.TaskService gets the update to add the IDs
+	return p.r.FindRunByID(ctx, platform.ID([]byte("replace")), platform.ID([]byte("replace")), id)
 }
 
 func (p pAdapter) RetryRun(ctx context.Context, id platform.ID) (*platform.Run, error) {

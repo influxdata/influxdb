@@ -44,7 +44,7 @@ required = [
 
 [[constraint]]
   name = "github.com/influxdata/influxdb"
-  branch = "master"
+  branch = "platform"
 
 [[constraint]]
   name = "github.com/influxdata/tdigest"

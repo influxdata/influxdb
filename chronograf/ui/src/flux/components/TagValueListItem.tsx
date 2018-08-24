@@ -1,27 +1,30 @@
+// Libraries
 import React, {PureComponent, MouseEvent, ChangeEvent} from 'react'
-
 import {CopyToClipboard} from 'react-copy-to-clipboard'
 
-import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
-import parseValuesColumn from 'src/shared/parsing/flux/values'
+// Components
 import TagList from 'src/flux/components/TagList'
 import LoaderSkeleton from 'src/flux/components/LoaderSkeleton'
 
+// APIs
+import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
+
+// Utils
+import parseValuesColumn from 'src/shared/parsing/flux/values'
+
+// Constants
 import {
   notifyCopyToClipboardSuccess,
   notifyCopyToClipboardFailed,
 } from 'src/shared/copy/notifications'
 
-import {
-  Service,
-  SchemaFilter,
-  RemoteDataState,
-  NotificationAction,
-} from 'src/types'
+// Types
+import {Source} from 'src/types/v2'
+import {SchemaFilter, RemoteDataState, NotificationAction} from 'src/types'
 
 interface Props {
   db: string
-  service: Service
+  source: Source
   tagKey: string
   value: string
   filter: SchemaFilter[]
@@ -47,7 +50,7 @@ class TagValueListItem extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {db, service, value} = this.props
+    const {db, source, value, notify} = this.props
     const {searchTerm, isOpen} = this.state
 
     return (
@@ -85,7 +88,8 @@ class TagValueListItem extends PureComponent<Props, State> {
               )}
               <TagList
                 db={db}
-                service={service}
+                notify={notify}
+                source={source}
                 tags={this.tags}
                 filter={this.filter}
               />
@@ -113,12 +117,12 @@ class TagValueListItem extends PureComponent<Props, State> {
   }
 
   private async getTags() {
-    const {db, service} = this.props
+    const {db, source} = this.props
 
     this.setState({loading: RemoteDataState.Loading})
 
     try {
-      const response = await fetchTagKeys(service, db, this.filter)
+      const response = await fetchTagKeys(source, db, this.filter)
       const tags = parseValuesColumn(response)
       this.setState({tags, loading: RemoteDataState.Done})
     } catch (error) {

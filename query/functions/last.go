@@ -6,7 +6,6 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/plan"
-	"github.com/influxdata/platform/query/semantic"
 )
 
 const LastKind = "last"
@@ -18,9 +17,6 @@ type LastOpSpec struct {
 var lastSignature = query.DefaultFunctionSignature()
 
 func init() {
-	lastSignature.Params["column"] = semantic.String
-	lastSignature.Params["useRowTime"] = semantic.Bool
-
 	query.RegisterFunction(LastKind, createLastOpSpec, lastSignature)
 	query.RegisterOpSpec(LastKind, newLastOp)
 	plan.RegisterProcedureSpec(LastKind, newLastProcedure, LastKind)
@@ -82,7 +78,7 @@ func (s *LastProcedureSpec) PushDown(root *plan.Procedure, dup func() *plan.Proc
 		root = dup()
 		selectSpec = root.Spec.(*FromProcedureSpec)
 		selectSpec.BoundsSet = false
-		selectSpec.Bounds = plan.BoundsSpec{}
+		selectSpec.Bounds = query.Bounds{}
 		selectSpec.LimitSet = false
 		selectSpec.PointsLimit = 0
 		selectSpec.SeriesLimit = 0
@@ -92,7 +88,7 @@ func (s *LastProcedureSpec) PushDown(root *plan.Procedure, dup func() *plan.Proc
 		return
 	}
 	selectSpec.BoundsSet = true
-	selectSpec.Bounds = plan.BoundsSpec{
+	selectSpec.Bounds = query.Bounds{
 		Start: query.MinTime,
 		Stop:  query.Now,
 	}

@@ -1,1 +1,2 @@
-error: function references unknown column "_field"
+error,reference
+"function references unknown column ""_field""",

@@ -1,3 +1,4 @@
+// Package values declares the flux data types and implements them.
 package values
 
 import (

@@ -1,4 +1,4 @@
-import {Kapacitor, Service} from './'
+import {Service} from './'
 
 export type NewSource = Pick<Source, Exclude<keyof Source, 'id'>>
 
@@ -21,17 +21,15 @@ export interface Source {
   insecureSkipVerify: boolean
   default: boolean
   telegraf: string
-  organization: string
-  role: string
-  defaultRP: string
   links: SourceLinks
-  kapacitors?: Kapacitor[] // this field does not exist on the server type for Source and is added in the client in the reducer for loading kapacitors.
+  defaultRP?: string
   text?: string // added client-side for dropdowns
   services?: Service[]
-  authentication: SourceAuthenticationMethod
+  authentication?: SourceAuthenticationMethod
 }
 
 export interface SourceLinks {
+  query: string
   self: string
   kapacitors: string
   proxy: string

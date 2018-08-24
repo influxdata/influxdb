@@ -5,6 +5,16 @@ info:
 servers:
   - url: /v1
 paths:
+  /:
+    get:
+      summary: Map of all top level routes available
+      responses:
+        default:
+          description: All routes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Routes"
   /write:
     post:
       tags:
@@ -87,6 +97,58 @@ paths:
           description: Server is healthy
         default:
           description: Any response other than 204 is an internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /flux:
+    get:
+      responses:
+        '200':
+          description: Links for flux language server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FluxLinks"
+        default:
+          description: Any response other than 200 is an internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /flux/suggestions:
+    get:
+      responses:
+        '200':
+          description: Suggestions for next functions in call chain
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FluxSuggestions"
+        default:
+          description: Any response other than 200 is an internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /flux/suggestions/{name}:
+    parameters:
+      - in: path
+        name: name
+        schema:
+          type: string
+        required: true
+        description: name of branching suggestion
+    get:
+      responses:
+        '200':
+          description: Suggestions for next functions in call chain
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FluxSuggestions"
+        default:
+          description: Any response other than 200 is an internal server error
           content:
             application/json:
               schema:
@@ -802,13 +864,13 @@ paths:
           schema:
             type: string
             format: date-time
-          description: filter runs to those queued after this time
+          description: filter runs to those scheduled after this time, RFC3339
         - in: query
           name: beforeTime
           schema:
             type: string
             format: date-time
-          description: filter runs to those queued before this time
+          description: filter runs to those scheduled before this time, RFC3339
       responses:
         '200':
           description: a list of task runs
@@ -909,12 +971,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  logs:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Link"
+                $ref: "#/components/schemas/Logs"
         default:
           description: unexpected error
           content:
@@ -945,12 +1002,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  logs:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Link"
+                $ref: "#/components/schemas/Logs"
         default:
           description: unexpected error
           content:
@@ -1143,6 +1195,7 @@ components:
               type: string
               default: ","
               maxLength: 1
+              minLength: 1
             annotations:
               description: https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
               type: array
@@ -1159,6 +1212,7 @@ components:
               type: string
               default: \#
               maxLength: 1
+              minLength: 0
             dateTimeFormat:
               description: format of timestamps
               type: string
@@ -1217,6 +1271,27 @@ components:
         prev:
           $ref: "#/components/schemas/Link"
       required: [self]
+    Logs:
+      type: object
+      properties:
+        events:
+          readOnly: true
+          type: array
+          items:
+            $ref: "#/components/schemas/LogEvent"
+    LogEvent:
+      type: object
+      properties:
+        time:
+          readOnly: true
+          description: Time event occurred, RFC3339Nano.
+          type: string
+          format: date-time
+        message:
+          readOnly: true
+          description: A description of the event that occurred.
+          type: string
+          example: Halt and catch fire
     Organization:
       properties:
         id:
@@ -1242,33 +1317,43 @@ components:
         id:
           readOnly: true
           type: string
+        taskId:
+          readOnly: true
+          type: string
         status:
+          readOnly: true
           type: string
           enum: [
-            "queued",
+            "scheduled",
             "executing",
             "failed",
             "success"
           ]
-        queuedAt:
-          readOnly: true
+        scheduledFor:
+          description: Time used for run's "now" option, RFC3339.
           type: string
           format: date-time
-        startTime:
+        startedAt:
           readOnly: true
+          description: Time run started executing, RFC3339Nano.
           type: string
           format: date-time
-        endTime:
+        finishedAt:
           readOnly: true
+          description: Time run finished executing, RFC3339Nano.
+          type: string
+          format: date-time
+        requestedAt:
+          readOnly: true
+          description: Time run was manually requested, RFC3339Nano.
           type: string
           format: date-time
         error:
           $ref: "#/components/schemas/Error"
         log:
           readOnly: true
-          description: A url to a relevant log.
+          description: Link to the full logs for a run.
           type: string
-      required: [queuedAt, status]
     Task:
       properties:
         id:
@@ -1278,7 +1363,8 @@ components:
           description: The ID of the organization that owns this Task.
           type: string
         name:
-          description: A modifiable description of the task.
+          readOnly: true
+          description: A read-only description of the task.
           type: string
         status:
           description: The current status of the task. When updated to 'disabled', cancels all queued jobs of this task.
@@ -1319,6 +1405,36 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/User"
+    FluxSuggestions:
+      type: object
+      properties:
+        funcs:
+          type: object
+          properties:
+            name:
+              type: string
+            params:
+              type: object
+    FluxLinks:
+      type: object
+      properties:
+        ast:
+          type: string
+        self:
+          type: string
+        suggestions:
+          type: string
+    Routes:
+      properties:
+        external:
+          type: object
+          properties:
+            statusFeed:
+              type: string
+        sources:
+          type: string
+        flux:
+          $ref: "#/components/schemas/FluxLinks"
     Error:
       properties:
         code:

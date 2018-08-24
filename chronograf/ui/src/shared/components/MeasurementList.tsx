@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types'
 import React, {PureComponent} from 'react'
 
 import _ from 'lodash'
@@ -20,8 +19,8 @@ interface Props {
   onChooseTag: (tag: Tag) => void
   onGroupByTag: (tagKey: string) => void
   onToggleTagAcceptance: () => void
-  isKapacitorRule?: boolean
   isQuerySupportedByExplorer?: boolean
+  source: Source
 }
 
 interface State {
@@ -30,16 +29,8 @@ interface State {
   filtered: string[]
 }
 
-const {shape} = PropTypes
-
 @ErrorHandling
 class MeasurementList extends PureComponent<Props, State> {
-  public static contextTypes = {
-    source: shape({
-      links: shape({}).isRequired,
-    }).isRequired,
-  }
-
   public static defaultProps: Partial<Props> = {
     querySource: null,
   }
@@ -125,7 +116,6 @@ class MeasurementList extends PureComponent<Props, State> {
       onChooseTag,
       onGroupByTag,
       isQuerySupportedByExplorer,
-      isKapacitorRule,
     } = this.props
     const {database, areTagsAccepted} = query
     const {filtered} = this.state
@@ -156,9 +146,7 @@ class MeasurementList extends PureComponent<Props, State> {
                   areTagsAccepted={areTagsAccepted}
                   onAcceptReject={this.handleAcceptReject}
                   isActive={measurement === query.measurement}
-                  isQuerySupportedByExplorer={
-                    isKapacitorRule || isQuerySupportedByExplorer
-                  }
+                  isQuerySupportedByExplorer={isQuerySupportedByExplorer}
                   numTagsActive={Object.keys(query.tags).length}
                   onChooseMeasurement={this.handleChoosemeasurement}
                 />
@@ -177,8 +165,7 @@ class MeasurementList extends PureComponent<Props, State> {
   }
 
   public async getMeasurements() {
-    const {source} = this.context
-    const {querySource, query} = this.props
+    const {querySource, query, source} = this.props
 
     const proxy = _.get(querySource, ['links', 'proxy'], source.links.proxy)
 

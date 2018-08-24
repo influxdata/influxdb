@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"strings"
+	"os"
 	"testing"
 	"time"
 
@@ -29,7 +29,7 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 			"FindMeta",
 			"EnableDisableTask",
 			"DeleteTask",
-			"CreateRun",
+			"CreateNextRun",
 			"FinishRun",
 		}
 	}
@@ -41,7 +41,7 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 		"FindMeta":          testStoreFindMeta,
 		"EnableDisableTask": testStoreTaskEnableDisable,
 		"DeleteTask":        testStoreDelete,
-		"CreateRun":         testStoreCreateRun,
+		"CreateNextRun":     testStoreCreateNextRun,
 		"FinishRun":         testStoreFinishRun,
 		"DeleteOrg":         testStoreDeleteOrg,
 		"DeleteUser":        testStoreDeleteUser,
@@ -73,29 +73,30 @@ from(db:"test") |> range(start:-1h)`
 }
 
 from(db:"test") |> range(start:-1h)`
-	t.Run("happy path", func(t *testing.T) {
-		s := create(t)
-		defer destroy(t, s)
-		if _, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script); err != nil {
-			t.Fatal(err)
-		}
-	})
+	s := create(t)
+	defer destroy(t, s)
+
 	for _, args := range []struct {
 		caseName     string
 		org, user    platform.ID
 		name, script string
+		noerr        bool
 	}{
+		{caseName: "happy path", org: []byte{1}, user: []byte{2}, script: script, noerr: true},
 		{caseName: "missing org", org: nil, user: []byte{2}, script: script},
 		{caseName: "missing user", org: []byte{1}, user: nil, script: script},
 		{caseName: "missing name", org: []byte{1}, user: []byte{2}, script: scriptNoName},
 		{caseName: "missing script", org: []byte{1}, user: []byte{2}, script: ""},
+		{caseName: "repeated name and org", org: []byte{1}, user: []byte{3}, script: script},
+		{caseName: "repeated name and user", org: []byte{3}, user: []byte{2}, script: script},
+		{caseName: "repeated name, org, and user", org: []byte{1}, user: []byte{2}, script: script},
 	} {
 		t.Run(args.caseName, func(t *testing.T) {
-			s := create(t)
-			defer destroy(t, s)
-
-			if _, err := s.CreateTask(context.Background(), args.org, args.user, args.script); err == nil {
-				t.Fatal("expected error but did not receive one")
+			_, err := s.CreateTask(context.Background(), args.org, args.user, args.script, 0)
+			if args.noerr && err != nil {
+				t.Fatalf("expected err!=nil but got nil instead")
+			} else if err == nil && !args.noerr {
+				t.Fatalf("expected nil error but got %v", err)
 			}
 		})
 	}
@@ -115,6 +116,12 @@ from(bucket:"x") |> range(start:-1h)`
 	}
 
 from(bucket:"y") |> range(start:-1h)`
+	const script3 = `option task = {
+	name: "a task3",
+	cron: "* * * * *",
+}
+
+from(bucket:"y") |> range(start:-1h)`
 	const scriptNoName = `option task = {
 	cron: "* * * * *",
 }
@@ -125,7 +132,7 @@ from(bucket:"y") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
+		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -139,6 +146,9 @@ from(bucket:"y") |> range(start:-1h)`
 		}
 		if task.Script != script2 {
 			t.Fatalf("Task didnt update: %s", task.Script)
+		}
+		if task.Name != "a task2" {
+			t.Fatalf("Task didn't update name, expected 'a task2' but got '%s' for task %v", task.Name, task)
 		}
 	})
 
@@ -161,11 +171,26 @@ from(bucket:"y") |> range(start:-1h)`
 			}
 		})
 	}
+	t.Run("name repetition", func(t *testing.T) {
+		s := create(t)
+		defer destroy(t, s)
+		id1, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = s.CreateTask(context.Background(), []byte{1}, []byte{2}, script2, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.ModifyTask(context.Background(), id1, script2); err != backend.ErrTaskNameTaken {
+			t.Fatal("expected ErrTaskNameTaken but did not receive one")
+		}
+	})
 }
 
 func testStoreListTasks(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
-	const script = `option task = {
-		name: "a task",
+	const scriptFmt = `option task = {
+		name: "testStoreListTasks %d",
 		cron: "* * * * *",
 	}
 
@@ -177,7 +202,7 @@ from(db:"test") |> range(start:-1h)`
 		orgID := []byte{1}
 		userID := []byte{2}
 
-		id, err := s.CreateTask(context.Background(), orgID, userID, script)
+		id, err := s.CreateTask(context.Background(), orgID, userID, fmt.Sprintf(scriptFmt, 0), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -220,7 +245,7 @@ from(db:"test") |> range(start:-1h)`
 			t.Fatalf("expected no results for bad user ID, got %d result(s)", len(ts))
 		}
 
-		newID, err := s.CreateTask(context.Background(), orgID, userID, script)
+		newID, err := s.CreateTask(context.Background(), orgID, userID, fmt.Sprintf(scriptFmt, 1), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -238,6 +263,12 @@ from(db:"test") |> range(start:-1h)`
 	})
 
 	t.Run("multiple, large pages", func(t *testing.T) {
+		if os.Getenv("JENKINS_URL") != "" {
+			t.Skip("Skipping test that parses a lot of Flux on Jenkins. Unskip when https://github.com/influxdata/platform/issues/484 is fixed.")
+		}
+		if testing.Short() {
+			t.Skip("Skipping test in short mode.")
+		}
 		s := create(t)
 		defer destroy(t, s)
 
@@ -260,7 +291,7 @@ from(db:"test") |> range(start:-1h)`
 			tasks[i].name = fmt.Sprintf("my_bucket_%d", i)
 			tasks[i].script = fmt.Sprintf(script, i, i)
 
-			id, err := s.CreateTask(context.Background(), orgID, userID, tasks[i].script)
+			id, err := s.CreateTask(context.Background(), orgID, userID, tasks[i].script, 0)
 			if err != nil {
 				t.Fatalf("failed to create task %d: %v", i, err)
 			}
@@ -337,7 +368,7 @@ from(db:"test") |> range(start:-1h)`
 		org := []byte{1}
 		user := []byte{2}
 
-		id, err := s.CreateTask(context.Background(), org, user, script)
+		id, err := s.CreateTask(context.Background(), org, user, script, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -381,6 +412,7 @@ func testStoreFindMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStor
 		name: "a task",
 		cron: "* * * * *",
 		concurrency: 3,
+		delay: 5s,
 	}
 
 from(db:"test") |> range(start:-1h)`
@@ -391,7 +423,7 @@ from(db:"test") |> range(start:-1h)`
 	org := []byte{1}
 	user := []byte{2}
 
-	id, err := s.CreateTask(context.Background(), org, user, script)
+	id, err := s.CreateTask(context.Background(), org, user, script, 6000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -405,6 +437,18 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("failed to set max concurrency")
 	}
 
+	if meta.LatestCompleted != 6000 {
+		t.Fatalf("LatestCompleted should have been set to 6000, got %d", meta.LatestCompleted)
+	}
+
+	if meta.EffectiveCron != "* * * * *" {
+		t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
+	}
+
+	if time.Duration(meta.Delay)*time.Second != 5*time.Second {
+		t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
+	}
+
 	badID := []byte("bad")
 	meta, err = s.FindTaskMetaByID(context.Background(), badID)
 	if err == nil {
@@ -414,17 +458,17 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatalf("expected nil meta when finding nonexistent ID, got %#v", meta)
 	}
 
-	qr, err := s.CreateRun(context.Background(), id, time.Unix(1, 0).UTC().Unix())
+	rc, err := s.CreateNextRun(context.Background(), id, 6065)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = s.CreateRun(context.Background(), id, time.Unix(2, 0).UTC().Unix())
+	_, err = s.CreateNextRun(context.Background(), id, 6125)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = s.FinishRun(context.Background(), id, qr.RunID)
+	err = s.FinishRun(context.Background(), id, rc.Created.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,8 +482,8 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("creating and finishing runs doesn't work")
 	}
 
-	if meta.LastCompleted != time.Unix(1, 0).UTC().Unix() {
-		t.Fatal("LastCompletedTime not set")
+	if meta.LatestCompleted != 6060 {
+		t.Fatalf("expected LatestCompleted to be updated by finished run, but it wasn't; LatestCompleted=%d", meta.LatestCompleted)
 	}
 }
 
@@ -457,7 +501,7 @@ func testStoreTaskEnableDisable(t *testing.T, create CreateStoreFunc, destroy De
 	org := []byte{1}
 	user := []byte{2}
 
-	id, err := s.CreateTask(context.Background(), org, user, script)
+	id, err := s.CreateTask(context.Background(), org, user, script, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -510,7 +554,7 @@ from(db:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
+		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -543,38 +587,65 @@ from(db:"test") |> range(start:-1h)`
 	})
 }
 
-func testStoreCreateRun(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
+func testStoreCreateNextRun(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
 	const script = `option task = {
 		name: "a task",
 		cron: "* * * * *",
+		delay: 5s,
+		concurrency: 2,
 	}
 
 from(db:"test") |> range(start:-1h)`
+
 	s := create(t)
 	defer destroy(t, s)
 
-	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
+	taskID, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 30)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	run, err := s.CreateRun(context.Background(), task, 1)
+	badID := append([]byte(nil), taskID...)
+	badID[len(badID)-1]++
+	if _, err := s.CreateNextRun(context.Background(), badID, 999); err == nil {
+		t.Fatal("expected error for CreateNextRun with bad ID, got none")
+	}
+
+	_, err = s.CreateNextRun(context.Background(), taskID, 64)
+	if e, ok := err.(backend.RunNotYetDueError); !ok {
+		t.Fatalf("expected RunNotYetDueError, got %v (%T)", err, err)
+	} else if e.DueAt != 65 {
+		t.Fatalf("expected run due at 65, got %d", e.DueAt)
+	}
+
+	rc, err := s.CreateNextRun(context.Background(), taskID, 65)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if run.TaskID.String() != task.String() {
-		t.Fatalf("task id mismatch: want %q, got %q", task.String(), run.TaskID.String())
+	if !bytes.Equal(rc.Created.TaskID, taskID) {
+		t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
+	}
+	if rc.Created.Now != 60 {
+		t.Fatalf("unexpected time for created run: %d", rc.Created.Now)
+	}
+	if rc.NextDue != 125 {
+		t.Fatalf("unexpected next due time: %d", rc.NextDue)
 	}
 
-	if run.Now != 1 {
-		t.Fatal("run now mismatch")
+	rc, err = s.CreateNextRun(context.Background(), taskID, 125)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if _, err := s.CreateRun(context.Background(), task, 1); err == nil {
-		t.Fatal("expected error for exceeding MaxConcurrency")
-	} else if !strings.Contains(err.Error(), "MaxConcurrency") {
-		t.Fatalf("expected error for MaxConcurrency, got %v", err)
+	if !bytes.Equal(rc.Created.TaskID, taskID) {
+		t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
+	}
+	if rc.Created.Now != 120 {
+		t.Fatalf("unexpected time for created run: %d", rc.Created.Now)
+	}
+	if rc.NextDue != 185 {
+		t.Fatalf("unexpected next due time: %d", rc.NextDue)
 	}
 }
 
@@ -588,21 +659,21 @@ from(db:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
+	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	run, err := s.CreateRun(context.Background(), task, 1)
+	rc, err := s.CreateNextRun(context.Background(), task, 60)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.FinishRun(context.Background(), task, run.RunID); err != nil {
+	if err := s.FinishRun(context.Background(), task, rc.Created.RunID); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.FinishRun(context.Background(), task, run.RunID); err == nil {
+	if err := s.FinishRun(context.Background(), task, rc.Created.RunID); err == nil {
 		t.Fatal("expected failure when removing run that doesnt exist")
 	}
 }
@@ -672,7 +743,7 @@ from(db:"test") |> range(start:-1h)`
 				user := make(platform.ID, 8)
 				binary.BigEndian.PutUint64(org, orgInt)
 				binary.BigEndian.PutUint64(user, userInt)
-				if id, err = s.CreateTask(context.Background(), org, user, script); err != nil {
+				if id, err = s.CreateTask(context.Background(), org, user, script, 0); err != nil {
 					t.Fatal(err)
 				}
 				if filter(userInt, orgInt) {

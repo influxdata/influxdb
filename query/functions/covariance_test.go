@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/platform/query/execute/executetest"
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
-	"github.com/influxdata/platform/query/semantic"
 )
 
 func TestCovariance_NewQuery(t *testing.T) {
@@ -95,35 +94,7 @@ func TestCovariance_NewQuery(t *testing.T) {
 								"from0": "x",
 								"from1": "y",
 							},
-							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{
-									{Key: &semantic.Identifier{Name: "t"}},
-								},
-								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{
-										{
-											Key: &semantic.Identifier{Name: "x"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.MemberExpression{
-													Object:   &semantic.IdentifierExpression{Name: "t"},
-													Property: "x",
-												},
-												Property: "_value",
-											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "y"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.MemberExpression{
-													Object:   &semantic.IdentifierExpression{Name: "t"},
-													Property: "y",
-												},
-												Property: "_value",
-											},
-										},
-									},
-								},
-							},
+							Method: "inner",
 						},
 					},
 					{
@@ -134,7 +105,7 @@ func TestCovariance_NewQuery(t *testing.T) {
 							AggregateConfig: execute.AggregateConfig{
 								TimeSrc: execute.DefaultStopColLabel,
 								TimeDst: execute.DefaultTimeColLabel,
-								Columns: []string{"x", "y"},
+								Columns: []string{"x__value", "y__value"},
 							},
 						},
 					},

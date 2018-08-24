@@ -7,6 +7,7 @@ import (
 type Result struct {
 	Nm   string
 	Tbls []*Table
+	Err  error
 }
 
 func NewResult(tables []*Table) *Result {
@@ -20,6 +21,7 @@ func (r *Result) Name() string {
 func (r *Result) Tables() query.TableIterator {
 	return &TableIterator{
 		r.Tbls,
+		r.Err,
 	}
 }
 
@@ -29,9 +31,13 @@ func (r *Result) Normalize() {
 
 type TableIterator struct {
 	tables []*Table
+	err    error
 }
 
 func (ti *TableIterator) Do(f func(query.Table) error) error {
+	if ti.err != nil {
+		return ti.err
+	}
 	for _, t := range ti.tables {
 		if err := f(t); err != nil {
 			return err

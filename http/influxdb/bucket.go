@@ -45,8 +45,9 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 			}
 			b := &platform.Bucket{
 				// TODO(desa): what to do about IDs?
-				RetentionPeriod: d,
-				Name:            fmt.Sprintf("%v.%v", db.Name, rp.Name),
+				RetentionPeriod:     d,
+				Name:                db.Name,
+				RetentionPolicyName: rp.Name,
 			}
 
 			bs = append(bs, b)

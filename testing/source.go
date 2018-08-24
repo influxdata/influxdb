@@ -24,7 +24,7 @@ var sourceCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmpopts.IgnoreFields(platform.Source{}, "BucketService"),
+	cmpopts.IgnoreFields(platform.Source{}, "SourceQuerier", "BucketService"),
 	cmp.Transformer("Sort", func(in []*platform.Source) []*platform.Source {
 		out := append([]*platform.Source(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {

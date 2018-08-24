@@ -7,20 +7,29 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/values"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
 
 func NewReader(hl storage.HostLookup) (*reader, error) {
+	tracer := opentracing.GlobalTracer()
+
 	// TODO(nathanielc): Watch for host changes
 	hosts := hl.Hosts()
 	conns := make([]connection, len(hosts))
 	for i, h := range hosts {
-		conn, err := grpc.Dial(h, grpc.WithInsecure())
+		conn, err := grpc.Dial(
+			h,
+			grpc.WithInsecure(),
+			grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(tracer)),
+			grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(tracer)),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -45,7 +54,7 @@ type connection struct {
 	client StorageClient
 }
 
-func (sr *reader) Read(ctx context.Context, trace map[string]string, readSpec storage.ReadSpec, start, stop execute.Time) (query.TableIterator, error) {
+func (sr *reader) Read(ctx context.Context, readSpec storage.ReadSpec, start, stop execute.Time) (query.TableIterator, error) {
 	var predicate *Predicate
 	if readSpec.Predicate != nil {
 		p, err := ToStoragePredicate(readSpec.Predicate)
@@ -56,8 +65,7 @@ func (sr *reader) Read(ctx context.Context, trace map[string]string, readSpec st
 	}
 
 	bi := &tableIterator{
-		ctx:   ctx,
-		trace: trace,
+		ctx: ctx,
 		bounds: execute.Bounds{
 			Start: start,
 			Stop:  stop,
@@ -77,7 +85,6 @@ func (sr *reader) Close() {
 
 type tableIterator struct {
 	ctx       context.Context
-	trace     map[string]string
 	bounds    execute.Bounds
 	conns     []connection
 	readSpec  storage.ReadSpec
@@ -97,7 +104,6 @@ func (bi *tableIterator) Do(f func(query.Table) error) error {
 	req.SeriesLimit = bi.readSpec.SeriesLimit
 	req.PointsLimit = bi.readSpec.PointsLimit
 	req.SeriesOffset = bi.readSpec.SeriesOffset
-	req.Trace = bi.trace
 
 	if req.PointsLimit == -1 {
 		req.Hints.SetNoPoints()

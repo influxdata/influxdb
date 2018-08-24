@@ -17,7 +17,7 @@ type DestroyRunStoreFunc func(*testing.T, backend.LogWriter, backend.LogReader)
 func NewRunStoreTest(name string, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
-			t.Run("SetRunQueued", func(t *testing.T) {
+			t.Run("SetRunScheduled", func(t *testing.T) {
 				updateRunState(t, crf, drf)
 			})
 			t.Run("RunLog", func(t *testing.T) {
@@ -44,19 +44,19 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
 		Org: platform.ID([]byte("ab01ab01ab01ab05")),
 	}
-	queuedAt := time.Unix(1, 0)
+	scheduledFor := time.Unix(1, 0)
 	run := platform.Run{
-		ID:       platform.ID([]byte("run")),
-		Status:   "queued",
-		QueuedAt: queuedAt.Format(time.RFC3339),
+		ID:           platform.ID([]byte("run")),
+		Status:       "scheduled",
+		ScheduledFor: scheduledFor.Format(time.RFC3339),
 	}
 
-	err := writer.UpdateRunState(context.Background(), task, run.ID, queuedAt, backend.RunQueued)
+	err := writer.UpdateRunState(context.Background(), task, run.ID, scheduledFor, backend.RunScheduled)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	returnedRun, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
+	returnedRun, err := reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,10 +69,10 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	if err := writer.UpdateRunState(context.Background(), task, run.ID, startAt, backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
-	run.StartTime = startAt.Format(time.RFC3339)
+	run.StartedAt = startAt.Format(time.RFC3339Nano)
 	run.Status = "started"
 
-	returnedRun, err = reader.FindRunByID(context.Background(), task.ID, run.ID)
+	returnedRun, err = reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,10 +85,10 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	if err := writer.UpdateRunState(context.Background(), task, run.ID, endAt, backend.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
-	run.EndTime = endAt.Format(time.RFC3339)
+	run.FinishedAt = endAt.Format(time.RFC3339Nano)
 	run.Status = "success"
 
-	returnedRun, err = reader.FindRunByID(context.Background(), task.ID, run.ID)
+	returnedRun, err = reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,9 +108,9 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 	}
 
 	run := platform.Run{
-		ID:       platform.ID([]byte("run")),
-		Status:   "queued",
-		QueuedAt: time.Now().Format(time.RFC3339),
+		ID:           platform.ID([]byte("run")),
+		Status:       "scheduled",
+		ScheduledFor: time.Now().Format(time.RFC3339),
 	}
 
 	logTime := time.Now()
@@ -119,7 +119,7 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 		t.Fatal("shouldn't be able to log against non existing run")
 	}
 
-	err := writer.UpdateRunState(context.Background(), task, run.ID, time.Now(), backend.RunQueued)
+	err := writer.UpdateRunState(context.Background(), task, run.ID, time.Now(), backend.RunScheduled)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 
 	fmtLogTime := logTime.Format(time.RFC3339)
 	run.Log = platform.Log(fmt.Sprintf("%s: first\n%s: second\n%s: third", fmtLogTime, fmtLogTime, fmtLogTime))
-	returnedRun, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
+	returnedRun, err := reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,14 +162,14 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 
 	runs := make([]platform.Run, 200)
 	for i := 0; i < len(runs); i++ {
-		queuedAt := time.Unix(int64(i), 0)
+		scheduledFor := time.Unix(int64(i), 0)
 		runs[i] = platform.Run{
-			ID:       platform.ID([]byte(fmt.Sprintf("run%d", i))),
-			Status:   "queued",
-			QueuedAt: queuedAt.Format(time.RFC3339),
+			ID:           platform.ID([]byte(fmt.Sprintf("run%d", i))),
+			Status:       "scheduled",
+			ScheduledFor: scheduledFor.Format(time.RFC3339),
 		}
 
-		err := writer.UpdateRunState(context.Background(), task, runs[i].ID, queuedAt, backend.RunQueued)
+		err := writer.UpdateRunState(context.Background(), task, runs[i].ID, scheduledFor, backend.RunScheduled)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -215,10 +215,10 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), 30)
 	}
 
-	queuedAt, _ := time.Parse(time.RFC3339, runs[34].QueuedAt)
+	scheduledFor, _ := time.Parse(time.RFC3339, runs[34].ScheduledFor)
 	listRuns, err = reader.ListRuns(context.Background(), platform.RunFilter{
 		Task:      &task.ID,
-		AfterTime: queuedAt.Add(-1 * time.Nanosecond).Format(time.RFC3339),
+		AfterTime: scheduledFor.Add(-1 * time.Nanosecond).Format(time.RFC3339),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -228,10 +228,10 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), len(runs)-34)
 	}
 
-	queuedAt, _ = time.Parse(time.RFC3339, runs[34].QueuedAt)
+	scheduledFor, _ = time.Parse(time.RFC3339, runs[34].ScheduledFor)
 	listRuns, err = reader.ListRuns(context.Background(), platform.RunFilter{
 		Task:       &task.ID,
-		BeforeTime: queuedAt.Add(time.Nanosecond).Format(time.RFC3339),
+		BeforeTime: scheduledFor.Add(time.Nanosecond).Format(time.RFC3339),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -246,7 +246,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	if _, err := reader.FindRunByID(context.Background(), platform.ID([]byte("ugly")), platform.ID([]byte("bad"))); err == nil {
+	if _, err := reader.FindRunByID(context.Background(), platform.ID([]byte("fat")), platform.ID([]byte("ugly")), platform.ID([]byte("bad"))); err == nil {
 		t.Fatal("failed to error with bad id")
 	}
 
@@ -255,16 +255,16 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 		Org: platform.ID([]byte("ab01ab01ab01ab05")),
 	}
 	run := platform.Run{
-		ID:       platform.ID([]byte("run")),
-		Status:   "queued",
-		QueuedAt: time.Now().Format(time.RFC3339),
+		ID:           platform.ID([]byte("run")),
+		Status:       "scheduled",
+		ScheduledFor: time.Now().Format(time.RFC3339),
 	}
 
-	if err := writer.UpdateRunState(context.Background(), task, run.ID, time.Now(), backend.RunQueued); err != nil {
+	if err := writer.UpdateRunState(context.Background(), task, run.ID, time.Now(), backend.RunScheduled); err != nil {
 		t.Fatal(err)
 	}
 
-	returnedRun, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
+	returnedRun, err := reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 
 	returnedRun.Log = "cows"
 
-	rr2, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
+	rr2, err := reader.FindRunByID(context.Background(), task.Org, task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,12 +304,12 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	runs := make([]platform.Run, 20)
 	for i := 0; i < len(runs); i++ {
 		runs[i] = platform.Run{
-			ID:       platform.ID([]byte(fmt.Sprintf("run%d", i))),
-			Status:   "started",
-			QueuedAt: time.Unix(int64(i), 0).Format(time.RFC3339),
+			ID:           platform.ID([]byte(fmt.Sprintf("run%d", i))),
+			Status:       "started",
+			ScheduledFor: time.Unix(int64(i), 0).Format(time.RFC3339),
 		}
 
-		err := writer.UpdateRunState(context.Background(), task, runs[i].ID, time.Now(), backend.RunQueued)
+		err := writer.UpdateRunState(context.Background(), task, runs[i].ID, time.Now(), backend.RunScheduled)
 		if err != nil {
 			t.Fatal(err)
 		}

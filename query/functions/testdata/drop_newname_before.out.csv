@@ -1,1 +1,2 @@
-error: drop error: column "new" doesn't exist
+error,reference
+"drop error: column ""new"" doesn't exist",

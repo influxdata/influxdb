@@ -15,12 +15,12 @@ import {
 } from 'src/types/flux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {Service} from 'src/types'
+import {Source} from 'src/types/v2'
 
 interface Props {
   func: Func
   funcs: Func[]
-  service: Service
+  source: Source
   bodyID: string
   index: number
   declarationID?: string
@@ -80,7 +80,7 @@ export default class FuncNode extends PureComponent<Props, State> {
     const {
       func,
       bodyID,
-      service,
+      source,
       isYielding,
       onChangeArg,
       declarationID,
@@ -97,7 +97,7 @@ export default class FuncNode extends PureComponent<Props, State> {
       <FuncArgs
         func={func}
         bodyID={bodyID}
-        service={service}
+        source={source}
         onChangeArg={onChangeArg}
         declarationID={declarationID}
         onGenerateScript={onGenerateScript}

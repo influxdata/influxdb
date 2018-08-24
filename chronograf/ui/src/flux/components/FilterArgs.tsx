@@ -1,13 +1,21 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+
+// Components
+import FilterTagList from 'src/flux/components/FilterTagList'
+
+// APIs
 import {getAST} from 'src/flux/apis'
 import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
+
+// Utils
 import parseValuesColumn from 'src/shared/parsing/flux/values'
-import FilterTagList from 'src/flux/components/FilterTagList'
 import Walker from 'src/flux/ast/walker'
 import {makeCancelable} from 'src/utils/promises'
 
-import {Service} from 'src/types'
+// Types
+import {Source} from 'src/types/v2'
 import {Links, OnChangeArg, Func, FilterNode} from 'src/types/flux'
 import {WrappedCancelablePromise} from 'src/types/promises'
 
@@ -19,7 +27,7 @@ interface Props {
   declarationID: string
   onChangeArg: OnChangeArg
   db: string
-  service: Service
+  source: Source
   onGenerateScript: () => void
 }
 
@@ -80,7 +88,7 @@ class FilterArgs extends PureComponent<Props, State> {
   public render() {
     const {
       db,
-      service,
+      source,
       onChangeArg,
       func,
       bodyID,
@@ -92,7 +100,7 @@ class FilterArgs extends PureComponent<Props, State> {
     return (
       <FilterTagList
         db={db}
-        service={service}
+        source={source}
         tags={this.state.tagKeys}
         filter={[]}
         onChangeArg={onChangeArg}
@@ -106,9 +114,9 @@ class FilterArgs extends PureComponent<Props, State> {
   }
 
   private getTagKeys(): Promise<string> {
-    const {db, service} = this.props
+    const {db, source} = this.props
 
-    this.fetchTagKeysResponse = makeCancelable(fetchTagKeys(service, db, []))
+    this.fetchTagKeysResponse = makeCancelable(fetchTagKeys(source, db, []))
 
     return this.fetchTagKeysResponse.promise
   }

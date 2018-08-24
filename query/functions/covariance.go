@@ -15,7 +15,7 @@ const CovarianceKind = "covariance"
 
 type CovarianceOpSpec struct {
 	PearsonCorrelation bool   `json:"pearsonr"`
-	ValueDst           string `json:"value_dst"`
+	ValueDst           string `json:"valueDst"`
 	execute.AggregateConfig
 }
 
@@ -23,7 +23,7 @@ var covarianceSignature = query.DefaultFunctionSignature()
 
 func init() {
 	covarianceSignature.Params["pearsonr"] = semantic.Bool
-	covarianceSignature.Params["columns"] = semantic.Array
+	covarianceSignature.Params["valueDst"] = semantic.String
 
 	query.RegisterBuiltIn("covariance", covarianceBuiltIn)
 	query.RegisterFunction(CovarianceKind, createCovarianceOpSpec, covarianceSignature)
@@ -38,9 +38,8 @@ cov = (x,y,on,pearsonr=false) =>
     join(
         tables:{x:x, y:y},
         on:on,
-        fn: (t) => ({x:t.x._value, y:t.y._value}),
     )
-    |> covariance(pearsonr:pearsonr, columns:["x","y"])
+    |> covariance(pearsonr:pearsonr, columns:["x__value","y__value"])
 
 pearsonr = (x,y,on) => cov(x:x, y:y, on:on, pearsonr:true)
 `

@@ -1,5 +1,4 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
 
 import _ from 'lodash'
 
@@ -14,25 +13,17 @@ import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
 
 interface DatabaseListProps {
   query: QueryConfig
+  source: Source
   querySource?: Source
   onChooseNamespace: (namespace: Namespace) => void
-  source?: Source
 }
 
 interface DatabaseListState {
   namespaces: Namespace[]
 }
 
-const {shape} = PropTypes
-
 @ErrorHandling
 class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
-  public static contextTypes = {
-    source: shape({
-      links: shape({}).isRequired,
-    }).isRequired,
-  }
-
   public static defaultProps: Partial<DatabaseListProps> = {
     source: null,
   }
@@ -71,8 +62,7 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
   }
 
   public async getDbRp() {
-    const {source} = this.context
-    const {querySource} = this.props
+    const {querySource, source} = this.props
     const proxy = _.get(querySource, ['links', 'proxy'], source.links.proxy)
 
     try {

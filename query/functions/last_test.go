@@ -98,7 +98,7 @@ func TestLast_PushDown(t *testing.T) {
 	want := &plan.Procedure{
 		Spec: &functions.FromProcedureSpec{
 			BoundsSet: true,
-			Bounds: plan.BoundsSpec{
+			Bounds: query.Bounds{
 				Start: query.MinTime,
 				Stop:  query.Now,
 			},
@@ -116,7 +116,7 @@ func TestLast_PushDown_Duplicate(t *testing.T) {
 	root := &plan.Procedure{
 		Spec: &functions.FromProcedureSpec{
 			BoundsSet: true,
-			Bounds: plan.BoundsSpec{
+			Bounds: query.Bounds{
 				Start: query.MinTime,
 				Stop:  query.Now,
 			},

@@ -5,11 +5,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {
-  NavBlock,
-  NavHeader,
-  NavListItem,
-} from 'src/side_nav/components/NavItems'
+import {NavBlock, NavHeader} from 'src/side_nav/components/NavItems'
 
 // Constants
 import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
@@ -45,8 +41,6 @@ class SideNav extends PureComponent<Props> {
     const id = sourceID || _.get(defaultSource, 'id', 0)
 
     const sourcePrefix = `/sources/${id}`
-    const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
-
     const isDefaultPage = location.split('/').includes(DEFAULT_HOME_PAGE)
 
     return isHidden ? null : (
@@ -61,22 +55,6 @@ class SideNav extends PureComponent<Props> {
             <span className="sidebar--icon icon cubo-uniform" />
           </Link>
         </div>
-        <NavBlock
-          highlightWhen={['hosts']}
-          icon="eye"
-          link={`${sourcePrefix}/hosts`}
-          location={location}
-        >
-          <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
-        </NavBlock>
-        <NavBlock
-          highlightWhen={['data-explorer']}
-          icon="graphline-2"
-          link={dataExplorerLink}
-          location={location}
-        >
-          <NavHeader link={dataExplorerLink} title="Data Explorer" />
-        </NavBlock>
         <NavBlock
           highlightWhen={['delorean']}
           icon="capacitor2"
@@ -93,21 +71,6 @@ class SideNav extends PureComponent<Props> {
         >
           <NavHeader link={`${sourcePrefix}/dashboards`} title="Dashboards" />
         </NavBlock>
-        <NavBlock
-          highlightWhen={['alerts', 'alert-rules', 'tickscript']}
-          icon="alerts"
-          link={`${sourcePrefix}/alert-rules`}
-          location={location}
-        >
-          <NavHeader link={`${sourcePrefix}/alert-rules`} title="Alerting" />
-          <NavListItem link={`${sourcePrefix}/alert-rules`}>
-            Manage Tasks
-          </NavListItem>
-          <NavListItem link={`${sourcePrefix}/alerts`}>
-            Alert History
-          </NavListItem>
-        </NavBlock>
-
         <NavBlock
           highlightWhen={['logs']}
           icon="wood"

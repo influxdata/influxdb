@@ -5,6 +5,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/influxdata/platform/query/values"
+
 	"github.com/influxdata/platform/query"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
@@ -13,11 +15,14 @@ import (
 // DefaultYieldName is the yield name to use in cases where no explicit yield name was specified.
 const DefaultYieldName = "_result"
 
+var (
+	MinTime = values.ConvertTime(query.MinTime.Absolute)
+	MaxTime = values.ConvertTime(query.MaxTime.Absolute)
+)
+
 type PlanSpec struct {
 	// Now represents the relative current time of the plan.
-	Now    time.Time
-	Bounds BoundsSpec
-
+	Now time.Time
 	// Procedures is a set of all operations
 	Procedures map[ProcedureID]*Procedure
 	Order      []ProcedureID
@@ -62,6 +67,22 @@ func NewPlanner() Planner {
 	return new(planner)
 }
 
+func resolveTime(qt query.Time, now time.Time) values.Time {
+	return values.ConvertTime(qt.Time(now))
+}
+
+func ToBoundsSpec(bounds query.Bounds, now time.Time) (*BoundsSpec, error) {
+	if bounds.HasZero() {
+		return nil, errors.New("bounds contain zero time")
+	}
+
+	return &BoundsSpec{
+		Start: resolveTime(bounds.Start, now),
+		Stop:  resolveTime(bounds.Stop, now),
+	}, nil
+}
+
+// TODO: remove branches with empty bounds
 func (p *planner) Plan(lp *LogicalPlanSpec, s Storage) (*PlanSpec, error) {
 	now := lp.Now
 
@@ -134,14 +155,42 @@ func (p *planner) Plan(lp *LogicalPlanSpec, s Storage) (*PlanSpec, error) {
 	var yields []*Procedure
 	for _, id := range p.plan.Order {
 		pr := p.plan.Procedures[id]
+
+		// The bounds of the current procedure are always the union
+		// of the bounds of any parent procedure
+		pr.DoParents(func(parent *Procedure) {
+			if parent.Bounds == nil {
+				return
+			}
+
+			if pr.Bounds != nil {
+				pr.Bounds = pr.Bounds.Union(parent.Bounds)
+			} else {
+				pr.Bounds = parent.Bounds
+			}
+		})
+
+		// If the procedure is bounded and provides its own additional bounds,
+		// the procedure's new bounds are the intersection of any bounds it inherited
+		// from its parents, and its own bounds.
 		if bounded, ok := pr.Spec.(BoundedProcedureSpec); ok {
-			bounds := bounded.TimeBounds()
-			p.plan.Bounds = p.plan.Bounds.Union(bounds, now)
+			convertedBounds, err := ToBoundsSpec(bounded.TimeBounds(), pr.plan.Now)
+			if err != nil {
+				return nil, errors.Wrapf(err, "invalid time bounds from procedure %s", pr.Spec.Kind())
+			}
+
+			if pr.Bounds != nil {
+				pr.Bounds = pr.Bounds.Intersect(convertedBounds)
+			} else {
+				pr.Bounds = convertedBounds
+			}
 		}
+
 		if yield, ok := pr.Spec.(YieldProcedureSpec); ok {
 			if len(pr.Parents) != 1 {
 				return nil, errors.New("yield procedures must have exactly one parent")
 			}
+
 			parent := pr.Parents[0]
 			name := yield.YieldName()
 			_, ok := p.plan.Results[name]
@@ -169,8 +218,16 @@ func (p *planner) Plan(lp *LogicalPlanSpec, s Storage) (*PlanSpec, error) {
 		}
 	}
 
-	if p.plan.Bounds.Start.IsZero() && p.plan.Bounds.Stop.IsZero() {
-		return nil, errors.New("unbounded queries are not supported. Add a 'range' call to bound the query.")
+	// Check to see if any results are unbounded.
+	// Since bounds are inherited,
+	// results will be unbounded only if no bounds were provided
+	// by any parent procedure node.
+	for name, yield := range p.plan.Results {
+		if pr, ok := p.plan.Procedures[yield.ID]; ok {
+			if pr.Bounds == nil {
+				return nil, fmt.Errorf(`result '%s' is unbounded. Add a 'range' call to bound the query.`, name)
+			}
+		}
 	}
 
 	// Update concurrency quota

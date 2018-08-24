@@ -1,13 +1,11 @@
 import React, {SFC} from 'react'
 
-import AlertsApp from 'src/alerts/containers/AlertsApp'
 import NewsFeed from 'src/status/components/NewsFeed'
 import GettingStarted from 'src/status/components/GettingStarted'
 
 import {Cell} from 'src/types/dashboards'
 import {Source} from 'src/types/sources'
 import {TimeRange} from 'src/types/queries'
-import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
 
 interface Props {
   timeRange: TimeRange
@@ -15,18 +13,8 @@ interface Props {
   source: Source
 }
 
-const WidgetCell: SFC<Props> = ({cell, source, timeRange}) => {
+const WidgetCell: SFC<Props> = ({cell, source}) => {
   switch (cell.type) {
-    case 'alerts': {
-      return (
-        <AlertsApp
-          source={source}
-          timeRange={timeRange}
-          isWidget={true}
-          limit={RECENT_ALERTS_LIMIT}
-        />
-      )
-    }
     case 'news': {
       return <NewsFeed source={source} />
     }
