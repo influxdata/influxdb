@@ -13,7 +13,7 @@ github.com/gogo/protobuf 1adfc126b41513cc696b209667c8656ea7aac67c
 github.com/golang/protobuf 925541529c1fa6821df4e44ce2723319eb2be768
 github.com/golang/snappy d9eb7a3d35ec988b8585d4a0068e462c27d28380
 github.com/google/go-cmp 3af367b6b30c263d47e8895973edcca9a49cf029
-github.com/influxdata/influxql c661ab7db8ad858626cc7a2114e786f4e7463564
+github.com/influxdata/influxql a7267bff5327e316e54c54342b0bc9598753e3d5 
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/influxdata/yamux 1f58ded512de5feabbe30b60c7d33a7a896c5f16
 github.com/influxdata/yarpc f0da2db138cad2fb425541938fc28dd5a5bc6918
