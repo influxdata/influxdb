@@ -14,7 +14,7 @@ import (
 // It's currently a partial implementation as one of a store's exported methods
 // returns an unexported type.
 type StorageStoreMock struct {
-	ReadFn       func(ctx context.Context, req *storage.ReadRequest) (storage.Results, error)
+	ReadFn       func(ctx context.Context, req *storage.ReadRequest) (storage.ResultSet, error)
 	WithLoggerFn func(log *zap.Logger)
 
 	ResultSet *StorageResultsMock
@@ -29,7 +29,7 @@ func NewStorageStoreMock() *StorageStoreMock {
 		WithLoggerFn: func(*zap.Logger) {},
 		ResultSet:    NewStorageResultsMock(),
 	}
-	store.ReadFn = func(context.Context, *storage.ReadRequest) (storage.Results, error) {
+	store.ReadFn = func(context.Context, *storage.ReadRequest) (storage.ResultSet, error) {
 		return store.ResultSet, nil
 	}
 	return store
@@ -41,7 +41,7 @@ func (s *StorageStoreMock) WithLogger(log *zap.Logger) {
 }
 
 // Read reads the storage request and returns a cursor to access results.
-func (s *StorageStoreMock) Read(ctx context.Context, req *storage.ReadRequest) (storage.Results, error) {
+func (s *StorageStoreMock) Read(ctx context.Context, req *storage.ReadRequest) (storage.ResultSet, error) {
 	return s.ReadFn(ctx, req)
 }
 

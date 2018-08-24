@@ -129,7 +129,6 @@ func NewHandler(c Config) *Handler {
 		Config:         &c,
 		Logger:         zap.NewNop(),
 		CLFLogger:      log.New(os.Stderr, "[httpd] ", 0),
-		Store:          storage.NewStore(),
 		stats:          &Statistics{},
 		requestTracker: NewRequestTracker(),
 	}
@@ -1595,7 +1594,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 
 // Store describes the behaviour of the storage packages Store type.
 type Store interface {
-	Read(ctx context.Context, req *storage.ReadRequest) (storage.Results, error)
+	Read(ctx context.Context, req *storage.ReadRequest) (storage.ResultSet, error)
 	WithLogger(log *zap.Logger)
 }
 
