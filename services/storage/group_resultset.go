@@ -33,7 +33,7 @@ type groupResultSet struct {
 	eof bool
 }
 
-func NewGroupResultSet(ctx context.Context, req *ReadRequest, newCursorFn func() (SeriesCursor, error)) *groupResultSet {
+func NewGroupResultSet(ctx context.Context, req *ReadRequest, newCursorFn func() (SeriesCursor, error)) GroupResultSet {
 	g := &groupResultSet{
 		ctx:         ctx,
 		req:         req,
