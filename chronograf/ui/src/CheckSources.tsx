@@ -4,24 +4,19 @@ import {withRouter, InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
 
 // APIs
-import {getSourceHealth} from 'src/sources/apis'
+import {getSourceHealth} from 'src/sources/apis/v2'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants
-import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
-import {
-  Source,
-  Notification,
-  NotificationFunc,
-  RemoteDataState,
-} from 'src/types'
+import {Source} from 'src/types/v2'
 import {Location} from 'history'
+import {Notification, NotificationFunc, RemoteDataState} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -34,7 +29,7 @@ interface Params {
 }
 
 interface Props {
-  getSources: () => void
+  getSources: typeof getSourcesAsync
   sources: Source[]
   children: ReactElement<any>
   params: Params
@@ -64,32 +59,29 @@ export class CheckSources extends PureComponent<Props, State> {
 
   public async componentDidUpdate() {
     const {loading} = this.state
-    const {router, location, sources, notify} = this.props
+    const {router, sources, notify} = this.props
     const source = this.source
     const defaultSource = sources.find(s => s.default === true)
-
-    const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
-    const restString = rest === null ? DEFAULT_HOME_PAGE : rest[1]
 
     const isDoneLoading = loading === RemoteDataState.Done
 
     if (isDoneLoading && !source) {
       if (defaultSource) {
-        return router.push(`/sources/${defaultSource.id}/${restString}`)
+        return router.push(`${this.path}?sourceID=${defaultSource.id}`)
       }
 
       if (sources[0]) {
-        return router.push(`/sources/${sources[0].id}/${restString}`)
+        return router.push(`${this.path}?sourceID=${sources[0].id}`)
       }
 
-      return router.push(`/sources/new?redirectPath=${location.pathname}`)
+      return router.push(`/sources/new?redirectPath=${this.path}`)
     }
 
     if (isDoneLoading) {
       try {
         await getSourceHealth(source.links.health)
       } catch (error) {
-        notify(copy.notifySourceNoLongerAvailable(source.name))
+        notify(copy.sourceNoLongerAvailable(source.name))
       }
     }
   }
@@ -108,6 +100,24 @@ export class CheckSources extends PureComponent<Props, State> {
     )
   }
 
+  private get path(): string {
+    const {location} = this.props
+
+    if (this.isRoot) {
+      return `/status`
+    }
+
+    return `${location.pathname}`
+  }
+
+  private get isRoot(): boolean {
+    const {
+      location: {pathname},
+    } = this.props
+
+    return pathname === '' || pathname === '/'
+  }
+
   private get isLoading(): boolean {
     const {loading} = this.state
     return (
@@ -117,8 +127,8 @@ export class CheckSources extends PureComponent<Props, State> {
   }
 
   private get source(): Source {
-    const {params, sources} = this.props
-    return sources.find(s => s.id === params.sourceID)
+    const {location, sources} = this.props
+    return sources.find(s => s.id === location.query.sourceID)
   }
 }
 

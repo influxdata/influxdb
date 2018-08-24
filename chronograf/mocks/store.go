@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/v2"
 )
 
 // Store is a server.DataStore
@@ -18,8 +17,6 @@ type Store struct {
 	OrganizationsStore      chronograf.OrganizationsStore
 	ConfigStore             chronograf.ConfigStore
 	OrganizationConfigStore chronograf.OrganizationConfigStore
-	CellService             platform.CellService
-	DashboardService        platform.DashboardService
 }
 
 func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
@@ -55,12 +52,4 @@ func (s *Store) Config(ctx context.Context) chronograf.ConfigStore {
 
 func (s *Store) OrganizationConfig(ctx context.Context) chronograf.OrganizationConfigStore {
 	return s.OrganizationConfigStore
-}
-
-func (s *Store) Cells(ctx context.Context) platform.CellService {
-	return s.CellService
-}
-
-func (s *Store) DashboardsV2(ctx context.Context) platform.DashboardService {
-	return s.DashboardService
 }

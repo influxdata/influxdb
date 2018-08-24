@@ -7,7 +7,7 @@ import {Service, Notification} from 'src/types'
 import {
   fluxUpdated,
   fluxNotUpdated,
-  notifyFluxNameAlreadyTaken,
+  fluxNameAlreadyTaken,
 } from 'src/shared/copy/notifications'
 import {UpdateServiceAsync} from 'src/shared/actions/services'
 import {FluxFormMode} from 'src/flux/constants/connection'
@@ -72,7 +72,7 @@ class FluxEdit extends PureComponent<Props, State> {
     })
 
     if (isNameTaken) {
-      notify(notifyFluxNameAlreadyTaken(service.name))
+      notify(fluxNameAlreadyTaken(service.name))
       return
     }
 

@@ -5,7 +5,7 @@ import _ from 'lodash'
 import classnames from 'classnames'
 import uuid from 'uuid'
 
-import * as actions from 'src/dashboards/actions'
+import * as actions from 'src/dashboards/actions/v2'
 import {SeriesLegendData} from 'src/types/dygraphs'
 import DygraphLegendSort from 'src/shared/components/DygraphLegendSort'
 
@@ -275,9 +275,9 @@ const mapDispatchToProps = {
   setActiveCell: actions.setActiveCell,
 }
 
-const mapStateToProps = ({dashboardUI}) => ({
-  activeCellID: dashboardUI.activeCellID,
-  hoverTime: +dashboardUI.hoverTime,
+const mapStateToProps = ({hoverTime}) => ({
+  activeCellID: '0',
+  hoverTime: +hoverTime,
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DygraphLegend)

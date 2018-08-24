@@ -5,7 +5,7 @@ import {Dispatch} from 'redux'
 import {fetchJSONFeed as fetchJSONFeedAJAX} from 'src/status/apis'
 
 import {notify} from 'src/shared/actions/notifications'
-import {notifyJSONFeedFailed} from 'src/shared/copy/notifications'
+import {jsonFeedFailed} from 'src/shared/copy/notifications'
 
 import {JSONFeedData} from 'src/types'
 import {AxiosResponse} from 'axios'
@@ -73,6 +73,6 @@ export const fetchJSONFeedAsync = (url: string) => async (
   } catch (error) {
     console.error(error)
     dispatch(fetchJSONFeedFailed())
-    dispatch(notify(notifyJSONFeedFailed(url)))
+    dispatch(notify(jsonFeedFailed(url)))
   }
 }

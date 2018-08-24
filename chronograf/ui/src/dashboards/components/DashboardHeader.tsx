@@ -1,5 +1,4 @@
 import React, {Component} from 'react'
-import classnames from 'classnames'
 
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
@@ -10,12 +9,12 @@ import RenameDashboard from 'src/dashboards/components/rename_dashboard/RenameDa
 import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
 
 import * as AppActions from 'src/types/actions/app'
-import * as DashboardsModels from 'src/types/dashboards'
 import * as QueriesModels from 'src/types/queries'
+import {Dashboard, DashboardSwitcherLinks} from 'src/types/v2/dashboards'
 
 interface Props {
   activeDashboard: string
-  dashboard: DashboardsModels.Dashboard
+  dashboard: Dashboard
   timeRange: QueriesModels.TimeRange
   autoRefresh: number
   handleChooseTimeRange: (timeRange: QueriesModels.TimeRange) => void
@@ -23,11 +22,10 @@ interface Props {
   onManualRefresh: () => void
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onAddCell: () => void
-  onToggleTempVarControls: () => void
   showTemplateControlBar: boolean
   zoomedTimeRange: QueriesModels.TimeRange
   onRenameDashboard: (name: string) => Promise<void>
-  dashboardLinks: DashboardsModels.DashboardSwitcherLinks
+  dashboardLinks: DashboardSwitcherLinks
   isHidden: boolean
 }
 
@@ -76,7 +74,6 @@ class DashboardHeader extends Component<Props> {
       <>
         <GraphTips />
         {this.addCellButton}
-        {this.tempVarsButton}
         <AutoRefreshDropdown
           onChoose={handleChooseAutoRefresh}
           onManualRefresh={onManualRefresh}
@@ -99,6 +96,7 @@ class DashboardHeader extends Component<Props> {
       </>
     )
   }
+
   private handleClickPresentationButton = (): void => {
     this.props.handleClickPresentationButton()
   }
@@ -112,27 +110,6 @@ class DashboardHeader extends Component<Props> {
           <span className="icon plus" />
           Add Cell
         </button>
-      )
-    }
-  }
-
-  private get tempVarsButton(): JSX.Element {
-    const {
-      dashboard,
-      showTemplateControlBar,
-      onToggleTempVarControls,
-    } = this.props
-
-    if (dashboard) {
-      return (
-        <div
-          className={classnames('btn btn-default btn-sm', {
-            active: showTemplateControlBar,
-          })}
-          onClick={onToggleTempVarControls}
-        >
-          <span className="icon cube" />Template Variables
-        </div>
       )
     }
   }

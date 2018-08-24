@@ -1,4 +1,3 @@
-import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 import {
   handleSuccess,
@@ -10,24 +9,20 @@ import {DEFAULT_DURATION_MS} from 'src/shared/constants'
 import replaceTemplates, {replaceInterval} from 'src/tempVars/utils/replace'
 import {proxy} from 'src/utils/queryUrlGenerator'
 
-import {Source} from 'src/types'
-
 import {Template} from 'src/types'
 
 const noop = () => ({
   type: 'NOOP',
   payload: {},
 })
+
 interface Query {
-  text: string
-  database?: string
-  db?: string
-  rp?: string
   id: string
+  text: string
 }
 
 export const fetchTimeSeries = async (
-  source: Source,
+  link: string,
   queries: Query[],
   resolution: number,
   templates: Template[],
@@ -35,8 +30,8 @@ export const fetchTimeSeries = async (
 ) => {
   const timeSeriesPromises = queries.map(async query => {
     try {
-      const text = await replace(query.text, source, templates, resolution)
-      return handleQueryFetchStatus({...query, text}, source, editQueryStatus)
+      const text = await replace(query.text, link, templates, resolution)
+      return handleQueryFetchStatus({...query, text}, link, editQueryStatus)
     } catch (error) {
       console.error(error)
       throw error
@@ -48,19 +43,14 @@ export const fetchTimeSeries = async (
 
 const handleQueryFetchStatus = async (
   query: Query,
-  source: Source,
+  link: string,
   editQueryStatus: () => any
 ) => {
-  const {database, rp} = query
-  const db = _.get(query, 'db', database)
-
   try {
     handleLoading(query, editQueryStatus)
 
     const payload = {
-      source: source.links.proxy,
-      db,
-      rp,
+      source: link,
       query: query.text,
     }
 
@@ -76,13 +66,13 @@ const handleQueryFetchStatus = async (
 
 const replace = async (
   query: string,
-  source: Source,
+  link: string,
   templates: Template[],
   resolution: number
 ): Promise<string> => {
   try {
     query = replaceTemplates(query, templates)
-    const durationMs = await duration(query, source)
+    const durationMs = await duration(query, link)
     return replaceInterval(query, Math.floor(resolution / 3), durationMs)
   } catch (error) {
     console.error(error)
@@ -92,10 +82,10 @@ const replace = async (
 
 export const duration = async (
   query: string,
-  source: Source
+  link: string
 ): Promise<number> => {
   try {
-    const analysis = await analyzeQueries(source.links.queries, [{query}])
+    const analysis = await analyzeQueries(link, [{query}])
     return getDeep<number>(analysis, '0.durationMs', DEFAULT_DURATION_MS)
   } catch (error) {
     console.error(error)

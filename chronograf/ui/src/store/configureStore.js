@@ -8,23 +8,29 @@ import {queryStringConfig} from 'src/shared/middleware/queryStringConfig'
 import statusReducers from 'src/status/reducers'
 import logsReducer from 'src/logs/reducers'
 import sharedReducers from 'src/shared/reducers'
-import dashboardUI from 'src/dashboards/reducers/ui'
 import cellEditorOverlay from 'src/dashboards/reducers/cellEditorOverlay'
-import dashTimeV1 from 'src/dashboards/reducers/dashTimeV1'
 import persistStateEnhancer from './persistStateEnhancer'
 import servicesReducer from 'src/shared/reducers/services'
 import scriptReducer from 'src/flux/reducers/script'
+import sourceReducer from 'src/sources/reducers/sources'
+
+// v2 reducers
+import rangesReducer from 'src/dashboards/reducers/v2/ranges'
+import dashboardsReducer from 'src/dashboards/reducers/v2/dashboards'
+import hoverTimeReducer from 'src/dashboards/reducers/v2/hoverTime'
 
 const rootReducer = combineReducers({
   ...statusReducers,
   ...sharedReducers,
-  dashboardUI,
   cellEditorOverlay,
-  dashTimeV1,
   logs: logsReducer,
+  ranges: rangesReducer,
+  hoverTime: hoverTimeReducer,
+  dashboards: dashboardsReducer,
   routing: routerReducer,
   services: servicesReducer,
   script: scriptReducer,
+  sources: sourceReducer,
 })
 
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose

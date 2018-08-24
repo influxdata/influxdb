@@ -19,8 +19,8 @@ import parseValuesColumn from 'src/shared/parsing/flux/values'
 
 // Constants
 import {
-  notifyCopyToClipboardSuccess,
-  notifyCopyToClipboardFailed,
+  copyToClipboardSuccess,
+  copyToClipboardFailed,
 } from 'src/shared/copy/notifications'
 import {explorer} from 'src/flux/constants'
 
@@ -270,9 +270,9 @@ export default class TagListItem extends PureComponent<Props, State> {
   ): void => {
     const {notify} = this.props
     if (isSuccessful) {
-      notify(notifyCopyToClipboardSuccess(copiedText))
+      notify(copyToClipboardSuccess(copiedText))
     } else {
-      notify(notifyCopyToClipboardFailed(copiedText))
+      notify(copyToClipboardFailed(copiedText))
     }
   }
 

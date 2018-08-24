@@ -18,6 +18,7 @@ type PlatformHandler struct {
 	DashboardHandler     *DashboardHandler
 	AssetHandler         *AssetHandler
 	ChronografHandler    *ChronografHandler
+	ViewHandler          *ViewHandler
 	SourceHandler        *SourceHandler
 	TaskHandler          *TaskHandler
 	FluxLangHandler      *FluxLangHandler
@@ -32,7 +33,8 @@ func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 var platformLinks = map[string]interface{}{
-	"sources": "/v2/sources",
+	"sources":    "/v2/sources",
+	"dashboards": "/v2/dashboards",
 	"flux": map[string]string{
 		"self":        "/v2/flux",
 		"ast":         "/v2/flux/ast",
@@ -112,7 +114,7 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v1/dashboards") {
+	if strings.HasPrefix(r.URL.Path, "/v2/dashboards") {
 		h.DashboardHandler.ServeHTTP(w, r)
 		return
 	}
@@ -124,6 +126,11 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 
 	if strings.HasPrefix(r.URL.Path, "/v1/tasks") {
 		h.TaskHandler.ServeHTTP(w, r)
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/v2/views") {
+		h.ViewHandler.ServeHTTP(w, r)
+		return
 	}
 
 	nethttp.NotFound(w, r)

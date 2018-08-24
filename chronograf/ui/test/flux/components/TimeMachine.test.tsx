@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 import TimeMachine from 'src/flux/components/TimeMachine'
-import {source} from 'test/resources/v2'
+import {source} from 'src/sources/resources'
 
 const setup = () => {
   const props = {

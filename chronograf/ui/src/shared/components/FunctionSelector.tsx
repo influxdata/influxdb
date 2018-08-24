@@ -1,7 +1,7 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
-import {INFLUXQL_FUNCTIONS} from 'src/data_explorer/constants'
+import {INFLUXQL_FUNCTIONS} from 'src/shared/constants/influxql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {

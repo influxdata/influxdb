@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

@@ -5,9 +5,9 @@ import Container from 'src/reusable_ui/components/overlays/OverlayContainer'
 import Heading from 'src/reusable_ui/components/overlays/OverlayHeading'
 import Body from 'src/reusable_ui/components/overlays/OverlayBody'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
-import {notifyDashboardImportFailed} from 'src/shared/copy/notifications'
+import {dashboardImportFailed} from 'src/shared/copy/notifications'
 
-import {Dashboard} from 'src/types'
+import {Dashboard} from 'src/types/v2'
 import {Notification} from 'src/types/notifications'
 
 interface Props {
@@ -57,7 +57,7 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
     const {notify, onImportDashboard, onDismissOverlay} = this.props
     const fileExtensionRegex = new RegExp(`${this.validFileExtension}$`)
     if (!fileName.match(fileExtensionRegex)) {
-      notify(notifyDashboardImportFailed(fileName, 'Please import a JSON file'))
+      notify(dashboardImportFailed(fileName, 'Please import a JSON file'))
       return
     }
 
@@ -68,12 +68,10 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
         onImportDashboard(dashboard)
         onDismissOverlay()
       } else {
-        notify(
-          notifyDashboardImportFailed(fileName, 'No dashboard found in file')
-        )
+        notify(dashboardImportFailed(fileName, 'No dashboard found in file'))
       }
     } catch (error) {
-      notify(notifyDashboardImportFailed(fileName, error))
+      notify(dashboardImportFailed(fileName, error))
     }
   }
 }

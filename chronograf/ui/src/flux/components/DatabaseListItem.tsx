@@ -6,8 +6,8 @@ import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
 import parseValuesColumn from 'src/shared/parsing/flux/values'
 import TagList from 'src/flux/components/TagList'
 import {
-  notifyCopyToClipboardSuccess,
-  notifyCopyToClipboardFailed,
+  copyToClipboardSuccess,
+  copyToClipboardFailed,
 } from 'src/shared/copy/notifications'
 
 import {NotificationAction} from 'src/types'
@@ -121,9 +121,9 @@ class DatabaseListItem extends PureComponent<Props, State> {
   ): void => {
     const {notify} = this.props
     if (isSuccessful) {
-      notify(notifyCopyToClipboardSuccess(copiedText))
+      notify(copyToClipboardSuccess(copiedText))
     } else {
-      notify(notifyCopyToClipboardFailed(copiedText))
+      notify(copyToClipboardFailed(copiedText))
     }
   }
 

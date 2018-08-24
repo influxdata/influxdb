@@ -7,10 +7,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
-import {
-  notifyCSVUploadFailed,
-  notifyInvalidMapType,
-} from 'src/shared/copy/notifications'
+import {csvUploadFailed, invalidMapType} from 'src/shared/copy/notifications'
 
 import {TemplateBuilderProps, TemplateValueType} from 'src/types'
 import {trimAndRemoveQuotes} from 'src/tempVars/utils'
@@ -90,7 +87,7 @@ class MapTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
 
     const fileExtensionRegex = new RegExp(`${this.validFileExtension}$`)
     if (!fileName.match(fileExtensionRegex)) {
-      this.props.notify(notifyCSVUploadFailed())
+      this.props.notify(csvUploadFailed())
       return
     }
 
@@ -149,7 +146,7 @@ class MapTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
           arrayOfKeys = [...arrayOfKeys, key]
         }
       } else {
-        notify(notifyInvalidMapType())
+        notify(invalidMapType())
       }
     })
     return values

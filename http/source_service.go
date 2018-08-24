@@ -34,6 +34,7 @@ func newSourceResponse(s *platform.Source) *sourceResponse {
 			"self":    fmt.Sprintf("%s/%s", sourceHTTPPath, s.ID.String()),
 			"query":   fmt.Sprintf("%s/%s/query", sourceHTTPPath, s.ID.String()),
 			"buckets": fmt.Sprintf("%s/%s/buckets", sourceHTTPPath, s.ID.String()),
+			"health":  fmt.Sprintf("%s/%s/health", sourceHTTPPath, s.ID.String()),
 		},
 	}
 }
@@ -81,6 +82,7 @@ func NewSourceHandler() *SourceHandler {
 
 	h.HandlerFunc("GET", "/v2/sources/:id/buckets", h.handleGetSourcesBuckets)
 	h.HandlerFunc("POST", "/v2/sources/:id/query", h.handlePostSourceQuery)
+	h.HandlerFunc("GET", "/v2/sources/:id/health", h.handleGetSourceHealth)
 	return h
 }
 
@@ -242,6 +244,12 @@ func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) 
 		EncodeError(ctx, err, w)
 		return
 	}
+}
+
+// handleGetSourceHealth is the HTTP handler for the GET /v1/sources/:id/health route.
+func (h *SourceHandler) handleGetSourceHealth(w http.ResponseWriter, r *http.Request) {
+	// TODO(watts): actually check source health
+	w.WriteHeader(http.StatusOK)
 }
 
 type getSourceRequest struct {

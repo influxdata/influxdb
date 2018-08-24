@@ -1,7 +1,7 @@
 import React, {ChangeEvent, PureComponent} from 'react'
 import _ from 'lodash'
 
-import Input from 'src/kapacitor/components/KapacitorFormInput'
+import Input from 'src/shared/components/KapacitorFormInput'
 
 import {NewService} from 'src/types'
 import {FluxFormMode} from 'src/flux/constants/connection'

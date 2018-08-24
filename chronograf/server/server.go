@@ -456,7 +456,6 @@ func NewServiceV2(ctx context.Context, d *bbolt.DB) (*Service, error) {
 			ConfigStore:             db.ConfigStore,
 			MappingsStore:           db.MappingsStore,
 			OrganizationConfigStore: db.OrganizationConfigStore,
-			CellService:             db,
 		},
 		// TODO(desa): what to do about logger
 		Logger: logger,
@@ -528,7 +527,6 @@ func openService(ctx context.Context, buildInfo chronograf.BuildInfo, boltPath s
 			ConfigStore:             db.ConfigStore,
 			MappingsStore:           db.MappingsStore,
 			OrganizationConfigStore: db.OrganizationConfigStore,
-			CellService:             db,
 		},
 		Logger:    logger,
 		UseAuth:   useAuth,

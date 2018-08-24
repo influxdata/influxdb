@@ -1,36 +1,33 @@
+// Libraries
 import React, {Component} from 'react'
-import {Cell} from 'src/types/dashboards'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
-import {addDashboardCellAsync} from 'src/dashboards/actions'
-import {ErrorHandling} from 'src/shared/decorators/errors'
+// Actions
+import {addCellAsync} from 'src/dashboards/actions/v2'
+
+// Types
+import {Dashboard} from 'src/types/v2/dashboards'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
 
-interface Dashboard {
-  id: string
-  cells: Cell[]
-}
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   dashboard: Dashboard
-  addDashboardCell: (dashboard: Dashboard, cell?: Cell) => void
 }
 
-const mapDispatchToProps = dispatch => ({
-  addDashboardCell: bindActionCreators(addDashboardCellAsync, dispatch),
-})
+interface Actions {
+  addDashboardCell: typeof addCellAsync
+}
 
 @ErrorHandling
-@connect(null, mapDispatchToProps)
-class DashboardEmpty extends Component<Props> {
+class DashboardEmpty extends Component<Props & Actions> {
   constructor(props) {
     super(props)
   }
 
-  public handleAddCell = type => () => {
+  public handleAddCell = __ => async () => {
     const {dashboard, addDashboardCell} = this.props
-    addDashboardCell(dashboard, type)
+    await addDashboardCell(dashboard)
   }
 
   public render() {
@@ -55,4 +52,8 @@ class DashboardEmpty extends Component<Props> {
   }
 }
 
-export default DashboardEmpty
+const mdtp = {
+  addDashboardCell: addCellAsync,
+}
+
+export default connect(null, mdtp)(DashboardEmpty)

@@ -253,7 +253,7 @@ module.exports = {
       poll: 1000,
     },
     proxy: {
-      '/chronograf/v1': {
+      '/v2': {
         target: 'http://localhost:9999',
         secure: false,
       },

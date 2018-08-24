@@ -1,5 +1,5 @@
-import {Source} from 'src/types/sources'
-import {Dashboard, DashboardSwitcherLinks} from 'src/types/dashboards'
+import {Dashboard} from 'src/types/v2/dashboards'
+import {DashboardSwitcherLinks} from 'src/types/dashboards'
 
 export const EMPTY_LINKS = {
   links: [],
@@ -7,14 +7,13 @@ export const EMPTY_LINKS = {
 }
 
 export const linksFromDashboards = (
-  dashboards: Dashboard[],
-  source: Source
+  dashboards: Dashboard[]
 ): DashboardSwitcherLinks => {
   const links = dashboards.map(d => {
     return {
-      key: String(d.id),
+      key: d.id,
       text: d.name,
-      to: `/sources/${source.id}/dashboards/${d.id}`,
+      to: `/dashboards/${d.id}`,
     }
   })
 
@@ -27,7 +26,7 @@ export const updateDashboardLinks = (
 ) => {
   const {active} = dashboardLinks
 
-  if (!active || active.key !== String(activeDashboard.id)) {
+  if (!active || active.key !== activeDashboard.id) {
     return updateActiveDashboardLink(dashboardLinks, activeDashboard)
   }
 
@@ -42,9 +41,7 @@ const updateActiveDashboardLink = (
     return {...dashboardLinks, active: null}
   }
 
-  const active = dashboardLinks.links.find(
-    link => link.key === String(dashboard.id)
-  )
+  const active = dashboardLinks.links.find(link => link.key === dashboard.id)
 
   return {...dashboardLinks, active}
 }
@@ -57,7 +54,7 @@ const updateActiveDashboardLinkName = (
   let {active} = dashboardLinks
 
   const links = dashboardLinks.links.map(link => {
-    if (link.key === String(dashboard.id)) {
+    if (link.key === dashboard.id) {
       active = {...link, text: name}
 
       return active

@@ -103,6 +103,12 @@
   dependencies:
     "@types/react" "*"
 
+"@types/react-grid-layout@^0.16.5":
+  version "0.16.5"
+  resolved "https://registry.yarnpkg.com/@types/react-grid-layout/-/react-grid-layout-0.16.5.tgz#ee23e1f9a0f2d00fc0bf91a5ad12b5c9c6b548df"
+  dependencies:
+    "@types/react" "*"
+
 "@types/react-router-redux@4":
   version "4.0.51"
   resolved "https://registry.yarnpkg.com/@types/react-router-redux/-/react-router-redux-4.0.51.tgz#047e8c206892790bc2462f30d8b346d5b4f24fa0"

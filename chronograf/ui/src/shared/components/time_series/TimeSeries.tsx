@@ -3,10 +3,10 @@ import React, {Component} from 'react'
 import _ from 'lodash'
 
 // API
-import {fetchTimeSeries} from 'src/shared/apis/query'
+import {fetchTimeSeries} from 'src/shared/apis/v2/timeSeries'
 
 // Types
-import {Template, Source, Query, RemoteDataState} from 'src/types'
+import {Template, CellQuery, RemoteDataState} from 'src/types'
 import {TimeSeriesServerResponse, TimeSeriesResponse} from 'src/types/series'
 
 // Utils
@@ -20,12 +20,11 @@ interface RenderProps {
 }
 
 interface Props {
-  source: Source
-  queries: Query[]
+  link: string
+  queries: CellQuery[]
   children: (r: RenderProps) => JSX.Element
   inView?: boolean
   templates?: Template[]
-  editQueryStatus?: () => void
 }
 
 interface State {
@@ -68,7 +67,7 @@ class TimeSeries extends Component<Props, State> {
   }
 
   public executeQueries = async (isFirstFetch: boolean = false) => {
-    const {source, inView, queries, templates, editQueryStatus} = this.props
+    const {link, inView, queries, templates} = this.props
 
     if (!inView) {
       return
@@ -84,11 +83,10 @@ class TimeSeries extends Component<Props, State> {
 
     try {
       const timeSeries = await fetchTimeSeries(
-        source,
-        queries,
+        link,
+        this.queries,
         TEMP_RES,
-        templates,
-        editQueryStatus
+        templates
       )
 
       const newSeries = timeSeries.map((response: TimeSeriesResponse) => ({
@@ -132,8 +130,12 @@ class TimeSeries extends Component<Props, State> {
     return this.props.children({timeSeries, loading})
   }
 
+  private get queries(): string[] {
+    return this.props.queries.map(q => q.text)
+  }
+
   private isPropsDifferent(nextProps: Props) {
-    const isSourceDifferent = !_.isEqual(this.props.source, nextProps.source)
+    const isSourceDifferent = !_.isEqual(this.props.link, nextProps.link)
 
     return (
       this.props.inView !== nextProps.inView ||

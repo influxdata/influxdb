@@ -7,7 +7,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
-import {notifyCSVUploadFailed} from 'src/shared/copy/notifications'
+import {csvUploadFailed} from 'src/shared/copy/notifications'
 import {trimAndRemoveQuotes} from 'src/tempVars/utils'
 
 import {TemplateBuilderProps, TemplateValueType, TemplateValue} from 'src/types'
@@ -81,7 +81,7 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
 
     const fileExtensionRegex = new RegExp(`${this.validFileExtension}$`)
     if (!fileName.match(fileExtensionRegex)) {
-      this.props.notify(notifyCSVUploadFailed())
+      this.props.notify(csvUploadFailed())
       return
     }
 

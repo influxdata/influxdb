@@ -4,7 +4,7 @@ import InfluxTableHead from 'src/sources/components/InfluxTableHead'
 import InfluxTableHeader from 'src/sources/components/InfluxTableHeader'
 import InfluxTableRow from 'src/sources/components/InfluxTableRow'
 
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

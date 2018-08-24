@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 import FromDatabaseDropdown from 'src/flux/components/FromDatabaseDropdown'
-import {source} from 'test/resources/v2'
+import {source} from 'src/sources/resources'
 
 jest.mock('src/shared/apis/metaQuery', () => require('mocks/flux/apis'))
 

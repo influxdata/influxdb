@@ -31,22 +31,21 @@ const defaultDeletionNotification: NotificationExcludingMessage = {
 
 //  Misc Notifications
 //  ----------------------------------------------------------------------------
-export const notifyGenericFail = (): string =>
-  'Could not communicate with server.'
+export const genericFail = (): string => 'Could not communicate with server.'
 
-export const notifyNewVersion = (version: string): Notification => ({
+export const newVersion = (version: string): Notification => ({
   type: 'info',
   icon: 'cubo-uniform',
   duration: INFINITE,
   message: `Welcome to the latest Chronograf${version}. Local settings cleared.`,
 })
 
-export const notifyLoadLocalSettingsFailed = (error: string): Notification => ({
+export const loadLocalSettingsFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   message: `Loading local settings failed: ${error}`,
 })
 
-export const notifyErrorWithAltText = (
+export const errorWithAltText = (
   type: string,
   message: string
 ): Notification => ({
@@ -56,68 +55,66 @@ export const notifyErrorWithAltText = (
   message,
 })
 
-export const notifyPresentationMode = (): Notification => ({
+export const presentationMode = (): Notification => ({
   type: 'primary',
   icon: 'expand-b',
   duration: 7500,
   message: 'Press ESC to exit Presentation Mode.',
 })
 
-export const notifyDataWritten = (): Notification => ({
+export const dataWritten = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Data was written successfully.',
 })
 
-export const notifyDataWriteFailed = (errorMessage: string): Notification => ({
+export const dataWriteFailed = (errorMessage: string): Notification => ({
   ...defaultErrorNotification,
   message: `Data write failed: ${errorMessage}`,
 })
 
-export const notifySessionTimedOut = (): Notification => ({
+export const sessionTimedOut = (): Notification => ({
   type: 'primary',
   icon: 'triangle',
   duration: INFINITE,
   message: 'Your session has timed out. Log in again to continue.',
 })
 
-export const notifyServerError: Notification = {
+export const serverError: Notification = {
   ...defaultErrorNotification,
   message: 'Internal Server Error. Check API Logs.',
 }
 
-export const notifyCSVDownloadFailed = (): Notification => ({
+export const csvDownloadFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Unable to download .CSV file',
 })
 
-export const notifyCSVUploadFailed = (): Notification => ({
+export const csvUploadFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Please upload a .csv file',
 })
 
 //  Hosts Page Notifications
 //  ----------------------------------------------------------------------------
-export const notifyUnableToGetHosts = (): Notification => ({
+export const unableToGetHosts = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Unable to get Hosts.',
 })
 
-export const notifyUnableToGetApps = (): Notification => ({
+export const unableToGetApps = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Unable to get Apps for Hosts.',
 })
 
 //  InfluxDB Sources Notifications
 //  ----------------------------------------------------------------------------
-export const notifySourceCreationSucceeded = (
-  sourceName: string
-): Notification => ({
+export const sourceCreationSucceeded = (sourceName: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'server2',
   message: `Connected to InfluxDB ${sourceName} successfully.`,
 })
 
-export const notifySourceCreationFailed = (
+export const sourceCreationFailed = (
   sourceName: string,
   errorMessage: string
 ): Notification => ({
@@ -126,13 +123,13 @@ export const notifySourceCreationFailed = (
   message: `Unable to connect to InfluxDB ${sourceName}: ${errorMessage}`,
 })
 
-export const notifySourceUpdated = (sourceName: string): Notification => ({
+export const sourceUpdated = (sourceName: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'server2',
   message: `Updated InfluxDB ${sourceName} Connection successfully.`,
 })
 
-export const notifySourceUpdateFailed = (
+export const sourceUpdateFailed = (
   sourceName: string,
   errorMessage: string
 ): Notification => ({
@@ -141,27 +138,25 @@ export const notifySourceUpdateFailed = (
   message: `Failed to update InfluxDB ${sourceName} Connection: ${errorMessage}`,
 })
 
-export const notifySourceDeleted = (sourceName: string): Notification => ({
+export const sourceDeleted = (sourceName: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'server2',
   message: `${sourceName} deleted successfully.`,
 })
 
-export const notifySourceDeleteFailed = (sourceName: string): Notification => ({
+export const sourceDeleteFailed = (sourceName: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'server2',
   message: `There was a problem deleting ${sourceName}.`,
 })
 
-export const notifySourceNoLongerAvailable = (
-  sourceName: string
-): Notification => ({
+export const sourceNoLongerAvailable = (sourceName: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'server2',
   message: `Source ${sourceName} is no longer available. Please ensure InfluxDB is running.`,
 })
 
-export const notifyErrorConnectingToSource = (
+export const errorConnectingToSource = (
   errorMessage: string
 ): Notification => ({
   ...defaultErrorNotification,
@@ -171,26 +166,26 @@ export const notifyErrorConnectingToSource = (
 
 //  Multitenancy User Notifications
 //  ----------------------------------------------------------------------------
-export const notifyUserRemovedFromAllOrgs = (): Notification => ({
+export const userRemovedFromAllOrgs = (): Notification => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message:
     'You have been removed from all organizations. Please contact your administrator.',
 })
 
-export const notifyUserRemovedFromCurrentOrg = (): Notification => ({
+export const userRemovedFromCurrentOrg = (): Notification => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message: 'You were removed from your current organization.',
 })
 
-export const notifyOrgHasNoSources = (): Notification => ({
+export const orgHasNoSources = (): Notification => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message: 'Organization has no sources configured.',
 })
 
-export const notifyUserSwitchedOrgs = (
+export const userSwitchedOrgs = (
   orgName: string,
   roleName: string
 ): Notification => ({
@@ -199,55 +194,52 @@ export const notifyUserSwitchedOrgs = (
   message: `Now logged in to '${orgName}' as '${roleName}'.`,
 })
 
-export const notifyOrgIsPrivate = (): Notification => ({
+export const orgIsPrivate = (): Notification => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message:
     'This organization is private. To gain access, you must be explicitly added by an administrator.',
 })
 
-export const notifyCurrentOrgDeleted = (): Notification => ({
+export const currentOrgDeleted = (): Notification => ({
   ...defaultErrorNotification,
   duration: INFINITE,
   message: 'Your current organization was deleted.',
 })
 
-export const notifyJSONFeedFailed = (url: string): Notification => ({
+export const jsonFeedFailed = (url: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to fetch JSON Feed for News Feed from '${url}'`,
 })
 
 //  Chronograf Admin Notifications
 //  ----------------------------------------------------------------------------
-export const notifyMappingDeleted = (
-  id: string,
-  scheme: string
-): Notification => ({
+export const mappingDeleted = (id: string, scheme: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Mapping ${id}/${scheme} deleted successfully.`,
 })
 
-export const notifyChronografUserAddedToOrg = (
+export const chronografUserAddedToOrg = (
   user: string,
   organization: string
 ): string => `${user} has been added to ${organization} successfully.`
 
-export const notifyChronografUserRemovedFromOrg = (
+export const chronografUserRemovedFromOrg = (
   user: string,
   organization: string
 ): string => `${user} has been removed from ${organization} successfully.`
 
-export const notifyChronografUserUpdated = (message: string): Notification => ({
+export const chronografUserUpdated = (message: string): Notification => ({
   ...defaultSuccessNotification,
   message,
 })
 
-export const notifyChronografOrgDeleted = (orgName: string): Notification => ({
+export const chronografOrgDeleted = (orgName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Organization ${orgName} deleted successfully.`,
 })
 
-export const notifyChronografUserDeleted = (
+export const chronografUserDeleted = (
   user: string,
   isAbsoluteDelete: boolean
 ): Notification => ({
@@ -259,7 +251,7 @@ export const notifyChronografUserDeleted = (
   }`,
 })
 
-export const notifyChronografUserMissingNameAndProvider = (): Notification => ({
+export const chronografUserMissingNameAndProvider = (): Notification => ({
   ...defaultErrorNotification,
   type: 'warning',
   message: 'User must have a Name and Provider.',
@@ -267,195 +259,193 @@ export const notifyChronografUserMissingNameAndProvider = (): Notification => ({
 
 //  InfluxDB Admin Notifications
 //  ----------------------------------------------------------------------------
-export const notifyDBUserCreated = (): Notification => ({
+export const dbUserCreated = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'User created successfully.',
 })
 
-export const notifyDBUserCreationFailed = (errorMessage: string): string =>
+export const dbUserCreationFailed = (errorMessage: string): string =>
   `Failed to create User: ${errorMessage}`
 
-export const notifyDBUserDeleted = (userName: string): Notification => ({
+export const dbUserDeleted = (userName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `User "${userName}" deleted successfully.`,
 })
 
-export const notifyDBUserDeleteFailed = (errorMessage: string): string =>
+export const dbUserDeleteFailed = (errorMessage: string): string =>
   `Failed to delete User: ${errorMessage}`
 
-export const notifyDBUserPermissionsUpdated = (): Notification => ({
+export const dbUserPermissionsUpdated = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'User Permissions updated successfully.',
 })
 
-export const notifyDBUserPermissionsUpdateFailed = (
-  errorMessage: string
-): string => `Failed to update User Permissions: ${errorMessage}`
+export const dbUserPermissionsUpdateFailed = (errorMessage: string): string =>
+  `Failed to update User Permissions: ${errorMessage}`
 
-export const notifyDBUserRolesUpdated = (): Notification => ({
+export const dbUserRolesUpdated = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'User Roles updated successfully.',
 })
 
-export const notifyDBUserRolesUpdateFailed = (errorMessage: string): string =>
+export const dbUserRolesUpdateFailed = (errorMessage: string): string =>
   `Failed to update User Roles: ${errorMessage}`
 
-export const notifyDBUserPasswordUpdated = (): Notification => ({
+export const dbUserPasswordUpdated = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'User Password updated successfully.',
 })
 
-export const notifyDBUserPasswordUpdateFailed = (
-  errorMessage: string
-): string => `Failed to update User Password: ${errorMessage}`
+export const dbUserPasswordUpdateFailed = (errorMessage: string): string =>
+  `Failed to update User Password: ${errorMessage}`
 
-export const notifyDatabaseCreated = (): Notification => ({
+export const DatabaseCreated = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Database created successfully.',
 })
 
-export const notifyDBCreationFailed = (errorMessage: string): string =>
+export const dbCreationFailed = (errorMessage: string): string =>
   `Failed to create Database: ${errorMessage}`
 
-export const notifyDBDeleted = (databaseName: string): Notification => ({
+export const dbDeleted = (databaseName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Database "${databaseName}" deleted successfully.`,
 })
 
-export const notifyDBDeleteFailed = (errorMessage: string): string =>
+export const dbDeleteFailed = (errorMessage: string): string =>
   `Failed to delete Database: ${errorMessage}`
 
-export const notifyRoleCreated = (): Notification => ({
+export const roleCreated = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Role created successfully.',
 })
 
-export const notifyRoleCreationFailed = (errorMessage: string): string =>
+export const roleCreationFailed = (errorMessage: string): string =>
   `Failed to create Role: ${errorMessage}`
 
-export const notifyRoleDeleted = (roleName: string): Notification => ({
+export const roleDeleted = (roleName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Role "${roleName}" deleted successfully.`,
 })
 
-export const notifyRoleDeleteFailed = (errorMessage: string): string =>
+export const roleDeleteFailed = (errorMessage: string): string =>
   `Failed to delete Role: ${errorMessage}`
 
-export const notifyRoleUsersUpdated = (): Notification => ({
+export const roleUsersUpdated = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Role Users updated successfully.',
 })
 
-export const notifyRoleUsersUpdateFailed = (errorMessage: string): string =>
+export const roleUsersUpdateFailed = (errorMessage: string): string =>
   `Failed to update Role Users: ${errorMessage}`
 
-export const notifyRolePermissionsUpdated = (): Notification => ({
+export const rolePermissionsUpdated = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Role Permissions updated successfully.',
 })
 
-export const notifyRolePermissionsUpdateFailed = (
-  errorMessage: string
-): string => `Failed to update Role Permissions: ${errorMessage}`
+export const rolePermissionsUpdateFailed = (errorMessage: string): string =>
+  `Failed to update Role Permissions: ${errorMessage}`
 
-export const notifyRetentionPolicyCreated = (): Notification => ({
+export const retentionPolicyCreated = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Retention Policy created successfully.',
 })
 
-export const notifyRetentionPolicyCreationError = (): Notification => ({
+export const retentionPolicyCreationError = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to create Retention Policy. Please check name and duration.',
 })
 
-export const notifyRetentionPolicyCreationFailed = (
-  errorMessage: string
-): string => `Failed to create Retention Policy: ${errorMessage}`
+export const retentionPolicyCreationFailed = (errorMessage: string): string =>
+  `Failed to create Retention Policy: ${errorMessage}`
 
-export const notifyRetentionPolicyDeleted = (rpName: string): Notification => ({
+export const retentionPolicyDeleted = (rpName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Retention Policy "${rpName}" deleted successfully.`,
 })
 
-export const notifyRetentionPolicyDeleteFailed = (
-  errorMessage: string
-): string => `Failed to delete Retention Policy: ${errorMessage}`
+export const retentionPolicyDeleteFailed = (errorMessage: string): string =>
+  `Failed to delete Retention Policy: ${errorMessage}`
 
-export const notifyRetentionPolicyUpdated = (): Notification => ({
+export const retentionPolicyUpdated = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Retention Policy updated successfully.',
 })
 
-export const notifyRetentionPolicyUpdateFailed = (
-  errorMessage: string
-): string => `Failed to update Retention Policy: ${errorMessage}`
+export const retentionPolicyUpdateFailed = (errorMessage: string): string =>
+  `Failed to update Retention Policy: ${errorMessage}`
 
-export const notifyQueriesError = (errorMessage: string): Notification => ({
+export const QueriesError = (errorMessage: string): Notification => ({
   ...defaultErrorNotification,
   message: errorMessage,
 })
 
-export const notifyRetentionPolicyCantHaveEmptyFields = (): Notification => ({
+export const retentionPolicyCantHaveEmptyFields = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Fields cannot be empty.',
 })
 
-export const notifyDatabaseDeleteConfirmationRequired = (
+export const databaseDeleteConfirmationRequired = (
   databaseName: string
 ): Notification => ({
   ...defaultErrorNotification,
   message: `Type "DELETE ${databaseName}" to confirm. This action cannot be undone.`,
 })
 
-export const notifyDBUserNamePasswordInvalid = (): Notification => ({
+export const dbUserNamePasswordInvalid = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Username and/or Password too short.',
 })
 
-export const notifyRoleNameInvalid = (): Notification => ({
+export const roleNameInvalid = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Role name is too short.',
 })
 
-export const notifyDatabaseNameInvalid = (): Notification => ({
+export const databaseNameInvalid = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Database name cannot be blank.',
 })
 
-export const notifyDatabaseNameAlreadyExists = (): Notification => ({
+export const databaseNameAlreadyExists = (): Notification => ({
   ...defaultErrorNotification,
   message: 'A Database by this name already exists.',
 })
 
 //  Dashboard Notifications
 //  ----------------------------------------------------------------------------
-export const notifyTempVarAlreadyExists = (
-  tempVarName: string
-): Notification => ({
+export const tempVarAlreadyExists = (tempVarName: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
   message: `Variable '${tempVarName}' already exists. Please enter a new value.`,
 })
 
-export const notifyDashboardNotFound = (dashboardID: number): Notification => ({
+export const dashboardNotFound = (dashboardID: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'dash-h',
   message: `Dashboard ${dashboardID} could not be found`,
 })
 
-export const notifyDashboardDeleted = (name: string): Notification => ({
+export const dashboardUpdateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  icon: 'dash-h',
+  message: 'Could not update dashboard',
+})
+
+export const dashboardDeleted = (name: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
   message: `Dashboard ${name} deleted successfully.`,
 })
 
-export const notifyDashboardExported = (name: string): Notification => ({
+export const dashboardExported = (name: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
   message: `Dashboard ${name} exported successfully.`,
 })
 
-export const notifyDashboardExportFailed = (
+export const dashboardExportFailed = (
   name: string,
   errorMessage: string
 ): Notification => ({
@@ -464,13 +454,18 @@ export const notifyDashboardExportFailed = (
   message: `Failed to export Dashboard ${name}: ${errorMessage}.`,
 })
 
-export const notifyDashboardImported = (name: string): Notification => ({
+export const dashboardCreateFailed = () => ({
+  ...defaultErrorNotification,
+  message: 'Failed to created dashboard.',
+})
+
+export const dashboardImported = (name: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
   message: `Dashboard ${name} imported successfully.`,
 })
 
-export const notifyDashboardImportFailed = (
+export const dashboardImportFailed = (
   fileName: string,
   errorMessage: string
 ): Notification => ({
@@ -479,26 +474,29 @@ export const notifyDashboardImportFailed = (
   message: `Failed to import Dashboard from file ${fileName}: ${errorMessage}.`,
 })
 
-export const notifyDashboardDeleteFailed = (
+export const dashboardDeleteFailed = (
   name: string,
   errorMessage: string
-): string => `Failed to delete Dashboard ${name}: ${errorMessage}.`
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete Dashboard ${name}: ${errorMessage}.`,
+})
 
-export const notifyCellAdded = (name: string): Notification => ({
+export const cellAdded = (): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
   duration: 1900,
-  message: `Added "${name}" to dashboard.`,
+  message: `Added new cell to dashboard.`,
 })
 
-export const notifyCellDeleted = (name: string): Notification => ({
+export const cellDeleted = (): Notification => ({
   ...defaultDeletionNotification,
   icon: 'dash-h',
   duration: 1900,
-  message: `Deleted "${name}" from dashboard.`,
+  message: `Cell deleted from dashboard.`,
 })
 
-export const notifyBuilderDisabled = (): Notification => ({
+export const builderDisabled = (): Notification => ({
   type: 'info',
   icon: 'graphline',
   duration: 7500,
@@ -507,7 +505,7 @@ export const notifyBuilderDisabled = (): Notification => ({
 
 //  Template Variables & URL Queries
 //  ----------------------------------------------------------------------------
-export const notifyInvalidTempVarValueInMetaQuery = (
+export const invalidTempVarValueInMetaQuery = (
   tempVar: string,
   errorMessage: string
 ): Notification => ({
@@ -517,7 +515,7 @@ export const notifyInvalidTempVarValueInMetaQuery = (
   message: `Invalid query supplied for template variable ${tempVar}: ${errorMessage}`,
 })
 
-export const notifyInvalidTempVarValueInURLQuery = ({
+export const invalidTempVarValueInURLQuery = ({
   key,
   value,
 }: TemplateUpdate): Notification => ({
@@ -526,19 +524,19 @@ export const notifyInvalidTempVarValueInURLQuery = ({
   message: `Invalid URL query value of '${value}' supplied for template variable '${key}'.`,
 })
 
-export const notifyInvalidTimeRangeValueInURLQuery = (): Notification => ({
+export const invalidTimeRangeValueInURLQuery = (): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
   message: `Invalid URL query value supplied for lower or upper time range.`,
 })
 
-export const notifyInvalidMapType = (): Notification => ({
+export const invalidMapType = (): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
   message: `Template Variables of map type accept two comma separated values per line`,
 })
 
-export const notifyInvalidZoomedTimeRangeValueInURLQuery = (): Notification => ({
+export const invalidZoomedTimeRangeValueInURLQuery = (): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
   message: `Invalid URL query value supplied for zoomed lower or zoomed upper time range.`,
@@ -546,12 +544,12 @@ export const notifyInvalidZoomedTimeRangeValueInURLQuery = (): Notification => (
 
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
-export const notifyAlertRuleCreated = (ruleName: string): Notification => ({
+export const alertRuleCreated = (ruleName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `${ruleName} created successfully.`,
 })
 
-export const notifyAlertRuleCreateFailed = (
+export const alertRuleCreateFailed = (
   ruleName: string,
   errorMessage: string
 ): Notification => ({
@@ -559,12 +557,12 @@ export const notifyAlertRuleCreateFailed = (
   message: `There was a problem creating ${ruleName}: ${errorMessage}`,
 })
 
-export const notifyAlertRuleUpdated = (ruleName: string): Notification => ({
+export const alertRuleUpdated = (ruleName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `${ruleName} saved successfully.`,
 })
 
-export const notifyAlertRuleUpdateFailed = (
+export const alertRuleUpdateFailed = (
   ruleName: string,
   errorMessage: string
 ): Notification => ({
@@ -572,19 +570,17 @@ export const notifyAlertRuleUpdateFailed = (
   message: `There was a problem saving ${ruleName}: ${errorMessage}`,
 })
 
-export const notifyAlertRuleDeleted = (ruleName: string): Notification => ({
+export const alertRuleDeleted = (ruleName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `${ruleName} deleted successfully.`,
 })
 
-export const notifyAlertRuleDeleteFailed = (
-  ruleName: string
-): Notification => ({
+export const alertRuleDeleteFailed = (ruleName: string): Notification => ({
   ...defaultErrorNotification,
   message: `${ruleName} could not be deleted.`,
 })
 
-export const notifyAlertRuleStatusUpdated = (
+export const alertRuleStatusUpdated = (
   ruleName: string,
   updatedStatus: string
 ): Notification => ({
@@ -592,7 +588,7 @@ export const notifyAlertRuleStatusUpdated = (
   message: `${ruleName} ${updatedStatus} successfully.`,
 })
 
-export const notifyAlertRuleStatusUpdateFailed = (
+export const alertRuleStatusUpdateFailed = (
   ruleName: string,
   updatedStatus: string
 ): Notification => ({
@@ -600,13 +596,13 @@ export const notifyAlertRuleStatusUpdateFailed = (
   message: `${ruleName} could not be ${updatedStatus}.`,
 })
 
-export const notifyAlertRuleRequiresQuery = (): string =>
+export const alertRuleRequiresQuery = (): string =>
   'Please select a Database, Measurement, and Field.'
 
-export const notifyAlertRuleRequiresConditionValue = (): string =>
+export const alertRuleRequiresConditionValue = (): string =>
   'Please enter a value in the Conditions section.'
 
-export const notifyAlertRuleDeadmanInvalid = (): string =>
+export const alertRuleDeadmanInvalid = (): string =>
   'Deadman rules require a Database and Measurement.'
 
 // Flux notifications
@@ -615,18 +611,18 @@ export const validateSuccess = (): Notification => ({
   message: 'No errors found. Happy Happy Joy Joy!',
 })
 
-export const notifyCopyToClipboardSuccess = (text: string): Notification => ({
+export const copyToClipboardSuccess = (text: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
   message: `'${text}' has been copied to clipboard.`,
 })
 
-export const notifyCopyToClipboardFailed = (text: string): Notification => ({
+export const copyToClipboardFailed = (text: string): Notification => ({
   ...defaultErrorNotification,
   message: `'${text}' was not copied to clipboard.`,
 })
 
-export const notifyFluxNameAlreadyTaken = (fluxName: string): Notification => ({
+export const fluxNameAlreadyTaken = (fluxName: string): Notification => ({
   ...defaultErrorNotification,
   message: `There is already a Flux Connection named "${fluxName}."`,
 })
