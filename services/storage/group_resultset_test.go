@@ -99,7 +99,7 @@ func TestGroupGroupResultSetSorting(t *testing.T) {
 			newCursor := func() (SeriesCursor, error) {
 				return tt.cur, nil
 			}
-			rs := NewGroupResultSet(context.Background(), &ReadRequest{Group: tt.group, GroupKeys: tt.keys}, newCursor)
+			rs := NewGroupResultSet(context.Background(), &ReadRequest{Group: tt.group, GroupKeys: tt.keys}, newCursor).(*groupResultSet)
 
 			var rows []SeriesRow
 
