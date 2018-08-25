@@ -23,6 +23,7 @@ type WindowOpSpec struct {
 	TimeCol       string            `json:"time_col"`
 	StopColLabel  string            `json:"stop_col_label"`
 	StartColLabel string            `json:"start_col_label"`
+	CreateEmpty   bool              `json:"createEmpty"`
 }
 
 var infinityVar = values.NewDurationValue(math.MaxInt64)
@@ -37,6 +38,7 @@ func init() {
 	windowSignature.Params["timeCol"] = semantic.String
 	windowSignature.Params["startColLabel"] = semantic.String
 	windowSignature.Params["stopColLabel"] = semantic.String
+	windowSignature.Params["createEmpty"] = semantic.Bool
 
 	query.RegisterFunction(WindowKind, createWindowOpSpec, windowSignature)
 	query.RegisterOpSpec(WindowKind, newWindowOp)
@@ -101,6 +103,13 @@ func createWindowOpSpec(args query.Arguments, a *query.Administration) (query.Op
 	} else {
 		spec.StopColLabel = execute.DefaultStopColLabel
 	}
+	if createEmpty, ok, err := args.GetBool("createEmpty"); err != nil {
+		return nil, err
+	} else if ok {
+		spec.CreateEmpty = createEmpty
+	} else {
+		spec.CreateEmpty = false
+	}
 
 	// Apply defaults
 	if !everySet {
@@ -126,6 +135,7 @@ type WindowProcedureSpec struct {
 	TimeCol,
 	StartColLabel,
 	StopColLabel string
+	CreateEmpty bool
 }
 
 func newWindowProcedure(qs query.OperationSpec, pa plan.Administration) (plan.ProcedureSpec, error) {
@@ -144,6 +154,7 @@ func newWindowProcedure(qs query.OperationSpec, pa plan.Administration) (plan.Pr
 		TimeCol:       s.TimeCol,
 		StartColLabel: s.StartColLabel,
 		StopColLabel:  s.StopColLabel,
+		CreateEmpty:   s.CreateEmpty,
 	}
 	if p.Triggering == nil {
 		p.Triggering = query.DefaultTrigger
@@ -197,21 +208,24 @@ func createWindowTransformation(id execute.DatasetID, mode execute.AccumulationM
 		s.TimeCol,
 		s.StartColLabel,
 		s.StopColLabel,
+		s.CreateEmpty,
 	)
 	return t, d, nil
 }
 
 type fixedWindowTransformation struct {
-	d      execute.Dataset
-	cache  execute.TableBuilderCache
-	w      execute.Window
-	bounds execute.Bounds
+	d         execute.Dataset
+	cache     execute.TableBuilderCache
+	w         execute.Window
+	bounds    execute.Bounds
+	allBounds []execute.Bounds
 
 	offset execute.Duration
 
 	timeCol,
 	startColLabel,
 	stopColLabel string
+	createEmpty bool
 }
 
 func NewFixedWindowTransformation(
@@ -222,9 +236,10 @@ func NewFixedWindowTransformation(
 	timeCol,
 	startColLabel,
 	stopColLabel string,
+	createEmpty bool,
 ) execute.Transformation {
 	offset := execute.Duration(w.Start - w.Start.Truncate(w.Every))
-	return &fixedWindowTransformation{
+	t := &fixedWindowTransformation{
 		d:             d,
 		cache:         cache,
 		w:             w,
@@ -233,7 +248,14 @@ func NewFixedWindowTransformation(
 		timeCol:       timeCol,
 		startColLabel: startColLabel,
 		stopColLabel:  stopColLabel,
+		createEmpty:   createEmpty,
 	}
+
+	if createEmpty {
+		t.generateWindowsWithinBounds()
+	}
+
+	return t
 }
 
 func (t *fixedWindowTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) (err error) {
@@ -286,33 +308,36 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, tbl query.Tabl
 		keyColMap = append(keyColMap, len(keyColMap))
 	}
 
+	// Abort processing if no data will match bounds
+	if t.bounds.IsEmpty() {
+		return nil
+	}
+
+	for _, bnds := range t.allBounds {
+		key := t.newWindowGroupKey(tbl, keyCols, bnds, keyColMap)
+		builder, created := t.cache.TableBuilder(key)
+		if created {
+			for _, c := range newCols {
+				builder.AddCol(c)
+			}
+		}
+	}
+
 	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			tm := cr.Times(timeIdx)[i]
 			bounds := t.getWindowBounds(tm)
+
 			for _, bnds := range bounds {
-				// Update key
-				cols := make([]query.ColMeta, len(keyCols))
-				vs := make([]values.Value, len(keyCols))
-				for j, c := range keyCols {
-					cols[j] = c
-					switch c.Label {
-					case t.startColLabel:
-						vs[j] = values.NewTimeValue(bnds.Start)
-					case t.stopColLabel:
-						vs[j] = values.NewTimeValue(bnds.Stop)
-					default:
-						vs[j] = tbl.Key().Value(keyColMap[j])
-					}
-				}
-				key := execute.NewGroupKey(cols, vs)
+				key := t.newWindowGroupKey(tbl, keyCols, bnds, keyColMap)
 				builder, created := t.cache.TableBuilder(key)
 				if created {
 					for _, c := range newCols {
 						builder.AddCol(c)
 					}
 				}
+
 				for j, c := range builder.Cols() {
 					switch c.Label {
 					case t.startColLabel:
@@ -344,18 +369,51 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, tbl query.Tabl
 	})
 }
 
+func (t *fixedWindowTransformation) newWindowGroupKey(tbl query.Table, keyCols []query.ColMeta, bnds execute.Bounds, keyColMap []int) query.GroupKey {
+	cols := make([]query.ColMeta, len(keyCols))
+	vs := make([]values.Value, len(keyCols))
+	for j, c := range keyCols {
+		cols[j] = c
+		switch c.Label {
+		case t.startColLabel:
+			vs[j] = values.NewTimeValue(bnds.Start)
+		case t.stopColLabel:
+			vs[j] = values.NewTimeValue(bnds.Stop)
+		default:
+			vs[j] = tbl.Key().Value(keyColMap[j])
+		}
+	}
+	return execute.NewGroupKey(cols, vs)
+}
+
+func (t *fixedWindowTransformation) generateInitialBounds(boundsStart, boundsStop execute.Time) (execute.Time, execute.Time) {
+	stop := boundsStart.Truncate(t.w.Every) + execute.Time(t.offset)
+	if boundsStop >= stop {
+		stop += execute.Time(t.w.Every)
+	}
+	start := stop - execute.Time(t.w.Period)
+
+	return start, stop
+}
+
+func (t *fixedWindowTransformation) clipBounds(bnds *execute.Bounds) {
+	// Check against procedure bounds
+	if bnds.Stop > t.bounds.Stop {
+		bnds.Stop = t.bounds.Stop
+	}
+
+	if bnds.Start < t.bounds.Start {
+		bnds.Start = t.bounds.Start
+	}
+}
+
 func (t *fixedWindowTransformation) getWindowBounds(now execute.Time) []execute.Bounds {
 	if t.w.Every == infinityVar.Duration() {
 		return []execute.Bounds{
 			{Start: execute.MinTime, Stop: execute.MaxTime},
 		}
 	}
-
-	stop := now.Truncate(t.w.Every) + execute.Time(t.offset)
-	if now >= stop {
-		stop += execute.Time(t.w.Every)
-	}
-	start := stop - execute.Time(t.w.Period)
+	start, stop := t.generateInitialBounds(now, now)
 
 	var bounds []execute.Bounds
 
@@ -365,26 +423,40 @@ func (t *fixedWindowTransformation) getWindowBounds(now execute.Time) []execute.
 			Stop:  stop,
 		}
 
-		// Check against procedure bounds
-		if bnds.Stop > t.bounds.Stop {
-			bnds.Stop = t.bounds.Stop
-		}
+		t.clipBounds(&bnds)
+		bounds = append(bounds, bnds)
 
-		if bnds.Start < t.bounds.Start {
-			bnds.Start = t.bounds.Start
-		}
-
-		// Check bounds again since we just clamped them.
-		if bnds.Contains(now) {
-			bounds = append(bounds, bnds)
-		}
-
-		// Shift up to next bounds
 		stop += execute.Time(t.w.Every)
 		start += execute.Time(t.w.Every)
 	}
 
 	return bounds
+}
+
+func (t *fixedWindowTransformation) generateWindowsWithinBounds() {
+	if t.w.Every == infinityVar.Duration() {
+		t.allBounds = []execute.Bounds{
+			{Start: execute.MinTime, Stop: execute.MaxTime},
+		}
+		return
+	}
+	start, stop := t.generateInitialBounds(t.bounds.Start, t.bounds.Stop)
+
+	var bounds []execute.Bounds
+
+	for t.bounds.Stop > start {
+		bnds := execute.Bounds{
+			Start: start,
+			Stop:  stop,
+		}
+
+		t.clipBounds(&bnds)
+		bounds = append(bounds, bnds)
+
+		start += execute.Time(t.w.Every)
+		stop += execute.Time(t.w.Every)
+	}
+	t.allBounds = bounds
 }
 
 func (t *fixedWindowTransformation) UpdateWatermark(id execute.DatasetID, mark execute.Time) error {

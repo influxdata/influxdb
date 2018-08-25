@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/platform/query/values"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
@@ -89,6 +91,7 @@ func TestFixedWindow_PassThrough(t *testing.T) {
 			execute.DefaultTimeColLabel,
 			execute.DefaultStartColLabel,
 			execute.DefaultStopColLabel,
+			false,
 		)
 		return fw
 	})
@@ -99,12 +102,39 @@ var EmptyBounds = &execute.Bounds{
 	Stop:  execute.Time(0),
 }
 
+func newEmptyWindowTable(start execute.Time, stop execute.Time, cols []query.ColMeta) *executetest.Table {
+	return &executetest.Table{
+		KeyCols:   []string{"_start", "_stop"},
+		KeyValues: []interface{}{start, stop},
+		ColMeta:   cols,
+		Data:      [][]interface{}(nil),
+		GroupKey: execute.NewGroupKey(
+			[]query.ColMeta{
+				{Label: "_start", Type: query.TTime},
+				{Label: "_stop", Type: query.TTime},
+			},
+			[]values.Value{
+				values.NewTimeValue(start),
+				values.NewTimeValue(stop),
+			},
+		),
+	}
+}
+
 func TestFixedWindow_Process(t *testing.T) {
+	// test columns which all expected data will use
+	testCols := []query.ColMeta{
+		{Label: "_start", Type: query.TTime},
+		{Label: "_stop", Type: query.TTime},
+		{Label: "_time", Type: query.TTime},
+		{Label: "_value", Type: query.TFloat},
+	}
 	testCases := []struct {
 		name          string
 		valueCol      query.ColMeta
 		start         execute.Time
 		every, period execute.Duration
+		createEmpty   bool
 		num           int
 		bounds        *execute.Bounds
 		want          func(start execute.Time) []*executetest.Table
@@ -113,10 +143,11 @@ func TestFixedWindow_Process(t *testing.T) {
 			name:     "nonoverlapping_nonaligned",
 			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is *not* aligned with the every/period durations of the window
-			start:  execute.Time(time.Date(2017, 10, 10, 10, 10, 10, 10, time.UTC).UnixNano()),
-			every:  execute.Duration(time.Minute),
-			period: execute.Duration(time.Minute),
-			num:    15,
+			start:       execute.Time(time.Date(2017, 10, 10, 10, 10, 10, 10, time.UTC).UnixNano()),
+			every:       execute.Duration(time.Minute),
+			period:      execute.Duration(time.Minute),
+			createEmpty: true,
+			num:         15,
 			want: func(start execute.Time) []*executetest.Table {
 				return []*executetest.Table{
 					{
@@ -167,17 +198,26 @@ func TestFixedWindow_Process(t *testing.T) {
 							{start + execute.Time(2*time.Minute), start + execute.Time(3*time.Minute), start + execute.Time(140*time.Second), 14.0},
 						},
 					},
+					newEmptyWindowTable(start+execute.Time(3*time.Minute), start+execute.Time(4*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(4*time.Minute), start+execute.Time(5*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(5*time.Minute), start+execute.Time(6*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(6*time.Minute), start+execute.Time(7*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(7*time.Minute), start+execute.Time(8*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(8*time.Minute), start+execute.Time(9*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(9*time.Minute), start+execute.Time(10*time.Minute), testCols),
 				}
 			},
 		},
+
 		{
 			name:     "nonoverlapping_aligned",
 			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is aligned with the every/period durations of the window
-			start:  execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
-			every:  execute.Duration(time.Minute),
-			period: execute.Duration(time.Minute),
-			num:    15,
+			start:       execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
+			every:       execute.Duration(time.Minute),
+			period:      execute.Duration(time.Minute),
+			createEmpty: true,
+			num:         15,
 			want: func(start execute.Time) []*executetest.Table {
 				return []*executetest.Table{
 					{
@@ -228,6 +268,32 @@ func TestFixedWindow_Process(t *testing.T) {
 							{start + execute.Time(2*time.Minute), start + execute.Time(3*time.Minute), start + execute.Time(140*time.Second), 14.0},
 						},
 					},
+					{
+						KeyCols:   []string{"_start", "_stop"},
+						KeyValues: []interface{}{start + execute.Time(3*time.Minute), start + execute.Time(4*time.Minute)},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
+						},
+						GroupKey: execute.NewGroupKey(
+							[]query.ColMeta{
+								{Label: "_start", Type: query.TTime},
+								{Label: "_stop", Type: query.TTime},
+							},
+							[]values.Value{
+								values.NewTimeValue(start + execute.Time(3*time.Minute)),
+								values.NewTimeValue(start + execute.Time(4*time.Minute)),
+							},
+						),
+					},
+					newEmptyWindowTable(start+execute.Time(4*time.Minute), start+execute.Time(5*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(5*time.Minute), start+execute.Time(6*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(6*time.Minute), start+execute.Time(7*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(7*time.Minute), start+execute.Time(8*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(8*time.Minute), start+execute.Time(9*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(9*time.Minute), start+execute.Time(10*time.Minute), testCols),
 				}
 			},
 		},
@@ -235,10 +301,11 @@ func TestFixedWindow_Process(t *testing.T) {
 			name:     "overlapping_nonaligned",
 			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is *not* aligned with the every/period durations of the window
-			start:  execute.Time(time.Date(2017, 10, 10, 10, 10, 10, 10, time.UTC).UnixNano()),
-			every:  execute.Duration(time.Minute),
-			period: execute.Duration(2 * time.Minute),
-			num:    15,
+			start:       execute.Time(time.Date(2017, 10, 10, 10, 10, 10, 10, time.UTC).UnixNano()),
+			every:       execute.Duration(time.Minute),
+			period:      execute.Duration(2 * time.Minute),
+			createEmpty: true,
+			num:         15,
 			want: func(start execute.Time) []*executetest.Table {
 				return []*executetest.Table{
 					{
@@ -315,6 +382,13 @@ func TestFixedWindow_Process(t *testing.T) {
 							{start + execute.Time(2*time.Minute), start + execute.Time(4*time.Minute), start + execute.Time(140*time.Second), 14.0},
 						},
 					},
+					newEmptyWindowTable(start+execute.Time(3*time.Minute), start+execute.Time(5*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(4*time.Minute), start+execute.Time(6*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(5*time.Minute), start+execute.Time(7*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(6*time.Minute), start+execute.Time(8*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(7*time.Minute), start+execute.Time(9*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(8*time.Minute), start+execute.Time(10*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(9*time.Minute), start+execute.Time(10*time.Minute), testCols),
 				}
 			},
 		},
@@ -322,10 +396,11 @@ func TestFixedWindow_Process(t *testing.T) {
 			name:     "overlapping_aligned",
 			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is aligned with the every/period durations of the window
-			start:  execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
-			every:  execute.Duration(time.Minute),
-			period: execute.Duration(2 * time.Minute),
-			num:    15,
+			start:       execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
+			every:       execute.Duration(time.Minute),
+			period:      execute.Duration(2 * time.Minute),
+			createEmpty: true,
+			num:         15,
 			want: func(start execute.Time) []*executetest.Table {
 				return []*executetest.Table{
 					{
@@ -402,6 +477,13 @@ func TestFixedWindow_Process(t *testing.T) {
 							{start + execute.Time(2*time.Minute), start + execute.Time(4*time.Minute), start + execute.Time(140*time.Second), 14.0},
 						},
 					},
+					newEmptyWindowTable(start+execute.Time(3*time.Minute), start+execute.Time(5*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(4*time.Minute), start+execute.Time(6*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(5*time.Minute), start+execute.Time(7*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(6*time.Minute), start+execute.Time(8*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(7*time.Minute), start+execute.Time(9*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(8*time.Minute), start+execute.Time(10*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(9*time.Minute), start+execute.Time(10*time.Minute), testCols),
 				}
 			},
 		},
@@ -409,10 +491,11 @@ func TestFixedWindow_Process(t *testing.T) {
 			name:     "underlapping_nonaligned",
 			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is *not* aligned with the every/period durations of the window
-			start:  execute.Time(time.Date(2017, 10, 10, 10, 10, 10, 10, time.UTC).UnixNano()),
-			every:  execute.Duration(2 * time.Minute),
-			period: execute.Duration(time.Minute),
-			num:    24,
+			start:       execute.Time(time.Date(2017, 10, 10, 10, 10, 10, 10, time.UTC).UnixNano()),
+			every:       execute.Duration(2 * time.Minute),
+			period:      execute.Duration(time.Minute),
+			createEmpty: true,
+			num:         24,
 			want: func(start execute.Time) []*executetest.Table {
 				return []*executetest.Table{
 					{
@@ -449,6 +532,9 @@ func TestFixedWindow_Process(t *testing.T) {
 							{start + execute.Time(3*time.Minute), start + execute.Time(4*time.Minute), start + execute.Time(230*time.Second), 23.0},
 						},
 					},
+					newEmptyWindowTable(start+execute.Time(5*time.Minute), start+execute.Time(6*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(7*time.Minute), start+execute.Time(8*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(9*time.Minute), start+execute.Time(10*time.Minute), testCols),
 				}
 			},
 		},
@@ -456,10 +542,11 @@ func TestFixedWindow_Process(t *testing.T) {
 			name:     "underlapping_aligned",
 			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is  aligned with the every/period durations of the window
-			start:  execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
-			every:  execute.Duration(2 * time.Minute),
-			period: execute.Duration(time.Minute),
-			num:    24,
+			start:       execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
+			every:       execute.Duration(2 * time.Minute),
+			period:      execute.Duration(time.Minute),
+			createEmpty: true,
+			num:         24,
 			want: func(start execute.Time) []*executetest.Table {
 				return []*executetest.Table{
 					{
@@ -496,6 +583,9 @@ func TestFixedWindow_Process(t *testing.T) {
 							{start + execute.Time(3*time.Minute), start + execute.Time(4*time.Minute), start + execute.Time(230*time.Second), 23.0},
 						},
 					},
+					newEmptyWindowTable(start+execute.Time(5*time.Minute), start+execute.Time(6*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(7*time.Minute), start+execute.Time(8*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(9*time.Minute), start+execute.Time(10*time.Minute), testCols),
 				}
 			},
 		},
@@ -503,11 +593,85 @@ func TestFixedWindow_Process(t *testing.T) {
 			name:     "nonoverlapping_aligned_int",
 			valueCol: query.ColMeta{Label: "_value", Type: query.TInt},
 			// Use a time that is aligned with the every/period durations of the window
-			start:  execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
-			every:  execute.Duration(time.Minute),
-			period: execute.Duration(time.Minute),
-			num:    15,
+			start:       execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
+			every:       execute.Duration(time.Minute),
+			period:      execute.Duration(time.Minute),
+			createEmpty: true,
+			num:         15,
 			want: func(start execute.Time) []*executetest.Table {
+				testCols := testCols
+				testCols[3].Type = query.TInt
+				return []*executetest.Table{
+					{
+						KeyCols: []string{"_start", "_stop"},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TInt},
+						},
+						Data: [][]interface{}{
+							{start, start + execute.Time(time.Minute), start, int64(0.0)},
+							{start, start + execute.Time(time.Minute), start + execute.Time(10*time.Second), int64(1)},
+							{start, start + execute.Time(time.Minute), start + execute.Time(20*time.Second), int64(2)},
+							{start, start + execute.Time(time.Minute), start + execute.Time(30*time.Second), int64(3)},
+							{start, start + execute.Time(time.Minute), start + execute.Time(40*time.Second), int64(4)},
+							{start, start + execute.Time(time.Minute), start + execute.Time(50*time.Second), int64(5)},
+						},
+					},
+					{
+						KeyCols: []string{"_start", "_stop"},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TInt},
+						},
+						Data: [][]interface{}{
+							{start + execute.Time(1*time.Minute), start + execute.Time(2*time.Minute), start + execute.Time(60*time.Second), int64(6)},
+							{start + execute.Time(1*time.Minute), start + execute.Time(2*time.Minute), start + execute.Time(70*time.Second), int64(7)},
+							{start + execute.Time(1*time.Minute), start + execute.Time(2*time.Minute), start + execute.Time(80*time.Second), int64(8)},
+							{start + execute.Time(1*time.Minute), start + execute.Time(2*time.Minute), start + execute.Time(90*time.Second), int64(9)},
+							{start + execute.Time(1*time.Minute), start + execute.Time(2*time.Minute), start + execute.Time(100*time.Second), int64(10)},
+							{start + execute.Time(1*time.Minute), start + execute.Time(2*time.Minute), start + execute.Time(110*time.Second), int64(11)},
+						},
+					},
+					{
+						KeyCols: []string{"_start", "_stop"},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TInt},
+						},
+						Data: [][]interface{}{
+							{start + execute.Time(2*time.Minute), start + execute.Time(3*time.Minute), start + execute.Time(120*time.Second), int64(12)},
+							{start + execute.Time(2*time.Minute), start + execute.Time(3*time.Minute), start + execute.Time(130*time.Second), int64(13)},
+							{start + execute.Time(2*time.Minute), start + execute.Time(3*time.Minute), start + execute.Time(140*time.Second), int64(14)},
+						},
+					},
+					newEmptyWindowTable(start+execute.Time(3*time.Minute), start+execute.Time(4*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(4*time.Minute), start+execute.Time(5*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(5*time.Minute), start+execute.Time(6*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(6*time.Minute), start+execute.Time(7*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(7*time.Minute), start+execute.Time(8*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(8*time.Minute), start+execute.Time(9*time.Minute), testCols),
+					newEmptyWindowTable(start+execute.Time(9*time.Minute), start+execute.Time(10*time.Minute), testCols),
+				}
+			},
+		},
+		{
+			name:     "don't create empty",
+			valueCol: query.ColMeta{Label: "_value", Type: query.TInt},
+			// Use a time that is aligned with the every/period durations of the window
+			start:       execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
+			every:       execute.Duration(time.Minute),
+			period:      execute.Duration(time.Minute),
+			createEmpty: false,
+			num:         15,
+			want: func(start execute.Time) []*executetest.Table {
+				testCols := testCols
+				testCols[3].Type = query.TInt
 				return []*executetest.Table{
 					{
 						KeyCols: []string{"_start", "_stop"},
@@ -598,7 +762,7 @@ func TestFixedWindow_Process(t *testing.T) {
 				stop = tc.bounds.Stop
 			} else {
 				start = tc.start
-				stop = start + execute.Time(time.Hour)
+				stop = start + execute.Time(10*time.Minute)
 			}
 
 			d := executetest.NewDataset(executetest.RandomDatasetID())
@@ -620,6 +784,7 @@ func TestFixedWindow_Process(t *testing.T) {
 				execute.DefaultTimeColLabel,
 				execute.DefaultStartColLabel,
 				execute.DefaultStopColLabel,
+				tc.createEmpty,
 			)
 
 			table0 := &executetest.Table{

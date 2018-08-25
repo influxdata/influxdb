@@ -26,6 +26,10 @@ var AllTime = Bounds{
 	Stop:  MaxTime,
 }
 
+func (b Bounds) IsEmpty() bool {
+	return b.Start >= b.Stop
+}
+
 func (b Bounds) String() string {
 	return fmt.Sprintf("[%v, %v)", b.Start, b.Stop)
 }
