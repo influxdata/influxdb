@@ -22,8 +22,8 @@ paths:
       summary: write time-series data into influxdb
       parameters:
         - in: header
-          name: Accept-Encoding
-          description: when present, its value indicates compression is applied to the entity-body
+          name: Content-Encoding
+          description: when present, its value indicates to the database that compression is applied to the line-protocol body.
           schema:
             type: string
             description: specifies that the line protocol in the body is encoded with gzip or not encoded with identity.
