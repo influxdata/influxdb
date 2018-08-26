@@ -77,8 +77,6 @@ paths:
               - u
               - ms
               - s
-              - m
-              - h
       responses:
         '204':
           description: write data is correctly formatted and accepted for writing to the bucket.
