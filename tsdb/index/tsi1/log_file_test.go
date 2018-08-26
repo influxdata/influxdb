@@ -80,6 +80,10 @@ func TestLogFile_AddSeriesList(t *testing.T) {
 		},
 	)
 
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if got, exp := ids, make([]uint64, 2); !reflect.DeepEqual(got, exp) {
 		t.Fatalf("got ids %v, expected %v", got, exp)
 	}
