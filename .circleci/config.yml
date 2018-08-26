@@ -28,23 +28,10 @@ jobs:
       - image: circleci/golang:1.11
     environment:
       GOCACHE: /tmp/go-cache
-      DEPCACHEDIR: /tmp/dep-cache
+      GOFLAGs: "-mod=readonly"
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
-
-      # Run dep ensure, using Circle's cache if applicable.
-      - restore_cache:
-          name: Restoring dep cache
-          keys:
-            - platform-depcache-{{ checksum "Gopkg.lock" }}
-            - platform-depcache-
-      - run: make vendor
-      - save_cache:
-          name: Saving dep cache
-          key: platform-depcache-{{ checksum "Gopkg.lock" }}
-          paths:
-            - /tmp/dep-cache
 
       # Populate GOCACHE.
       - restore_cache:
@@ -72,17 +59,12 @@ jobs:
       - image: circleci/golang:1.11-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      DEPCACHEDIR: /tmp/dep-cache
+      GOFLAGs: "-mod=readonly"
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
 
       # Speed up `make nightly` by restoring caches from previous runs.
-      - restore_cache:
-          name: Restoring dep cache
-          keys:
-            - platform-depcache-{{ checksum "Gopkg.lock" }}
-            - platform-depcache-
       - restore_cache:
           name: Restoring GOCACHE
           keys:
