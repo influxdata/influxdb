@@ -60,9 +60,9 @@ paths:
         - in: query
           name: bucket
           description: specifies the destination bucket for writes
+          required: true
           schema:
             type: string
-            required: true
             description: all points within batch are written to this bucket.
         - in: query
           name: precision
