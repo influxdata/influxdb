@@ -31,6 +31,32 @@ paths:
             enum:
               - gzip
               - identity
+        - in: header
+          name: Content-Type
+          description: Content-Type is used to indicate the format of the data sent to the server.
+          schema:
+            type: string
+            description: text/plain specifies the text line protocol; charset is assumed to be utf-8.
+            default: text/plain; charset=utf-8
+            enum:
+              - text/plain
+              - text/plain; charset=utf-8
+              - application/vnd.influx.arrow
+        - in: header
+          name: Content-Length
+          description: Content-Length is an entity header is indicating the size of the entity-body, in bytes, sent to the database. If the length is greater than the database max body configuration option, a 413 response is sent.
+          schema:
+            type: integer
+            description: The length in decimal number of octets.
+        - in: header
+          name: Accept
+          description: specifies the return content format.
+          schema:
+            type: string
+            description: return format of any errors
+            default: application/json
+            enum:
+              - application/json
         - in: query
           name: bucket
           description: specifies the destination bucket for writes
