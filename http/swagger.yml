@@ -26,9 +26,11 @@ paths:
           description: when present, its value indicates compression is applied to the entity-body
           schema:
             type: string
-            description: specifies that the line protocol in the body is compressed with gzip
+            description: specifies that the line protocol in the body is encoded with gzip or not encoded with identity.
+            default: identity
             enum:
               - gzip
+              - identity
         - in: query
           name: bucket
           description: specifies the destination bucket for writes
