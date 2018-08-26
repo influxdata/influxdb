@@ -78,6 +78,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LineProtocolLengthError"
+        '429':
+          description: token is temporarily over quota. The Retry-After header describes when to try the write again.
+          headers:
+            Retry-After:
+              description: A non-negative decimal integer indicating the seconds to delay after the response is received.
+              schema:
+                type: integer
+                format: int32
         '503':
           description: server is temporarily unavailable to accept writes.  The Retry-After header describes when to try the write again.
           headers:
