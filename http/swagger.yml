@@ -781,6 +781,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Authorizations
+      summary: enable/disable authorization
+      requestBody:
+        description: authorization to update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Authorization"
+      parameters:
+        - in: path
+          name: authId
+          schema:
+            type: string
+          required: true
+          description: ID of authorization to update
+      responses:
+        '200':
+          description: the enabled or disabled authorization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Authorization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     delete:
       tags:
         - Authorizations
@@ -1775,6 +1806,9 @@ components:
         id:
           readOnly: true
           type: string
+        disabled:
+          description: if true the token has been disabled and requests will be rejected.
+          type: boolean
         token:
           readOnly: true
           type: string
