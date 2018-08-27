@@ -94,7 +94,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/LineProtocolError"
         '401':
-          description: token does not have sufficient permissions to write to this organization and bucket.
+          description: token does not have sufficient permissions to write to this organization and bucket or the organization and bucket do not exist.
           content:
             application/json:
               schema:
