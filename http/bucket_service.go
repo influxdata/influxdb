@@ -281,7 +281,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -344,7 +344,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 	}
 
 	req.URL.RawQuery = query.Encode()
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -383,7 +383,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 
@@ -423,7 +423,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 
@@ -456,7 +456,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)

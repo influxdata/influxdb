@@ -467,7 +467,7 @@ func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*pl
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -501,7 +501,7 @@ func (s *SourceService) FindSources(ctx context.Context, opt platform.FindOption
 		return nil, 0, err
 	}
 
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -540,7 +540,7 @@ func (s *SourceService) CreateSource(ctx context.Context, b *platform.Source) er
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 
@@ -580,7 +580,7 @@ func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd pl
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 
@@ -613,7 +613,7 @@ func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error 
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)

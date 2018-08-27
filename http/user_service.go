@@ -265,7 +265,7 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(url.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -322,7 +322,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 	}
 
 	req.URL.RawQuery = query.Encode()
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(url.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -364,7 +364,7 @@ func (s *UserService) CreateUser(ctx context.Context, u *platform.User) error {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(url.Scheme, s.InsecureSkipVerify)
 
@@ -404,7 +404,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platfo
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(url.Scheme, s.InsecureSkipVerify)
 
@@ -437,7 +437,7 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(url.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)

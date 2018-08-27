@@ -109,6 +109,35 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	return s.AuthorizationService.DeleteAuthorization(ctx, id)
 }
 
+// DisableAuthorization disables an authorization, records function call latency, and counts function calls.
+func (s *AuthorizationService) DisableAuthorization(ctx context.Context, id platform.ID) (err error) {
+	defer func(start time.Time) {
+		labels := prometheus.Labels{
+			"method": "DisableAuthorization",
+			"error":  fmt.Sprint(err != nil),
+		}
+		s.requestCount.With(labels).Add(1)
+		s.requestDuration.With(labels).Observe(time.Since(start).Seconds())
+	}(time.Now())
+
+	return s.AuthorizationService.DisableAuthorization(ctx, id)
+}
+
+// EnableAuthorization enables an authorization, records function call latency, and counts function calls.
+func (s *AuthorizationService) EnableAuthorization(ctx context.Context, id platform.ID) (err error) {
+	defer func(start time.Time) {
+		labels := prometheus.Labels{
+			"method": "EnableAuthorization",
+			"error":  fmt.Sprint(err != nil),
+		}
+		s.requestCount.With(labels).Add(1)
+		s.requestDuration.With(labels).Observe(time.Since(start).Seconds())
+	}(time.Now())
+
+	return s.AuthorizationService.EnableAuthorization(ctx, id)
+}
+
+// PrometheusCollectors returns all authorization service prometheus collectors.
 func (s *AuthorizationService) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		s.requestCount,

@@ -9,6 +9,7 @@ import (
 type Authorization struct {
 	ID          ID           `json:"id"`
 	Token       string       `json:"token"`
+	Disabled    bool         `json:"disabled"`
 	User        string       `json:"user,omitempty"`
 	UserID      ID           `json:"userID,omitempty"`
 	Permissions []Permission `json:"permissions"`
@@ -28,6 +29,12 @@ type AuthorizationService interface {
 
 	// Creates a new authorization and sets a.Token and a.UserID with the new identifier.
 	CreateAuthorization(ctx context.Context, a *Authorization) error
+
+	// DisableAuthorization updates the token to be disabled.
+	DisableAuthorization(ctx context.Context, id ID) error
+
+	// EnableAuthorization updates the token to be enabled.
+	EnableAuthorization(ctx context.Context, id ID) error
 
 	// Removes a authorization by token.
 	DeleteAuthorization(ctx context.Context, id ID) error
@@ -85,19 +92,19 @@ func (p Permission) String() string {
 }
 
 var (
-	// CreateUser is a permission for creating users.
+	// CreateUserPermission is a permission for creating users.
 	CreateUserPermission = Permission{
 		Action:   CreateAction,
 		Resource: UserResource,
 	}
-	// DeleteUser is a permission for deleting users.
+	// DeleteUserPermission is a permission for deleting users.
 	DeleteUserPermission = Permission{
 		Action:   DeleteAction,
 		Resource: UserResource,
 	}
 )
 
-// ReadBucket constructs a permission for reading a bucket.
+// ReadBucketPermission constructs a permission for reading a bucket.
 func ReadBucketPermission(id ID) Permission {
 	return Permission{
 		Action:   ReadAction,
@@ -105,7 +112,7 @@ func ReadBucketPermission(id ID) Permission {
 	}
 }
 
-// WriteBucket constructs a permission for writing to a bucket.
+// WriteBucketPermission constructs a permission for writing to a bucket.
 func WriteBucketPermission(id ID) Permission {
 	return Permission{
 		Action:   WriteAction,
@@ -113,9 +120,14 @@ func WriteBucketPermission(id ID) Permission {
 	}
 }
 
-// Allowed returns true if the permission exists in a list of permissions.
-func Allowed(req Permission, ps []Permission) bool {
-	for _, p := range ps {
+// Allowed returns true if the authorization is enabled and requested permission level
+// exists in the authorization's list of permissions.
+func Allowed(req Permission, auth *Authorization) bool {
+	if auth.Disabled {
+		return false
+	}
+
+	for _, p := range auth.Permissions {
 		if p.Action == req.Action && p.Resource == req.Resource {
 			return true
 		}

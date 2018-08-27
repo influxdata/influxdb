@@ -38,6 +38,14 @@ func (a *authzSvc) DeleteAuthorization(context.Context, platform.ID) error {
 	return a.Err
 }
 
+func (a *authzSvc) DisableAuthorization(context.Context, platform.ID) error {
+	return a.Err
+}
+
+func (a *authzSvc) EnableAuthorization(context.Context, platform.ID) error {
+	return a.Err
+}
+
 func TestAuthorizationService_Metrics(t *testing.T) {
 	a := new(authzSvc)
 

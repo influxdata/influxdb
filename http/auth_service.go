@@ -32,6 +32,7 @@ func NewAuthorizationHandler() *AuthorizationHandler {
 	h.HandlerFunc("POST", "/v1/authorizations", h.handlePostAuthorization)
 	h.HandlerFunc("GET", "/v1/authorizations", h.handleGetAuthorizations)
 	h.HandlerFunc("GET", "/v1/authorizations/:id", h.handleGetAuthorization)
+	h.HandlerFunc("PATCH", "/v1/authorizations/:id", h.handleEnableDisableAuthorization)
 	h.HandlerFunc("DELETE", "/v1/authorizations/:id", h.handleDeleteAuthorization)
 	return h
 }
@@ -181,6 +182,79 @@ func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAu
 	}, nil
 }
 
+// handleEnableDisableAuthorization is the HTTP handler for the PATCH /v1/authorizations/:id route.
+func (h *AuthorizationHandler) handleEnableDisableAuthorization(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeUpdateAuthorizationRequest(ctx, r)
+	if err != nil {
+		h.Logger.Info("failed to decode request", zap.String("handler", "updateAuthorization"), zap.Error(err))
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	a, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if req.Disabled == a.Disabled {
+		if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
+			h.Logger.Info("failed to encode response", zap.String("handler", "updateAuthorization"), zap.Error(err))
+			EncodeError(ctx, err, w)
+			return
+		}
+		return
+	}
+
+	if req.Disabled {
+		if err := h.AuthorizationService.DisableAuthorization(ctx, req.ID); err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+	} else {
+		if err := h.AuthorizationService.EnableAuthorization(ctx, req.ID); err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
+		h.Logger.Info("failed to encode response", zap.String("handler", "updateAuthorization"), zap.Error(err))
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type updateAuthorizationRequest struct {
+	ID       platform.ID
+	Disabled bool
+}
+
+func decodeUpdateAuthorizationRequest(ctx context.Context, r *http.Request) (*updateAuthorizationRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	a := &platform.Authorization{}
+	if err := json.NewDecoder(r.Body).Decode(a); err != nil {
+		return nil, err
+	}
+
+	return &updateAuthorizationRequest{
+		ID:       i,
+		Disabled: a.Disabled,
+	}, nil
+}
+
 // handleDeleteAuthorization is the HTTP handler for the DELETE /v1/authorizations/:id route.
 func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -231,6 +305,7 @@ type AuthorizationService struct {
 
 var _ platform.AuthorizationService = (*AuthorizationService)(nil)
 
+// FindAuthorizationByID finds the authorization against a remote influx server.
 func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
 	u, err := newURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
@@ -241,7 +316,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -295,7 +370,7 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 	}
 
 	req.URL.RawQuery = query.Encode()
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -338,7 +413,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 
@@ -359,6 +434,58 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	return nil
 }
 
+type enableDisableAuthorizationRequest struct {
+	Disabled bool `json:"disabled"`
+}
+
+// updateAuthorization enables or disables authorization.
+func (s *AuthorizationService) updateAuthorization(ctx context.Context, id platform.ID, disabled bool) error {
+	u, err := newURL(s.Addr, authorizationIDPath(id))
+	if err != nil {
+		return err
+	}
+
+	b, err := json.Marshal(enableDisableAuthorizationRequest{
+		Disabled: disabled,
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(s.Token, req)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// EnableAuthorization enables a disabled authorization.
+func (s *AuthorizationService) EnableAuthorization(ctx context.Context, id platform.ID) error {
+	isDisabled := false
+	return s.updateAuthorization(ctx, id, isDisabled)
+}
+
+// DisableAuthorization disables an enabled authorization.
+func (s *AuthorizationService) DisableAuthorization(ctx context.Context, id platform.ID) error {
+	isDisabled := true
+	return s.updateAuthorization(ctx, id, isDisabled)
+}
+
 // DeleteAuthorization removes a authorization by id.
 func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) error {
 	u, err := newURL(s.Addr, authorizationIDPath(id))
@@ -370,7 +497,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)

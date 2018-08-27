@@ -298,7 +298,7 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 		return nil, 0, err
 	}
 
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 	hc := newClient(url.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
@@ -341,7 +341,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(url.Scheme, s.InsecureSkipVerify)
 
@@ -379,7 +379,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 
@@ -411,7 +411,7 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)

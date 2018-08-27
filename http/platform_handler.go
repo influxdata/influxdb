@@ -143,7 +143,7 @@ func (h *PlatformHandler) PrometheusCollectors() []prometheus.Collector {
 }
 
 func extractAuthorization(ctx context.Context, r *nethttp.Request) (context.Context, error) {
-	t, err := ParseAuthHeaderToken(r)
+	t, err := GetToken(r)
 	if err != nil {
 		return ctx, err
 	}

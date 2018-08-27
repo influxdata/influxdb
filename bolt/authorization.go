@@ -281,3 +281,34 @@ func (c *Client) deleteAuthorization(ctx context.Context, tx *bolt.Tx, id platfo
 	}
 	return tx.Bucket(authorizationBucket).Delete(id)
 }
+
+// DisableAuthorization disables the authorization by setting the disabled field to true.
+func (c *Client) DisableAuthorization(ctx context.Context, id platform.ID) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		isDisabled := true
+		return c.updateAuthorization(ctx, tx, id, isDisabled)
+	})
+}
+
+// EnableAuthorization enables the authorization by setting the disabled field to false.
+func (c *Client) EnableAuthorization(ctx context.Context, id platform.ID) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		isDisabled := false
+		return c.updateAuthorization(ctx, tx, id, isDisabled)
+	})
+}
+
+func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platform.ID, isDisabled bool) error {
+	a, err := c.findAuthorizationByID(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+
+	a.Disabled = isDisabled
+	b, err := json.Marshal(a)
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket(authorizationBucket).Put(a.ID, b)
+}
