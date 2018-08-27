@@ -98,6 +98,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Token",
+		"Disabled",
 		"User",
 		"UserID",
 		"Permissions",
@@ -111,6 +112,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) {
 	w.Write(map[string]interface{}{
 		"ID":          authorization.ID.String(),
 		"Token":       authorization.Token,
+		"Disabled":    authorization.Disabled,
 		"User":        authorization.User,
 		"UserID":      authorization.UserID.String(),
 		"Permissions": ps,
@@ -178,6 +180,7 @@ func authorizationFindF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Token",
+		"Disabled",
 		"User",
 		"UserID",
 		"Permissions",
@@ -192,6 +195,7 @@ func authorizationFindF(cmd *cobra.Command, args []string) {
 		w.Write(map[string]interface{}{
 			"ID":          a.ID,
 			"Token":       a.Token,
+			"Disabled":    a.Disabled,
 			"User":        a.User,
 			"UserID":      a.UserID.String(),
 			"Permissions": permissions,
@@ -266,6 +270,146 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) {
 		"UserID":      a.UserID.String(),
 		"Permissions": ps,
 		"Deleted":     true,
+	})
+	w.Flush()
+}
+
+// AuthorizationEnableFlags are command line args used when enabling an authorization
+type AuthorizationEnableFlags struct {
+	id string
+}
+
+var authorizationEnableFlags AuthorizationEnableFlags
+
+func init() {
+	authorizationEnableCmd := &cobra.Command{
+		Use:   "enable",
+		Short: "enable authorization",
+		Run:   authorizationEnableF,
+	}
+
+	authorizationEnableCmd.Flags().StringVarP(&authorizationEnableFlags.id, "id", "i", "", "authorization id (required)")
+	authorizationEnableCmd.MarkFlagRequired("id")
+
+	authorizationCmd.AddCommand(authorizationEnableCmd)
+}
+
+func authorizationEnableF(cmd *cobra.Command, args []string) {
+	s := &http.AuthorizationService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	id := platform.ID{}
+	if err := id.DecodeFromString(authorizationEnableFlags.id); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	ctx := context.TODO()
+	a, err := s.FindAuthorizationByID(ctx, id)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if err := s.EnableAuthorization(context.Background(), id); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	w := internal.NewTabWriter(os.Stdout)
+	w.WriteHeaders(
+		"ID",
+		"Token",
+		"Disabled",
+		"User",
+		"UserID",
+		"Permissions",
+	)
+
+	ps := []string{}
+	for _, p := range a.Permissions {
+		ps = append(ps, p.String())
+	}
+
+	w.Write(map[string]interface{}{
+		"ID":          a.ID.String(),
+		"Token":       a.Token,
+		"Disabled":    false,
+		"User":        a.User,
+		"UserID":      a.UserID.String(),
+		"Permissions": ps,
+	})
+	w.Flush()
+}
+
+// AuthorizationDisableFlags are command line args used when disabling an authorization
+type AuthorizationDisableFlags struct {
+	id string
+}
+
+var authorizationDisableFlags AuthorizationDisableFlags
+
+func init() {
+	authorizationDisableCmd := &cobra.Command{
+		Use:   "disable",
+		Short: "disable authorization",
+		Run:   authorizationDisableF,
+	}
+
+	authorizationDisableCmd.Flags().StringVarP(&authorizationDisableFlags.id, "id", "i", "", "authorization id (required)")
+	authorizationDisableCmd.MarkFlagRequired("id")
+
+	authorizationCmd.AddCommand(authorizationDisableCmd)
+}
+
+func authorizationDisableF(cmd *cobra.Command, args []string) {
+	s := &http.AuthorizationService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	id := platform.ID{}
+	if err := id.DecodeFromString(authorizationDisableFlags.id); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	ctx := context.TODO()
+	a, err := s.FindAuthorizationByID(ctx, id)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if err := s.DisableAuthorization(context.Background(), id); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	w := internal.NewTabWriter(os.Stdout)
+	w.WriteHeaders(
+		"ID",
+		"Token",
+		"Disabled",
+		"User",
+		"UserID",
+		"Permissions",
+	)
+
+	ps := []string{}
+	for _, p := range a.Permissions {
+		ps = append(ps, p.String())
+	}
+
+	w.Write(map[string]interface{}{
+		"ID":          a.ID.String(),
+		"Token":       a.Token,
+		"Disabled":    true,
+		"User":        a.User,
+		"UserID":      a.UserID.String(),
+		"Permissions": ps,
 	})
 	w.Flush()
 }
