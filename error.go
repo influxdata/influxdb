@@ -1,9 +1,9 @@
 package platform
 
-// Error is a domain error encountered while processing chronograf requests.
-type Error string
+// ChronografError is a domain error encountered while processing chronograf requests.
+type ChronografError string
 
-// Error returns the string of an error.
-func (e Error) Error() string {
+// ChronografError returns the string of an error.
+func (e ChronografError) Error() string {
 	return string(e)
 }
