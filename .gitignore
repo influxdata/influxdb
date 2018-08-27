@@ -1,3 +1,4 @@
+node_modules
 vendor
 .netrc
 .vscode
@@ -15,8 +16,3 @@ idpdb.bolt
 /fluxd
 /transpilerd
 /bin
-
-yarn.lock
-node_modules
-.godep
-.jsdep

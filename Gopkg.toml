@@ -34,9 +34,14 @@ required = [
     "github.com/kevinburke/go-bindata"
 ]
 
+
 [[constraint]]
   name = "github.com/goreleaser/goreleaser"
   version = "0.81.0"
+
+[[constraint]]
+  name = "github.com/kevinburke/go-bindata"
+  version = "3.11.0"
 
 [[constraint]]
   name = "github.com/google/go-cmp"
@@ -75,6 +80,11 @@ required = [
 [prune]
   go-tests = true
   unused-packages = true
+
+  [[prune.project]]
+    name = "github.com/kevinburke/go-bindata"
+    non-go = true
+    unused-packages = false
 
 [[constraint]]
   branch = "master"

@@ -642,12 +642,12 @@
   revision = "b4e1701a28efcc637d9afcca7d38e495fe909a09"
 
 [[projects]]
-  digest = "1:d65b917f934f8a870c0d4c251dbc524cef0cf8d6bdf7da8275213b75c1205019"
+  digest = "1:d833c2b46766fc09d7d0e453ae928ae0b1288e59e12449285f943d02d6a95533"
   name = "github.com/kevinburke/go-bindata"
   packages = ["."]
-  pruneopts = "UT"
-  revision = "fb8a22f0e4d56d895765b12de81fcc127b096a77"
-  version = "v3.9.0"
+  pruneopts = "NT"
+  revision = "06af60a4461b70d84a2b173d92f9f425d78baf55"
+  version = "v3.11.0"
 
 [[projects]]
   digest = "1:5149009cc36718234a9ad2896b04b04716808b8d72143b5687c0a15b53132b27"

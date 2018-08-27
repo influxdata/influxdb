@@ -12,7 +12,6 @@
 #
 
 SUBDIRS := query task
-GOBINDATA := $(shell go list -f {{.Root}}  github.com/kevinburke/go-bindata 2> /dev/null)
 UISOURCES := $(shell find chronograf/ui -type f -not \( -path chronograf/ui/build/\* -o -path chronograf/ui/node_modules/\* -prune \) )
 YARN := $(shell command -v yarn 2> /dev/null)
 
@@ -44,13 +43,14 @@ UTILS := \
 	bin/$(GOOS)/pigeon \
 	bin/$(GOOS)/cmpgen \
 	bin/$(GOOS)/protoc-gen-gogofaster \
-	bin/$(GOOS)/goreleaser
+	bin/$(GOOS)/goreleaser \
+	bin/$(GOOS)/go-bindata
 
-# Default target to build all commands.
+# Default target to build all go commands.
 #
-# This target setups the dependencies to correctly build all commands.
+# This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
-all: dep generate Gopkg.lock $(UTILS) subdirs $(CMDS)
+all: vendor node_modules $(UTILS) subdirs $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
@@ -79,36 +79,28 @@ bin/$(GOOS)/protoc-gen-gogofaster: vendor $(call go_deps,./vendor/github.com/gog
 bin/$(GOOS)/goreleaser: ./vendor/github.com/goreleaser/goreleaser/main.go
 	go build -i -o $@ ./vendor/github.com/goreleaser/goreleaser
 
-dep: .jsdep .godep
+bin/$(GOOS)/go-bindata: ./vendor/github.com/kevinburke/go-bindata/go-bindata/main.go
+	go build -i -o $@ ./vendor/github.com/kevinburke/go-bindata/go-bindata
 
-.godep:
-ifndef GOBINDATA
-	@echo "Installing go-bindata"
-	go get -u github.com/kevinburke/go-bindata/...
-endif
-	@touch .godep
+vendor: Gopkg.lock
+	dep ensure -v -vendor-only
 
-.jsdep: chronograf/ui/yarn.lock
+node_modules: chronograf/ui/node_modules
+
+chronograf/ui/node_modules: chronograf/ui/yarn.lock
 ifndef YARN
 	$(error Please install yarn 0.19.1+)
 else
-	mkdir -p chronograf/ui/build && cd chronograf/ui && yarn --no-progress --no-emoji
-	@touch .jsdep
+	cd chronograf/ui && yarn --no-progress --no-emoji
 endif
 
 #
 # Define how source dependencies are managed
 #
 
-Gopkg.lock: Gopkg.toml
-	dep ensure -v
-	touch Gopkg.lock
-
-vendor/github.com/mna/pigeon/main.go: Gopkg.lock
-	dep ensure -v -vendor-only
-
-vendor/github.com/goreleaser/goreleaser/main.go: Gopkg.lock
-	dep ensure -v -vendor-only
+vendor/github.com/mna/pigeon/main.go: vendor
+vendor/github.com/goreleaser/goreleaser/main.go: vendor
+vendor/github.com/kevinburke/go-bindata/go-bindata/main.go: vendor
 
 #
 # Define action only targets
@@ -117,22 +109,24 @@ vendor/github.com/goreleaser/goreleaser/main.go: Gopkg.lock
 fmt: $(SOURCES_NO_VENDOR)
 	goimports -w $^
 
-generate:
+# generate:
 	# TODO: re-enable these after we decide on a strategy for building without running `go generate`.
 	# $(GO_GENERATE) ./chronograf/dist/...
 	# $(GO_GENERATE) ./chronograf/server/...
 	# $(GO_GENERATE) ./chronograf/canned/...
 
-jstest:
+test-js: node_modules
 	cd chronograf/ui && yarn test --runInBand
 
-test: all jstest
+test-go: vendor
 	$(GO_TEST) ./...
+
+test: test-go test-js
 
 test-race: all
 	$(GO_TEST) -race ./...
 
-vet: all
+vet:
 	$(GO_VET) -v ./...
 
 bench: all
@@ -148,4 +142,4 @@ clean: $(SUBDIRS)
 	rm -rf bin
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) fmt test test-race bench clean
+.PHONY: all subdirs $(SUBDIRS) fmt test test-go test-js test-race bench clean node_modules vet
