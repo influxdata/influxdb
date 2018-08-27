@@ -17,13 +17,27 @@ type Interpreter struct {
 	globals *Scope
 }
 
-// NewInterpreter instantiates a new Flux Interpreter
+// NewInterpreter instantiates a new Flux Interpreter whose builtin values are not mutable.
+// Options are always mutable.
 func NewInterpreter(options, builtins map[string]values.Value) *Interpreter {
 	optionScope := NewScopeWithValues(options)
 	globalScope := optionScope.NestWithValues(builtins)
-	interpreter := new(Interpreter)
-	interpreter.options = optionScope
-	interpreter.globals = globalScope
+	interpreter := &Interpreter{
+		options: optionScope,
+		globals: globalScope.Nest(),
+	}
+	return interpreter
+}
+
+// NewMutableInterpreter instantiates a new Flux Interpreter whose builtin values are mutable.
+// Options are always mutable.
+func NewMutableInterpreter(options, builtins map[string]values.Value) *Interpreter {
+	optionScope := NewScopeWithValues(options)
+	globalScope := optionScope.NestWithValues(builtins)
+	interpreter := &Interpreter{
+		options: optionScope,
+		globals: globalScope,
+	}
 	return interpreter
 }
 
@@ -385,6 +399,7 @@ func (itrp *Interpreter) doArguments(args *semantic.ObjectExpression, scope *Sco
 		if _, ok := obj.Get(p.Key.Name); ok {
 			return nil, fmt.Errorf("duplicate keyword parameter specified: %q", p.Key.Name)
 		}
+
 		obj.Set(p.Key.Name, value)
 	}
 	return obj, nil
@@ -402,13 +417,12 @@ func NewScope() *Scope {
 		values: make(map[string]values.Value),
 	}
 }
+
+// NewScopeWithValues creates a new scope with the initial set of values.
+// The vals map will be mutated.
 func NewScopeWithValues(vals map[string]values.Value) *Scope {
-	cp := make(map[string]values.Value, len(vals))
-	for k, v := range vals {
-		cp[k] = v
-	}
 	return &Scope{
-		values: cp,
+		values: vals,
 	}
 }
 
