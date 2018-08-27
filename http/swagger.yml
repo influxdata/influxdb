@@ -15,6 +15,124 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Routes"
+  /write:
+    post:
+      tags:
+        - Write
+      summary: write time-series data into influxdb
+      parameters:
+        - in: header
+          name: Content-Encoding
+          description: when present, its value indicates to the database that compression is applied to the line-protocol body.
+          schema:
+            type: string
+            description: specifies that the line protocol in the body is encoded with gzip or not encoded with identity.
+            default: identity
+            enum:
+              - gzip
+              - identity
+        - in: header
+          name: Content-Type
+          description: Content-Type is used to indicate the format of the data sent to the server.
+          schema:
+            type: string
+            description: text/plain specifies the text line protocol; charset is assumed to be utf-8.
+            default: text/plain; charset=utf-8
+            enum:
+              - text/plain
+              - text/plain; charset=utf-8
+              - application/vnd.influx.arrow
+        - in: header
+          name: Content-Length
+          description: Content-Length is an entity header is indicating the size of the entity-body, in bytes, sent to the database. If the length is greater than the database max body configuration option, a 413 response is sent.
+          schema:
+            type: integer
+            description: The length in decimal number of octets.
+        - in: header
+          name: Accept
+          description: specifies the return content format.
+          schema:
+            type: string
+            description: return format of any errors
+            default: application/json
+            enum:
+              - application/json
+        - in: query
+          name: org
+          description: specifies the destination organization for writes
+          required: true
+          schema:
+            type: string
+            description: all points within batch are written to this organization.
+        - in: query
+          name: bucket
+          description: specifies the destination bucket for writes
+          required: true
+          schema:
+            type: string
+            description: all points within batch are written to this bucket.
+        - in: query
+          name: precision
+          description: specifies the precision for the unix timestamps within the body line-protocol
+          schema:
+            type: string
+            default: ns
+            description: specifies the unit of time
+            enum:
+              - ns
+              - us
+              - u
+              - ms
+              - s
+      responses:
+        '204':
+          description: write data is correctly formatted and accepted for writing to the bucket.
+        '400':
+          description: line protocol poorly formed and no points were written.  Response can be used to determine the first malformed line in the body line-protocol. All data in body was rejected and not written.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LineProtocolError"
+        '401':
+          description: token does not have sufficient permissions to write to this organization and bucket or the organization and bucket do not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '403':
+          description: no token was sent and they are required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '413':
+          description: write has been rejected because the payload is too large. Error message returns max size supported. All data in body was rejected and not written.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LineProtocolLengthError"
+        '429':
+          description: token is temporarily over quota. The Retry-After header describes when to try the write again.
+          headers:
+            Retry-After:
+              description: A non-negative decimal integer indicating the seconds to delay after the response is received.
+              schema:
+                type: integer
+                format: int32
+        '503':
+          description: server is temporarily unavailable to accept writes.  The Retry-After header describes when to try the write again.
+          headers:
+            Retry-After:
+              description: A non-negative decimal integer indicating the seconds to delay after the response is received.
+              schema:
+                type: integer
+                format: int32
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /ping:
     servers:
       - url: /
@@ -2023,12 +2141,59 @@ components:
       properties:
         code:
           readOnly: true
-          type: integer
-          format: int32
+          type: string
         message:
           readOnly: true
           type: string
       required: [code, message]
+    LineProtocolError:
+      properties:
+        code:
+          description: code is the machine-readable error code.
+          readOnly: true
+          type: string
+          enum:
+            - internal error
+            - not found
+            - conflict
+            - invalid
+            - empty value
+        message:
+          readOnly: true
+          description: message is a human-readable message.
+          type: string
+        op:
+          readOnly: true
+          description: op describes the logical code operation during error. Useful for debugging.
+          type: string
+        err:
+          readOnly: true
+          description: err is a stack of errors that occurred during processing of the request. Useful for debugging.
+          type: string
+        line:
+          readOnly: true
+          description: first line within sent body containing malformed data
+          type: integer
+          format: int32
+      required: [code, message, op, err]
+    LineProtocolLengthError:
+      properties:
+        code:
+          description: code is the machine-readable error code.
+          readOnly: true
+          type: string
+          enum:
+            - invalid
+        message:
+          readOnly: true
+          description: message is a human-readable message.
+          type: string
+        maxLength:
+          readOnly: true
+          description: max length in bytes for a body of line-protocol.
+          type: integer
+          format: int32
+      required: [code, message, maxLength]
     InfluxQLResults:
       properties:
         error:
