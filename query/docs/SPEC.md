@@ -1429,7 +1429,6 @@ HistogramQuantile has the following properties:
 * `upperBoundColumn` string
     UpperBoundColumn is the name of the column containing the histogram upper bounds.
     The upper bound column type must be float.
-    Defaults to `upperBound`.
 * `valueColumn` string
     ValueColumn is the name of the output column which will contain the computed quantile.
     Defaults to `_value`.
@@ -1442,7 +1441,7 @@ HistogramQuantile has the following properties:
 
 Example:
 
-    histogramQuantile(quantile:0.9)  // compute the 90th quantile using histogram data.
+    histogramQuantile(quantile:0.9, upperBoundColumn:"le")  // compute the 90th quantile using histogram data.
 
 #### Limit
 

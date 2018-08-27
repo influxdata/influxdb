@@ -60,8 +60,6 @@ func createHistogramQuantileOpSpec(args query.Arguments, a *query.Administration
 		return nil, err
 	} else if ok {
 		s.UpperBoundColumn = col
-	} else {
-		s.UpperBoundColumn = "upperBound"
 	}
 
 	if col, ok, err := args.GetString("valueColumn"); err != nil {
@@ -176,9 +174,15 @@ func (t histogramQuantileTransformation) Process(id execute.DatasetID, tbl query
 	if countIdx < 0 {
 		return fmt.Errorf("table is missing count column %q", t.spec.CountColumn)
 	}
+	if tbl.Cols()[countIdx].Type != query.TFloat {
+		return fmt.Errorf("count column %q must be of type float", t.spec.CountColumn)
+	}
 	upperBoundIdx := execute.ColIdx(t.spec.UpperBoundColumn, tbl.Cols())
 	if upperBoundIdx < 0 {
 		return fmt.Errorf("table is missing upper bound column %q", t.spec.UpperBoundColumn)
+	}
+	if tbl.Cols()[upperBoundIdx].Type != query.TFloat {
+		return fmt.Errorf("upper bound column %q must be of type float", t.spec.UpperBoundColumn)
 	}
 	// Read buckets
 	var cdf []bucket
@@ -228,6 +232,9 @@ func (t histogramQuantileTransformation) Process(id execute.DatasetID, tbl query
 }
 
 func (t *histogramQuantileTransformation) computeQuantile(cdf []bucket) (float64, error) {
+	if len(cdf) == 0 {
+		return 0, errors.New("histogram is empty")
+	}
 	// Find rank index and check counts are monotonic
 	prevCount := 0.0
 	totalCount := cdf[len(cdf)-1].count
