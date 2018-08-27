@@ -194,9 +194,8 @@ func (s *outerScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err er
 
 	s.schedulerMu.Unlock()
 
-	// Okay to read ts.nextDue without locking,
-	// because we just created it and there won't be any concurrent access.
-	if now := atomic.LoadInt64(&s.now); now >= ts.nextDue || len(meta.ManualRuns) > 0 {
+	next, hasQueue := ts.NextDue()
+	if now := atomic.LoadInt64(&s.now); now >= next || hasQueue {
 		ts.Work()
 	}
 	return nil
