@@ -14,7 +14,7 @@ type MaxOpSpec struct {
 	execute.SelectorConfig
 }
 
-var maxSignature = query.DefaultFunctionSignature()
+var maxSignature = execute.DefaultSelectorSignature()
 
 func init() {
 	query.RegisterFunction(MaxKind, createMaxOpSpec, maxSignature)

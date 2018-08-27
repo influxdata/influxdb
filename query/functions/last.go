@@ -14,7 +14,7 @@ type LastOpSpec struct {
 	execute.SelectorConfig
 }
 
-var lastSignature = query.DefaultFunctionSignature()
+var lastSignature = execute.DefaultSelectorSignature()
 
 func init() {
 	query.RegisterFunction(LastKind, createLastOpSpec, lastSignature)

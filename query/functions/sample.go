@@ -19,7 +19,7 @@ type SampleOpSpec struct {
 	execute.SelectorConfig
 }
 
-var sampleSignature = query.DefaultFunctionSignature()
+var sampleSignature = execute.DefaultSelectorSignature()
 
 func init() {
 	sampleSignature.Params["n"] = semantic.Int

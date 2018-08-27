@@ -27,12 +27,15 @@ type PercentileOpSpec struct {
 	Percentile  float64 `json:"percentile"`
 	Compression float64 `json:"compression"`
 	Method      string  `json:"method"`
+	// percentile is either an aggregate, or a selector based on the options
 	execute.AggregateConfig
+	execute.SelectorConfig
 }
 
-var percentileSignature = query.DefaultFunctionSignature()
+var percentileSignature = execute.DefaultAggregateSignature()
 
 func init() {
+	percentileSignature.Params["column"] = semantic.String
 	percentileSignature.Params["p"] = semantic.Float
 	percentileSignature.Params["compression"] = semantic.Float
 	percentileSignature.Params["method"] = semantic.String
@@ -92,6 +95,10 @@ func createPercentileOpSpec(args query.Arguments, a *query.Administration) (quer
 	}
 
 	if err := spec.AggregateConfig.ReadArgs(args); err != nil {
+		return nil, err
+	}
+
+	if err := spec.SelectorConfig.ReadArgs(args); err != nil {
 		return nil, err
 	}
 

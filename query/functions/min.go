@@ -14,7 +14,7 @@ type MinOpSpec struct {
 	execute.SelectorConfig
 }
 
-var minSignature = query.DefaultFunctionSignature()
+var minSignature = execute.DefaultSelectorSignature()
 
 func init() {
 	query.RegisterFunction(MinKind, createMinOpSpec, minSignature)

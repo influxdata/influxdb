@@ -15,7 +15,7 @@ type StddevOpSpec struct {
 	execute.AggregateConfig
 }
 
-var stddevSignature = query.DefaultFunctionSignature()
+var stddevSignature = execute.DefaultAggregateSignature()
 
 func init() {
 	query.RegisterFunction(StddevKind, createStddevOpSpec, stddevSignature)

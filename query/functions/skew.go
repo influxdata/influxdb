@@ -15,7 +15,7 @@ type SkewOpSpec struct {
 	execute.AggregateConfig
 }
 
-var skewSignature = query.DefaultFunctionSignature()
+var skewSignature = execute.DefaultAggregateSignature()
 
 func init() {
 	query.RegisterFunction(SkewKind, createSkewOpSpec, skewSignature)

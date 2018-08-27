@@ -15,7 +15,7 @@ type MeanOpSpec struct {
 	execute.AggregateConfig
 }
 
-var meanSignature = query.DefaultFunctionSignature()
+var meanSignature = execute.DefaultAggregateSignature()
 
 func init() {
 	query.RegisterFunction(MeanKind, createMeanOpSpec, meanSignature)

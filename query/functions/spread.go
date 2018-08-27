@@ -6,14 +6,15 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/plan"
-	"github.com/influxdata/platform/query/semantic"
 )
 
 // SpreadKind is the registration name for Flux, query, plan, and execution.
 const SpreadKind = "spread"
 
+var spreadSignature = execute.DefaultAggregateSignature()
+
 func init() {
-	query.RegisterFunction(SpreadKind, createSpreadOpSpec, semantic.FunctionSignature{})
+	query.RegisterFunction(SpreadKind, createSpreadOpSpec, spreadSignature)
 	query.RegisterOpSpec(SpreadKind, newSpreadOp)
 	plan.RegisterProcedureSpec(SpreadKind, newSpreadProcedure, SpreadKind)
 	execute.RegisterTransformation(SpreadKind, createSpreadTransformation)

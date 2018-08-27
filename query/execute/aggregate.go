@@ -29,6 +29,19 @@ var DefaultAggregateConfig = AggregateConfig{
 	TimeDst: DefaultTimeColLabel,
 }
 
+func DefaultAggregateSignature() semantic.FunctionSignature {
+	return semantic.FunctionSignature{
+		Params: map[string]semantic.Type{
+			query.TableParameter: query.TableObjectType,
+			"columns":            semantic.NewArrayType(semantic.String),
+			"timeSrc":            semantic.String,
+			"timeDst":            semantic.String,
+		},
+		ReturnType:   query.TableObjectType,
+		PipeArgument: query.TableParameter,
+	}
+}
+
 func (c AggregateConfig) Copy() AggregateConfig {
 	nc := c
 	if c.Columns != nil {

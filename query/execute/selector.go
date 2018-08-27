@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/semantic"
 )
 
 type selectorTransformation struct {
@@ -24,6 +25,17 @@ func (c *SelectorConfig) ReadArgs(args query.Arguments) error {
 		c.Column = col
 	}
 	return nil
+}
+
+func DefaultSelectorSignature() semantic.FunctionSignature {
+	return semantic.FunctionSignature{
+		Params: map[string]semantic.Type{
+			query.TableParameter: query.TableObjectType,
+			"column":             semantic.String,
+		},
+		ReturnType:   query.TableObjectType,
+		PipeArgument: query.TableParameter,
+	}
 }
 
 type rowSelectorTransformation struct {

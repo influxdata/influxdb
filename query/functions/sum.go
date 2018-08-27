@@ -14,7 +14,7 @@ type SumOpSpec struct {
 	execute.AggregateConfig
 }
 
-var sumSignature = query.DefaultFunctionSignature()
+var sumSignature = execute.DefaultAggregateSignature()
 
 func init() {
 	query.RegisterFunction(SumKind, createSumOpSpec, sumSignature)

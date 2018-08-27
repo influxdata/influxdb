@@ -14,7 +14,7 @@ type CountOpSpec struct {
 	execute.AggregateConfig
 }
 
-var countSignature = query.DefaultFunctionSignature()
+var countSignature = execute.DefaultAggregateSignature()
 
 func init() {
 	query.RegisterFunction(CountKind, createCountOpSpec, countSignature)

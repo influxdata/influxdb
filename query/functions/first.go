@@ -14,7 +14,7 @@ type FirstOpSpec struct {
 	execute.SelectorConfig
 }
 
-var firstSignature = query.DefaultFunctionSignature()
+var firstSignature = execute.DefaultSelectorSignature()
 
 func init() {
 	query.RegisterFunction(FirstKind, createFirstOpSpec, firstSignature)

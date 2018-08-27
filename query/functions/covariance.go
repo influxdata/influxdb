@@ -19,7 +19,7 @@ type CovarianceOpSpec struct {
 	execute.AggregateConfig
 }
 
-var covarianceSignature = query.DefaultFunctionSignature()
+var covarianceSignature = execute.DefaultAggregateSignature()
 
 func init() {
 	covarianceSignature.Params["pearsonr"] = semantic.Bool

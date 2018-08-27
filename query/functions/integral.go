@@ -17,7 +17,7 @@ type IntegralOpSpec struct {
 	execute.AggregateConfig
 }
 
-var integralSignature = query.DefaultFunctionSignature()
+var integralSignature = execute.DefaultAggregateSignature()
 
 func init() {
 	integralSignature.Params["unit"] = semantic.Duration
