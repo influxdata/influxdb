@@ -17,7 +17,10 @@ const (
 // SeriesIDHasType returns if the raw id contains type information.
 func SeriesIDHasType(id uint64) bool { return id&seriesIDTypeFlag > 0 }
 
-// SeriesID is the type of a series id.
+// SeriesID is the type of a series id. It is logically a uint64, but encoded as a struct so
+// that we gain more type checking when changing operations on it. The field is exported only
+// so that tests that use reflection based comparisons still work; no one should use the field
+// directly.
 type SeriesID struct{ ID uint64 }
 
 // NewSeriesID constructs a series id from the raw value. It discards any type information.
@@ -40,7 +43,10 @@ func (s SeriesID) Greater(o SeriesID) bool { return s.ID > o.ID }
 // Less returns if the SeriesID is less than the passed in value.
 func (s SeriesID) Less(o SeriesID) bool { return s.ID < o.ID }
 
-// SeriesIDType represents a series id with a type.
+// SeriesIDType represents a series id with a type. It is logically a uint64, but encoded as
+// a struct so that we gain more type checking when changing operations on it. The field is
+// exported only so that tests that use reflection based comparisons still work; no one should
+// use the field directly.
 type SeriesIDTyped struct{ ID uint64 }
 
 // NewSeriesIDTyped constructs a typed series id from the raw values.
