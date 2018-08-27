@@ -183,6 +183,10 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 	// TODO(jsternberg): We need to differentiate between various join types and this needs to be
 	// except: ["_field"] rather than joining on the _measurement. This also needs to specify what the time
 	// column should be.
+	if len(cursors) > 1 {
+		return nil, errors.New("unimplemented: joining fields within a cursor")
+	}
+
 	cur := Join(t, cursors, []string{"_measurement"}, nil)
 	if len(tags) > 0 {
 		cur = &tagsCursor{cursor: cur, tags: tags}
