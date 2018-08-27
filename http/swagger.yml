@@ -111,12 +111,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LineProtocolLengthError"
-        '422':
-          description: write has been rejected because the because one or more lines contain timestamps older than retentionPeriod. Response has the retentionPeriod and the line that is too old. All data in body was rejected and not written.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LineProtocolRetentionPolicyError"
         '429':
           description: token is temporarily over quota. The Retry-After header describes when to try the write again.
           headers:
@@ -1546,29 +1540,6 @@ components:
           type: integer
           format: int32
       required: [code, message, maxLength]
-    LineProtocolRetentionPolicyError:
-      properties:
-        code:
-          description: code is the machine-readable error code.
-          readOnly: true
-          type: string
-          enum:
-            - invalid
-        message:
-          readOnly: true
-          description: message is a human-readable message.
-          type: string
-        line:
-          readOnly: true
-          description: first line within sent body containing data outside of retentionPeriod.
-          type: integer
-          format: int32
-        retentionPeriod:
-          readOnly: true
-          description: describes the maximum duration in nanoseconds in the past a point is acceptable without rejection.
-          type: integer
-          format: int64
-      required: [code, message, line, retentionPeriod]
     InfluxQLResults:
       properties:
         error:
