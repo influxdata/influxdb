@@ -58,6 +58,13 @@ paths:
             enum:
               - application/json
         - in: query
+          name: org
+          description: specifies the destination organization for writes
+          required: true
+          schema:
+            type: string
+            description: all points within batch are written to this organization.
+        - in: query
           name: bucket
           description: specifies the destination bucket for writes
           required: true
