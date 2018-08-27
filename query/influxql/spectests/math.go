@@ -1,13 +1,15 @@
+//+build todo
+
 package spectests
 
 import (
 	"time"
 
-	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/ast"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/influxql"
 	"github.com/influxdata/platform/query/semantic"
 )
 

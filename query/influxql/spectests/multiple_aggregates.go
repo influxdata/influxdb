@@ -1,3 +1,5 @@
+//+build todo
+
 package spectests
 
 import (

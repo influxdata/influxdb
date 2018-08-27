@@ -102,6 +102,9 @@ func (t *transpilerState) Transpile(ctx context.Context, id int, stmt *influxql.
 
 	// Join the cursors together on the measurement name.
 	// TODO(jsternberg): This needs to join on all remaining group keys.
+	if len(cursors) > 1 {
+		return errors.New("unimplemented: joining multiple group cursors")
+	}
 	cur := Join(t, cursors, []string{"_measurement"}, nil)
 
 	// Map each of the fields into another cursor. This evaluates any lingering expressions.
