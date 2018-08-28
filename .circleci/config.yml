@@ -70,9 +70,28 @@ jobs:
   deploy:
     docker:
       - image: circleci/golang:1.11-node-browsers
+    environment:
+      GOCACHE: /tmp/go-cache
+      DEPCACHEDIR: /tmp/dep-cache
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
+
+      # Speed up `make nightly` by restoring caches from previous runs.
+      - restore_cache:
+          name: Restoring dep cache
+          keys:
+            - platform-depcache-{{ checksum "Gopkg.lock" }}
+            - platform-depcache-
+      - restore_cache:
+          name: Restoring GOCACHE
+          keys:
+            - platform-gocache- # Just match the most recent Go cache.
+      - restore_cache:
+          name: Restore Yarn package cache
+          keys:
+            - chronograf-yarn-packages-{{ checksum "chronograf/ui/yarn.lock" }}
+
       - setup_remote_docker
       - run: |
           docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
