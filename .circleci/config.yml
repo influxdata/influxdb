@@ -2,7 +2,7 @@ version: 2
 jobs:
   jstest:
     docker:
-      - image: circleci/golang:1.10.3-node-browsers
+      - image: circleci/golang:1.11-node-browsers
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
@@ -10,7 +10,7 @@ jobs:
 
   gotest:
     docker:
-      - image: circleci/golang:1.10.3
+      - image: circleci/golang:1.11
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
@@ -23,7 +23,7 @@ jobs:
 
   deploy:
     docker:
-      - image: circleci/golang:1.10.3-node-browsers
+      - image: circleci/golang:1.11-node-browsers
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
