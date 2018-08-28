@@ -109,7 +109,6 @@ func (r *runReaderWriter) ListRuns(ctx context.Context, runFilter platform.RunFi
 				break
 			}
 		}
-
 	}
 
 	if runFilter.Limit != 0 && beforeIndex-afterIndex > runFilter.Limit {

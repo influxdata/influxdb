@@ -103,9 +103,15 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run7 := running[1]
-	if run7.Run().Now != 7 {
-		t.Fatalf("unexpected now for run 7: %d", run7.Run().Now)
+	var run7 *mock.RunPromise
+	for _, r := range running {
+		if r.Run().Now == 7 {
+			run7 = r
+			break
+		}
+	}
+	if run7 == nil {
+		t.Fatalf("did not detect run with now=7; got %#v", running)
 	}
 
 	o.Tick(8) // Can't exceed concurrency of 2.
@@ -235,11 +241,48 @@ func TestScheduler_Queue(t *testing.T) {
 	}
 }
 
+// pollForRunStatus tries a few times to find runs matching supplied conditions, before failing.
+func pollForRunStatus(t *testing.T, r backend.LogReader, taskID platform.ID, expCount, expIndex int, expStatus string) {
+	t.Helper()
+
+	var runs []*platform.Run
+	var err error
+
+	const maxAttempts = 50
+	for i := 0; i < maxAttempts; i++ {
+		if i != 0 {
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		runs, err = r.ListRuns(context.Background(), platform.RunFilter{Task: &taskID})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(runs) != expCount {
+			continue
+		}
+
+		if runs[expIndex].Status != expStatus {
+			continue
+		}
+
+		// Everything checks out if we got here.
+		return
+	}
+
+	t.Logf("failed to find run with status %s", expStatus)
+	for i, r := range runs {
+		t.Logf("run[%d]: %#v", i, r)
+	}
+	t.FailNow()
+}
+
 func TestScheduler_RunLog(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	rl := backend.NewInMemRunReaderWriter()
-	s := backend.NewScheduler(d, e, rl, 5)
+	s := backend.NewScheduler(d, e, rl, 5, backend.WithLogger(zaptest.NewLogger(t)))
 
 	// Claim a task that starts later.
 	task := &backend.StoreTask{
@@ -284,17 +327,7 @@ func TestScheduler_RunLog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := len(runs); got != 1 {
-		t.Fatalf("expected 1 run, got %d", got)
-	}
-
-	if got := runs[0].Status; got != backend.RunSuccess.String() {
-		t.Fatalf("expected run to be success, got %s", got)
-	}
+	pollForRunStatus(t, rl, task.ID, 1, 0, backend.RunSuccess.String())
 
 	// Create a new run, but fail this time.
 	s.Tick(7)
@@ -303,17 +336,7 @@ func TestScheduler_RunLog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := len(runs); got != 2 {
-		t.Fatalf("expected 2 runs, got %d", got)
-	}
-
-	if got := runs[1].Status; got != backend.RunStarted.String() {
-		t.Fatalf("expected run to be started, got %s", got)
-	}
+	pollForRunStatus(t, rl, task.ID, 2, 1, backend.RunStarted.String())
 
 	// Finish with failure.
 	promises[0].Finish(nil, errors.New("forced failure"))
@@ -321,17 +344,7 @@ func TestScheduler_RunLog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := len(runs); got != 2 {
-		t.Fatalf("expected 2 runs, got %d", got)
-	}
-
-	if got := runs[1].Status; got != backend.RunFail.String() {
-		t.Fatalf("expected run to be failure, got %s", got)
-	}
+	pollForRunStatus(t, rl, task.ID, 2, 1, backend.RunFail.String())
 
 	// One more run, but cancel this time.
 	s.Tick(8)
@@ -340,17 +353,7 @@ func TestScheduler_RunLog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := len(runs); got != 3 {
-		t.Fatalf("expected 3 runs, got %d", got)
-	}
-
-	if got := runs[2].Status; got != backend.RunStarted.String() {
-		t.Fatalf("expected run to be started, got %s", got)
-	}
+	pollForRunStatus(t, rl, task.ID, 3, 2, backend.RunStarted.String())
 
 	// Finish with failure.
 	promises[0].Cancel()
@@ -358,17 +361,7 @@ func TestScheduler_RunLog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := len(runs); got != 3 {
-		t.Fatalf("expected 3 runs, got %d", got)
-	}
-
-	if got := runs[2].Status; got != backend.RunCanceled.String() {
-		t.Fatalf("expected run to be canceled, got %s", got)
-	}
+	pollForRunStatus(t, rl, task.ID, 3, 2, backend.RunCanceled.String())
 }
 
 func TestScheduler_Metrics(t *testing.T) {
