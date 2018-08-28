@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"path"
 
@@ -13,6 +12,9 @@ import (
 
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/csv"
+	"github.com/influxdata/platform/query/influxql"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -62,9 +64,13 @@ func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
 // SourceHandler is a handler for sources
 type SourceHandler struct {
 	*httprouter.Router
-	Logger *zap.Logger
-
+	Logger        *zap.Logger
 	SourceService platform.SourceService
+
+	// TODO(desa): this was done so in order to remove an import cycle and to allow
+	// for http mocking.
+	NewBucketService func(s *platform.Source) (platform.BucketService, error)
+	NewQueryService  func(s *platform.Source) (query.ProxyQueryService, error)
 }
 
 // NewSourceHandler returns a new instance of SourceHandler.
@@ -72,6 +78,12 @@ func NewSourceHandler() *SourceHandler {
 	h := &SourceHandler{
 		Router: httprouter.New(),
 		Logger: zap.NewNop(),
+		NewBucketService: func(s *platform.Source) (platform.BucketService, error) {
+			return nil, fmt.Errorf("bucket service not set")
+		},
+		NewQueryService: func(s *platform.Source) (query.ProxyQueryService, error) {
+			return nil, fmt.Errorf("query service not set")
+		},
 	}
 
 	h.HandlerFunc("POST", "/v2/sources", h.handlePostSource)
@@ -83,58 +95,89 @@ func NewSourceHandler() *SourceHandler {
 	h.HandlerFunc("GET", "/v2/sources/:id/buckets", h.handleGetSourcesBuckets)
 	h.HandlerFunc("POST", "/v2/sources/:id/query", h.handlePostSourceQuery)
 	h.HandlerFunc("GET", "/v2/sources/:id/health", h.handleGetSourceHealth)
+
 	return h
+}
+
+func decodeSourceQueryRequest(r *http.Request) (*query.ProxyRequest, error) {
+	// starts here
+	request := struct {
+		Spec           *query.Spec `json:"spec"`
+		Query          string      `json:"query"`
+		Type           string      `json:"type"`
+		DB             string      `json:"db"`
+		RP             string      `json:"rp"`
+		Cluster        string      `json:"cluster"`
+		OrganizationID platform.ID `json:"organizationID"`
+		// TODO(desa): support influxql dialect
+		Dialect csv.Dialect `json:"dialect"`
+	}{}
+
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &query.ProxyRequest{}
+	req.Dialect = request.Dialect
+
+	req.Request.OrganizationID = request.OrganizationID
+
+	switch request.Type {
+	case query.FluxCompilerType:
+		req.Request.Compiler = query.FluxCompiler{
+			Query: request.Query,
+		}
+	case query.SpecCompilerType:
+		req.Request.Compiler = query.SpecCompiler{
+			Spec: request.Spec,
+		}
+	case influxql.CompilerType:
+		req.Request.Compiler = &influxql.Compiler{
+			Cluster: request.Cluster,
+			DB:      request.DB,
+			RP:      request.RP,
+			Query:   request.Query,
+		}
+	default:
+		return nil, fmt.Errorf("compiler type not supported")
+	}
+
+	return req, nil
 }
 
 // handlePostSourceQuery is the HTTP handler for POST /v2/sources/:id/query
 func (h *SourceHandler) handlePostSourceQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	req, err := decodePostSourceQuery(ctx, r)
+	gsr, err := decodeGetSourceRequest(ctx, r)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	s, err := h.SourceService.FindSourceByID(ctx, req.SourceID)
+	req, err := decodeSourceQueryRequest(r)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	res, err := s.SourceQuerier.Query(ctx, req.sourceQuery)
+	s, err := h.SourceService.FindSourceByID(ctx, gsr.SourceID)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	if _, err := io.Copy(w, res.Reader); err != nil {
-		h.Logger.Info("error copying query response", zap.Error(err))
-	}
-
-}
-
-type postSourceQuery struct {
-	*getSourceRequest
-	sourceQuery *platform.SourceQuery
-}
-
-func decodePostSourceQuery(ctx context.Context, r *http.Request) (*postSourceQuery, error) {
-	getSrcReq, err := decodeGetSourceRequest(ctx, r)
+	querySvc, err := h.NewQueryService(s)
 	if err != nil {
-		return nil, err
+		EncodeError(ctx, err, w)
+		return
 	}
 
-	q := &platform.SourceQuery{}
-	if err := json.NewDecoder(r.Body).Decode(q); err != nil {
-		return nil, err
+	_, err = querySvc.Query(ctx, w, req)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
 	}
-
-	return &postSourceQuery{
-		getSourceRequest: getSrcReq,
-		sourceQuery:      q,
-	}, nil
 }
 
 // handleGetSourcesBuckets is the HTTP handler for the GET /v2/sources/:id/buckets route.
@@ -153,7 +196,12 @@ func (h *SourceHandler) handleGetSourcesBuckets(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	bs, _, err := s.BucketService.FindBuckets(ctx, req.filter)
+	bucketSvc, err := h.NewBucketService(s)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+	bs, _, err := bucketSvc.FindBuckets(ctx, req.filter)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -572,6 +620,7 @@ func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error 
 	if err != nil {
 		return err
 	}
+
 	return CheckError(resp)
 }
 

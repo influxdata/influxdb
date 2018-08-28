@@ -23,6 +23,7 @@ import (
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/source"
 	"github.com/influxdata/platform/task"
 	taskbackend "github.com/influxdata/platform/task/backend"
 	taskbolt "github.com/influxdata/platform/task/backend/bolt"
@@ -197,6 +198,8 @@ func platformF(cmd *cobra.Command, args []string) {
 
 		sourceHandler := http.NewSourceHandler()
 		sourceHandler.SourceService = sourceSvc
+		sourceHandler.NewBucketService = source.NewBucketService
+		sourceHandler.NewQueryService = source.NewQueryService
 
 		taskHandler := http.NewTaskHandler(logger)
 		taskHandler.TaskService = taskSvc

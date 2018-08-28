@@ -118,6 +118,7 @@ func fluxF(cmd *cobra.Command, args []string) {
 	orgSvc := &StaticOrganizationService{Name: orgName[0]}
 
 	queryHandler := http.NewExternalQueryHandler()
+
 	queryHandler.ProxyQueryService = query.ProxyQueryServiceBridge{
 		QueryService: query.QueryServiceBridge{
 			AsyncQueryService: c,

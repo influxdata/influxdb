@@ -765,22 +765,21 @@ paths:
                 $ref: "#/components/schemas/Error"
   /flux:
     get:
+  /query/ast:
+    post:
+      description: not currently documented # TODO(desa): document ast endpoint
       tags:
         - FluxLanguage
       responses:
         '200':
-          description: Links for flux language server
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FluxLinks"
+          description: Suggestions for next functions in call chain
         default:
           description: Any response other than 200 is an internal server error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /flux/suggestions:
+  /query/suggestions:
     get:
       tags:
         - FluxLanguage
@@ -797,7 +796,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /flux/suggestions/{name}:
+  /query/suggestions/{name}:
     parameters:
       - in: path
         name: name
@@ -951,143 +950,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /query:
-   servers:
-      - url: /
    get:
     tags:
       - Query
-      - InfluxQL
-    summary: Executes InfluxQL to retrieve time-series data
+      - flux
+    summary: description of the query capabilities of the instance
     parameters:
-        - in: query
-          name: q
-          required: true
-          schema:
-            type: string
-          description: URL-encoded InfluxQL query to execute
-        - in: query
-          name: db
-          schema:
-            type: string
-          description: the database has been renamed to bucket.
-        - in: query
-          name: rp
-          schema:
-            type: string
-          description: optional retention policy to query (> 1.6.0)
-        - in: query
-          name: bucket
-          schema:
-            type: string
-          description: bucket is the query and write destination store
-        - in: query
-          name: precision
-          description: precision rounds the timestamp to the nearest unit
-          schema:
-            type: string
-            description: precision define the time units returned in the query
-            enum: [
-              "n",
-              "u",
-              "ms",
-              "s",
-              "m",
-              "h"
-            ]
-        - in: query
-          name: epoch
-          description: override default RFC3339 time format with unix epoch at a precision; epoch rounds the timestamp to the nearest unit
-          schema:
-            type: string
-            description: acceptable epochs define the time units returned in the query
-            enum: [
-              "n",
-              "u",
-              "ms",
-              "s",
-              "m",
-              "h"
-            ]
-        - in: query
-          name: chunked
-          description: return results in streamed batches rather than as a single response
-          schema:
-            type: boolean
-        - in: query
-          name: chunk_size
-          description: responses will be chunked by series or by every chunk_size points, whichever occurs first.
-          schema:
-            type: integer
-            default: 10000
-        - in: query
-          name: pretty
-          description: format JSON response onto multiple lines and tab indention.
-          schema:
-            type: boolean
-        - in: header
-          name: Content-Encoding
-          description: optional gzip encoding of query results
-          schema:
-            type: string
-            enum:
-             - gzip
-        - in: header
-          name: X-Request-Id
-          description: specifies correlating requests across services
-          schema:
-            type: string
-            format: uuid
+      - in: header
+        name: Authorization
+        description: the authorization header should be in the format of `Token <key>`
+        schema:
+          type: string
     responses:
       '200':
-        description: query executed successfully
-        headers:
-          X-Request-Id:
-            description: request correlation id
-            schema:
-              type: string
-              format: uuid
+        description: the query capabilities of the instance
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/InfluxQLResults"
-      '400':
-        description: error during query execution
-        headers:
-          X-InfluxDB-Error:
-            description: Error message describing error resason
-            schema:
-              type: string
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/InfluxqlQueryError"
-      '403':
-        description: Not authorized to execute query
-        headers:
-          WWW-Authenticate:
-            description: WWW-Authenticate response header defines the authentication method that should be used to gain access to a resource.
-            schema:
-              type: string
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/InfluxqlQueryError"
+              $ref: "#/components/schemas/QueryCapability"
       default:
-        description: unexpected error
-        headers:
-          X-InfluxDB-Error:
-            description: Error message describing error resason
-            schema:
-              type: string
+        description: Any response other than 200 is an internal server error
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/InfluxqlQueryError"
+              $ref: "#/components/schemas/Error"
    post:
     tags:
       - Query
       - flux
-    summary: query influx with flux
+    summary: query an influx
     parameters:
       - in: header
         name: Accept
@@ -1105,6 +996,11 @@ paths:
           type: string
           enum:
             - application/json
+      - in: header
+        name: Authorization
+        description: the authorization header should be in the format of `Token <key>`
+        schema:
+          type: string
       - in: query
         name: organization
         description: specifies the name of the organization executing the query.
@@ -1121,15 +1017,12 @@ paths:
           application/json:
             schema:
               oneOf:
-                -  $ref: "#/components/schemas/Query"
-                -  $ref: "#/components/schemas/QuerySpecification"
+                - $ref: "#/components/schemas/Query"
+                - $ref: "#/components/schemas/QuerySpecification"
           application/x-www-form-urlencoded:
             schema:
               type: object
               properties:
-                organization:
-                  description: specifies the name of the organization executing the query.
-                  type: string
                 query:
                   description: flux query string to execute
                   type: string
@@ -1808,9 +1701,28 @@ paths:
                 $ref: "#/components/schemas/Error"
 components:
   schemas:
+    QueryCapability:
+      description: the supported query languages and dialects
+      type: object
+      properties:
+        links:
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/FluxLinks"
+        languages:
+          type: array
+          readOnly: true
+          items:
+            type: string
+            enum:
+              - flux
+              - influxql
+              - spec
     Query:
       description: query influx with specified return formatting.
       type: object
+      required:
+        - query
       properties:
         query:
           description: query script to execute
@@ -1821,6 +1733,16 @@ components:
           default: flux
           enum:
             - flux
+            - influxql
+        db:
+          description: required for influxql type queries
+          type: string
+        rp:
+          description: required for influxql type queries
+          type: string
+        cluster:
+          description: required for influxql type queries
+          type: string
         dialect:
           $ref: "#/components/schemas/Dialect"
     QuerySpecification:

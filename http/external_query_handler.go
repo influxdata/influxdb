@@ -38,15 +38,6 @@ func NewExternalQueryHandler() *ExternalQueryHandler {
 }
 
 func decodeQueryRequest(r *http.Request, req *query.ProxyRequest, orgSvc platform.OrganizationService) error {
-	orgName := r.FormValue("organization")
-	if orgName == "" {
-		return errors.New(`missing the "organization" parameter`)
-	}
-	o, err := orgSvc.FindOrganization(r.Context(), platform.OrganizationFilter{Name: &orgName})
-	if err != nil {
-		return err
-	}
-	req.Request.OrganizationID = o.ID
 	request := struct {
 		Spec    *query.Spec `json:"spec"`
 		Query   string      `json:"query"`
@@ -62,7 +53,28 @@ func decodeQueryRequest(r *http.Request, req *query.ProxyRequest, orgSvc platfor
 
 	switch r.Header.Get("Content-Type") {
 	case "application/json":
-		err := json.NewDecoder(r.Body).Decode(&request)
+		orgName := r.URL.Query().Get("organization")
+		orgID := r.URL.Query().Get("organizationID")
+		filter := platform.OrganizationFilter{}
+		if orgID != "" {
+			var id platform.ID
+			err := id.DecodeFromString(orgID)
+			if err != nil {
+				return err
+			}
+			filter.ID = &id
+		}
+		if orgName != "" {
+			filter.Name = &orgName
+		}
+
+		o, err := orgSvc.FindOrganization(r.Context(), filter)
+		if err != nil {
+			return err
+		}
+
+		req.Request.OrganizationID = o.ID
+		err = json.NewDecoder(r.Body).Decode(&request)
 		if err != nil {
 			return err
 		}
@@ -116,6 +128,15 @@ func decodeQueryRequest(r *http.Request, req *query.ProxyRequest, orgSvc platfor
 			return errors.New(`request body requires either spec or query`)
 		}
 	default:
+		orgName := r.FormValue("organization")
+		if orgName == "" {
+			return errors.New(`missing the "organization" parameter`)
+		}
+		o, err := orgSvc.FindOrganization(r.Context(), platform.OrganizationFilter{Name: &orgName})
+		if err != nil {
+			return err
+		}
+		req.Request.OrganizationID = o.ID
 		q := r.FormValue("query")
 		if q == "" {
 			data, err := ioutil.ReadAll(r.Body)

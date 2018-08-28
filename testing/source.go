@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
 )
@@ -24,7 +23,6 @@ var sourceCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmpopts.IgnoreFields(platform.Source{}, "SourceQuerier", "BucketService"),
 	cmp.Transformer("Sort", func(in []*platform.Source) []*platform.Source {
 		out := append([]*platform.Source(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {

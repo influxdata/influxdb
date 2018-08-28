@@ -117,6 +117,11 @@ const tagsetFilter = (filter: SchemaFilter[]): string => {
 const metaQuery = async (source: Source, query: string) => {
   const url = source.links.query
   const type = 'flux'
+  const dialect = {
+    delimiter: ',',
+    header: true,
+    annotations: ['group', 'default', 'datatype'],
+  }
   try {
     const response = await AJAX({
       method: 'POST',
@@ -124,6 +129,7 @@ const metaQuery = async (source: Source, query: string) => {
       data: {
         type,
         query,
+        dialect,
       },
     })
 

@@ -8,9 +8,6 @@ import (
 
 	"github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/http"
-	"github.com/influxdata/platform/http/influxdb"
-	"go.uber.org/zap"
 )
 
 var (
@@ -107,11 +104,6 @@ func (c *Client) findSourceByID(ctx context.Context, tx *bolt.Tx, id platform.ID
 	if err := json.Unmarshal(v, &s); err != nil {
 		return nil, err
 	}
-	if err := c.setServices(ctx, &s); err != nil {
-		// this function should not error if the source that is being set is
-		// not one of the supported types.
-		c.Logger.Debug("could not set services on source", zap.Error(err))
-	}
 
 	return &s, nil
 }
@@ -189,11 +181,6 @@ func (c *Client) forEachSource(ctx context.Context, tx *bolt.Tx, fn func(*platfo
 		if err := json.Unmarshal(v, s); err != nil {
 			return err
 		}
-		if err := c.setServices(ctx, s); err != nil {
-			// this function should not error if the source that is being set is
-			// not one of the supported types.
-			c.Logger.Debug("could not set services on source", zap.Error(err))
-		}
 		if !fn(s) {
 			break
 		}
@@ -231,10 +218,6 @@ func (c *Client) updateSource(ctx context.Context, tx *bolt.Tx, id platform.ID, 
 		return nil, err
 	}
 
-	if err := c.setServices(ctx, s); err != nil {
-		c.Logger.Debug("could not set services on source", zap.Error(err))
-	}
-
 	return s, nil
 }
 
@@ -254,27 +237,4 @@ func (c *Client) deleteSource(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 		return err
 	}
 	return tx.Bucket(sourceBucket).Delete(id)
-}
-
-func (c *Client) setServices(ctx context.Context, s *platform.Source) error {
-	switch s.Type {
-	case platform.SelfSourceType:
-		s.BucketService = c
-	case platform.V2SourceType:
-		s.BucketService = &http.BucketService{
-			Addr:               s.URL,
-			InsecureSkipVerify: s.InsecureSkipVerify,
-			Token:              s.Token,
-		}
-	case platform.V1SourceType:
-		s.BucketService = &influxdb.BucketService{
-			Source: s,
-		}
-		s.SourceQuerier = &influxdb.SourceQuerier{
-			Source: s,
-		}
-	default:
-		return fmt.Errorf("unsupported source type %s", s.Type)
-	}
-	return nil
 }

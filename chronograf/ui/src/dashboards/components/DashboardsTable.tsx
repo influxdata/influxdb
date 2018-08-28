@@ -1,5 +1,5 @@
 import React, {PureComponent, MouseEvent} from 'react'
-import {Link} from 'react-router'
+import {Link, withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 import ConfirmButton from 'src/shared/components/ConfirmButton'
@@ -16,7 +16,7 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => () => void
 }
 
-class DashboardsTable extends PureComponent<Props> {
+class DashboardsTable extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {
       dashboards,
@@ -41,7 +41,9 @@ class DashboardsTable extends PureComponent<Props> {
           {_.sortBy(dashboards, d => d.name.toLowerCase()).map(dashboard => (
             <tr key={dashboard.id}>
               <td>
-                <Link to={`/dashboards/${dashboard.id}`}>{dashboard.name}</Link>
+                <Link to={`/dashboards/${dashboard.id}?${this.sourceParam}`}>
+                  {dashboard.name}
+                </Link>
               </td>
               <td className="text-right">
                 <button
@@ -72,6 +74,16 @@ class DashboardsTable extends PureComponent<Props> {
     )
   }
 
+  private get sourceParam(): string {
+    const {query} = this.props.location
+
+    if (!query.sourceID) {
+      return ''
+    }
+
+    return `sourceID=${query.sourceID}`
+  }
+
   private get emptyStateDashboard(): JSX.Element {
     const {onCreateDashboard} = this.props
     return (
@@ -92,4 +104,4 @@ class DashboardsTable extends PureComponent<Props> {
   }
 }
 
-export default DashboardsTable
+export default withRouter(DashboardsTable)

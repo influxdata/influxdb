@@ -55,6 +55,11 @@ export const getTimeSeries = async (
   let responseBody: string
   let responseByteLength: number
   const type = 'flux'
+  const dialect = {
+    delimiter: ',',
+    header: true,
+    annotations: ['datatype', 'group', 'default'],
+  }
 
   try {
     // We are using the `fetch` API here since the `AJAX` utility lacks support
@@ -65,7 +70,7 @@ export const getTimeSeries = async (
     // https://github.com/axios/axios/issues/1491.
     const resp = await fetch(url, {
       method: 'POST',
-      body: JSON.stringify({query, type}),
+      body: JSON.stringify({query, type, dialect}),
     })
 
     const {body, byteLength} = await decodeFluxRespWithLimit(resp)
