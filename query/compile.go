@@ -446,11 +446,16 @@ func DefaultFunctionSignature() semantic.FunctionSignature {
 	}
 }
 
+// BuiltIns returns a copy of the builtin values and their declarations.
 func BuiltIns() (map[string]values.Value, semantic.DeclarationScope) {
 	if !finalized {
 		panic("builtins not finalized")
 	}
-	return builtinValues, builtinDeclarations
+	cpy := make(map[string]values.Value, len(builtinValues))
+	for k, v := range builtinValues {
+		cpy[k] = v
+	}
+	return cpy, builtinDeclarations.Copy()
 }
 
 type Administration struct {
