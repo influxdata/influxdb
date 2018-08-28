@@ -13,18 +13,34 @@ jobs:
       - image: circleci/golang:1.11
     environment:
       GOCACHE: /tmp/go-cache
+      DEPCACHEDIR: /tmp/dep-cache
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
+
+      # Run dep ensure, using Circle's cache if applicable.
+      - restore_cache:
+          name: Restoring dep cache
+          keys:
+            - platform-depcache-{{ checksum "Gopkg.lock" }}
+            - platform-depcache-
+      - run: make vendor
+      - save_cache:
+          name: Saving dep cache
+          key: platform-depcache-{{ checksum "Gopkg.lock" }}
+          paths:
+            - /tmp/dep-cache
+
+      # Populate GOCACHE.
       - restore_cache:
           name: Restoring GOCACHE
           keys:
             - platform-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
             - platform-gocache-{{ .Branch }}-                # Matches a new commit on an existing branch.
             - platform-gocache-                              # Matches a new branch.
-      - run: make test-go # This caches so it may complete quickly.
+      - run: make test-go # This uses the test cache so it may succeed or fail quickly.
       - run: make vet
-      - run: make test-go-race # This doesn't cache, and will not complete quickly.
+      - run: make test-go-race # This doesn't use the test cache, and will not complete quickly.
       # TODO add these checks to the Makefile
       # - run: go get -v -t -d ./...
       # - run: go get honnef.co/go/tools/cmd/megacheck
