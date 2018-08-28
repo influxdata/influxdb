@@ -1,9 +1,6 @@
 package platform
 
-import (
-	"context"
-	"fmt"
-)
+import "context"
 
 const (
 	ErrSourceNotFound = Error("source not found")
@@ -32,10 +29,6 @@ type Source struct {
 	Telegraf           string     `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
 	SourceFields
 	V1SourceFields
-
-	BucketService BucketService `json:"-"`
-	// TODO(desa): is this a good idea?
-	SourceQuerier SourceQuerier `json:"-"`
 }
 
 // V1SourceFields are the fields for connecting to a 1.0 source (oss or enterprise)
@@ -126,52 +119,4 @@ func (u SourceUpdate) Apply(s *Source) error {
 	}
 
 	return nil
-}
-func (s *Source) FindBucketByID(ctx context.Context, id ID) (*Bucket, error) {
-	if s.BucketService == nil {
-		return nil, fmt.Errorf("not supported")
-	}
-	return s.BucketService.FindBucketByID(ctx, id)
-}
-
-func (s *Source) FindBucket(ctx context.Context, filter BucketFilter) (*Bucket, error) {
-	if s.BucketService == nil {
-		return nil, fmt.Errorf("not supported")
-	}
-	return s.BucketService.FindBucket(ctx, filter)
-}
-
-func (s *Source) FindBuckets(ctx context.Context, filter BucketFilter, opt ...FindOptions) ([]*Bucket, int, error) {
-	if s.BucketService == nil {
-		return nil, 0, fmt.Errorf("not supported")
-	}
-	return s.BucketService.FindBuckets(ctx, filter, opt...)
-}
-
-func (s *Source) CreateBucket(ctx context.Context, b *Bucket) error {
-	if s.BucketService == nil {
-		return fmt.Errorf("not supported")
-	}
-	return s.BucketService.CreateBucket(ctx, b)
-}
-
-func (s *Source) UpdateBucket(ctx context.Context, id ID, upd BucketUpdate) (*Bucket, error) {
-	if s.BucketService == nil {
-		return nil, fmt.Errorf("not supported")
-	}
-	return s.BucketService.UpdateBucket(ctx, id, upd)
-}
-
-func (s *Source) DeleteBucket(ctx context.Context, id ID) error {
-	if s.BucketService == nil {
-		return fmt.Errorf("not supported")
-	}
-	return s.BucketService.DeleteBucket(ctx, id)
-}
-
-func (s *Source) Query(ctx context.Context, q *SourceQuery) (*SourceQueryResult, error) {
-	if s.SourceQuerier == nil {
-		return nil, fmt.Errorf("not supported")
-	}
-	return s.SourceQuerier.Query(ctx, q)
 }

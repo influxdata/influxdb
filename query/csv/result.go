@@ -3,12 +3,14 @@ package csv
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
@@ -627,6 +629,46 @@ type ResultEncoderConfig struct {
 	// Delimiter is the character to delimite columns.
 	// It must not be \r, \n, or the Unicode replacement character (0xFFFD).
 	Delimiter rune
+}
+
+func (c ResultEncoderConfig) MarshalJSON() ([]byte, error) {
+	request := struct {
+		Header      bool     `json:"header,omitempty"`
+		Delimiter   string   `json:"delimiter"`
+		Annotations []string `json:"annotations,omitempty"`
+	}{
+		Delimiter:   string(c.Delimiter),
+		Annotations: c.Annotations,
+		Header:      !c.NoHeader,
+	}
+
+	return json.Marshal(request)
+}
+
+func (c *ResultEncoderConfig) UnmarshalJSON(b []byte) error {
+	request := &struct {
+		Header      *bool    `json:"header,omitempty"`
+		Delimiter   string   `json:"delimiter"`
+		Annotations []string `json:"annotations,omitempty"`
+	}{}
+
+	if err := json.Unmarshal(b, request); err != nil {
+		return err
+	}
+
+	if request.Delimiter == "" {
+		request.Delimiter = ","
+	}
+	c.Delimiter, _ = utf8.DecodeRuneInString(request.Delimiter)
+
+	c.NoHeader = false
+	if request.Header != nil {
+		c.NoHeader = !*request.Header
+	}
+
+	c.Annotations = request.Annotations
+
+	return nil
 }
 
 func DefaultEncoderConfig() ResultEncoderConfig {
