@@ -11,15 +11,30 @@ jobs:
   gotest:
     docker:
       - image: circleci/golang:1.11
+    environment:
+      GOCACHE: /tmp/go-cache
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
-      - run: make test-go
+      - restore_cache:
+          name: Restoring GOCACHE
+          keys:
+            - platform-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - platform-gocache-{{ .Branch }}-                # Matches a new commit on an existing branch.
+            - platform-gocache-                              # Matches a new branch.
+      - run: make test-go # This caches so it may complete quickly.
       - run: make vet
+      - run: make test-go-race # This doesn't cache, and will not complete quickly.
       # TODO add these checks to the Makefile
       # - run: go get -v -t -d ./...
       # - run: go get honnef.co/go/tools/cmd/megacheck
       # - run: megacheck ./...
+      - save_cache:
+          name: Saving GOCACHE
+          key: platform-gocache-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /tmp/go-cache
+          when: always
 
   deploy:
     docker:

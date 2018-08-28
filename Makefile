@@ -21,7 +21,7 @@ GO_ARGS=-tags '$(GO_TAGS)'
 # Test vars can be used by all recursive Makefiles
 export GOOS=$(shell go env GOOS)
 export GO_BUILD=go build $(GO_ARGS)
-export GO_TEST=go test -count=1 $(GO_ARGS)
+export GO_TEST=go test $(GO_ARGS)
 export GO_GENERATE=go generate $(GO_ARGS)
 export GO_VET= go vet $(GO_ARGS)
 
@@ -123,13 +123,13 @@ test-go: vendor
 
 test: test-go test-js
 
-test-race: all
-	$(GO_TEST) -race ./...
+test-go-race: vendor
+	$(GO_TEST) -race -count=1 ./...
 
 vet:
 	$(GO_VET) -v ./...
 
-bench: all
+bench: vendor
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
 nightly: bin/$(GOOS)/goreleaser all
@@ -142,4 +142,4 @@ clean: $(SUBDIRS)
 	rm -rf bin
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) fmt test test-go test-js test-race bench clean node_modules vet
+.PHONY: all subdirs $(SUBDIRS) fmt test test-go test-js test-go-race bench clean node_modules vet
