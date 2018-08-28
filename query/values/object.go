@@ -2,6 +2,7 @@ package values
 
 import (
 	"regexp"
+	"sync/atomic"
 
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -17,7 +18,7 @@ type Object interface {
 type object struct {
 	values        map[string]Value
 	propertyTypes map[string]semantic.Type
-	typ           semantic.Type
+	typ           atomic.Value // semantic.Type
 }
 
 func NewObject() *object {
@@ -28,10 +29,13 @@ func NewObject() *object {
 }
 
 func (o *object) Type() semantic.Type {
-	if o.typ == nil {
-		o.typ = semantic.NewObjectType(o.propertyTypes)
+	t := o.typ.Load()
+	if t != nil {
+		return t.(semantic.Type)
 	}
-	return o.typ
+	typ := semantic.NewObjectType(o.propertyTypes)
+	o.typ.Store(typ)
+	return typ
 }
 
 func (o *object) Set(name string, v Value) {
@@ -50,7 +54,8 @@ func (o *object) Len() int {
 
 func (o *object) setPropertyType(name string, t semantic.Type) {
 	o.propertyTypes[name] = t
-	o.typ = nil
+	typ := semantic.NewObjectType(o.propertyTypes)
+	o.typ.Store(typ)
 }
 
 func (o *object) Range(f func(name string, v Value)) {
