@@ -58,13 +58,21 @@ type PlanRewriter interface {
 }
 
 type planner struct {
-	plan *PlanSpec
+	plan               *PlanSpec
+	defaultMemoryLimit int64
 
 	modified bool
 }
 
-func NewPlanner() Planner {
-	return new(planner)
+// NewPlanner constructs a new physical planner while applying the given options.
+func NewPlanner(opts ...Option) Planner {
+	p := &planner{
+		defaultMemoryLimit: math.MaxInt64,
+	}
+	for _, opt := range opts {
+		opt.apply(p)
+	}
+	return p
 }
 
 func resolveTime(qt query.Time, now time.Time) values.Time {
@@ -236,7 +244,7 @@ func (p *planner) Plan(lp *LogicalPlanSpec, s Storage) (*PlanSpec, error) {
 	}
 	// Update memory quota
 	if p.plan.Resources.MemoryBytesQuota == 0 {
-		p.plan.Resources.MemoryBytesQuota = math.MaxInt64
+		p.plan.Resources.MemoryBytesQuota = p.defaultMemoryLimit
 	}
 
 	return p.plan, nil

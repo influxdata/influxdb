@@ -66,6 +66,7 @@ type Config struct {
 	ConcurrencyQuota     int
 	MemoryBytesQuota     int64
 	ExecutorDependencies execute.Dependencies
+	PlannerOptions       []plan.Option
 	Logger               *zap.Logger
 	Verbose              bool
 }
@@ -86,7 +87,7 @@ func New(c Config) *Controller {
 		availableConcurrency: c.ConcurrencyQuota,
 		availableMemory:      c.MemoryBytesQuota,
 		lplanner:             plan.NewLogicalPlanner(),
-		pplanner:             plan.NewPlanner(),
+		pplanner:             plan.NewPlanner(c.PlannerOptions...),
 		executor:             execute.NewExecutor(c.ExecutorDependencies, logger),
 		logger:               logger,
 		metrics:              newControllerMetrics(),
