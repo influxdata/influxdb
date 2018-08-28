@@ -901,7 +901,7 @@ paths:
     patch:
       tags:
         - Authorizations
-      summary: enable/disable authorization
+      summary: update authorization to be active or inactive. requests using an inactive authorization will be rejected.
       requestBody:
         description: authorization to update to apply
         required: true
@@ -918,7 +918,7 @@ paths:
           description: ID of authorization to update
       responses:
         '200':
-          description: the enabled or disabled authorization
+          description: the active or inactie authorization
           content:
             application/json:
               schema:
@@ -1846,9 +1846,13 @@ components:
         id:
           readOnly: true
           type: string
-        disabled:
-          description: if true the token has been disabled and requests will be rejected.
-          type: boolean
+        status:
+          description: if inactive the token is inactive and requests using the token will be rejected.
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
         token:
           readOnly: true
           type: string
