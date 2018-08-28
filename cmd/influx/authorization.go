@@ -98,7 +98,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Token",
-		"Disabled",
+		"Status",
 		"User",
 		"UserID",
 		"Permissions",
@@ -112,7 +112,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) {
 	w.Write(map[string]interface{}{
 		"ID":          authorization.ID.String(),
 		"Token":       authorization.Token,
-		"Disabled":    authorization.Disabled,
+		"Status":      authorization.Status,
 		"User":        authorization.User,
 		"UserID":      authorization.UserID.String(),
 		"Permissions": ps,
@@ -180,7 +180,7 @@ func authorizationFindF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Token",
-		"Disabled",
+		"Status",
 		"User",
 		"UserID",
 		"Permissions",
@@ -195,7 +195,7 @@ func authorizationFindF(cmd *cobra.Command, args []string) {
 		w.Write(map[string]interface{}{
 			"ID":          a.ID,
 			"Token":       a.Token,
-			"Disabled":    a.Disabled,
+			"Status":      a.Status,
 			"User":        a.User,
 			"UserID":      a.UserID.String(),
 			"Permissions": permissions,
@@ -274,34 +274,34 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) {
 	w.Flush()
 }
 
-// AuthorizationEnableFlags are command line args used when enabling an authorization
-type AuthorizationEnableFlags struct {
+// AuthorizationActiveFlags are command line args used when enabling an authorization
+type AuthorizationActiveFlags struct {
 	id string
 }
 
-var authorizationEnableFlags AuthorizationEnableFlags
+var authorizationActiveFlags AuthorizationActiveFlags
 
 func init() {
-	authorizationEnableCmd := &cobra.Command{
-		Use:   "enable",
-		Short: "enable authorization",
-		Run:   authorizationEnableF,
+	authorizationActiveCmd := &cobra.Command{
+		Use:   "active",
+		Short: "active authorization",
+		Run:   authorizationActiveF,
 	}
 
-	authorizationEnableCmd.Flags().StringVarP(&authorizationEnableFlags.id, "id", "i", "", "authorization id (required)")
-	authorizationEnableCmd.MarkFlagRequired("id")
+	authorizationActiveCmd.Flags().StringVarP(&authorizationActiveFlags.id, "id", "i", "", "authorization id (required)")
+	authorizationActiveCmd.MarkFlagRequired("id")
 
-	authorizationCmd.AddCommand(authorizationEnableCmd)
+	authorizationCmd.AddCommand(authorizationActiveCmd)
 }
 
-func authorizationEnableF(cmd *cobra.Command, args []string) {
+func authorizationActiveF(cmd *cobra.Command, args []string) {
 	s := &http.AuthorizationService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
 
 	id := platform.ID{}
-	if err := id.DecodeFromString(authorizationEnableFlags.id); err != nil {
+	if err := id.DecodeFromString(authorizationActiveFlags.id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -313,7 +313,7 @@ func authorizationEnableF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if err := s.EnableAuthorization(context.Background(), id); err != nil {
+	if err := s.SetAuthorizationStatus(context.Background(), id, platform.Active); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -322,7 +322,7 @@ func authorizationEnableF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Token",
-		"Disabled",
+		"Status",
 		"User",
 		"UserID",
 		"Permissions",
@@ -336,7 +336,7 @@ func authorizationEnableF(cmd *cobra.Command, args []string) {
 	w.Write(map[string]interface{}{
 		"ID":          a.ID.String(),
 		"Token":       a.Token,
-		"Disabled":    false,
+		"Status":      a.Status,
 		"User":        a.User,
 		"UserID":      a.UserID.String(),
 		"Permissions": ps,
@@ -344,34 +344,34 @@ func authorizationEnableF(cmd *cobra.Command, args []string) {
 	w.Flush()
 }
 
-// AuthorizationDisableFlags are command line args used when disabling an authorization
-type AuthorizationDisableFlags struct {
+// AuthorizationInactiveFlags are command line args used when disabling an authorization
+type AuthorizationInactiveFlags struct {
 	id string
 }
 
-var authorizationDisableFlags AuthorizationDisableFlags
+var authorizationInactiveFlags AuthorizationInactiveFlags
 
 func init() {
-	authorizationDisableCmd := &cobra.Command{
-		Use:   "disable",
-		Short: "disable authorization",
-		Run:   authorizationDisableF,
+	authorizationInactiveCmd := &cobra.Command{
+		Use:   "inactive",
+		Short: "inactive authorization",
+		Run:   authorizationInactiveF,
 	}
 
-	authorizationDisableCmd.Flags().StringVarP(&authorizationDisableFlags.id, "id", "i", "", "authorization id (required)")
-	authorizationDisableCmd.MarkFlagRequired("id")
+	authorizationInactiveCmd.Flags().StringVarP(&authorizationInactiveFlags.id, "id", "i", "", "authorization id (required)")
+	authorizationInactiveCmd.MarkFlagRequired("id")
 
-	authorizationCmd.AddCommand(authorizationDisableCmd)
+	authorizationCmd.AddCommand(authorizationInactiveCmd)
 }
 
-func authorizationDisableF(cmd *cobra.Command, args []string) {
+func authorizationInactiveF(cmd *cobra.Command, args []string) {
 	s := &http.AuthorizationService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
 
 	id := platform.ID{}
-	if err := id.DecodeFromString(authorizationDisableFlags.id); err != nil {
+	if err := id.DecodeFromString(authorizationInactiveFlags.id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -383,7 +383,7 @@ func authorizationDisableF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if err := s.DisableAuthorization(context.Background(), id); err != nil {
+	if err := s.SetAuthorizationStatus(context.Background(), id, platform.Inactive); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -392,7 +392,7 @@ func authorizationDisableF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Token",
-		"Disabled",
+		"Status",
 		"User",
 		"UserID",
 		"Permissions",
@@ -406,7 +406,7 @@ func authorizationDisableF(cmd *cobra.Command, args []string) {
 	w.Write(map[string]interface{}{
 		"ID":          a.ID.String(),
 		"Token":       a.Token,
-		"Disabled":    true,
+		"Status":      a.Status,
 		"User":        a.User,
 		"UserID":      a.UserID.String(),
 		"Permissions": ps,

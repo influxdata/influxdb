@@ -38,11 +38,7 @@ func (a *authzSvc) DeleteAuthorization(context.Context, platform.ID) error {
 	return a.Err
 }
 
-func (a *authzSvc) DisableAuthorization(context.Context, platform.ID) error {
-	return a.Err
-}
-
-func (a *authzSvc) EnableAuthorization(context.Context, platform.ID) error {
+func (a *authzSvc) SetAuthorizationStatus(context.Context, platform.ID, platform.Status) error {
 	return a.Err
 }
 

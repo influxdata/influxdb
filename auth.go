@@ -9,10 +9,30 @@ import (
 type Authorization struct {
 	ID          ID           `json:"id"`
 	Token       string       `json:"token"`
-	Disabled    bool         `json:"disabled"`
+	Status      Status       `json:"status"`
 	User        string       `json:"user,omitempty"`
 	UserID      ID           `json:"userID,omitempty"`
 	Permissions []Permission `json:"permissions"`
+}
+
+// Allowed returns true if the authorization is active and requested permission level
+// exists in the authorization's list of permissions.
+func Allowed(req Permission, auth *Authorization) bool {
+	if !IsActive(auth) {
+		return false
+	}
+
+	for _, p := range auth.Permissions {
+		if p.Action == req.Action && p.Resource == req.Resource {
+			return true
+		}
+	}
+	return false
+}
+
+// IsActive returns true if the authorization active.
+func IsActive(auth *Authorization) bool {
+	return auth.Status == Active
 }
 
 // AuthorizationService represents a service for managing authorization data.
@@ -30,11 +50,9 @@ type AuthorizationService interface {
 	// Creates a new authorization and sets a.Token and a.UserID with the new identifier.
 	CreateAuthorization(ctx context.Context, a *Authorization) error
 
-	// DisableAuthorization updates the token to be disabled.
-	DisableAuthorization(ctx context.Context, id ID) error
-
-	// EnableAuthorization updates the token to be enabled.
-	EnableAuthorization(ctx context.Context, id ID) error
+	// SetAuthorizationStatus updates the status of the authorization. Useful
+	// for setting an authorization to inactive or active.
+	SetAuthorizationStatus(ctx context.Context, id ID, status Status) error
 
 	// Removes a authorization by token.
 	DeleteAuthorization(ctx context.Context, id ID) error
@@ -118,19 +136,4 @@ func WriteBucketPermission(id ID) Permission {
 		Action:   WriteAction,
 		Resource: BucketResource(id),
 	}
-}
-
-// Allowed returns true if the authorization is enabled and requested permission level
-// exists in the authorization's list of permissions.
-func Allowed(req Permission, auth *Authorization) bool {
-	if auth.Disabled {
-		return false
-	}
-
-	for _, p := range auth.Permissions {
-		if p.Action == req.Action && p.Resource == req.Resource {
-			return true
-		}
-	}
-	return false
 }

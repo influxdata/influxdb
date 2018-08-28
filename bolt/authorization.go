@@ -282,29 +282,21 @@ func (c *Client) deleteAuthorization(ctx context.Context, tx *bolt.Tx, id platfo
 	return tx.Bucket(authorizationBucket).Delete(id)
 }
 
-// DisableAuthorization disables the authorization by setting the disabled field to true.
-func (c *Client) DisableAuthorization(ctx context.Context, id platform.ID) error {
+// SetAuthorizationStatus updates the status of the authorization. Useful
+// for setting an authorization to inactive or active.
+func (c *Client) SetAuthorizationStatus(ctx context.Context, id platform.ID, status platform.Status) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		isDisabled := true
-		return c.updateAuthorization(ctx, tx, id, isDisabled)
+		return c.updateAuthorization(ctx, tx, id, status)
 	})
 }
 
-// EnableAuthorization enables the authorization by setting the disabled field to false.
-func (c *Client) EnableAuthorization(ctx context.Context, id platform.ID) error {
-	return c.db.Update(func(tx *bolt.Tx) error {
-		isDisabled := false
-		return c.updateAuthorization(ctx, tx, id, isDisabled)
-	})
-}
-
-func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platform.ID, isDisabled bool) error {
+func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platform.ID, status platform.Status) error {
 	a, err := c.findAuthorizationByID(ctx, tx, id)
 	if err != nil {
 		return err
 	}
 
-	a.Disabled = isDisabled
+	a.Status = status
 	b, err := json.Marshal(a)
 	if err != nil {
 		return err
