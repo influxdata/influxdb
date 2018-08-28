@@ -6,6 +6,21 @@ jobs:
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
+
+      # Run yarn install, using Circle's cache if applicable.
+      - restore_cache:
+          name: Restore Yarn package cache
+          keys:
+            # Only cache on exact yarn.lock match, as in Circle's yarn example:
+            # https://circleci.com/docs/2.0/yarn/
+            - chronograf-yarn-packages-{{ checksum "chronograf/ui/yarn.lock" }}
+      - run: make node_modules
+      - save_cache:
+          name: Save Yarn package cache
+          key: chronograf-yarn-packages-{{ checksum "chronograf/ui/yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+
       - run: make test-js
 
   gotest:
