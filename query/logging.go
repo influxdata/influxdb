@@ -38,12 +38,14 @@ func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *Prox
 	if err != nil {
 		return 0, err
 	}
-	defer results.Cancel()
-
-	// Check for any reported statistics
+	// Check if this result iterator reports stats. We call this defer before cancel because
+	// the query needs to be finished before it will have valid statistics.
 	if s, ok := results.(Statisticser); ok {
-		stats = s.Statistics()
+		defer func() {
+			stats = s.Statistics()
+		}()
 	}
+	defer results.Cancel()
 
 	encoder := req.Dialect.Encoder()
 	n, err = encoder.Encode(w, results)
