@@ -1,4 +1,3 @@
-import _ from 'lodash'
 import normalizer from 'src/normalizers/dashboardTime'
 import {
   newVersion,
@@ -39,17 +38,10 @@ export const saveToLocalStorage = ({
   timeRange,
   dataExplorer,
   ranges,
-  logs,
   script,
 }: LocalStorage): void => {
   try {
     const appPersisted = {app: {persisted}}
-    const minimalLogs = _.omit(logs, [
-      'tableData',
-      'histogramData',
-      'queryCount',
-    ])
-
     window.localStorage.setItem(
       'state',
       JSON.stringify({
@@ -60,14 +52,6 @@ export const saveToLocalStorage = ({
         dataExplorer,
         dataExplorerQueryConfigs,
         script,
-        logs: {
-          ...minimalLogs,
-          histogramData: [],
-          tableData: {},
-          queryCount: 0,
-          tableInfiniteData: minimalLogs.tableInfiniteData || {},
-          tableTime: minimalLogs.tableTime || {},
-        },
       })
     )
   } catch (err) {

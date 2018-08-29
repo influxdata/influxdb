@@ -14,13 +14,13 @@ import Crosshair from 'src/shared/components/Crosshair'
 import getRange, {getStackedRange} from 'src/shared/parsing/getRangeForDygraph'
 import {getDeep} from 'src/utils/wrappers'
 import {numberValueFormatter} from 'src/utils/formatting'
+import {buildDefaultYLabel} from 'src/shared/utils/defaultYLabel'
 
 // Constants
 import {
   AXES_SCALE_OPTIONS,
   DEFAULT_AXIS,
 } from 'src/dashboards/constants/cellEditor'
-import {buildDefaultYLabel} from 'src/shared/presenters'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 import {
   OPTIONS,

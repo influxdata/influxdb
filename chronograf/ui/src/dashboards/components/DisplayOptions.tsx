@@ -8,7 +8,7 @@ import SingleStatOptions from 'src/dashboards/components/SingleStatOptions'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
 import TableOptions from 'src/dashboards/components/TableOptions'
 
-import {buildDefaultYLabel} from 'src/shared/presenters'
+import {buildDefaultYLabel} from 'src/shared/utils/defaultYLabel'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Axes, Cell, QueryConfig} from 'src/types'
 

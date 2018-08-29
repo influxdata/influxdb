@@ -6,11 +6,9 @@ import thunkMiddleware from 'redux-thunk'
 import {resizeLayout} from 'src/shared/middleware/resizeLayout'
 import {queryStringConfig} from 'src/shared/middleware/queryStringConfig'
 import statusReducers from 'src/status/reducers'
-import logsReducer from 'src/logs/reducers'
 import sharedReducers from 'src/shared/reducers'
 import cellEditorOverlay from 'src/dashboards/reducers/cellEditorOverlay'
 import persistStateEnhancer from './persistStateEnhancer'
-import servicesReducer from 'src/shared/reducers/services'
 import scriptReducer from 'src/flux/reducers/script'
 import sourceReducer from 'src/sources/reducers/sources'
 
@@ -23,12 +21,10 @@ const rootReducer = combineReducers({
   ...statusReducers,
   ...sharedReducers,
   cellEditorOverlay,
-  logs: logsReducer,
   ranges: rangesReducer,
   hoverTime: hoverTimeReducer,
   dashboards: dashboardsReducer,
   routing: routerReducer,
-  services: servicesReducer,
   script: scriptReducer,
   sources: sourceReducer,
 })

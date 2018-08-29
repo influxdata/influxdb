@@ -18,7 +18,6 @@ import App from 'src/App'
 import CheckSources from 'src/CheckSources'
 import {StatusPage} from 'src/status'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
-import {LogsPage} from 'src/logs'
 import {SourcePage, ManageSources} from 'src/sources'
 import {FluxPage} from 'src/flux'
 import NotFound from 'src/shared/components/NotFound'
@@ -100,7 +99,6 @@ class Root extends PureComponent<{}, State> {
         <Router history={history}>
           <Route component={App}>
             <Route path="/" component={CheckSources}>
-              <Route path="logs" component={LogsPage} />
               <Route path="dashboards/:dashboardID" component={DashboardPage} />
               <Route path="sources/new" component={SourcePage} />
               <Route path="dashboards" component={DashboardsPage} />

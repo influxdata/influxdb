@@ -1,5 +1,4 @@
 import {QueryConfig, TimeRange} from 'src/types'
-import {LogsState} from 'src/types/logs'
 
 export interface LocalStorage {
   VERSION: VERSION
@@ -9,7 +8,6 @@ export interface LocalStorage {
   dataExplorerQueryConfigs: DataExplorerQueryConfigs
   timeRange: TimeRange
   script: string
-  logs: LogsState
 }
 
 export type VERSION = string

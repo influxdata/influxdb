@@ -1,6 +1,6 @@
 import _ from 'lodash'
 
-// fieldWalk traverses fields rescursively into args mapping fn on every field
+// fieldWalk traverses fields recursively into args mapping fn on every field
 export const fieldWalk = (fields, fn, acc = []) =>
   _.compact(
     _.flattenDeep(
