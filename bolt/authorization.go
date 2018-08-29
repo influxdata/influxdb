@@ -66,7 +66,7 @@ func (c *Client) findAuthorizationByID(ctx context.Context, tx *bolt.Tx, id plat
 		return nil, fmt.Errorf("authorization not found")
 	}
 
-	if err := json.Unmarshal(v, &a); err != nil {
+	if err := decodeAuthorization(v, &a); err != nil {
 		return nil, err
 	}
 
@@ -221,9 +221,20 @@ func (c *Client) PutAuthorization(ctx context.Context, a *platform.Authorization
 	})
 }
 
-func (c *Client) putAuthorization(ctx context.Context, tx *bolt.Tx, a *platform.Authorization) error {
+func encodeAuthorization(a *platform.Authorization) ([]byte, error) {
 	a.User = ""
-	v, err := json.Marshal(a)
+	switch a.Status {
+	case platform.Active, platform.Inactive:
+	case "":
+		a.Status = platform.Active
+	default:
+		return nil, fmt.Errorf("unknown authorization status")
+	}
+	return json.Marshal(a)
+}
+
+func (c *Client) putAuthorization(ctx context.Context, tx *bolt.Tx, a *platform.Authorization) error {
+	v, err := encodeAuthorization(a)
 	if err != nil {
 		return err
 	}
@@ -232,6 +243,7 @@ func (c *Client) putAuthorization(ctx context.Context, tx *bolt.Tx, a *platform.
 		return err
 	}
 	if err := tx.Bucket(authorizationBucket).Put(a.ID, v); err != nil {
+		return err
 	}
 	return c.setUserOnAuthorization(ctx, tx, a)
 }
@@ -240,12 +252,23 @@ func authorizationIndexKey(n string) []byte {
 	return []byte(n)
 }
 
+func decodeAuthorization(b []byte, a *platform.Authorization) error {
+	if err := json.Unmarshal(b, a); err != nil {
+		return err
+	}
+	if a.Status == "" {
+		a.Status = platform.Active
+	}
+	return nil
+}
+
 // forEachAuthorization will iterate through all authorizations while fn returns true.
 func (c *Client) forEachAuthorization(ctx context.Context, tx *bolt.Tx, fn func(*platform.Authorization) bool) error {
 	cur := tx.Bucket(authorizationBucket).Cursor()
 	for k, v := cur.First(); k != nil; k, v = cur.Next() {
 		a := &platform.Authorization{}
-		if err := json.Unmarshal(v, a); err != nil {
+
+		if err := decodeAuthorization(v, a); err != nil {
 			return err
 		}
 		if err := c.setUserOnAuthorization(ctx, tx, a); err != nil {
@@ -280,4 +303,27 @@ func (c *Client) deleteAuthorization(ctx context.Context, tx *bolt.Tx, id platfo
 		return err
 	}
 	return tx.Bucket(authorizationBucket).Delete(id)
+}
+
+// SetAuthorizationStatus updates the status of the authorization. Useful
+// for setting an authorization to inactive or active.
+func (c *Client) SetAuthorizationStatus(ctx context.Context, id platform.ID, status platform.Status) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		return c.updateAuthorization(ctx, tx, id, status)
+	})
+}
+
+func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platform.ID, status platform.Status) error {
+	a, err := c.findAuthorizationByID(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+
+	a.Status = status
+	b, err := encodeAuthorization(a)
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket(authorizationBucket).Put(a.ID, b)
 }

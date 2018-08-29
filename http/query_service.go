@@ -139,7 +139,7 @@ func (s *QueryService) Query(ctx context.Context, req *query.Request) (query.Res
 	if err != nil {
 		return nil, err
 	}
-	hreq.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, hreq)
 	hreq = hreq.WithContext(ctx)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)

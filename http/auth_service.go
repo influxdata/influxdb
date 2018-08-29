@@ -32,6 +32,7 @@ func NewAuthorizationHandler() *AuthorizationHandler {
 	h.HandlerFunc("POST", "/v1/authorizations", h.handlePostAuthorization)
 	h.HandlerFunc("GET", "/v1/authorizations", h.handleGetAuthorizations)
 	h.HandlerFunc("GET", "/v1/authorizations/:id", h.handleGetAuthorization)
+	h.HandlerFunc("PATCH", "/v1/authorizations/:id", h.handleSetAuthorizationStatus)
 	h.HandlerFunc("DELETE", "/v1/authorizations/:id", h.handleDeleteAuthorization)
 	return h
 }
@@ -181,6 +182,72 @@ func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAu
 	}, nil
 }
 
+// handleSetAuthorizationStatus is the HTTP handler for the PATCH /v1/authorizations/:id route that updates the authorization's status.
+func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeSetAuthorizationStatusRequest(ctx, r)
+	if err != nil {
+		h.Logger.Info("failed to decode request", zap.String("handler", "updateAuthorization"), zap.Error(err))
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	a, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if req.Status != a.Status {
+		a.Status = req.Status
+		if err := h.AuthorizationService.SetAuthorizationStatus(ctx, a.ID, a.Status); err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
+		h.Logger.Info("failed to encode response", zap.String("handler", "updateAuthorization"), zap.Error(err))
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type updateAuthorizationRequest struct {
+	ID     platform.ID
+	Status platform.Status
+}
+
+func decodeSetAuthorizationStatusRequest(ctx context.Context, r *http.Request) (*updateAuthorizationRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	a := &setAuthorizationStatusRequest{}
+	if err := json.NewDecoder(r.Body).Decode(a); err != nil {
+		return nil, err
+	}
+
+	switch a.Status {
+	case platform.Active, platform.Inactive:
+	default:
+		return nil, kerrors.InvalidDataf("unknown status option")
+	}
+
+	return &updateAuthorizationRequest{
+		ID:     i,
+		Status: a.Status,
+	}, nil
+}
+
 // handleDeleteAuthorization is the HTTP handler for the DELETE /v1/authorizations/:id route.
 func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -231,6 +298,7 @@ type AuthorizationService struct {
 
 var _ platform.AuthorizationService = (*AuthorizationService)(nil)
 
+// FindAuthorizationByID finds the authorization against a remote influx server.
 func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
 	u, err := newURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
@@ -241,7 +309,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -295,7 +363,7 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 	}
 
 	req.URL.RawQuery = query.Encode()
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -338,7 +406,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 
@@ -359,6 +427,46 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	return nil
 }
 
+type setAuthorizationStatusRequest struct {
+	Status platform.Status `json:"status"`
+}
+
+// SetAuthorizationStatus updates an authorization's status.
+func (s *AuthorizationService) SetAuthorizationStatus(ctx context.Context, id platform.ID, status platform.Status) error {
+	u, err := newURL(s.Addr, authorizationIDPath(id))
+	if err != nil {
+		return err
+	}
+
+	b, err := json.Marshal(setAuthorizationStatusRequest{
+		Status: status,
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(s.Token, req)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // DeleteAuthorization removes a authorization by id.
 func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) error {
 	u, err := newURL(s.Addr, authorizationIDPath(id))
@@ -370,7 +478,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", s.Token)
+	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)

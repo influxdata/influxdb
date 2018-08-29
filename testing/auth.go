@@ -92,6 +92,7 @@ func CreateAuthorization(
 						ID:     idFromString(t, authOneID),
 						UserID: idFromString(t, userOneID),
 						Token:  "rand",
+						Status: platform.Active,
 						User:   "cooluser",
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
@@ -146,6 +147,7 @@ func CreateAuthorization(
 						ID:     idFromString(t, authOneID),
 						UserID: idFromString(t, userOneID),
 						User:   "cooluser",
+						Status: platform.Active,
 						Token:  "supersecret",
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
@@ -155,6 +157,7 @@ func CreateAuthorization(
 					{
 						ID:     idFromString(t, authTwoID),
 						UserID: idFromString(t, userTwoID),
+						Status: platform.Active,
 						User:   "regularuser",
 						Token:  "rand",
 						Permissions: []platform.Permission{
@@ -254,6 +257,7 @@ func FindAuthorizationByID(
 					ID:     idFromString(t, authTwoID),
 					UserID: idFromString(t, userTwoID),
 					User:   "regularuser",
+					Status: platform.Active,
 					Token:  "rand2",
 					Permissions: []platform.Permission{
 						platform.CreateUserPermission,
@@ -324,6 +328,7 @@ func FindAuthorizationByToken(
 						ID:     idFromString(t, authOneID),
 						UserID: idFromString(t, userOneID),
 						Token:  "rand1",
+						Status: platform.Inactive,
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 							platform.DeleteUserPermission,
@@ -364,6 +369,7 @@ func FindAuthorizationByToken(
 				authorization: &platform.Authorization{
 					ID:     idFromString(t, authOneID),
 					UserID: idFromString(t, userOneID),
+					Status: platform.Inactive,
 					User:   "cooluser",
 					Token:  "rand1",
 					Permissions: []platform.Permission{
@@ -446,6 +452,7 @@ func FindAuthorizations(
 					{
 						ID:     idFromString(t, authTwoID),
 						UserID: idFromString(t, userTwoID),
+						Status: platform.Active,
 						Token:  "rand2",
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
@@ -461,6 +468,7 @@ func FindAuthorizations(
 						UserID: idFromString(t, userOneID),
 						User:   "cooluser",
 						Token:  "rand1",
+						Status: platform.Active,
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 							platform.DeleteUserPermission,
@@ -471,6 +479,7 @@ func FindAuthorizations(
 						UserID: idFromString(t, userTwoID),
 						User:   "regularuser",
 						Token:  "rand2",
+						Status: platform.Active,
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 						},
@@ -496,6 +505,7 @@ func FindAuthorizations(
 						ID:     idFromString(t, authOneID),
 						UserID: idFromString(t, userOneID),
 						Token:  "rand1",
+						Status: platform.Active,
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 							platform.DeleteUserPermission,
@@ -528,6 +538,7 @@ func FindAuthorizations(
 						ID:     idFromString(t, authOneID),
 						UserID: idFromString(t, userOneID),
 						User:   "cooluser",
+						Status: platform.Active,
 						Token:  "rand1",
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
@@ -538,6 +549,7 @@ func FindAuthorizations(
 						ID:     idFromString(t, authThreeID),
 						UserID: idFromString(t, userOneID),
 						User:   "cooluser",
+						Status: platform.Active,
 						Token:  "rand3",
 						Permissions: []platform.Permission{
 							platform.DeleteUserPermission,
@@ -605,6 +617,7 @@ func FindAuthorizations(
 						UserID: idFromString(t, userTwoID),
 						User:   "regularuser",
 						Token:  "rand2",
+						Status: platform.Active,
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 						},
@@ -710,6 +723,7 @@ func DeleteAuthorization(
 						ID:     idFromString(t, authTwoID),
 						UserID: idFromString(t, userTwoID),
 						User:   "regularuser",
+						Status: platform.Active,
 						Token:  "rand2",
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
@@ -762,6 +776,7 @@ func DeleteAuthorization(
 						UserID: idFromString(t, userOneID),
 						User:   "cooluser",
 						Token:  "rand1",
+						Status: platform.Active,
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 							platform.DeleteUserPermission,
@@ -772,6 +787,7 @@ func DeleteAuthorization(
 						UserID: idFromString(t, userTwoID),
 						User:   "regularuser",
 						Token:  "rand2",
+						Status: platform.Active,
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 						},

@@ -2,10 +2,19 @@ package http
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
-func TestParseAuthHeader(t *testing.T) {
+func tokenRequest(token string) *http.Request {
+	req := httptest.NewRequest("GET", "/", nil)
+	if token != "" {
+		SetToken(token, req)
+	}
+	return req
+}
+
+func TestGetToken(t *testing.T) {
 	type args struct {
 		header string
 	}
@@ -62,7 +71,7 @@ func TestParseAuthHeader(t *testing.T) {
 				Header: make(http.Header),
 			}
 			req.Header.Set("Authorization", tt.args.header)
-			result, err := ParseAuthHeaderToken(req)
+			result, err := GetToken(req)
 			if err != tt.wants.err {
 				t.Errorf("err incorrect want %v, got %v", tt.wants.err, err)
 				return
@@ -73,4 +82,28 @@ func TestParseAuthHeader(t *testing.T) {
 		})
 	}
 
+}
+
+func TestSetToken(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+		req   *http.Request
+		want  string
+	}{
+		{
+			name:  "adding token to Authorization header",
+			token: "1234",
+			req:   httptest.NewRequest("GET", "/", nil),
+			want:  "Token 1234",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			SetToken(tt.token, tt.req)
+			if got := tt.req.Header.Get("Authorization"); got != tt.want {
+				t.Errorf("SetToken() want %s, got %s", tt.want, got)
+			}
+		})
+	}
 }

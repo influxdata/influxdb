@@ -9,9 +9,30 @@ import (
 type Authorization struct {
 	ID          ID           `json:"id"`
 	Token       string       `json:"token"`
+	Status      Status       `json:"status"`
 	User        string       `json:"user,omitempty"`
 	UserID      ID           `json:"userID,omitempty"`
 	Permissions []Permission `json:"permissions"`
+}
+
+// Allowed returns true if the authorization is active and requested permission level
+// exists in the authorization's list of permissions.
+func Allowed(req Permission, auth *Authorization) bool {
+	if !IsActive(auth) {
+		return false
+	}
+
+	for _, p := range auth.Permissions {
+		if p.Action == req.Action && p.Resource == req.Resource {
+			return true
+		}
+	}
+	return false
+}
+
+// IsActive returns true if the authorization active.
+func IsActive(auth *Authorization) bool {
+	return auth.Status == Active
 }
 
 // AuthorizationService represents a service for managing authorization data.
@@ -28,6 +49,10 @@ type AuthorizationService interface {
 
 	// Creates a new authorization and sets a.Token and a.UserID with the new identifier.
 	CreateAuthorization(ctx context.Context, a *Authorization) error
+
+	// SetAuthorizationStatus updates the status of the authorization. Useful
+	// for setting an authorization to inactive or active.
+	SetAuthorizationStatus(ctx context.Context, id ID, status Status) error
 
 	// Removes a authorization by token.
 	DeleteAuthorization(ctx context.Context, id ID) error
@@ -85,19 +110,19 @@ func (p Permission) String() string {
 }
 
 var (
-	// CreateUser is a permission for creating users.
+	// CreateUserPermission is a permission for creating users.
 	CreateUserPermission = Permission{
 		Action:   CreateAction,
 		Resource: UserResource,
 	}
-	// DeleteUser is a permission for deleting users.
+	// DeleteUserPermission is a permission for deleting users.
 	DeleteUserPermission = Permission{
 		Action:   DeleteAction,
 		Resource: UserResource,
 	}
 )
 
-// ReadBucket constructs a permission for reading a bucket.
+// ReadBucketPermission constructs a permission for reading a bucket.
 func ReadBucketPermission(id ID) Permission {
 	return Permission{
 		Action:   ReadAction,
@@ -105,20 +130,10 @@ func ReadBucketPermission(id ID) Permission {
 	}
 }
 
-// WriteBucket constructs a permission for writing to a bucket.
+// WriteBucketPermission constructs a permission for writing to a bucket.
 func WriteBucketPermission(id ID) Permission {
 	return Permission{
 		Action:   WriteAction,
 		Resource: BucketResource(id),
 	}
-}
-
-// Allowed returns true if the permission exists in a list of permissions.
-func Allowed(req Permission, ps []Permission) bool {
-	for _, p := range ps {
-		if p.Action == req.Action && p.Resource == req.Resource {
-			return true
-		}
-	}
-	return false
 }
