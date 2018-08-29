@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	nethttp "net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"os/user"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -19,6 +22,7 @@ import (
 	"github.com/influxdata/platform/chronograf/server"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/kit/prom"
+	"github.com/influxdata/platform/nats"
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/control"
@@ -38,11 +42,39 @@ func main() {
 	Execute()
 }
 
+const (
+	// NatsSubject is the subject that subscribers and publishers use for writing and consuming line protocol
+	NatsSubject = "ingress"
+	// IngressGroup is the Nats Streaming Subscriber group, allowing multiple subscribers to distribute work
+	IngressGroup = "ingress"
+)
+
 var (
 	httpBindAddress   string
 	authorizationPath string
 	boltPath          string
+	walPath           string
 )
+
+func influxDir() (string, error) {
+	var dir string
+	// By default, store meta and data files in current users home directory
+	u, err := user.Current()
+	if err == nil {
+		dir = u.HomeDir
+	} else if os.Getenv("HOME") != "" {
+		dir = os.Getenv("HOME")
+	} else {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		dir = wd
+	}
+	dir = filepath.Join(dir, ".influxdbv2")
+
+	return dir, nil
+}
 
 func init() {
 	viper.SetEnvPrefix("INFLUX")
@@ -63,6 +95,18 @@ func init() {
 	viper.BindEnv("BOLT_PATH")
 	if h := viper.GetString("BOLT_PATH"); h != "" {
 		boltPath = h
+	}
+
+	dir, err := influxDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to determine influx directory: %v", err)
+		os.Exit(1)
+	}
+
+	platformCmd.Flags().StringVar(&walPath, "wal-path", filepath.Join(dir, "wal"), "path to persistent WAL files")
+	viper.BindEnv("WAL_PATH")
+	if h := viper.GetString("WAL_PATH"); h != "" {
+		walPath = h
 	}
 }
 
@@ -166,7 +210,32 @@ func platformF(cmd *cobra.Command, args []string) {
 	errc := make(chan error)
 
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGTERM, os.Interrupt)
+
+	// NATS streaming server
+	natsServer := nats.NewServer(nats.Config{FilestoreDir: walPath})
+	if err := natsServer.Open(); err != nil {
+		logger.Error("failed to start nats streaming server", zap.Error(err))
+		os.Exit(1)
+	}
+
+	publisher := nats.NewAsyncPublisher("nats-publisher")
+	if err := publisher.Open(); err != nil {
+		logger.Error("failed to connect to streaming server", zap.Error(err))
+		os.Exit(1)
+	}
+
+	// TODO(jm): this is an example of using a subscriber to consume from the channel. It should be removed.
+	subscriber := nats.NewQueueSubscriber("nats-subscriber")
+	if err := subscriber.Open(); err != nil {
+		logger.Error("failed to connect to streaming server", zap.Error(err))
+		os.Exit(1)
+	}
+
+	if err := subscriber.Subscribe(NatsSubject, IngressGroup, &nats.LogHandler{Logger: logger}); err != nil {
+		logger.Error("failed to create nats subscriber", zap.Error(err))
+		os.Exit(1)
+	}
 
 	httpServer := &nethttp.Server{
 		Addr: httpBindAddress,
@@ -204,6 +273,16 @@ func platformF(cmd *cobra.Command, args []string) {
 		taskHandler := http.NewTaskHandler(logger)
 		taskHandler.TaskService = taskSvc
 
+		publishFn := func(r io.Reader) error {
+			return publisher.Publish(NatsSubject, r)
+		}
+
+		writeHandler := http.NewWriteHandler(publishFn)
+		writeHandler.AuthorizationService = authSvc
+		writeHandler.OrganizationService = orgSvc
+		writeHandler.BucketService = bucketSvc
+		writeHandler.Logger = logger.With(zap.String("handler", "write"))
+
 		// TODO(desa): what to do about idpe.
 		chronografHandler := http.NewChronografHandler(chronografSvc)
 
@@ -219,6 +298,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			SourceHandler:        sourceHandler,
 			TaskHandler:          taskHandler,
 			ViewHandler:          cellHandler,
+			WriteHandler:         writeHandler,
 		}
 		reg.MustRegister(platformHandler.PrometheusCollectors()...)
 

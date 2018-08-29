@@ -22,6 +22,7 @@ type PlatformHandler struct {
 	SourceHandler        *SourceHandler
 	TaskHandler          *TaskHandler
 	FluxLangHandler      *FluxLangHandler
+	WriteHandler         *WriteHandler
 }
 
 func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -55,7 +56,6 @@ func (h *PlatformHandler) serveLinks(w nethttp.ResponseWriter, r *nethttp.Reques
 
 // ServeHTTP delegates a request to the appropriate subhandler.
 func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request) {
-
 	setCORSResponseHeaders(w, r)
 	if r.Method == "OPTIONS" {
 		return
@@ -126,6 +126,12 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 
 	if strings.HasPrefix(r.URL.Path, "/v1/tasks") {
 		h.TaskHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasSuffix(r.URL.Path, "/write") {
+		h.WriteHandler.ServeHTTP(w, r)
+		return
 	}
 
 	if strings.HasPrefix(r.URL.Path, "/v2/views") {

@@ -72,6 +72,14 @@
   revision = "941dea75d3ebfbdd905a5d8b7b232965c5e5c684"
 
 [[projects]]
+  branch = "master"
+  digest = "1:ef5b0622d834c139454148b8fd0c92bb314828900532b267ae62da9fec109866"
+  name = "github.com/armon/go-metrics"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "3c58d8115a78a6879e5df75ae900846768d36895"
+
+[[projects]]
   digest = "1:b42949704aad6dc86a9fa457ce3c80267d8875ba727bc3eb0eaa966e64e960b2"
   name = "github.com/aws/aws-sdk-go"
   packages = [
@@ -126,6 +134,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "8bd4349a67f2533b078dbc524689d15dba0f4659"
+
+[[projects]]
+  digest = "1:0f98f59e9a2f4070d66f0c9c39561f68fcd1dc837b22a852d28d0003aebd1b1e"
+  name = "github.com/boltdb/bolt"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
+  version = "v1.3.1"
 
 [[projects]]
   digest = "1:e8859ab9dac9bc8cf02728fefcf7da80221a4fc6573374eb3a02d2d3eb66604e"
@@ -487,6 +503,30 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:2394f5a25132b3868eff44599cc28d44bdd0330806e34c495d754dd052df612b"
+  name = "github.com/hashicorp/go-immutable-radix"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "7f3cd4390caab3250a57f30efdb2a65dd7649ecf"
+
+[[projects]]
+  branch = "master"
+  digest = "1:b8ba23b0b493e601d5ebaf21079bd3433eb304a5d73c0fb40b8aea526e94f46b"
+  name = "github.com/hashicorp/go-msgpack"
+  packages = ["codec"]
+  pruneopts = "UT"
+  revision = "fa3f63826f7c23912c15263591e65d54d080b458"
+
+[[projects]]
+  branch = "master"
+  digest = "1:e0e3eb7886110c57a7c103fbc5fc419b1651d3014655b47b71f26809c2daeb1c"
+  name = "github.com/hashicorp/golang-lru"
+  packages = ["simplelru"]
+  pruneopts = "UT"
+  revision = "0fb14efe8c47ae851c0034ed7a448854d3d34cf3"
+
+[[projects]]
+  branch = "master"
   digest = "1:a361611b8c8c75a1091f00027767f7779b29cb37c456a71b8f2604c88057ab40"
   name = "github.com/hashicorp/hcl"
   packages = [
@@ -503,6 +543,14 @@
   ]
   pruneopts = "UT"
   revision = "ef8a98b0bbce4a65b5aa4c368430a80ddc533168"
+
+[[projects]]
+  digest = "1:56f26733346010e935b1ddb0e1ffa00bb054133b3ddb3f481261d27a7ae914df"
+  name = "github.com/hashicorp/raft"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "6d14f0c70869faabd9e60ba7ed88a6cbbd6a661f"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:3e260afa138eab6492b531a3b3d10ab4cb70512d423faa78b8949dec76e66a21"
@@ -743,6 +791,65 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "90eadee771aeab36e8bf796039b8c261bebebe4f"
+
+[[projects]]
+  digest = "1:a840bc0035e011ad1062d5f6de8671ac9fe553f12f3ae2040a60e44942432ead"
+  name = "github.com/nats-io/gnatsd"
+  packages = [
+    "conf",
+    "logger",
+    "server",
+    "server/pse",
+    "util",
+  ]
+  pruneopts = "UT"
+  revision = "6608e9ac3be979dcb0614b772cc86a87b71acaa3"
+  version = "v1.2.0"
+
+[[projects]]
+  digest = "1:6ec5ca70ff99467ff3b134ca05ae1d247e42a0377a7c27a756ba932f4dfc3a88"
+  name = "github.com/nats-io/go-nats"
+  packages = [
+    ".",
+    "encoders/builtin",
+    "util",
+  ]
+  pruneopts = "UT"
+  revision = "062418ea1c2181f52dc0f954f6204370519a868b"
+  version = "v1.5.0"
+
+[[projects]]
+  digest = "1:cf80370e775e26aa54b8d87304244ad56e19886b422f4ede3bb4aec7ff3f83cc"
+  name = "github.com/nats-io/go-nats-streaming"
+  packages = [
+    ".",
+    "pb",
+  ]
+  pruneopts = "UT"
+  revision = "e15a53f85e4932540600a16b56f6c4f65f58176f"
+  version = "v0.4.0"
+
+[[projects]]
+  digest = "1:3ff1cb61cfdc8a7cf5fcda5fbccd683fbf3925b1a43279f50021cbca035935e4"
+  name = "github.com/nats-io/nats-streaming-server"
+  packages = [
+    "logger",
+    "server",
+    "spb",
+    "stores",
+    "util",
+  ]
+  pruneopts = "UT"
+  revision = "63e2c334b66dba3edade0047625a25c0d8f18f80"
+  version = "v0.10.2"
+
+[[projects]]
+  digest = "1:c3cd663f2f30b92536b9f290ac85c6310dae36a14cb8961553ae9ccf0d85ae41"
+  name = "github.com/nats-io/nuid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "289cccf02c178dc782430d534e3c1f5b72af807f"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -1062,11 +1169,16 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:105645ed366a17f9ed1007059f0d3506e73e2098f2a1e793ffa92917d6461060"
+  digest = "1:58e8313f68ec7a8214ada3eee49eb29826775a7247cff938c7cf2a1ca421e1b0"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
+    "windows/registry",
+    "windows/svc",
+    "windows/svc/debug",
+    "windows/svc/eventlog",
+    "windows/svc/mgr",
   ]
   pruneopts = "UT"
   revision = "7c87d13f8e835d2fb3a70a2912c811ed0c1d241b"
@@ -1234,6 +1346,9 @@
     "github.com/julienschmidt/httprouter",
     "github.com/kevinburke/go-bindata",
     "github.com/mna/pigeon",
+    "github.com/nats-io/go-nats-streaming",
+    "github.com/nats-io/nats-streaming-server/server",
+    "github.com/nats-io/nats-streaming-server/stores",
     "github.com/opentracing/opentracing-go",
     "github.com/opentracing/opentracing-go/ext",
     "github.com/opentracing/opentracing-go/log",

@@ -2,6 +2,7 @@ package errors
 
 import (
 	"fmt"
+	"net/http"
 )
 
 // TODO: move to base directory
@@ -94,4 +95,12 @@ func InvalidDataf(format string, i ...interface{}) error {
 // Forbiddenf constructs a Forbidden error with the given format.
 func Forbiddenf(format string, i ...interface{}) error {
 	return Errorf(Forbidden, format, i...)
+}
+
+func BadRequestError(msg string) error {
+	return Error{
+		Reference: InvalidData,
+		Code:      http.StatusBadRequest,
+		Err:       msg,
+	}
 }
