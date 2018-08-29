@@ -914,6 +914,16 @@ func ToStringArray(a values.Array) ([]string, error) {
 	})
 	return strs, nil
 }
+func ToFloatArray(a values.Array) ([]float64, error) {
+	if a.Type().ElementType() != semantic.Float {
+		return nil, fmt.Errorf("cannot convert array of %v to an array of floats", a.Type().ElementType())
+	}
+	vs := make([]float64, a.Len())
+	a.Range(func(i int, v values.Value) {
+		vs[i] = v.Float()
+	})
+	return vs, nil
+}
 
 // Arguments provides access to the keyword arguments passed to a function.
 // semantic.The Get{Type} methods return three values: the typed value of the arg,
