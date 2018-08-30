@@ -303,6 +303,7 @@ func (t *groupTransformation) Process(id execute.DatasetID, tbl query.Table) err
 			on[c.Label] = true
 		}
 	}
+	colMap := make([]int, 0, len(tbl.Cols()))
 	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
@@ -311,7 +312,8 @@ func (t *groupTransformation) Process(id execute.DatasetID, tbl query.Table) err
 			if created {
 				execute.AddTableCols(tbl, builder)
 			}
-			execute.AppendRecord(i, cr, builder)
+			colMap = execute.ColMap(colMap, builder, cr)
+			execute.AppendMappedRecord(i, cr, builder, colMap)
 		}
 		return nil
 	})

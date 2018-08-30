@@ -207,6 +207,96 @@ func TestGroup_Process(t *testing.T) {
 			},
 		},
 		{
+			// TODO(nathanielc): When we have support for null, the missing column
+			// needs to be added with null values for any missing values.
+			// Right now the order of input tables determines whether the column is included.
+			name: "fan in missing columns",
+			spec: &functions.GroupProcedureSpec{
+				GroupMode: functions.GroupModeBy,
+				GroupKeys: []string{"t1"},
+			},
+			data: []query.Table{
+				&executetest.Table{
+					KeyCols: []string{"t1", "t2"},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
+						{Label: "t2", Type: query.TString},
+					},
+					Data: [][]interface{}{
+						{execute.Time(2), 1.0, "a", "y"},
+					},
+				},
+				&executetest.Table{
+					KeyCols: []string{"t1", "t3", "t2"},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
+						{Label: "t3", Type: query.TInt},
+						{Label: "t2", Type: query.TString},
+					},
+					Data: [][]interface{}{
+						{execute.Time(1), 2.0, "a", int64(5), "x"},
+					},
+				},
+				&executetest.Table{
+					KeyCols: []string{"t1", "t2"},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
+						{Label: "t2", Type: query.TString},
+					},
+					Data: [][]interface{}{
+						{execute.Time(2), 7.0, "b", "y"},
+					},
+				},
+				&executetest.Table{
+					KeyCols: []string{"t1", "t3", "t2"},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
+						{Label: "t3", Type: query.TInt},
+						{Label: "t2", Type: query.TString},
+					},
+					Data: [][]interface{}{
+						{execute.Time(1), 4.0, "b", int64(7), "x"},
+					},
+				},
+			},
+			want: []*executetest.Table{
+				{
+					KeyCols: []string{"t1"},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
+						{Label: "t2", Type: query.TString},
+					},
+					Data: [][]interface{}{
+						{execute.Time(2), 1.0, "a", "y"},
+						{execute.Time(1), 2.0, "a", "x"},
+					},
+				},
+				{
+					KeyCols: []string{"t1"},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
+						{Label: "t2", Type: query.TString},
+					},
+					Data: [][]interface{}{
+						{execute.Time(2), 7.0, "b", "y"},
+						{execute.Time(1), 4.0, "b", "x"},
+					},
+				},
+			},
+		},
+		{
 			name: "fan out",
 			spec: &functions.GroupProcedureSpec{
 				GroupMode: functions.GroupModeBy,

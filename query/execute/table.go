@@ -179,7 +179,7 @@ func AppendCol(bj, cj int, cr query.ColReader, builder TableBuilder) {
 	}
 }
 
-// AppendMappedRecord appends the record from cr onto builder assuming matching columns.
+// AppendRecord appends the record from cr onto builder assuming matching columns.
 func AppendRecord(i int, cr query.ColReader, builder TableBuilder) {
 	for j, c := range builder.Cols() {
 		switch c.Type {
@@ -221,6 +221,23 @@ func AppendMappedRecord(i int, cr query.ColReader, builder TableBuilder, colMap 
 			PanicUnknownType(c.Type)
 		}
 	}
+}
+
+// ColMap writes a mapping of builder index to column reader index into colMap.
+// When colMap does not have enough capacity a new colMap is allocated.
+// The colMap is always returned
+func ColMap(colMap []int, builder TableBuilder, cr query.ColReader) []int {
+	l := len(builder.Cols())
+	if cap(colMap) < l {
+		colMap = make([]int, len(builder.Cols()))
+	} else {
+		colMap = colMap[:l]
+	}
+	cols := cr.Cols()
+	for j, c := range builder.Cols() {
+		colMap[j] = ColIdx(c.Label, cols)
+	}
+	return colMap
 }
 
 // AppendRecordForCols appends the only the columns provided from cr onto builder.
