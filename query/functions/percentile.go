@@ -311,112 +311,73 @@ func (a *ExactPercentileAgg) ValueFloat() float64 {
 	return y
 }
 
-type floatRowPair struct {
-	row   execute.Row
-	Value float64
-}
-
-type exactPercentileFloatSorter []floatRowPair
-
-func (rows exactPercentileFloatSorter) Len() int           { return len(rows) }
-func (rows exactPercentileFloatSorter) Swap(i, j int)      { rows[i], rows[j] = rows[j], rows[i] }
-func (rows exactPercentileFloatSorter) Less(i, j int) bool { return rows[i].Value < rows[j].Value }
-
-type intRowPair struct {
-	row   execute.Row
-	Value int64
-}
-
-type exactPercentileIntSorter []intRowPair
-
-func (rows exactPercentileIntSorter) Len() int           { return len(rows) }
-func (rows exactPercentileIntSorter) Swap(i, j int)      { rows[i], rows[j] = rows[j], rows[i] }
-func (rows exactPercentileIntSorter) Less(i, j int) bool { return rows[i].Value < rows[j].Value }
-
-type uintRowPair struct {
-	row   execute.Row
-	Value uint64
-}
-
-type exactPercentileUintSorter []uintRowPair
-
-func (rows exactPercentileUintSorter) Len() int           { return len(rows) }
-func (rows exactPercentileUintSorter) Swap(i, j int)      { rows[i], rows[j] = rows[j], rows[i] }
-func (rows exactPercentileUintSorter) Less(i, j int) bool { return rows[i].Value < rows[j].Value }
-
-type boolRowPair struct {
-	row   execute.Row
-	Value bool
-}
-
-type exactPercentileBoolSorter []boolRowPair
-
-func toInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-func (rows exactPercentileBoolSorter) Len() int      { return len(rows) }
-func (rows exactPercentileBoolSorter) Swap(i, j int) { rows[i], rows[j] = rows[j], rows[i] }
-func (rows exactPercentileBoolSorter) Less(i, j int) bool {
-	return toInt(rows[i].Value) < toInt(rows[j].Value)
-}
-
-type ExactPercentileSelector struct {
-	Quantile float64
-}
-
-type ExactPercentileFloatSelector struct {
-	ExactPercentileSelector
-	rows exactPercentileFloatSorter
-}
-
-type ExactPercentileIntSelector struct {
-	ExactPercentileSelector
-	rows exactPercentileIntSorter
-}
-
-type ExactPercentileUintSelector struct {
-	ExactPercentileSelector
-	rows exactPercentileUintSorter
-}
-
-type ExactPercentileBoolSelector struct {
-	ExactPercentileSelector
-	rows exactPercentileBoolSorter
-}
-
 func createExactPercentileSelectTransformation(id execute.DatasetID, mode execute.AccumulationMode, spec plan.ProcedureSpec, a execute.Administration) (execute.Transformation, execute.Dataset, error) {
 	ps, ok := spec.(*ExactPercentileSelectProcedureSpec)
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", ps)
 	}
-	sel := &ExactPercentileSelector{
-		Quantile: ps.Percentile,
-	}
 
-	t, d := execute.NewRowSelectorTransformationAndDataset(id, mode, sel, ps.SelectorConfig, a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
+	d := execute.NewDataset(id, mode, cache)
+	t := NewExactPercentileSelectorTransformation(d, cache, ps, a.Allocator())
+
 	return t, d, nil
 }
 
-func (s *ExactPercentileSelector) NewBoolSelector() execute.DoBoolRowSelector {
-	return &ExactPercentileBoolSelector{ExactPercentileSelector: ExactPercentileSelector{Quantile: s.Quantile}}
+type ExactPercentileSelectorTransformation struct {
+	d     execute.Dataset
+	cache execute.TableBuilderCache
+	spec  ExactPercentileSelectProcedureSpec
+	a     *execute.Allocator
 }
 
-func (s *ExactPercentileSelector) NewIntSelector() execute.DoIntRowSelector {
-	return &ExactPercentileIntSelector{ExactPercentileSelector: ExactPercentileSelector{Quantile: s.Quantile}}
+func NewExactPercentileSelectorTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *ExactPercentileSelectProcedureSpec, a *execute.Allocator) *ExactPercentileSelectorTransformation {
+	if spec.SelectorConfig.Column == "" {
+		spec.SelectorConfig.Column = execute.DefaultValueColLabel
+	}
+
+	sel := &ExactPercentileSelectorTransformation{
+		d:     d,
+		cache: cache,
+		spec:  *spec,
+		a:     a,
+	}
+	return sel
 }
 
-func (s *ExactPercentileSelector) NewUIntSelector() execute.DoUIntRowSelector {
-	return &ExactPercentileUintSelector{ExactPercentileSelector: ExactPercentileSelector{Quantile: s.Quantile}}
-}
+func (t *ExactPercentileSelectorTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	copyTable := execute.NewColListTableBuilder(tbl.Key(), t.a)
+	cols := tbl.Cols()
+	colMap := make([]int, len(cols))
+	for j, c := range cols {
+		colMap[j] = j
+		copyTable.AddCol(c)
+	}
+	valueIdx := execute.ColIdx(t.spec.Column, cols)
+	if valueIdx < 0 {
+		return fmt.Errorf("no column %q exists", t.spec.Column)
+	}
+	execute.AppendTable(tbl, copyTable, colMap)
+	copyTable.Sort([]string{t.spec.Column}, false)
 
-func (s *ExactPercentileSelector) NewFloatSelector() execute.DoFloatRowSelector {
-	return &ExactPercentileFloatSelector{ExactPercentileSelector: ExactPercentileSelector{Quantile: s.Quantile}}
-}
+	n := copyTable.RawTable().NRows()
+	index := getQuantileIndex(t.spec.Percentile, n)
+	row := copyTable.RawTable().GetRow(index)
 
-func (s *ExactPercentileSelector) NewStringSelector() execute.DoStringRowSelector {
+	builder, new := t.cache.TableBuilder(tbl.Key())
+	if !new {
+		return fmt.Errorf("found duplicate table with key: %v", tbl.Key())
+	}
+	execute.AddTableCols(tbl, builder)
+
+	for j, col := range builder.Cols() {
+		v, ok := row.Get(col.Label)
+		if !ok {
+			return fmt.Errorf("unexpected column in percentile select")
+		}
+		builder.AppendValue(j, v)
+	}
+
 	return nil
 }
 
@@ -429,50 +390,18 @@ func getQuantileIndex(quantile float64, len int) int {
 	return index
 }
 
-func (s *ExactPercentileFloatSelector) Rows() []execute.Row {
-	sort.Sort(s.rows)
-	index := getQuantileIndex(s.Quantile, len(s.rows))
-	return []execute.Row{s.rows[index].row}
+func (t *ExactPercentileSelectorTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (s *ExactPercentileIntSelector) Rows() []execute.Row {
-	sort.Sort(s.rows)
-	index := getQuantileIndex(s.Quantile, len(s.rows))
-	return []execute.Row{s.rows[index].row}
+func (t *ExactPercentileSelectorTransformation) UpdateWatermark(id execute.DatasetID, mark execute.Time) error {
+	return t.d.UpdateWatermark(mark)
 }
 
-func (s *ExactPercentileUintSelector) Rows() []execute.Row {
-	sort.Sort(s.rows)
-	index := getQuantileIndex(s.Quantile, len(s.rows))
-	return []execute.Row{s.rows[index].row}
+func (t *ExactPercentileSelectorTransformation) UpdateProcessingTime(id execute.DatasetID, pt execute.Time) error {
+	return t.d.UpdateProcessingTime(pt)
 }
 
-func (s *ExactPercentileBoolSelector) Rows() []execute.Row {
-	sort.Sort(s.rows)
-	index := getQuantileIndex(s.Quantile, len(s.rows))
-	return []execute.Row{s.rows[index].row}
-}
-
-func (s *ExactPercentileFloatSelector) DoFloat(vs []float64, cr query.ColReader) {
-	for i, v := range vs {
-		s.rows = append(s.rows, floatRowPair{execute.ReadRow(i, cr), v})
-	}
-}
-
-func (s *ExactPercentileBoolSelector) DoBool(vs []bool, cr query.ColReader) {
-	for i, v := range vs {
-		s.rows = append(s.rows, boolRowPair{execute.ReadRow(i, cr), v})
-	}
-}
-
-func (s *ExactPercentileIntSelector) DoInt(vs []int64, cr query.ColReader) {
-	for i, v := range vs {
-		s.rows = append(s.rows, intRowPair{execute.ReadRow(i, cr), v})
-	}
-}
-
-func (s *ExactPercentileUintSelector) DoUInt(vs []uint64, cr query.ColReader) {
-	for i, v := range vs {
-		s.rows = append(s.rows, uintRowPair{execute.ReadRow(i, cr), v})
-	}
+func (t *ExactPercentileSelectorTransformation) Finish(id execute.DatasetID, err error) {
+	t.d.Finish(err)
 }

@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/semantic"
 	"github.com/influxdata/platform/query/values"
 )
 
@@ -286,6 +287,7 @@ type TableBuilder interface {
 	SetFloat(i, j int, value float64)
 	SetString(i, j int, value string)
 	SetTime(i, j int, value Time)
+	SetValue(i, j int, value values.Value)
 
 	// Append will add a single value to the end of a column.  Will set the number of
 	// rows in the table to the size of the new column. It's the caller's job to make sure
@@ -296,6 +298,7 @@ type TableBuilder interface {
 	AppendFloat(j int, value float64)
 	AppendString(j int, value string)
 	AppendTime(j int, value Time)
+	AppendValue(j int, value values.Value)
 
 	// AppendBools and similar functions will append multiple values to column j.  As above,
 	// it will set the numer of rows in the table to the size of the new column.  It's the
@@ -306,6 +309,8 @@ type TableBuilder interface {
 	AppendFloats(j int, values []float64)
 	AppendStrings(j int, values []string)
 	AppendTimes(j int, values []Time)
+	// TODO(adam): determine if there's a useful API for AppendValues
+	// AppendValues(j int, values []values.Value)
 
 	// GrowBools and similar functions will extend column j by n zero-values for the respective type.
 	// If the column has enough capacity, no reallocation is necessary.  If the capacity is insufficient,
@@ -533,6 +538,44 @@ func (b ColListTableBuilder) GrowTimes(j, n int) {
 	col := b.table.cols[j].(*timeColumn)
 	col.data = b.alloc.GrowTimes(col.data, n)
 	b.table.nrows = len(col.data)
+}
+
+func (b ColListTableBuilder) SetValue(i, j int, v values.Value) {
+	switch v.Type() {
+	case semantic.Bool:
+		b.SetBool(i, j, v.Bool())
+	case semantic.Int:
+		b.SetInt(i, j, v.Int())
+	case semantic.UInt:
+		b.SetUInt(i, j, v.UInt())
+	case semantic.Float:
+		b.SetFloat(i, j, v.Float())
+	case semantic.String:
+		b.SetString(i, j, v.Str())
+	case semantic.Time:
+		b.SetTime(i, j, v.Time())
+	default:
+		panic(fmt.Errorf("unexpected value type %v", v.Type()))
+	}
+}
+
+func (b ColListTableBuilder) AppendValue(j int, v values.Value) {
+	switch v.Type() {
+	case semantic.Bool:
+		b.AppendBool(j, v.Bool())
+	case semantic.Int:
+		b.AppendInt(j, v.Int())
+	case semantic.UInt:
+		b.AppendUInt(j, v.UInt())
+	case semantic.Float:
+		b.AppendFloat(j, v.Float())
+	case semantic.String:
+		b.AppendString(j, v.Str())
+	case semantic.Time:
+		b.AppendTime(j, v.Time())
+	default:
+		panic(fmt.Errorf("unexpected value type %v", v.Type()))
+	}
 }
 
 func (b ColListTableBuilder) checkColType(j int, typ query.DataType) {
