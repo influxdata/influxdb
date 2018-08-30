@@ -90,7 +90,6 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 		Name:   "TODO",
 		Status: "TODO",
 		Owner:  platform.User{}, // TODO(mr): populate from context?
-		Last:   platform.Run{},  // TODO(mr): how to get last run info?
 	}
 	if upd.Flux != nil {
 		task.Flux = *upd.Flux
@@ -175,6 +174,5 @@ func toPlatformTask(t backend.StoreTask) (*platform.Task, error) {
 		Flux:  t.Script,
 		Every: opts.Every.String(),
 		Cron:  opts.Cron,
-		Last:  platform.Run{}, // TODO(mr): how to get last run info?
 	}, nil
 }

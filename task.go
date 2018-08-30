@@ -12,7 +12,6 @@ type Task struct {
 	Flux         string `json:"flux"`
 	Every        string `json:"every,omitempty"`
 	Cron         string `json:"cron,omitempty"`
-	Last         Run    `json:"last,omitempty"`
 }
 
 // Run is a record created when a run of a task is scheduled.

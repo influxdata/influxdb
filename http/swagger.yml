@@ -2012,8 +2012,6 @@ components:
           readOnly: true
           description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
           type: string
-        last:
-          $ref: "#/components/schemas/Run"
       required: [name, organization, flux]
     Tasks:
       type: array
