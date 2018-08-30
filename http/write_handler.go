@@ -118,7 +118,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		bucket = b
 	}
 
-	if !platform.Allowed(platform.WriteBucketPermission(bucket.ID), auth.Permissions) {
+	if !platform.Allowed(platform.WriteBucketPermission(bucket.ID), auth) {
 		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for write"), w)
 		return
 	}
