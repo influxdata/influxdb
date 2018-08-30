@@ -84,20 +84,25 @@ func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) err
 	defer s.mu.Unlock()
 
 	for n, t := range s.tasks {
-		if bytes.Equal(t.ID, id) {
-			if t.Name != op.Name {
-				for i := range s.tasks {
-					if s.tasks[i].Name == op.Name && i != n {
-						return ErrTaskNameTaken
-					}
-				}
-				t.Name = op.Name
-			}
-			t.Script = script
-			s.tasks[n] = t
-			return nil
+		if !bytes.Equal(t.ID, id) {
+			continue
 		}
+
+
+		if t.Name != op.Name {
+			for i := range s.tasks {
+				tt := s.tasks[i]
+				if tt.Name == op.Name && i != n && (bytes.Equal(tt.Org, t.Org) || bytes.Equal(tt.User, t.User)) {
+					return ErrTaskNameTaken
+				}
+			}
+			t.Name = op.Name
+		}
+		t.Script = script
+		s.tasks[n] = t
+		return nil
 	}
+
 	return fmt.Errorf("ModifyTask: record not found for %s", id)
 }
 

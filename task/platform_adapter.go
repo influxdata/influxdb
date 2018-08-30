@@ -13,7 +13,7 @@ import (
 
 // PlatformAdapter wraps a task.Store into the platform.TaskService interface.
 func PlatformAdapter(s backend.Store, r backend.LogReader) platform.TaskService {
-	return pAdapter{s: s}
+	return pAdapter{s: s, r: r}
 }
 
 type pAdapter struct {
@@ -28,6 +28,12 @@ func (p pAdapter) FindTaskByID(ctx context.Context, id platform.ID) (*platform.T
 	if err != nil {
 		return nil, err
 	}
+
+	// The store interface specifies that a returned task is nil if the operation succeeded without a match.
+	if t == nil {
+		return nil, nil
+	}
+
 	return toPlatformTask(*t)
 }
 
@@ -162,7 +168,7 @@ func toPlatformTask(t backend.StoreTask) (*platform.Task, error) {
 		return nil, err
 	}
 
-	return &platform.Task{
+	pt := &platform.Task{
 		ID:           t.ID,
 		Organization: t.Org,
 		Name:         t.Name,
@@ -171,8 +177,11 @@ func toPlatformTask(t backend.StoreTask) (*platform.Task, error) {
 			ID:   append([]byte(nil), t.User...), // Copy just in case.
 			Name: "",                             // TODO(mr): how to get owner name?
 		},
-		Flux:  t.Script,
-		Every: opts.Every.String(),
-		Cron:  opts.Cron,
-	}, nil
+		Flux: t.Script,
+		Cron: opts.Cron,
+	}
+	if opts.Every != 0 {
+		pt.Every = opts.Every.String()
+	}
+	return pt, nil
 }

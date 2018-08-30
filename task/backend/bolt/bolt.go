@@ -284,8 +284,9 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 		lim = defaultPageSize
 	}
 	taskIDs := make([]platform.ID, 0, params.PageSize)
+	var tasks []backend.StoreTask
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	if err := s.db.View(func(tx *bolt.Tx) error {
 		var c *bolt.Cursor
 		b := tx.Bucket(s.bucket)
 		if len(params.Org) > 0 {
@@ -306,25 +307,17 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 		if len(params.After) > 0 {
 			c.Seek(padID(params.After))
 			for k, _ := c.Next(); k != nil && len(taskIDs) < lim; k, _ = c.Next() {
-				taskIDs = append(taskIDs, k)
+				kCopy := append([]byte(nil), k...)
+				taskIDs = append(taskIDs, kCopy)
 			}
-			return nil
+		} else {
+			for k, _ := c.First(); k != nil && len(taskIDs) < lim; k, _ = c.Next() {
+				kCopy := append([]byte(nil), k...)
+				taskIDs = append(taskIDs, kCopy)
+			}
 		}
-		for k, _ := c.First(); k != nil && len(taskIDs) < lim; k, _ = c.Next() {
-			taskIDs = append(taskIDs, k)
-		}
-		return nil
-	})
-	if err == ErrNotFound {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	// now lookup each task
-	tasks := make([]backend.StoreTask, len(taskIDs))
-	if err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(s.bucket)
+
+		tasks = make([]backend.StoreTask, len(taskIDs))
 		for i := range taskIDs {
 			// TODO(docmerlin): optimization: don't check <-ctx.Done() every time though the loop
 			select {
@@ -346,7 +339,7 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 				default:
 					paddedID := taskIDs[i]
 					tasks[i].Org = params.Org
-					tasks[i].User = b.Bucket(userByTaskID).Get(paddedID)
+					tasks[i].User = append([]byte(nil), b.Bucket(userByTaskID).Get(paddedID)...)
 				}
 			}
 			return nil
@@ -359,7 +352,7 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 				default:
 					paddedID := taskIDs[i]
 					tasks[i].User = params.User
-					tasks[i].Org = b.Bucket(orgByTaskID).Get(paddedID)
+					tasks[i].Org = append([]byte(nil), b.Bucket(orgByTaskID).Get(paddedID)...)
 				}
 			}
 			return nil
@@ -370,12 +363,15 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 				return ctx.Err()
 			default:
 				paddedID := taskIDs[i]
-				tasks[i].User = b.Bucket(userByTaskID).Get(paddedID)
-				tasks[i].Org = b.Bucket(orgByTaskID).Get(paddedID)
+				tasks[i].User = append([]byte(nil), b.Bucket(userByTaskID).Get(paddedID)...)
+				tasks[i].Org = append([]byte(nil), b.Bucket(orgByTaskID).Get(paddedID)...)
 			}
 		}
 		return nil
 	}); err != nil {
+		if err == ErrNotFound {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return tasks, nil
@@ -383,22 +379,23 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 
 // FindTaskByID finds a task with a given an ID.  It will return nil if the task does not exist.
 func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.StoreTask, error) {
-	var stmBytes []byte
-	var script []byte
-	var userID []byte
-	var name []byte
-	var org []byte
+	var stmBytes, userID, org []byte
+	var script, name string
 	paddedID := padID(id)
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		script = b.Bucket(tasksPath).Get(paddedID)
-		if script == nil {
+		scriptBytes := b.Bucket(tasksPath).Get(paddedID)
+		if scriptBytes == nil {
 			return ErrNotFound
 		}
-		stmBytes = b.Bucket(taskMetaPath).Get(paddedID)
-		userID = b.Bucket(userByTaskID).Get(paddedID)
-		name = b.Bucket(nameByTaskID).Get(paddedID)
-		org = b.Bucket(orgByTaskID).Get(paddedID)
+		script = string(scriptBytes)
+
+		// Assign copies of everything so we don't hold a stale reference to a bolt-maintained byte slice.
+		stmBytes = append(stmBytes, b.Bucket(taskMetaPath).Get(paddedID)...)
+		userID = append(userID, b.Bucket(userByTaskID).Get(paddedID)...)
+		org = append(org, b.Bucket(orgByTaskID).Get(paddedID)...)
+
+		name = string(b.Bucket(nameByTaskID).Get(paddedID))
 		return nil
 	})
 	if err == ErrNotFound {
@@ -418,8 +415,8 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 		ID:     append([]byte(nil), id...), // copy of input id
 		Org:    org,
 		User:   userID,
-		Name:   string(name),
-		Script: string(script),
+		Name:   name,
+		Script: script,
 	}, err
 }
 
@@ -543,6 +540,9 @@ func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 	if err := s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
 		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
+		if stmBytes == nil {
+			return ErrNotFound
+		}
 
 		var stm backend.StoreTaskMeta
 		if err := stm.Unmarshal(stmBytes); err != nil {
