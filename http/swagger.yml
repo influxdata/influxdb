@@ -763,8 +763,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /flux:
-    get:
   /query/ast:
     post:
       description: not currently documented # TODO(desa): document ast endpoint
