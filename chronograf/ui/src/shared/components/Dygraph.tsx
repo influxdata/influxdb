@@ -50,7 +50,7 @@ const Dygraphs = D as Constructable<DygraphClass>
 
 interface Props {
   type: ViewType
-  cellID?: string
+  viewID?: string
   queries?: CellQuery[]
   timeSeries: DygraphData
   labels: string[]
@@ -249,7 +249,7 @@ class Dygraph extends Component<Props, State> {
 
   public render() {
     const {staticLegendHeight} = this.state
-    const {staticLegend, cellID} = this.props
+    const {staticLegend, viewID} = this.props
 
     return (
       <div
@@ -260,7 +260,7 @@ class Dygraph extends Component<Props, State> {
         {this.dygraph && (
           <div className="dygraph-addons">
             <DygraphLegend
-              cellID={cellID}
+              viewID={viewID}
               dygraph={this.dygraph}
               onHide={this.handleHideLegend}
               onShow={this.handleShowLegend}

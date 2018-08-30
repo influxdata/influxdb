@@ -15,7 +15,6 @@ import {TimeSeriesServerResponse} from 'src/types/series'
 interface Props {
   data: TimeSeriesServerResponse[]
   decimalPlaces: DecimalPlaces
-  cellID: string
   cellHeight?: number
   colors?: ColorString[]
   prefix: string

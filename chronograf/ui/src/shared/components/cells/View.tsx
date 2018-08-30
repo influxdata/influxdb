@@ -37,6 +37,7 @@ class ViewComponent extends Component<Props> {
 
     return (
       <RefreshingGraph
+        viewID={view.id}
         onZoom={onZoom}
         timeRange={timeRange}
         templates={templates}

@@ -150,7 +150,7 @@ export interface DashboardUIState {
     status: string | null
   }
   hoverTime: string
-  activeCellID: string
+  activeViewID: string
 }
 
 export interface DashboardSwitcherLinks {

@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {Link} from 'react-router'
+import {Link, withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 import classnames from 'classnames'
 
@@ -20,7 +20,7 @@ interface State {
 }
 
 @ErrorHandling
-class DashboardSwitcher extends PureComponent<Props, State> {
+class DashboardSwitcher extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {
     super(props)
 
@@ -75,13 +75,26 @@ class DashboardSwitcher extends PureComponent<Props, State> {
             active: link === active,
           })}
         >
-          <Link to={link.to} onClick={this.handleCloseMenu}>
+          <Link
+            to={{pathname: link.to, query: this.sourceID}}
+            onClick={this.handleCloseMenu}
+          >
             {link.text}
           </Link>
         </li>
       )
     })
   }
+
+  private get sourceID(): {sourceID: string} | {} {
+    const {query} = this.props.location
+    const {sourceID} = query
+    if (query.sourceID) {
+      return {sourceID}
+    }
+
+    return {}
+  }
 }
 
-export default OnClickOutside(DashboardSwitcher)
+export default OnClickOutside(withRouter(DashboardSwitcher))

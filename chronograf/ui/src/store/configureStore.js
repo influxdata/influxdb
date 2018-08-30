@@ -16,6 +16,7 @@ import sourceReducer from 'src/sources/reducers/sources'
 import rangesReducer from 'src/dashboards/reducers/v2/ranges'
 import dashboardsReducer from 'src/dashboards/reducers/v2/dashboards'
 import hoverTimeReducer from 'src/dashboards/reducers/v2/hoverTime'
+import activeViewReducer from 'src/dashboards/reducers/v2/views'
 
 const rootReducer = combineReducers({
   ...statusReducers,
@@ -27,6 +28,7 @@ const rootReducer = combineReducers({
   routing: routerReducer,
   script: scriptReducer,
   sources: sourceReducer,
+  activeViewID: activeViewReducer,
 })
 
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose

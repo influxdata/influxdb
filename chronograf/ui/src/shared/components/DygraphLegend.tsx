@@ -5,7 +5,7 @@ import _ from 'lodash'
 import classnames from 'classnames'
 import uuid from 'uuid'
 
-import * as actions from 'src/dashboards/actions/v2'
+import * as actions from 'src/dashboards/actions/v2/views'
 import {SeriesLegendData} from 'src/types/dygraphs'
 import DygraphLegendSort from 'src/shared/components/DygraphLegendSort'
 
@@ -17,11 +17,11 @@ import {DygraphClass} from 'src/types'
 interface Props {
   hoverTime: number
   dygraph: DygraphClass
-  cellID: string
+  viewID: string
   onHide: () => void
   onShow: (e: MouseEvent) => void
-  activeCellID: string
-  setActiveCell: (cellID: string) => void
+  activeViewID: string
+  setActiveCell: (viewID: string) => void
   onMouseEnter: () => void
 }
 
@@ -39,7 +39,7 @@ interface State {
   isFilterVisible: boolean
   legendStyles: object
   pageX: number | null
-  cellID: string
+  viewID: string
 }
 
 @ErrorHandling
@@ -67,7 +67,7 @@ class DygraphLegend extends PureComponent<Props, State> {
       isFilterVisible: false,
       legendStyles: {},
       pageX: null,
-      cellID: null,
+      viewID: null,
     }
   }
 
@@ -96,7 +96,7 @@ class DygraphLegend extends PureComponent<Props, State> {
           <div className="dygraph-legend--timestamp">{legend.xHTML}</div>
           <DygraphLegendSort
             isAscending={isAscending}
-            isActive={this.isAphaSort}
+            isActive={this.isAlphaSort}
             top="A"
             bottom="Z"
             onSort={this.handleSortLegend('alphabetic')}
@@ -180,8 +180,8 @@ class DygraphLegend extends PureComponent<Props, State> {
   }
 
   private highlightCallback = (e: MouseEvent) => {
-    if (this.props.activeCellID !== this.props.cellID) {
-      this.props.setActiveCell(this.props.cellID)
+    if (this.props.activeViewID !== this.props.viewID) {
+      this.props.setActiveCell(this.props.viewID)
     }
 
     this.setState({pageX: e.pageX})
@@ -236,7 +236,7 @@ class DygraphLegend extends PureComponent<Props, State> {
     return ordered.filter(s => s.label.match(filterText))
   }
 
-  private get isAphaSort(): boolean {
+  private get isAlphaSort(): boolean {
     return this.state.sortType === 'alphabetic'
   }
 
@@ -245,9 +245,9 @@ class DygraphLegend extends PureComponent<Props, State> {
   }
 
   private get isVisible(): boolean {
-    const {cellID, activeCellID} = this.props
+    const {viewID, activeViewID} = this.props
 
-    return cellID === activeCellID
+    return viewID === activeViewID
   }
 
   private get hidden(): string {
@@ -275,8 +275,8 @@ const mapDispatchToProps = {
   setActiveCell: actions.setActiveCell,
 }
 
-const mapStateToProps = ({hoverTime}) => ({
-  activeCellID: '0',
+const mapStateToProps = ({hoverTime, activeViewID}) => ({
+  activeViewID,
   hoverTime: +hoverTime,
 })
 

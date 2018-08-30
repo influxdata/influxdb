@@ -31,7 +31,7 @@ interface Props {
   loading: RemoteDataState
   decimalPlaces: DecimalPlaces
   data: TimeSeriesServerResponse[]
-  cellID: string
+  viewID: string
   cellHeight: number
   staticLegend: boolean
   onZoom: () => void
@@ -83,7 +83,7 @@ class LineGraph extends PureComponent<LineGraphProps> {
       axes,
       type,
       colors,
-      cellID,
+      viewID,
       onZoom,
       loading,
       queries,
@@ -117,7 +117,7 @@ class LineGraph extends PureComponent<LineGraphProps> {
         <Dygraph
           type={type}
           axes={axes}
-          cellID={cellID}
+          viewID={viewID}
           colors={colors}
           onZoom={onZoom}
           labels={labels}

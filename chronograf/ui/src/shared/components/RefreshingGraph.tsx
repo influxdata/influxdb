@@ -29,7 +29,7 @@ interface Props {
   link: string
   timeRange: TimeRange
   templates: Template[]
-  cellID: string
+  viewID: string
   inView: boolean
   isInCEO: boolean
   timeFormat: string
@@ -131,13 +131,12 @@ class RefreshingGraph extends PureComponent<Props & WithRouterProps> {
   }
 
   private gauge = (data): JSX.Element => {
-    const {cellID, cellHeight, manualRefresh} = this.props
+    const {cellHeight, manualRefresh} = this.props
     const {colors, decimalPlaces} = this.props.options
 
     return (
       <GaugeChart
         data={data}
-        cellID={cellID}
         colors={colors}
         prefix={this.prefix}
         suffix={this.suffix}
@@ -152,7 +151,7 @@ class RefreshingGraph extends PureComponent<Props & WithRouterProps> {
   private lineGraph = (data, loading): JSX.Element => {
     const {
       onZoom,
-      cellID,
+      viewID,
       timeRange,
       cellHeight,
       staticLegend,
@@ -167,7 +166,7 @@ class RefreshingGraph extends PureComponent<Props & WithRouterProps> {
         data={data}
         type={type}
         axes={axes}
-        cellID={cellID}
+        viewID={viewID}
         colors={colors}
         onZoom={onZoom}
         queries={queries}
