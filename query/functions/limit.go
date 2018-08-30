@@ -128,8 +128,6 @@ type limitTransformation struct {
 	cache execute.TableBuilderCache
 
 	n, offset int
-
-	colMap []int
 }
 
 func NewLimitTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *LimitProcedureSpec) *limitTransformation {
@@ -151,16 +149,6 @@ func (t *limitTransformation) Process(id execute.DatasetID, tbl query.Table) err
 		return fmt.Errorf("limit found duplicate table with key: %v", tbl.Key())
 	}
 	execute.AddTableCols(tbl, builder)
-
-	ncols := builder.NCols()
-	if cap(t.colMap) < ncols {
-		t.colMap = make([]int, ncols)
-		for j := range t.colMap {
-			t.colMap[j] = j
-		}
-	} else {
-		t.colMap = t.colMap[:ncols]
-	}
 
 	// AppendTable with limit
 	n := t.n
@@ -189,7 +177,7 @@ func (t *limitTransformation) Process(id execute.DatasetID, tbl query.Table) err
 			start:     start,
 			stop:      stop,
 		}
-		execute.AppendCols(lcr, builder, t.colMap)
+		execute.AppendCols(lcr, builder)
 		return nil
 	})
 	return nil

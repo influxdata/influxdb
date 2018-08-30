@@ -418,13 +418,8 @@ func (buf *streamBuffer) insert(table query.Table) {
 	builder := execute.NewColListTableBuilder(table.Key(), buf.alloc)
 	execute.AddTableCols(table, builder)
 
-	builderColumnsToTableColumns := make([]int, len(builder.Cols()))
-	for i := range builder.Cols() {
-		builderColumnsToTableColumns[i] = i
-	}
-
 	// Append the input table to this builder
-	execute.AppendTable(table, builder, builderColumnsToTableColumns)
+	execute.AppendTable(table, builder)
 
 	// Insert this table into the buffer
 	buf.data[table.Key()] = builder

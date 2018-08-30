@@ -254,11 +254,7 @@ func (t *rangeTransformation) Process(id execute.DatasetID, tbl query.Table) err
 	}
 
 	if forwardTable {
-		cols := make([]int, len(tbl.Cols()))
-		for i := range cols {
-			cols[i] = i
-		}
-		execute.AppendTable(tbl, builder, cols)
+		execute.AppendTable(tbl, builder)
 		return nil
 	}
 

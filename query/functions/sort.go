@@ -113,8 +113,6 @@ type sortTransformation struct {
 
 	cols []string
 	desc bool
-
-	colMap []int
 }
 
 func NewSortTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *SortProcedureSpec) *sortTransformation {
@@ -144,18 +142,7 @@ func (t *sortTransformation) Process(id execute.DatasetID, tbl query.Table) erro
 		return fmt.Errorf("sort found duplicate table with key: %v", tbl.Key())
 	}
 	execute.AddTableCols(tbl, builder)
-
-	ncols := builder.NCols()
-	if cap(t.colMap) < ncols {
-		t.colMap = make([]int, ncols)
-		for j := range t.colMap {
-			t.colMap[j] = j
-		}
-	} else {
-		t.colMap = t.colMap[:ncols]
-	}
-
-	execute.AppendTable(tbl, builder, t.colMap)
+	execute.AppendTable(tbl, builder)
 
 	builder.Sort(t.cols, t.desc)
 	return nil

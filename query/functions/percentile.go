@@ -346,18 +346,14 @@ func NewExactPercentileSelectorTransformation(d execute.Dataset, cache execute.T
 }
 
 func (t *ExactPercentileSelectorTransformation) Process(id execute.DatasetID, tbl query.Table) error {
-	copyTable := execute.NewColListTableBuilder(tbl.Key(), t.a)
-	cols := tbl.Cols()
-	colMap := make([]int, len(cols))
-	for j, c := range cols {
-		colMap[j] = j
-		copyTable.AddCol(c)
-	}
-	valueIdx := execute.ColIdx(t.spec.Column, cols)
+	valueIdx := execute.ColIdx(t.spec.Column, tbl.Cols())
 	if valueIdx < 0 {
 		return fmt.Errorf("no column %q exists", t.spec.Column)
 	}
-	execute.AppendTable(tbl, copyTable, colMap)
+
+	copyTable := execute.NewColListTableBuilder(tbl.Key(), t.a)
+	execute.AddTableCols(tbl, copyTable)
+	execute.AppendTable(tbl, copyTable)
 	copyTable.Sort([]string{t.spec.Column}, false)
 
 	n := copyTable.RawTable().NRows()

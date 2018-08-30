@@ -72,7 +72,7 @@ func CopyTable(t query.Table, a *Allocator) query.Table {
 		builder.AddCol(c)
 	}
 
-	AppendTable(t, builder, colMap)
+	AppendMappedTable(t, builder, colMap)
 	// ColListTableBuilders do not error
 	nb, _ := builder.Table()
 	return nb
@@ -115,24 +115,45 @@ func AddNewCols(t query.Table, builder TableBuilder) []int {
 	return colMap
 }
 
-// AppendTable append data from table t onto builder.
+// AppendMappedTable appends data from table t onto builder.
 // The colMap is a map of builder column index to table column index.
-func AppendTable(t query.Table, builder TableBuilder, colMap []int) {
+func AppendMappedTable(t query.Table, builder TableBuilder, colMap []int) {
 	if len(t.Cols()) == 0 {
 		return
 	}
 
 	t.Do(func(cr query.ColReader) error {
-		AppendCols(cr, builder, colMap)
+		AppendMappedCols(cr, builder, colMap)
 		return nil
 	})
 }
 
-// AppendCols appends all columns from cr onto builder.
+// AppendTable appends data from table t onto builder.
+// This function assumes builder and t have the same column schema.
+func AppendTable(t query.Table, builder TableBuilder) {
+	if len(t.Cols()) == 0 {
+		return
+	}
+
+	t.Do(func(cr query.ColReader) error {
+		AppendCols(cr, builder)
+		return nil
+	})
+}
+
+// AppendMappedCols appends all columns from cr onto builder.
 // The colMap is a map of builder column index to cr column index.
-func AppendCols(cr query.ColReader, builder TableBuilder, colMap []int) {
+func AppendMappedCols(cr query.ColReader, builder TableBuilder, colMap []int) {
 	for j := range builder.Cols() {
 		AppendCol(j, colMap[j], cr, builder)
+	}
+}
+
+// AppendCols appends all columns from cr onto builder.
+// This function assumes that builder and cr have the same column schema.
+func AppendCols(cr query.ColReader, builder TableBuilder) {
+	for j := range builder.Cols() {
+		AppendCol(j, j, cr, builder)
 	}
 }
 
