@@ -109,6 +109,7 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT log10(value) FROM cpu`,
 		`SELECT sin(value) - sin(1.3) FROM cpu`,
 		`SELECT value FROM cpu WHERE sin(value) > 0.5`,
+		`SELECT sum("out")/sum("in") FROM (SELECT derivative("out") AS "out", derivative("in") AS "in" FROM "m0" WHERE time >= now() - 5m GROUP BY "index") GROUP BY time(1m) fill(none)`,
 	} {
 		t.Run(tt, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt)

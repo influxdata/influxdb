@@ -455,7 +455,7 @@ func (c *compiledField) compileDerivative(args []influxql.Expr, isNonNegative bo
 		}
 		return c.compileNestedExpr(arg0)
 	default:
-		if !c.global.Interval.IsZero() {
+		if !c.global.Interval.IsZero() && !c.global.InheritedInterval {
 			return fmt.Errorf("aggregate function required inside the call to %s", name)
 		}
 		return c.compileSymbol(name, arg0)
@@ -488,7 +488,7 @@ func (c *compiledField) compileElapsed(args []influxql.Expr) error {
 		}
 		return c.compileNestedExpr(arg0)
 	default:
-		if !c.global.Interval.IsZero() {
+		if !c.global.Interval.IsZero() && !c.global.InheritedInterval {
 			return fmt.Errorf("aggregate function required inside the call to elapsed")
 		}
 		return c.compileSymbol("elapsed", arg0)
@@ -514,7 +514,7 @@ func (c *compiledField) compileDifference(args []influxql.Expr, isNonNegative bo
 		}
 		return c.compileNestedExpr(arg0)
 	default:
-		if !c.global.Interval.IsZero() {
+		if !c.global.Interval.IsZero() && !c.global.InheritedInterval {
 			return fmt.Errorf("aggregate function required inside the call to %s", name)
 		}
 		return c.compileSymbol(name, arg0)
@@ -535,7 +535,7 @@ func (c *compiledField) compileCumulativeSum(args []influxql.Expr) error {
 		}
 		return c.compileNestedExpr(arg0)
 	default:
-		if !c.global.Interval.IsZero() {
+		if !c.global.Interval.IsZero() && !c.global.InheritedInterval {
 			return fmt.Errorf("aggregate function required inside the call to cumulative_sum")
 		}
 		return c.compileSymbol("cumulative_sum", arg0)
@@ -565,7 +565,7 @@ func (c *compiledField) compileMovingAverage(args []influxql.Expr) error {
 		}
 		return c.compileNestedExpr(arg0)
 	default:
-		if !c.global.Interval.IsZero() {
+		if !c.global.Interval.IsZero() && !c.global.InheritedInterval {
 			return fmt.Errorf("aggregate function required inside the call to moving_average")
 		}
 		return c.compileSymbol("moving_average", arg0)
@@ -622,7 +622,7 @@ func (c *compiledField) compileExponentialMovingAverage(name string, args []infl
 		}
 		return c.compileExpr(arg0)
 	default:
-		if !c.global.Interval.IsZero() {
+		if !c.global.Interval.IsZero() && !c.global.InheritedInterval {
 			return fmt.Errorf("aggregate function required inside the call to %s", name)
 		}
 		return c.compileSymbol(name, arg0)
@@ -663,7 +663,7 @@ func (c *compiledField) compileKaufmans(name string, args []influxql.Expr) error
 		}
 		return c.compileExpr(arg0)
 	default:
-		if !c.global.Interval.IsZero() {
+		if !c.global.Interval.IsZero() && !c.global.InheritedInterval {
 			return fmt.Errorf("aggregate function required inside the call to %s", name)
 		}
 		return c.compileSymbol(name, arg0)
@@ -717,7 +717,7 @@ func (c *compiledField) compileChandeMomentumOscillator(args []influxql.Expr) er
 		}
 		return c.compileExpr(arg0)
 	default:
-		if !c.global.Interval.IsZero() {
+		if !c.global.Interval.IsZero() && !c.global.InheritedInterval {
 			return fmt.Errorf("aggregate function required inside the call to chande_momentum_oscillator")
 		}
 		return c.compileSymbol("chande_momentum_oscillator", arg0)
