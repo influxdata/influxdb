@@ -9,7 +9,11 @@ v1.7.0 [unreleased]
 
 -	[#9964](https://github.com/influxdata/influxdb/pull/9964): Enable the storage service by default.
 -	[#9996](https://github.com/influxdata/influxdb/pull/9996): Ensure read service regexes get optimised.
--	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation
+
+### Bugfixes
+
+-	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation.
+-	[#10246](https://github.com/influxdata/influxdb/pull/10246): Fix the inherited interval for derivative and others.
 
 v1.6.0 [2018-07-05]
 -------------------
@@ -78,8 +82,6 @@ v1.6.0 [2018-07-05]
 -	[#10175](https://github.com/influxdata/influxdb/pull/10175): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr.
 -	[#10181](https://github.com/influxdata/influxdb/pull/10181): Fix line protocol parsing panic.
 -	[#10212](https://github.com/influxdata/influxdb/pull/10212): Ensure orhpaned series cleaned up with shard drop.
--	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation.
--	[#10246](https://github.com/influxdata/influxdb/pull/10246): Fix the inherited interval for derivative and others.
 
 v1.5.4 [2018-06-21]
 -------------------
