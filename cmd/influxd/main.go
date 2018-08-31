@@ -91,7 +91,7 @@ func init() {
 		authorizationPath = h
 	}
 
-	platformCmd.Flags().StringVar(&boltPath, "bolt-path", "idpdb.bolt", "path to boltdb database")
+	platformCmd.Flags().StringVar(&boltPath, "bolt-path", "influxd.bolt", "path to boltdb database")
 	viper.BindEnv("BOLT_PATH")
 	if h := viper.GetString("BOLT_PATH"); h != "" {
 		boltPath = h
@@ -111,7 +111,7 @@ func init() {
 }
 
 var platformCmd = &cobra.Command{
-	Use:   "idpd",
+	Use:   "influxd",
 	Short: "influxdata platform",
 	Run:   platformF,
 }
