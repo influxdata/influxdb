@@ -1616,7 +1616,14 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 	// Have we deleted all values for the series? If so, we need to remove
 	// the series from the index.
-	if len(seriesKeys) > 0 {
+	hasDeleted := false;
+	for _, k := range seriesKeys {
+			if len(k) > 0 {
+					hasDeleted = true
+					break
+			}
+	}
+	if hasDeleted {
 		buf := make([]byte, 1024) // For use when accessing series file.
 		ids := tsdb.NewSeriesIDSet()
 		measurements := make(map[string]struct{}, 1)
