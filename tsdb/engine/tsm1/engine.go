@@ -1618,10 +1618,10 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// the series from the index.
 	hasDeleted := false;
 	for _, k := range seriesKeys {
-			if len(k) > 0 {
-					hasDeleted = true
-					break
-			}
+		if len(k) > 0 {
+			hasDeleted = true
+			break
+		}
 	}
 	if hasDeleted {
 		buf := make([]byte, 1024) // For use when accessing series file.
