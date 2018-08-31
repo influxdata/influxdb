@@ -37,7 +37,7 @@ required = [
 
 [[constraint]]
   name = "github.com/goreleaser/goreleaser"
-  version = "0.81.0"
+  version = "0.84.0"
 
 [[constraint]]
   name = "github.com/kevinburke/go-bindata"
