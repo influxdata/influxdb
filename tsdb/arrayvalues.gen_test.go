@@ -80,7 +80,7 @@ func TestIntegerArray_Exclude(t *testing.T) {
 		{"excl all but first and last", 12, 16, []int64{10, 18}},
 		{"excl none in middle", 13, 13, []int64{10, 12, 14, 16, 18}},
 		{"excl middle", 14, 14, []int64{10, 12, 16, 18}},
-		{"excl suffix", 16, 18, []int64{10, 12, 14}},
+		{"excl suffix", 14, 18, []int64{10, 12}},
 	}
 
 	for _, tc := range cases {
@@ -108,8 +108,6 @@ func TestIntegerArray_Include(t *testing.T) {
 		{"incl all but first and last", 12, 16, []int64{12, 14, 16}},
 		{"incl none in middle", 13, 13, []int64{}},
 		{"incl middle", 14, 14, []int64{14}},
-		{"incl first trivial", 10, 10, []int64{10}},
-		{"incl last trivial", 18, 18, []int64{18}},
 	}
 
 	for _, tc := range cases {
