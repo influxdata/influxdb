@@ -12,9 +12,16 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+)
+
+// Available index types.
+const (
+	InmemIndexName = "inmem"
+	TSI1IndexName  = "tsi1"
 )
 
 type Index interface {
@@ -33,6 +40,9 @@ type Index interface {
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
 	DropSeries(seriesID uint64, key []byte, cascade bool) error
 	DropMeasurementIfSeriesNotExist(name []byte) error
+
+	// Used to clean up series in inmem index that were dropped with a shard.
+	DropSeriesGlobal(key []byte) error
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
@@ -1207,7 +1217,7 @@ type IndexSet struct {
 // HasInmemIndex returns true if any in-memory index is in use.
 func (is IndexSet) HasInmemIndex() bool {
 	for _, idx := range is.Indexes {
-		if idx.Type() == "inmem" {
+		if idx.Type() == InmemIndexName {
 			return true
 		}
 	}
@@ -1302,7 +1312,7 @@ func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.E
 			names = append(names, e)
 		}
 	}
-	return names, nil
+	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
 func (is IndexSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
@@ -2179,8 +2189,9 @@ func (is IndexSet) matchTagValueEqualEmptySeriesIDIterator(name, key []byte, val
 				itr, err := is.tagValueSeriesIDIterator(name, key, e)
 				if err != nil {
 					return err
+				} else if itr != nil {
+					itrs = append(itrs, itr)
 				}
-				itrs = append(itrs, itr)
 			}
 		}
 		return nil
@@ -2222,8 +2233,9 @@ func (is IndexSet) matchTagValueEqualNotEmptySeriesIDIterator(name, key []byte, 
 			if err != nil {
 				SeriesIDIterators(itrs).Close()
 				return nil, err
+			} else if itr != nil {
+				itrs = append(itrs, itr)
 			}
-			itrs = append(itrs, itr)
 		}
 	}
 	return MergeSeriesIDIterators(itrs...), nil
@@ -2253,8 +2265,9 @@ func (is IndexSet) matchTagValueNotEqualEmptySeriesIDIterator(name, key []byte, 
 			if err != nil {
 				SeriesIDIterators(itrs).Close()
 				return nil, err
+			} else if itr != nil {
+				itrs = append(itrs, itr)
 			}
-			itrs = append(itrs, itr)
 		}
 	}
 	return MergeSeriesIDIterators(itrs...), nil
@@ -2283,8 +2296,9 @@ func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byt
 			if err != nil {
 				SeriesIDIterators(itrs).Close()
 				return nil, err
+			} else if itr != nil {
+				itrs = append(itrs, itr)
 			}
-			itrs = append(itrs, itr)
 		}
 	}
 
@@ -2543,6 +2557,11 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 		maxSeriesN = int(^uint(0) >> 1)
 	}
 
+	// The tag sets require a string for each series key in the set, The series
+	// file formatted keys need to be parsed into models format. Since they will
+	// end up as strings we can re-use an intermediate buffer for this process.
+	var keyBuf []byte
+	var tagsBuf models.Tags // Buffer for tags. Tags are not needed outside of each loop iteration.
 	for {
 		se, err := itr.Next()
 		if err != nil {
@@ -2570,14 +2589,15 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 			return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", seriesN, opt.MaxSeriesN)
 		}
 
-		_, tags := ParseSeriesKey(key)
-		if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(db, name, tags) {
+		// NOTE - must not escape this loop iteration.
+		_, tagsBuf = ParseSeriesKeyInto(key, tagsBuf)
+		if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(db, name, tagsBuf) {
 			continue
 		}
 
 		var tagsAsKey []byte
 		if len(dims) > 0 {
-			tagsAsKey = MakeTagsKey(dims, tags)
+			tagsAsKey = MakeTagsKey(dims, tagsBuf)
 		}
 
 		tagSet, ok := tagSets[string(tagsAsKey)]
@@ -2590,7 +2610,9 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 		}
 
 		// Associate the series and filter with the Tagset.
-		tagSet.AddFilter(string(models.MakeKey(name, tags)), se.Expr)
+		keyBuf = models.AppendMakeKey(keyBuf, name, tagsBuf)
+		tagSet.AddFilter(string(keyBuf), se.Expr)
+		keyBuf = keyBuf[:0]
 
 		// Ensure it's back in the map.
 		tagSets[string(tagsAsKey)] = tagSet
@@ -2660,7 +2682,7 @@ func NewIndex(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile 
 	} else if err != nil {
 		return nil, err
 	} else if err == nil {
-		format = "tsi1"
+		format = TSI1IndexName
 	}
 
 	// Lookup index by format.

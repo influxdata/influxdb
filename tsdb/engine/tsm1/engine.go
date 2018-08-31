@@ -39,7 +39,7 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl batch_cursor.gen.go.tmpl cursor_iterator.gen.go.tmpl array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
+//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl engine.gen.go.tmpl array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
 //go:generate go run ../../../_tools/tmpl/main.go -i -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
 //go:generate go run ../../../_tools/tmpl/main.go -i -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
@@ -211,6 +211,8 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 	if opt.FileStoreObserver != nil {
 		fs.WithObserver(opt.FileStoreObserver)
 	}
+	fs.tsmMMAPWillNeed = opt.Config.TSMWillNeed
+
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
 
 	c := NewCompactor()
@@ -286,47 +288,43 @@ func (e *Engine) Digest() (io.ReadCloser, int64, error) {
 
 	log.Info("Starting digest", zap.String("tsm1_path", e.path))
 
-	digestPath := filepath.Join(e.path, "digest.tsd")
+	digestPath := filepath.Join(e.path, DigestFilename)
 
-	// See if there's an existing digest file on disk.
-	f, err := os.Open(digestPath)
-	if err == nil {
-		// There is an existing digest file. Now see if it is still fresh.
-		fi, err := f.Stat()
-		if err != nil {
-			log.Info("Digest aborted, can't stat existing digest", zap.Error(err))
-			f.Close()
-			return nil, 0, err
-		}
+	// Get a list of tsm file paths from the FileStore.
+	files := e.FileStore.Files()
+	tsmfiles := make([]string, 0, len(files))
+	for _, f := range files {
+		tsmfiles = append(tsmfiles, f.Path())
+	}
 
-		engineLastMod := e.LastModified()
-
-		if !engineLastMod.After(fi.ModTime()) {
-			// Existing digest is still fresh so return a reader for it.
+	// See if there's a fresh digest cached on disk.
+	fresh, reason := DigestFresh(e.path, tsmfiles, e.LastModified())
+	if fresh {
+		f, err := os.Open(digestPath)
+		if err == nil {
 			fi, err := f.Stat()
 			if err != nil {
-				log.Info("Digest aborted, can't stat existing digest", zap.Error(err))
-				f.Close()
+				log.Info("Digest aborted, couldn't stat digest file", logger.Shard(e.id), zap.Error(err))
 				return nil, 0, err
 			}
 
-			log.Info("Digest cache fresh", zap.Time("engine_last_modified", engineLastMod),
-				zap.Time("digest_cache_last_modified", fi.ModTime()), zap.Int64("size", fi.Size()))
+			log.Info("Digest is fresh", logger.Shard(e.id), zap.String("path", digestPath))
 
+			// Return the cached digest.
 			return f, fi.Size(), nil
 		}
-
-		if err := f.Close(); err != nil {
-			log.Info("Digest aborted, problem closing digest", zap.Error(err))
-			return nil, 0, err
-		}
-
-		log.Info("Digest cache stale", zap.Time("engine_last_modified", engineLastMod),
-			zap.Time("digest_cache_last_modified", fi.ModTime()), zap.Int64("size", fi.Size()))
 	}
+
+	log.Info("Digest stale", logger.Shard(e.id), zap.String("reason", reason))
 
 	// Either no digest existed or the existing one was stale
 	// so generate a new digest.
+
+	// Make sure the directory exists, in case it was deleted for some reason.
+	if err := os.MkdirAll(e.path, 0777); err != nil {
+		log.Info("Digest aborted, problem creating shard directory path", zap.Error(err))
+		return nil, 0, err
+	}
 
 	// Create a tmp file to write the digest to.
 	tf, err := os.Create(digestPath + ".tmp")
@@ -336,7 +334,7 @@ func (e *Engine) Digest() (io.ReadCloser, int64, error) {
 	}
 
 	// Write the new digest to the tmp file.
-	if err := Digest(e.path, tf); err != nil {
+	if err := Digest(e.path, tsmfiles, tf); err != nil {
 		log.Info("Digest aborted, problem writing tmp digest", zap.Error(err))
 		tf.Close()
 		os.Remove(tf.Name())
@@ -350,7 +348,7 @@ func (e *Engine) Digest() (io.ReadCloser, int64, error) {
 	}
 
 	// Create and return a reader for the new digest file.
-	f, err = os.Open(digestPath)
+	f, err := os.Open(digestPath)
 	if err != nil {
 		log.Info("Digest aborted, opening new digest", zap.Error(err))
 		return nil, 0, err
@@ -1482,7 +1480,6 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 // does not update the index or disable compactions.  This should mainly be called by DeleteSeriesRange
 // and not directly.
 func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
-	ts := time.Now().UTC().UnixNano()
 	if len(seriesKeys) == 0 {
 		return nil
 	}
@@ -1694,7 +1691,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			// the global index (all shards).
 			if index, ok := e.index.(*inmem.ShardIndex); ok {
 				key := models.MakeKey(name, tags)
-				if e := index.Index.DropSeriesGlobal(key, ts); e != nil {
+				if e := index.Index.DropSeriesGlobal(key); e != nil {
 					err = e
 				}
 			}
@@ -2356,7 +2353,7 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == "inmem" {
+	if e.index.Type() == tsdb.InmemIndexName {
 		ts := e.index.(indexTagSets)
 		tagSets, err = ts.TagSets([]byte(measurement), opt)
 	} else {
@@ -2436,7 +2433,7 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == "inmem" {
+	if e.index.Type() == tsdb.InmemIndexName {
 		ts := e.index.(indexTagSets)
 		tagSets, err = ts.TagSets([]byte(measurement), opt)
 	} else {

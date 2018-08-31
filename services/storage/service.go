@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type StorageMetaClient interface {
+type MetaClient interface {
 	Database(name string) *meta.DatabaseInfo
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 }
@@ -20,9 +20,9 @@ type Service struct {
 	loggingEnabled bool
 	logger         *zap.Logger
 
-	Store      *Store
+	Store      *localStore
 	TSDBStore  *tsdb.Store
-	MetaClient StorageMetaClient
+	MetaClient MetaClient
 }
 
 // NewService returns a new instance of Service.
@@ -45,10 +45,8 @@ func (s *Service) WithLogger(log *zap.Logger) {
 func (s *Service) Open() error {
 	s.logger.Info("Starting storage service")
 
-	store := NewStore()
-	store.TSDBStore = s.TSDBStore
-	store.MetaClient = s.MetaClient
-	store.Logger = s.logger
+	store := NewStore(s.TSDBStore, s.MetaClient)
+	s.WithLogger(s.logger)
 
 	grpc := &grpcServer{
 		addr:           s.addr,

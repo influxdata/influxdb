@@ -5,13 +5,21 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
-	"go.uber.org/zap"
 )
 
-type responseWriter struct {
-	stream Storage_ReadServer
+type ResponseStream interface {
+	Send(*ReadResponse) error
+}
+
+const (
+	batchSize  = 1000
+	frameCount = 50
+	writeSize  = 64 << 10 // 64k
+)
+
+type ResponseWriter struct {
+	stream ResponseStream
 	res    *ReadResponse
-	logger *zap.Logger
 	err    error
 
 	// current series
@@ -34,7 +42,62 @@ type responseWriter struct {
 	hints HintFlags
 }
 
-func (w *responseWriter) getGroupFrame(keys, partitionKey [][]byte) *ReadResponse_Frame_Group {
+func NewResponseWriter(stream ResponseStream, hints HintFlags) *ResponseWriter {
+	rw := &ResponseWriter{stream: stream, res: &ReadResponse{Frames: make([]ReadResponse_Frame, 0, frameCount)}, hints: hints}
+
+	return rw
+}
+
+// WrittenN returns the number of values written to the response stream.
+func (w *ResponseWriter) WrittenN() int { return w.vc }
+
+func (w *ResponseWriter) WriteResultSet(rs ResultSet) error {
+	for rs.Next() {
+		cur := rs.Cursor()
+		if cur == nil {
+			// no data for series key + field combination
+			continue
+		}
+
+		w.startSeries(rs.Tags())
+		w.streamCursor(cur)
+		if w.err != nil {
+			cur.Close()
+			return w.err
+		}
+	}
+
+	return nil
+}
+
+func (w *ResponseWriter) WriteGroupResultSet(rs GroupResultSet) error {
+	gc := rs.Next()
+	for gc != nil {
+		w.startGroup(gc.Keys(), gc.PartitionKeyVals())
+		for gc.Next() {
+			cur := gc.Cursor()
+			if cur == nil {
+				// no data for series key + field combination
+				continue
+			}
+
+			w.startSeries(gc.Tags())
+			w.streamCursor(cur)
+			if w.err != nil {
+				gc.Close()
+				return w.err
+			}
+		}
+		gc.Close()
+		gc = rs.Next()
+	}
+
+	return nil
+}
+
+func (w *ResponseWriter) Err() error { return w.err }
+
+func (w *ResponseWriter) getGroupFrame(keys, partitionKey [][]byte) *ReadResponse_Frame_Group {
 	var res *ReadResponse_Frame_Group
 	if len(w.buffer.Group) > 0 {
 		i := len(w.buffer.Group) - 1
@@ -60,7 +123,7 @@ func (w *responseWriter) getGroupFrame(keys, partitionKey [][]byte) *ReadRespons
 	return res
 }
 
-func (w *responseWriter) putGroupFrame(f *ReadResponse_Frame_Group) {
+func (w *ResponseWriter) putGroupFrame(f *ReadResponse_Frame_Group) {
 	for i := range f.Group.TagKeys {
 		f.Group.TagKeys[i] = nil
 	}
@@ -70,7 +133,7 @@ func (w *responseWriter) putGroupFrame(f *ReadResponse_Frame_Group) {
 	w.buffer.Group = append(w.buffer.Group, f)
 }
 
-func (w *responseWriter) getSeriesFrame(next models.Tags) *ReadResponse_Frame_Series {
+func (w *ResponseWriter) getSeriesFrame(next models.Tags) *ReadResponse_Frame_Series {
 	var res *ReadResponse_Frame_Series
 	if len(w.buffer.Series) > 0 {
 		i := len(w.buffer.Series) - 1
@@ -90,7 +153,7 @@ func (w *responseWriter) getSeriesFrame(next models.Tags) *ReadResponse_Frame_Se
 	return res
 }
 
-func (w *responseWriter) putSeriesFrame(f *ReadResponse_Frame_Series) {
+func (w *ResponseWriter) putSeriesFrame(f *ReadResponse_Frame_Series) {
 	tags := f.Series.Tags
 	for i := range tags {
 		tags[i].Key = nil
@@ -99,7 +162,7 @@ func (w *responseWriter) putSeriesFrame(f *ReadResponse_Frame_Series) {
 	w.buffer.Series = append(w.buffer.Series, f)
 }
 
-func (w *responseWriter) startGroup(keys, partitionKey [][]byte) {
+func (w *ResponseWriter) startGroup(keys, partitionKey [][]byte) {
 	f := w.getGroupFrame(keys, partitionKey)
 	copy(f.Group.TagKeys, keys)
 	copy(f.Group.PartitionKeyVals, partitionKey)
@@ -107,7 +170,7 @@ func (w *responseWriter) startGroup(keys, partitionKey [][]byte) {
 	w.sz += f.Size()
 }
 
-func (w *responseWriter) startSeries(next models.Tags) {
+func (w *ResponseWriter) startSeries(next models.Tags) {
 	if w.hints.NoSeries() {
 		return
 	}
@@ -123,23 +186,12 @@ func (w *responseWriter) startSeries(next models.Tags) {
 	w.sz += w.sf.Size()
 }
 
-func (w *responseWriter) streamCursor(cur tsdb.Cursor) {
+func (w *ResponseWriter) streamCursor(cur tsdb.Cursor) {
 	switch {
 	case w.hints.NoSeries():
 		// skip
 	case w.hints.NoPoints():
 		switch cur := cur.(type) {
-		case tsdb.IntegerBatchCursor:
-			w.streamIntegerSeries(cur)
-		case tsdb.FloatBatchCursor:
-			w.streamFloatSeries(cur)
-		case tsdb.UnsignedBatchCursor:
-			w.streamUnsignedSeries(cur)
-		case tsdb.BooleanBatchCursor:
-			w.streamBooleanSeries(cur)
-		case tsdb.StringBatchCursor:
-			w.streamStringSeries(cur)
-
 		case tsdb.IntegerArrayCursor:
 			w.streamIntegerArraySeries(cur)
 		case tsdb.FloatArrayCursor:
@@ -156,17 +208,6 @@ func (w *responseWriter) streamCursor(cur tsdb.Cursor) {
 
 	default:
 		switch cur := cur.(type) {
-		case tsdb.IntegerBatchCursor:
-			w.streamIntegerPoints(cur)
-		case tsdb.FloatBatchCursor:
-			w.streamFloatPoints(cur)
-		case tsdb.UnsignedBatchCursor:
-			w.streamUnsignedPoints(cur)
-		case tsdb.BooleanBatchCursor:
-			w.streamBooleanPoints(cur)
-		case tsdb.StringBatchCursor:
-			w.streamStringPoints(cur)
-
 		case tsdb.IntegerArrayCursor:
 			w.streamIntegerArrayPoints(cur)
 		case tsdb.FloatArrayCursor:
@@ -184,7 +225,7 @@ func (w *responseWriter) streamCursor(cur tsdb.Cursor) {
 	cur.Close()
 }
 
-func (w *responseWriter) flushFrames() {
+func (w *ResponseWriter) Flush() {
 	if w.err != nil || w.sz == 0 {
 		return
 	}
@@ -192,7 +233,6 @@ func (w *responseWriter) flushFrames() {
 	w.sz = 0
 
 	if w.err = w.stream.Send(w.res); w.err != nil {
-		w.logger.Error("stream.Send failed", zap.Error(w.err))
 		return
 	}
 

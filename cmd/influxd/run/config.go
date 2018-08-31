@@ -50,7 +50,7 @@ type Config struct {
 	Subscriber     subscriber.Config `toml:"subscriber"`
 	HTTPD          httpd.Config      `toml:"http"`
 	Logging        logger.Config     `toml:"logging"`
-	Storage        storage.Config    `toml:"ifql"`
+	Storage        storage.Config    `toml:"flux"`
 	GraphiteInputs []graphite.Config `toml:"graphite"`
 	CollectdInputs []collectd.Config `toml:"collectd"`
 	OpenTSDBInputs []opentsdb.Config `toml:"opentsdb"`

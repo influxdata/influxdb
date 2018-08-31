@@ -6,6 +6,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/services/storage"
@@ -81,12 +82,13 @@ func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (
 	}
 	q := req.Queries[0]
 
-	if rp != "" {
-		db = db + "/" + rp
+	src, err := types.MarshalAny(&storage.ReadSource{Database: db, RetentionPolicy: rp})
+	if err != nil {
+		return nil, err
 	}
 
 	sreq := &storage.ReadRequest{
-		Database: db,
+		ReadSource: src,
 		TimestampRange: storage.TimestampRange{
 			Start: time.Unix(0, q.StartTimestampMs*int64(time.Millisecond)).UnixNano(),
 			End:   time.Unix(0, q.EndTimestampMs*int64(time.Millisecond)).UnixNano(),

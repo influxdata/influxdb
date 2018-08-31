@@ -129,7 +129,6 @@ func NewHandler(c Config) *Handler {
 		Config:         &c,
 		Logger:         zap.NewNop(),
 		CLFLogger:      log.New(os.Stderr, "[httpd] ", 0),
-		Store:          storage.NewStore(),
 		stats:          &Statistics{},
 		requestTracker: NewRequestTracker(),
 	}
@@ -475,8 +474,12 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	if h.Config.AuthEnabled {
-		// The current user determines the authorized actions.
-		opts.Authorizer = user
+		if user != nil && user.AuthorizeUnrestricted() {
+			opts.Authorizer = query.OpenAuthorizer
+		} else {
+			// The current user determines the authorized actions.
+			opts.Authorizer = user
+		}
 	} else {
 		// Auth is disabled, so allow everything.
 		opts.Authorizer = query.OpenAuthorizer
@@ -1591,7 +1594,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 
 // Store describes the behaviour of the storage packages Store type.
 type Store interface {
-	Read(ctx context.Context, req *storage.ReadRequest) (storage.Results, error)
+	Read(ctx context.Context, req *storage.ReadRequest) (storage.ResultSet, error)
 	WithLogger(log *zap.Logger)
 }
 

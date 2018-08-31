@@ -7,6 +7,14 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+type singleValue struct {
+	v interface{}
+}
+
+func (v *singleValue) Value(key string) (interface{}, bool) {
+	return v.v, true
+}
+
 func newAggregateArrayCursor(ctx context.Context, agg *Aggregate, cursor tsdb.Cursor) tsdb.Cursor {
 	if cursor == nil {
 		return nil
@@ -54,6 +62,15 @@ func newCountArrayCursor(cur tsdb.Cursor) tsdb.Cursor {
 	}
 }
 
+type cursorContext struct {
+	ctx   context.Context
+	req   *tsdb.CursorRequest
+	itrs  tsdb.CursorIterators
+	limit int64
+	count int64
+	err   error
+}
+
 type multiShardArrayCursors struct {
 	ctx   context.Context
 	limit int64
@@ -68,25 +85,24 @@ type multiShardArrayCursors struct {
 	}
 }
 
-func newMultiShardArrayCursors(ctx context.Context, rr *readRequest) *multiShardArrayCursors {
-	lim := rr.limit
-	if lim < 0 {
-		lim = 1
+func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool, limit int64) *multiShardArrayCursors {
+	if limit < 0 {
+		limit = 1
 	}
 
 	m := &multiShardArrayCursors{
 		ctx:   ctx,
-		limit: lim,
+		limit: limit,
 		req: tsdb.CursorRequest{
-			Ascending: rr.asc,
-			StartTime: rr.start,
-			EndTime:   rr.end,
+			Ascending: asc,
+			StartTime: start,
+			EndTime:   end,
 		},
 	}
 
 	cc := cursorContext{
 		ctx:   ctx,
-		limit: lim,
+		limit: limit,
 		req:   &m.req,
 	}
 
@@ -99,20 +115,20 @@ func newMultiShardArrayCursors(ctx context.Context, rr *readRequest) *multiShard
 	return m
 }
 
-func (m *multiShardArrayCursors) createCursor(row seriesRow) tsdb.Cursor {
-	m.req.Name = row.name
-	m.req.Tags = row.stags
-	m.req.Field = row.field.n
+func (m *multiShardArrayCursors) createCursor(row SeriesRow) tsdb.Cursor {
+	m.req.Name = row.Name
+	m.req.Tags = row.SeriesTags
+	m.req.Field = row.Field
 
 	var cond expression
-	if row.valueCond != nil {
-		cond = &astExpr{row.valueCond}
+	if row.ValueCond != nil {
+		cond = &astExpr{row.ValueCond}
 	}
 
 	var shard tsdb.CursorIterator
 	var cur tsdb.Cursor
-	for cur == nil && len(row.query) > 0 {
-		shard, row.query = row.query[0], row.query[1:]
+	for cur == nil && len(row.Query) > 0 {
+		shard, row.Query = row.Query[0], row.Query[1:]
 		cur, _ = shard.Next(m.ctx, &m.req)
 	}
 
@@ -122,19 +138,19 @@ func (m *multiShardArrayCursors) createCursor(row seriesRow) tsdb.Cursor {
 
 	switch c := cur.(type) {
 	case tsdb.IntegerArrayCursor:
-		m.cursors.i.reset(c, row.query, cond)
+		m.cursors.i.reset(c, row.Query, cond)
 		return &m.cursors.i
 	case tsdb.FloatArrayCursor:
-		m.cursors.f.reset(c, row.query, cond)
+		m.cursors.f.reset(c, row.Query, cond)
 		return &m.cursors.f
 	case tsdb.UnsignedArrayCursor:
-		m.cursors.u.reset(c, row.query, cond)
+		m.cursors.u.reset(c, row.Query, cond)
 		return &m.cursors.u
 	case tsdb.StringArrayCursor:
-		m.cursors.s.reset(c, row.query, cond)
+		m.cursors.s.reset(c, row.Query, cond)
 		return &m.cursors.s
 	case tsdb.BooleanArrayCursor:
-		m.cursors.b.reset(c, row.query, cond)
+		m.cursors.b.reset(c, row.Query, cond)
 		return &m.cursors.b
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))

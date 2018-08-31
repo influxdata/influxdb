@@ -7,24 +7,26 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-type readRequest struct {
-	ctx        context.Context
-	start, end int64
-	asc        bool
-	limit      int64
-	aggregate  *Aggregate
-}
-
 type multiShardCursors interface {
-	createCursor(row seriesRow) tsdb.Cursor
+	createCursor(row SeriesRow) tsdb.Cursor
 	newAggregateCursor(ctx context.Context, agg *Aggregate, cursor tsdb.Cursor) tsdb.Cursor
 }
 
 type resultSet struct {
-	req readRequest
-	cur seriesCursor
-	row seriesRow
+	ctx context.Context
+	agg *Aggregate
+	cur SeriesCursor
+	row SeriesRow
 	mb  multiShardCursors
+}
+
+func NewResultSet(ctx context.Context, req *ReadRequest, cur SeriesCursor) ResultSet {
+	return &resultSet{
+		ctx: ctx,
+		agg: req.Aggregate,
+		cur: cur,
+		mb:  newMultiShardArrayCursors(ctx, req.TimestampRange.Start, req.TimestampRange.End, !req.Descending, req.PointsLimit),
+	}
 }
 
 // Close closes the result set. Close is idempotent.
@@ -32,7 +34,7 @@ func (r *resultSet) Close() {
 	if r == nil {
 		return // Nothing to do.
 	}
-	r.row.query = nil
+	r.row.Query = nil
 	r.cur.Close()
 }
 
@@ -54,12 +56,12 @@ func (r *resultSet) Next() bool {
 
 func (r *resultSet) Cursor() tsdb.Cursor {
 	cur := r.mb.createCursor(r.row)
-	if r.req.aggregate != nil {
-		cur = r.mb.newAggregateCursor(r.req.ctx, r.req.aggregate, cur)
+	if r.agg != nil {
+		cur = r.mb.newAggregateCursor(r.ctx, r.agg, cur)
 	}
 	return cur
 }
 
 func (r *resultSet) Tags() models.Tags {
-	return r.row.tags
+	return r.row.Tags
 }

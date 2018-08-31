@@ -16,31 +16,6 @@ type Cursor interface {
 	Err() error
 }
 
-type IntegerBatchCursor interface {
-	Cursor
-	Next() (keys []int64, values []int64)
-}
-
-type FloatBatchCursor interface {
-	Cursor
-	Next() (keys []int64, values []float64)
-}
-
-type UnsignedBatchCursor interface {
-	Cursor
-	Next() (keys []int64, values []uint64)
-}
-
-type StringBatchCursor interface {
-	Cursor
-	Next() (keys []int64, values []string)
-}
-
-type BooleanBatchCursor interface {
-	Cursor
-	Next() (keys []int64, values []bool)
-}
-
 type IntegerArrayCursor interface {
 	Cursor
 	Next() *IntegerArray

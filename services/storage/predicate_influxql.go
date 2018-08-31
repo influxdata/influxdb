@@ -293,7 +293,7 @@ func HasSingleMeasurementNoOR(expr influxql.Expr) (string, bool) {
 }
 
 func HasFieldKeyOrValue(expr influxql.Expr) (bool, bool) {
-	refs := hasRefs{refs: []string{"_field", "$"}, found: make([]bool, 2)}
+	refs := hasRefs{refs: []string{fieldKey, "$"}, found: make([]bool, 2)}
 	influxql.Walk(&refs, expr)
 	return refs.found[0], refs.found[1]
 }

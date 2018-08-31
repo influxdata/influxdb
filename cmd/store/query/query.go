@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxql"
@@ -184,12 +185,17 @@ func (cmd *Command) validate() error {
 }
 
 func (cmd *Command) query(c storage.StorageClient) error {
-	var req storage.ReadRequest
-	req.Database = cmd.database
-	if cmd.retentionPolicy != "" {
-		req.Database += "/" + cmd.retentionPolicy
+	src := storage.ReadSource{
+		Database:        cmd.database,
+		RetentionPolicy: cmd.retentionPolicy,
 	}
 
+	var req storage.ReadRequest
+	if any, err := types.MarshalAny(&src); err != nil {
+		return err
+	} else {
+		req.ReadSource = any
+	}
 	req.TimestampRange.Start = cmd.startTime
 	req.TimestampRange.End = cmd.endTime
 	req.SeriesLimit = cmd.slimit

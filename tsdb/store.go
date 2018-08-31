@@ -230,15 +230,28 @@ func (s *Store) loadShards() error {
 
 	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
-	// Env var to disable throughput limiter.  This will be moved to a config option in 1.5.
 	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
-	if os.Getenv("INFLUXDB_DATA_COMPACTION_THROUGHPUT") == "" {
-		rate, burst := 48*1024*1024, 48*1024*1024
-		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(48*1024*1024, 48*1024*1024)
-		compactionSettings = append(compactionSettings, zap.Int("throughput_bytes_per_second", rate), zap.Int("throughput_burst_bytes", burst))
+	throughput := int(s.EngineOptions.Config.CompactThroughput)
+	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
+	if throughput > 0 {
+		if throughputBurst < throughput {
+			throughputBurst = throughput
+		}
+
+		compactionSettings = append(
+			compactionSettings,
+			zap.Int("throughput_bytes_per_second", throughput),
+			zap.Int("throughput_bytes_per_second_burst", throughputBurst),
+		)
+		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(throughput, throughputBurst)
 	} else {
-		compactionSettings = append(compactionSettings, zap.String("throughput_bytes_per_second", "unlimited"), zap.String("throughput_burst", "unlimited"))
+		compactionSettings = append(
+			compactionSettings,
+			zap.String("throughput_bytes_per_second", "unlimited"),
+			zap.String("throughput_bytes_per_second_burst", "unlimited"),
+		)
 	}
+
 	s.Logger.Info("Compaction settings", compactionSettings...)
 
 	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb_open")
@@ -339,7 +352,7 @@ func (s *Store) loadShards() error {
 
 					// Existing shards should continue to use inmem index.
 					if _, err := os.Stat(filepath.Join(path, "index")); os.IsNotExist(err) {
-						opt.IndexVersion = "inmem"
+						opt.IndexVersion = InmemIndexName
 					}
 
 					// Open engine.
@@ -665,9 +678,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	ss := index.SeriesIDSet()
 
 	db := sh.Database()
-	if err := sh.Close(); err != nil {
-		return err
-	}
 
 	// Determine if the shard contained any series that are not present in any
 	// other shards in the database.
@@ -688,10 +698,42 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	if ss.Cardinality() > 0 {
 		sfile := s.seriesFile(db)
 		if sfile != nil {
+			// If the inmem index is in use, then the series being removed from the
+			// series file will also need to be removed from the index.
+			if index.Type() == InmemIndexName {
+				var keyBuf []byte // Series key buffer.
+				var name []byte
+				var tagsBuf models.Tags // Buffer for tags container.
+				var err error
+
+				ss.ForEach(func(id uint64) {
+					skey := sfile.SeriesKey(id) // Series File series key
+					if skey == nil {
+						return
+					}
+
+					name, tagsBuf = ParseSeriesKeyInto(skey, tagsBuf)
+					keyBuf = models.AppendMakeKey(keyBuf, name, tagsBuf)
+					if err = index.DropSeriesGlobal(keyBuf); err != nil {
+						return
+					}
+				})
+
+				if err != nil {
+					return err
+				}
+			}
+
 			ss.ForEach(func(id uint64) {
 				sfile.DeleteSeriesID(id)
 			})
 		}
+
+	}
+
+	// Close the shard.
+	if err := sh.Close(); err != nil {
+		return err
 	}
 
 	// Remove the on-disk shard data.
@@ -930,7 +972,7 @@ func (s *Store) Databases() []string {
 	defer s.mu.RUnlock()
 
 	databases := make([]string, 0, len(s.databases))
-	for k, _ := range s.databases {
+	for k := range s.databases {
 		databases = append(databases, k)
 	}
 	return databases
@@ -1771,7 +1813,7 @@ func (s *Store) monitorShards() {
 
 			s.mu.RLock()
 			shards := s.filterShards(func(sh *Shard) bool {
-				return sh.IndexType() == "inmem"
+				return sh.IndexType() == InmemIndexName
 			})
 			s.mu.RUnlock()
 

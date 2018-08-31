@@ -12,10 +12,10 @@ import (
 func TestGroupGroupResultSetSorting(t *testing.T) {
 	tests := []struct {
 		name  string
-		cur   seriesCursor
+		cur   SeriesCursor
 		group ReadRequest_Group
 		keys  []string
-		exp   []seriesRow
+		exp   []SeriesRow
 	}{
 		{
 			name: "group by tag1 in all series",
@@ -96,12 +96,12 @@ func TestGroupGroupResultSetSorting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			newCursor := func() (seriesCursor, error) {
+			newCursor := func() (SeriesCursor, error) {
 				return tt.cur, nil
 			}
-			rs := newGroupResultSet(context.Background(), &ReadRequest{Group: tt.group, GroupKeys: tt.keys}, newCursor)
+			rs := NewGroupResultSet(context.Background(), &ReadRequest{Group: tt.group, GroupKeys: tt.keys}, newCursor).(*groupResultSet)
 
-			var rows []seriesRow
+			var rows []SeriesRow
 
 			for i := range rs.rows {
 				rows = append(rows, *rs.rows[i])
@@ -178,12 +178,12 @@ func TestKeyMerger(t *testing.T) {
 	}
 }
 
-func selectTags(rows []seriesRow, keys []string) string {
+func selectTags(rows []SeriesRow, keys []string) string {
 	var srows []string
 	for _, row := range rows {
 		var ss []string
 		for _, key := range keys {
-			for _, tag := range row.tags {
+			for _, tag := range row.Tags {
 				if key == string(tag.Key) {
 					ss = append(ss, string(tag.Key)+"="+string(tag.Value))
 				}
@@ -195,16 +195,16 @@ func selectTags(rows []seriesRow, keys []string) string {
 }
 
 type sliceSeriesCursor struct {
-	rows []seriesRow
+	rows []SeriesRow
 	i    int
 }
 
-func newSeriesRows(keys ...string) []seriesRow {
-	rows := make([]seriesRow, len(keys))
+func newSeriesRows(keys ...string) []SeriesRow {
+	rows := make([]SeriesRow, len(keys))
 	for i := range keys {
-		rows[i].name, rows[i].stags = models.ParseKeyBytes([]byte(keys[i]))
-		rows[i].tags = rows[i].stags.Clone()
-		rows[i].tags.Set([]byte("_m"), rows[i].name)
+		rows[i].Name, rows[i].SeriesTags = models.ParseKeyBytes([]byte(keys[i]))
+		rows[i].Tags = rows[i].SeriesTags.Clone()
+		rows[i].Tags.Set([]byte("_m"), rows[i].Name)
 	}
 	return rows
 }
@@ -212,7 +212,7 @@ func newSeriesRows(keys ...string) []seriesRow {
 func (s *sliceSeriesCursor) Close()     {}
 func (s *sliceSeriesCursor) Err() error { return nil }
 
-func (s *sliceSeriesCursor) Next() *seriesRow {
+func (s *sliceSeriesCursor) Next() *SeriesRow {
 	if s.i < len(s.rows) {
 		s.i++
 		return &s.rows[s.i-1]

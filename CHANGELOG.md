@@ -1,6 +1,10 @@
 v1.7.0 [unreleased]
 -------------------
 
+### Breaking changes
+
+-	The `ifql` section in the configuration has been changed to `flux` and it is enabled by default on port `:8082`.
+
 ### Features
 
 -	[#9964](https://github.com/influxdata/influxdb/pull/9964): Enable the storage service by default.
@@ -37,6 +41,10 @@ v1.6.0 [2018-07-05]
 -	[#10044](https://github.com/influxdata/influxdb/pull/10044): Implement bitset iterator.
 -	[#10102](https://github.com/influxdata/influxdb/pull/10102): Remove max concurrent compaction limit.
 -	[#10122](https://github.com/influxdata/influxdb/pull/10122): Add roaring bitmaps to TSI index files.
+-	[#10152](https://github.com/influxdata/influxdb/pull/10152): Add option to hint MADV_WILLNEED to kernel.
+-	[#9939](https://github.com/influxdata/influxdb/pull/9939): Add configuration parameter to expose rate limit for TSM compaction.
+-	[#10190](https://github.com/influxdata/influxdb/pull/10190): Reduce allocations in TSI TagSets implementation.
+-	[#10215](https://github.com/influxdata/influxdb/pull/10215): Switch digests to use snappy compression.
 
 ### Bugfixes
 
@@ -67,6 +75,9 @@ v1.6.0 [2018-07-05]
 -	[#9977](https://github.com/influxdata/influxdb/pull/9977): Allow value filtering on SHOW TAG VALUES.
 -	[#10051](https://github.com/influxdata/influxdb/pull/10051): Update example config with UDP precision option.
 -	[#10094](https://github.com/influxdata/influxdb/pull/10094): Fix a panic when matching on a specific type of regular expression.
+-	[#10175](https://github.com/influxdata/influxdb/pull/10175): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr.
+-	[#10181](https://github.com/influxdata/influxdb/pull/10181): Fix line protocol parsing panic.
+-	[#10212](https://github.com/influxdata/influxdb/pull/10212): Ensure orhpaned series cleaned up with shard drop.
 
 v1.5.4 [2018-06-21]
 -------------------

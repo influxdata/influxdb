@@ -14,51 +14,35 @@ import (
 	"go.uber.org/zap"
 )
 
-type GroupCursor interface {
-	Tags() models.Tags
-	Keys() [][]byte
-	PartitionKeyVals() [][]byte
-	Next() bool
-	Cursor() tsdb.Cursor
-	Close()
-}
-
 type groupResultSet struct {
 	ctx context.Context
 	req *ReadRequest
-	rr  readRequest
+	agg *Aggregate
 	mb  multiShardCursors
 
 	i    int
-	rows []*seriesRow
+	rows []*SeriesRow
 	keys [][]byte
 	rgc  groupByCursor
 	km   keyMerger
 
-	newCursorFn func() (seriesCursor, error)
+	newCursorFn func() (SeriesCursor, error)
 	nextGroupFn func(c *groupResultSet) GroupCursor
 	sortFn      func(c *groupResultSet) (int, error)
 
 	eof bool
 }
 
-func newGroupResultSet(ctx context.Context, req *ReadRequest, newCursorFn func() (seriesCursor, error)) *groupResultSet {
+func NewGroupResultSet(ctx context.Context, req *ReadRequest, newCursorFn func() (SeriesCursor, error)) GroupResultSet {
 	g := &groupResultSet{
-		ctx: ctx,
-		req: req,
-		rr: readRequest{
-			ctx:       ctx,
-			start:     req.TimestampRange.Start,
-			end:       req.TimestampRange.End,
-			asc:       !req.Descending,
-			limit:     req.PointsLimit,
-			aggregate: req.Aggregate,
-		},
+		ctx:         ctx,
+		req:         req,
+		agg:         req.Aggregate,
 		keys:        make([][]byte, len(req.GroupKeys)),
 		newCursorFn: newCursorFn,
 	}
 
-	g.mb = newMultiShardArrayCursors(ctx, &g.rr)
+	g.mb = newMultiShardArrayCursors(ctx, req.TimestampRange.Start, req.TimestampRange.End, !req.Descending, req.PointsLimit)
 
 	for i, k := range req.GroupKeys {
 		g.keys[i] = []byte(k)
@@ -69,8 +53,9 @@ func newGroupResultSet(ctx context.Context, req *ReadRequest, newCursorFn func()
 		g.sortFn = groupBySort
 		g.nextGroupFn = groupByNextGroup
 		g.rgc = groupByCursor{
+			ctx:  ctx,
 			mb:   g.mb,
-			req:  &g.rr,
+			agg:  req.Aggregate,
 			vals: make([][]byte, len(req.GroupKeys)),
 		}
 
@@ -134,7 +119,7 @@ func (g *groupResultSet) sort() (int, error) {
 
 // seriesHasPoints reads the first block of TSM data to verify the series has points for
 // the time range of the query.
-func (g *groupResultSet) seriesHasPoints(row *seriesRow) bool {
+func (g *groupResultSet) seriesHasPoints(row *SeriesRow) bool {
 	// TODO(sgc): this is expensive. Storage engine must provide efficient time range queries of series keys.
 	cur := g.mb.createCursor(*row)
 	var ts []int64
@@ -174,8 +159,9 @@ func groupNoneNextGroup(g *groupResultSet) GroupCursor {
 
 	g.eof = true
 	return &groupNoneCursor{
+		ctx:  g.ctx,
 		mb:   g.mb,
-		req:  &g.rr,
+		agg:  g.agg,
 		cur:  cur,
 		keys: g.km.get(),
 	}
@@ -196,7 +182,7 @@ func groupNoneSort(g *groupResultSet) (int, error) {
 	for row != nil {
 		n++
 		if allTime || g.seriesHasPoints(row) {
-			g.km.mergeTagKeys(row.tags)
+			g.km.mergeTagKeys(row.Tags)
 		}
 		row = cur.Next()
 	}
@@ -209,17 +195,17 @@ func groupByNextGroup(g *groupResultSet) GroupCursor {
 next:
 	row := g.rows[g.i]
 	for i := range g.keys {
-		g.rgc.vals[i] = row.tags.Get(g.keys[i])
+		g.rgc.vals[i] = row.Tags.Get(g.keys[i])
 	}
 
 	g.km.clear()
 	allTime := g.req.Hints.HintSchemaAllTime()
 	c := 0
-	rowKey := row.sortKey
+	rowKey := row.SortKey
 	j := g.i
-	for j < len(g.rows) && bytes.Equal(rowKey, g.rows[j].sortKey) {
+	for j < len(g.rows) && bytes.Equal(rowKey, g.rows[j].SortKey) {
 		if allTime || g.seriesHasPoints(g.rows[j]) {
-			g.km.mergeTagKeys(g.rows[j].tags)
+			g.km.mergeTagKeys(g.rows[j].Tags)
 			c++
 		}
 		j++
@@ -247,28 +233,28 @@ func groupBySort(g *groupResultSet) (int, error) {
 		return 0, nil
 	}
 
-	var rows []*seriesRow
+	var rows []*SeriesRow
 	vals := make([][]byte, len(g.keys))
 	tagsBuf := &tagsBuffer{sz: 4096}
 
 	row := cur.Next()
 	for row != nil {
 		nr := *row
-		nr.stags = tagsBuf.copyTags(nr.stags)
-		nr.tags = tagsBuf.copyTags(nr.tags)
+		nr.SeriesTags = tagsBuf.copyTags(nr.SeriesTags)
+		nr.Tags = tagsBuf.copyTags(nr.Tags)
 
 		l := 0
 		for i, k := range g.keys {
-			vals[i] = nr.tags.Get(k)
+			vals[i] = nr.Tags.Get(k)
 			if len(vals[i]) == 0 {
 				vals[i] = nilKey[:] // if there was no value, ensure it sorts last
 			}
 			l += len(vals[i])
 		}
 
-		nr.sortKey = make([]byte, 0, l)
+		nr.SortKey = make([]byte, 0, l)
 		for _, v := range vals {
-			nr.sortKey = append(nr.sortKey, v...)
+			nr.SortKey = append(nr.SortKey, v...)
 		}
 
 		rows = append(rows, &nr)
@@ -276,7 +262,7 @@ func groupBySort(g *groupResultSet) (int, error) {
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
-		return bytes.Compare(rows[i].sortKey, rows[j].sortKey) == -1
+		return bytes.Compare(rows[i].SortKey, rows[j].SortKey) == -1
 	})
 
 	g.rows = rows
@@ -286,14 +272,15 @@ func groupBySort(g *groupResultSet) (int, error) {
 }
 
 type groupNoneCursor struct {
+	ctx  context.Context
 	mb   multiShardCursors
-	req  *readRequest
-	cur  seriesCursor
-	row  seriesRow
+	agg  *Aggregate
+	cur  SeriesCursor
+	row  SeriesRow
 	keys [][]byte
 }
 
-func (c *groupNoneCursor) Tags() models.Tags          { return c.row.tags }
+func (c *groupNoneCursor) Tags() models.Tags          { return c.row.Tags }
 func (c *groupNoneCursor) Keys() [][]byte             { return c.keys }
 func (c *groupNoneCursor) PartitionKeyVals() [][]byte { return nil }
 func (c *groupNoneCursor) Close()                     { c.cur.Close() }
@@ -311,29 +298,30 @@ func (c *groupNoneCursor) Next() bool {
 
 func (c *groupNoneCursor) Cursor() tsdb.Cursor {
 	cur := c.mb.createCursor(c.row)
-	if c.req.aggregate != nil {
-		cur = c.mb.newAggregateCursor(c.req.ctx, c.req.aggregate, cur)
+	if c.agg != nil {
+		cur = c.mb.newAggregateCursor(c.ctx, c.agg, cur)
 	}
 	return cur
 }
 
 type groupByCursor struct {
+	ctx  context.Context
 	mb   multiShardCursors
-	req  *readRequest
+	agg  *Aggregate
 	i    int
-	rows []*seriesRow
+	rows []*SeriesRow
 	keys [][]byte
 	vals [][]byte
 }
 
-func (c *groupByCursor) reset(rows []*seriesRow) {
+func (c *groupByCursor) reset(rows []*SeriesRow) {
 	c.i = 0
 	c.rows = rows
 }
 
 func (c *groupByCursor) Keys() [][]byte             { return c.keys }
 func (c *groupByCursor) PartitionKeyVals() [][]byte { return c.vals }
-func (c *groupByCursor) Tags() models.Tags          { return c.rows[c.i-1].tags }
+func (c *groupByCursor) Tags() models.Tags          { return c.rows[c.i-1].Tags }
 func (c *groupByCursor) Close()                     {}
 
 func (c *groupByCursor) Next() bool {
@@ -346,8 +334,8 @@ func (c *groupByCursor) Next() bool {
 
 func (c *groupByCursor) Cursor() tsdb.Cursor {
 	cur := c.mb.createCursor(*c.rows[c.i-1])
-	if c.req.aggregate != nil {
-		cur = c.mb.newAggregateCursor(c.req.ctx, c.req.aggregate, cur)
+	if c.agg != nil {
+		cur = c.mb.newAggregateCursor(c.ctx, c.agg, cur)
 	}
 	return cur
 }
