@@ -20,17 +20,17 @@ func TestFrom_NewQuery(t *testing.T) {
 		},
 		{
 			Name:    "from conflicting args",
-			Raw:     `from(db:"d", bucket:"b")`,
+			Raw:     `from(bucket:"d", bucket:"b")`,
 			WantErr: true,
 		},
 		{
 			Name:    "from repeat arg",
-			Raw:     `from(db:"telegraf", db:"oops")`,
+			Raw:     `from(bucket:"telegraf", bucket:"oops")`,
 			WantErr: true,
 		},
 		{
 			Name:    "from",
-			Raw:     `from(db:"telegraf", chicken:"what is this?")`,
+			Raw:     `from(bucket:"telegraf", chicken:"what is this?")`,
 			WantErr: true,
 		},
 		{
@@ -54,13 +54,13 @@ func TestFrom_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "from with database",
-			Raw:  `from(db:"mydb") |> range(start:-4h, stop:-2h) |> sum()`,
+			Raw:  `from(bucket:"mybucket") |> range(start:-4h, stop:-2h) |> sum()`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -103,11 +103,11 @@ func TestFrom_NewQuery(t *testing.T) {
 }
 
 func TestFromOperation_Marshaling(t *testing.T) {
-	data := []byte(`{"id":"from","kind":"from","spec":{"db":"mydb"}}`)
+	data := []byte(`{"id":"from","kind":"from","spec":{"bucket":"mybucket"}}`)
 	op := &query.Operation{
 		ID: "from",
 		Spec: &functions.FromOpSpec{
-			Database: "mydb",
+			Bucket: "mybucket",
 		},
 	}
 	querytest.OperationMarshalingTestHelper(t, data, op)

@@ -14,13 +14,13 @@ func TestCovariance_NewQuery(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
 		{
 			Name: "simple covariance",
-			Raw:  `from(db:"mydb") |> covariance(columns:["a","b"],)`,
+			Raw:  `from(bucket:"mybucket") |> covariance(columns:["a","b"],)`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -42,13 +42,13 @@ func TestCovariance_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "pearsonr",
-			Raw:  `from(db:"mydb")|>covariance(columns:["a","b"],pearsonr:true)`,
+			Raw:  `from(bucket:"mybucket")|>covariance(columns:["a","b"],pearsonr:true)`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -71,19 +71,19 @@ func TestCovariance_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "global covariance",
-			Raw:  `cov(x: from(db:"mydb"), y:from(db:"mydb"), on:["host"], pearsonr:true)`,
+			Raw:  `cov(x: from(bucket:"mybucket"), y:from(bucket:"mybucket"), on:["host"], pearsonr:true)`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
 						ID: "from1",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{

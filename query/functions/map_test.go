@@ -16,13 +16,13 @@ func TestMap_NewQuery(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
 		{
 			Name: "simple static map",
-			Raw:  `from(db:"mydb") |> map(fn: (r) => r._value + 1)`,
+			Raw:  `from(bucket:"mybucket") |> map(fn: (r) => r._value + 1)`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -52,13 +52,13 @@ func TestMap_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "resolve map",
-			Raw:  `x = 2 from(db:"mydb") |> map(fn: (r) => r._value + x)`,
+			Raw:  `x = 2 from(bucket:"mybucket") |> map(fn: (r) => r._value + x)`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{

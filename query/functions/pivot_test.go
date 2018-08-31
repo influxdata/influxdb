@@ -16,13 +16,13 @@ func TestPivot_NewQuery(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
 		{
 			Name: "pivot [_measurement, _field] around _time",
-			Raw:  `from(db:"testdb") |> range(start: -1h) |> pivot(rowKey: ["_time"], colKey: ["_measurement", "_field"], valueCol: "_value")`,
+			Raw:  `from(bucket:"testdb") |> range(start: -1h) |> pivot(rowKey: ["_time"], colKey: ["_measurement", "_field"], valueCol: "_value")`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "testdb",
+							Bucket: "testdb",
 						},
 					},
 					{

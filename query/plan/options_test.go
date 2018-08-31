@@ -20,7 +20,7 @@ func TestPhysicalPlanner_DefaultMemoryLimit(t *testing.T) {
 			plan.ProcedureIDFromOperationID("from"): {
 				ID: plan.ProcedureIDFromOperationID("from"),
 				Spec: &functions.FromProcedureSpec{
-					Database: "mydb",
+					Bucket: "mydb",
 				},
 				Parents:  nil,
 				Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("range")},

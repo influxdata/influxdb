@@ -586,7 +586,7 @@ the `task` option to schedule a query to run periodically every hour:
         every: 1h,
     }
 
-    from(db:"metrics")
+    from(bucket:"metrics/autogen")
         |> range(start:-task.every)
         |> group(by:["level"])
         |> mean()
@@ -951,7 +951,7 @@ Each operation has three properties:
 JSON encoding is supported and the following is an example encoding of a query:
 
 ```
-from(db:"mydatabase") |> last()
+from(bucket:"mydatabase/autogen") |> last()
 ```
 
 ```
@@ -1067,16 +1067,18 @@ The tables schema will include the following columns:
 
 Additionally any tags on the series will be added as columns.
 
-Example:
-
-    from(bucket:"telegraf")
 
 From has the following properties:
 
 * `bucket` string
-    The name of the bucket to query.
-* `db` string
-    The name of the database to query.
+    Bucket is the name of the bucket to query
+* `bucketID` string
+    BucketID is the string encoding of the ID of the bucket to query.
+
+Example:
+
+    from(bucket:"telegraf/autogen")
+    from(bucketID:"0261d8287f4d6000")
 
 #### Yield
 
@@ -1091,7 +1093,7 @@ Yield has the following properties:
     unique name to give to yielded results
 
 Example:
-`from(db: "telegraf") |> range(start: -5m) |> yield(name:"1")`
+`from(bucket: "telegraf/autogen") |> range(start: -5m) |> yield(name:"1")`
 
 #### Aggregate operations
 
@@ -1138,7 +1140,7 @@ Covariance has the following properties:
 Additionally exactly two columns must be provided to the `columns` property.
 
 Example:
-`from(db: "telegraf) |> range(start:-5m) |> covariance(columns: ["x", "y"])`
+`from(bucket: "telegraf) |> range(start:-5m) |> covariance(columns: [/autogen"x", "y"])`
 
 ##### Count
 
@@ -1146,7 +1148,7 @@ Count is an aggregate operation.
 For each aggregated column, it outputs the number of non null records as an integer.
 
 Example:
-`from(db: "telegraf") |> range(start: -5m) |> count()`
+`from(bucket: "telegraf/autogen") |> range(start: -5m) |> count()`
 
 #### Duplicate 
 Duplicate will duplicate a specified column in a table
@@ -1162,7 +1164,7 @@ Example usage:
 
 Duplicate column `server` under the name `host`:
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
 	|> range(start:-5m)
 	|> filter(fn: (r) => r._measurement == "cpu")
 	|> duplicate(column: "host", as: "server")
@@ -1182,7 +1184,7 @@ Integral has the following properties:
 Example: 
 
 ```
-from(db: "telegraf") 
+from(bucket: "telegraf/autogen") 
     |> range(start: -5m) 
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system") 
     |> integral(unit:10s)
@@ -1195,7 +1197,7 @@ For each aggregated column, it outputs the mean of the non null records as a flo
 
 Example: 
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> filter(fn: (r) => r._measurement == "mem" AND
             r._field == "used_percent")
     |> range(start:-12h)
@@ -1224,7 +1226,7 @@ Percentile has the following properties:
 Example:
 ```
 // Determine 99th percentile cpu system usage:
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
 	|> range(start: -5m)
 	|> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
 	|> percentile(p: 0.99)
@@ -1237,7 +1239,7 @@ For each aggregated column, it outputs the skew of the non null record as a floa
 
 Example:
 ```
-from(db: "telegraf") 
+from(bucket: "telegraf/autogen") 
     |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
     |> skew()
@@ -1252,7 +1254,7 @@ All other input types are invalid.
 
 Example:
 ```
-from(db: "telegraf") 
+from(bucket: "telegraf/autogen") 
     |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
     |> spread()
@@ -1264,7 +1266,7 @@ For each aggregated column, it outputs the standard deviation of the non null re
 
 Example:
 ```
-from(db: "telegraf") 
+from(bucket: "telegraf/autogen") 
     |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
     |> stddev()
@@ -1278,7 +1280,7 @@ The output column type is the same as the input column type.
 
 Example:
 ```
-from(db: "telegraf") 
+from(bucket: "telegraf/autogen") 
     |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
     |> sum()
@@ -1313,7 +1315,7 @@ First is a selector operation.
 First selects the first non null record from the input table.
 
 Example:
-`from(db:"telegraf") |> first()`
+`from(bucket:"telegraf/autogen") |> first()`
 
 ##### Last
 
@@ -1321,7 +1323,7 @@ Last is a selector operation.
 Last selects the last non null record from the input table.
 
 Example:
-`from(db: "telegraf") |> last()`
+`from(bucket: "telegraf/autogen") |> last()`
 
 ##### Max
 
@@ -1330,7 +1332,7 @@ Max selects the maximum record from the input table.
 
 Example:
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> range(start:-12h)
     |> filter(fn: (r) => r._measurement == "cpu" AND r._field == "usage_system")
     |> max()
@@ -1344,7 +1346,7 @@ Min selects the minimum record from the input table.
 Example: 
 
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> range(start:-12h)
     |> filter(fn: (r) => r._measurement == "cpu" AND r._field == "usage_system")
     |> min()
@@ -1368,7 +1370,7 @@ The following properties define how the sample is selected.
 Example:
 
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> filter(fn: (r) => r._measurement == "cpu" AND
                r._field == "usage_system")
     |> range(start:-1d)
@@ -1394,7 +1396,7 @@ Filter has the following properties:
 Example: 
 
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> range(start:-12h)
     |> filter(fn: (r) => r._measurement == "cpu" AND
                 r._field == "usage_system" AND
@@ -1455,7 +1457,7 @@ Limit has the following properties:
 * `n` int
     The maximum number of records to output.
 
-Example: `from(db: "telegraf") |> limit(n: 10)`
+Example: `from(bucket: "telegraf/autogen") |> limit(n: 10)`
 
 #### Map
 
@@ -1479,7 +1481,7 @@ Map has the following properties:
 
 Example:
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> filter(fn: (r) => r._measurement == "cpu" AND
                 r._field == "usage_system" AND
                 r.service == "app-server")
@@ -1489,7 +1491,7 @@ from(db:"telegraf")
 ```
 Example (creating a new table):
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> filter(fn: (r) => r._measurement == "cpu" AND
                 r._field == "usage_system" AND
                 r.service == "app-server")
@@ -1518,14 +1520,14 @@ Range has the following properties:
 
 Example:
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> range(start:-12h, stop: -15m)
     |> filter(fn: (r) => r._measurement == "cpu" AND
                r._field == "usage_system")
 ```
 Example:
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> range(start:2018-05-22T23:30:00Z, stop: 2018-05-23T00:00:00Z)
     |> filter(fn: (r) => r._measurement == "cpu" AND
                r._field == "usage_system")
@@ -1548,13 +1550,13 @@ Example usage:
 
 Rename a single column: 
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
     |> range(start: -5m)
     |> rename(columns:{host: "server"})
 ```
 Rename all columns using `fn` parameter: 
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
     |> range(start: -5m)
     |> rename(fn: (col) => "{col}_new")
 ```
@@ -1576,13 +1578,13 @@ Example Usage:
 
 Drop a list of columns
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
 	|> range(start: -5m)
 	|> drop(columns: ["host", "_measurement"])
 ```
 Drop columns matching a predicate:
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
     |> range(start: -5m)
     |> drop(fn: (col) => col =~ /usage*/)
 ```
@@ -1608,13 +1610,13 @@ Keep all columns matching a predicate: `keep(fn: (col) => col =~ /inodes*/)`
 
 Keep a list of columns:
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
     |> range(start: -5m)
     |> keep(columns: ["_time", "_value"])
 ```
 Keep all columns matching a predicate:
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
     |> range(start: -5m)
     |> keep(fn: (col) => col =~ /inodes*/) 
 ```
@@ -1635,7 +1637,7 @@ Set has the following properties:
 
 Example: 
 ```
-from(db: "telegraf") |> set(key: "mykey", value: "myvalue")
+from(bucket: "telegraf/autogen") |> set(key: "mykey", value: "myvalue")
 ```
 
 #### Sort
@@ -1654,7 +1656,7 @@ Sort has the following properties:
 
 Example:
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> filter(fn: (r) => r._measurement == "system" AND
                r._field == "uptime")
     |> range(start:-12h)
@@ -1681,14 +1683,14 @@ Examples:
     group(except:[]) // group records into all unique groups
 
 ```
-from(db: "telegraf") 
+from(bucket: "telegraf/autogen") 
     |> range(start: -30m) 
     |> group(by: ["host", "_measurement"])
 ```
 All records are grouped by the "host" and "_measurement" columns. The resulting group key would be ["host, "_measurement"]
 
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
     |> range(start: -30m)
     |> group(except: ["_time"])
 ```
@@ -1734,7 +1736,7 @@ Window has the following properties:
 
 Example: 
 ```
-from(db:"telegraf")
+from(bucket:"telegraf/autogen")
     |> range(start:-12h)
     |> window(every:10m)
     |> max()
@@ -1787,13 +1789,13 @@ FromRows is a special application of pivot that will automatically align fields 
 Its definition is: 
 
 ```
-  fromRows = (db) => from(db:db) |> pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")
+  fromRows = (bucket) => from(bucket:bucket) |> pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")
 ```
 
 Example: 
 
 ```
-fromRows(db:"telegraf")
+fromRows(bucket:"telegraf/autogen")
   |> range(start: 2018-05-22T19:53:26Z)
 ```
 
@@ -1918,7 +1920,7 @@ Cumulative sum has the following properties:
 
 Example:
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
     |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "disk" and r._field == "used_percent")
     |> cumulativeSum(columns: ["_value"])
@@ -1942,7 +1944,7 @@ Derivative has the following properties:
     Defaults to `_time`.
 
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
     |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "disk" and r._field == "used_percent")
     |> derivative(nonNegative: true, columns: ["used_percent"])
@@ -1961,7 +1963,7 @@ Difference has the following properties:
     columns is a list of columns on which to compute the difference.
 
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
     |> range(start: -5m)
     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
     |> difference()
@@ -1977,7 +1979,7 @@ Distinct has the following properties:
 
 Example: 
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
 	|> range(start: -5m)
 	|> filter(fn: (r) => r._measurement == "cpu")
 	|> distinct(column: "host")
@@ -1998,7 +2000,7 @@ Shift has the following properties:
     Defaults to `["_start", "_stop", "_time"]`
 Example:
 ```
-from(db: "telegraf")
+from(bucket: "telegraf/autogen")
 	|> range(start: -5m)
 	|> shift(shift: 1000h)
 ```
@@ -2234,7 +2236,7 @@ POST /v1/query
 
 
 {
-    "query": "from(db:\"mydatabase\") |> last()"
+    "query": "from(bucket:\"mydatabase/autogen\") |> last()"
 }
 ```
 
@@ -2285,7 +2287,7 @@ POST /v1/query
 
 
 {
-    "query": "from(db:\"mydatabase\") |> last()",
+    "query": "from(bucket:\"mydatabase/autogen\") |> last()",
     "dialect" : {
         "header": true,
         "annotations": ["datatype"]
@@ -2404,7 +2406,7 @@ The CSV response format support the following dialect options:
 
 For context the following example tables encode fictitious data in response to this query:
 
-    from(db:"mydb")
+    from(bucket:"mydb/autogen")
         |> range(start:2018-05-08T20:50:00Z, stop:2018-05-08T20:51:00Z)
         |> group(by:["_start","_stop", "region", "host"])
         |> mean()

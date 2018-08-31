@@ -21,13 +21,13 @@ func TestSchemaMutions_NewQueries(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
 		{
 			Name: "test rename query",
-			Raw:  `from(db:"mydb") |> rename(columns:{old:"new"}) |> sum()`,
+			Raw:  `from(bucket:"mybucket") |> rename(columns:{old:"new"}) |> sum()`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -53,13 +53,13 @@ func TestSchemaMutions_NewQueries(t *testing.T) {
 		},
 		{
 			Name: "test drop query",
-			Raw:  `from(db:"mydb") |> drop(columns:["col1", "col2", "col3"]) |> sum()`,
+			Raw:  `from(bucket:"mybucket") |> drop(columns:["col1", "col2", "col3"]) |> sum()`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -83,13 +83,13 @@ func TestSchemaMutions_NewQueries(t *testing.T) {
 		},
 		{
 			Name: "test keep query",
-			Raw:  `from(db:"mydb") |> keep(columns:["col1", "col2", "col3"]) |> sum()`,
+			Raw:  `from(bucket:"mybucket") |> keep(columns:["col1", "col2", "col3"]) |> sum()`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -113,13 +113,13 @@ func TestSchemaMutions_NewQueries(t *testing.T) {
 		},
 		{
 			Name: "test duplicate query",
-			Raw:  `from(db:"mydb") |> duplicate(column: "col1", as: "col1_new") |> sum()`,
+			Raw:  `from(bucket:"mybucket") |> duplicate(column: "col1", as: "col1_new") |> sum()`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -144,13 +144,13 @@ func TestSchemaMutions_NewQueries(t *testing.T) {
 		},
 		{
 			Name: "test drop query fn param",
-			Raw:  `from(db:"mydb") |> drop(fn: (col) => col =~ /reg*/) |> sum()`,
+			Raw:  `from(bucket:"mybucket") |> drop(fn: (col) => col =~ /reg*/) |> sum()`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -185,13 +185,13 @@ func TestSchemaMutions_NewQueries(t *testing.T) {
 		},
 		{
 			Name: "test keep query fn param",
-			Raw:  `from(db:"mydb") |> keep(fn: (col) => col =~ /reg*/) |> sum()`,
+			Raw:  `from(bucket:"mybucket") |> keep(fn: (col) => col =~ /reg*/) |> sum()`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -226,13 +226,13 @@ func TestSchemaMutions_NewQueries(t *testing.T) {
 		},
 		{
 			Name: "test rename query fn param",
-			Raw:  `from(db:"mydb") |> rename(fn: (col) => "new_name") |> sum()`,
+			Raw:  `from(bucket:"mybucket") |> rename(fn: (col) => "new_name") |> sum()`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "mydb",
+							Bucket: "mybucket",
 						},
 					},
 					{
@@ -261,25 +261,25 @@ func TestSchemaMutions_NewQueries(t *testing.T) {
 		},
 		{
 			Name:    "test rename query invalid",
-			Raw:     `from(db:"mydb") |> rename(fn: (col) => "new_name", columns: {a:"b", c:"d"}) |> sum()`,
+			Raw:     `from(bucket:"mybucket") |> rename(fn: (col) => "new_name", columns: {a:"b", c:"d"}) |> sum()`,
 			Want:    nil,
 			WantErr: true,
 		},
 		{
 			Name:    "test drop query invalid",
-			Raw:     `from(db:"mydb") |> drop(fn: (col) => col == target, columns: ["a", "b"]) |> sum()`,
+			Raw:     `from(bucket:"mybucket") |> drop(fn: (col) => col == target, columns: ["a", "b"]) |> sum()`,
 			Want:    nil,
 			WantErr: true,
 		},
 		{
 			Name:    "test keep query invalid",
-			Raw:     `from(db:"mydb") |> keep(fn: (col) => col == target, columns: ["a", "b"]) |> sum()`,
+			Raw:     `from(bucket:"mybucket") |> keep(fn: (col) => col == target, columns: ["a", "b"]) |> sum()`,
 			Want:    nil,
 			WantErr: true,
 		},
 		{
 			Name:    "test duplicate query invalid",
-			Raw:     `from(db:"mydb") |> duplicate(columns: ["a", "b"], n: -1) |> sum()`,
+			Raw:     `from(bucket:"mybucket") |> duplicate(columns: ["a", "b"], n: -1) |> sum()`,
 			Want:    nil,
 			WantErr: true,
 		},

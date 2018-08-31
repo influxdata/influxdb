@@ -1,4 +1,4 @@
-from(db:"test")
+from(bucket:"test")
   |> range(start:2018-04-17T00:00:00Z)
   |> group(by: ["_measurement", "_start"])
   |> max(column: "_value")

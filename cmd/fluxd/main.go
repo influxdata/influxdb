@@ -7,7 +7,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform"
@@ -71,10 +70,6 @@ func init() {
 	fluxdCmd.PersistentFlags().String("storage-hosts", "localhost:8082", "host:port address of the storage server.")
 	viper.BindEnv("STORAGE_HOSTS")
 	viper.BindPFlag("STORAGE_HOSTS", fluxdCmd.PersistentFlags().Lookup("storage-hosts"))
-
-	fluxdCmd.PersistentFlags().String("bucket-name", "defaultbucket", "The bucket to access. ")
-	viper.BindEnv("BUCKET_NAME")
-	viper.BindPFlag("BUCKET_NAME", fluxdCmd.PersistentFlags().Lookup("bucket-name"))
 
 	fluxdCmd.PersistentFlags().String("organization-name", "defaultorgname", "The organization name to use.")
 	viper.BindEnv("ORGANIZATION_NAME")
@@ -159,12 +154,6 @@ func injectDeps(deps execute.Dependencies) error {
 		return err
 	}
 
-	bucketName, err := getStrList("BUCKET_NAME")
-	if err != nil {
-		return errors.Wrap(err, "failed to get bucket name")
-	}
-	bucketSvc := StaticBucketService{Name: bucketName[0]}
-
 	orgName, err := getStrList("ORGANIZATION_NAME")
 	if err != nil {
 		return errors.Wrap(err, "failed to get organization name")
@@ -173,7 +162,7 @@ func injectDeps(deps execute.Dependencies) error {
 
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:             sr,
-		BucketLookup:       query.FromBucketService(&bucketSvc),
+		BucketLookup:       bucketLookup{},
 		OrganizationLookup: query.FromOrganizationService(&orgSvc),
 	})
 }
@@ -185,29 +174,11 @@ func main() {
 	}
 }
 
-type bucketLookup struct {
-	BucketService platform.BucketService
-}
-
-func (b bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
-	oid := platform.ID(orgID)
-	filter := platform.BucketFilter{
-		OrganizationID: &oid,
-		Name:           &name,
-	}
-	bucket, err := b.BucketService.FindBucket(context.Background(), filter)
-	if err != nil {
-		return nil, false
-	}
-	return bucket.ID, true
-}
-
 var (
-	staticBucketID, staticOrgID platform.ID
+	staticOrgID platform.ID
 )
 
 func init() {
-	staticBucketID.DecodeFromString("abba")
 	staticOrgID.DecodeFromString("baab")
 }
 
@@ -256,55 +227,10 @@ func (s *StaticOrganizationService) DeleteOrganization(ctx context.Context, id p
 	panic("not implemented")
 }
 
-// StaticBucketService connects to Influx via HTTP using tokens to manage buckets
-type StaticBucketService struct {
-	Name string
-}
+type bucketLookup struct{}
 
-// FindBucketByID returns a single bucket by ID.
-func (s *StaticBucketService) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
-	return s.FindBucket(ctx, platform.BucketFilter{})
-}
-
-// FindBucket returns the first bucket that matches filter.
-func (s *StaticBucketService) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
-	bs, n, err := s.FindBuckets(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	if n == 0 {
-		return nil, fmt.Errorf("found no matching buckets")
-	}
-
-	return bs[0], nil
-}
-
-// FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
-// Additional options provide pagination & sorting.
-func (s *StaticBucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
-	bo := platform.Bucket{
-		ID:              staticBucketID,
-		OrganizationID:  staticOrgID,
-		Name:            s.Name,
-		RetentionPeriod: 1000 * time.Hour,
-	}
-
-	return []*platform.Bucket{&bo}, 1, nil
-}
-
-// CreateBucket creates a new bucket and sets b.ID with the new identifier.
-func (s *StaticBucketService) CreateBucket(ctx context.Context, b *platform.Bucket) error {
-	panic("not implemented")
-}
-
-// UpdateBucket updates a single bucket with changeset.
-// Returns the new bucket state after update.
-func (s *StaticBucketService) UpdateBucket(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
-	panic("not implemented")
-}
-
-// DeleteBucket removes a bucket by ID.
-func (s *StaticBucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
-	panic("not implemented")
+func (l bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
+	// Cheat and return the bucket name as the ID
+	// The deps.Reader will interpret this as the db/rp for the RPC call
+	return platform.ID(name), true
 }

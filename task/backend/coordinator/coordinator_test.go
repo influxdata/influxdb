@@ -32,7 +32,7 @@ func TestCoordinator(t *testing.T) {
 
 	orgID := platform.ID("org")
 	usrID := platform.ID("usr")
-	script := `option task = {name: "a task",cron: "* * * * *"} from(db:"test") |> range(start:-1h)`
+	script := `option task = {name: "a task",cron: "* * * * *"} from(bucket:"test") |> range(start:-1h)`
 	id, err := coord.CreateTask(context.Background(), orgID, usrID, script, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
 
-	newScript := `option task = {name: "a task",cron: "1 * * * *"} from(db:"test") |> range(start:-2h)`
+	newScript := `option task = {name: "a task",cron: "1 * * * *"} from(bucket:"test") |> range(start:-2h)`
 	err = coord.ModifyTask(context.Background(), id, newScript)
 	if err != nil {
 		t.Fatal(err)

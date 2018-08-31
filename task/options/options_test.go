@@ -32,7 +32,7 @@ func scriptGenerator(opt options.Options, body string) string {
 		taskData = fmt.Sprintf("%s  retry: %d,\n", taskData, opt.Retry)
 	}
 	if body == "" {
-		body = `from(db: "test")
+		body = `from(bucket: "test")
     |> range(start:-1h)`
 	}
 
@@ -54,9 +54,9 @@ func TestFromScript(t *testing.T) {
 		{script: scriptGenerator(options.Options{Name: "name", Cron: "* * * * *"}, ""), exp: options.Options{Name: "name", Cron: "* * * * *", Concurrency: 1, Retry: 1}},
 		{script: scriptGenerator(options.Options{Name: "name", Every: time.Hour, Cron: "* * * * *"}, ""), shouldErr: true},
 		{script: scriptGenerator(options.Options{Name: "name", Concurrency: 1000, Every: time.Hour}, ""), shouldErr: true},
-		{script: "option task = {\n  name: \"name\",\n  concurrency: 0,\n  every: 1m0s,\n\n}\n\nfrom(db: \"test\")\n    |> range(start:-1h)", shouldErr: true},
+		{script: "option task = {\n  name: \"name\",\n  concurrency: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
 		{script: scriptGenerator(options.Options{Name: "name", Retry: 20, Every: time.Hour}, ""), shouldErr: true},
-		{script: "option task = {\n  name: \"name\",\n  retry: 0,\n  every: 1m0s,\n\n}\n\nfrom(db: \"test\")\n    |> range(start:-1h)", shouldErr: true},
+		{script: "option task = {\n  name: \"name\",\n  retry: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
 		{script: scriptGenerator(options.Options{Name: "name"}, ""), shouldErr: true},
 		{script: scriptGenerator(options.Options{}, ""), shouldErr: true},
 	} {

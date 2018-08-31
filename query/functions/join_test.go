@@ -20,15 +20,15 @@ func TestJoin_NewQuery(t *testing.T) {
 		{
 			Name: "basic two-way join",
 			Raw: `
-				a = from(db:"dbA") |> range(start:-1h)
-				b = from(db:"dbB") |> range(start:-1h)
+				a = from(bucket:"dbA") |> range(start:-1h)
+				b = from(bucket:"dbB") |> range(start:-1h)
 				join(tables:{a:a,b:b}, on:["host"])`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "dbA",
+							Bucket: "dbA",
 						},
 					},
 					{
@@ -49,7 +49,7 @@ func TestJoin_NewQuery(t *testing.T) {
 					{
 						ID: "from2",
 						Spec: &functions.FromOpSpec{
-							Database: "dbB",
+							Bucket: "dbB",
 						},
 					},
 					{
@@ -87,8 +87,8 @@ func TestJoin_NewQuery(t *testing.T) {
 		{
 			Name: "from with join with complex ast",
 			Raw: `
-				a = from(db:"flux") |> range(start:-1h)
-				b = from(db:"flux") |> range(start:-1h)
+				a = from(bucket:"flux") |> range(start:-1h)
+				b = from(bucket:"flux") |> range(start:-1h)
 				join(tables:{a:a,b:b}, on:["t1"])
 			`,
 			Want: &query.Spec{
@@ -96,7 +96,7 @@ func TestJoin_NewQuery(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "flux",
+							Bucket: "flux",
 						},
 					},
 					{
@@ -117,7 +117,7 @@ func TestJoin_NewQuery(t *testing.T) {
 					{
 						ID: "from2",
 						Spec: &functions.FromOpSpec{
-							Database: "flux",
+							Bucket: "flux",
 						},
 					},
 					{

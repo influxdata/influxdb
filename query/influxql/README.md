@@ -62,8 +62,8 @@ After creating the base cursors, each of them is joined into a single stream usi
 **TODO(jsternberg):** Raw queries need to evaluate `fill()` at this stage while selectors and aggregates should not.
 
     > SELECT usage_user, usage_system FROM telegraf..cpu WHERE time >= now() - 5m
-    val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_user")
-    val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_system")
+    val1 = create_cursor(bucket: "telegraf/autogen", start: -5m, m: "cpu", f: "usage_user")
+    val1 = create_cursor(bucket: "telegraf/autogen", start: -5m, m: "cpu", f: "usage_system")
     inner_join(tables: {val1: val1, val2: val2}, except: ["_field"], fn: (tables) => {val1: tables.val1, val2: tables.val2})
 
 If there is only one cursor, then nothing needs to be done.
@@ -87,15 +87,15 @@ If there are keys in the group by clause, they are concatenated with the default
 If this group contains a function call, the function is evaluated at this stage and invoked on the specific column. As an example:
 
     > SELECT max(usage_user), usage_system FROM telegraf..cpu
-    val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_user")
-    val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_system")
+    val1 = create_cursor(bucket: "telegraf/autogen", start: -5m, m: "cpu", f: "usage_user")
+    val1 = create_cursor(bucket: "telegraf/autogen", start: -5m, m: "cpu", f: "usage_system")
     inner_join(tables: {val1: val1, val2: val2}, except: ["_field"], fn: (tables) => {val1: tables.val1, val2: tables.val2})
         |> max(column: "val1")
 
 For an aggregate, the following is used instead:
 
     > SELECT mean(usage_user) FROM telegraf..cpu
-    create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_user")
+    create_cursor(bucket: "telegraf/autogen", start: -5m, m: "cpu", f: "usage_user")
         |> group(except: ["_field"])
         |> mean(timeSrc: "_start", columns: ["_value"])
 
