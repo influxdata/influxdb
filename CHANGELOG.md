@@ -1,3 +1,10 @@
+v1.6.3 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#10251](https://github.com/influxdata/influxdb/pull/10251): Fix the inherited interval for derivative and others.
+
 v1.6.2 [2018-08-27]
 -------------------
 
