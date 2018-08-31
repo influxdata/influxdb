@@ -40,7 +40,26 @@ builds:
     main: ./cmd/influx/
     ldflags: -s -w -X main.commit={{.Commit}}
     binary: influx
-
+  - goos:
+    - linux
+    - darwin
+    - windows
+    goarch:
+    - amd64
+    - 386
+    - arm
+    - arm64
+    goarm:
+    - 6
+    - 7
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: windows
+        goarch: 386
+    main: ./cmd/influxd/
+    ldflags: -s -w -X main.commit={{.Commit}}
+    binary: influxd
 
 archive:
   format: tar.gz
@@ -70,3 +89,9 @@ dockers:
     dockerfile: docker/flux/Dockerfile
     extra_files:
       - docker/flux/entrypoint.sh
+  -
+    binary: influxd
+    image: quay.io/influxdb/influx
+    dockerfile: docker/influxd/Dockerfile
+    extra_files:
+      - docker/influxd/entrypoint.sh
