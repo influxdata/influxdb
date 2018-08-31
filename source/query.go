@@ -18,8 +18,8 @@ func NewQueryService(s *platform.Source) (query.ProxyQueryService, error) {
 		// how services are instantiated
 		return nil, fmt.Errorf("self source type not implemented")
 	case platform.V2SourceType:
-		// This is an idpd that calls another idpd, the query path is /v1/query - in future /v2/query
-		// it basically is the same as Self but on an external idpd
+		// This is an influxd that calls another influxd, the query path is /v1/query - in future /v2/query
+		// it basically is the same as Self but on an external influxd.
 		return &http.SourceProxyQueryService{
 			InsecureSkipVerify: s.InsecureSkipVerify,
 			URL:                s.URL,

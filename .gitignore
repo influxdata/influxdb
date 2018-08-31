@@ -5,14 +5,14 @@ vendor
 .tern-project
 
 # binary databases
-idpdb.bolt
+influxd.bolt
 
 # Project distirbution
 /dist
 
 # Project binaries.
 /influx
-/idpd
+/influxd
 /fluxd
 /transpilerd
 /bin

@@ -35,7 +35,7 @@ SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -
 # List of binary cmds to build
 CMDS := \
 	bin/$(GOOS)/influx \
-	bin/$(GOOS)/idpd \
+	bin/$(GOOS)/influxd \
 	bin/$(GOOS)/fluxd
 
 # List of utilities to build as part of the build process
