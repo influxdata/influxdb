@@ -422,63 +422,51 @@
   revision = "53e6ce116135b80d037921a7fdd5138cf32d7a8a"
 
 [[projects]]
-  digest = "1:806381a928989b6d1dc01474d67a9d4df266172eadc976d46cb51633d0d0998e"
-  name = "github.com/goreleaser/archive"
-  packages = [
-    ".",
-    "tar",
-    "zip",
-  ]
-  pruneopts = "UT"
-  revision = "f83c3f651b008c42ee5d316770ebf54f383ffe13"
-  version = "v1.1.2"
-
-[[projects]]
-  digest = "1:7b23aa84cb488f83b9a1519b1fbc19b43976dd5c47e7afa82e919f73f4cc0c40"
+  digest = "1:6f95db9a2709519edc486a797638bcc34b58641fa57337d4e7ab26b0ea22cf9c"
   name = "github.com/goreleaser/goreleaser"
   packages = [
     ".",
-    "build",
-    "checksum",
-    "config",
-    "context",
     "internal/artifact",
     "internal/builders/golang",
     "internal/client",
-    "internal/deprecate",
     "internal/git",
     "internal/http",
     "internal/linux",
+    "internal/pipeline",
+    "internal/pipeline/archive",
+    "internal/pipeline/artifactory",
+    "internal/pipeline/before",
+    "internal/pipeline/brew",
+    "internal/pipeline/build",
+    "internal/pipeline/changelog",
+    "internal/pipeline/checksums",
+    "internal/pipeline/defaults",
+    "internal/pipeline/dist",
+    "internal/pipeline/docker",
+    "internal/pipeline/effectiveconfig",
+    "internal/pipeline/env",
+    "internal/pipeline/git",
+    "internal/pipeline/nfpm",
+    "internal/pipeline/project",
+    "internal/pipeline/put",
+    "internal/pipeline/release",
+    "internal/pipeline/s3",
+    "internal/pipeline/scoop",
+    "internal/pipeline/sign",
+    "internal/pipeline/snapcraft",
+    "internal/pipeline/snapshot",
     "internal/semerrgroup",
     "internal/tmpl",
-    "pipeline",
-    "pipeline/archive",
-    "pipeline/artifactory",
-    "pipeline/before",
-    "pipeline/brew",
-    "pipeline/build",
-    "pipeline/changelog",
-    "pipeline/checksums",
-    "pipeline/defaults",
-    "pipeline/dist",
-    "pipeline/docker",
-    "pipeline/effectiveconfig",
-    "pipeline/env",
-    "pipeline/fpm",
-    "pipeline/git",
-    "pipeline/nfpm",
-    "pipeline/project",
-    "pipeline/put",
-    "pipeline/release",
-    "pipeline/s3",
-    "pipeline/scoop",
-    "pipeline/sign",
-    "pipeline/snapcraft",
-    "pipeline/snapshot",
+    "pkg/archive",
+    "pkg/archive/tar",
+    "pkg/archive/zip",
+    "pkg/build",
+    "pkg/config",
+    "pkg/context",
   ]
   pruneopts = "UT"
-  revision = "170e6c6b25b0f3375ebf409651e38874b1199d2e"
-  version = "v0.81.0"
+  revision = "93a0055d036200749a25b5a3454737b0de6af2d3"
+  version = "v0.84.0"
 
 [[projects]]
   digest = "1:555e46bfe479a0c08e69f57cbce309be0c5fb2f8bc203dc0be6132758a8dd158"
