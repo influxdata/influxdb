@@ -1,6 +1,6 @@
 package dist
 
-//go:generate go-bindata -o dist_gen.go -ignore 'map|go' -pkg dist ../ui/build/...
+//go:generate go-bindata -o dist_gen.go -ignore 'map|go' -tags assets -pkg dist ../ui/build/...
 
 import (
 	"fmt"

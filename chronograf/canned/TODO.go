@@ -1,16 +1,18 @@
+// +build !assets
+
 package canned
 
 import "errors"
 
-// The functions defined in this file are placeholders
-// until we decide how to get the finalized Chronograf assets in platform.
+// The functions defined in this file are placeholders when the binary is compiled
+// without assets.
 
-var errTODO = errors.New("TODO: decide how to handle chronograf assets in platform")
-
+// Asset returns an error stating no assets were included in the binary.
 func Asset(string) ([]byte, error) {
-	return nil, errTODO
+	return nil, errors.New("no assets included in binary")
 }
 
+// AssetNames returns nil because there are no assets included in the binary.
 func AssetNames() []string {
 	return nil
 }
