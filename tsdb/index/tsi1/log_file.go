@@ -50,6 +50,7 @@ type LogFile struct {
 	mu         sync.RWMutex
 	wg         sync.WaitGroup // ref count
 	id         int            // file sequence identifier
+	data       []byte         // mmap
 	file       *os.File       // writer
 	w          *bufio.Writer  // buffered writer
 	bufferSize int            // The size of the buffer used by the buffered writer
@@ -154,11 +155,11 @@ func (f *LogFile) open() error {
 	if err != nil {
 		return err
 	}
-	defer mmap.Unmap(data)
+	f.data = data
 
 	// Read log entries from mmap.
 	var n int64
-	for buf := data; len(buf) > 0; {
+	for buf := f.data; len(buf) > 0; {
 		// Read next entry. Truncate partial writes.
 		var e LogEntry
 		if err := e.UnmarshalBinary(buf); err == io.ErrShortBuffer || err == ErrLogEntryChecksumMismatch {
@@ -194,6 +195,10 @@ func (f *LogFile) Close() error {
 	if f.file != nil {
 		f.file.Close()
 		f.file = nil
+	}
+
+	if f.data != nil {
+		mmap.Unmap(f.data)
 	}
 
 	f.mms = make(logMeasurements)
