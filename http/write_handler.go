@@ -14,9 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const NatsServerID = "nats"
-const NatsClientID = "nats-client"
-
+// WriteHandler receives line protocol and sends to a publish function.
 type WriteHandler struct {
 	*httprouter.Router
 
@@ -29,6 +27,7 @@ type WriteHandler struct {
 	Publish func(io.Reader) error
 }
 
+// NewWriteHandler creates a new handler at /v2/write to receive line protocol.
 func NewWriteHandler(publishFn func(io.Reader) error) *WriteHandler {
 	h := &WriteHandler{
 		Router:  httprouter.New(),

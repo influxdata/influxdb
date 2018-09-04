@@ -33,6 +33,7 @@ import (
 	taskbolt "github.com/influxdata/platform/task/backend/bolt"
 	"github.com/influxdata/platform/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/platform/task/backend/executor"
+	pzap "github.com/influxdata/platform/zap"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -283,6 +284,12 @@ func platformF(cmd *cobra.Command, args []string) {
 		writeHandler.BucketService = bucketSvc
 		writeHandler.Logger = logger.With(zap.String("handler", "write"))
 
+		queryHandler := http.NewFluxHandler()
+		queryHandler.AuthorizationService = authSvc
+		queryHandler.OrganizationService = orgSvc
+		queryHandler.Logger = logger.With(zap.String("handler", "query"))
+		queryHandler.ProxyQueryService = pzap.NewProxyQueryService(queryHandler.Logger)
+
 		// TODO(desa): what to do about idpe.
 		chronografHandler := http.NewChronografHandler(chronografSvc)
 
@@ -298,6 +305,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			SourceHandler:        sourceHandler,
 			TaskHandler:          taskHandler,
 			ViewHandler:          cellHandler,
+			QueryHandler:         queryHandler,
 			WriteHandler:         writeHandler,
 		}
 		reg.MustRegister(platformHandler.PrometheusCollectors()...)
