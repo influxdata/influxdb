@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" // used for debug pprof at the default path.
 	"strings"
 	"time"
 
@@ -20,9 +20,12 @@ import (
 )
 
 const (
+	// MetricsPath exposes the prometheus metrics over /metrics.
 	MetricsPath = "/metrics"
+	// HealthzPath exposes the health of the service over /healthz.
 	HealthzPath = "/healthz"
-	DebugPath   = "/debug"
+	// DebugPath exposes /debug/pprof for go debugging.
+	DebugPath = "/debug"
 )
 
 // Handler provides basic handling of metrics, healthz and debug endpoints.
@@ -72,6 +75,7 @@ func NewHandlerFromRegistry(name string, reg *prom.Registry) *Handler {
 		name:           name,
 		MetricsHandler: reg.HTTPHandler(),
 		DebugHandler:   http.DefaultServeMux,
+		HealthzHandler: http.HandlerFunc(HealthzHandler),
 	}
 	h.initMetrics()
 	reg.MustRegister(h.PrometheusCollectors()...)

@@ -38,6 +38,12 @@ var platformLinks = map[string]interface{}{
 	"sources":    "/v2/sources",
 	"dashboards": "/v2/dashboards",
 	"query":      "/v2/query",
+	"write":      "/v2/write",
+	"orgs":       "/v1/orgs",
+	"auths":      "/v1/authorizations",
+	"buckets":    "/v1/buckets",
+	"users":      "/v1/users",
+	"tasks":      "/v1/tasks",
 	"flux": map[string]string{
 		"self":        "/v2/flux",
 		"ast":         "/v2/flux/ast",
@@ -45,6 +51,11 @@ var platformLinks = map[string]interface{}{
 	},
 	"external": map[string]string{
 		"statusFeed": "https://www.influxdata.com/feed/json",
+	},
+	"system": map[string]string{
+		"metrics": "/metrics",
+		"debug":   "/debug/pprof",
+		"health":  "/healthz",
 	},
 }
 
