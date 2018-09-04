@@ -14,6 +14,8 @@ import (
 
 const HistogramQuantileKind = "histogramQuantile"
 
+const DefaultUpperBoundColumnLabel = "le"
+
 type HistogramQuantileOpSpec struct {
 	Quantile         float64 `json:"quantile"`
 	CountColumn      string  `json:"countColumn"`
@@ -60,6 +62,8 @@ func createHistogramQuantileOpSpec(args query.Arguments, a *query.Administration
 		return nil, err
 	} else if ok {
 		s.UpperBoundColumn = col
+	} else {
+		s.UpperBoundColumn = DefaultUpperBoundColumnLabel
 	}
 
 	if col, ok, err := args.GetString("valueColumn"); err != nil {
