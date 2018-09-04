@@ -1,0 +1,11 @@
+#datatype,string,long,string,dateTime:RFC3339,double,string,double,string
+#group,false,false,true,false,false,true,false,false
+#default,_result,,,,,,,
+,result,table,_measurement,_time,left_value,left_user,right_value,right_user
+,,0,CPU,2018-05-22T19:53:26Z,0,user1,4,user2
+,,0,CPU,2018-05-22T19:53:36Z,1,user1,20,user2
+,,1,RAM,2018-05-22T19:53:26Z,1,user1,2,user2
+,,1,RAM,2018-05-22T19:53:36Z,2,user1,4,user2
+,,1,RAM,2018-05-22T19:53:46Z,3,user1,4,user2
+,,1,RAM,2018-05-22T19:53:56Z,5,user1,0,user2
+
