@@ -94,7 +94,7 @@ Examples:
 The following keywords are reserved and may not be used as identifiers:
 
     and    import  not  return
-    empty  in      or
+    empty  in      or   package
 
 [IMPL#256](https://github.com/influxdata/platform/issues/256) Add in and empty operator support  
 [IMPL#334](https://github.com/influxdata/platform/issues/334) Add "import" support  
@@ -456,7 +456,7 @@ Flux is lexically scoped using blocks:
 1. The scope of an option identifier is the options block.
 2. The scope of a preassigned (non-option) identifier is in the universe block.
 3. The scope of an identifier denoting a variable or function at the top level (outside any function) is the package block.
-4. The scope of a package name of an imported package is the file block of the file containing the import declaration.
+4. The scope of the name of an imported package is the file block of the file containing the import declaration.
 5. The scope of an identifier denoting a function argument is the function body.
 6. The scope of a variable assigned inside a function is the innermost containing block.
 
@@ -465,8 +465,6 @@ While the identifier of the inner assignment is in scope, it denotes the entity 
 
 Option identifiers have default assignments that are automatically defined in the _options block_.
 Because the _options block_ is the top-level block of a Flux program, options are visible/available to any and all other blocks.
-However option values may only be reassigned or overridden in the explicit block denoting the main (executable) package.
-Assignment of option identifiers in any non-executable package is strictly prohibited.
 
 The package clause is not a assignment; the package name does not appear in any scope.
 Its purpose is to identify the files belonging to the same package and to specify the default package name for import declarations.
@@ -569,12 +567,66 @@ Examples:
     baz = (y=<-) => // function body elided
     foo() |> bar() |> baz() // equivalent to baz(x:bar(y:foo()))
 
+### Program
+
+A Flux program is a sequence of statements defined by
+
+    Program = [PackageStatement] [ImportList] StatementList .
+    ImportList = { ImportStatement } .
+
 ### Statements
 
 A statement controls execution.
 
-    Statement = OptionStatement | VarAssignment | ReturnStatement |
-                ExpressionStatement | BlockStatment .
+    Statement = OptionStatement | VarAssignment |
+                ReturnStatement | ExpressionStatement | BlockStatment .
+
+#### Package statement
+
+    PackageStatement = "package" identifier .
+
+A package statement defines a package block.
+Package names must be valid Flux identifiers.
+The package statement must be the first statement of every Flux source file.
+If a file does not declare a package statement, all identifiers in that file will belong to the special _main_ package.
+
+##### package main
+
+The _main_ package is special for a few reasons:
+
+1. It defines the entrypoint of a Flux program
+2. It cannot be imported
+3. All query specifications produced after evaluating the _main_ package are coerced into producing side effects
+
+#### Import statement
+
+    ImportStatement = "import" [identifier] `"` unicode_char { unicode_char } `"`.
+
+Associated with every package is a package name and an import path.
+The import statement takes a package's import path and brings all of the identifiers defined in that package into the current scope.
+The import statment defines a namespace through which to access the imported identifiers.
+By default the identifer of this namespace is the package name unless otherwise specified.
+For example, given a variable `x` declared in package `foo`, importing `foo` and referencing `x` would look like this:
+
+```
+import "import/path/to/package/foo"
+
+foo.x
+```
+
+Or this:
+
+```
+import bar "import/path/to/package/foo"
+
+bar.x
+```
+
+A package's import path is always absolute.
+Flux does not support relative imports.
+Assigment into the namespace of an imported package is not allowed.
+A package cannot access nor modify the identifiers belonging to the imported packages of its imported packages.
+Every statement contained in an imported package is evaluated.
 
 #### Option statements
 
@@ -650,6 +702,15 @@ Examples:
     1 + 1
     f()
     a
+
+### Side Effects
+
+Side effects can occur in two ways.
+
+1. By reassigning builtin options
+2. By calling a function that produces side effects
+
+A function produces side effects when it is explicitly declared to have side effects or when it calls a function that itself produces side effects.
 
 ### Built-in functions
 
@@ -926,12 +987,13 @@ Examples:
 The execution of a query is separate and distinct from the execution of Flux the language.
 The input into the query engine is a query specification.
 
-The output of an Flux program is a query specification, which then may be passed into the query execution engine.
+The output of a Flux program is a query specification, which then may be passed into the query execution engine.
 
 ### Query specification
 
 A query specification consists of a set of operations and a set of edges between those operations.
 The operations and edges must form a directed acyclic graph (DAG).
+A query specification produces side effects when at least one of its operations produces side effects.
 
 #### Encoding
 
@@ -1047,6 +1109,8 @@ Most operations output one table for every table they receive from the input str
 
 Operations that modify the group keys or values will need to regroup the tables in the output stream.
 
+An operation produces side effects when it is constructed from a function that produces side effects.
+
 ### Built-in operations
 
 #### From
@@ -1095,6 +1159,8 @@ Yield has the following properties:
 
 Example:
 `from(bucket: "telegraf/autogen") |> range(start: -5m) |> yield(name:"1")`
+
+**Note:** The `yield` function produces side effects.
 
 #### Aggregate operations
 
@@ -2140,6 +2206,8 @@ _tag1=a hum=55.3,temp=100.1 0005
 _tag1=a hum=55.4,temp=99.3 0006
 _tag1=a hum=55.5,temp=99.9 0007
 ```
+
+**Note:** The `to` function produces side effects.
 
 #### Type conversion operations
 
