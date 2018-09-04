@@ -105,13 +105,16 @@ func WithTicker(ctx context.Context, d time.Duration) SchedulerOption {
 		ticker := time.NewTicker(d)
 
 		go func() {
-			<-ctx.Done()
-			ticker.Stop()
+			for {
+				select {
+				case time := <-ticker.C:
+					go s.Tick(time.Unix())
+				case <-ctx.Done():
+					ticker.Stop()
+					return
+				}
+			}
 		}()
-
-		for time := range ticker.C {
-			go s.Tick(time.Unix())
-		}
 	}
 }
 
