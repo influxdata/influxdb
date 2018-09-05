@@ -107,6 +107,6 @@ func DecodeStringArrayBlock(block []byte, a *tsdb.StringArray) error {
 	if err != nil {
 		return err
 	}
-	a.Values, err = StringBatchDecodeAll(vb, a.Values)
+	a.Values, err = StringArrayDecodeAll(vb, a.Values)
 	return err
 }

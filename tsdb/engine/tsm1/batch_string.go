@@ -9,12 +9,12 @@ import (
 )
 
 var (
-	errStringBatchDecodeInvalidStringLength = fmt.Errorf("StringBatchDecodeAll: invalid encoded string length")
-	errStringBatchDecodeLengthOverflow      = fmt.Errorf("StringBatchDecodeAll: length overflow")
-	errStringBatchDecodeShortBuffer         = fmt.Errorf("StringBatchDecodeAll: short buffer")
+	errStringBatchDecodeInvalidStringLength = fmt.Errorf("StringArrayDecodeAll: invalid encoded string length")
+	errStringBatchDecodeLengthOverflow      = fmt.Errorf("StringArrayDecodeAll: length overflow")
+	errStringBatchDecodeShortBuffer         = fmt.Errorf("StringArrayDecodeAll: short buffer")
 )
 
-func StringBatchDecodeAll(b []byte, dst []string) ([]string, error) {
+func StringArrayDecodeAll(b []byte, dst []string) ([]string, error) {
 	// First byte stores the encoding type, only have snappy format
 	// currently so ignore for now.
 	if len(b) > 0 {
