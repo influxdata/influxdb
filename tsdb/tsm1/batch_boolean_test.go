@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/platform/tsdb/tsm1"
 )
 
-func Test_BooleanBatchDecodeAll_Single(t *testing.T) {
+func Test_BooleanArrayDecodeAll_Single(t *testing.T) {
 	enc := tsm1.NewBooleanEncoder(1)
 	exp := true
 	enc.Write(exp)
@@ -18,7 +18,7 @@ func Test_BooleanBatchDecodeAll_Single(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	got, _ := tsm1.BooleanBatchDecodeAll(b, nil)
+	got, _ := tsm1.BooleanArrayDecodeAll(b, nil)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 value")
 	}
@@ -27,7 +27,7 @@ func Test_BooleanBatchDecodeAll_Single(t *testing.T) {
 	}
 }
 
-func Test_BooleanBatchDecodeAll_Multi_Compressed(t *testing.T) {
+func Test_BooleanArrayDecodeAll_Multi_Compressed(t *testing.T) {
 	cases := []struct {
 		n int
 		p float64 // probability of a true value
@@ -53,7 +53,7 @@ func Test_BooleanBatchDecodeAll_Multi_Compressed(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			got, err := tsm1.BooleanBatchDecodeAll(b, nil)
+			got, err := tsm1.BooleanArrayDecodeAll(b, nil)
 			if err != nil {
 				t.Fatalf("unexpected error %q", err.Error())
 			}
@@ -78,7 +78,7 @@ func Test_BooleanBatchDecoder_Corrupt(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			dst, _ := tsm1.BooleanBatchDecodeAll([]byte(c.d), nil)
+			dst, _ := tsm1.BooleanArrayDecodeAll([]byte(c.d), nil)
 			if len(dst) != 0 {
 				t.Fatalf("unexpected result -got/+want\n%s", cmp.Diff(dst, nil))
 			}
@@ -86,7 +86,7 @@ func Test_BooleanBatchDecoder_Corrupt(t *testing.T) {
 	}
 }
 
-func BenchmarkBooleanBatchDecodeAll(b *testing.B) {
+func BenchmarkBooleanArrayDecodeAll(b *testing.B) {
 	benchmarks := []struct {
 		n int
 	}{
@@ -112,7 +112,7 @@ func BenchmarkBooleanBatchDecodeAll(b *testing.B) {
 
 			dst := make([]bool, size)
 			for i := 0; i < b.N; i++ {
-				res, _ := tsm1.BooleanBatchDecodeAll(bytes, dst)
+				res, _ := tsm1.BooleanArrayDecodeAll(bytes, dst)
 				if len(res) != size {
 					b.Fatalf("expected to read %d booleans, but read %d", size, len(res))
 				}
