@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"path"
 
@@ -294,7 +293,7 @@ func (s *UserService) FindUser(ctx context.Context, filter platform.UserFilter) 
 	}
 
 	if n == 0 {
-		return nil, errors.New("found no matching user")
+		return nil, ErrNotFound
 	}
 
 	return users[0], nil

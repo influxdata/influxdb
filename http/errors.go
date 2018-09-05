@@ -16,6 +16,9 @@ const (
 	errorHeaderMaxLength = 256
 )
 
+// ErrNotFound is returned when a request for a resource returns no results.
+var ErrNotFound = errors.New("no results found")
+
 // AuthzError is returned for authorization errors. When this error type is returned,
 // the user can be presented with a generic "authorization failed" error, but
 // the system can log the underlying AuthzError() so that operators have insight

@@ -78,8 +78,12 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	var org *platform.Organization
 	if id, err := platform.IDFromString(req.Org); err == nil {
 		// Decoded ID successfully. Make sure it's a real org.
-		if o, err := h.OrganizationService.FindOrganizationByID(ctx, *id); err == nil {
+		o, err := h.OrganizationService.FindOrganizationByID(ctx, *id)
+		if err == nil {
 			org = o
+		} else if err != ErrNotFound {
+			EncodeError(ctx, err, w)
+			return
 		}
 	}
 	if org == nil {
@@ -96,11 +100,15 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	var bucket *platform.Bucket
 	if id, err := platform.IDFromString(req.Bucket); err == nil {
 		// Decoded ID successfully. Make sure it's a real bucket.
-		if b, err := h.BucketService.FindBucket(ctx, platform.BucketFilter{
+		b, err := h.BucketService.FindBucket(ctx, platform.BucketFilter{
 			OrganizationID: &org.ID,
 			ID:             id,
-		}); err == nil {
+		})
+		if err == nil {
 			bucket = b
+		} else if err != ErrNotFound {
+			EncodeError(ctx, err, w)
+			return
 		}
 	}
 

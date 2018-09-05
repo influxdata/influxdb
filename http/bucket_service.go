@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"path"
 
@@ -310,7 +309,7 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 	}
 
 	if n == 0 {
-		return nil, errors.New("found no matching buckets")
+		return nil, ErrNotFound
 	}
 
 	return bs[0], nil

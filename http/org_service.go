@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"path"
 
@@ -271,8 +270,8 @@ func (s *OrganizationService) FindOrganization(ctx context.Context, filter platf
 		return nil, err
 	}
 
-	if n < 1 {
-		return nil, errors.New("expected at least one organization")
+	if n == 0 {
+		return nil, ErrNotFound
 	}
 
 	return os[0], nil
