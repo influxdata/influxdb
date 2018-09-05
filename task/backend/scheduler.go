@@ -170,11 +170,14 @@ func (s *outerScheduler) Tick(now int64) {
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
 
+	affected := 0
 	for _, ts := range s.taskSchedulers {
 		if nextDue, hasQueue := ts.NextDue(); now >= nextDue || hasQueue {
 			ts.Work()
+			affected++
 		}
 	}
+	s.logger.Info("Ticked", zap.Int64("now", now), zap.Int("tasks_affected", affected))
 }
 
 func (s *outerScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err error) {
