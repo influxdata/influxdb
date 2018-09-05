@@ -10,14 +10,14 @@ import (
 	"github.com/influxdata/platform/internal/testutil"
 )
 
-func TestStringBatchDecodeAll_NoValues(t *testing.T) {
+func TestStringArrayDecodeAll_NoValues(t *testing.T) {
 	enc := NewStringEncoder(1024)
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	got, err := StringBatchDecodeAll(b, nil)
+	got, err := StringArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating string decoder: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestStringBatchDecodeAll_NoValues(t *testing.T) {
 	}
 }
 
-func TestStringBatchDecodeAll_Single(t *testing.T) {
+func TestStringArrayDecodeAll_Single(t *testing.T) {
 	enc := NewStringEncoder(1024)
 	v1 := "v1"
 	enc.Write(v1)
@@ -37,7 +37,7 @@ func TestStringBatchDecodeAll_Single(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	got, err := StringBatchDecodeAll(b, nil)
+	got, err := StringArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating string decoder: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestStringBatchDecodeAll_Single(t *testing.T) {
 	}
 }
 
-func TestStringBatchDecodeAll_Multi_Compressed(t *testing.T) {
+func TestStringArrayDecodeAll_Multi_Compressed(t *testing.T) {
 	enc := NewStringEncoder(1024)
 
 	exp := make([]string, 10)
@@ -70,7 +70,7 @@ func TestStringBatchDecodeAll_Multi_Compressed(t *testing.T) {
 		t.Fatalf("unexpected length: got %v, exp %v", len(b), exp)
 	}
 
-	got, err := StringBatchDecodeAll(b, nil)
+	got, err := StringArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating string decoder: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestStringBatchDecodeAll_Multi_Compressed(t *testing.T) {
 	}
 }
 
-func TestStringBatchDecodeAll_Quick(t *testing.T) {
+func TestStringArrayDecodeAll_Quick(t *testing.T) {
 	quick.Check(func(values []string) bool {
 		exp := values
 		if values == nil {
@@ -99,7 +99,7 @@ func TestStringBatchDecodeAll_Quick(t *testing.T) {
 		}
 
 		// Read values out of decoder.
-		got, err := StringBatchDecodeAll(buf, nil)
+		got, err := StringArrayDecodeAll(buf, nil)
 		if err != nil {
 			t.Fatalf("unexpected error creating string decoder: %v", err)
 		}
@@ -112,8 +112,8 @@ func TestStringBatchDecodeAll_Quick(t *testing.T) {
 	}, nil)
 }
 
-func TestStringBatchDecodeAll_Empty(t *testing.T) {
-	got, err := StringBatchDecodeAll([]byte{}, nil)
+func TestStringArrayDecodeAll_Empty(t *testing.T) {
+	got, err := StringArrayDecodeAll([]byte{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating string decoder: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestStringBatchDecodeAll_Empty(t *testing.T) {
 	}
 }
 
-func TestStringBatchDecodeAll_CorruptBytes(t *testing.T) {
+func TestStringArrayDecodeAll_CorruptBytes(t *testing.T) {
 	cases := []string{
 		"\x10\x03\b\x03Hi", // Higher length than actual data
 		"\x10\x1dp\x9c\x90\x90\x90\x90\x90\x90\x90\x90\x90length overflow----",
@@ -136,7 +136,7 @@ func TestStringBatchDecodeAll_CorruptBytes(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%q", c), func(t *testing.T) {
-			got, err := StringBatchDecodeAll([]byte(c), nil)
+			got, err := StringArrayDecodeAll([]byte(c), nil)
 			if err == nil {
 				t.Fatal("exp an err, got nil")
 			}
@@ -149,7 +149,7 @@ func TestStringBatchDecodeAll_CorruptBytes(t *testing.T) {
 	}
 }
 
-func BenchmarkStringBatchDecodeAll(b *testing.B) {
+func BenchmarkStringArrayDecodeAll(b *testing.B) {
 	benchmarks := []struct {
 		n int
 		w int
@@ -178,7 +178,7 @@ func BenchmarkStringBatchDecodeAll(b *testing.B) {
 
 			dst := make([]string, bm.n)
 			for i := 0; i < b.N; i++ {
-				got, err := StringBatchDecodeAll(bytes, dst)
+				got, err := StringArrayDecodeAll(bytes, dst)
 				if err != nil {
 					b.Fatalf("unexpected length -got/+exp\n%s", cmp.Diff(len(dst), bm.n))
 				}
