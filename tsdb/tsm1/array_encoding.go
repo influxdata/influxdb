@@ -86,7 +86,7 @@ func DecodeUnsignedArrayBlock(block []byte, a *tsdb.UnsignedArray) error {
 	if err != nil {
 		return err
 	}
-	a.Values, err = UnsignedBatchDecodeAll(vb, a.Values)
+	a.Values, err = UnsignedArrayDecodeAll(vb, a.Values)
 	return err
 }
 
