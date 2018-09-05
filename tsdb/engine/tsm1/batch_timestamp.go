@@ -18,7 +18,7 @@ var (
 	}
 )
 
-func TimeBatchDecodeAll(b []byte, dst []int64) ([]int64, error) {
+func TimeArrayDecodeAll(b []byte, dst []int64) ([]int64, error) {
 	if len(b) == 0 {
 		return []int64{}, nil
 	}
@@ -34,7 +34,7 @@ func TimeBatchDecodeAll(b []byte, dst []int64) ([]int64, error) {
 func timeBatchDecodeAllUncompressed(b []byte, dst []int64) ([]int64, error) {
 	b = b[1:]
 	if len(b)&0x7 != 0 {
-		return []int64{}, fmt.Errorf("TimeBatchDecodeAll: expected multiple of 8 bytes")
+		return []int64{}, fmt.Errorf("TimeArrayDecodeAll: expected multiple of 8 bytes")
 	}
 
 	count := len(b) / 8
@@ -55,7 +55,7 @@ func timeBatchDecodeAllUncompressed(b []byte, dst []int64) ([]int64, error) {
 
 func timeBatchDecodeAllSimple(b []byte, dst []int64) ([]int64, error) {
 	if len(b) < 9 {
-		return []int64{}, fmt.Errorf("TimeBatchDecodeAll: not enough data to decode packed timestamps")
+		return []int64{}, fmt.Errorf("TimeArrayDecodeAll: not enough data to decode packed timestamps")
 	}
 
 	div := uint64(math.Pow10(int(b[0] & 0xF))) // multiplier
@@ -82,7 +82,7 @@ func timeBatchDecodeAllSimple(b []byte, dst []int64) ([]int64, error) {
 		return []int64{}, err
 	}
 	if n != count-1 {
-		return []int64{}, fmt.Errorf("TimeBatchDecodeAll: unexpected number of values decoded; got=%d, exp=%d", n, count-1)
+		return []int64{}, fmt.Errorf("TimeArrayDecodeAll: unexpected number of values decoded; got=%d, exp=%d", n, count-1)
 	}
 
 	// Compute the prefix sum and scale the deltas back up
@@ -105,7 +105,7 @@ func timeBatchDecodeAllSimple(b []byte, dst []int64) ([]int64, error) {
 
 func timeBatchDecodeAllRLE(b []byte, dst []int64) ([]int64, error) {
 	if len(b) < 9 {
-		return []int64{}, fmt.Errorf("TimeBatchDecodeAll: not enough data to decode RLE starting value")
+		return []int64{}, fmt.Errorf("TimeArrayDecodeAll: not enough data to decode RLE starting value")
 	}
 
 	var k, n int
@@ -121,7 +121,7 @@ func timeBatchDecodeAllRLE(b []byte, dst []int64) ([]int64, error) {
 	// Next 1-10 bytes is our (scaled down by factor of 10) run length delta
 	delta, n := binary.Uvarint(b[k:])
 	if n <= 0 {
-		return []int64{}, fmt.Errorf("TimeBatchDecodeAll: invalid run length in decodeRLE")
+		return []int64{}, fmt.Errorf("TimeArrayDecodeAll: invalid run length in decodeRLE")
 	}
 	k += n
 
