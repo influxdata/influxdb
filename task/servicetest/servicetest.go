@@ -1,9 +1,9 @@
-// Package adaptertest provides tests to ensure that implementations of
+// Package servicetest provides tests to ensure that implementations of
 // platform/task/backend.Store and platform/task/backend.LogReader meet the requirements of platform.TaskService.
 //
 // Consumers of this package must import query/builtin.
 // This package does not import it directly, to avoid requiring it too early.
-package adaptertest
+package servicetest
 
 import (
 	"bytes"
@@ -35,13 +35,17 @@ func init() {
 // If creating the System fails, the implementer should call t.Fatal.
 type BackendComponentFactory func(t *testing.T) (*System, context.CancelFunc)
 
-// TestTaskService should be called by consumers of the adaptertest package.
+// TestTaskService should be called by consumers of the servicetest package.
 // This will call fn once to create a single platform.TaskService
 // used across all subtests in TestTaskService.
 func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 	sys, cancel := fn(t)
 	defer cancel()
-	sys.ts = task.PlatformAdapter(sys.S, sys.LR)
+	if sys.TaskServiceFunc == nil {
+		sys.ts = task.PlatformAdapter(sys.S, sys.LR)
+	} else {
+		sys.ts = sys.TaskServiceFunc()
+	}
 
 	t.Run("TaskService", func(t *testing.T) {
 		// We're running the subtests in parallel, but if we don't use this wrapper,
@@ -77,6 +81,10 @@ type System struct {
 	// Set this context, to be used in tests, so that any spawned goroutines watching Ctx.Done()
 	// will clean up after themselves.
 	Ctx context.Context
+
+	// Override for how to create a TaskService.
+	// Most callers should leave this nil, in which case the tests will call task.PlatformAdapter.
+	TaskServiceFunc func() platform.TaskService
 
 	ts platform.TaskService
 }

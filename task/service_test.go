@@ -8,12 +8,12 @@ import (
 
 	bolt "github.com/coreos/bbolt"
 	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/task/adaptertest"
 	"github.com/influxdata/platform/task/backend"
 	boltstore "github.com/influxdata/platform/task/backend/bolt"
+	"github.com/influxdata/platform/task/servicetest"
 )
 
-func inMemFactory(t *testing.T) (*adaptertest.System, context.CancelFunc) {
+func inMemFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 	st := backend.NewInMemStore()
 	lrw := backend.NewInMemRunReaderWriter()
 
@@ -23,10 +23,10 @@ func inMemFactory(t *testing.T) (*adaptertest.System, context.CancelFunc) {
 		st.Close()
 	}()
 
-	return &adaptertest.System{S: st, LR: lrw, LW: lrw, Ctx: ctx}, cancel
+	return &servicetest.System{S: st, LR: lrw, LW: lrw, Ctx: ctx}, cancel
 }
 
-func boltFactory(t *testing.T) (*adaptertest.System, context.CancelFunc) {
+func boltFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 	lrw := backend.NewInMemRunReaderWriter()
 
 	f, err := ioutil.TempFile("", "platform_adapter_test_bolt")
@@ -53,17 +53,17 @@ func boltFactory(t *testing.T) (*adaptertest.System, context.CancelFunc) {
 		}
 	}()
 
-	return &adaptertest.System{S: st, LR: lrw, LW: lrw, Ctx: ctx}, cancel
+	return &servicetest.System{S: st, LR: lrw, LW: lrw, Ctx: ctx}, cancel
 }
 
-func TestPlatformAdapter(t *testing.T) {
+func TestTaskService(t *testing.T) {
 	t.Run("in-mem", func(t *testing.T) {
 		t.Parallel()
-		adaptertest.TestTaskService(t, inMemFactory)
+		servicetest.TestTaskService(t, inMemFactory)
 	})
 
 	t.Run("bolt", func(t *testing.T) {
 		t.Parallel()
-		adaptertest.TestTaskService(t, boltFactory)
+		servicetest.TestTaskService(t, boltFactory)
 	})
 }
