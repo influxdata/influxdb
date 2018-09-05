@@ -91,7 +91,10 @@ func (r QueryRequest) Validate() error {
 }
 
 // ProxyRequest returns a request to proxy from the query.
-func (r QueryRequest) ProxyRequest() *query.ProxyRequest {
+func (r QueryRequest) ProxyRequest() (*query.ProxyRequest, error) {
+	if err := r.Validate(); err != nil {
+		return nil, err
+	}
 	// Query is preferred over spec
 	var compiler query.Compiler
 	if r.Query != "" {
@@ -125,7 +128,7 @@ func (r QueryRequest) ProxyRequest() *query.ProxyRequest {
 				Annotations: r.Dialect.Annotations,
 			},
 		},
-	}
+	}, nil
 }
 
 func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.OrganizationService) (*QueryRequest, error) {
@@ -149,5 +152,5 @@ func decodeProxyQueryRequest(ctx context.Context, r *http.Request, svc platform.
 	if err != nil {
 		return nil, err
 	}
-	return req.ProxyRequest(), nil
+	return req.ProxyRequest()
 }
