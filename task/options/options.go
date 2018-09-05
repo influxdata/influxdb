@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/semantic"
 	cron "gopkg.in/robfig/cron.v2"
 )
 
@@ -76,6 +77,10 @@ func FromScript(script string) (Options, error) {
 	if !ok {
 		return opt, errors.New("missing name in task options")
 	}
+
+	if err := checkKind(nameVal.Type().Kind(), semantic.String); err != nil {
+		return opt, err
+	}
 	opt.Name = nameVal.Str()
 
 	crVal, cronOK := optObject.Get("cron")
@@ -88,21 +93,37 @@ func FromScript(script string) (Options, error) {
 	}
 
 	if cronOK {
+		if err := checkKind(crVal.Type().Kind(), semantic.String); err != nil {
+			return opt, err
+		}
 		opt.Cron = crVal.Str()
 	}
+
 	if everyOK {
+		if err := checkKind(everyVal.Type().Kind(), semantic.Duration); err != nil {
+			return opt, err
+		}
 		opt.Every = everyVal.Duration().Duration()
 	}
 
 	if delayVal, ok := optObject.Get("delay"); ok {
+		if err := checkKind(delayVal.Type().Kind(), semantic.Duration); err != nil {
+			return opt, err
+		}
 		opt.Delay = delayVal.Duration().Duration()
 	}
 
 	if concurrencyVal, ok := optObject.Get("concurrency"); ok {
+		if err := checkKind(concurrencyVal.Type().Kind(), semantic.Int); err != nil {
+			return opt, err
+		}
 		opt.Concurrency = concurrencyVal.Int()
 	}
 
 	if retryVal, ok := optObject.Get("retry"); ok {
+		if err := checkKind(retryVal.Type().Kind(), semantic.Int); err != nil {
+			return opt, err
+		}
 		opt.Retry = retryVal.Int()
 	}
 
@@ -181,4 +202,12 @@ func (o *Options) EffectiveCronString() string {
 		return "@every " + o.Every.String()
 	}
 	return ""
+}
+
+// checkKind returns a clean error of got and expected dont match.
+func checkKind(got, exp semantic.Kind) error {
+	if got != exp {
+		return fmt.Errorf("unexpected kind: got %q expected %q", got, exp)
+	}
+	return nil
 }

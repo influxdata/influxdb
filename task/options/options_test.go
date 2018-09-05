@@ -55,6 +55,7 @@ func TestFromScript(t *testing.T) {
 		{script: scriptGenerator(options.Options{Name: "name", Every: time.Hour, Cron: "* * * * *"}, ""), shouldErr: true},
 		{script: scriptGenerator(options.Options{Name: "name", Concurrency: 1000, Every: time.Hour}, ""), shouldErr: true},
 		{script: "option task = {\n  name: \"name\",\n  concurrency: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
+		{script: "option task = {\n  name: \"name\",\n  concurrency: 1,\n  every: 1,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
 		{script: scriptGenerator(options.Options{Name: "name", Retry: 20, Every: time.Hour}, ""), shouldErr: true},
 		{script: "option task = {\n  name: \"name\",\n  retry: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
 		{script: scriptGenerator(options.Options{Name: "name"}, ""), shouldErr: true},
