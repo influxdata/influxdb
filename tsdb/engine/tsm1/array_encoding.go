@@ -44,7 +44,7 @@ func DecodeFloatArrayBlock(block []byte, a *tsdb.FloatArray) error {
 	if err != nil {
 		return err
 	}
-	a.Values, err = FloatBatchDecodeAll(vb, a.Values)
+	a.Values, err = FloatArrayDecodeAll(vb, a.Values)
 	return err
 }
 

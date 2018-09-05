@@ -15,7 +15,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
-func TestFloatBatchDecodeAll_Simple(t *testing.T) {
+func TestFloatArrayDecodeAll_Simple(t *testing.T) {
 	// Example from the paper
 	s := tsm1.NewFloatEncoder()
 
@@ -47,7 +47,7 @@ func TestFloatBatchDecodeAll_Simple(t *testing.T) {
 	}
 
 	buf := make([]float64, 8)
-	got, err := tsm1.FloatBatchDecodeAll(b, buf)
+	got, err := tsm1.FloatArrayDecodeAll(b, buf)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -245,7 +245,7 @@ func TestBatchBitReader_Quick(t *testing.T) {
 	}
 }
 
-func BenchmarkFloatBatchDecodeAll(b *testing.B) {
+func BenchmarkFloatArrayDecodeAll(b *testing.B) {
 	benchmarks := []int{
 		1,
 		55,
@@ -270,7 +270,7 @@ func BenchmarkFloatBatchDecodeAll(b *testing.B) {
 			dst := make([]float64, size)
 			for i := 0; i < b.N; i++ {
 
-				got, err := tsm1.FloatBatchDecodeAll(bytes, dst)
+				got, err := tsm1.FloatArrayDecodeAll(bytes, dst)
 				if err != nil {
 					b.Fatalf("unexpected length -got/+exp\n%s", cmp.Diff(len(dst), size))
 				}
