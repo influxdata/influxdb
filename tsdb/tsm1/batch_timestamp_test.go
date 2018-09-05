@@ -10,14 +10,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestTimeBatchDecodeAll_NoValues(t *testing.T) {
+func TestTimeArrayDecodeAll_NoValues(t *testing.T) {
 	enc := NewTimeEncoder(0)
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -28,7 +28,7 @@ func TestTimeBatchDecodeAll_NoValues(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_One(t *testing.T) {
+func TestTimeArrayDecodeAll_One(t *testing.T) {
 	enc := NewTimeEncoder(1)
 	exp := []int64{0}
 	for _, v := range exp {
@@ -43,7 +43,7 @@ func TestTimeBatchDecodeAll_One(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -53,7 +53,7 @@ func TestTimeBatchDecodeAll_One(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_Two(t *testing.T) {
+func TestTimeArrayDecodeAll_Two(t *testing.T) {
 	enc := NewTimeEncoder(2)
 	exp := []int64{0, 1}
 	for _, v := range exp {
@@ -69,7 +69,7 @@ func TestTimeBatchDecodeAll_Two(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -79,7 +79,7 @@ func TestTimeBatchDecodeAll_Two(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_Three(t *testing.T) {
+func TestTimeArrayDecodeAll_Three(t *testing.T) {
 	enc := NewTimeEncoder(3)
 	exp := []int64{0, 1, 3}
 	for _, v := range exp {
@@ -95,7 +95,7 @@ func TestTimeBatchDecodeAll_Three(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -105,7 +105,7 @@ func TestTimeBatchDecodeAll_Three(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_Large_Range(t *testing.T) {
+func TestTimeArrayDecodeAll_Large_Range(t *testing.T) {
 	enc := NewTimeEncoder(2)
 	exp := []int64{1442369134000000000, 1442369135000000000}
 	for _, v := range exp {
@@ -120,7 +120,7 @@ func TestTimeBatchDecodeAll_Large_Range(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -130,7 +130,7 @@ func TestTimeBatchDecodeAll_Large_Range(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_Uncompressed(t *testing.T) {
+func TestTimeArrayDecodeAll_Uncompressed(t *testing.T) {
 	enc := NewTimeEncoder(3)
 	exp := []int64{
 		time.Unix(0, 0).UnixNano(),
@@ -156,7 +156,7 @@ func TestTimeBatchDecodeAll_Uncompressed(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -166,7 +166,7 @@ func TestTimeBatchDecodeAll_Uncompressed(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_RLE(t *testing.T) {
+func TestTimeArrayDecodeAll_RLE(t *testing.T) {
 	enc := NewTimeEncoder(512)
 	var exp []int64
 	for i := 0; i < 500; i++ {
@@ -190,7 +190,7 @@ func TestTimeBatchDecodeAll_RLE(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -200,7 +200,7 @@ func TestTimeBatchDecodeAll_RLE(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_Reverse(t *testing.T) {
+func TestTimeArrayDecodeAll_Reverse(t *testing.T) {
 	enc := NewTimeEncoder(3)
 	exp := []int64{
 		int64(3),
@@ -221,7 +221,7 @@ func TestTimeBatchDecodeAll_Reverse(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -231,7 +231,7 @@ func TestTimeBatchDecodeAll_Reverse(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_Negative(t *testing.T) {
+func TestTimeArrayDecodeAll_Negative(t *testing.T) {
 	enc := NewTimeEncoder(3)
 	exp := []int64{
 		-2352281900722994752, 1438442655375607923, -4110452567888190110,
@@ -257,7 +257,7 @@ func TestTimeBatchDecodeAll_Negative(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -267,7 +267,7 @@ func TestTimeBatchDecodeAll_Negative(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_220SecondDelta(t *testing.T) {
+func TestTimeArrayDecodeAll_220SecondDelta(t *testing.T) {
 	enc := NewTimeEncoder(256)
 	var exp []int64
 	now := time.Now()
@@ -293,7 +293,7 @@ func TestTimeBatchDecodeAll_220SecondDelta(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -303,7 +303,7 @@ func TestTimeBatchDecodeAll_220SecondDelta(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_Quick(t *testing.T) {
+func TestTimeArrayDecodeAll_Quick(t *testing.T) {
 	quick.Check(func(values []int64) bool {
 		// Write values to encoder.
 		enc := NewTimeEncoder(1024)
@@ -319,7 +319,7 @@ func TestTimeBatchDecodeAll_Quick(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got, err := TimeBatchDecodeAll(buf, nil)
+		got, err := TimeArrayDecodeAll(buf, nil)
 		if err != nil {
 			t.Fatalf("unexpected decode error %q", err)
 		}
@@ -332,7 +332,7 @@ func TestTimeBatchDecodeAll_Quick(t *testing.T) {
 	}, nil)
 }
 
-func TestTimeBatchDecodeAll_RLESeconds(t *testing.T) {
+func TestTimeArrayDecodeAll_RLESeconds(t *testing.T) {
 	enc := NewTimeEncoder(6)
 	exp := make([]int64, 6)
 
@@ -356,7 +356,7 @@ func TestTimeBatchDecodeAll_RLESeconds(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	got, err := TimeBatchDecodeAll(b, nil)
+	got, err := TimeArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -366,7 +366,7 @@ func TestTimeBatchDecodeAll_RLESeconds(t *testing.T) {
 	}
 }
 
-func TestTimeBatchDecodeAll_Corrupt(t *testing.T) {
+func TestTimeArrayDecodeAll_Corrupt(t *testing.T) {
 	cases := []string{
 		"\x10\x14",         // Packed: not enough data
 		"\x20\x00",         // RLE: not enough data for starting timestamp
@@ -377,7 +377,7 @@ func TestTimeBatchDecodeAll_Corrupt(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%q", c), func(t *testing.T) {
-			got, err := TimeBatchDecodeAll([]byte(c), nil)
+			got, err := TimeArrayDecodeAll([]byte(c), nil)
 			if err == nil {
 				t.Fatal("exp an err, got nil")
 			}
@@ -390,7 +390,7 @@ func TestTimeBatchDecodeAll_Corrupt(t *testing.T) {
 	}
 }
 
-func BenchmarkTimeBatchDecodeAllUncompressed(b *testing.B) {
+func BenchmarkTimeArrayDecodeAllUncompressed(b *testing.B) {
 	benchmarks := []int{
 		5,
 		55,
@@ -424,13 +424,13 @@ func BenchmarkTimeBatchDecodeAllUncompressed(b *testing.B) {
 
 			dst := make([]int64, size)
 			for i := 0; i < b.N; i++ {
-				dst, _ = TimeBatchDecodeAll(bytes, dst)
+				dst, _ = TimeArrayDecodeAll(bytes, dst)
 			}
 		})
 	}
 }
 
-func BenchmarkTimeBatchDecodeAllPackedSimple(b *testing.B) {
+func BenchmarkTimeArrayDecodeAllPackedSimple(b *testing.B) {
 	benchmarks := []int{
 		5,
 		55,
@@ -453,13 +453,13 @@ func BenchmarkTimeBatchDecodeAllPackedSimple(b *testing.B) {
 
 			dst := make([]int64, size)
 			for i := 0; i < b.N; i++ {
-				dst, _ = TimeBatchDecodeAll(bytes, dst)
+				dst, _ = TimeArrayDecodeAll(bytes, dst)
 			}
 		})
 	}
 }
 
-func BenchmarkTimeBatchDecodeAllRLE(b *testing.B) {
+func BenchmarkTimeArrayDecodeAllRLE(b *testing.B) {
 	benchmarks := []struct {
 		n     int
 		delta int64
@@ -484,7 +484,7 @@ func BenchmarkTimeBatchDecodeAllRLE(b *testing.B) {
 
 			dst := make([]int64, bm.n)
 			for i := 0; i < b.N; i++ {
-				dst, _ = TimeBatchDecodeAll(bytes, dst)
+				dst, _ = TimeArrayDecodeAll(bytes, dst)
 			}
 		})
 	}

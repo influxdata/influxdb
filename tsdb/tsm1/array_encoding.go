@@ -19,7 +19,7 @@ func DecodeBooleanArrayBlock(block []byte, a *tsdb.BooleanArray) error {
 		return err
 	}
 
-	a.Timestamps, err = TimeBatchDecodeAll(tb, a.Timestamps)
+	a.Timestamps, err = TimeArrayDecodeAll(tb, a.Timestamps)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func DecodeFloatArrayBlock(block []byte, a *tsdb.FloatArray) error {
 		return err
 	}
 
-	a.Timestamps, err = TimeBatchDecodeAll(tb, a.Timestamps)
+	a.Timestamps, err = TimeArrayDecodeAll(tb, a.Timestamps)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func DecodeIntegerArrayBlock(block []byte, a *tsdb.IntegerArray) error {
 		return err
 	}
 
-	a.Timestamps, err = TimeBatchDecodeAll(tb, a.Timestamps)
+	a.Timestamps, err = TimeArrayDecodeAll(tb, a.Timestamps)
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func DecodeUnsignedArrayBlock(block []byte, a *tsdb.UnsignedArray) error {
 		return err
 	}
 
-	a.Timestamps, err = TimeBatchDecodeAll(tb, a.Timestamps)
+	a.Timestamps, err = TimeArrayDecodeAll(tb, a.Timestamps)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func DecodeStringArrayBlock(block []byte, a *tsdb.StringArray) error {
 		return err
 	}
 
-	a.Timestamps, err = TimeBatchDecodeAll(tb, a.Timestamps)
+	a.Timestamps, err = TimeArrayDecodeAll(tb, a.Timestamps)
 	if err != nil {
 		return err
 	}
