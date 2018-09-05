@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestIntegerBatchDecodeAll_NegativeUncompressed(t *testing.T) {
+func TestIntegerArrayDecodeAll_NegativeUncompressed(t *testing.T) {
 	exp := []int64{
 		-2352281900722994752, 1438442655375607923, -4110452567888190110,
 		-1221292455668011702, -1941700286034261841, -2836753127140407751,
@@ -35,7 +35,7 @@ func TestIntegerBatchDecodeAll_NegativeUncompressed(t *testing.T) {
 		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
-	got, err := IntegerBatchDecodeAll(b, nil)
+	got, err := IntegerArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -45,7 +45,7 @@ func TestIntegerBatchDecodeAll_NegativeUncompressed(t *testing.T) {
 	}
 }
 
-func TestIntegerBatchDecodeAll_AllNegative(t *testing.T) {
+func TestIntegerArrayDecodeAll_AllNegative(t *testing.T) {
 	enc := NewIntegerEncoder(3)
 	exp := []int64{
 		-10, -5, -1,
@@ -64,7 +64,7 @@ func TestIntegerBatchDecodeAll_AllNegative(t *testing.T) {
 		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
-	got, err := IntegerBatchDecodeAll(b, nil)
+	got, err := IntegerArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -74,7 +74,7 @@ func TestIntegerBatchDecodeAll_AllNegative(t *testing.T) {
 	}
 }
 
-func TestIntegerBatchDecodeAll_CounterPacked(t *testing.T) {
+func TestIntegerArrayDecodeAll_CounterPacked(t *testing.T) {
 	enc := NewIntegerEncoder(16)
 	exp := []int64{
 		1e15, 1e15 + 1, 1e15 + 2, 1e15 + 3, 1e15 + 4, 1e15 + 6,
@@ -99,7 +99,7 @@ func TestIntegerBatchDecodeAll_CounterPacked(t *testing.T) {
 		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
 	}
 
-	got, err := IntegerBatchDecodeAll(b, nil)
+	got, err := IntegerArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -109,7 +109,7 @@ func TestIntegerBatchDecodeAll_CounterPacked(t *testing.T) {
 	}
 }
 
-func TestIntegerBatchDecodeAll_CounterRLE(t *testing.T) {
+func TestIntegerArrayDecodeAll_CounterRLE(t *testing.T) {
 	enc := NewIntegerEncoder(16)
 	exp := []int64{
 		1e15, 1e15 + 1, 1e15 + 2, 1e15 + 3, 1e15 + 4, 1e15 + 5,
@@ -134,7 +134,7 @@ func TestIntegerBatchDecodeAll_CounterRLE(t *testing.T) {
 		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
 	}
 
-	got, err := IntegerBatchDecodeAll(b, nil)
+	got, err := IntegerArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -144,7 +144,7 @@ func TestIntegerBatchDecodeAll_CounterRLE(t *testing.T) {
 	}
 }
 
-func TestIntegerBatchDecodeAll_Descending(t *testing.T) {
+func TestIntegerArrayDecodeAll_Descending(t *testing.T) {
 	enc := NewIntegerEncoder(16)
 	exp := []int64{
 		7094, 4472, 1850,
@@ -169,7 +169,7 @@ func TestIntegerBatchDecodeAll_Descending(t *testing.T) {
 		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
 	}
 
-	got, err := IntegerBatchDecodeAll(b, nil)
+	got, err := IntegerArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -179,7 +179,7 @@ func TestIntegerBatchDecodeAll_Descending(t *testing.T) {
 	}
 }
 
-func TestIntegerBatchDecodeAll_Flat(t *testing.T) {
+func TestIntegerArrayDecodeAll_Flat(t *testing.T) {
 	enc := NewIntegerEncoder(16)
 	exp := []int64{
 		1, 1, 1, 1,
@@ -204,7 +204,7 @@ func TestIntegerBatchDecodeAll_Flat(t *testing.T) {
 		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
 	}
 
-	got, err := IntegerBatchDecodeAll(b, nil)
+	got, err := IntegerArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -214,7 +214,7 @@ func TestIntegerBatchDecodeAll_Flat(t *testing.T) {
 	}
 }
 
-func TestIntegerBatchDecodeAll_MinMax(t *testing.T) {
+func TestIntegerArrayDecodeAll_MinMax(t *testing.T) {
 	enc := NewIntegerEncoder(2)
 	exp := []int64{
 		math.MinInt64, math.MaxInt64,
@@ -237,7 +237,7 @@ func TestIntegerBatchDecodeAll_MinMax(t *testing.T) {
 		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
 	}
 
-	got, err := IntegerBatchDecodeAll(b, nil)
+	got, err := IntegerArrayDecodeAll(b, nil)
 	if err != nil {
 		t.Fatalf("unexpected decode error %q", err)
 	}
@@ -247,7 +247,7 @@ func TestIntegerBatchDecodeAll_MinMax(t *testing.T) {
 	}
 }
 
-func TestIntegerBatchDecodeAll_Quick(t *testing.T) {
+func TestIntegerArrayDecodeAll_Quick(t *testing.T) {
 	quick.Check(func(values []int64) bool {
 		exp := values
 		if values == nil {
@@ -267,7 +267,7 @@ func TestIntegerBatchDecodeAll_Quick(t *testing.T) {
 		}
 
 		// Read values out of decoder.
-		got, err := IntegerBatchDecodeAll(buf, nil)
+		got, err := IntegerArrayDecodeAll(buf, nil)
 		if err != nil {
 			t.Fatalf("unexpected decode error %q", err)
 		}
@@ -280,7 +280,7 @@ func TestIntegerBatchDecodeAll_Quick(t *testing.T) {
 	}, nil)
 }
 
-func BenchmarkIntegerBatchDecodeAllUncompressed(b *testing.B) {
+func BenchmarkIntegerArrayDecodeAllUncompressed(b *testing.B) {
 	benchmarks := []int{
 		5,
 		55,
@@ -314,13 +314,13 @@ func BenchmarkIntegerBatchDecodeAllUncompressed(b *testing.B) {
 
 			dst := make([]int64, size)
 			for i := 0; i < b.N; i++ {
-				dst, _ = IntegerBatchDecodeAll(bytes, dst)
+				dst, _ = IntegerArrayDecodeAll(bytes, dst)
 			}
 		})
 	}
 }
 
-func BenchmarkIntegerBatchDecodeAllPackedSimple(b *testing.B) {
+func BenchmarkIntegerArrayDecodeAllPackedSimple(b *testing.B) {
 	benchmarks := []int{
 		5,
 		55,
@@ -343,13 +343,13 @@ func BenchmarkIntegerBatchDecodeAllPackedSimple(b *testing.B) {
 
 			dst := make([]int64, size)
 			for i := 0; i < b.N; i++ {
-				IntegerBatchDecodeAll(bytes, dst)
+				IntegerArrayDecodeAll(bytes, dst)
 			}
 		})
 	}
 }
 
-func BenchmarkIntegerBatchDecodeAllRLE(b *testing.B) {
+func BenchmarkIntegerArrayDecodeAllRLE(b *testing.B) {
 	benchmarks := []struct {
 		n     int
 		delta int64
@@ -377,7 +377,7 @@ func BenchmarkIntegerBatchDecodeAllRLE(b *testing.B) {
 
 			dst := make([]int64, bm.n)
 			for i := 0; i < b.N; i++ {
-				IntegerBatchDecodeAll(bytes, dst)
+				IntegerArrayDecodeAll(bytes, dst)
 			}
 		})
 	}
