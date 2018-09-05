@@ -65,7 +65,7 @@ func DecodeIntegerArrayBlock(block []byte, a *tsdb.IntegerArray) error {
 	if err != nil {
 		return err
 	}
-	a.Values, err = IntegerBatchDecodeAll(vb, a.Values)
+	a.Values, err = IntegerArrayDecodeAll(vb, a.Values)
 	return err
 }
 
