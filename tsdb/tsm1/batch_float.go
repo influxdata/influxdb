@@ -6,7 +6,7 @@ import (
 	"math"
 )
 
-func FloatBatchDecodeAll(b []byte, dst []float64) ([]float64, error) {
+func FloatArrayDecodeAll(b []byte, dst []float64) ([]float64, error) {
 	if len(b) == 0 {
 		return []float64{}, nil
 	}
