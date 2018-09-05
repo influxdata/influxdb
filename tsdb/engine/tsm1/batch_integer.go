@@ -30,7 +30,7 @@ func IntegerArrayDecodeAll(b []byte, dst []int64) ([]int64, error) {
 	return integerBatchDecoderFunc[encoding&3](b, dst)
 }
 
-func UnsignedBatchDecodeAll(b []byte, dst []uint64) ([]uint64, error) {
+func UnsignedArrayDecodeAll(b []byte, dst []uint64) ([]uint64, error) {
 	if len(b) == 0 {
 		return []uint64{}, nil
 	}
