@@ -23,7 +23,7 @@ func DecodeBooleanArrayBlock(block []byte, a *tsdb.BooleanArray) error {
 	if err != nil {
 		return err
 	}
-	a.Values, err = BooleanBatchDecodeAll(vb, a.Values)
+	a.Values, err = BooleanArrayDecodeAll(vb, a.Values)
 	return err
 }
 

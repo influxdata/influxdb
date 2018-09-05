@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func BooleanBatchDecodeAll(b []byte, dst []bool) ([]bool, error) {
+func BooleanArrayDecodeAll(b []byte, dst []bool) ([]bool, error) {
 	if len(b) == 0 {
 		return nil, nil
 	}
