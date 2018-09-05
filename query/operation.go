@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	"github.com/influxdata/platform"
 )
 
 // Operation denotes a single operation in a query.
@@ -71,6 +72,12 @@ type OperationSpec interface {
 	Kind() OperationKind
 }
 
+// BucketAwareOperationSpec specifies an operation that reads or writes buckets
+type BucketAwareOperationSpec interface {
+	OperationSpec
+	BucketsAccessed() (readBuckets, writeBuckets []platform.BucketFilter)
+}
+
 // OperationID is a unique ID within a query for the operation.
 type OperationID string
 
@@ -92,4 +99,8 @@ func RegisterOpSpec(k OperationKind, c NewOperationSpec) {
 
 func NumberOfOperations() int {
 	return len(kindToOp)
+}
+
+func OperationSpecNewFn(k OperationKind) NewOperationSpec {
+	return kindToOp[k]
 }

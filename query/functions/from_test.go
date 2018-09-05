@@ -112,3 +112,29 @@ func TestFromOperation_Marshaling(t *testing.T) {
 	}
 	querytest.OperationMarshalingTestHelper(t, data, op)
 }
+
+func TestFromOpSpec_BucketsAccessed(t *testing.T) {
+	bucketName := "my_bucket"
+	bucketID, _ := platform.IDFromString("deadbeef")
+	tests := []querytest.NewQueryTestCase{
+		{
+			Name:             "From with bucket",
+			Raw:              `from(bucket:"my_bucket")`,
+			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
+			WantWriteBuckets: &[]platform.BucketFilter{},
+		},
+		{
+			Name:             "From with bucketID",
+			Raw:              `from(bucketID:"deadbeef")`,
+			WantReadBuckets:  &[]platform.BucketFilter{{ID: bucketID}},
+			WantWriteBuckets: &[]platform.BucketFilter{},
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			querytest.NewQueryTestHelper(t, tc)
+		})
+	}
+}
