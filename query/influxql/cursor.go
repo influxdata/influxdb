@@ -3,19 +3,19 @@ package influxql
 import (
 	"errors"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/semantic"
 )
 
 // cursor is holds known information about the current stream. It maps the influxql ast information
 // to the attributes on a table.
 type cursor interface {
 	// ID contains the last id that produces this cursor.
-	ID() query.OperationID
+	ID() flux.OperationID
 
 	// Keys returns all of the expressions that this cursor contains.
 	Keys() []influxql.Expr
@@ -29,7 +29,7 @@ type cursor interface {
 // varRefCursor contains a cursor for a single variable. This is usually the raw value
 // coming from the database and points to the default value column property.
 type varRefCursor struct {
-	id  query.OperationID
+	id  flux.OperationID
 	ref *influxql.VarRef
 }
 
@@ -68,8 +68,8 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 	}
 
 	range_ := t.op("range", &functions.RangeOpSpec{
-		Start:    query.Time{Absolute: tr.MinTime()},
-		Stop:     query.Time{Absolute: tr.MaxTime()},
+		Start:    flux.Time{Absolute: tr.MinTime()},
+		Stop:     flux.Time{Absolute: tr.MaxTime()},
 		TimeCol:  execute.DefaultTimeColLabel,
 		StartCol: execute.DefaultStartColLabel,
 		StopCol:  execute.DefaultStopColLabel,
@@ -107,7 +107,7 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 	}, nil
 }
 
-func (c *varRefCursor) ID() query.OperationID {
+func (c *varRefCursor) ID() flux.OperationID {
 	return c.id
 }
 
@@ -131,8 +131,8 @@ func (c *varRefCursor) Value(expr influxql.Expr) (string, bool) {
 // opCursor wraps a cursor with a new id while delegating all calls to the
 // wrapped cursor.
 type opCursor struct {
-	id query.OperationID
+	id flux.OperationID
 	cursor
 }
 
-func (c *opCursor) ID() query.OperationID { return c.id }
+func (c *opCursor) ID() flux.OperationID { return c.id }

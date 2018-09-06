@@ -3,14 +3,14 @@ package source
 import (
 	"fmt"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/http/influxdb"
-	"github.com/influxdata/platform/query"
 )
 
 // NewQueryService creates a bucket service from a source.
-func NewQueryService(s *platform.Source) (query.ProxyQueryService, error) {
+func NewQueryService(s *platform.Source) (flux.ProxyQueryService, error) {
 	switch s.Type {
 	case platform.SelfSourceType:
 		// TODO(fntlnz): this is supposed to call a query service directly locally,

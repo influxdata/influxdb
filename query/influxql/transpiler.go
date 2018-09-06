@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/functions"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/functions"
 )
 
 // Transpiler converts InfluxQL queries into a query spec.
@@ -31,7 +31,7 @@ func NewTranspilerWithConfig(dbrpMappingSvc platform.DBRPMappingService, cfg Con
 	}
 }
 
-func (t *Transpiler) Transpile(ctx context.Context, txt string) (*query.Spec, error) {
+func (t *Transpiler) Transpile(ctx context.Context, txt string) (*flux.Spec, error) {
 	// Parse the text of the query.
 	q, err := influxql.ParseQuery(txt)
 	if err != nil {
@@ -55,14 +55,14 @@ type transpilerState struct {
 	id             int
 	stmt           *influxql.SelectStatement
 	config         Config
-	spec           *query.Spec
+	spec           *flux.Spec
 	nextID         map[string]int
 	dbrpMappingSvc platform.DBRPMappingService
 }
 
 func newTranspilerState(dbrpMappingSvc platform.DBRPMappingService, config *Config) *transpilerState {
 	state := &transpilerState{
-		spec:           &query.Spec{},
+		spec:           &flux.Spec{},
 		nextID:         make(map[string]int),
 		dbrpMappingSvc: dbrpMappingSvc,
 	}
@@ -125,7 +125,7 @@ func (t *transpilerState) mapType(ref *influxql.VarRef) influxql.DataType {
 	return influxql.Tag
 }
 
-func (t *transpilerState) from(m *influxql.Measurement) (query.OperationID, error) {
+func (t *transpilerState) from(m *influxql.Measurement) (flux.OperationID, error) {
 	db, rp := m.Database, m.RetentionPolicy
 	if db == "" {
 		if t.config.DefaultDatabase == "" {
@@ -160,14 +160,14 @@ func (t *transpilerState) from(m *influxql.Measurement) (query.OperationID, erro
 	return t.op("from", spec), nil
 }
 
-func (t *transpilerState) op(name string, spec query.OperationSpec, parents ...query.OperationID) query.OperationID {
-	op := query.Operation{
-		ID:   query.OperationID(fmt.Sprintf("%s%d", name, t.nextID[name])),
+func (t *transpilerState) op(name string, spec flux.OperationSpec, parents ...flux.OperationID) flux.OperationID {
+	op := flux.Operation{
+		ID:   flux.OperationID(fmt.Sprintf("%s%d", name, t.nextID[name])),
 		Spec: spec,
 	}
 	t.spec.Operations = append(t.spec.Operations, &op)
 	for _, pid := range parents {
-		t.spec.Edges = append(t.spec.Edges, query.Edge{
+		t.spec.Edges = append(t.spec.Edges, flux.Edge{
 			Parent: pid,
 			Child:  op.ID,
 		})

@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/semantic/semantictest"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
-	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/influxql"
-	"github.com/influxdata/platform/query/semantic/semantictest"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/text/unicode/norm"
@@ -65,7 +65,7 @@ func main() {
 			return
 		}
 
-		fluxSpec, err := query.Compile(context.Background(), string(fluxText), time.Now().UTC())
+		fluxSpec, err := flux.Compile(context.Background(), string(fluxText), time.Now().UTC())
 		if err != nil {
 			fmt.Printf("error compiling. \n query: \n %s \n err: %s", string(fluxText), err)
 			return
@@ -79,8 +79,8 @@ func main() {
 		}
 		var opts = append(
 			semantictest.CmpOptions,
-			cmp.AllowUnexported(query.Spec{}),
-			cmpopts.IgnoreUnexported(query.Spec{}))
+			cmp.AllowUnexported(flux.Spec{}),
+			cmpopts.IgnoreUnexported(flux.Spec{}))
 
 		difference := cmp.Diff(fluxSpec, influxqlSpec, opts...)
 

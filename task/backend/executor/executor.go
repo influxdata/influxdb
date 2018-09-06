@@ -7,15 +7,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/task/backend"
 	"go.uber.org/zap"
 )
 
 // queryServiceExecutor is an implementation of backend.Executor that depends on a QueryService.
 type queryServiceExecutor struct {
-	svc    query.QueryService
+	svc    flux.QueryService
 	st     backend.Store
 	logger *zap.Logger
 }
@@ -25,7 +25,7 @@ var _ backend.Executor = (*queryServiceExecutor)(nil)
 // NewQueryServiceExecutor returns a new executor based on the given QueryService.
 // In general, you should prefer NewAsyncQueryServiceExecutor, as that code is smaller and simpler,
 // because asynchronous queries are more in line with the Executor interface.
-func NewQueryServiceExecutor(logger *zap.Logger, svc query.QueryService, st backend.Store) backend.Executor {
+func NewQueryServiceExecutor(logger *zap.Logger, svc flux.QueryService, st backend.Store) backend.Executor {
 	return &queryServiceExecutor{logger: logger, svc: svc, st: st}
 }
 
@@ -41,7 +41,7 @@ func (e *queryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRu
 // syncRunPromise implements backend.RunPromise for a synchronous QueryService.
 type syncRunPromise struct {
 	qr     backend.QueuedRun
-	svc    query.QueryService
+	svc    flux.QueryService
 	t      *backend.StoreTask
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -117,15 +117,15 @@ func (p *syncRunPromise) finish(res *runResult, err error) {
 }
 
 func (p *syncRunPromise) doQuery() {
-	spec, err := query.Compile(p.ctx, p.t.Script, time.Unix(p.qr.Now, 0))
+	spec, err := flux.Compile(p.ctx, p.t.Script, time.Unix(p.qr.Now, 0))
 	if err != nil {
 		p.finish(nil, err)
 		return
 	}
 
-	req := &query.Request{
+	req := &flux.Request{
 		OrganizationID: p.t.Org,
-		Compiler: query.SpecCompiler{
+		Compiler: flux.SpecCompiler{
 			Spec: spec,
 		},
 	}
@@ -159,7 +159,7 @@ func (p *syncRunPromise) cancelOnContextDone() {
 
 // asyncQueryServiceExecutor is an implementation of backend.Executor that depends on an AsyncQueryService.
 type asyncQueryServiceExecutor struct {
-	svc    query.AsyncQueryService
+	svc    flux.AsyncQueryService
 	st     backend.Store
 	logger *zap.Logger
 }
@@ -167,7 +167,7 @@ type asyncQueryServiceExecutor struct {
 var _ backend.Executor = (*asyncQueryServiceExecutor)(nil)
 
 // NewQueryServiceExecutor returns a new executor based on the given AsyncQueryService.
-func NewAsyncQueryServiceExecutor(logger *zap.Logger, svc query.AsyncQueryService, st backend.Store) backend.Executor {
+func NewAsyncQueryServiceExecutor(logger *zap.Logger, svc flux.AsyncQueryService, st backend.Store) backend.Executor {
 	return &asyncQueryServiceExecutor{logger: logger, svc: svc, st: st}
 }
 
@@ -177,14 +177,14 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 		return nil, err
 	}
 
-	spec, err := query.Compile(ctx, t.Script, time.Unix(run.Now, 0))
+	spec, err := flux.Compile(ctx, t.Script, time.Unix(run.Now, 0))
 	if err != nil {
 		return nil, err
 	}
 
-	req := &query.Request{
+	req := &flux.Request{
 		OrganizationID: t.Org,
-		Compiler: query.SpecCompiler{
+		Compiler: flux.SpecCompiler{
 			Spec: spec,
 		},
 	}
@@ -199,7 +199,7 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 // asyncRunPromise implements backend.RunPromise for an AsyncQueryService.
 type asyncRunPromise struct {
 	qr backend.QueuedRun
-	q  query.Query
+	q  flux.Query
 
 	logger *zap.Logger
 	logEnd func()
@@ -212,7 +212,7 @@ type asyncRunPromise struct {
 
 var _ backend.RunPromise = (*asyncRunPromise)(nil)
 
-func newAsyncRunPromise(qr backend.QueuedRun, q query.Query, e *asyncQueryServiceExecutor) *asyncRunPromise {
+func newAsyncRunPromise(qr backend.QueuedRun, q flux.Query, e *asyncQueryServiceExecutor) *asyncRunPromise {
 	log, logEnd := logger.NewOperation(e.logger, "Executing task", "execute")
 
 	p := &asyncRunPromise{
@@ -256,11 +256,11 @@ func (p *asyncRunPromise) followQuery() {
 	select {
 	case <-p.ready:
 		// The promise was finished somewhere else, so we don't need to call p.finish.
-		// But we do need to cancel the query. This could be a no-op.
+		// But we do need to cancel the flux. This could be a no-op.
 		p.q.Cancel()
 	case _, ok := <-p.q.Ready():
 		if !ok {
-			// Something went wrong with the query. Set the error in the run result.
+			// Something went wrong with the flux. Set the error in the run result.
 			rr := &runResult{err: p.q.Err()}
 			p.finish(rr, nil)
 			return

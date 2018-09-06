@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/iocounter"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/iocounter"
 )
 
 // MultiResultEncoder encodes results as InfluxQL JSON format.
@@ -27,7 +27,7 @@ type MultiResultEncoder struct{}
 //  4.  All other columns are fields and will be output in the order they are found.
 //      TODO(jsternberg): This function currently requires the first column to be a time field, but this isn't
 //      a strict requirement and will be lifted when we begin to work on transpiling meta queries.
-func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (int64, error) {
+func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (int64, error) {
 	resp := Response{}
 	wc := &iocounter.Writer{Writer: w}
 
@@ -44,11 +44,11 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 		tables := res.Tables()
 
 		result := Result{StatementID: id}
-		if err := tables.Do(func(tbl query.Table) error {
+		if err := tables.Do(func(tbl flux.Table) error {
 			var row Row
 
 			for j, c := range tbl.Key().Cols() {
-				if c.Type != query.TString {
+				if c.Type != flux.TString {
 					// Skip any columns that aren't strings. They are extra ones that
 					// flux includes by default like the start and end times that we do not
 					// care about.
@@ -71,7 +71,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 			// TODO: resultColMap should be constructed from query metadata once it is provided.
 			// for now we know that an influxql query ALWAYS has time first, so we put this placeholder
 			// here to catch this most obvious requirement.  Column orderings should be explicitly determined
-			// from the ordering given in the original query.
+			// from the ordering given in the original flux.
 			resultColMap := map[string]int{}
 			j := 1
 			for _, c := range tbl.Cols() {
@@ -91,7 +91,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 				row.Columns[v] = k
 			}
 
-			if err := tbl.Do(func(cr query.ColReader) error {
+			if err := tbl.Do(func(cr flux.ColReader) error {
 				// Preallocate the number of rows for the response to make this section
 				// of code easier to read. Find a time column which should exist
 				// in the output.
@@ -109,27 +109,27 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 					j = resultColMap[c.Label]
 					// Fill in the values for each column.
 					switch c.Type {
-					case query.TFloat:
+					case flux.TFloat:
 						for i, v := range cr.Floats(idx) {
 							values[i][j] = v
 						}
-					case query.TInt:
+					case flux.TInt:
 						for i, v := range cr.Ints(idx) {
 							values[i][j] = v
 						}
-					case query.TString:
+					case flux.TString:
 						for i, v := range cr.Strings(idx) {
 							values[i][j] = v
 						}
-					case query.TUInt:
+					case flux.TUInt:
 						for i, v := range cr.UInts(idx) {
 							values[i][j] = v
 						}
-					case query.TBool:
+					case flux.TBool:
 						for i, v := range cr.Bools(idx) {
 							values[i][j] = v
 						}
-					case query.TTime:
+					case flux.TTime:
 						for i, v := range cr.Times(idx) {
 							values[i][j] = v.Time().Format(time.RFC3339)
 						}

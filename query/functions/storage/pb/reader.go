@@ -9,11 +9,11 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions/storage"
+	"github.com/influxdata/flux/values"
 	ostorage "github.com/influxdata/influxdb/services/storage"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions/storage"
-	"github.com/influxdata/platform/query/values"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -56,7 +56,7 @@ type connection struct {
 	client ostorage.StorageClient
 }
 
-func (sr *reader) Read(ctx context.Context, readSpec storage.ReadSpec, start, stop execute.Time) (query.TableIterator, error) {
+func (sr *reader) Read(ctx context.Context, readSpec storage.ReadSpec, start, stop execute.Time) (flux.TableIterator, error) {
 	var predicate *ostorage.Predicate
 	if readSpec.Predicate != nil {
 		p, err := ToStoragePredicate(readSpec.Predicate)
@@ -93,7 +93,7 @@ type tableIterator struct {
 	predicate *ostorage.Predicate
 }
 
-func (bi *tableIterator) Do(f func(query.Table) error) error {
+func (bi *tableIterator) Do(f func(flux.Table) error) error {
 	src := ostorage.ReadSource{Database: string(bi.readSpec.BucketID)}
 	if i := strings.IndexByte(src.Database, '/'); i > -1 {
 		src.RetentionPolicy = src.Database[i+1:]
@@ -164,7 +164,7 @@ func (bi *tableIterator) Do(f func(query.Table) error) error {
 	return bi.handleRead(f, ms)
 }
 
-func (bi *tableIterator) handleRead(f func(query.Table) error, ms *mergedStreams) error {
+func (bi *tableIterator) handleRead(f func(flux.Table) error, ms *mergedStreams) error {
 	for ms.more() {
 		if p := ms.peek(); readFrameType(p) != seriesType {
 			//This means the consumer didn't read all the data off the table
@@ -187,7 +187,7 @@ func (bi *tableIterator) handleRead(f func(query.Table) error, ms *mergedStreams
 	return nil
 }
 
-func (bi *tableIterator) handleGroupRead(f func(query.Table) error, ms *mergedStreams) error {
+func (bi *tableIterator) handleGroupRead(f func(flux.Table) error, ms *mergedStreams) error {
 	for ms.more() {
 		if p := ms.peek(); readFrameType(p) != groupType {
 			//This means the consumer didn't read all the data off the table
@@ -199,7 +199,7 @@ func (bi *tableIterator) handleGroupRead(f func(query.Table) error, ms *mergedSt
 
 		// try to infer type
 		// TODO(sgc): this is a hack
-		typ := query.TString
+		typ := flux.TString
 		if p := ms.peek(); readFrameType(p) == seriesType {
 			typ = convertDataType(p.GetSeries().DataType)
 		}
@@ -244,20 +244,20 @@ func convertGroupMode(m storage.GroupMode) ostorage.ReadRequest_Group {
 	}
 }
 
-func convertDataType(t ostorage.ReadResponse_DataType) query.DataType {
+func convertDataType(t ostorage.ReadResponse_DataType) flux.DataType {
 	switch t {
 	case ostorage.DataTypeFloat:
-		return query.TFloat
+		return flux.TFloat
 	case ostorage.DataTypeInteger:
-		return query.TInt
+		return flux.TInt
 	case ostorage.DataTypeUnsigned:
-		return query.TUInt
+		return flux.TUInt
 	case ostorage.DataTypeBoolean:
-		return query.TBool
+		return flux.TBool
 	case ostorage.DataTypeString:
-		return query.TString
+		return flux.TString
 	default:
-		return query.TInvalid
+		return flux.TInvalid
 	}
 }
 
@@ -268,46 +268,46 @@ const (
 	valueColIdx = 3
 )
 
-func determineTableColsForSeries(s *ostorage.ReadResponse_SeriesFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
-	cols := make([]query.ColMeta, 4+len(s.Tags))
+func determineTableColsForSeries(s *ostorage.ReadResponse_SeriesFrame, typ flux.DataType) ([]flux.ColMeta, [][]byte) {
+	cols := make([]flux.ColMeta, 4+len(s.Tags))
 	defs := make([][]byte, 4+len(s.Tags))
-	cols[startColIdx] = query.ColMeta{
+	cols[startColIdx] = flux.ColMeta{
 		Label: execute.DefaultStartColLabel,
-		Type:  query.TTime,
+		Type:  flux.TTime,
 	}
-	cols[stopColIdx] = query.ColMeta{
+	cols[stopColIdx] = flux.ColMeta{
 		Label: execute.DefaultStopColLabel,
-		Type:  query.TTime,
+		Type:  flux.TTime,
 	}
-	cols[timeColIdx] = query.ColMeta{
+	cols[timeColIdx] = flux.ColMeta{
 		Label: execute.DefaultTimeColLabel,
-		Type:  query.TTime,
+		Type:  flux.TTime,
 	}
-	cols[valueColIdx] = query.ColMeta{
+	cols[valueColIdx] = flux.ColMeta{
 		Label: execute.DefaultValueColLabel,
 		Type:  typ,
 	}
 	for j, tag := range s.Tags {
-		cols[4+j] = query.ColMeta{
+		cols[4+j] = flux.ColMeta{
 			Label: string(tag.Key),
-			Type:  query.TString,
+			Type:  flux.TString,
 		}
 		defs[4+j] = []byte("")
 	}
 	return cols, defs
 }
 
-func groupKeyForSeries(s *ostorage.ReadResponse_SeriesFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.GroupKey {
-	cols := make([]query.ColMeta, 2, len(s.Tags))
+func groupKeyForSeries(s *ostorage.ReadResponse_SeriesFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) flux.GroupKey {
+	cols := make([]flux.ColMeta, 2, len(s.Tags))
 	vs := make([]values.Value, 2, len(s.Tags))
-	cols[0] = query.ColMeta{
+	cols[0] = flux.ColMeta{
 		Label: execute.DefaultStartColLabel,
-		Type:  query.TTime,
+		Type:  flux.TTime,
 	}
 	vs[0] = values.NewTimeValue(bnds.Start)
-	cols[1] = query.ColMeta{
+	cols[1] = flux.ColMeta{
 		Label: execute.DefaultStopColLabel,
-		Type:  query.TTime,
+		Type:  flux.TTime,
 	}
 	vs[1] = values.NewTimeValue(bnds.Stop)
 	switch readSpec.GroupMode {
@@ -315,9 +315,9 @@ func groupKeyForSeries(s *ostorage.ReadResponse_SeriesFrame, readSpec *storage.R
 		// group key in GroupKeys order, including tags in the GroupKeys slice
 		for _, k := range readSpec.GroupKeys {
 			if i := indexOfTag(s.Tags, k); i < len(s.Tags) {
-				cols = append(cols, query.ColMeta{
+				cols = append(cols, flux.ColMeta{
 					Label: string(s.Tags[i].Key),
-					Type:  query.TString,
+					Type:  flux.TString,
 				})
 				vs = append(vs, values.NewStringValue(string(s.Tags[i].Value)))
 			}
@@ -326,18 +326,18 @@ func groupKeyForSeries(s *ostorage.ReadResponse_SeriesFrame, readSpec *storage.R
 		// group key in GroupKeys order, skipping tags in the GroupKeys slice
 		for _, k := range readSpec.GroupKeys {
 			if i := indexOfTag(s.Tags, k); i == len(s.Tags) {
-				cols = append(cols, query.ColMeta{
+				cols = append(cols, flux.ColMeta{
 					Label: string(s.Tags[i].Key),
-					Type:  query.TString,
+					Type:  flux.TString,
 				})
 				vs = append(vs, values.NewStringValue(string(s.Tags[i].Value)))
 			}
 		}
 	case storage.GroupModeDefault, storage.GroupModeAll:
 		for i := range s.Tags {
-			cols = append(cols, query.ColMeta{
+			cols = append(cols, flux.ColMeta{
 				Label: string(s.Tags[i].Key),
-				Type:  query.TString,
+				Type:  flux.TString,
 			})
 			vs = append(vs, values.NewStringValue(string(s.Tags[i].Value)))
 		}
@@ -345,29 +345,29 @@ func groupKeyForSeries(s *ostorage.ReadResponse_SeriesFrame, readSpec *storage.R
 	return execute.NewGroupKey(cols, vs)
 }
 
-func determineTableColsForGroup(f *ostorage.ReadResponse_GroupFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
-	cols := make([]query.ColMeta, 4+len(f.TagKeys))
+func determineTableColsForGroup(f *ostorage.ReadResponse_GroupFrame, typ flux.DataType) ([]flux.ColMeta, [][]byte) {
+	cols := make([]flux.ColMeta, 4+len(f.TagKeys))
 	defs := make([][]byte, 4+len(f.TagKeys))
-	cols[startColIdx] = query.ColMeta{
+	cols[startColIdx] = flux.ColMeta{
 		Label: execute.DefaultStartColLabel,
-		Type:  query.TTime,
+		Type:  flux.TTime,
 	}
-	cols[stopColIdx] = query.ColMeta{
+	cols[stopColIdx] = flux.ColMeta{
 		Label: execute.DefaultStopColLabel,
-		Type:  query.TTime,
+		Type:  flux.TTime,
 	}
-	cols[timeColIdx] = query.ColMeta{
+	cols[timeColIdx] = flux.ColMeta{
 		Label: execute.DefaultTimeColLabel,
-		Type:  query.TTime,
+		Type:  flux.TTime,
 	}
-	cols[valueColIdx] = query.ColMeta{
+	cols[valueColIdx] = flux.ColMeta{
 		Label: execute.DefaultValueColLabel,
 		Type:  typ,
 	}
 	for j, tag := range f.TagKeys {
-		cols[4+j] = query.ColMeta{
+		cols[4+j] = flux.ColMeta{
 			Label: string(tag),
-			Type:  query.TString,
+			Type:  flux.TString,
 		}
 		defs[4+j] = []byte("")
 
@@ -375,23 +375,23 @@ func determineTableColsForGroup(f *ostorage.ReadResponse_GroupFrame, typ query.D
 	return cols, defs
 }
 
-func groupKeyForGroup(g *ostorage.ReadResponse_GroupFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.GroupKey {
-	cols := make([]query.ColMeta, 2, len(readSpec.GroupKeys)+2)
+func groupKeyForGroup(g *ostorage.ReadResponse_GroupFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) flux.GroupKey {
+	cols := make([]flux.ColMeta, 2, len(readSpec.GroupKeys)+2)
 	vs := make([]values.Value, 2, len(readSpec.GroupKeys)+2)
-	cols[0] = query.ColMeta{
+	cols[0] = flux.ColMeta{
 		Label: execute.DefaultStartColLabel,
-		Type:  query.TTime,
+		Type:  flux.TTime,
 	}
 	vs[0] = values.NewTimeValue(bnds.Start)
-	cols[1] = query.ColMeta{
+	cols[1] = flux.ColMeta{
 		Label: execute.DefaultStopColLabel,
-		Type:  query.TTime,
+		Type:  flux.TTime,
 	}
 	vs[1] = values.NewTimeValue(bnds.Stop)
 	for i := range readSpec.GroupKeys {
-		cols = append(cols, query.ColMeta{
+		cols = append(cols, flux.ColMeta{
 			Label: readSpec.GroupKeys[i],
-			Type:  query.TString,
+			Type:  flux.TString,
 		})
 		vs = append(vs, values.NewStringValue(string(g.PartitionKeyVals[i])))
 	}
@@ -402,8 +402,8 @@ func groupKeyForGroup(g *ostorage.ReadResponse_GroupFrame, readSpec *storage.Rea
 // Since it can only be read once it is also a ValueIterator for itself.
 type table struct {
 	bounds execute.Bounds
-	key    query.GroupKey
-	cols   []query.ColMeta
+	key    flux.GroupKey
+	cols   []flux.ColMeta
 
 	empty bool
 	more  bool
@@ -439,8 +439,8 @@ type table struct {
 
 func newTable(
 	bounds execute.Bounds,
-	key query.GroupKey,
-	cols []query.ColMeta,
+	key flux.GroupKey,
+	cols []flux.ColMeta,
 	ms *mergedStreams,
 	readSpec *storage.ReadSpec,
 	tags []ostorage.Tag,
@@ -475,16 +475,16 @@ func (t *table) wait() {
 	<-t.done
 }
 
-func (t *table) Key() query.GroupKey {
+func (t *table) Key() flux.GroupKey {
 	return t.key
 }
-func (t *table) Cols() []query.ColMeta {
+func (t *table) Cols() []flux.ColMeta {
 	return t.cols
 }
 
 // onetime satisfies the OneTimeTable interface since this table may only be read once.
 func (t *table) onetime() {}
-func (t *table) Do(f func(query.ColReader) error) error {
+func (t *table) Do(f func(flux.ColReader) error) error {
 	defer close(t.done)
 	// If the initial advance call indicated we are done, return immediately
 	if !t.more {
@@ -505,27 +505,27 @@ func (t *table) Len() int {
 }
 
 func (t *table) Bools(j int) []bool {
-	execute.CheckColType(t.cols[j], query.TBool)
+	execute.CheckColType(t.cols[j], flux.TBool)
 	return t.colBufs[j].([]bool)
 }
 func (t *table) Ints(j int) []int64 {
-	execute.CheckColType(t.cols[j], query.TInt)
+	execute.CheckColType(t.cols[j], flux.TInt)
 	return t.colBufs[j].([]int64)
 }
 func (t *table) UInts(j int) []uint64 {
-	execute.CheckColType(t.cols[j], query.TUInt)
+	execute.CheckColType(t.cols[j], flux.TUInt)
 	return t.colBufs[j].([]uint64)
 }
 func (t *table) Floats(j int) []float64 {
-	execute.CheckColType(t.cols[j], query.TFloat)
+	execute.CheckColType(t.cols[j], flux.TFloat)
 	return t.colBufs[j].([]float64)
 }
 func (t *table) Strings(j int) []string {
-	execute.CheckColType(t.cols[j], query.TString)
+	execute.CheckColType(t.cols[j], flux.TString)
 	return t.colBufs[j].([]string)
 }
 func (t *table) Times(j int) []execute.Time {
-	execute.CheckColType(t.cols[j], query.TTime)
+	execute.CheckColType(t.cols[j], flux.TTime)
 	return t.colBufs[j].([]execute.Time)
 }
 
@@ -576,8 +576,8 @@ func (t *table) advance() bool {
 				return true
 			}
 		case boolPointsType:
-			if t.cols[valueColIdx].Type != query.TBool {
-				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, query.TBool)
+			if t.cols[valueColIdx].Type != flux.TBool {
+				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, flux.TBool)
 				// TODO: Add error handling
 				// Type changed,
 				return false
@@ -609,8 +609,8 @@ func (t *table) advance() bool {
 			t.appendBounds()
 			return true
 		case intPointsType:
-			if t.cols[valueColIdx].Type != query.TInt {
-				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, query.TInt)
+			if t.cols[valueColIdx].Type != flux.TInt {
+				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, flux.TInt)
 				// TODO: Add error handling
 				// Type changed,
 				return false
@@ -642,8 +642,8 @@ func (t *table) advance() bool {
 			t.appendBounds()
 			return true
 		case uintPointsType:
-			if t.cols[valueColIdx].Type != query.TUInt {
-				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, query.TUInt)
+			if t.cols[valueColIdx].Type != flux.TUInt {
+				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, flux.TUInt)
 				// TODO: Add error handling
 				// Type changed,
 				return false
@@ -675,8 +675,8 @@ func (t *table) advance() bool {
 			t.appendBounds()
 			return true
 		case floatPointsType:
-			if t.cols[valueColIdx].Type != query.TFloat {
-				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, query.TFloat)
+			if t.cols[valueColIdx].Type != flux.TFloat {
+				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, flux.TFloat)
 				// TODO: Add error handling
 				// Type changed,
 				return false
@@ -709,8 +709,8 @@ func (t *table) advance() bool {
 			t.appendBounds()
 			return true
 		case stringPointsType:
-			if t.cols[valueColIdx].Type != query.TString {
-				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, query.TString)
+			if t.cols[valueColIdx].Type != flux.TString {
+				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, flux.TString)
 				// TODO: Add error handling
 				// Type changed,
 				return false
@@ -798,7 +798,7 @@ type streamState struct {
 	bounds     execute.Bounds
 	stream     ostorage.Storage_ReadClient
 	rep        ostorage.ReadResponse
-	currentKey query.GroupKey
+	currentKey flux.GroupKey
 	readSpec   *storage.ReadSpec
 	finished   bool
 	group      bool
@@ -831,7 +831,7 @@ func (s *streamState) more() bool {
 	return true
 }
 
-func (s *streamState) key() query.GroupKey {
+func (s *streamState) key() flux.GroupKey {
 	return s.currentKey
 }
 
@@ -863,11 +863,11 @@ func (s *streamState) next() ostorage.ReadResponse_Frame {
 
 type mergedStreams struct {
 	streams    []*streamState
-	currentKey query.GroupKey
+	currentKey flux.GroupKey
 	i          int
 }
 
-func (s *mergedStreams) key() query.GroupKey {
+func (s *mergedStreams) key() flux.GroupKey {
 	if len(s.streams) == 1 {
 		return s.streams[0].key()
 	}
@@ -914,7 +914,7 @@ func (s *mergedStreams) advance() bool {
 
 func (s *mergedStreams) determineNewKey() bool {
 	minIdx := -1
-	var minKey query.GroupKey
+	var minKey flux.GroupKey
 	for i, stream := range s.streams {
 		if !stream.more() {
 			continue

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/semantic"
 	cron "gopkg.in/robfig/cron.v2"
 )
 
@@ -61,8 +61,8 @@ func FromScript(script string) (Options, error) {
 
 	opt := Options{Retry: 1, Concurrency: 1}
 
-	inter := query.NewInterpreter()
-	if err := query.Eval(inter, script); err != nil {
+	inter := flux.NewInterpreter()
+	if err := flux.Eval(inter, script); err != nil {
 		return opt, err
 	}
 

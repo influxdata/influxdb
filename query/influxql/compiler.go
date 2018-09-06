@@ -3,15 +3,15 @@ package influxql
 import (
 	"context"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
 )
 
 const CompilerType = "influxql"
 
 // AddCompilerMappings adds the influxql specific compiler mappings.
-func AddCompilerMappings(mappings query.CompilerMappings, dbrpMappingSvc platform.DBRPMappingService) error {
-	return mappings.Add(CompilerType, func() query.Compiler {
+func AddCompilerMappings(mappings flux.CompilerMappings, dbrpMappingSvc platform.DBRPMappingService) error {
+	return mappings.Add(CompilerType, func() flux.Compiler {
 		return NewCompiler(dbrpMappingSvc)
 	})
 }
@@ -33,7 +33,7 @@ func NewCompiler(dbrpMappingSvc platform.DBRPMappingService) *Compiler {
 }
 
 // Compile tranpiles the query into a specification.
-func (c *Compiler) Compile(ctx context.Context) (*query.Spec, error) {
+func (c *Compiler) Compile(ctx context.Context) (*flux.Spec, error) {
 	transpiler := NewTranspilerWithConfig(
 		c.dbrpMappingSvc,
 		Config{
@@ -44,6 +44,6 @@ func (c *Compiler) Compile(ctx context.Context) (*query.Spec, error) {
 	)
 	return transpiler.Transpile(ctx, c.Query)
 }
-func (c *Compiler) CompilerType() query.CompilerType {
+func (c *Compiler) CompilerType() flux.CompilerType {
 	return CompilerType
 }

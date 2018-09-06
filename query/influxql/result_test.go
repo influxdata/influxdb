@@ -4,34 +4,33 @@ import (
 	"bytes"
 	"errors"
 	"testing"
-
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/platform/query/influxql"
 )
 
 func TestMultiResultEncoder_Encode(t *testing.T) {
 	for _, tt := range []struct {
 		name string
-		in   query.ResultIterator
+		in   flux.ResultIterator
 		out  string
 	}{
 		{
 			name: "Default",
-			in: query.NewSliceResultIterator(
-				[]query.Result{&executetest.Result{
+			in: flux.NewSliceResultIterator(
+				[]flux.Result{&executetest.Result{
 					Nm: "0",
 					Tbls: []*executetest.Table{{
 						KeyCols: []string{"_measurement", "host"},
-						ColMeta: []query.ColMeta{
-							{Label: "_time", Type: query.TTime},
-							{Label: "_measurement", Type: query.TString},
-							{Label: "host", Type: query.TString},
-							{Label: "value", Type: query.TFloat},
+						ColMeta: []flux.ColMeta{
+							{Label: "_time", Type: flux.TTime},
+							{Label: "_measurement", Type: flux.TString},
+							{Label: "host", Type: flux.TString},
+							{Label: "value", Type: flux.TFloat},
 						},
 						Data: [][]interface{}{
 							{ts("2018-05-24T09:00:00Z"), "m0", "server01", float64(2)},
@@ -73,9 +72,9 @@ type resultErrorIterator struct {
 	Error string
 }
 
-func (*resultErrorIterator) Cancel()            {}
-func (*resultErrorIterator) More() bool         { return false }
-func (*resultErrorIterator) Next() query.Result { panic("no results") }
+func (*resultErrorIterator) Cancel()           {}
+func (*resultErrorIterator) More() bool        { return false }
+func (*resultErrorIterator) Next() flux.Result { panic("no results") }
 
 func (ri *resultErrorIterator) Err() error {
 	return errors.New(ri.Error)

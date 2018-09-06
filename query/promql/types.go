@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/semantic"
 )
 
 type ArgKind int
@@ -24,7 +24,7 @@ const (
 )
 
 type QueryBuilder interface {
-	QuerySpec() (*query.Spec, error)
+	QuerySpec() (*flux.Spec, error)
 }
 
 type Arg interface {
@@ -140,9 +140,9 @@ type Selector struct {
 	LabelMatchers []*LabelMatcher `json:"label_matchers,omitempty"`
 }
 
-func (s *Selector) QuerySpec() (*query.Spec, error) {
+func (s *Selector) QuerySpec() (*flux.Spec, error) {
 	parent := "from"
-	ops := []*query.Operation{
+	ops := []*flux.Operation{
 		{
 			ID: "from", // TODO: Change this to a UUID
 			Spec: &functions.FromOpSpec{
@@ -150,7 +150,7 @@ func (s *Selector) QuerySpec() (*query.Spec, error) {
 			},
 		},
 	}
-	edges := []query.Edge{}
+	edges := []flux.Edge{}
 
 	rng, err := NewRangeOp(s.Range, s.Offset)
 	if err != nil {
@@ -159,8 +159,8 @@ func (s *Selector) QuerySpec() (*query.Spec, error) {
 
 	if rng != nil {
 		ops = append(ops, rng)
-		edge := query.Edge{
-			Parent: query.OperationID(parent),
+		edge := flux.Edge{
+			Parent: flux.OperationID(parent),
 			Child:  "range",
 		}
 		parent = "range"
@@ -173,27 +173,27 @@ func (s *Selector) QuerySpec() (*query.Spec, error) {
 	}
 
 	ops = append(ops, where)
-	edge := query.Edge{
-		Parent: query.OperationID(parent),
+	edge := flux.Edge{
+		Parent: flux.OperationID(parent),
 		Child:  "where",
 	}
 	parent = "where"
 	edges = append(edges, edge)
 
-	return &query.Spec{
+	return &flux.Spec{
 		Operations: ops,
 		Edges:      edges,
 	}, nil
 }
 
-func NewRangeOp(rng, offset time.Duration) (*query.Operation, error) {
+func NewRangeOp(rng, offset time.Duration) (*flux.Operation, error) {
 	if rng == 0 && offset == 0 {
 		return nil, nil
 	}
-	return &query.Operation{
+	return &flux.Operation{
 		ID: "range", // TODO: Change this to a UUID
 		Spec: &functions.RangeOpSpec{
-			Start: query.Time{
+			Start: flux.Time{
 				Relative: -rng - offset,
 			},
 		},
@@ -207,7 +207,7 @@ var operatorLookup = map[MatchKind]ast.OperatorKind{
 	RegexNoMatch: ast.NotEqualOperator,
 }
 
-func NewWhereOperation(metricName string, labels []*LabelMatcher) (*query.Operation, error) {
+func NewWhereOperation(metricName string, labels []*LabelMatcher) (*flux.Operation, error) {
 	var node semantic.Expression
 	node = &semantic.BinaryExpression{
 		Operator: ast.EqualOperator,
@@ -253,7 +253,7 @@ func NewWhereOperation(metricName string, labels []*LabelMatcher) (*query.Operat
 		}
 	}
 
-	return &query.Operation{
+	return &flux.Operation{
 		ID: "where", // TODO: Change this to a UUID
 		Spec: &functions.FilterOpSpec{
 			Fn: &semantic.FunctionExpression{
@@ -298,7 +298,7 @@ type Aggregate struct {
 	Labels  []*Identifier `json:"labels,omitempty"`
 }
 
-func (a *Aggregate) QuerySpec() (*query.Operation, error) {
+func (a *Aggregate) QuerySpec() (*flux.Operation, error) {
 	if a.Without {
 		return nil, fmt.Errorf("Unable to merge using `without`")
 	}
@@ -306,7 +306,7 @@ func (a *Aggregate) QuerySpec() (*query.Operation, error) {
 	for i := range a.Labels {
 		keys[i] = a.Labels[i].Name
 	}
-	return &query.Operation{
+	return &flux.Operation{
 		ID: "merge",
 		Spec: &functions.GroupOpSpec{
 			By: keys,
@@ -366,42 +366,42 @@ type Operator struct {
 	Arg  Arg          `json:"arg,omitempty"`
 }
 
-func (o *Operator) QuerySpec() (*query.Operation, error) {
+func (o *Operator) QuerySpec() (*flux.Operation, error) {
 	switch o.Kind {
 	case CountValuesKind, BottomKind, QuantileKind, StdVarKind:
 		return nil, fmt.Errorf("Unable to run %d yet", o.Kind)
 	case CountKind:
-		return &query.Operation{
+		return &flux.Operation{
 			ID:   "count",
 			Spec: &functions.CountOpSpec{},
 		}, nil
 	//case TopKind:
-	//	return &query.Operation{
+	//	return &flux.Operation{
 	//		ID:   "top",
 	//		Spec: &functions.TopOpSpec{}, // TODO: Top doesn't have arg yet
 	//	}, nil
 	case SumKind:
-		return &query.Operation{
+		return &flux.Operation{
 			ID:   "sum",
 			Spec: &functions.SumOpSpec{},
 		}, nil
 	//case MinKind:
-	//	return &query.Operation{
+	//	return &flux.Operation{
 	//		ID:   "min",
 	//		Spec: &functions.MinOpSpec{},
 	//	}, nil
 	//case MaxKind:
-	//	return &query.Operation{
+	//	return &flux.Operation{
 	//		ID:   "max",
 	//		Spec: &functions.MaxOpSpec{},
 	//	}, nil
 	//case AvgKind:
-	//	return &query.Operation{
+	//	return &flux.Operation{
 	//		ID:   "mean",
 	//		Spec: &functions.MeanOpSpec{},
 	//	}, nil
 	//case StdevKind:
-	//	return &query.Operation{
+	//	return &flux.Operation{
 	//		ID:   "stddev",
 	//		Spec: &functions.StddevOpSpec{},
 	//	}, nil
@@ -416,7 +416,7 @@ type AggregateExpr struct {
 	Aggregate *Aggregate `json:"aggregate,omitempty"`
 }
 
-func (a *AggregateExpr) QuerySpec() (*query.Spec, error) {
+func (a *AggregateExpr) QuerySpec() (*flux.Spec, error) {
 	spec, err := a.Selector.QuerySpec()
 	if err != nil {
 		return nil, err
@@ -428,14 +428,14 @@ func (a *AggregateExpr) QuerySpec() (*query.Spec, error) {
 			return nil, err
 		}
 
-		parent := query.OperationID("from")
+		parent := flux.OperationID("from")
 		if len(spec.Edges) > 0 {
 			tail := spec.Edges[len(spec.Edges)-1]
 			parent = tail.Child
 		}
 
 		spec.Operations = append(spec.Operations, agg)
-		spec.Edges = append(spec.Edges, query.Edge{
+		spec.Edges = append(spec.Edges, flux.Edge{
 			Parent: parent,
 			Child:  agg.ID,
 		})
@@ -446,13 +446,13 @@ func (a *AggregateExpr) QuerySpec() (*query.Spec, error) {
 		return nil, err
 	}
 
-	parent := query.OperationID("from")
+	parent := flux.OperationID("from")
 	if len(spec.Edges) > 0 {
 		tail := spec.Edges[len(spec.Edges)-1]
 		parent = tail.Child
 	}
 	spec.Operations = append(spec.Operations, op)
-	spec.Edges = append(spec.Edges, query.Edge{
+	spec.Edges = append(spec.Edges, flux.Edge{
 		Parent: parent,
 		Child:  op.ID,
 	})
@@ -474,7 +474,7 @@ type Comment struct {
 	Source string `json:"source,omitempty"`
 }
 
-func (c *Comment) QuerySpec() (*query.Spec, error) {
+func (c *Comment) QuerySpec() (*flux.Spec, error) {
 	return nil, fmt.Errorf("Unable to represent comments in the AST")
 }
 

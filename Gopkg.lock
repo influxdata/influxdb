@@ -53,14 +53,6 @@
   revision = "c7f18ee00883bfd3b00e0a2bf7607827e0148ad4"
 
 [[projects]]
-  digest = "1:e64acfe8cda1955db545ede8e863c54d69f1ac6cd058df4349be4040320840fd"
-  name = "github.com/apache/thrift"
-  packages = ["lib/go/thrift"]
-  pruneopts = "UT"
-  revision = "327ebb6c2b6df8bf075da02ef45a2a034e9b79ba"
-  version = "0.11.0"
-
-[[projects]]
   branch = "master"
   digest = "1:861e7c55835e36c4bb41132ee48a4669429096cc184b634b99809822b416f66b"
   name = "github.com/apex/log"
@@ -152,12 +144,12 @@
   version = "v2.0"
 
 [[projects]]
-  digest = "1:1659cb76cbd08a29826688d006e7a3d9279d6ca8a12155acb7b20164958987d3"
+  digest = "1:a2486f94bda33b301614ff5cfce102b7eed4c923fa650c2b83dba1fcf2117466"
   name = "github.com/c-bata/go-prompt"
   packages = ["."]
   pruneopts = "UT"
-  revision = "e99fbc797b795e0a7a94affc8d44f6a0350d85f0"
-  version = "v0.2.1"
+  revision = "c52492ff1b386e5c0ba5271b5eaad165fab09eca"
+  version = "v0.2.2"
 
 [[projects]]
   digest = "1:bf525707b4455ed126b3b091939a3693f608385c73d8dfdeb748e510bcda1338"
@@ -182,14 +174,6 @@
   pruneopts = "UT"
   revision = "5c37fe3735342a2e0d01c87a907579987c8936cc"
   version = "v1.0.0"
-
-[[projects]]
-  branch = "master"
-  digest = "1:4c4c33075b704791d6a7f09dfb55c66769e8a1dc6adf87026292d274fe8ad113"
-  name = "github.com/codahale/hdrhistogram"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
 
 [[projects]]
   digest = "1:c28625428387b63dd7154eb857f51e700465cfbf7c06f619e71f2da33cefe47e"
@@ -311,85 +295,6 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "d9eb7a3d35ec988b8585d4a0068e462c27d28380"
-
-[[projects]]
-  branch = "master"
-  digest = "1:5601ae3024d6657d6655a043fefce0ca8924af535fe56bcd184ecd2f7cfc5335"
-  name = "github.com/gonum/blas"
-  packages = [
-    ".",
-    "blas64",
-    "native",
-    "native/internal/math32",
-  ]
-  pruneopts = "UT"
-  revision = "e7c5890b24cf6f3bb173f76e1bd71e80e887e3f9"
-
-[[projects]]
-  branch = "master"
-  digest = "1:4d213c1faa284634054e52465bd94d72a6b4fcd792cecf6cef357bdc3c84f745"
-  name = "github.com/gonum/floats"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "7de1f4ea7ab57890bfd427af68c7994cd67975d4"
-
-[[projects]]
-  branch = "master"
-  digest = "1:dc7c82ea61b3c8da96b40b7c87c1c26b41f735f516babec25ebe826acf359b43"
-  name = "github.com/gonum/internal"
-  packages = [
-    "asm/f32",
-    "asm/f64",
-  ]
-  pruneopts = "UT"
-  revision = "fda53f8d25717c07e2dac25758075a182bd74235"
-
-[[projects]]
-  branch = "master"
-  digest = "1:2854c77b7dbe7f340e37d3b01c07f9da33b5ff7d21c915f195b4a0ae9f37d6f5"
-  name = "github.com/gonum/lapack"
-  packages = [
-    ".",
-    "lapack64",
-    "native",
-  ]
-  pruneopts = "UT"
-  revision = "f0b8b25edeceafb3a2752941c7bf0cda962df112"
-
-[[projects]]
-  branch = "master"
-  digest = "1:fb0e34cdca23afa879f1d81cc9f514b8d9c34b84e83af9c642bb771d2583ed38"
-  name = "github.com/gonum/mathext"
-  packages = [
-    ".",
-    "internal/amos",
-    "internal/cephes",
-    "internal/gonum",
-  ]
-  pruneopts = "UT"
-  revision = "3ffefb3e36fc77021b605da090e6571103cb6ef3"
-
-[[projects]]
-  branch = "master"
-  digest = "1:d28c2bfc6b59b522a166106a3a4b04ca55fd2171ffd7a1ea0a6edb5f4e5c4b40"
-  name = "github.com/gonum/matrix"
-  packages = [
-    ".",
-    "mat64",
-  ]
-  pruneopts = "UT"
-  revision = "a41cc49d4c29f7451775f4379a5cc6ec6239dfab"
-
-[[projects]]
-  branch = "master"
-  digest = "1:bf0e5a82e5f51b7bbcdb3fa176368766dfb7e004846fb2cad398ea74e9239099"
-  name = "github.com/gonum/stat"
-  packages = [
-    ".",
-    "distuv",
-  ]
-  pruneopts = "UT"
-  revision = "ec9c8a1062f4be6c6ad671f0f5dba12d4a76826d"
 
 [[projects]]
   digest = "1:d2754cafcab0d22c13541618a8029a70a8959eb3525ff201fe971637e2274cd0"
@@ -557,6 +462,35 @@
   version = "v1.0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:eb7bc670810e9d06d8b42574de77248f0f28ae4cea2ee84d5b4fc70c1dd16a4c"
+  name = "github.com/influxdata/flux"
+  packages = [
+    ".",
+    "ast",
+    "compiler",
+    "complete",
+    "control",
+    "csv",
+    "execute",
+    "execute/executetest",
+    "functions",
+    "functions/storage",
+    "interpreter",
+    "iocounter",
+    "options",
+    "parser",
+    "plan",
+    "querytest",
+    "repl",
+    "semantic",
+    "semantic/semantictest",
+    "values",
+  ]
+  pruneopts = "UT"
+  revision = "1de8e9acfe7dc7a40c19ac63f15bddc3fdfc49be"
+
+[[projects]]
   branch = "platform"
   digest = "1:fb1314961f6f3a22ec403cd0268f26875fcfdb6b47561a986f164bc7cfef05ff"
   name = "github.com/influxdata/influxdb"
@@ -716,6 +650,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c"
+
+[[projects]]
+  branch = "master"
+  digest = "1:cdb899c199f907ac9fb50495ec71212c95cb5b0e0a8ee0800da0238036091033"
+  name = "github.com/mattn/go-runewidth"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "ce7b0b5c7b45a81508558cd1dba6bb1e4ddb51bb"
 
 [[projects]]
   branch = "master"
@@ -881,7 +823,7 @@
   name = "github.com/pkg/term"
   packages = ["termios"]
   pruneopts = "UT"
-  revision = "cda20d4ac917ad418d86e151eff439648b06185b"
+  revision = "bffc007b7fd5a70e20e28f5b7649bb84671ef436"
 
 [[projects]]
   digest = "1:70f78dea42b8c0ff38ecf5487eaa79006fa2193fc804fc7c1d7222745d9e2522"
@@ -1024,36 +966,6 @@
   pruneopts = "UT"
   revision = "4654dfbb6ad53cb5e27f37d99b02e16c1872fbbb"
   version = "v1.2.15"
-
-[[projects]]
-  digest = "1:6d3c0668f51d86fe4989365fa72f2a4fa451b09d3bf747f701648f9714405a44"
-  name = "github.com/uber/jaeger-client-go"
-  packages = [
-    ".",
-    "config",
-    "internal/baggage",
-    "internal/baggage/remote",
-    "internal/spanlog",
-    "log",
-    "rpcmetrics",
-    "thrift-gen/agent",
-    "thrift-gen/baggage",
-    "thrift-gen/jaeger",
-    "thrift-gen/sampling",
-    "thrift-gen/zipkincore",
-    "utils",
-  ]
-  pruneopts = "UT"
-  revision = "f54d8ece0a66e3db6a9247e946eb1e2bd79029ea"
-  version = "v2.11.1"
-
-[[projects]]
-  digest = "1:0f09db8429e19d57c8346ad76fbbc679341fa86073d3b8fb5ac919f0357d8f4c"
-  name = "github.com/uber/jaeger-lib"
-  packages = ["metrics"]
-  pruneopts = "UT"
-  revision = "ed3a127ec5fef7ae9ea95b01b542c47fbd999ce5"
-  version = "v1.5.0"
 
 [[projects]]
   digest = "1:211f9cf21d532e2da93a420426d714af492743f4c602389cb0cd14ec8eebe256"
@@ -1245,14 +1157,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:601e63e7d4577f907118bec825902505291918859d223bce015539e79f1160e3"
+  digest = "1:077c1c599507b3b3e9156d17d36e1e61928ee9b53a5b420f10f28ebd4a0b275c"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
   pruneopts = "UT"
-  revision = "ff3583edef7de132f219f0efc00e097cabcc0ec0"
+  revision = "11092d34479b07829b72e10713b159248caf5dad"
 
 [[projects]]
-  digest = "1:2dab32a43451e320e49608ff4542fdfc653c95dcc35d0065ec9c6c3dd540ed74"
+  digest = "1:3dd7996ce6bf52dec6a2f69fa43e7c4cefea1d4dfa3c8ab7a5f8a9f7434e239d"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -1268,7 +1180,9 @@
     "internal",
     "internal/backoff",
     "internal/channelz",
+    "internal/envconfig",
     "internal/grpcrand",
+    "internal/transport",
     "keepalive",
     "metadata",
     "naming",
@@ -1279,11 +1193,10 @@
     "stats",
     "status",
     "tap",
-    "transport",
   ]
   pruneopts = "UT"
-  revision = "168a6198bcb0ef175f7dacec0b8691fc141dc9b8"
-  version = "v1.13.0"
+  revision = "32fb0ac620c32ba40a4626ddf94d90d12cce3455"
+  version = "v1.14.0"
 
 [[projects]]
   branch = "v2"
@@ -1308,7 +1221,6 @@
     "github.com/NYTimes/gziphandler",
     "github.com/andreyvit/diff",
     "github.com/bouk/httprouter",
-    "github.com/c-bata/go-prompt",
     "github.com/cespare/xxhash",
     "github.com/coreos/bbolt",
     "github.com/dgrijalva/jwt-go",
@@ -1317,18 +1229,34 @@
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/protoc-gen-gogofaster",
     "github.com/gogo/protobuf/types",
-    "github.com/gonum/stat/distuv",
     "github.com/google/go-cmp/cmp",
     "github.com/google/go-cmp/cmp/cmpopts",
     "github.com/google/go-github/github",
     "github.com/goreleaser/goreleaser",
     "github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc",
+    "github.com/influxdata/flux",
+    "github.com/influxdata/flux/ast",
+    "github.com/influxdata/flux/complete",
+    "github.com/influxdata/flux/control",
+    "github.com/influxdata/flux/csv",
+    "github.com/influxdata/flux/execute",
+    "github.com/influxdata/flux/execute/executetest",
+    "github.com/influxdata/flux/functions",
+    "github.com/influxdata/flux/functions/storage",
+    "github.com/influxdata/flux/iocounter",
+    "github.com/influxdata/flux/options",
+    "github.com/influxdata/flux/parser",
+    "github.com/influxdata/flux/plan",
+    "github.com/influxdata/flux/querytest",
+    "github.com/influxdata/flux/repl",
+    "github.com/influxdata/flux/semantic",
+    "github.com/influxdata/flux/semantic/semantictest",
+    "github.com/influxdata/flux/values",
     "github.com/influxdata/influxdb/logger",
     "github.com/influxdata/influxdb/pkg/snowflake",
     "github.com/influxdata/influxdb/services/storage",
     "github.com/influxdata/influxql",
     "github.com/influxdata/line-protocol",
-    "github.com/influxdata/tdigest",
     "github.com/influxdata/usage-client/v1",
     "github.com/jessevdk/go-flags",
     "github.com/julienschmidt/httprouter",
@@ -1351,9 +1279,6 @@
     "github.com/spf13/cobra",
     "github.com/spf13/viper",
     "github.com/tylerb/graceful",
-    "github.com/uber/jaeger-client-go/config",
-    "github.com/uber/jaeger-client-go/log",
-    "github.com/uber/jaeger-lib/metrics",
     "go.uber.org/zap",
     "go.uber.org/zap/zapcore",
     "go.uber.org/zap/zaptest",

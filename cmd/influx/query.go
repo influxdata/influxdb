@@ -5,15 +5,15 @@ import (
 	"os"
 	"strings"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/functions/storage"
+	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
-	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/functions/storage/pb"
-	"github.com/influxdata/platform/query/repl"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -99,8 +99,8 @@ func fluxQueryF(cmd *cobra.Command, args []string) {
 func injectDeps(deps execute.Dependencies, hosts storage.Reader, buckets platform.BucketService, orgs platform.OrganizationService) error {
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:             hosts,
-		BucketLookup:       query.FromBucketService(buckets),
-		OrganizationLookup: query.FromOrganizationService(orgs),
+		BucketLookup:       flux.FromBucketService(buckets),
+		OrganizationLookup: flux.FromOrganizationService(orgs),
 	})
 }
 

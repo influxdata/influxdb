@@ -1,5 +1,5 @@
 
-SUBDIRS = ast parser promql
+SUBDIRS = promql
 
 subdirs: $(SUBDIRS)
 
@@ -11,3 +11,4 @@ all: $(SUBDIRS)
 clean: $(SUBDIRS)
 
 .PHONY: all clean subdirs $(SUBDIRS)
+

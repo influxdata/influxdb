@@ -3,15 +3,15 @@ package influxql
 import (
 	"fmt"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/semantic"
 )
 
 type joinCursor struct {
-	id    query.OperationID
+	id    flux.OperationID
 	m     map[influxql.Expr]string
 	exprs []influxql.Expr
 }
@@ -27,7 +27,7 @@ func Join(t *transpilerState, cursors []cursor, on, except []string) cursor {
 		properties []*semantic.Property
 	)
 	m := make(map[influxql.Expr]string)
-	tables := make(map[query.OperationID]string)
+	tables := make(map[flux.OperationID]string)
 	for i, cur := range cursors {
 		// Record this incoming cursor within the table.
 		tableName := fmt.Sprintf("t%d", i)
@@ -59,7 +59,7 @@ func Join(t *transpilerState, cursors []cursor, on, except []string) cursor {
 	}
 
 	// Retrieve the parent ids from the cursors.
-	parents := make([]query.OperationID, 0, len(tables))
+	parents := make([]flux.OperationID, 0, len(tables))
 	for _, cur := range cursors {
 		parents = append(parents, cur.ID())
 	}
@@ -76,7 +76,7 @@ func Join(t *transpilerState, cursors []cursor, on, except []string) cursor {
 	}
 }
 
-func (c *joinCursor) ID() query.OperationID {
+func (c *joinCursor) ID() flux.OperationID {
 	return c.id
 }
 

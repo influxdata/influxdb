@@ -8,16 +8,16 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/control"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/functions/storage"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/kit/prom"
-	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/query/control"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/functions/storage/pb"
 	"github.com/influxdata/platform/snowflake"
 	pzap "github.com/influxdata/platform/zap"
@@ -114,8 +114,8 @@ func fluxF(cmd *cobra.Command, args []string) {
 
 	queryHandler := http.NewExternalQueryHandler()
 
-	queryHandler.ProxyQueryService = query.ProxyQueryServiceBridge{
-		QueryService: query.QueryServiceBridge{
+	queryHandler.ProxyQueryService = flux.ProxyQueryServiceBridge{
+		QueryService: flux.QueryServiceBridge{
 			AsyncQueryService: c,
 		},
 	}
@@ -163,7 +163,7 @@ func injectDeps(deps execute.Dependencies) error {
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:             sr,
 		BucketLookup:       bucketLookup{},
-		OrganizationLookup: query.FromOrganizationService(&orgSvc),
+		OrganizationLookup: flux.FromOrganizationService(&orgSvc),
 	})
 }
 

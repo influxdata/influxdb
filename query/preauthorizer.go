@@ -1,9 +1,11 @@
 package query
 
 import (
-	"github.com/pkg/errors"
-	"github.com/influxdata/platform"
 	"context"
+
+	"github.com/influxdata/flux"
+	"github.com/influxdata/platform"
+	"github.com/pkg/errors"
 )
 
 // PreAuthorizer provides a method for ensuring that the buckets accessed by a query spec
@@ -11,7 +13,7 @@ import (
 // callers to fail early for operations that are not allowed.  However, it's still possible
 // for authorization to be denied at runtime even if this check passes.
 type PreAuthorizer interface {
-	PreAuthorize(ctx context.Context, spec *Spec, auth *platform.Authorization) error
+	PreAuthorize(ctx context.Context, spec *flux.Spec, auth *platform.Authorization) error
 }
 
 // NewPreAuthorizer creates a new PreAuthorizer
@@ -25,7 +27,7 @@ type preAuthorizer struct {
 
 // PreAuthorize finds all the buckets read and written by the given spec, and ensures that execution is allowed
 // given the Authorization.  Returns nil on success, and an error with an appropriate message otherwise.
-func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *Spec, auth *platform.Authorization) error {
+func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth *platform.Authorization) error {
 
 	readBuckets, writeBuckets, err := spec.BucketsAccessed()
 
@@ -42,7 +44,7 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *Spec, auth *plat
 		}
 
 		reqPerm := platform.ReadBucketPermission(bucket.ID)
-		if ! platform.Allowed(reqPerm, auth) {
+		if !platform.Allowed(reqPerm, auth) {
 			return errors.New("No read permission for bucket: \"" + bucket.Name + "\"")
 		}
 	}
@@ -54,7 +56,7 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *Spec, auth *plat
 		}
 
 		reqPerm := platform.WriteBucketPermission(bucket.ID)
-		if ! platform.Allowed(reqPerm, auth) {
+		if !platform.Allowed(reqPerm, auth) {
 			return errors.New("No write permission for bucket: \"" + bucket.Name + "\"")
 		}
 	}

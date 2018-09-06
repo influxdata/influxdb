@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"
 )
 
@@ -235,8 +235,8 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		if interval > 0 {
 			cur = &groupCursor{
 				id: t.op("window", &functions.WindowOpSpec{
-					Every:         query.Duration(math.MaxInt64),
-					Period:        query.Duration(math.MaxInt64),
+					Every:         flux.Duration(math.MaxInt64),
+					Period:        flux.Duration(math.MaxInt64),
 					TimeCol:       execute.DefaultTimeColLabel,
 					StartColLabel: execute.DefaultStartColLabel,
 					StopColLabel:  execute.DefaultStopColLabel,
@@ -246,7 +246,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		}
 	} else {
 		// If we do not have a function, but we have a field option,
-		// return the appropriate error message if there is something wrong with the query.
+		// return the appropriate error message if there is something wrong with the flux.
 		if interval > 0 {
 			return nil, errors.New("GROUP BY requires at least one aggregate function")
 		}
@@ -265,7 +265,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 
 type groupCursor struct {
 	cursor
-	id query.OperationID
+	id flux.OperationID
 }
 
 func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
@@ -360,15 +360,15 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 
 	if windowEvery > 0 {
 		windowOp := &functions.WindowOpSpec{
-			Every:         query.Duration(windowEvery),
-			Period:        query.Duration(windowEvery),
+			Every:         flux.Duration(windowEvery),
+			Period:        flux.Duration(windowEvery),
 			TimeCol:       execute.DefaultTimeColLabel,
 			StartColLabel: execute.DefaultStartColLabel,
 			StopColLabel:  execute.DefaultStopColLabel,
 		}
 
 		if !windowStart.IsZero() {
-			windowOp.Start = query.Time{Absolute: windowStart}
+			windowOp.Start = flux.Time{Absolute: windowStart}
 		}
 
 		id = t.op("window", windowOp, id)
@@ -377,7 +377,7 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 	return &groupCursor{id: id, cursor: in}, nil
 }
 
-func (c *groupCursor) ID() query.OperationID { return c.id }
+func (c *groupCursor) ID() flux.OperationID { return c.id }
 
 // tagsCursor is a pseudo-cursor that can be used to access tags within the cursor.
 type tagsCursor struct {

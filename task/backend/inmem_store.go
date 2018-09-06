@@ -88,7 +88,6 @@ func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) err
 			continue
 		}
 
-
 		if t.Name != op.Name {
 			for i := range s.tasks {
 				tt := s.tasks[i]

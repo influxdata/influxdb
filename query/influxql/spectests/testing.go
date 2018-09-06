@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/flux"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
-	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/influxql"
 )
 
@@ -66,13 +66,13 @@ type Fixture interface {
 
 type fixture struct {
 	stmt string
-	spec *query.Spec
+	spec *flux.Spec
 
 	file string
 	line int
 }
 
-func NewFixture(stmt string, spec *query.Spec) Fixture {
+func NewFixture(stmt string, spec *flux.Spec) Fixture {
 	_, file, line, _ := runtime.Caller(1)
 	return &fixture{
 		stmt: stmt,
@@ -121,13 +121,13 @@ func (f *fixture) Run(t *testing.T) {
 
 type collection struct {
 	stmts []string
-	specs []*query.Spec
+	specs []*flux.Spec
 
 	file string
 	line int
 }
 
-func (c *collection) Add(stmt string, spec *query.Spec) {
+func (c *collection) Add(stmt string, spec *flux.Spec) {
 	c.stmts = append(c.stmts, stmt)
 	c.specs = append(c.specs, spec)
 }

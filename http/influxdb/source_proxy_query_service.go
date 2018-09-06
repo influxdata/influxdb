@@ -8,10 +8,10 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/platform"
 	platformhttp "github.com/influxdata/platform/http"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/influxql"
 )
 
@@ -23,36 +23,36 @@ type SourceProxyQueryService struct {
 	platform.V1SourceFields
 }
 
-func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *flux.ProxyRequest) (int64, error) {
 	switch req.Request.Compiler.CompilerType() {
 	case influxql.CompilerType:
 		return s.influxQuery(ctx, w, req)
-	case query.FluxCompilerType:
+	case flux.FluxCompilerType:
 		return s.fluxQuery(ctx, w, req)
 	}
 
 	return 0, fmt.Errorf("compiler type not supported")
 }
 
-func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, req *flux.ProxyRequest) (int64, error) {
 	if len(s.FluxURL) == 0 {
 		return 0, fmt.Errorf("fluxURL from source cannot be empty if the compiler type is flux")
 	}
 
 	request := struct {
-		Spec    *query.Spec   `json:"spec"`
-		Query   string        `json:"query"`
-		Type    string        `json:"type"`
-		Dialect query.Dialect `json:"dialect"`
+		Spec    *flux.Spec   `json:"spec"`
+		Query   string       `json:"query"`
+		Type    string       `json:"type"`
+		Dialect flux.Dialect `json:"dialect"`
 	}{}
 
 	switch c := req.Request.Compiler.(type) {
-	case query.FluxCompiler:
+	case flux.FluxCompiler:
 		request.Query = c.Query
-		request.Type = query.FluxCompilerType
-	case query.SpecCompiler:
+		request.Type = flux.FluxCompilerType
+	case flux.SpecCompiler:
 		request.Spec = c.Spec
-		request.Type = query.SpecCompilerType
+		request.Type = flux.SpecCompilerType
 	default:
 		return 0, fmt.Errorf("compiler type not supported: %s", c.CompilerType())
 	}
@@ -102,7 +102,7 @@ func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, re
 	return io.Copy(w, resp.Body)
 }
 
-func (s *SourceProxyQueryService) influxQuery(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+func (s *SourceProxyQueryService) influxQuery(ctx context.Context, w io.Writer, req *flux.ProxyRequest) (int64, error) {
 	if len(s.URL) == 0 {
 		return 0, fmt.Errorf("URL from source cannot be empty if the compiler type is influxql")
 	}

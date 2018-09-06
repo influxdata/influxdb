@@ -4,10 +4,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/influxdata/flux"
+
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions"
 )
 
 // function contains the prototype for invoking a function.
@@ -241,14 +242,14 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor) (c
 }
 
 type functionCursor struct {
-	id      query.OperationID
+	id      flux.OperationID
 	call    *influxql.Call
 	value   string
 	exclude map[influxql.Expr]struct{}
 	parent  cursor
 }
 
-func (c *functionCursor) ID() query.OperationID {
+func (c *functionCursor) ID() flux.OperationID {
 	return c.id
 }
 
