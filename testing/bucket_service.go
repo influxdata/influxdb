@@ -137,6 +137,56 @@ func CreateBucket(
 			},
 		},
 		{
+			name: "create system bucket",
+			fields: BucketFields{
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return idFromString(t, bucketTwoID)
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:             idFromString(t, bucketOneID),
+						Name:           "bucket1",
+						OrganizationID: idFromString(t, orgOneID),
+					},
+				},
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   idFromString(t, orgOneID),
+					},
+					{
+						Name: "otherorg",
+						ID:   idFromString(t, orgTwoID),
+					},
+				},
+			},
+			args: args{
+				bucket: &platform.Bucket{
+					Name:           "bucket2",
+					OrganizationID: idFromString(t, orgTwoID),
+					Type:           platform.BucketTypeLogs,
+				},
+			},
+			wants: wants{
+				buckets: []*platform.Bucket{
+					{
+						ID:             idFromString(t, bucketOneID),
+						Name:           "bucket1",
+						Organization:   "theorg",
+						OrganizationID: idFromString(t, orgOneID),
+					},
+					{
+						ID:             idFromString(t, fmt.Sprintf("%s%d", orgTwoID, platform.BucketTypeLogs)),
+						Name:           "bucket2",
+						Organization:   "otherorg",
+						OrganizationID: idFromString(t, orgTwoID),
+					},
+				},
+			},
+		},
+		{
 			name: "basic create bucket using org name",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{

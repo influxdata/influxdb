@@ -248,6 +248,7 @@ func platformF(cmd *cobra.Command, args []string) {
 
 		orgHandler := http.NewOrgHandler()
 		orgHandler.OrganizationService = orgSvc
+		orgHandler.BucketService = bucketSvc
 
 		userHandler := http.NewUserHandler()
 		userHandler.UserService = userSvc

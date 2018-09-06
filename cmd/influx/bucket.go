@@ -64,6 +64,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 	b := &platform.Bucket{
 		Name:            bucketCreateFlags.name,
 		RetentionPeriod: bucketCreateFlags.retention,
+		Type:            platform.BucketTypeUser,
 	}
 
 	if bucketCreateFlags.org != "" {

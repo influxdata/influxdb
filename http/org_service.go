@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
@@ -17,6 +19,7 @@ type OrgHandler struct {
 	*httprouter.Router
 
 	OrganizationService platform.OrganizationService
+	BucketService       platform.BucketService
 }
 
 // NewOrgHandler returns a new instance of OrgHandler.
@@ -45,6 +48,20 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.OrganizationService.CreateOrganization(ctx, req.Org); err != nil {
 		EncodeError(ctx, err, w)
+		return
+	}
+
+	// create internal org bucket
+	systemBucket := &platform.Bucket{
+		OrganizationID:  req.Org.ID,
+		Name:            "task-logs",
+		RetentionPeriod: time.Hour * 24 * 7,
+		Type:            platform.BucketTypeLogs,
+	}
+
+	// TODO(jm): if this fails, revert org creation
+	if err := h.BucketService.CreateBucket(ctx, systemBucket); err != nil {
+		EncodeError(ctx, fmt.Errorf("Failed to create system bucket"), w)
 		return
 	}
 

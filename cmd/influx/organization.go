@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/cmd/influx/internal"
@@ -44,7 +45,7 @@ func init() {
 }
 
 func organizationCreateF(cmd *cobra.Command, args []string) {
-	s := &http.OrganizationService{
+	orgS := &http.OrganizationService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
@@ -53,8 +54,14 @@ func organizationCreateF(cmd *cobra.Command, args []string) {
 		Name: organizationCreateFlags.name,
 	}
 
-	if err := s.CreateOrganization(context.Background(), o); err != nil {
+	if err := orgS.CreateOrganization(context.Background(), o); err != nil {
 		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	_, err := createInternalBucket(o)
+	if err != nil {
+		fmt.Printf("Failed to create system bucket: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -68,6 +75,26 @@ func organizationCreateF(cmd *cobra.Command, args []string) {
 		"Name": o.Name,
 	})
 	w.Flush()
+}
+
+func createInternalBucket(o *platform.Organization) (*platform.Bucket, error) {
+	bucketS := &http.BucketService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	bucket := &platform.Bucket{
+		OrganizationID:  o.ID,
+		Name:            "task-logs",
+		RetentionPeriod: time.Hour * 24 * 7,
+		Type:            platform.BucketTypeLogs,
+	}
+
+	if err := bucketS.CreateBucket(context.Background(), bucket); err != nil {
+		return nil, err
+	}
+
+	return bucket, nil
 }
 
 // Find Command
