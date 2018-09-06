@@ -152,6 +152,13 @@ paths:
       tags:
         - Sources
       summary: Creates a Source
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       requestBody:
           description: source to create
           required: true
@@ -176,6 +183,13 @@ paths:
       tags:
         - Sources
       summary: Get all sources
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: all sources
@@ -301,6 +315,12 @@ paths:
               type: string
             required: true
             description: ID of the source
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: a source
@@ -325,6 +345,13 @@ paths:
       tags:
         - Views
       summary: A view contains information about the visual representation of data
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       requestBody:
           description: view to create
           required: true
@@ -349,6 +376,13 @@ paths:
       tags:
         - Views
       summary: Get all views
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: all views
@@ -461,6 +495,13 @@ paths:
       tags:
         - Dashboards
       summary: Create a dashboard
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       requestBody:
           description: dashboard to create
           required: true
@@ -485,6 +526,13 @@ paths:
       tags:
         - Dashboards
       summary: Get all dashboards
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: all dashboards
@@ -938,6 +986,12 @@ paths:
       - flux
     summary: description of the query capabilities of the instance
     parameters:
+      - in: query
+        name: org
+        description: specifies the organization of the resource
+        required: true
+        schema:
+          type: string
       - in: header
         name: Authorization
         description: the authorization header should be in the format of `Token <key>`
@@ -984,13 +1038,8 @@ paths:
         schema:
           type: string
       - in: query
-        name: organization
+        name: org
         description: specifies the name of the organization executing the query.
-        schema:
-          type: string
-      - in: query
-        name: query
-        description: flux query string to execute; used if there is no POST body.
         schema:
           type: string
     requestBody:
@@ -998,16 +1047,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/Query"
-                - $ref: "#/components/schemas/QuerySpecification"
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                query:
-                  description: flux query string to execute
-                  type: string
+              $ref: "#/components/schemas/Query"
     responses:
         '200':
           description: query results
@@ -1073,6 +1113,13 @@ paths:
       tags:
         - Buckets
       summary: List all buckets
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: a list of buckets
@@ -1090,6 +1137,13 @@ paths:
       tags:
         - Buckets
       summary: Create a bucket
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       requestBody:
         description: bucket to create
         required: true
@@ -1280,12 +1334,12 @@ paths:
           name: user
           schema:
             type: string
-          description: filter tasks to a specific user id
+          description: filter tasks to a specific user name
         - in: query
-          name: organization
+          name: org
           schema:
             type: string
-          description: filter tasks to a specific organization id
+          description: filter tasks to a specific organization name
       responses:
         '200':
           description: A list of tasks
@@ -1310,6 +1364,12 @@ paths:
       tags:
         - Tasks
       summary: Create a new task
+      parameters:
+        - in: query
+          name: org
+          schema:
+            type: string
+          description: filter tasks to a specific organization name
       requestBody:
         description: task to create
         required: true
@@ -1709,6 +1769,8 @@ components:
         query:
           description: query script to execute
           type: string
+        spec:
+          $ref: "#/components/schemas/QuerySpecification"
         type:
           description: type of query
           type: string
@@ -1823,6 +1885,28 @@ components:
               enum:
                 - RFC3339
                 - RFC3339Nano
+    Permission:
+      properties:
+        action:
+          type: string
+          enum:
+            - read
+            - write
+            - create
+            - delete
+        resource:
+          type: string
+          enum:
+            - user
+            - org
+            - task/:id
+            - bucket/:id
+            - dashboard/:id
+            - org/:id
+            - org/:id/task
+            - org/:id/bucket
+            - org/:id/source
+            - org/:id/dashboard
     Authorization:
       properties:
         id:
@@ -1838,9 +1922,13 @@ components:
         token:
           readOnly: true
           type: string
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Permission"
         owner:
           $ref: "#/components/schemas/Owners"
-      required: [userID]
+      required: [owner]
     Authorizations:
       type: array
       items:
