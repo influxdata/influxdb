@@ -3,17 +3,22 @@ package cli
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 func ExampleNewCommand() {
 	var monitorHost string
 	var number int
+	var sleep bool
+	var duration time.Duration
 	cmd := NewCommand(&Program{
 		Run: func() error {
 			fmt.Println(monitorHost)
 			for i := 0; i < number; i++ {
 				fmt.Printf("%d\n", i)
 			}
+			fmt.Println(sleep)
+			fmt.Println(duration)
 			return nil
 		},
 		Name: "myprogram",
@@ -30,6 +35,18 @@ func ExampleNewCommand() {
 				Default: 2,
 				Desc:    "number of times to loop",
 			},
+			{
+				DestP:   &sleep,
+				Flag:    "sleep",
+				Default: true,
+				Desc:    "whether to sleep",
+			},
+			{
+				DestP:   &duration,
+				Flag:    "duration",
+				Default: time.Minute,
+				Desc:    "how long to sleep",
+			},
 		},
 	})
 
@@ -40,4 +57,6 @@ func ExampleNewCommand() {
 	// http://localhost:8086
 	// 0
 	// 1
+	// true
+	// 1m0s
 }
