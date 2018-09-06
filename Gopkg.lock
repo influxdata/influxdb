@@ -463,7 +463,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:9fce64ac293aa19194c9ec21f3f3d3db9b0ff0a6193fe009e95d706523d8426d"
+  digest = "1:eb7bc670810e9d06d8b42574de77248f0f28ae4cea2ee84d5b4fc70c1dd16a4c"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -488,7 +488,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "4006774e9befe0c9266f6dc5ce3c165b67fb84bc"
+  revision = "1de8e9acfe7dc7a40c19ac63f15bddc3fdfc49be"
 
 [[projects]]
   branch = "platform"
@@ -1254,7 +1254,6 @@
     "github.com/influxdata/flux/values",
     "github.com/influxdata/influxdb/logger",
     "github.com/influxdata/influxdb/pkg/snowflake",
-    "github.com/influxdata/influxdb/query",
     "github.com/influxdata/influxdb/services/storage",
     "github.com/influxdata/influxql",
     "github.com/influxdata/line-protocol",

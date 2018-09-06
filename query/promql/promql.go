@@ -1,3 +1,4 @@
+// Package promql implements a promql parser to build flux query specifications from promql.
 package promql
 
 import (
