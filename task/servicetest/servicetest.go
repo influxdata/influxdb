@@ -206,7 +206,12 @@ func testTaskRuns(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 	startedAt := time.Now()
-	if err := sys.LW.UpdateRunState(sys.Ctx, st, runID, startedAt, backend.RunStarted); err != nil {
+	rlb := backend.RunLogBase{
+		Task:            st,
+		RunID:           runID,
+		RunScheduledFor: rc.Created.Now,
+	}
+	if err := sys.LW.UpdateRunState(sys.Ctx, rlb, startedAt, backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
@@ -224,24 +229,23 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 	r := runs[0]
 	if !bytes.Equal(r.ID, runID) {
-		t.Fatalf("expected to find run with ID %s, got %s", runID.String(), r.ID.String())
+		t.Errorf("expected to find run with ID %s, got %s", runID.String(), r.ID.String())
 	}
 	if !bytes.Equal(r.TaskID, task.ID) {
-		t.Fatalf("expected run to have task ID %s, got %s", task.ID.String(), r.TaskID.String())
+		t.Errorf("expected run to have task ID %s, got %s", task.ID.String(), r.TaskID.String())
 	}
 	if want := startedAt.UTC().Format(time.RFC3339); r.StartedAt != want {
-		t.Fatalf("expected run to be started at %q, got %q", want, r.StartedAt)
+		t.Errorf("expected run to be started at %q, got %q", want, r.StartedAt)
 	}
 	if want := time.Unix(rc.Created.Now, 0).UTC().Format(time.RFC3339); r.ScheduledFor != want {
-		// Not yet expected to match. Change to t.Fatalf as part of addressing https://github.com/influxdata/platform/issues/753.
-		t.Logf("TODO(#753): expected run to be scheduled for %q, got %q", want, r.ScheduledFor)
+		t.Errorf("expected run to be scheduled for %q, got %q", want, r.ScheduledFor)
 	}
 	if want := time.Unix(requestedAtUnix, 0).UTC().Format(time.RFC3339); r.RequestedAt != want {
 		// Not yet expected to match. Change to t.Fatalf as part of addressing https://github.com/influxdata/platform/issues/753.
 		t.Logf("TODO(#753): expected run to be requested at %q, got %q", want, r.RequestedAt)
 	}
 	if r.FinishedAt != "" {
-		t.Fatalf("expected run not be finished, got %q", r.FinishedAt)
+		t.Errorf("expected run not be finished, got %q", r.FinishedAt)
 	}
 }
 

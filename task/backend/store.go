@@ -37,8 +37,7 @@ const (
 type RunStatus int
 
 const (
-	RunScheduled RunStatus = iota
-	RunStarted
+	RunStarted RunStatus = iota
 	RunSuccess
 	RunFail
 	RunCanceled
@@ -46,8 +45,6 @@ const (
 
 func (r RunStatus) String() string {
 	switch r {
-	case RunScheduled:
-		return "scheduled"
 	case RunStarted:
 		return "started"
 	case RunSuccess:
@@ -141,24 +138,36 @@ type Store interface {
 	Close() error
 }
 
+// RunLogBase is the base information for a logs about an individual run.
+type RunLogBase struct {
+	// The parent task that owns the run.
+	Task *StoreTask
+
+	// The ID of the run.
+	RunID platform.ID
+
+	// The Unix timestamp indicating the run's scheduled time.
+	RunScheduledFor int64
+}
+
 // LogWriter writes task logs and task state changes to a store.
 type LogWriter interface {
 	// UpdateRunState sets the run state and the respective time.
-	UpdateRunState(ctx context.Context, task *StoreTask, runID platform.ID, when time.Time, state RunStatus) error
+	UpdateRunState(ctx context.Context, base RunLogBase, when time.Time, state RunStatus) error
 
 	// AddRunLog adds a log line to the run.
-	AddRunLog(ctx context.Context, task *StoreTask, runID platform.ID, when time.Time, log string) error
+	AddRunLog(ctx context.Context, base RunLogBase, when time.Time, log string) error
 }
 
 // NopLogWriter is a LogWriter that doesn't do anything when its methods are called.
 // This is useful for test, but not much else.
 type NopLogWriter struct{}
 
-func (NopLogWriter) UpdateRunState(context.Context, *StoreTask, platform.ID, time.Time, RunStatus) error {
+func (NopLogWriter) UpdateRunState(context.Context, RunLogBase, time.Time, RunStatus) error {
 	return nil
 }
 
-func (NopLogWriter) AddRunLog(context.Context, *StoreTask, platform.ID, time.Time, string) error {
+func (NopLogWriter) AddRunLog(context.Context, RunLogBase, time.Time, string) error {
 	return nil
 }
 
