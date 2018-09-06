@@ -133,22 +133,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /ping:
-    servers:
-      - url: /
-    get:
-      tags:
-        - Health
-      summary: Report if service is running
-      responses:
-        '204':
-          description: Server is healthy
-        default:
-          description: Any response other than 204 is an internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   /healthz:
     get:
       tags:
