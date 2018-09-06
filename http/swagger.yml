@@ -903,14 +903,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /authorizations/{authId}:
+  /authorizations/{authID}:
     get:
       tags:
         - Authorizations
       summary: Retrieve an authorization
       parameters:
         - in: path
-          name: authId
+          name: authID
           schema:
             type: string
           required: true
@@ -941,7 +941,7 @@ paths:
               $ref: "#/components/schemas/Authorization"
       parameters:
         - in: path
-          name: authId
+          name: authID
           schema:
             type: string
           required: true
@@ -965,7 +965,7 @@ paths:
       summary: Delete a authorization
       parameters:
         - in: path
-          name: authId
+          name: authID
           schema:
             type: string
           required: true
@@ -1164,14 +1164,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/buckets/{bucketId}':
+  '/buckets/{bucketID}':
     get:
       tags:
         - Buckets
       summary: Retrieve a bucket
       parameters:
         - in: path
-          name: bucketId
+          name: bucketID
           schema:
             type: string
           required: true
@@ -1202,7 +1202,7 @@ paths:
               $ref: "#/components/schemas/Bucket"
       parameters:
         - in: path
-          name: bucketId
+          name: bucketID
           schema:
             type: string
           required: true
@@ -1262,14 +1262,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/orgs/{orgId}':
+  '/orgs/{orgID}':
     get:
       tags:
         - Organizations
       summary: Retrieve an organization
       parameters:
         - in: path
-          name: orgId
+          name: orgID
           schema:
             type: string
           required: true
@@ -1300,7 +1300,7 @@ paths:
               $ref: "#/components/schemas/Organization"
       parameters:
         - in: path
-          name: orgId
+          name: orgID
           schema:
             type: string
           required: true
@@ -1312,6 +1312,92 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Organization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/users':
+    get:
+      tags:
+        - Users
+        - Organizations
+      summary: List all users in an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the orgnaization
+      responses:
+        '200':
+          description: a list of users the belong to an organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Users"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+        - Organizations
+      summary: Add user to an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the orgnaization
+      requestBody:
+        description: adds user to an organization
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        '201':
+          description: added to organization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/users/{userID}':
+    delete:
+      tags:
+        - Users
+        - Organizations
+      summary: removes a user from an org
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of user to delete
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the orgnaization
+      responses:
+        '204':
+          description: user removed
         default:
           description: unexpected error
           content:
@@ -1390,14 +1476,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}':
+  '/tasks/{taskID}':
     get:
       tags:
         - Tasks
       summary: Retrieve an task
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
@@ -1429,7 +1515,7 @@ paths:
               $ref: "#/components/schemas/Task"
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
@@ -1454,7 +1540,7 @@ paths:
       description: Deletes a task and all associated records
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
@@ -1468,14 +1554,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}/runs':
+  '/tasks/{taskID}/runs':
     get:
       tags:
         - Tasks
       summary: Retrieve list of run records for a task
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
@@ -1525,20 +1611,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}/runs/{runId}':
+  '/tasks/{taskID}/runs/{runID}':
     get:
       tags:
         - Tasks
       summary: Retrieve a single run record for a task
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
           description: task ID
         - in: path
-          name: runId
+          name: runID
           schema:
             type: string
           required: true
@@ -1556,20 +1642,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}/runs/{runId}/retry':
+  '/tasks/{taskID}/runs/{runID}/retry':
     post:
       tags:
         - Tasks
       summary: Retry a task run
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
           description: task ID
         - in: path
-          name: runId
+          name: runID
           schema:
             type: string
           required: true
@@ -1587,14 +1673,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}/logs':
+  '/tasks/{taskID}/logs':
     get:
       tags:
         - Tasks
       summary: Retrieve all logs for a task
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
@@ -1612,20 +1698,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}/runs/{runId}/logs':
+  '/tasks/{taskID}/runs/{runID}/logs':
     get:
       tags:
         - Tasks
       summary: Retrieve all logs for a run
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
           description: ID of task to get logs for.
         - in: path
-          name: runId
+          name: runID
           schema:
             type: string
           required: true
@@ -1685,14 +1771,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/users/{userId}':
+  '/users/{userID}':
     get:
       tags:
         - Users
       summary: Retrieve a user
       parameters:
         - in: path
-          name: userId
+          name: userID
           schema:
             type: string
           required: true
@@ -1723,7 +1809,7 @@ paths:
               $ref: "#/components/schemas/User"
       parameters:
         - in: path
-          name: userId
+          name: userID
           schema:
             type: string
           required: true
@@ -1735,6 +1821,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Users
+      summary: deletes a user
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of user to delete
+      responses:
+        '204':
+          description: user deleted
         default:
           description: unexpected error
           content:
@@ -1761,13 +1867,13 @@ components:
               - influxql
               - spec
     Query:
-      description: query influx with specified return formatting.
+      description: query influx with specified return formatting. The spec and query fields are mutually exclusive.
       type: object
       required:
         - query
       properties:
         query:
-          description: query script to execute
+          description: query script to execute.
           type: string
         spec:
           $ref: "#/components/schemas/QuerySpecification"
@@ -1793,58 +1899,55 @@ components:
       description: consists of a set of operations and a set of edges between those operations to instruct the query engine to operate.
       type: object
       properties:
-        spec:
+        operations:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                description: name of the operation to perform
+                type: string
+              id:
+                description: identifier for this operation; it must be unique per query specification; used in edges
+                type: string
+              spec:
+                description: set of properties that specify details of the operation. These vary by the kind of operation.
+                type: object
+        edges:
+          description: list of declaring a parent child id relationship between operations
+          type: array
+          items:
+            type: object
+            properties:
+              parent:
+                description: id of parent node of child within graph of opertions
+                type: string
+              child:
+                description: id of child node of parent within the graph of operations
+                type: string
+        resources:
+          description: optional set of contraints on the resources the query can consume
           type: object
           properties:
-            operations:
-              type: array
-              items:
-                type: object
-                properties:
-                  kind:
-                    description: name of the operation to perform
-                    type: string
-                  id:
-                    description: identifier for this operation; it must be unique per query specification; used in edges
-                    type: string
-                  spec:
-                    description: set of properties that specify details of the operation. These vary by the kind of operation.
-                    type: object
-            edges:
-              description: list of declaring a parent child id relationship between operations
-              type: array
-              items:
-                type: object
-                properties:
-                  parent:
-                    description: id of parent node of child within graph of opertions
-                    type: string
-                  child:
-                    description: id of child node of parent within the graph of operations
-                    type: string
-            resources:
-              description: optional set of contraints on the resources the query can consume
-              type: object
-              properties:
-                priority:
-                  description: priority of the query
-                  oneOf:
-                  - type: string
-                    description: lower value will move to the front of the priority queue
-                    pattern: '^\d+$'
-                  - type: string
-                    description: constants to represent the extreme high and low priorities; high is effectively 0.
-                    enum:
-                      - high
-                      - low
-                concurrency_quota:
-                  description: number of concurrent workers allowed to process this query; 0 indicates the planner can pick the optimal concurrency.
-                  type: integer
-                  default: 0
-                memory_bytes_quota:
-                  description: number of bytes of RAM this query may consume; 0 means unlimited.
-                  type: integer
-                  default: 0
+            priority:
+              description: priority of the query
+              oneOf:
+              - type: string
+                description: lower value will move to the front of the priority queue
+                pattern: '^\d+$'
+              - type: string
+                description: constants to represent the extreme high and low priorities; high is effectively 0.
+                enum:
+                  - high
+                  - low
+            concurrency_quota:
+              description: number of concurrent workers allowed to process this query; 0 indicates the planner can pick the optimal concurrency.
+              type: integer
+              default: 0
+            memory_bytes_quota:
+              description: number of bytes of RAM this query may consume; 0 means unlimited.
+              type: integer
+              default: 0
         dialect:
           $ref: "#/components/schemas/Dialect"
     Dialect:
@@ -1945,7 +2048,7 @@ components:
         retentionPeriod:
           type: integer
           format: int64
-      required: [organizationId, name, retentionPeriod]
+      required: [organizationID, name, retentionPeriod]
     Buckets:
       type: array
       items:
@@ -2015,7 +2118,7 @@ components:
         id:
           readOnly: true
           type: string
-        taskId:
+        taskID:
           readOnly: true
           type: string
         status:
