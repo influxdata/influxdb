@@ -3,7 +3,7 @@ info:
   title: Influx API Service
   version: 0.1.0
 servers:
-  - url: /v2
+  - url: /api/v2
 paths:
   /:
     get:
@@ -15,6 +15,136 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Routes"
+  /macros:
+    get:
+      tags:
+        - Macros
+      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      parameters:
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: org
+          required: true
+          schema:
+            type: string
+          description: filter macros to a specific organization name
+      responses:
+        '200':
+          description: all macros for an organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Macros"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      tags:
+        - Macros
+      parameters:
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: org
+          required: true
+          schema:
+            type: string
+          description: filter macros to a specific organization name
+      responses:
+        '201':
+          description: macro created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Macros"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/macros/{macroID}':
+    delete:
+      tags:
+        - Macros
+      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      parameters:
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: macroID
+          required: true
+          schema:
+            type: string
+          description: id of the macro
+        - in: query
+          name: org
+          required: true
+          schema:
+            type: string
+          description: filter macros to a specific organization name
+      responses:
+        '204':
+          description: macro deleted
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      tags:
+        - Macros
+      parameters:
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: macroID
+          required: true
+          schema:
+            type: string
+          description: id of the macro
+        - in: query
+          name: org
+          required: true
+          schema:
+            type: string
+          description: filter macros to a specific organization name
+      responses:
+        '200':
+          description: macro updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Macros"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /write:
     post:
       tags:
@@ -803,7 +933,7 @@ paths:
     post:
       description: not currently documented # TODO(desa): document ast endpoint
       tags:
-        - FluxLanguage
+        - Query
       responses:
         '200':
           description: Suggestions for next functions in call chain
@@ -816,7 +946,7 @@ paths:
   /query/suggestions:
     get:
       tags:
-        - FluxLanguage
+        - Query
       responses:
         '200':
           description: Suggestions for next functions in call chain
@@ -840,7 +970,7 @@ paths:
         description: name of branching suggestion
     get:
       tags:
-        - FluxLanguage
+        - Query
       responses:
         '200':
           description: Suggestions for next functions in call chain
@@ -987,12 +1117,17 @@ paths:
    get:
     tags:
       - Query
-      - flux
-    summary: description of the query capabilities of the instance
+    summary: query influx with specified return formatting. The spec and query fields are mutually exclusive.
     parameters:
       - in: query
         name: org
         description: specifies the organization of the resource
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: query
+        description: query script to execute.
         required: true
         schema:
           type: string
@@ -1002,22 +1137,56 @@ paths:
         schema:
           type: string
     responses:
-      '200':
-        description: the query capabilities of the instance
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/QueryCapability"
-      default:
-        description: Any response other than 200 is an internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Error"
+        '200':
+          description: query results
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: >
+                  result,table,_start,_stop,_time,region,host,_value
+                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
+                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
+                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
+        '400':
+          description: error processing query
+          headers:
+            X-Influx-Error:
+              description: error string describing the problem
+              schema:
+                type: string
+            X-Influx-Reference:
+              description: reference code unique to the error type
+              schema:
+                type: integer
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: >
+                  error,reference
+                  Failed to parse query,897
+        default:
+          description: internal server error
+          headers:
+            X-Influx-Error:
+              description: error string describing the problem
+              schema:
+                type: string
+            X-Influx-Reference:
+              description: reference code unique to the error type
+              schema:
+                type: integer
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: >
+                  error,reference
+                  Failed to parse query,897
    post:
     tags:
       - Query
-      - flux
     summary: query an influx
     parameters:
       - in: header
@@ -1853,23 +2022,6 @@ paths:
                 $ref: "#/components/schemas/Error"
 components:
   schemas:
-    QueryCapability:
-      description: the supported query languages and dialects
-      type: object
-      properties:
-        links:
-          type: object
-          allOf:
-            - $ref: "#/components/schemas/FluxLinks"
-        languages:
-          type: array
-          readOnly: true
-          items:
-            type: string
-            enum:
-              - flux
-              - influxql
-              - spec
     Query:
       description: query influx with specified return formatting. The spec and query fields are mutually exclusive.
       type: object
@@ -2161,18 +2313,60 @@ components:
           example: Halt and catch fire
     Organization:
       properties:
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/v2/orgs/1"
+            users: "/v2/orgs/1/users"
+            buckets: "/v2/buckets?org=myorg"
+            tasks: "/v2/tasks?org=myorg"
+            dashboards: "/v2/tasks?org=myorg"
+          properties:
+            self:
+              readOnly: true
+              type: string
+              format: url
+            users:
+              readOnly: true
+              type: string
+              format: url
+            buckets:
+              readOnly: true
+              type: string
+              format: url
+            tasks:
+              readOnly: true
+              type: string
+              format: url
+            dashboards:
+              readOnly: true
+              type: string
+              format: url
         id:
           readOnly: true
           type: string
         name:
           type: string
+        status:
+          description: if inactive the organization is inactive.
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
         owners:
           $ref: "#/components/schemas/Owners"
       required: [name]
     Organizations:
-      type: array
-      items:
-        $ref: "#/components/schemas/Organization"
+      type: object
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        orgs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Organization"
     Owners:
       properties:
         users:
@@ -2234,12 +2428,12 @@ components:
           description: A read-only description of the task.
           type: string
         status:
-          description: The current status of the task. When updated to 'disabled', cancels all queued jobs of this task.
+          description: The current status of the task. When updated to 'inactive', cancels all queued jobs of this task.
+          default: active
           type: string
-          enum: [
-            "enabled",
-            "disabled"
-          ]
+          enum:
+            - active
+            - inactive
         owners:
           $ref: "#/components/schemas/Owners"
         flux:
@@ -2265,6 +2459,13 @@ components:
           type: string
         name:
           type: string
+        status:
+          description: if inactive the user is inactive.
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
       required: [name]
     Users:
       type: array
@@ -2285,30 +2486,87 @@ components:
       properties:
         ast:
           type: string
+          format: url
         self:
           type: string
+          format: url
         suggestions:
           type: string
+          format: url
     Routes:
       properties:
+        sources:
+          type: string
+          format: url
+        dashboards:
+          type: string
+          format: url
+        query:
+          type: string
+          format: url
+        write:
+          type: string
+          format: url
+        orgs:
+          type: string
+          format: url
+        auths:
+          type: string
+          format: url
+        buckets:
+          type: string
+          format: url
+        users:
+          type: string
+          format: url
+        tasks:
+          type: string
+          format: url
+        system:
+          type: object
+          properties:
+            metrics:
+              type: string
+              format: url
+            debug:
+              type: string
+              format: url
+            health:
+              type: string
+              format: url
         external:
           type: object
           properties:
             statusFeed:
               type: string
-        sources:
-          type: string
+              format: url
         flux:
           $ref: "#/components/schemas/FluxLinks"
     Error:
       properties:
         code:
+          description: code is the machine-readable error code.
           readOnly: true
           type: string
+          enum:
+            - internal error
+            - not found
+            - conflict
+            - invalid
+            - empty value
         message:
           readOnly: true
+          description: message is a human-readable message.
           type: string
-      required: [code, message]
+        op:
+          readOnly: true
+          description: op describes the logical code operation during error. Useful for debugging.
+          type: string
+        err:
+          readOnly: true
+          description: err is a stack of errors that occurred during processing of the request. Useful for debugging.
+          type: string
+      required: [code, message, op, err]
     LineProtocolError:
       properties:
         code:
@@ -2712,10 +2970,97 @@ components:
         type:
           type: string
           enum: ["empty"]
+    ConstantMacroProperties:
+      properties:
+        type:
+          type: string
+          enum: ["constant"]
+        values:
+          type: array
+          items:
+            type: string
+    MapMacroProperties:
+      properties:
+        type:
+          type: string
+          enum: ["map"]
+        values:
+          type: object
+    QueryMacroProperties:
+      properties:
+        type:
+          type: string
+          enum: ["query"]
+        query:
+          type: string
+        queryType:
+          type: string
+    Macro:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+              format: url
+        id:
+          readOnly: true
+          type: string
+        name:
+          type: string
+        selected:
+          type: array
+          items:
+            type: string
+        arguments:
+          type: object
+          oneOf:
+            - $ref: "#/components/schemas/QueryMacroProperties"
+            - $ref: "#/components/schemas/ConstantMacroProperties"
+            - $ref: "#/components/schemas/MapMacroProperties"
+    Macros:
+      type: object
+      example:
+        macros:
+        - id: '1221432'
+          name: ":ok:"
+          selected:
+          - hello
+          arguments:
+            type: constant
+            values:
+            - howdy
+            - hello
+            - hi
+            - yo
+            - oy
+        - id: '1221432'
+          name: ":ok:"
+          selected:
+          - c
+          arguments:
+            type: map
+            values:
+              a: fdjaklfdjkldsfjlkjdsa
+              b: dfaksjfkljekfajekdljfas
+              c: fdjksajfdkfeawfeea
+        - id: '1221432'
+          name: ":ok:"
+          selected:
+          - host
+          arguments:
+            type: query
+            query: 'from(bucket: "foo") |> showMeasurements()'
+            language: flux
+      properties:
+        macros:
+          $ref: "#/components/schemas/Macro"
     View:
       properties:
         links:
           type: object
+          readOnly: true
           properties:
             self:
               type: string
@@ -2863,6 +3208,15 @@ components:
           type: string
         fluxURL:
           type: string
+        languages:
+          type: array
+          readOnly: true
+          items:
+            type: string
+            enum:
+              - flux
+              - influxql
+              - spec
     Sources:
       type: object
       properties:
