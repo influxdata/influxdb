@@ -4,9 +4,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions"
-	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxql"
 )
 
@@ -16,16 +14,13 @@ type joinCursor struct {
 	exprs []influxql.Expr
 }
 
-func Join(t *transpilerState, cursors []cursor, on, except []string) cursor {
+func Join(t *transpilerState, cursors []cursor, on []string) cursor {
 	if len(cursors) == 1 {
 		return cursors[0]
 	}
 
 	// Iterate through each cursor and each expression within each cursor to assign them an id.
-	var (
-		exprs      []influxql.Expr
-		properties []*semantic.Property
-	)
+	var exprs []influxql.Expr
 	m := make(map[influxql.Expr]string)
 	tables := make(map[flux.OperationID]string)
 	for i, cur := range cursors {
@@ -34,27 +29,12 @@ func Join(t *transpilerState, cursors []cursor, on, except []string) cursor {
 		tables[cur.ID()] = tableName
 
 		for _, k := range cur.Keys() {
-			// Generate a name for accessing this expression and generate the index entries for it.
-			name := fmt.Sprintf("val%d", len(exprs))
+			// Combine the table name with the name to access this attribute so we can know
+			// what it will be mapped to.
+			varName, _ := cur.Value(k)
+			name := fmt.Sprintf("%s_%s", tableName, varName)
 			exprs = append(exprs, k)
 			m[k] = name
-
-			property := &semantic.Property{
-				Key: &semantic.Identifier{Name: name},
-				Value: &semantic.MemberExpression{
-					Object: &semantic.IdentifierExpression{
-						Name: "tables",
-					},
-					Property: tableName,
-				},
-			}
-			if valName, _ := cur.Value(k); valName != execute.DefaultValueColLabel {
-				property.Value = &semantic.MemberExpression{
-					Object:   property.Value,
-					Property: valName,
-				}
-			}
-			properties = append(properties, property)
 		}
 	}
 
@@ -66,8 +46,6 @@ func Join(t *transpilerState, cursors []cursor, on, except []string) cursor {
 	id := t.op("join", &functions.JoinOpSpec{
 		TableNames: tables,
 		On:         on,
-		// TODO(jsternberg): This option needs to be included.
-		//Except: except,
 	}, parents...)
 	return &joinCursor{
 		id:    id,
