@@ -1,3 +1,5 @@
+// +build !assets
+
 package dist
 
 import (
@@ -6,18 +8,21 @@ import (
 )
 
 // The functions defined in this file are placeholders
-// until we decide how to get the finalized Chronograf assets in platform.
+// when the binary is compiled without assets.
 
-var errTODO = errors.New("TODO: decide how to handle chronograf assets in platform")
+var errNoAssets = errors.New("no assets included in binary")
 
+// Asset returns an error stating no assets were included in the binary.
 func Asset(string) ([]byte, error) {
-	return nil, errTODO
+	return nil, errNoAssets
 }
 
+// AssetInfo returns an error stating no assets were included in the binary.
 func AssetInfo(name string) (os.FileInfo, error) {
-	return nil, errTODO
+	return nil, errNoAssets
 }
 
+// AssetDir returns nil because there are no assets included in the binary.
 func AssetDir(name string) ([]string, error) {
-	return nil, errTODO
+	return nil, errNoAssets
 }

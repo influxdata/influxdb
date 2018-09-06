@@ -50,7 +50,8 @@ UTILS := \
 #
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
-all: vendor node_modules $(UTILS) subdirs $(CMDS)
+all: GO_ARGS=-tags 'assets $(GO_TAGS)'
+all: vendor node_modules $(UTILS) subdirs generate $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
@@ -109,11 +110,10 @@ vendor/github.com/kevinburke/go-bindata/go-bindata/main.go: vendor
 fmt: $(SOURCES_NO_VENDOR)
 	goimports -w $^
 
-# generate:
-	# TODO: re-enable these after we decide on a strategy for building without running `go generate`.
-	# $(GO_GENERATE) ./chronograf/dist/...
-	# $(GO_GENERATE) ./chronograf/server/...
-	# $(GO_GENERATE) ./chronograf/canned/...
+generate:
+	 $(GO_GENERATE) ./chronograf/dist/...
+	 $(GO_GENERATE) ./chronograf/server/...
+	 $(GO_GENERATE) ./chronograf/canned/...
 
 test-js: node_modules
 	cd chronograf/ui && yarn test --runInBand
