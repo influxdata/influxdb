@@ -22,6 +22,7 @@ type PlatformHandler struct {
 	SourceHandler        *SourceHandler
 	TaskHandler          *TaskHandler
 	FluxLangHandler      *FluxLangHandler
+	QueryHandler         *FluxHandler
 	WriteHandler         *WriteHandler
 }
 
@@ -36,6 +37,13 @@ func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
 var platformLinks = map[string]interface{}{
 	"sources":    "/v2/sources",
 	"dashboards": "/v2/dashboards",
+	"query":      "/v2/query",
+	"write":      "/v2/write",
+	"orgs":       "/v1/orgs",
+	"auths":      "/v1/authorizations",
+	"buckets":    "/v1/buckets",
+	"users":      "/v1/users",
+	"tasks":      "/v1/tasks",
 	"flux": map[string]string{
 		"self":        "/v2/flux",
 		"ast":         "/v2/flux/ast",
@@ -43,6 +51,11 @@ var platformLinks = map[string]interface{}{
 	},
 	"external": map[string]string{
 		"statusFeed": "https://www.influxdata.com/feed/json",
+	},
+	"system": map[string]string{
+		"metrics": "/metrics",
+		"debug":   "/debug/pprof",
+		"health":  "/healthz",
 	},
 }
 
@@ -76,16 +89,6 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/flux") {
-		h.FluxLangHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/chronograf/") {
-		h.ChronografHandler.ServeHTTP(w, r)
-		return
-	}
-
 	ctx := r.Context()
 	var err error
 	if ctx, err = extractAuthorization(ctx, r); err != nil {
@@ -93,6 +96,16 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 		//nethttp.Error(w, err.Error(), nethttp.StatusBadRequest)
 	}
 	r = r.WithContext(ctx)
+
+	if strings.HasPrefix(r.URL.Path, "/v2/write") {
+		h.WriteHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/v2/query") {
+		h.QueryHandler.ServeHTTP(w, r)
+		return
+	}
 
 	if strings.HasPrefix(r.URL.Path, "/v1/buckets") {
 		h.BucketHandler.ServeHTTP(w, r)
@@ -129,13 +142,18 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 		return
 	}
 
-	if strings.HasSuffix(r.URL.Path, "/write") {
-		h.WriteHandler.ServeHTTP(w, r)
+	if strings.HasPrefix(r.URL.Path, "/v2/views") {
+		h.ViewHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/views") {
-		h.ViewHandler.ServeHTTP(w, r)
+	if strings.HasPrefix(r.URL.Path, "/v2/flux") {
+		h.FluxLangHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/chronograf/") {
+		h.ChronografHandler.ServeHTTP(w, r)
 		return
 	}
 
