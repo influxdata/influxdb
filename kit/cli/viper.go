@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"time"
 )
 
 // Opt is a single command-line option
@@ -72,6 +73,20 @@ func NewCommand(p *Program) *cobra.Command {
 			cmd.Flags().IntVar(o.DestP.(*int), o.Flag, o.Default.(int), o.Desc)
 			viper.BindPFlag(o.Flag, cmd.Flags().Lookup(o.Flag))
 			*o.DestP.(*int) = viper.GetInt(o.Flag)
+		case *bool:
+			if o.Default == nil {
+				o.Default = false
+			}
+			cmd.Flags().BoolVar(o.DestP.(*bool), o.Flag, o.Default.(bool), o.Desc)
+			viper.BindPFlag(o.Flag, cmd.Flags().Lookup(o.Flag))
+			*o.DestP.(*bool) = viper.GetBool(o.Flag)
+		case *time.Duration:
+			if o.Default == nil {
+				o.Default = time.Duration(0)
+			}
+			cmd.Flags().DurationVar(o.DestP.(*time.Duration), o.Flag, o.Default.(time.Duration), o.Desc)
+			viper.BindPFlag(o.Flag, cmd.Flags().Lookup(o.Flag))
+			*o.DestP.(*time.Duration) = viper.GetDuration(o.Flag)
 		default:
 			// if you get a panic here, sorry about that!
 			// anyway, go ahead and make a PR and add another type.
