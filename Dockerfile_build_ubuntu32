@@ -22,7 +22,7 @@ RUN gem install fpm
 
 # Install go
 ENV GOPATH /root/go
-ENV GO_VERSION 1.10.3
+ENV GO_VERSION 1.11
 ENV GO_ARCH 386
 RUN wget --no-verbose https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
    tar -C /usr/local/ -xf /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
