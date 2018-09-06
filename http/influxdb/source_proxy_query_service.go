@@ -140,5 +140,16 @@ func (s *SourceProxyQueryService) influxQuery(ctx context.Context, w io.Writer, 
 	if err := platformhttp.CheckError(resp); err != nil {
 		return 0, err
 	}
-	return io.Copy(w, resp.Body)
+
+	res := &influxql.Response{}
+	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
+		return 0, err
+	}
+
+	csvDialect, ok := req.Dialect.(csv.Dialect)
+	if !ok {
+		return 0, fmt.Errorf("unsupported dialect %T", req.Dialect)
+	}
+
+	return csv.NewMultiResultEncoder(csvDialect.ResultEncoderConfig).Encode(w, influxql.NewResponseIterator(res))
 }
