@@ -6,30 +6,30 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/semantic"
 )
 
-var selectorCreateFuncs = []func(config execute.SelectorConfig) query.OperationSpec{
-	func(config execute.SelectorConfig) query.OperationSpec {
+var selectorCreateFuncs = []func(config execute.SelectorConfig) flux.OperationSpec{
+	func(config execute.SelectorConfig) flux.OperationSpec {
 		return &functions.FirstOpSpec{SelectorConfig: config}
 	},
-	func(config execute.SelectorConfig) query.OperationSpec {
+	func(config execute.SelectorConfig) flux.OperationSpec {
 		return &functions.LastOpSpec{SelectorConfig: config}
 	},
-	func(config execute.SelectorConfig) query.OperationSpec {
+	func(config execute.SelectorConfig) flux.OperationSpec {
 		return &functions.MaxOpSpec{SelectorConfig: config}
 	},
-	func(config execute.SelectorConfig) query.OperationSpec {
+	func(config execute.SelectorConfig) flux.OperationSpec {
 		return &functions.MinOpSpec{SelectorConfig: config}
 	},
 }
 
-func SelectorTest(fn func(selector query.Operation) (string, *query.Spec)) Fixture {
+func SelectorTest(fn func(selector flux.Operation) (string, *flux.Spec)) Fixture {
 	_, file, line, _ := runtime.Caller(1)
 	fixture := &collection{
 		file: filepath.Base(file),
@@ -40,8 +40,8 @@ func SelectorTest(fn func(selector query.Operation) (string, *query.Spec)) Fixtu
 		spec := selectorSpecFn(execute.SelectorConfig{
 			Column: execute.DefaultValueColLabel,
 		})
-		op := query.Operation{
-			ID:   query.OperationID(fmt.Sprintf("%s0", spec.Kind())),
+		op := flux.Operation{
+			ID:   flux.OperationID(fmt.Sprintf("%s0", spec.Kind())),
 			Spec: spec,
 		}
 
@@ -52,10 +52,10 @@ func SelectorTest(fn func(selector query.Operation) (string, *query.Spec)) Fixtu
 
 func init() {
 	RegisterFixture(
-		SelectorTest(func(selector query.Operation) (stmt string, spec *query.Spec) {
+		SelectorTest(func(selector flux.Operation) (stmt string, spec *flux.Spec) {
 			return fmt.Sprintf(`SELECT %s(value) FROM db0..cpu`, selector.Spec.Kind()),
-				&query.Spec{
-					Operations: []*query.Operation{
+				&flux.Spec{
+					Operations: []*flux.Operation{
 						{
 							ID: "from0",
 							Spec: &functions.FromOpSpec{
@@ -65,8 +65,8 @@ func init() {
 						{
 							ID: "range0",
 							Spec: &functions.RangeOpSpec{
-								Start:    query.Time{Absolute: time.Unix(0, influxql.MinTime)},
-								Stop:     query.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+								Start:    flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
+								Stop:     flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
 								TimeCol:  execute.DefaultTimeColLabel,
 								StartCol: execute.DefaultStartColLabel,
 								StopCol:  execute.DefaultStopColLabel,
@@ -156,7 +156,7 @@ func init() {
 							},
 						},
 					},
-					Edges: []query.Edge{
+					Edges: []flux.Edge{
 						{Parent: "from0", Child: "range0"},
 						{Parent: "range0", Child: "filter0"},
 						{Parent: "filter0", Child: "group0"},

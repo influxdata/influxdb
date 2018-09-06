@@ -7,15 +7,15 @@ import (
 	"net/http"
 	"unicode/utf8"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/csv"
 )
 
 // QueryRequest is a flux query request.
 type QueryRequest struct {
-	Spec    *query.Spec  `json:"spec,omitempty"`
+	Spec    *flux.Spec   `json:"spec,omitempty"`
 	Query   string       `json:"query"`
 	Type    string       `json:"type"`
 	Dialect QueryDialect `json:"dialect"`
@@ -90,19 +90,19 @@ func (r QueryRequest) Validate() error {
 	return nil
 }
 
-// ProxyRequest returns a request to proxy from the query.
-func (r QueryRequest) ProxyRequest() (*query.ProxyRequest, error) {
+// ProxyRequest returns a request to proxy from the flux.
+func (r QueryRequest) ProxyRequest() (*flux.ProxyRequest, error) {
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
 	// Query is preferred over spec
-	var compiler query.Compiler
+	var compiler flux.Compiler
 	if r.Query != "" {
-		compiler = query.FluxCompiler{
+		compiler = flux.FluxCompiler{
 			Query: r.Query,
 		}
 	} else if r.Spec != nil {
-		compiler = query.SpecCompiler{
+		compiler = flux.SpecCompiler{
 			Spec: r.Spec,
 		}
 	}
@@ -116,8 +116,8 @@ func (r QueryRequest) ProxyRequest() (*query.ProxyRequest, error) {
 
 	// TODO(nathanielc): Use commentPrefix and dateTimeFormat
 	// once they are supported.
-	return &query.ProxyRequest{
-		Request: query.Request{
+	return &flux.ProxyRequest{
+		Request: flux.Request{
 			OrganizationID: r.org.ID,
 			Compiler:       compiler,
 		},
@@ -147,7 +147,7 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.Organ
 	return &req, err
 }
 
-func decodeProxyQueryRequest(ctx context.Context, r *http.Request, svc platform.OrganizationService) (*query.ProxyRequest, error) {
+func decodeProxyQueryRequest(ctx context.Context, r *http.Request, svc platform.OrganizationService) (*flux.ProxyRequest, error) {
 	req, err := decodeQueryRequest(ctx, r, svc)
 	if err != nil {
 		return nil, err

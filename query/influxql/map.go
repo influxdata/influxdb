@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/semantic"
 )
 
 // mapCursor holds the mapping of expressions to specific fields that happens at the end of
@@ -17,10 +17,10 @@ import (
 // TODO(jsternberg): This abstraction might be useful for subqueries, but we only need the id
 // at the moment so just hold that.
 type mapCursor struct {
-	id query.OperationID
+	id flux.OperationID
 }
 
-func (c *mapCursor) ID() query.OperationID {
+func (c *mapCursor) ID() flux.OperationID {
 	return c.id
 }
 

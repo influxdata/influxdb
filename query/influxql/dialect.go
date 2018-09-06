@@ -3,14 +3,14 @@ package influxql
 import (
 	"net/http"
 
-	"github.com/influxdata/platform/query"
+	"github.com/influxdata/flux"
 )
 
 const DialectType = "influxql"
 
 // AddDialectMappings adds the influxql specific dialect mappings.
-func AddDialectMappings(mappings query.DialectMappings) error {
-	return mappings.Add(DialectType, func() query.Dialect {
+func AddDialectMappings(mappings flux.DialectMappings) error {
+	return mappings.Add(DialectType, func() flux.Dialect {
 		return new(Dialect)
 	})
 }
@@ -34,7 +34,7 @@ func (d *Dialect) SetHeaders(w http.ResponseWriter) {
 	}
 }
 
-func (d *Dialect) Encoder() query.MultiResultEncoder {
+func (d *Dialect) Encoder() flux.MultiResultEncoder {
 	switch d.Encoding {
 	case JSON, JSONPretty:
 		return new(MultiResultEncoder)
@@ -42,7 +42,7 @@ func (d *Dialect) Encoder() query.MultiResultEncoder {
 		panic("not implemented")
 	}
 }
-func (d *Dialect) DialectType() query.DialectType {
+func (d *Dialect) DialectType() flux.DialectType {
 	return DialectType
 }
 

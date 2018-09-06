@@ -3,9 +3,9 @@ package pb
 import (
 	"fmt"
 
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/semantic"
 	ostorage "github.com/influxdata/influxdb/services/storage"
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"
 )
 

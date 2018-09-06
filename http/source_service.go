@@ -10,10 +10,10 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/julienschmidt/httprouter"
 )
@@ -70,7 +70,7 @@ type SourceHandler struct {
 	// TODO(desa): this was done so in order to remove an import cycle and to allow
 	// for http mocking.
 	NewBucketService func(s *platform.Source) (platform.BucketService, error)
-	NewQueryService  func(s *platform.Source) (query.ProxyQueryService, error)
+	NewQueryService  func(s *platform.Source) (flux.ProxyQueryService, error)
 }
 
 // NewSourceHandler returns a new instance of SourceHandler.
@@ -81,7 +81,7 @@ func NewSourceHandler() *SourceHandler {
 		NewBucketService: func(s *platform.Source) (platform.BucketService, error) {
 			return nil, fmt.Errorf("bucket service not set")
 		},
-		NewQueryService: func(s *platform.Source) (query.ProxyQueryService, error) {
+		NewQueryService: func(s *platform.Source) (flux.ProxyQueryService, error) {
 			return nil, fmt.Errorf("query service not set")
 		},
 	}
@@ -99,10 +99,10 @@ func NewSourceHandler() *SourceHandler {
 	return h
 }
 
-func decodeSourceQueryRequest(r *http.Request) (*query.ProxyRequest, error) {
+func decodeSourceQueryRequest(r *http.Request) (*flux.ProxyRequest, error) {
 	// starts here
 	request := struct {
-		Spec           *query.Spec `json:"spec"`
+		Spec           *flux.Spec  `json:"spec"`
 		Query          string      `json:"query"`
 		Type           string      `json:"type"`
 		DB             string      `json:"db"`
@@ -118,18 +118,18 @@ func decodeSourceQueryRequest(r *http.Request) (*query.ProxyRequest, error) {
 		return nil, err
 	}
 
-	req := &query.ProxyRequest{}
+	req := &flux.ProxyRequest{}
 	req.Dialect = request.Dialect
 
 	req.Request.OrganizationID = request.OrganizationID
 
 	switch request.Type {
-	case query.FluxCompilerType:
-		req.Request.Compiler = query.FluxCompiler{
+	case flux.FluxCompilerType:
+		req.Request.Compiler = flux.FluxCompiler{
 			Query: request.Query,
 		}
-	case query.SpecCompilerType:
-		req.Request.Compiler = query.SpecCompiler{
+	case flux.SpecCompilerType:
+		req.Request.Compiler = flux.SpecCompiler{
 			Spec: request.Spec,
 		}
 	case influxql.CompilerType:

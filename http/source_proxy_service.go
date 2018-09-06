@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/influxql"
 )
 
@@ -21,17 +21,17 @@ type SourceProxyQueryService struct {
 	platform.SourceFields
 }
 
-func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *flux.ProxyRequest) (int64, error) {
 	switch req.Request.Compiler.CompilerType() {
 	case influxql.CompilerType:
 		return s.queryInfluxQL(ctx, w, req)
-	case query.FluxCompilerType:
+	case flux.FluxCompilerType:
 		return s.queryFlux(ctx, w, req)
 	}
 	return 0, fmt.Errorf("compiler type not supported")
 }
 
-func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, req *flux.ProxyRequest) (int64, error) {
 	u, err := newURL(s.URL, "/v1/query")
 	if err != nil {
 		return 0, err
@@ -61,7 +61,7 @@ func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, re
 	return io.Copy(w, resp.Body)
 }
 
-func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer, req *flux.ProxyRequest) (int64, error) {
 	compiler, ok := req.Request.Compiler.(*influxql.Compiler)
 
 	if !ok {

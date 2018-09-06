@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/line-protocol"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/plan"
-	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"
 )
 
@@ -68,7 +68,7 @@ type ToHTTPOpSpec struct {
 	ValueColumns []string          `json:"valueColumns"`
 }
 
-var ToHTTPSignature = query.DefaultFunctionSignature()
+var ToHTTPSignature = flux.DefaultFunctionSignature()
 
 func init() {
 	ToHTTPSignature.Params["url"] = semantic.String
@@ -79,18 +79,18 @@ func init() {
 	ToHTTPSignature.Params["tagColumns"] = semantic.NewArrayType(semantic.String)
 	ToHTTPSignature.Params["valueColumns"] = semantic.NewArrayType(semantic.String)
 
-	query.RegisterFunctionWithSideEffect(ToHTTPKind, createToHTTPOpSpec, ToHTTPSignature)
-	query.RegisterOpSpec(ToHTTPKind,
-		func() query.OperationSpec { return &ToHTTPOpSpec{} })
+	flux.RegisterFunctionWithSideEffect(ToHTTPKind, createToHTTPOpSpec, ToHTTPSignature)
+	flux.RegisterOpSpec(ToHTTPKind,
+		func() flux.OperationSpec { return &ToHTTPOpSpec{} })
 	plan.RegisterProcedureSpec(ToHTTPKind, newToHTTPProcedure, ToHTTPKind)
 	execute.RegisterTransformation(ToHTTPKind, createToHTTPTransformation)
 }
 
-// ReadArgs loads a query.Arguments into ToHTTPOpSpec.  It sets several default values.
+// ReadArgs loads a flux.Arguments into ToHTTPOpSpec.  It sets several default values.
 // If the http method isn't set, it defaults to POST, it also uppercases the http method.
 // If the time_column isn't set, it defaults to execute.TimeColLabel.
 // If the value_column isn't set it defaults to a []string{execute.DefaultValueColLabel}.
-func (o *ToHTTPOpSpec) ReadArgs(args query.Arguments) error {
+func (o *ToHTTPOpSpec) ReadArgs(args flux.Arguments) error {
 	var err error
 	o.URL, err = args.GetRequiredString("url")
 	if err != nil {
@@ -176,7 +176,7 @@ func (o *ToHTTPOpSpec) ReadArgs(args query.Arguments) error {
 
 }
 
-func createToHTTPOpSpec(args query.Arguments, a *query.Administration) (query.OperationSpec, error) {
+func createToHTTPOpSpec(args flux.Arguments, a *flux.Administration) (flux.OperationSpec, error) {
 	if err := a.AddParentFromArgs(args); err != nil {
 		return nil, err
 	}
@@ -203,7 +203,7 @@ func (o *ToHTTPOpSpec) UnmarshalJSON(b []byte) (err error) {
 	return nil
 }
 
-func (ToHTTPOpSpec) Kind() query.OperationKind {
+func (ToHTTPOpSpec) Kind() flux.OperationKind {
 	return ToHTTPKind
 }
 
@@ -212,7 +212,7 @@ type ToHTTPProcedureSpec struct {
 }
 
 func (o *ToHTTPProcedureSpec) Kind() plan.ProcedureKind {
-	return CountKind
+	return ToHTTPKind
 }
 
 func (o *ToHTTPProcedureSpec) Copy() plan.ProcedureSpec {
@@ -241,7 +241,7 @@ func (o *ToHTTPProcedureSpec) Copy() plan.ProcedureSpec {
 	return res
 }
 
-func newToHTTPProcedure(qs query.OperationSpec, a plan.Administration) (plan.ProcedureSpec, error) {
+func newToHTTPProcedure(qs flux.OperationSpec, a plan.Administration) (plan.ProcedureSpec, error) {
 	spec, ok := qs.(*ToHTTPOpSpec)
 	if !ok && spec != nil {
 		return nil, fmt.Errorf("invalid spec type %T", qs)
@@ -266,7 +266,7 @@ type ToHTTPTransformation struct {
 	spec  *ToHTTPProcedureSpec
 }
 
-func (t *ToHTTPTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+func (t *ToHTTPTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey) error {
 	return t.d.RetractTable(key)
 }
 
@@ -311,10 +311,10 @@ func (m *toHttpMetric) Time() time.Time {
 
 type idxType struct {
 	Idx  int
-	Type query.DataType
+	Type flux.DataType
 }
 
-func (t *ToHTTPTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+func (t *ToHTTPTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 	pr, pw := io.Pipe() // TODO: replce the pipe with something faster
 	m := &toHttpMetric{}
 	e := protocol.NewEncoder(pw)
@@ -333,7 +333,7 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, tbl query.Table) er
 	if !ok {
 		return errors.New("Could not get time column")
 	}
-	if timeColIdx.Type != query.TTime {
+	if timeColIdx.Type != flux.TTime {
 		return fmt.Errorf("column %s is not of type %s", timeColLabel, timeColIdx.Type)
 	}
 	var measurementNameCol string
@@ -355,7 +355,7 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, tbl query.Table) er
 	wg.Add(1)
 	go func() {
 		m.name = t.spec.Spec.Name
-		tbl.Do(func(er query.ColReader) error {
+		tbl.Do(func(er flux.ColReader) error {
 			l := er.Len()
 			for i := 0; i < l; i++ {
 				m.truncateTagsAndFields()
@@ -364,29 +364,29 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, tbl query.Table) er
 					case col.Label == timeColLabel:
 						m.t = er.Times(j)[i].Time()
 					case measurementNameCol != "" && measurementNameCol == col.Label:
-						if col.Type != query.TString {
+						if col.Type != flux.TString {
 							return errors.New("invalid type for measurement column")
 						}
 						m.name = er.Strings(j)[i]
 					case isTag[j]:
-						if col.Type != query.TString {
+						if col.Type != flux.TString {
 							return errors.New("invalid type for measurement column")
 						}
 						m.tags = append(m.tags, &protocol.Tag{Key: col.Label, Value: er.Strings(j)[i]})
 
 					case isValue[j]:
 						switch col.Type {
-						case query.TFloat:
+						case flux.TFloat:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.Floats(j)[i]})
-						case query.TInt:
+						case flux.TInt:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.Ints(j)[i]})
-						case query.TUInt:
+						case flux.TUInt:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.UInts(j)[i]})
-						case query.TString:
+						case flux.TString:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.Strings(j)[i]})
-						case query.TTime:
+						case flux.TTime:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.Times(j)[i]})
-						case query.TBool:
+						case flux.TBool:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.Bools(j)[i]})
 						default:
 							return fmt.Errorf("invalid type for column %s", col.Label)

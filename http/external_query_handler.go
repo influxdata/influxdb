@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
 	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -18,7 +18,7 @@ type ExternalQueryHandler struct {
 
 	Logger *zap.Logger
 
-	ProxyQueryService   query.ProxyQueryService
+	ProxyQueryService   flux.ProxyQueryService
 	OrganizationService platform.OrganizationService
 }
 

@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
-	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/influxql"
-	"github.com/influxdata/platform/query/querytest"
 
 	"github.com/andreyvit/diff"
 )
@@ -127,7 +127,7 @@ func Benchmark_QueryEndToEnd(b *testing.B) {
 	})
 }
 
-func testFlux(t testing.TB, pqs query.ProxyQueryService, prefix, queryExt string) {
+func testFlux(t testing.TB, pqs flux.ProxyQueryService, prefix, queryExt string) {
 	q, err := ioutil.ReadFile(prefix + queryExt)
 	if err != nil {
 		t.Fatal(err)
@@ -139,11 +139,11 @@ func testFlux(t testing.TB, pqs query.ProxyQueryService, prefix, queryExt string
 		t.Fatal(err)
 	}
 
-	compiler := query.FluxCompiler{
+	compiler := flux.FluxCompiler{
 		Query: string(q),
 	}
-	req := &query.ProxyRequest{
-		Request: query.Request{
+	req := &flux.ProxyRequest{
+		Request: flux.Request{
 			Compiler: querytest.FromCSVCompiler{
 				Compiler:  compiler,
 				InputFile: csvInFilename,
@@ -155,7 +155,7 @@ func testFlux(t testing.TB, pqs query.ProxyQueryService, prefix, queryExt string
 	QueryTestCheckSpec(t, pqs, req, string(csvOut))
 }
 
-func testInfluxQL(t testing.TB, pqs query.ProxyQueryService, prefix, queryExt string) {
+func testInfluxQL(t testing.TB, pqs flux.ProxyQueryService, prefix, queryExt string) {
 	q, err := ioutil.ReadFile(prefix + queryExt)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -174,8 +174,8 @@ func testInfluxQL(t testing.TB, pqs query.ProxyQueryService, prefix, queryExt st
 	compiler.Cluster = "cluster"
 	compiler.DB = "db0"
 	compiler.Query = string(q)
-	req := &query.ProxyRequest{
-		Request: query.Request{
+	req := &flux.ProxyRequest{
+		Request: flux.Request{
 			Compiler: querytest.FromCSVCompiler{
 				Compiler:  compiler,
 				InputFile: csvInFilename,
@@ -198,7 +198,7 @@ func testInfluxQL(t testing.TB, pqs query.ProxyQueryService, prefix, queryExt st
 	QueryTestCheckSpec(t, pqs, req, string(jsonOut))
 }
 
-func QueryTestCheckSpec(t testing.TB, pqs query.ProxyQueryService, req *query.ProxyRequest, want string) {
+func QueryTestCheckSpec(t testing.TB, pqs flux.ProxyQueryService, req *flux.ProxyRequest, want string) {
 	t.Helper()
 
 	var buf bytes.Buffer

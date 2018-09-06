@@ -5,19 +5,19 @@ import (
 	"math"
 	"time"
 
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/semantic"
 )
 
 func init() {
 	RegisterFixture(
-		AggregateTest(func(aggregate query.Operation) (stmt string, spec *query.Spec) {
+		AggregateTest(func(aggregate flux.Operation) (stmt string, spec *flux.Spec) {
 			return fmt.Sprintf(`SELECT %s(value) FROM db0..cpu WHERE time >= now() - 10m GROUP BY time(5m, 12m)`, aggregate.Spec.Kind()),
-				&query.Spec{
-					Operations: []*query.Operation{
+				&flux.Spec{
+					Operations: []*flux.Operation{
 						{
 							ID: "from0",
 							Spec: &functions.FromOpSpec{
@@ -27,8 +27,8 @@ func init() {
 						{
 							ID: "range0",
 							Spec: &functions.RangeOpSpec{
-								Start:    query.Time{Absolute: Now().Add(-10 * time.Minute)},
-								Stop:     query.Time{Absolute: Now()},
+								Start:    flux.Time{Absolute: Now().Add(-10 * time.Minute)},
+								Stop:     flux.Time{Absolute: Now()},
 								TimeCol:  execute.DefaultTimeColLabel,
 								StartCol: execute.DefaultStartColLabel,
 								StopCol:  execute.DefaultStopColLabel,
@@ -80,9 +80,9 @@ func init() {
 						{
 							ID: "window0",
 							Spec: &functions.WindowOpSpec{
-								Every:         query.Duration(5 * time.Minute),
-								Period:        query.Duration(5 * time.Minute),
-								Start:         query.Time{Absolute: time.Unix(0, 0).Add(time.Minute * 2)},
+								Every:         flux.Duration(5 * time.Minute),
+								Period:        flux.Duration(5 * time.Minute),
+								Start:         flux.Time{Absolute: time.Unix(0, 0).Add(time.Minute * 2)},
 								TimeCol:       execute.DefaultTimeColLabel,
 								StartColLabel: execute.DefaultStartColLabel,
 								StopColLabel:  execute.DefaultStopColLabel,
@@ -92,8 +92,8 @@ func init() {
 						{
 							ID: "window1",
 							Spec: &functions.WindowOpSpec{
-								Every:         query.Duration(math.MaxInt64),
-								Period:        query.Duration(math.MaxInt64),
+								Every:         flux.Duration(math.MaxInt64),
+								Period:        flux.Duration(math.MaxInt64),
 								TimeCol:       execute.DefaultTimeColLabel,
 								StartColLabel: execute.DefaultStartColLabel,
 								StopColLabel:  execute.DefaultStopColLabel,
@@ -139,7 +139,7 @@ func init() {
 							},
 						},
 					},
-					Edges: []query.Edge{
+					Edges: []flux.Edge{
 						{Parent: "from0", Child: "range0"},
 						{Parent: "range0", Child: "filter0"},
 						{Parent: "filter0", Child: "group0"},

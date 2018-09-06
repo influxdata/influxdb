@@ -102,3 +102,7 @@ required = [
 [[constraint]]
   name = "gopkg.in/robfig/cron.v2"
   branch = "v2"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/influxdata/flux"

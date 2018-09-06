@@ -14,8 +14,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/influxdata/flux"
+
 	"go.uber.org/zap"
 
+	"github.com/influxdata/flux/control"
+	"github.com/influxdata/flux/execute"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
@@ -23,10 +27,7 @@ import (
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/kit/prom"
 	"github.com/influxdata/platform/nats"
-	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/query/control"
-	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/source"
 	"github.com/influxdata/platform/task"
 	taskbackend "github.com/influxdata/platform/task/backend"
@@ -169,7 +170,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		sourceSvc = c
 	}
 
-	var queryService query.QueryService
+	var queryService flux.QueryService
 	{
 		// TODO(lh): this is temporary until query endpoint is added here.
 		config := control.Config{
@@ -179,7 +180,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			Verbose:              false,
 		}
 
-		queryService = query.QueryServiceBridge{
+		queryService = flux.QueryServiceBridge{
 			AsyncQueryService: control.New(config),
 		}
 	}

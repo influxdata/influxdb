@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/line-protocol"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/plan"
-	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"
 	kafka "github.com/segmentio/kafka-go"
 )
@@ -37,7 +37,7 @@ type ToKafkaOpSpec struct {
 	MsgBufSize   int      `json:"msgBufferSize"` // the maximim number of messages to buffer before sending to kafka, the library we use defaults to 100
 }
 
-var ToKafkaSignature = query.DefaultFunctionSignature()
+var ToKafkaSignature = flux.DefaultFunctionSignature()
 
 func init() {
 	ToKafkaSignature.Params["brokers"] = semantic.NewArrayType(semantic.String)
@@ -48,9 +48,9 @@ func init() {
 	ToKafkaSignature.Params["timeColumn"] = semantic.String
 	ToKafkaSignature.Params["tagColumns"] = semantic.NewArrayType(semantic.String)
 	ToKafkaSignature.Params["valueColumns"] = semantic.NewArrayType(semantic.String)
-	query.RegisterFunctionWithSideEffect(ToKafkaKind, createToKafkaOpSpec, ToKafkaSignature)
-	query.RegisterOpSpec(ToKafkaKind,
-		func() query.OperationSpec { return &ToKafkaOpSpec{} })
+	flux.RegisterFunctionWithSideEffect(ToKafkaKind, createToKafkaOpSpec, ToKafkaSignature)
+	flux.RegisterOpSpec(ToKafkaKind,
+		func() flux.OperationSpec { return &ToKafkaOpSpec{} })
 	plan.RegisterProcedureSpec(ToKafkaKind, newToKafkaProcedure, ToKafkaKind)
 	execute.RegisterTransformation(ToKafkaKind, createToKafkaTransformation)
 }
@@ -66,10 +66,10 @@ type KafkaWriter interface {
 	WriteMessages(context.Context, ...kafka.Message) error
 }
 
-// ReadArgs loads a query.Arguments into ToKafkaOpSpec.  It sets several default values.
+// ReadArgs loads a flux.Arguments into ToKafkaOpSpec.  It sets several default values.
 // If the time_column isn't set, it defaults to execute.TimeColLabel.
 // If the value_column isn't set it defaults to a []string{execute.DefaultValueColLabel}.
-func (o *ToKafkaOpSpec) ReadArgs(args query.Arguments) error {
+func (o *ToKafkaOpSpec) ReadArgs(args flux.Arguments) error {
 	var err error
 	var ok bool
 
@@ -156,7 +156,7 @@ func (o *ToKafkaOpSpec) ReadArgs(args query.Arguments) error {
 
 	return err
 }
-func createToKafkaOpSpec(args query.Arguments, a *query.Administration) (query.OperationSpec, error) {
+func createToKafkaOpSpec(args flux.Arguments, a *flux.Administration) (flux.OperationSpec, error) {
 	if err := a.AddParentFromArgs(args); err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func createToKafkaOpSpec(args query.Arguments, a *query.Administration) (query.O
 	return s, nil
 }
 
-func (ToKafkaOpSpec) Kind() query.OperationKind {
+func (ToKafkaOpSpec) Kind() flux.OperationKind {
 	return ToKafkaKind
 }
 
@@ -205,7 +205,7 @@ func (o *ToKafkaProcedureSpec) Copy() plan.ProcedureSpec {
 	}
 	return res
 }
-func newToKafkaProcedure(qs query.OperationSpec, a plan.Administration) (plan.ProcedureSpec, error) {
+func newToKafkaProcedure(qs flux.OperationSpec, a plan.Administration) (plan.ProcedureSpec, error) {
 	spec, ok := qs.(*ToKafkaOpSpec)
 	if !ok && spec != nil {
 		return nil, fmt.Errorf("invalid spec type %T", qs)
@@ -229,7 +229,7 @@ type ToKafkaTransformation struct {
 	spec  *ToKafkaProcedureSpec
 }
 
-func (t *ToKafkaTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+func (t *ToKafkaTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey) error {
 	return t.d.RetractTable(key)
 }
 func NewToKafkaTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *ToKafkaProcedureSpec) *ToKafkaTransformation {
@@ -264,7 +264,7 @@ func (m *toKafkaMetric) Time() time.Time {
 	return m.t
 }
 
-func (t *ToKafkaTransformation) Process(id execute.DatasetID, tbl query.Table) (err error) {
+func (t *ToKafkaTransformation) Process(id execute.DatasetID, tbl flux.Table) (err error) {
 	w := DefaultKafkaWriterFactory(kafka.WriterConfig{
 		Brokers:       t.spec.Spec.Brokers,
 		Topic:         t.spec.Spec.Topic,
@@ -302,7 +302,7 @@ func (t *ToKafkaTransformation) Process(id execute.DatasetID, tbl query.Table) (
 	if !ok {
 		return errors.New("Could not get time column")
 	}
-	if timeColIdx.Type != query.TTime {
+	if timeColIdx.Type != flux.TTime {
 		return fmt.Errorf("column %s is not of type %s", timeColLabel, timeColIdx.Type)
 	}
 	var measurementNameCol string
@@ -321,7 +321,7 @@ func (t *ToKafkaTransformation) Process(id execute.DatasetID, tbl query.Table) (
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err = tbl.Do(func(er query.ColReader) error {
+		err = tbl.Do(func(er flux.ColReader) error {
 			l := er.Len()
 			for i := 0; i < l; i++ {
 				m.truncateTagsAndFields()
@@ -330,28 +330,28 @@ func (t *ToKafkaTransformation) Process(id execute.DatasetID, tbl query.Table) (
 					case col.Label == timeColLabel:
 						m.t = er.Times(j)[i].Time()
 					case measurementNameCol != "" && measurementNameCol == col.Label:
-						if col.Type != query.TString {
+						if col.Type != flux.TString {
 							return errors.New("invalid type for measurement column")
 						}
 						m.name = er.Strings(j)[i]
 					case isTag[j]:
-						if col.Type != query.TString {
+						if col.Type != flux.TString {
 							return errors.New("invalid type for measurement column")
 						}
 						m.tags = append(m.tags, &protocol.Tag{Key: col.Label, Value: er.Strings(j)[i]})
 					case isValue[j]:
 						switch col.Type {
-						case query.TFloat:
+						case flux.TFloat:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.Floats(j)[i]})
-						case query.TInt:
+						case flux.TInt:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.Ints(j)[i]})
-						case query.TUInt:
+						case flux.TUInt:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.UInts(j)[i]})
-						case query.TString:
+						case flux.TString:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.Strings(j)[i]})
-						case query.TTime:
+						case flux.TTime:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.Times(j)[i]})
-						case query.TBool:
+						case flux.TBool:
 							m.fields = append(m.fields, &protocol.Field{Key: col.Label, Value: er.Bools(j)[i]})
 						default:
 							return fmt.Errorf("invalid type for column %s", col.Label)

@@ -2,12 +2,12 @@
 package options
 
 import (
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/values"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/values"
 )
 
 func init() {
-	query.RegisterBuiltInOption("task", taskObject())
+	flux.RegisterBuiltInOption("task", taskObject())
 }
 
 func taskObject() values.Object {

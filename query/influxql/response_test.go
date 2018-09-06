@@ -7,7 +7,7 @@ import (
 
 	"github.com/andreyvit/diff"
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/query/csv"
+	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/platform/query/influxql"
 )
 

@@ -4,20 +4,20 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/semantic"
 )
 
 func init() {
 	RegisterFixture(
 		NewFixture(
 			`SELECT value FROM db0..cpu WHERE host =~ /.*er01/`,
-			&query.Spec{
-				Operations: []*query.Operation{
+			&flux.Spec{
+				Operations: []*flux.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
@@ -27,8 +27,8 @@ func init() {
 					{
 						ID: "range0",
 						Spec: &functions.RangeOpSpec{
-							Start:    query.Time{Absolute: time.Unix(0, influxql.MinTime)},
-							Stop:     query.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+							Start:    flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
+							Stop:     flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
 							TimeCol:  execute.DefaultTimeColLabel,
 							StartCol: execute.DefaultStartColLabel,
 							StopCol:  execute.DefaultStopColLabel,
@@ -139,7 +139,7 @@ func init() {
 						},
 					},
 				},
-				Edges: []query.Edge{
+				Edges: []flux.Edge{
 					{Parent: "from0", Child: "range0"},
 					{Parent: "range0", Child: "filter0"},
 					{Parent: "filter0", Child: "filter1"},
@@ -155,8 +155,8 @@ func init() {
 	RegisterFixture(
 		NewFixture(
 			`SELECT value FROM db0..cpu WHERE host !~ /.*er01/`,
-			&query.Spec{
-				Operations: []*query.Operation{
+			&flux.Spec{
+				Operations: []*flux.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
@@ -166,8 +166,8 @@ func init() {
 					{
 						ID: "range0",
 						Spec: &functions.RangeOpSpec{
-							Start:    query.Time{Absolute: time.Unix(0, influxql.MinTime)},
-							Stop:     query.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+							Start:    flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
+							Stop:     flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
 							TimeCol:  execute.DefaultTimeColLabel,
 							StartCol: execute.DefaultStartColLabel,
 							StopCol:  execute.DefaultStopColLabel,
@@ -278,7 +278,7 @@ func init() {
 						},
 					},
 				},
-				Edges: []query.Edge{
+				Edges: []flux.Edge{
 					{Parent: "from0", Child: "range0"},
 					{Parent: "range0", Child: "filter0"},
 					{Parent: "filter0", Child: "filter1"},
