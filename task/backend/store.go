@@ -101,14 +101,17 @@ type Store interface {
 	// If no task matches the ID, the returned task is nil.
 	FindTaskByID(ctx context.Context, id platform.ID) (*StoreTask, error)
 
+	// FindTaskMetaByID returns the metadata about a task.
+	FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTaskMeta, error)
+
+	// FindTaskByIDWithMeta combines finding the task and the meta into a single call.
+	FindTaskByIDWithMeta(ctx context.Context, id platform.ID) (*StoreTask, *StoreTaskMeta, error)
+
 	// EnableTask updates task status to enabled.
 	EnableTask(ctx context.Context, id platform.ID) error
 
 	// disableTask updates task status to disabled.
 	DisableTask(ctx context.Context, id platform.ID) error
-
-	// FindTaskMetaByID returns the metadata about a task.
-	FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTaskMeta, error)
 
 	// DeleteTask returns whether an entry matching the given ID was deleted.
 	// If err is non-nil, deleted is false.

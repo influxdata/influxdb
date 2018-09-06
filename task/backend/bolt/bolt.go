@@ -379,6 +379,65 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 
 // FindTaskByID finds a task with a given an ID.  It will return nil if the task does not exist.
 func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.StoreTask, error) {
+	var userID, org []byte
+	var script, name string
+	paddedID := padID(id)
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(s.bucket)
+		scriptBytes := b.Bucket(tasksPath).Get(paddedID)
+		if scriptBytes == nil {
+			return ErrNotFound
+		}
+		script = string(scriptBytes)
+
+		// Assign copies of everything so we don't hold a stale reference to a bolt-maintained byte slice.
+		userID = append(userID, b.Bucket(userByTaskID).Get(paddedID)...)
+		org = append(org, b.Bucket(orgByTaskID).Get(paddedID)...)
+
+		name = string(b.Bucket(nameByTaskID).Get(paddedID))
+		return nil
+	})
+	if err == ErrNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &backend.StoreTask{
+		ID:     append([]byte(nil), id...), // copy of input id
+		Org:    org,
+		User:   userID,
+		Name:   name,
+		Script: script,
+	}, err
+}
+
+func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*backend.StoreTaskMeta, error) {
+	var stmBytes []byte
+	paddedID := padID(id)
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(s.bucket)
+		stmBytes = b.Bucket(taskMetaPath).Get(paddedID)
+		if stmBytes == nil {
+			return errors.New("task meta not found")
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	stm := backend.StoreTaskMeta{}
+	err = stm.Unmarshal(stmBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &stm, nil
+}
+
+func (s *Store) FindTaskByIDWithMeta(ctx context.Context, id platform.ID) (*backend.StoreTask, *backend.StoreTaskMeta, error) {
 	var stmBytes, userID, org []byte
 	var script, name string
 	paddedID := padID(id)
@@ -398,17 +457,14 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 		name = string(b.Bucket(nameByTaskID).Get(paddedID))
 		return nil
 	})
-	if err == ErrNotFound {
-		return nil, nil
-	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	stm := backend.StoreTaskMeta{}
 	err = stm.Unmarshal(stmBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return &backend.StoreTask{
@@ -417,7 +473,7 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 		User:   userID,
 		Name:   name,
 		Script: script,
-	}, err
+	}, &stm, err
 }
 
 func (s *Store) EnableTask(ctx context.Context, id platform.ID) error {
@@ -464,30 +520,6 @@ func (s *Store) DisableTask(ctx context.Context, id platform.ID) error {
 
 		return b.Put(paddedID, stmBytes)
 	})
-}
-
-func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*backend.StoreTaskMeta, error) {
-	var stmBytes []byte
-	paddedID := padID(id)
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(s.bucket)
-		stmBytes = b.Bucket(taskMetaPath).Get(paddedID)
-		if stmBytes == nil {
-			return errors.New("task meta not found")
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	stm := backend.StoreTaskMeta{}
-	err = stm.Unmarshal(stmBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return &stm, nil
 }
 
 // DeleteTask deletes the task

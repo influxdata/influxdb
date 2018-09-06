@@ -44,12 +44,7 @@ func (c *Coordinator) CreateTask(ctx context.Context, org, user platform.ID, scr
 		return id, err
 	}
 
-	task, err := c.Store.FindTaskByID(ctx, id)
-	if err != nil {
-		return id, err
-	}
-
-	meta, err := c.Store.FindTaskMetaByID(ctx, id)
+	task, meta, err := c.Store.FindTaskByIDWithMeta(ctx, id)
 	if err != nil {
 		return id, err
 	}
@@ -70,12 +65,7 @@ func (c *Coordinator) ModifyTask(ctx context.Context, id platform.ID, newScript 
 		return err
 	}
 
-	task, err := c.Store.FindTaskByID(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	meta, err := c.Store.FindTaskMetaByID(ctx, id)
+	task, meta, err := c.Store.FindTaskByIDWithMeta(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -96,12 +86,7 @@ func (c *Coordinator) EnableTask(ctx context.Context, id platform.ID) error {
 		return err
 	}
 
-	task, err := c.Store.FindTaskByID(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	meta, err := c.Store.FindTaskMetaByID(ctx, id)
+	task, meta, err := c.Store.FindTaskByIDWithMeta(ctx, id)
 	if err != nil {
 		return err
 	}

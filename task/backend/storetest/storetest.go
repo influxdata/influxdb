@@ -27,6 +27,7 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 			"ListTasks",
 			"FindTask",
 			"FindMeta",
+			"FindTaskAndMeta",
 			"EnableDisableTask",
 			"DeleteTask",
 			"CreateNextRun",
@@ -40,6 +41,7 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 		"ListTasks":            testStoreListTasks,
 		"FindTask":             testStoreFindTask,
 		"FindMeta":             testStoreFindMeta,
+		"FindTaskAndMeta":      testStoreFindIDAndMeta,
 		"EnableDisableTask":    testStoreTaskEnableDisable,
 		"DeleteTask":           testStoreDelete,
 		"CreateNextRun":        testStoreCreateNextRun,
@@ -486,6 +488,74 @@ from(bucket:"test") |> range(start:-1h)`
 
 	if meta.LatestCompleted != 6060 {
 		t.Fatalf("expected LatestCompleted to be updated by finished run, but it wasn't; LatestCompleted=%d", meta.LatestCompleted)
+	}
+}
+
+func testStoreFindIDAndMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
+	const script = `option task = {
+		name: "a task",
+		cron: "* * * * *",
+		concurrency: 3,
+		delay: 5s,
+	}
+
+from(bucket:"test") |> range(start:-1h)`
+
+	s := create(t)
+	defer destroy(t, s)
+
+	org := []byte{1}
+	user := []byte{2}
+
+	id, err := s.CreateTask(context.Background(), org, user, script, 6000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	task, meta, err := s.FindTaskByIDWithMeta(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(task.ID, id) {
+		t.Fatalf("unexpected ID: got %v, exp %v", task.ID, id)
+	}
+	if !bytes.Equal(task.Org, org) {
+		t.Fatalf("unexpected org: got %v, exp %v", task.Org, org)
+	}
+	if !bytes.Equal(task.User, user) {
+		t.Fatalf("unexpected user: got %v, exp %v", task.User, user)
+	}
+	if task.Name != "a task" {
+		t.Fatalf("unexpected name %q", task.Name)
+	}
+	if task.Script != script {
+		t.Fatalf("unexpected script %q", task.Script)
+	}
+
+	if meta.MaxConcurrency != 3 {
+		t.Fatal("failed to set max concurrency")
+	}
+
+	if meta.LatestCompleted != 6000 {
+		t.Fatalf("LatestCompleted should have been set to 6000, got %d", meta.LatestCompleted)
+	}
+
+	if meta.EffectiveCron != "* * * * *" {
+		t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
+	}
+
+	if time.Duration(meta.Delay)*time.Second != 5*time.Second {
+		t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
+	}
+
+	badID := []byte("bad")
+	task, meta, err = s.FindTaskByIDWithMeta(context.Background(), badID)
+	if err == nil {
+		t.Fatalf("failed to error on bad taskID")
+	}
+	if meta != nil || task != nil {
+		t.Fatalf("expected nil meta and task when finding nonexistent ID, got meta: %#v, task: %#v", meta, task)
 	}
 }
 

@@ -173,6 +173,28 @@ func (s *inmem) FindTaskByID(_ context.Context, id platform.ID) (*StoreTask, err
 	return nil, nil
 }
 
+func (s *inmem) FindTaskByIDWithMeta(_ context.Context, id platform.ID) (*StoreTask, *StoreTaskMeta, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	task := new(StoreTask)
+	for _, t := range s.tasks {
+		if bytes.Equal(t.ID, id) {
+			// Return a copy of the task.
+
+			*task = t
+			break
+		}
+	}
+
+	meta, ok := s.runners[id.String()]
+	if !ok {
+		return nil, nil, errors.New("task meta not found")
+	}
+
+	return task, &meta, nil
+}
+
 func (s *inmem) EnableTask(ctx context.Context, id platform.ID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
