@@ -133,7 +133,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /healthz:
+  /health:
     get:
       tags:
         - Health
@@ -141,6 +141,10 @@ paths:
       responses:
         '200':
           description: the instance is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
         default:
           description: unexpected error
           content:
@@ -2012,6 +2016,21 @@ components:
             - org/:id/dashboard
     Authorization:
       properties:
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/v2/authorizations/1"
+            user: "/v2/users/12"
+          properties:
+            self:
+              readOnly: true
+              type: string
+              format: url
+            user:
+              readOnly: true
+              type: string
+              format: url
         id:
           readOnly: true
           type: string
@@ -2033,11 +2052,37 @@ components:
           $ref: "#/components/schemas/Owners"
       required: [owner]
     Authorizations:
-      type: array
-      items:
-        $ref: "#/components/schemas/Authorization"
+      type: object
+      properties:
+        links:
+          readOnly: true
+          $ref: "#/components/schemas/Links"
+        authorizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Authorization"
     Bucket:
       properties:
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/v2/buckets/1"
+            org: "/v2/orgs/2"
+            write: "/v2/write?org=myorg"
+          properties:
+            self:
+              readOnly: true
+              type: string
+              format: url
+            org:
+              readOnly: true
+              type: string
+              format: url
+            write:
+              readOnly: true
+              type: string
+              format: url
         id:
           readOnly: true
           type: string
@@ -2045,14 +2090,35 @@ components:
           $ref: "#/components/schemas/Owners"
         name:
           type: string
-        retentionPeriod:
-          type: integer
-          format: int64
+        retentionPeriods:
+          type: array
+          default:
+            type: expire
+            duration: "infinite"
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                default: expire
+                enum:
+                  - expire
+              duration:
+                type: string
+                description: durations are an extension of the golang duration syntax
+                example: 1d
+                default: "infinite"
       required: [organizationID, name, retentionPeriod]
     Buckets:
-      type: array
-      items:
-        $ref: "#/components/schemas/Bucket"
+      type: object
+      properties:
+        links:
+          readOnly: true
+          $ref: "#/components/schemas/Links"
+        buckets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Bucket"
     Link:
       type: object
       readOnly: true
@@ -2805,7 +2871,24 @@ components:
           properties:
             self:
               type: string
+              format: url
         sources:
           type: array
           items:
             $ref: "#/components/schemas/Source"
+    Health:
+      type: object
+      properties:
+        name:
+          type: string
+        message:
+          type: string
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Health"
+        status:
+          type: string
+          enum:
+            - unhealthy
+            - healthy
