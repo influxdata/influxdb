@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	dto "github.com/prometheus/client_model/go"
 )
 
 func TestMetrics(t *testing.T) {
@@ -31,7 +30,7 @@ func TestMetrics(t *testing.T) {
 						"x": 12.3,
 						"y": "a long string",
 					},
-					Type: dto.MetricType_SUMMARY,
+					Type: MetricTypeSummary,
 				},
 			},
 		},
@@ -49,7 +48,7 @@ func TestMetrics(t *testing.T) {
 						"x": 12.3,
 						"y": "a long string",
 					},
-					Type: dto.MetricType_SUMMARY,
+					Type: MetricTypeSummary,
 				},
 
 				{
@@ -63,7 +62,7 @@ func TestMetrics(t *testing.T) {
 						"x": 12.5,
 						"y": "a long string2",
 					},
-					Type: dto.MetricType_GAUGE,
+					Type: MetricTypeGauge,
 				},
 			},
 		},

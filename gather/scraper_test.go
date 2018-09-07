@@ -9,55 +9,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
-	dto "github.com/prometheus/client_model/go"
 )
 
-type mockStorage struct {
-	Metrics map[int64]Metrics
-}
-
-func (s *mockStorage) Record(ms []Metrics) error {
-	for _, m := range ms {
-		s.Metrics[m.Timestamp] = m
-	}
-	return nil
-}
-
-type mockHTTPHandler struct {
-	unauthorized bool
-	noContent    bool
-	responseMap  map[string]string
-}
-
-func (h mockHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if h.unauthorized {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	if h.noContent {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	s, ok := h.responseMap[r.URL.Path]
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-	w.Write([]byte(s))
-}
-
-func TestParse(t *testing.T) {
-	option := cmp.Options{
-		cmp.Comparer(func(x, y Metrics) bool {
-			return x.Name == y.Name &&
-				x.Type == y.Type &&
-				reflect.DeepEqual(x.Tags, y.Tags) &&
-				reflect.DeepEqual(x.Fields, y.Fields)
-		}),
-	}
-	orgID, _ := platform.IDFromString("020f755c3c082000")
-	bucketID, _ := platform.IDFromString("020f755c3c082001")
+func TestPrometheusScraper(t *testing.T) {
 	cases := []struct {
 		name    string
 		ms      []Metrics
@@ -87,7 +41,7 @@ func TestParse(t *testing.T) {
 			ms: []Metrics{
 				{
 					Name: "go_gc_duration_seconds",
-					Type: dto.MetricType_SUMMARY,
+					Type: MetricTypeSummary,
 					Fields: map[string]interface{}{
 						"count": float64(326),
 						"sum":   0.07497837,
@@ -101,7 +55,7 @@ func TestParse(t *testing.T) {
 				},
 				{
 					Name: "go_goroutines",
-					Type: dto.MetricType_GAUGE,
+					Type: MetricTypeGauge,
 					Tags: map[string]string{},
 					Fields: map[string]interface{}{
 						"gauge": float64(36),
@@ -109,7 +63,7 @@ func TestParse(t *testing.T) {
 				},
 				{
 					Name: "go_info",
-					Type: dto.MetricType_GAUGE,
+					Type: MetricTypeGauge,
 					Tags: map[string]string{
 						"version": "go1.10.3",
 					},
@@ -119,7 +73,7 @@ func TestParse(t *testing.T) {
 				},
 				{
 					Name: "go_memstats_alloc_bytes",
-					Type: dto.MetricType_GAUGE,
+					Type: MetricTypeGauge,
 					Tags: map[string]string{},
 					Fields: map[string]interface{}{
 						"gauge": 2.0091312e+07,
@@ -127,7 +81,7 @@ func TestParse(t *testing.T) {
 				},
 				{
 					Name: "go_memstats_alloc_bytes_total",
-					Type: dto.MetricType_COUNTER,
+					Type: MetricTypeCounter,
 					Fields: map[string]interface{}{
 						"counter": 4.183173328e+09,
 					},
@@ -135,7 +89,7 @@ func TestParse(t *testing.T) {
 				},
 				{
 					Name: "go_memstats_buck_hash_sys_bytes",
-					Type: dto.MetricType_GAUGE,
+					Type: MetricTypeGauge,
 					Tags: map[string]string{},
 					Fields: map[string]interface{}{
 						"gauge": 1.533852e+06,
@@ -143,7 +97,7 @@ func TestParse(t *testing.T) {
 				},
 				{
 					Name: "go_memstats_frees_total",
-					Type: dto.MetricType_COUNTER,
+					Type: MetricTypeCounter,
 					Tags: map[string]string{},
 					Fields: map[string]interface{}{
 						"counter": 1.8944339e+07,
@@ -151,7 +105,7 @@ func TestParse(t *testing.T) {
 				},
 				{
 					Name: "go_memstats_gc_cpu_fraction",
-					Type: dto.MetricType_GAUGE,
+					Type: MetricTypeGauge,
 					Tags: map[string]string{},
 					Fields: map[string]interface{}{
 						"gauge": 1.972734963012756e-05,
@@ -162,29 +116,30 @@ func TestParse(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		storage := &mockStorage{
-			Metrics: make(map[int64]Metrics),
-		}
-		scrapper := NewPrometheusScrapper(storage)
+		scraper := new(prometheusScraper)
 		var url string
 		if c.handler != nil {
 			ts := httptest.NewServer(c.handler)
 			defer ts.Close()
 			url = ts.URL
 		}
-		err := scrapper.Gather(context.Background(), *orgID, *bucketID, url+"/metrics")
+		results, err := scraper.Gather(context.Background(), platform.ScraperTarget{
+			URL:        url + "/metrics",
+			OrgName:    "org1",
+			BucketName: "bucket1",
+		})
 		if err != nil && !c.hasErr {
-			t.Fatalf("scrapper parse err in testing %s: %v", c.name, err)
+			t.Fatalf("scraper parse err in testing %s: %v", c.name, err)
 		}
-		if len(c.ms) != len(storage.Metrics) {
-			t.Fatalf("scrapper parse metrics incorrect length, want %d, got %d",
-				len(c.ms), len(storage.Metrics))
+		if len(c.ms) != len(results) {
+			t.Fatalf("scraper parse metrics incorrect length, want %d, got %d",
+				len(c.ms), len(results))
 		}
-		for _, m := range storage.Metrics {
+		for _, m := range results {
 			for _, cm := range c.ms {
 				if m.Name == cm.Name {
-					if diff := cmp.Diff(m, cm, option); diff != "" {
-						t.Fatalf("scrapper parse metrics want %v, got %v", cm, m)
+					if diff := cmp.Diff(m, cm, metricsCmpOption); diff != "" {
+						t.Fatalf("scraper parse metrics want %v, got %v", cm, m)
 					}
 				}
 			}
@@ -225,3 +180,101 @@ go_memstats_frees_total 1.8944339e+07
 # TYPE go_memstats_gc_cpu_fraction gauge
 go_memstats_gc_cpu_fraction 1.972734963012756e-05
 `
+
+// mockStorage implement storage interface
+// and platform.ScraperTargetStoreService interface.
+type mockStorage struct {
+	Metrics map[int64]Metrics
+	Targets []platform.ScraperTarget
+}
+
+func (s *mockStorage) Record(ms []Metrics) error {
+	for _, m := range ms {
+		s.Metrics[m.Timestamp] = m
+	}
+	return nil
+}
+
+func (s *mockStorage) ListTargets(ctx context.Context) (targets []platform.ScraperTarget, err error) {
+	if s.Targets == nil {
+		s.Targets = make([]platform.ScraperTarget, 0)
+	}
+	return s.Targets, nil
+}
+
+func (s *mockStorage) AddTarget(ctx context.Context, t *platform.ScraperTarget) error {
+	if s.Targets == nil {
+		s.Targets = make([]platform.ScraperTarget, 0)
+	}
+	s.Targets = append(s.Targets, *t)
+	return nil
+}
+
+func (s *mockStorage) RemoveTarget(ctx context.Context, id platform.ID) error {
+	if s.Targets == nil {
+		return nil
+	}
+	for k, v := range s.Targets {
+		if v.ID.String() == id.String() {
+			s.Targets = append(s.Targets[:k], s.Targets[k+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
+func (s *mockStorage) GetTargetByID(ctx context.Context, id platform.ID) (target *platform.ScraperTarget, err error) {
+	for k, v := range s.Targets {
+		if v.ID.String() == id.String() {
+			target = &s.Targets[k]
+			break
+		}
+	}
+
+	return target, err
+
+}
+
+func (s *mockStorage) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (target *platform.ScraperTarget, err error) {
+	for k, v := range s.Targets {
+		if v.ID.String() == string(update.ID) {
+			s.Targets[k] = *update
+			break
+		}
+	}
+
+	return update, err
+}
+
+type mockHTTPHandler struct {
+	unauthorized bool
+	noContent    bool
+	responseMap  map[string]string
+}
+
+func (h mockHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.unauthorized {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if h.noContent {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	s, ok := h.responseMap[r.URL.Path]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.Write([]byte(s))
+}
+
+var metricsCmpOption = cmp.Options{
+	cmp.Comparer(func(x, y Metrics) bool {
+		return x.Name == y.Name &&
+			x.Type == y.Type &&
+			reflect.DeepEqual(x.Tags, y.Tags) &&
+			reflect.DeepEqual(x.Fields, y.Fields)
+	}),
+}

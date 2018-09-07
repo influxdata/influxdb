@@ -1,0 +1,107 @@
+package gather
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/nats"
+	"go.uber.org/zap"
+)
+
+const (
+	MetricsSubject    = "metrics"
+	promTargetSubject = "promTarget"
+)
+
+// Scheduler is struct to run scrape jobs.
+type Scheduler struct {
+	Targets platform.ScraperTargetStoreService
+	// Interval is between each metrics gathering event.
+	Interval time.Duration
+	// Timeout is the maxisium time duration allowed by each TCP request
+	Timeout time.Duration
+
+	// Publisher will send the gather requests and gathered metrics to the queue.
+	Publisher nats.Publisher
+
+	Logger *zap.Logger
+}
+
+// NewScheduler creates a new Scheduler and subscriptions for scraper jobs.
+func NewScheduler(
+	numScrapers int,
+	l *zap.Logger,
+	targets platform.ScraperTargetStoreService,
+	p nats.Publisher,
+	s nats.Subscriber,
+	interval time.Duration,
+	timeout time.Duration,
+) (*Scheduler, error) {
+	if interval == 0 {
+		interval = 60 * time.Second
+	}
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+	scheduler := &Scheduler{
+		Targets:   targets,
+		Interval:  interval,
+		Timeout:   timeout,
+		Publisher: p,
+		Logger:    l,
+	}
+
+	for i := 0; i < numScrapers; i++ {
+		err := s.Subscribe(promTargetSubject, "", &handler{
+			Scraper:   new(prometheusScraper),
+			Publisher: p,
+			Logger:    l,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return scheduler, nil
+}
+
+// Run will retrieve scraper targets from the target storage,
+// and publish them to nats job queue for gather.
+func (s *Scheduler) Run(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(s.Interval):
+			ctx, cancel := context.WithTimeout(ctx, s.Timeout)
+			defer cancel()
+			targets, err := s.Targets.ListTargets(ctx)
+			if err != nil {
+				s.Logger.Error("cannot list targets", zap.Error(err))
+				continue
+			}
+			for _, target := range targets {
+				if err := requestScrape(target, s.Publisher); err != nil {
+					s.Logger.Error("json encoding error", zap.Error(err))
+				}
+			}
+		}
+	}
+}
+
+func requestScrape(t platform.ScraperTarget, publisher nats.Publisher) error {
+	buf := new(bytes.Buffer)
+	err := json.NewEncoder(buf).Encode(t)
+	if err != nil {
+		return err
+	}
+	switch t.Type {
+	case platform.PrometheusScraperType:
+		return publisher.Publish(promTargetSubject, buf)
+	}
+	return fmt.Errorf("unsupported target scrape type: %s", t.Type)
+}

@@ -2,72 +2,45 @@ package gather
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"mime"
 	"net/http"
 	"time"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/nats"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )
 
-/*
-	1. Discoverer
-	2. Scheduler
-	3. Queue
-	4. Scrap
-	5. Storage
-*/
+// prometheusScraper handles parsing prometheus metrics.
+// implements Scraper interfaces.
+type prometheusScraper struct{}
 
-// Scrapper gathers metrics from an url
-type Scrapper interface {
-	Gather(ctx context.Context, orgID, BucketID platform.ID, url string) error
-}
-
-// NewPrometheusScrapper returns a new prometheusScraper
-// to fetch metrics from prometheus /metrics
-func NewPrometheusScrapper(s Storage) Scrapper {
-	return &prometheusScrapper{
-		Storage: s,
-	}
-}
-
-type prometheusScrapper struct {
-	Storage Storage
-}
-
-func (p *prometheusScrapper) Gather(
-	ctx context.Context,
-	orgID,
-	BucketID platform.ID,
-	url string,
-) error {
-	resp, err := http.Get(url)
+// Gather parse metrics from a scraper target url.
+func (p *prometheusScraper) Gather(ctx context.Context, target platform.ScraperTarget) (ms []Metrics, err error) {
+	resp, err := http.Get(target.URL)
 	if err != nil {
-		return err
+		return ms, err
 	}
 	defer resp.Body.Close()
 
 	return p.parse(resp.Body, resp.Header)
 }
 
-func (p *prometheusScrapper) parse(r io.Reader, header http.Header) error {
+func (p *prometheusScraper) parse(r io.Reader, header http.Header) ([]Metrics, error) {
 	var parser expfmt.TextParser
+	now := time.Now()
 
 	mediatype, params, err := mime.ParseMediaType(header.Get("Content-Type"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Prepare output
 	metricFamilies := make(map[string]*dto.MetricFamily)
-	if err == nil && mediatype == "application/vnd.google.protobuf" &&
+	if mediatype == "application/vnd.google.protobuf" &&
 		params["encoding"] == "delimited" &&
 		params["proto"] == "io.prometheus.client.MetricFamily" {
 		for {
@@ -76,61 +49,60 @@ func (p *prometheusScrapper) parse(r io.Reader, header http.Header) error {
 				if err == io.EOF {
 					break
 				}
-				return fmt.Errorf("reading metric family protocol buffer failed: %s", err)
+				return nil, fmt.Errorf("reading metric family protocol buffer failed: %s", err)
 			}
 			metricFamilies[mf.GetName()] = mf
 		}
 	} else {
 		metricFamilies, err = parser.TextToMetricFamilies(r)
 		if err != nil {
-			return fmt.Errorf("reading text format failed: %s", err)
+			return nil, fmt.Errorf("reading text format failed: %s", err)
 		}
 	}
 	ms := make([]Metrics, 0)
 
 	// read metrics
-	for metricName, mf := range metricFamilies {
-		for _, m := range mf.Metric {
+	for name, family := range metricFamilies {
+		for _, m := range family.Metric {
 			// reading tags
 			tags := makeLabels(m)
 			// reading fields
 			fields := make(map[string]interface{})
-			if mf.GetType() == dto.MetricType_SUMMARY {
+			switch family.GetType() {
+			case dto.MetricType_SUMMARY:
 				// summary metric
 				fields = makeQuantiles(m)
 				fields["count"] = float64(m.GetSummary().GetSampleCount())
 				fields["sum"] = float64(m.GetSummary().GetSampleSum())
-			} else if mf.GetType() == dto.MetricType_HISTOGRAM {
+			case dto.MetricType_HISTOGRAM:
 				// histogram metric
 				fields = makeBuckets(m)
 				fields["count"] = float64(m.GetHistogram().GetSampleCount())
 				fields["sum"] = float64(m.GetHistogram().GetSampleSum())
-			} else {
+			default:
 				// standard metric
 				fields = getNameAndValue(m)
 			}
-			if len(fields) > 0 {
-				var t time.Time
-				if m.TimestampMs != nil && *m.TimestampMs > 0 {
-					t = time.Unix(0, *m.TimestampMs*1000000)
-				} else {
-					t = time.Now()
-				}
-				me := Metrics{
-					Timestamp: t.UnixNano(),
-					Tags:      tags,
-					Fields:    fields,
-					Name:      metricName,
-					Type:      mf.GetType(),
-				}
-				ms = append(ms, me)
+			if len(fields) == 0 {
+				continue
 			}
+			tm := now
+			if m.TimestampMs != nil && *m.TimestampMs > 0 {
+				tm = time.Unix(0, *m.TimestampMs*1000000)
+			}
+			me := Metrics{
+				Timestamp: tm.UnixNano(),
+				Tags:      tags,
+				Fields:    fields,
+				Name:      name,
+				Type:      MetricType(family.GetType()),
+			}
+			ms = append(ms, me)
 		}
 
 	}
-	fmt.Println(len(ms))
 
-	return p.Storage.Record(ms)
+	return ms, nil
 }
 
 // Get labels from metric
@@ -142,7 +114,7 @@ func makeLabels(m *dto.Metric) map[string]string {
 	return result
 }
 
-// Get Buckets  from histogram metric
+// Get Buckets from histogram metric
 func makeBuckets(m *dto.Metric) map[string]interface{} {
 	fields := make(map[string]interface{})
 	for _, b := range m.GetHistogram().Bucket {
@@ -179,32 +151,4 @@ func makeQuantiles(m *dto.Metric) map[string]interface{} {
 		}
 	}
 	return fields
-}
-
-// ScrapperRequest is the parsing request submited to nats
-type ScrapperRequest struct {
-	HostURL  string      `json:"host_url"`
-	OrgID    platform.ID `json:"org"`
-	BucketID platform.ID `json:"bucket"`
-}
-
-// ScrapperHandler handles parsing subscription
-type ScrapperHandler struct {
-	Scrapper Scrapper
-	Logger   *log.Logger
-}
-
-// Process implents nats Handler interface
-func (h *ScrapperHandler) Process(s nats.Subscription, m nats.Message) {
-	defer m.Ack()
-	msg := new(ScrapperRequest)
-	err := json.Unmarshal(m.Data(), msg)
-	if err != nil {
-		h.Logger.Printf("scrapper processing error %v\n", err)
-		return
-	}
-	err = h.Scrapper.Gather(context.Background(), msg.OrgID, msg.BucketID, msg.HostURL)
-	if err != nil {
-		h.Logger.Println(err.Error())
-	}
 }
