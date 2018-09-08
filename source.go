@@ -3,7 +3,7 @@ package platform
 import "context"
 
 const (
-	ErrSourceNotFound = Error("source not found")
+	ErrSourceNotFound = ChronografError("source not found")
 )
 
 // SourceType is a string for types of sources.

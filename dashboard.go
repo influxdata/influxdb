@@ -6,10 +6,10 @@ import (
 )
 
 // ErrDashboardNotFound is the error for a missing dashboard.
-const ErrDashboardNotFound = Error("dashboard not found")
+const ErrDashboardNotFound = ChronografError("dashboard not found")
 
 // ErrCellNotFound is the error for a missing cell.
-const ErrCellNotFound = Error("cell not found")
+const ErrCellNotFound = ChronografError("cell not found")
 
 // DashboardService represents a service for managing dashboard data.
 type DashboardService interface {

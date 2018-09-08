@@ -7,7 +7,7 @@ import (
 )
 
 // ErrViewNotFound is the error for a missing View.
-const ErrViewNotFound = Error("View not found")
+const ErrViewNotFound = ChronografError("View not found")
 
 // ViewService represents a service for managing View data.
 type ViewService interface {
