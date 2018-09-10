@@ -57,6 +57,26 @@ func TestFloatBatchDecodeAll_Simple(t *testing.T) {
 	}
 }
 
+func TestFloatBatchDecodeAll_Empty(t *testing.T) {
+	s := tsm1.NewFloatEncoder()
+	s.Flush()
+
+	b, err := s.Bytes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	buf := make([]float64, 8)
+	got, err := tsm1.FloatBatchDecodeAll(b, buf)
+	if err != nil {
+		t.Fatalf("unexpected decode error %q", err)
+	}
+
+	if exp := []float64{}; !cmp.Equal(got, exp) {
+		t.Fatalf("unexpected values -got/+exp\n%s", cmp.Diff(got, exp))
+	}
+}
+
 func TestBatchBitStreamEOF(t *testing.T) {
 	br := tsm1.NewBatchBitReader([]byte("0"))
 
