@@ -82,6 +82,7 @@ v1.6.0 [2018-07-05]
 -	[#10175](https://github.com/influxdata/influxdb/pull/10175): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr.
 -	[#10181](https://github.com/influxdata/influxdb/pull/10181): Fix line protocol parsing panic.
 -	[#10212](https://github.com/influxdata/influxdb/pull/10212): Ensure orhpaned series cleaned up with shard drop.
+-	[#10262](https://github.com/influxdata/influxdb/pull/10262): Fix the derivative and others time ranges for aggregate data.
 
 v1.5.4 [2018-06-21]
 -------------------
