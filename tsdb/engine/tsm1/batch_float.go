@@ -33,6 +33,11 @@ func FloatBatchDecodeAll(b []byte, dst []float64) ([]float64, error) {
 	// we currently just have gorilla compression.
 	br.Reset(b[1:])
 	val = br.ReadBits(64)
+	if val == uvnan {
+		// special case: there were no values to decode
+		return dst[:0], nil
+	}
+
 	dst[j] = math.Float64frombits(val)
 	j++
 
