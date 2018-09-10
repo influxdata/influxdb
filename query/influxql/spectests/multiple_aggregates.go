@@ -1,5 +1,3 @@
-//+build todo
-
 package spectests
 
 import (
@@ -158,7 +156,7 @@ func init() {
 					{
 						ID: "join0",
 						Spec: &functions.JoinOpSpec{
-							On: []string{"_measurement"},
+							On: []string{"_time", "_measurement"},
 							TableNames: map[flux.OperationID]string{
 								"mean0": "t0",
 								"max0":  "t1",
@@ -189,7 +187,7 @@ func init() {
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
 												},
-												Property: "val0",
+												Property: "t0__value",
 											},
 										},
 										{
@@ -198,7 +196,7 @@ func init() {
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
 												},
-												Property: "val1",
+												Property: "t1__value",
 											},
 										},
 									},

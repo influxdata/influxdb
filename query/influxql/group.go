@@ -187,7 +187,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		return nil, errors.New("unimplemented: joining fields within a cursor")
 	}
 
-	cur := Join(t, cursors, []string{"_measurement"}, nil)
+	cur := Join(t, cursors, []string{"_measurement"})
 	if len(tags) > 0 {
 		cur = &tagsCursor{cursor: cur, tags: tags}
 	}
