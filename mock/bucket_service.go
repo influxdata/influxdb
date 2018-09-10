@@ -78,5 +78,5 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 
 // DeleteBucket removes a bucket by ID.
 func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
-	return s.DeleteBucket(ctx, id)
+	return s.DeleteBucketFn(ctx, id)
 }

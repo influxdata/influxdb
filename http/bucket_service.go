@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/influxdata/platform"
-	kerrors "github.com/influxdata/platform/kit/errors"
+	errors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -33,6 +35,40 @@ func NewBucketHandler() *BucketHandler {
 	return h
 }
 
+type bucketResponse struct {
+	Links map[string]string `json:"links"`
+	platform.Bucket
+}
+
+func newBucketResponse(b *platform.Bucket) *bucketResponse {
+	return &bucketResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/v1/buckets/%s", b.ID),
+			"org":  fmt.Sprintf("/v1/orgs/%s", b.OrganizationID),
+		},
+		Bucket: *b,
+	}
+}
+
+type bucketsResponse struct {
+	Links   map[string]string `json:"links"`
+	Buckets []*bucketResponse `json:"buckets"`
+}
+
+func newBucketsResponse(opts platform.FindOptions, f platform.BucketFilter, bs []*platform.Bucket) *bucketsResponse {
+	rs := make([]*bucketResponse, 0, len(bs))
+	for _, b := range bs {
+		rs = append(rs, newBucketResponse(b))
+	}
+	return &bucketsResponse{
+		// TODO(desa): update links to include paging and filter information
+		Links: map[string]string{
+			"self": "/v1/buckets",
+		},
+		Buckets: rs,
+	}
+}
+
 // handlePostBucket is the HTTP handler for the POST /v1/buckets route.
 func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -48,7 +84,7 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, req.Bucket); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newBucketResponse(req.Bucket)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -82,11 +118,15 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 	b, err := h.BucketService.FindBucketByID(ctx, req.BucketID)
 	if err != nil {
+		// TODO(desa): fix this when using real errors library
+		if strings.Contains(err.Error(), "not found") {
+			err = errors.New(err.Error(), errors.NotFound)
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newBucketResponse(b)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -100,7 +140,7 @@ func decodeGetBucketRequest(ctx context.Context, r *http.Request) (*getBucketReq
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, errors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -125,11 +165,15 @@ func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := h.BucketService.DeleteBucket(ctx, req.BucketID); err != nil {
+		// TODO(desa): fix this when using real errors library
+		if strings.Contains(err.Error(), "not found") {
+			err = errors.New(err.Error(), errors.NotFound)
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type deleteBucketRequest struct {
@@ -140,7 +184,7 @@ func decodeDeleteBucketRequest(ctx context.Context, r *http.Request) (*deleteBuc
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, errors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -164,13 +208,14 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	bs, _, err := h.BucketService.FindBuckets(ctx, req.filter)
+	opts := platform.FindOptions{}
+	bs, _, err := h.BucketService.FindBuckets(ctx, req.filter, opts)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, bs); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(opts, req.filter, bs)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -221,11 +266,15 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 
 	b, err := h.BucketService.UpdateBucket(ctx, req.BucketID, req.Update)
 	if err != nil {
+		// TODO(desa): fix this when using real errors library
+		if strings.Contains(err.Error(), "not found") {
+			err = errors.New(err.Error(), errors.NotFound)
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newBucketResponse(b)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -240,7 +289,7 @@ func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucke
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, errors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -362,13 +411,18 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 		return nil, 0, err
 	}
 
-	var bs []*platform.Bucket
+	var bs bucketsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&bs); err != nil {
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
 
-	return bs, len(bs), nil
+	buckets := make([]*platform.Bucket, 0, len(bs.Buckets))
+	for _, b := range bs.Buckets {
+		buckets = append(buckets, &b.Bucket)
+	}
+
+	return buckets, len(buckets), nil
 }
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
