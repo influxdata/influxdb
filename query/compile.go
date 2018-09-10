@@ -39,6 +39,16 @@ type compiledStatement struct {
 	// a query that shouldn't have an interval to fail.
 	InheritedInterval bool
 
+	// ExtraIntervals is the number of extra intervals that will be read in addition
+	// to the TimeRange. It is a multiple of Interval and only applies to queries that
+	// have an Interval. It is used to extend the TimeRange of the mapped shards to
+	// include additional non-emitted intervals used by derivative and other functions.
+	// It will be set to the highest number of extra intervals that need to be read even
+	// if it doesn't apply to all functions. The number will always be positive.
+	// This value may be set to a non-zero value even if there is no interval for the
+	// compiled query.
+	ExtraIntervals int
+
 	// Ascending is true if the time ordering is ascending.
 	Ascending bool
 
@@ -446,6 +456,9 @@ func (c *compiledField) compileDerivative(args []influxql.Expr, isNonNegative bo
 		}
 	}
 	c.global.OnlySelectors = false
+	if c.global.ExtraIntervals < 1 {
+		c.global.ExtraIntervals = 1
+	}
 
 	// Must be a variable reference, function, wildcard, or regexp.
 	switch arg0 := args[0].(type) {
@@ -479,6 +492,9 @@ func (c *compiledField) compileElapsed(args []influxql.Expr) error {
 		}
 	}
 	c.global.OnlySelectors = false
+	if c.global.ExtraIntervals < 1 {
+		c.global.ExtraIntervals = 1
+	}
 
 	// Must be a variable reference, function, wildcard, or regexp.
 	switch arg0 := args[0].(type) {
@@ -505,6 +521,9 @@ func (c *compiledField) compileDifference(args []influxql.Expr, isNonNegative bo
 		return fmt.Errorf("invalid number of arguments for %s, expected 1, got %d", name, got)
 	}
 	c.global.OnlySelectors = false
+	if c.global.ExtraIntervals < 1 {
+		c.global.ExtraIntervals = 1
+	}
 
 	// Must be a variable reference, function, wildcard, or regexp.
 	switch arg0 := args[0].(type) {
@@ -526,6 +545,9 @@ func (c *compiledField) compileCumulativeSum(args []influxql.Expr) error {
 		return fmt.Errorf("invalid number of arguments for cumulative_sum, expected 1, got %d", got)
 	}
 	c.global.OnlySelectors = false
+	if c.global.ExtraIntervals < 1 {
+		c.global.ExtraIntervals = 1
+	}
 
 	// Must be a variable reference, function, wildcard, or regexp.
 	switch arg0 := args[0].(type) {
@@ -547,15 +569,16 @@ func (c *compiledField) compileMovingAverage(args []influxql.Expr) error {
 		return fmt.Errorf("invalid number of arguments for moving_average, expected 2, got %d", got)
 	}
 
-	switch arg1 := args[1].(type) {
-	case *influxql.IntegerLiteral:
-		if arg1.Val <= 1 {
-			return fmt.Errorf("moving_average window must be greater than 1, got %d", arg1.Val)
-		}
-	default:
+	arg1, ok := args[1].(*influxql.IntegerLiteral)
+	if !ok {
 		return fmt.Errorf("second argument for moving_average must be an integer, got %T", args[1])
+	} else if arg1.Val <= 1 {
+		return fmt.Errorf("moving_average window must be greater than 1, got %d", arg1.Val)
 	}
 	c.global.OnlySelectors = false
+	if c.global.ExtraIntervals < int(arg1.Val) {
+		c.global.ExtraIntervals = int(arg1.Val)
+	}
 
 	// Must be a variable reference, function, wildcard, or regexp.
 	switch arg0 := args[0].(type) {
@@ -577,13 +600,11 @@ func (c *compiledField) compileExponentialMovingAverage(name string, args []infl
 		return fmt.Errorf("invalid number of arguments for %s, expected at least 2 but no more than 4, got %d", name, got)
 	}
 
-	switch arg1 := args[1].(type) {
-	case *influxql.IntegerLiteral:
-		if arg1.Val < 1 {
-			return fmt.Errorf("%s period must be greater than or equal to 1", name)
-		}
-	default:
+	arg1, ok := args[1].(*influxql.IntegerLiteral)
+	if !ok {
 		return fmt.Errorf("%s period must be an integer", name)
+	} else if arg1.Val < 1 {
+		return fmt.Errorf("%s period must be greater than or equal to 1", name)
 	}
 
 	if len(args) >= 3 {
@@ -614,6 +635,9 @@ func (c *compiledField) compileExponentialMovingAverage(name string, args []infl
 	}
 
 	c.global.OnlySelectors = false
+	if c.global.ExtraIntervals < int(arg1.Val) {
+		c.global.ExtraIntervals = int(arg1.Val)
+	}
 
 	switch arg0 := args[0].(type) {
 	case *influxql.Call:
@@ -634,13 +658,11 @@ func (c *compiledField) compileKaufmans(name string, args []influxql.Expr) error
 		return fmt.Errorf("invalid number of arguments for %s, expected at least 2 but no more than 3, got %d", name, got)
 	}
 
-	switch arg1 := args[1].(type) {
-	case *influxql.IntegerLiteral:
-		if arg1.Val < 1 {
-			return fmt.Errorf("%s period must be greater than or equal to 1", name)
-		}
-	default:
+	arg1, ok := args[1].(*influxql.IntegerLiteral)
+	if !ok {
 		return fmt.Errorf("%s period must be an integer", name)
+	} else if arg1.Val < 1 {
+		return fmt.Errorf("%s period must be greater than or equal to 1", name)
 	}
 
 	if len(args) >= 3 {
@@ -655,6 +677,9 @@ func (c *compiledField) compileKaufmans(name string, args []influxql.Expr) error
 	}
 
 	c.global.OnlySelectors = false
+	if c.global.ExtraIntervals < int(arg1.Val) {
+		c.global.ExtraIntervals = int(arg1.Val)
+	}
 
 	switch arg0 := args[0].(type) {
 	case *influxql.Call:
@@ -675,13 +700,11 @@ func (c *compiledField) compileChandeMomentumOscillator(args []influxql.Expr) er
 		return fmt.Errorf("invalid number of arguments for chande_momentum_oscillator, expected at least 2 but no more than 4, got %d", got)
 	}
 
-	switch arg1 := args[1].(type) {
-	case *influxql.IntegerLiteral:
-		if arg1.Val < 1 {
-			return fmt.Errorf("chande_momentum_oscillator period must be greater than or equal to 1")
-		}
-	default:
+	arg1, ok := args[1].(*influxql.IntegerLiteral)
+	if !ok {
 		return fmt.Errorf("chande_momentum_oscillator period must be an integer")
+	} else if arg1.Val < 1 {
+		return fmt.Errorf("chande_momentum_oscillator period must be greater than or equal to 1")
 	}
 
 	if len(args) >= 3 {
@@ -696,6 +719,9 @@ func (c *compiledField) compileChandeMomentumOscillator(args []influxql.Expr) er
 	}
 
 	c.global.OnlySelectors = false
+	if c.global.ExtraIntervals < int(arg1.Val) {
+		c.global.ExtraIntervals = int(arg1.Val)
+	}
 
 	if len(args) >= 4 {
 		switch arg3 := args[3].(type) {
@@ -1095,6 +1121,15 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 			} else {
 				timeRange.Min = time.Unix(0, last-int64(interval)*int64(sopt.MaxBucketsN-1))
 			}
+		}
+	}
+
+	// Modify the time range if there are extra intervals and an interval.
+	if !c.Interval.IsZero() && c.ExtraIntervals > 0 {
+		if c.Ascending {
+			timeRange.Min = timeRange.Min.Add(time.Duration(-c.ExtraIntervals) * c.Interval.Duration)
+		} else {
+			timeRange.Max = timeRange.Max.Add(time.Duration(c.ExtraIntervals) * c.Interval.Duration)
 		}
 	}
 

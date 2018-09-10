@@ -378,3 +378,56 @@ func TestCompile_Failures(t *testing.T) {
 		})
 	}
 }
+
+func TestPrepare_MapShardsTimeRange(t *testing.T) {
+	for _, tt := range []struct {
+		s          string
+		start, end string
+	}{
+		{
+			s:     `SELECT max(value) FROM cpu WHERE time >= '2018-09-03T15:00:00Z' AND time <= '2018-09-03T16:00:00Z' GROUP BY time(10m)`,
+			start: "2018-09-03T15:00:00Z",
+			end:   "2018-09-03T16:00:00Z",
+		},
+		{
+			s:     `SELECT derivative(mean(value)) FROM cpu WHERE time >= '2018-09-03T15:00:00Z' AND time <= '2018-09-03T16:00:00Z' GROUP BY time(10m)`,
+			start: "2018-09-03T14:50:00Z",
+			end:   "2018-09-03T16:00:00Z",
+		},
+		{
+			s:     `SELECT moving_average(mean(value), 3) FROM cpu WHERE time >= '2018-09-03T15:00:00Z' AND time <= '2018-09-03T16:00:00Z' GROUP BY time(10m)`,
+			start: "2018-09-03T14:30:00Z",
+			end:   "2018-09-03T16:00:00Z",
+		},
+	} {
+		t.Run(tt.s, func(t *testing.T) {
+			stmt, err := influxql.ParseStatement(tt.s)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			s := stmt.(*influxql.SelectStatement)
+
+			opt := query.CompileOptions{}
+			c, err := query.Compile(s, opt)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			shardMapper := ShardMapper{
+				MapShardsFn: func(_ influxql.Sources, tr influxql.TimeRange) query.ShardGroup {
+					if got, want := tr.Min, mustParseTime(tt.start); !got.Equal(want) {
+						t.Errorf("unexpected start time: got=%s want=%s", got, want)
+					}
+					if got, want := tr.Max, mustParseTime(tt.end); !got.Equal(want) {
+						t.Errorf("unexpected end time: got=%s want=%s", got, want)
+					}
+					return &ShardGroup{}
+				},
+			}
+
+			if _, err := c.Prepare(&shardMapper, query.SelectOptions{}); err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+		})
+	}
+}
