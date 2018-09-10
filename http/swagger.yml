@@ -3,7 +3,7 @@ info:
   title: Influx API Service
   version: 0.1.0
 servers:
-  - url: /v2
+  - url: /api/v2
 paths:
   /:
     get:
@@ -15,6 +15,136 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Routes"
+  /macros:
+    get:
+      tags:
+        - Macros
+      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      parameters:
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: org
+          required: true
+          schema:
+            type: string
+          description: filter macros to a specific organization name
+      responses:
+        '200':
+          description: all macros for an organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Macros"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      tags:
+        - Macros
+      parameters:
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: org
+          required: true
+          schema:
+            type: string
+          description: filter macros to a specific organization name
+      responses:
+        '201':
+          description: macro created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Macros"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/macros/{macroID}':
+    delete:
+      tags:
+        - Macros
+      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      parameters:
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: macroID
+          required: true
+          schema:
+            type: string
+          description: id of the macro
+        - in: query
+          name: org
+          required: true
+          schema:
+            type: string
+          description: filter macros to a specific organization name
+      responses:
+        '204':
+          description: macro deleted
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      tags:
+        - Macros
+      parameters:
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: macroID
+          required: true
+          schema:
+            type: string
+          description: id of the macro
+        - in: query
+          name: org
+          required: true
+          schema:
+            type: string
+          description: filter macros to a specific organization name
+      responses:
+        '200':
+          description: macro updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Macros"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /write:
     post:
       tags:
@@ -133,23 +263,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /ping:
-    servers:
-      - url: /
-    get:
-      tags:
-        - Health
-      summary: Report if service is running
-      responses:
-        '204':
-          description: Server is healthy
-        default:
-          description: Any response other than 204 is an internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /healthz:
+  /health:
     get:
       tags:
         - Health
@@ -157,6 +271,10 @@ paths:
       responses:
         '200':
           description: the instance is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
         default:
           description: unexpected error
           content:
@@ -168,6 +286,13 @@ paths:
       tags:
         - Sources
       summary: Creates a Source
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       requestBody:
           description: source to create
           required: true
@@ -192,6 +317,13 @@ paths:
       tags:
         - Sources
       summary: Get all sources
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: all sources
@@ -317,6 +449,12 @@ paths:
               type: string
             required: true
             description: ID of the source
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: a source
@@ -341,6 +479,13 @@ paths:
       tags:
         - Views
       summary: A view contains information about the visual representation of data
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       requestBody:
           description: view to create
           required: true
@@ -365,6 +510,13 @@ paths:
       tags:
         - Views
       summary: Get all views
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: all views
@@ -477,6 +629,13 @@ paths:
       tags:
         - Dashboards
       summary: Create a dashboard
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       requestBody:
           description: dashboard to create
           required: true
@@ -501,6 +660,13 @@ paths:
       tags:
         - Dashboards
       summary: Get all dashboards
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: all dashboards
@@ -767,7 +933,7 @@ paths:
     post:
       description: not currently documented # TODO(desa): document ast endpoint
       tags:
-        - FluxLanguage
+        - Query
       responses:
         '200':
           description: Suggestions for next functions in call chain
@@ -780,7 +946,7 @@ paths:
   /query/suggestions:
     get:
       tags:
-        - FluxLanguage
+        - Query
       responses:
         '200':
           description: Suggestions for next functions in call chain
@@ -804,7 +970,7 @@ paths:
         description: name of branching suggestion
     get:
       tags:
-        - FluxLanguage
+        - Query
       responses:
         '200':
           description: Suggestions for next functions in call chain
@@ -871,14 +1037,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /authorizations/{authId}:
+  /authorizations/{authID}:
     get:
       tags:
         - Authorizations
       summary: Retrieve an authorization
       parameters:
         - in: path
-          name: authId
+          name: authID
           schema:
             type: string
           required: true
@@ -909,7 +1075,7 @@ paths:
               $ref: "#/components/schemas/Authorization"
       parameters:
         - in: path
-          name: authId
+          name: authID
           schema:
             type: string
           required: true
@@ -933,7 +1099,7 @@ paths:
       summary: Delete a authorization
       parameters:
         - in: path
-          name: authId
+          name: authID
           schema:
             type: string
           required: true
@@ -951,31 +1117,76 @@ paths:
    get:
     tags:
       - Query
-      - flux
-    summary: description of the query capabilities of the instance
+    summary: query influx with specified return formatting. The spec and query fields are mutually exclusive.
     parameters:
+      - in: query
+        name: org
+        description: specifies the organization of the resource
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: query
+        description: query script to execute.
+        required: true
+        schema:
+          type: string
       - in: header
         name: Authorization
         description: the authorization header should be in the format of `Token <key>`
         schema:
           type: string
     responses:
-      '200':
-        description: the query capabilities of the instance
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/QueryCapability"
-      default:
-        description: Any response other than 200 is an internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Error"
+        '200':
+          description: query results
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: >
+                  result,table,_start,_stop,_time,region,host,_value
+                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
+                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
+                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
+        '400':
+          description: error processing query
+          headers:
+            X-Influx-Error:
+              description: error string describing the problem
+              schema:
+                type: string
+            X-Influx-Reference:
+              description: reference code unique to the error type
+              schema:
+                type: integer
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: >
+                  error,reference
+                  Failed to parse query,897
+        default:
+          description: internal server error
+          headers:
+            X-Influx-Error:
+              description: error string describing the problem
+              schema:
+                type: string
+            X-Influx-Reference:
+              description: reference code unique to the error type
+              schema:
+                type: integer
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: >
+                  error,reference
+                  Failed to parse query,897
    post:
     tags:
       - Query
-      - flux
     summary: query an influx
     parameters:
       - in: header
@@ -1000,13 +1211,8 @@ paths:
         schema:
           type: string
       - in: query
-        name: organization
+        name: org
         description: specifies the name of the organization executing the query.
-        schema:
-          type: string
-      - in: query
-        name: query
-        description: flux query string to execute; used if there is no POST body.
         schema:
           type: string
     requestBody:
@@ -1014,16 +1220,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/Query"
-                - $ref: "#/components/schemas/QuerySpecification"
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties:
-                query:
-                  description: flux query string to execute
-                  type: string
+              $ref: "#/components/schemas/Query"
     responses:
         '200':
           description: query results
@@ -1089,6 +1286,13 @@ paths:
       tags:
         - Buckets
       summary: List all buckets
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: a list of buckets
@@ -1106,6 +1310,13 @@ paths:
       tags:
         - Buckets
       summary: Create a bucket
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       requestBody:
         description: bucket to create
         required: true
@@ -1126,14 +1337,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/buckets/{bucketId}':
+  '/buckets/{bucketID}':
     get:
       tags:
         - Buckets
       summary: Retrieve a bucket
       parameters:
         - in: path
-          name: bucketId
+          name: bucketID
           schema:
             type: string
           required: true
@@ -1164,7 +1375,7 @@ paths:
               $ref: "#/components/schemas/Bucket"
       parameters:
         - in: path
-          name: bucketId
+          name: bucketID
           schema:
             type: string
           required: true
@@ -1224,14 +1435,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/orgs/{orgId}':
+  '/orgs/{orgID}':
     get:
       tags:
         - Organizations
       summary: Retrieve an organization
       parameters:
         - in: path
-          name: orgId
+          name: orgID
           schema:
             type: string
           required: true
@@ -1262,7 +1473,7 @@ paths:
               $ref: "#/components/schemas/Organization"
       parameters:
         - in: path
-          name: orgId
+          name: orgID
           schema:
             type: string
           required: true
@@ -1274,6 +1485,92 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Organization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/users':
+    get:
+      tags:
+        - Users
+        - Organizations
+      summary: List all users in an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the orgnaization
+      responses:
+        '200':
+          description: a list of users the belong to an organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Users"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+        - Organizations
+      summary: Add user to an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the orgnaization
+      requestBody:
+        description: adds user to an organization
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        '201':
+          description: added to organization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/users/{userID}':
+    delete:
+      tags:
+        - Users
+        - Organizations
+      summary: removes a user from an org
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of user to delete
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the orgnaization
+      responses:
+        '204':
+          description: user removed
         default:
           description: unexpected error
           content:
@@ -1296,12 +1593,12 @@ paths:
           name: user
           schema:
             type: string
-          description: filter tasks to a specific user id
+          description: filter tasks to a specific user name
         - in: query
-          name: organization
+          name: org
           schema:
             type: string
-          description: filter tasks to a specific organization id
+          description: filter tasks to a specific organization name
       responses:
         '200':
           description: A list of tasks
@@ -1326,6 +1623,12 @@ paths:
       tags:
         - Tasks
       summary: Create a new task
+      parameters:
+        - in: query
+          name: org
+          schema:
+            type: string
+          description: filter tasks to a specific organization name
       requestBody:
         description: task to create
         required: true
@@ -1346,14 +1649,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}':
+  '/tasks/{taskID}':
     get:
       tags:
         - Tasks
       summary: Retrieve an task
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
@@ -1385,7 +1688,7 @@ paths:
               $ref: "#/components/schemas/Task"
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
@@ -1410,7 +1713,7 @@ paths:
       description: Deletes a task and all associated records
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
@@ -1424,14 +1727,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}/runs':
+  '/tasks/{taskID}/runs':
     get:
       tags:
         - Tasks
       summary: Retrieve list of run records for a task
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
@@ -1481,20 +1784,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}/runs/{runId}':
+  '/tasks/{taskID}/runs/{runID}':
     get:
       tags:
         - Tasks
       summary: Retrieve a single run record for a task
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
           description: task ID
         - in: path
-          name: runId
+          name: runID
           schema:
             type: string
           required: true
@@ -1512,20 +1815,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}/runs/{runId}/retry':
+  '/tasks/{taskID}/runs/{runID}/retry':
     post:
       tags:
         - Tasks
       summary: Retry a task run
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
           description: task ID
         - in: path
-          name: runId
+          name: runID
           schema:
             type: string
           required: true
@@ -1543,14 +1846,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}/logs':
+  '/tasks/{taskID}/logs':
     get:
       tags:
         - Tasks
       summary: Retrieve all logs for a task
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
@@ -1568,20 +1871,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskId}/runs/{runId}/logs':
+  '/tasks/{taskID}/runs/{runID}/logs':
     get:
       tags:
         - Tasks
       summary: Retrieve all logs for a run
       parameters:
         - in: path
-          name: taskId
+          name: taskID
           schema:
             type: string
           required: true
           description: ID of task to get logs for.
         - in: path
-          name: runId
+          name: runID
           schema:
             type: string
           required: true
@@ -1641,14 +1944,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/users/{userId}':
+  '/users/{userID}':
     get:
       tags:
         - Users
       summary: Retrieve a user
       parameters:
         - in: path
-          name: userId
+          name: userID
           schema:
             type: string
           required: true
@@ -1679,7 +1982,7 @@ paths:
               $ref: "#/components/schemas/User"
       parameters:
         - in: path
-          name: userId
+          name: userID
           schema:
             type: string
           required: true
@@ -1697,34 +2000,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Users
+      summary: deletes a user
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of user to delete
+      responses:
+        '204':
+          description: user deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
-    QueryCapability:
-      description: the supported query languages and dialects
-      type: object
-      properties:
-        links:
-          type: object
-          allOf:
-            - $ref: "#/components/schemas/FluxLinks"
-        languages:
-          type: array
-          readOnly: true
-          items:
-            type: string
-            enum:
-              - flux
-              - influxql
-              - spec
     Query:
-      description: query influx with specified return formatting.
+      description: query influx with specified return formatting. The spec and query fields are mutually exclusive.
       type: object
       required:
         - query
       properties:
         query:
-          description: query script to execute
+          description: query script to execute.
           type: string
+        spec:
+          $ref: "#/components/schemas/QuerySpecification"
         type:
           description: type of query
           type: string
@@ -1747,58 +2055,55 @@ components:
       description: consists of a set of operations and a set of edges between those operations to instruct the query engine to operate.
       type: object
       properties:
-        spec:
+        operations:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                description: name of the operation to perform
+                type: string
+              id:
+                description: identifier for this operation; it must be unique per query specification; used in edges
+                type: string
+              spec:
+                description: set of properties that specify details of the operation. These vary by the kind of operation.
+                type: object
+        edges:
+          description: list of declaring a parent child id relationship between operations
+          type: array
+          items:
+            type: object
+            properties:
+              parent:
+                description: id of parent node of child within graph of opertions
+                type: string
+              child:
+                description: id of child node of parent within the graph of operations
+                type: string
+        resources:
+          description: optional set of contraints on the resources the query can consume
           type: object
           properties:
-            operations:
-              type: array
-              items:
-                type: object
-                properties:
-                  kind:
-                    description: name of the operation to perform
-                    type: string
-                  id:
-                    description: identifier for this operation; it must be unique per query specification; used in edges
-                    type: string
-                  spec:
-                    description: set of properties that specify details of the operation. These vary by the kind of operation.
-                    type: object
-            edges:
-              description: list of declaring a parent child id relationship between operations
-              type: array
-              items:
-                type: object
-                properties:
-                  parent:
-                    description: id of parent node of child within graph of opertions
-                    type: string
-                  child:
-                    description: id of child node of parent within the graph of operations
-                    type: string
-            resources:
-              description: optional set of contraints on the resources the query can consume
-              type: object
-              properties:
-                priority:
-                  description: priority of the query
-                  oneOf:
-                  - type: string
-                    description: lower value will move to the front of the priority queue
-                    pattern: '^\d+$'
-                  - type: string
-                    description: constants to represent the extreme high and low priorities; high is effectively 0.
-                    enum:
-                      - high
-                      - low
-                concurrency_quota:
-                  description: number of concurrent workers allowed to process this query; 0 indicates the planner can pick the optimal concurrency.
-                  type: integer
-                  default: 0
-                memory_bytes_quota:
-                  description: number of bytes of RAM this query may consume; 0 means unlimited.
-                  type: integer
-                  default: 0
+            priority:
+              description: priority of the query
+              oneOf:
+              - type: string
+                description: lower value will move to the front of the priority queue
+                pattern: '^\d+$'
+              - type: string
+                description: constants to represent the extreme high and low priorities; high is effectively 0.
+                enum:
+                  - high
+                  - low
+            concurrency_quota:
+              description: number of concurrent workers allowed to process this query; 0 indicates the planner can pick the optimal concurrency.
+              type: integer
+              default: 0
+            memory_bytes_quota:
+              description: number of bytes of RAM this query may consume; 0 means unlimited.
+              type: integer
+              default: 0
         dialect:
           $ref: "#/components/schemas/Dialect"
     Dialect:
@@ -1839,8 +2144,45 @@ components:
               enum:
                 - RFC3339
                 - RFC3339Nano
+    Permission:
+      properties:
+        action:
+          type: string
+          enum:
+            - read
+            - write
+            - create
+            - delete
+        resource:
+          type: string
+          enum:
+            - user
+            - org
+            - task/:id
+            - bucket/:id
+            - dashboard/:id
+            - org/:id
+            - org/:id/task
+            - org/:id/bucket
+            - org/:id/source
+            - org/:id/dashboard
     Authorization:
       properties:
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/v2/authorizations/1"
+            user: "/v2/users/12"
+          properties:
+            self:
+              readOnly: true
+              type: string
+              format: url
+            user:
+              readOnly: true
+              type: string
+              format: url
         id:
           readOnly: true
           type: string
@@ -1854,15 +2196,45 @@ components:
         token:
           readOnly: true
           type: string
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Permission"
         owner:
           $ref: "#/components/schemas/Owners"
-      required: [userID]
+      required: [owner]
     Authorizations:
-      type: array
-      items:
-        $ref: "#/components/schemas/Authorization"
+      type: object
+      properties:
+        links:
+          readOnly: true
+          $ref: "#/components/schemas/Links"
+        authorizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Authorization"
     Bucket:
       properties:
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/v2/buckets/1"
+            org: "/v2/orgs/2"
+            write: "/v2/write?org=myorg"
+          properties:
+            self:
+              readOnly: true
+              type: string
+              format: url
+            org:
+              readOnly: true
+              type: string
+              format: url
+            write:
+              readOnly: true
+              type: string
+              format: url
         id:
           readOnly: true
           type: string
@@ -1870,14 +2242,35 @@ components:
           $ref: "#/components/schemas/Owners"
         name:
           type: string
-        retentionPeriod:
-          type: integer
-          format: int64
-      required: [organizationId, name, retentionPeriod]
+        retentionPeriods:
+          type: array
+          default:
+            type: expire
+            duration: "infinite"
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                default: expire
+                enum:
+                  - expire
+              duration:
+                type: string
+                description: durations are an extension of the golang duration syntax
+                example: 1d
+                default: "infinite"
+      required: [organizationID, name, retentionPeriod]
     Buckets:
-      type: array
-      items:
-        $ref: "#/components/schemas/Bucket"
+      type: object
+      properties:
+        links:
+          readOnly: true
+          $ref: "#/components/schemas/Links"
+        buckets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Bucket"
     Link:
       type: object
       readOnly: true
@@ -1920,18 +2313,60 @@ components:
           example: Halt and catch fire
     Organization:
       properties:
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/v2/orgs/1"
+            users: "/v2/orgs/1/users"
+            buckets: "/v2/buckets?org=myorg"
+            tasks: "/v2/tasks?org=myorg"
+            dashboards: "/v2/tasks?org=myorg"
+          properties:
+            self:
+              readOnly: true
+              type: string
+              format: url
+            users:
+              readOnly: true
+              type: string
+              format: url
+            buckets:
+              readOnly: true
+              type: string
+              format: url
+            tasks:
+              readOnly: true
+              type: string
+              format: url
+            dashboards:
+              readOnly: true
+              type: string
+              format: url
         id:
           readOnly: true
           type: string
         name:
           type: string
+        status:
+          description: if inactive the organization is inactive.
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
         owners:
           $ref: "#/components/schemas/Owners"
       required: [name]
     Organizations:
-      type: array
-      items:
-        $ref: "#/components/schemas/Organization"
+      type: object
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        orgs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Organization"
     Owners:
       properties:
         users:
@@ -1943,7 +2378,7 @@ components:
         id:
           readOnly: true
           type: string
-        taskId:
+        taskID:
           readOnly: true
           type: string
         status:
@@ -1993,12 +2428,12 @@ components:
           description: A read-only description of the task.
           type: string
         status:
-          description: The current status of the task. When updated to 'disabled', cancels all queued jobs of this task.
+          description: The current status of the task. When updated to 'inactive', cancels all queued jobs of this task.
+          default: active
           type: string
-          enum: [
-            "enabled",
-            "disabled"
-          ]
+          enum:
+            - active
+            - inactive
         owners:
           $ref: "#/components/schemas/Owners"
         flux:
@@ -2024,6 +2459,13 @@ components:
           type: string
         name:
           type: string
+        status:
+          description: if inactive the user is inactive.
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
       required: [name]
     Users:
       type: array
@@ -2044,30 +2486,87 @@ components:
       properties:
         ast:
           type: string
+          format: url
         self:
           type: string
+          format: url
         suggestions:
           type: string
+          format: url
     Routes:
       properties:
+        sources:
+          type: string
+          format: url
+        dashboards:
+          type: string
+          format: url
+        query:
+          type: string
+          format: url
+        write:
+          type: string
+          format: url
+        orgs:
+          type: string
+          format: url
+        auths:
+          type: string
+          format: url
+        buckets:
+          type: string
+          format: url
+        users:
+          type: string
+          format: url
+        tasks:
+          type: string
+          format: url
+        system:
+          type: object
+          properties:
+            metrics:
+              type: string
+              format: url
+            debug:
+              type: string
+              format: url
+            health:
+              type: string
+              format: url
         external:
           type: object
           properties:
             statusFeed:
               type: string
-        sources:
-          type: string
+              format: url
         flux:
           $ref: "#/components/schemas/FluxLinks"
     Error:
       properties:
         code:
+          description: code is the machine-readable error code.
           readOnly: true
           type: string
+          enum:
+            - internal error
+            - not found
+            - conflict
+            - invalid
+            - empty value
         message:
           readOnly: true
+          description: message is a human-readable message.
           type: string
-      required: [code, message]
+        op:
+          readOnly: true
+          description: op describes the logical code operation during error. Useful for debugging.
+          type: string
+        err:
+          readOnly: true
+          description: err is a stack of errors that occurred during processing of the request. Useful for debugging.
+          type: string
+      required: [code, message, op, err]
     LineProtocolError:
       properties:
         code:
@@ -2471,10 +2970,97 @@ components:
         type:
           type: string
           enum: ["empty"]
+    ConstantMacroProperties:
+      properties:
+        type:
+          type: string
+          enum: ["constant"]
+        values:
+          type: array
+          items:
+            type: string
+    MapMacroProperties:
+      properties:
+        type:
+          type: string
+          enum: ["map"]
+        values:
+          type: object
+    QueryMacroProperties:
+      properties:
+        type:
+          type: string
+          enum: ["query"]
+        query:
+          type: string
+        queryType:
+          type: string
+    Macro:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+              format: url
+        id:
+          readOnly: true
+          type: string
+        name:
+          type: string
+        selected:
+          type: array
+          items:
+            type: string
+        arguments:
+          type: object
+          oneOf:
+            - $ref: "#/components/schemas/QueryMacroProperties"
+            - $ref: "#/components/schemas/ConstantMacroProperties"
+            - $ref: "#/components/schemas/MapMacroProperties"
+    Macros:
+      type: object
+      example:
+        macros:
+        - id: '1221432'
+          name: ":ok:"
+          selected:
+          - hello
+          arguments:
+            type: constant
+            values:
+            - howdy
+            - hello
+            - hi
+            - yo
+            - oy
+        - id: '1221432'
+          name: ":ok:"
+          selected:
+          - c
+          arguments:
+            type: map
+            values:
+              a: fdjaklfdjkldsfjlkjdsa
+              b: dfaksjfkljekfajekdljfas
+              c: fdjksajfdkfeawfeea
+        - id: '1221432'
+          name: ":ok:"
+          selected:
+          - host
+          arguments:
+            type: query
+            query: 'from(bucket: "foo") |> showMeasurements()'
+            language: flux
+      properties:
+        macros:
+          $ref: "#/components/schemas/Macro"
     View:
       properties:
         links:
           type: object
+          readOnly: true
           properties:
             self:
               type: string
@@ -2622,6 +3208,15 @@ components:
           type: string
         fluxURL:
           type: string
+        languages:
+          type: array
+          readOnly: true
+          items:
+            type: string
+            enum:
+              - flux
+              - influxql
+              - spec
     Sources:
       type: object
       properties:
@@ -2630,7 +3225,24 @@ components:
           properties:
             self:
               type: string
+              format: url
         sources:
           type: array
           items:
             $ref: "#/components/schemas/Source"
+    Health:
+      type: object
+      properties:
+        name:
+          type: string
+        message:
+          type: string
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Health"
+        status:
+          type: string
+          enum:
+            - unhealthy
+            - healthy
