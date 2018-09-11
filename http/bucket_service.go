@@ -96,10 +96,18 @@ type postBucketRequest struct {
 
 func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketRequest, error) {
 	b := &platform.Bucket{}
+
+	queryParams := r.URL.Query()
+	orgName := queryParams.Get("org")
+	if orgName == "" {
+		return nil, errors.New("The \"org\" is required via query param.")
+	}
+
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
 		return nil, err
 	}
 	b.Type = platform.BucketTypeUser
+	b.Organization = orgName
 
 	return &postBucketRequest{
 		Bucket: b,
