@@ -310,6 +310,7 @@ func TestService_handlePostBucket(t *testing.T) {
   },
   "id": "020f755c3c082000",
   "organizationID": "30",
+  "organization": "30",
   "name": "hello",
   "retentionPeriod": 0
 }
@@ -328,7 +329,7 @@ func TestService_handlePostBucket(t *testing.T) {
 				t.Fatalf("failed to unmarshal bucket: %v", err)
 			}
 
-			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(b))
+			r := httptest.NewRequest("GET", "http://any.url?org=30", bytes.NewReader(b))
 			w := httptest.NewRecorder()
 
 			h.handlePostBucket(w, r)
