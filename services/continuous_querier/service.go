@@ -572,8 +572,6 @@ func zone(ts time.Time) int64 {
 }
 
 func abs(v int64) int64 {
-	if v < 0 {
-		return -v
-	}
-	return v
+	sign := v >> 63
+	return (v ^ sign) - sign
 }
