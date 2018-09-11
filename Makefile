@@ -24,6 +24,7 @@ export GO_BUILD=go build $(GO_ARGS)
 export GO_TEST=go test $(GO_ARGS)
 export GO_GENERATE=go generate $(GO_ARGS)
 export GO_VET= go vet $(GO_ARGS)
+export PATH := $(PWD)/bin/$(GOOS):$(PATH)
 
 
 # All go source files
