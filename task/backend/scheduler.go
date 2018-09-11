@@ -188,6 +188,12 @@ func (s *outerScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err er
 		return err
 	}
 
+	if len(meta.CurrentlyRunning) != 0 {
+		if err := ts.WorkCurrentlyRunning(meta); err != nil {
+			return err
+		}
+	}
+
 	tid := task.ID.String()
 	s.schedulerMu.Lock()
 	_, ok := s.taskSchedulers[tid]
@@ -297,6 +303,25 @@ func (ts *taskScheduler) Work() {
 	}
 }
 
+func (ts *taskScheduler) WorkCurrentlyRunning(meta *StoreTaskMeta) error {
+	for _, cr := range meta.CurrentlyRunning {
+		foundWorker := false
+		for _, r := range ts.runners {
+			qr := QueuedRun{TaskID: ts.task.ID, RunID: cr.RunID, Now: cr.Now}
+			if r.RestartRun(qr) {
+				foundWorker = true
+				break
+			}
+		}
+
+		if !foundWorker {
+			return errors.New("worker not found to resume work")
+		}
+	}
+
+	return nil
+}
+
 // Cancel interrupts this taskScheduler and its runners.
 func (ts *taskScheduler) Cancel() {
 	ts.cancel()
@@ -388,6 +413,23 @@ func (r *runner) Start() {
 	r.startFromWorking(atomic.LoadInt64(r.ts.now))
 }
 
+// RestartRun attempts to restart a queued run if the runner is available to do the work.
+// If the runner was already busy we return false.
+func (r *runner) RestartRun(qr QueuedRun) bool {
+	if !atomic.CompareAndSwapUint32(r.state, runnerIdle, runnerWorking) {
+		// already working
+		return false
+	}
+
+	// create a QueuedRun because we cant stm.CreateNextRun
+	runLogger := r.logger.With(zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
+
+	go r.executeAndWait(qr, runLogger)
+
+	r.updateRunState(qr, RunStarted, runLogger)
+	return true
+}
+
 // startFromWorking attempts to create a run if one is due, and then begins execution on a separate goroutine.
 // r.state must be runnerWorking when this is called.
 func (r *runner) startFromWorking(now int64) {
@@ -412,12 +454,12 @@ func (r *runner) startFromWorking(now int64) {
 	runLogger := r.logger.With(zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
 
 	runLogger.Info("Created run; beginning execution")
-	go r.executeAndWait(now, qr, runLogger)
+	go r.executeAndWait(qr, runLogger)
 
 	r.updateRunState(qr, RunStarted, runLogger)
 }
 
-func (r *runner) executeAndWait(now int64, qr QueuedRun, runLogger *zap.Logger) {
+func (r *runner) executeAndWait(qr QueuedRun, runLogger *zap.Logger) {
 	rp, err := r.executor.Execute(r.ctx, qr)
 	if err != nil {
 		// TODO(mr): retry? and log error.

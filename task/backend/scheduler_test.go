@@ -48,14 +48,44 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 		MaxConcurrency:  99,
 		EffectiveCron:   "@every 1s",
 		LatestCompleted: 3,
+		CurrentlyRunning: []*backend.StoreTaskMetaRun{
+			&backend.StoreTaskMetaRun{
+				Now:   4,
+				RunID: platform.ID{10},
+			},
+		},
 	}
 	d.SetTaskMeta(task.ID, *meta)
 	if err := o.ClaimTask(task, meta); err != nil {
 		t.Fatal(err)
 	}
 
-	if n := len(d.CreatedFor(task.ID)); n != 2 {
+	if n := len(d.CreatedFor(task.ID)); n != 1 {
 		t.Fatalf("expected 2 runs queued for 'every 1s' script, but got %d", n)
+	}
+
+	if x, err := d.PollForNumberCreated(task.ID, 1); err != nil {
+		t.Fatalf("expected 1 runs queued, but got %d", len(x))
+	}
+
+	rps := e.RunningFor(task.ID)
+	if n := len(rps); n != 2 {
+		t.Fatalf("expected 2 run in progress: got %d", n)
+	}
+
+	for _, rp := range rps {
+		if rp.Run().Now != 4 && rp.Run().Now != 5 {
+			t.Fatalf("unexpected running task %+v", rp)
+		}
+		rp.Finish(mock.NewRunResult(nil, false), nil)
+	}
+
+	if x, err := d.PollForNumberCreated(task.ID, 0); err != nil {
+		t.Fatalf("expected 1 runs queued, but got %d", len(x))
+	}
+
+	if rps := e.RunningFor(task.ID); len(rps) != 0 {
+		t.Fatalf("expected 0 running: got %d", len(rps))
 	}
 }
 
