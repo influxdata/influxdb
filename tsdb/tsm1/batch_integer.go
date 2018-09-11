@@ -8,6 +8,112 @@ import (
 	"github.com/influxdata/platform/pkg/encoding/simple8b"
 )
 
+// IntegerArrayEncodeAll encodes src into b, returning b and any error encountered.
+// The returned slice may be of a different length and capactity to b.
+//
+// IntegerArrayEncodeAll implements batch oriented versions of the three integer
+// encoding types we support: uncompressed, simple8b and RLE.
+//
+// Important: IntegerArrayEncodeAll modifies the contents of src by using it as
+// scratch space for delta encoded values. It is NOT SAFE to use src after
+// passing it into IntegerArrayEncodeAll.
+func IntegerArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
+	if len(src) == 0 {
+		return nil, nil // Nothing to do
+	}
+
+	// Zigzag encode deltas of all provided values.
+	var prev int64
+	var rle = true
+	var nopack bool
+
+	// To prevent an allocation of the entire block we're encoding reuse the
+	// src slice to store the encoded deltas.
+	deltas := reintepretInt64ToUint64Slice(src)
+
+	for i, v := range src {
+		delta := v - prev
+		prev = v
+		enc := ZigZagEncode(delta)
+		if i > 1 {
+			rle = rle && deltas[i-1] == enc
+		}
+		deltas[i] = enc
+
+		// Check if the encoded value is too big to be simple8b encoded.
+		if enc > simple8b.MaxValue {
+			nopack = true
+		}
+	}
+
+	// Encode with RLE
+	if rle && len(deltas) > 2 {
+		// Large varints can take up to 10 bytes.  We're storing 3 + 1
+		// type byte.
+		if len(b) < 31 && cap(b) >= 31 {
+			b = b[:31]
+		} else if len(b) < 31 {
+			b = append(b, make([]byte, 31-len(b))...)
+		}
+
+		// 4 high bits used for the encoding type
+		b[0] = byte(intCompressedRLE) << 4
+
+		i := 1
+		// The first value
+		binary.BigEndian.PutUint64(b[i:], deltas[0])
+		i += 8
+		// The first delta
+		i += binary.PutUvarint(b[i:], deltas[1])
+		// The number of times the delta is repeated
+		i += binary.PutUvarint(b[i:], uint64(len(deltas)-1))
+
+		return b[:i], nil
+	}
+
+	if nopack { // There is an encoded value that's too big to simple8b encode.
+		// Encode uncompressed.
+		sz := 1 + len(deltas)*8
+		if len(b) < sz && cap(b) >= sz {
+			b = b[:sz]
+		} else if len(b) < sz {
+			b = append(b, make([]byte, sz-len(b))...)
+		}
+
+		// 4 high bits of first byte store the encoding type for the block
+		b[0] = byte(intUncompressed) << 4
+		for i, v := range deltas {
+			binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], uint64(v))
+		}
+		return b[:sz], nil
+	}
+
+	// Encode with simple8b - fist value is written unencoded using 8 bytes.
+	encoded, err := simple8b.EncodeAll(deltas[1:])
+	if err != nil {
+		return nil, err
+	}
+
+	sz := 1 + (len(encoded)+1)*8
+	if len(b) < sz && cap(b) >= sz {
+		b = b[:sz]
+	} else if len(b) < sz {
+		b = append(b, make([]byte, sz-len(b))...)
+	}
+
+	// 4 high bits of first byte store the encoding type for the block
+	b[0] = byte(intCompressedSimple) << 4
+
+	// Write the first value since it's not part of the encoded values
+	binary.BigEndian.PutUint64(b[1:9], deltas[0])
+
+	// Write the encoded values
+	for i, v := range encoded {
+		binary.BigEndian.PutUint64(b[9+i*8:9+i*8+8], v)
+	}
+	return b[:sz], nil
+}
+
 var (
 	integerBatchDecoderFunc = [...]func(b []byte, dst []int64) ([]int64, error){
 		integerBatchDecodeAllUncompressed,

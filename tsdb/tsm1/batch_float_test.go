@@ -443,6 +443,7 @@ func BenchmarkEncodeFloats(b *testing.B) {
 
 			b.Run("itr", func(b *testing.B) {
 				b.ReportAllocs()
+				enc.Reset()
 				b.ResetTimer()
 				for n := 0; n < b.N; n++ {
 					enc.Reset()
