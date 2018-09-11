@@ -9,11 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
+	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/influxql"
 
@@ -52,7 +53,7 @@ var skipTests = map[string]string{
 	"string_interp":             "string interpolation not working as expected in flux (https://github.com/influxdata/platform/issues/404)",
 }
 
-var pqs = querytest.GetProxyQueryServiceBridge()
+var querier = querytest.NewQuerier()
 
 func withEachFluxFile(t testing.TB, fn func(prefix, caseName string)) {
 	dir, err := os.Getwd()
@@ -84,13 +85,13 @@ func Test_QueryEndToEnd(t *testing.T) {
 			if skip {
 				t.Skip(reason)
 			}
-			testFlux(t, pqs, prefix, ".flux")
+			testFlux(t, querier, prefix, ".flux")
 		})
 		t.Run(influxqlName, func(t *testing.T) {
 			if skip {
 				t.Skip(reason)
 			}
-			testInfluxQL(t, pqs, prefix, ".influxql")
+			testInfluxQL(t, querier, prefix, ".influxql")
 		})
 	})
 }
@@ -111,7 +112,7 @@ func Benchmark_QueryEndToEnd(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				testFlux(b, pqs, prefix, ".flux")
+				testFlux(b, querier, prefix, ".flux")
 			}
 		})
 		b.Run(influxqlName, func(b *testing.B) {
@@ -121,13 +122,13 @@ func Benchmark_QueryEndToEnd(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				testInfluxQL(b, pqs, prefix, ".influxql")
+				testInfluxQL(b, querier, prefix, ".influxql")
 			}
 		})
 	})
 }
 
-func testFlux(t testing.TB, pqs flux.ProxyQueryService, prefix, queryExt string) {
+func testFlux(t testing.TB, querier *querytest.Querier, prefix, queryExt string) {
 	q, err := ioutil.ReadFile(prefix + queryExt)
 	if err != nil {
 		t.Fatal(err)
@@ -139,11 +140,11 @@ func testFlux(t testing.TB, pqs flux.ProxyQueryService, prefix, queryExt string)
 		t.Fatal(err)
 	}
 
-	compiler := flux.FluxCompiler{
+	compiler := lang.FluxCompiler{
 		Query: string(q),
 	}
-	req := &flux.ProxyRequest{
-		Request: flux.Request{
+	req := &query.ProxyRequest{
+		Request: query.Request{
 			Compiler: querytest.FromCSVCompiler{
 				Compiler:  compiler,
 				InputFile: csvInFilename,
@@ -152,10 +153,10 @@ func testFlux(t testing.TB, pqs flux.ProxyQueryService, prefix, queryExt string)
 		Dialect: csv.DefaultDialect(),
 	}
 
-	QueryTestCheckSpec(t, pqs, req, string(csvOut))
+	QueryTestCheckSpec(t, querier, req, string(csvOut))
 }
 
-func testInfluxQL(t testing.TB, pqs flux.ProxyQueryService, prefix, queryExt string) {
+func testInfluxQL(t testing.TB, querier *querytest.Querier, prefix, queryExt string) {
 	q, err := ioutil.ReadFile(prefix + queryExt)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -174,8 +175,8 @@ func testInfluxQL(t testing.TB, pqs flux.ProxyQueryService, prefix, queryExt str
 	compiler.Cluster = "cluster"
 	compiler.DB = "db0"
 	compiler.Query = string(q)
-	req := &flux.ProxyRequest{
-		Request: flux.Request{
+	req := &query.ProxyRequest{
+		Request: query.Request{
 			Compiler: querytest.FromCSVCompiler{
 				Compiler:  compiler,
 				InputFile: csvInFilename,
@@ -183,7 +184,7 @@ func testInfluxQL(t testing.TB, pqs flux.ProxyQueryService, prefix, queryExt str
 		},
 		Dialect: csv.DefaultDialect(),
 	}
-	QueryTestCheckSpec(t, pqs, req, string(csvOut))
+	QueryTestCheckSpec(t, querier, req, string(csvOut))
 
 	// Rerun test for InfluxQL JSON dialect
 	req.Dialect = new(influxql.Dialect)
@@ -195,14 +196,14 @@ func testInfluxQL(t testing.TB, pqs flux.ProxyQueryService, prefix, queryExt str
 		}
 		t.Skip("influxql expected json is missing")
 	}
-	QueryTestCheckSpec(t, pqs, req, string(jsonOut))
+	QueryTestCheckSpec(t, querier, req, string(jsonOut))
 }
 
-func QueryTestCheckSpec(t testing.TB, pqs flux.ProxyQueryService, req *flux.ProxyRequest, want string) {
+func QueryTestCheckSpec(t testing.TB, querier *querytest.Querier, req *query.ProxyRequest, want string) {
 	t.Helper()
 
 	var buf bytes.Buffer
-	_, err := pqs.Query(context.Background(), &buf, req)
+	_, err := querier.Query(context.Background(), &buf, req.Request.Compiler, req.Dialect)
 	if err != nil {
 		t.Errorf("failed to run query: %v", err)
 		return

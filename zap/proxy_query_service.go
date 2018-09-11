@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/influxdata/flux"
+	"github.com/influxdata/platform/query"
 	"go.uber.org/zap"
 )
 
@@ -25,7 +25,7 @@ func NewProxyQueryService(l *zap.Logger) *ProxyQueryService {
 }
 
 // Query logs the query request.
-func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *flux.ProxyRequest) (int64, error) {
+func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
 	if req != nil {
 		s.Logger.Info("query", zap.Any("request", req))
 	}

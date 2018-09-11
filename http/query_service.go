@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/platform/query"
 	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -26,7 +27,7 @@ type QueryHandler struct {
 
 	csvDialect csv.Dialect
 
-	QueryService     flux.QueryService
+	QueryService     query.QueryService
 	CompilerMappings flux.CompilerMappings
 }
 
@@ -54,7 +55,7 @@ func (h *QueryHandler) handlePing(w http.ResponseWriter, r *http.Request) {
 func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req flux.Request
+	var req query.Request
 	req.WithCompilerMappings(h.CompilerMappings)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		EncodeError(ctx, err, w)
@@ -125,7 +126,7 @@ type QueryService struct {
 	InsecureSkipVerify bool
 }
 
-func (s *QueryService) Query(ctx context.Context, req *flux.Request) (flux.ResultIterator, error) {
+func (s *QueryService) Query(ctx context.Context, req *query.Request) (flux.ResultIterator, error) {
 	u, err := newURL(s.Addr, queryPath)
 	if err != nil {
 		return nil, err

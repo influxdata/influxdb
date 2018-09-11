@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions"
@@ -17,7 +16,9 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/kit/prom"
+	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
+	pcontrol "github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/query/functions/storage/pb"
 	"github.com/influxdata/platform/snowflake"
 	pzap "github.com/influxdata/platform/zap"
@@ -103,7 +104,7 @@ func fluxF(cmd *cobra.Command, args []string) {
 		logger.Error("error injecting dependencies", zap.Error(err))
 		os.Exit(1)
 	}
-	c := control.New(config)
+	c := pcontrol.New(config)
 	reg.MustRegister(c.PrometheusCollectors()...)
 
 	orgName, err := getStrList("ORGANIZATION_NAME")
@@ -114,8 +115,8 @@ func fluxF(cmd *cobra.Command, args []string) {
 
 	queryHandler := http.NewExternalQueryHandler()
 
-	queryHandler.ProxyQueryService = flux.ProxyQueryServiceBridge{
-		QueryService: flux.QueryServiceBridge{
+	queryHandler.ProxyQueryService = query.ProxyQueryServiceBridge{
+		QueryService: query.QueryServiceBridge{
 			AsyncQueryService: c,
 		},
 	}
@@ -163,7 +164,7 @@ func injectDeps(deps execute.Dependencies) error {
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:             sr,
 		BucketLookup:       bucketLookup{},
-		OrganizationLookup: flux.FromOrganizationService(&orgSvc),
+		OrganizationLookup: query.FromOrganizationService(&orgSvc),
 	})
 }
 

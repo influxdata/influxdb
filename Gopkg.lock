@@ -463,7 +463,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:eb7bc670810e9d06d8b42574de77248f0f28ae4cea2ee84d5b4fc70c1dd16a4c"
+  digest = "1:531dfd2544e63009087e1f01e0ec878e84d80c1890dd4975a55e30946afd4caa"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -478,6 +478,7 @@
     "functions/storage",
     "interpreter",
     "iocounter",
+    "lang",
     "options",
     "parser",
     "plan",
@@ -488,7 +489,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "1de8e9acfe7dc7a40c19ac63f15bddc3fdfc49be"
+  revision = "54c893986878754089554512132439b943dc6b47"
 
 [[projects]]
   branch = "platform"
@@ -1244,6 +1245,7 @@
     "github.com/influxdata/flux/functions",
     "github.com/influxdata/flux/functions/storage",
     "github.com/influxdata/flux/iocounter",
+    "github.com/influxdata/flux/lang",
     "github.com/influxdata/flux/options",
     "github.com/influxdata/flux/parser",
     "github.com/influxdata/flux/plan",

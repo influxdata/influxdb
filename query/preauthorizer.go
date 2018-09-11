@@ -29,7 +29,7 @@ type preAuthorizer struct {
 // given the Authorization.  Returns nil on success, and an error with an appropriate message otherwise.
 func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth *platform.Authorization) error {
 
-	readBuckets, writeBuckets, err := spec.BucketsAccessed()
+	readBuckets, writeBuckets, err := BucketsAccessed(spec)
 
 	if err != nil {
 		return errors.Wrap(err, "Could not retrieve buckets for query.Spec")
