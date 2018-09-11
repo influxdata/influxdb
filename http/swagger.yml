@@ -2321,7 +2321,7 @@ components:
             users: "/v2/orgs/1/users"
             buckets: "/v2/buckets?org=myorg"
             tasks: "/v2/tasks?org=myorg"
-            dashboards: "/v2/tasks?org=myorg"
+            dashboards: "/v2/dashboards?org=myorg"
           properties:
             self:
               readOnly: true

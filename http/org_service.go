@@ -36,6 +36,41 @@ func NewOrgHandler() *OrgHandler {
 	return h
 }
 
+type orgsResponse struct {
+	Links         map[string]string `json:"links"`
+	Organizations []*orgResponse    `json:"orgs"`
+}
+
+func newOrgsResponse(orgs []*platform.Organization) *orgsResponse {
+	res := orgsResponse{
+		Links: map[string]string{
+			"self": "/v2/orgs",
+		},
+	}
+	for _, org := range orgs {
+		res.Organizations = append(res.Organizations, newOrgResponse(org))
+	}
+	return &res
+}
+
+type orgResponse struct {
+	Links map[string]string `json:"links"`
+	platform.Organization
+}
+
+func newOrgResponse(o *platform.Organization) *orgResponse {
+	return &orgResponse{
+		Links: map[string]string{
+			"self":       fmt.Sprintf("/v2/orgs/%s", o.ID),
+			"users":      fmt.Sprintf("/v2/orgs/%s/users", o.ID),
+			"buckets":    fmt.Sprintf("/v2/buckets?org=%s", o.Name),
+			"tasks":      fmt.Sprintf("/v2/tasks?org=%s", o.Name),
+			"dashboards": fmt.Sprintf("/v2/dashboards?org=%s", o.Name),
+		},
+		Organization: *o,
+	}
+}
+
 // handlePostOrg is the HTTP handler for the POST /v1/orgs route.
 func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -65,7 +100,7 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, req.Org); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newOrgResponse(req.Org)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -102,7 +137,7 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(b)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -147,7 +182,7 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, orgs); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgsResponse(orgs)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -231,7 +266,7 @@ func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, o); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(o)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
