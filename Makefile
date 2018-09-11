@@ -11,10 +11,7 @@
 #    * All recursive Makefiles must support the targets: all and clean.
 #
 
-SUBDIRS := query task
-UISOURCES := $(shell find chronograf/ui -type f -not \( -path chronograf/ui/build/\* -o -path chronograf/ui/node_modules/\* -prune \) )
-YARN := $(shell command -v yarn 2> /dev/null)
-
+SUBDIRS := query task chronograf/ui
 
 GO_ARGS=-tags '$(GO_TAGS)'
 
@@ -32,6 +29,13 @@ SOURCES := $(shell find . -name '*.go' -not -name '*_test.go')
 
 # All go source files excluding the vendored sources.
 SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -name '*_test.go' -print)
+
+# All assets for chronograf
+UISOURCES := $(shell find chronograf/ui -type f -not \( -path chronograf/ui/build/\* -o -path chronograf/ui/node_modules/\* -o -path chronograf/ui/.cache/\* -o -name Makefile -prune \) )
+
+# All precanned dashboards
+PRECANNED := $(shell find chronograf/canned -name '*.json')
+
 
 # List of binary cmds to build
 CMDS := \
@@ -85,12 +89,8 @@ vendor: Gopkg.lock
 
 node_modules: chronograf/ui/node_modules
 
-chronograf/ui/node_modules: chronograf/ui/yarn.lock
-ifndef YARN
-	$(error Please install yarn 0.19.1+)
-else
-	cd chronograf/ui && yarn --no-progress --no-emoji
-endif
+chronograf/ui/node_modules:
+	make -C chronograf/ui node_modules
 
 #
 # Define how source dependencies are managed
@@ -107,13 +107,19 @@ vendor/github.com/kevinburke/go-bindata/go-bindata/main.go: vendor
 fmt: $(SOURCES_NO_VENDOR)
 	goimports -w $^
 
-generate:
+chronograf/dist/dist_gen.go: chronograf/ui/build $(UISOURCES)
 	 $(GO_GENERATE) ./chronograf/dist/...
+
+chronograf/server/swagger_gen.go: chronograf/server/swagger.json
 	 $(GO_GENERATE) ./chronograf/server/...
+
+chronograf/canned/bin_gen.go: $(PRECANNED)
 	 $(GO_GENERATE) ./chronograf/canned/...
 
+generate: chronograf/dist/dist_gen.go chronograf/server/swagger_gen.go chronograf/canned/bin_gen.go
+
 test-js: node_modules
-	cd chronograf/ui && yarn test --runInBand
+	make -C chronograf/ui test
 
 test-go: vendor
 	$(GO_TEST) ./...
@@ -140,4 +146,4 @@ clean: $(SUBDIRS)
 	rm -rf bin
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) fmt test test-go test-js test-go-race bench clean node_modules vet
+.PHONY: all subdirs $(SUBDIRS) fmt test test-go test-js test-go-race bench clean node_modules vet nightly
