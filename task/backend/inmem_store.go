@@ -57,6 +57,7 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.tasks = append(s.tasks, task)
 	s.runners[id.String()] = StoreTaskMeta{
 		MaxConcurrency:  int32(o.Concurrency),
@@ -66,7 +67,7 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 		Delay:           int32(o.Delay / time.Second),
 	}
 
-	return &id, nil
+	return id, nil
 }
 
 func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) error {
@@ -128,7 +129,10 @@ func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTa
 		if err != nil {
 			return nil, err
 		}
-		afterBytes, _ := after.Encode()
+		afterBytes, err := after.Encode()
+		if err != nil {
+			return nil, err
+		}
 
 		if bytes.Compare(afterBytes, taskIDBytes) >= 0 {
 			continue
@@ -171,9 +175,8 @@ func (s *inmem) FindTaskByIDWithMeta(_ context.Context, id platform.ID) (*StoreT
 
 	task := new(StoreTask)
 	for _, t := range s.tasks {
-		if bytes.Equal(t.ID, id) {
+		if t.ID == id {
 			// Return a copy of the task.
-
 			*task = t
 			break
 		}
@@ -271,7 +274,7 @@ func (s *inmem) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 	if err != nil {
 		return RunCreation{}, err
 	}
-	rc.Created.TaskID = append([]byte(nil), taskID...)
+	rc.Created.TaskID = taskID
 
 	s.runners[taskID.String()] = stm
 	return rc, nil
@@ -321,7 +324,7 @@ func (s *inmem) delete(ctx context.Context, id platform.ID, f func(StoreTask) pl
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	newTasks := []StoreTask{}
-	deletingTasks := []platform.ID{}
+	deletingTasks := []platform.ID
 	for i := range s.tasks {
 		if f(s.tasks[i]) != id {
 			newTasks = append(newTasks, s.tasks[i])
