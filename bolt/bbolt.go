@@ -107,6 +107,12 @@ func (c *Client) initialize(ctx context.Context) error {
 		if err := c.initializeViews(ctx, tx); err != nil {
 			return err
 		}
+
+		// Always create Macros bucket.
+		if err := c.initializeMacros(ctx, tx); err != nil {
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		return err

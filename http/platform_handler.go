@@ -20,6 +20,7 @@ type PlatformHandler struct {
 	ChronografHandler    *ChronografHandler
 	ViewHandler          *ViewHandler
 	SourceHandler        *SourceHandler
+	MacroHandler         *MacroHandler
 	TaskHandler          *TaskHandler
 	FluxLangHandler      *FluxLangHandler
 	QueryHandler         *FluxHandler
@@ -144,6 +145,11 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 
 	if strings.HasPrefix(r.URL.Path, "/v2/views") {
 		h.ViewHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/v2/macros") {
+		h.MacroHandler.ServeHTTP(w, r)
 		return
 	}
 

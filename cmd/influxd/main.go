@@ -170,6 +170,11 @@ func platformF(cmd *cobra.Command, args []string) {
 		sourceSvc = c
 	}
 
+	var macroSvc platform.MacroService
+	{
+		macroSvc = c
+	}
+
 	var queryService query.QueryService
 	{
 		// TODO(lh): this is temporary until query endpoint is added here.
@@ -261,6 +266,9 @@ func platformF(cmd *cobra.Command, args []string) {
 		cellHandler := http.NewViewHandler()
 		cellHandler.ViewService = cellSvc
 
+		macroHandler := http.NewMacroHandler()
+		macroHandler.MacroService = macroSvc
+
 		authHandler := http.NewAuthorizationHandler()
 		authHandler.AuthorizationService = authSvc
 		authHandler.Logger = logger.With(zap.String("handler", "auth"))
@@ -307,6 +315,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			SourceHandler:        sourceHandler,
 			TaskHandler:          taskHandler,
 			ViewHandler:          cellHandler,
+			MacroHandler:         macroHandler,
 			QueryHandler:         queryHandler,
 			WriteHandler:         writeHandler,
 		}
