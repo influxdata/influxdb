@@ -14,7 +14,8 @@ The InfluxQL Transpiler exists to rewrite an InfluxQL query into its equivalent 
     4. [Evaluate the condition](#evaluate-condition)
     5. [Perform the grouping](#perform-grouping)
     6. [Evaluate the function](#evaluate-function)
-    7. [Combine windows](#combine-windows)
+    7. [Normalize the time column](#normalize-time)
+    8. [Combine windows](#combine-windows)
 5. [Join the groups](#join-groups)
 6. [Map and eval columns](#map-and-eval)
 7. [Encoding the results](#encoding)
@@ -110,6 +111,14 @@ For an aggregate, the following is used instead:
         |> mean(timeSrc: "_start", columns: ["_value"])
 
 If the aggregate is combined with conditions, the column name of `_value` is replaced with whatever the generated column name is.
+
+### <a name="normalize-time"></a> Normalize the time column
+
+If a function was evaluated and the query type is an aggregate type, then all of the selector functions need to have their time normalized.
+
+    ... |> max() |> drop(columns: ["_time"]) |> duplicate(column: "_start", as: "_time")
+
+This **only gets applied to selectors when being run as an aggregate**. This step is skipped if the query is running as a selector and it does not apply when processing raw data.
 
 ### <a name="combine-windows"></a> Combine windows
 
