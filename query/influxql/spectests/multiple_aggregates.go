@@ -80,10 +80,15 @@ func init() {
 						ID: "mean0",
 						Spec: &functions.MeanOpSpec{
 							AggregateConfig: execute.AggregateConfig{
-								TimeSrc: execute.DefaultStartColLabel,
-								TimeDst: execute.DefaultTimeColLabel,
 								Columns: []string{execute.DefaultValueColLabel},
 							},
+						},
+					},
+					{
+						ID: "duplicate0",
+						Spec: &functions.DuplicateOpSpec{
+							Col: execute.DefaultStartColLabel,
+							As:  execute.DefaultTimeColLabel,
 						},
 					},
 					{
@@ -154,12 +159,25 @@ func init() {
 						},
 					},
 					{
+						ID: "drop0",
+						Spec: &functions.DropOpSpec{
+							Cols: []string{execute.DefaultTimeColLabel},
+						},
+					},
+					{
+						ID: "duplicate1",
+						Spec: &functions.DuplicateOpSpec{
+							Col: execute.DefaultStartColLabel,
+							As:  execute.DefaultTimeColLabel,
+						},
+					},
+					{
 						ID: "join0",
 						Spec: &functions.JoinOpSpec{
 							On: []string{"_time", "_measurement"},
 							TableNames: map[flux.OperationID]string{
-								"mean0": "t0",
-								"max0":  "t1",
+								"duplicate0": "t0",
+								"duplicate1": "t1",
 							},
 						},
 					},
@@ -217,12 +235,15 @@ func init() {
 					{Parent: "range0", Child: "filter0"},
 					{Parent: "filter0", Child: "group0"},
 					{Parent: "group0", Child: "mean0"},
+					{Parent: "mean0", Child: "duplicate0"},
 					{Parent: "from1", Child: "range1"},
 					{Parent: "range1", Child: "filter1"},
 					{Parent: "filter1", Child: "group1"},
 					{Parent: "group1", Child: "max0"},
-					{Parent: "mean0", Child: "join0"},
-					{Parent: "max0", Child: "join0"},
+					{Parent: "max0", Child: "drop0"},
+					{Parent: "drop0", Child: "duplicate1"},
+					{Parent: "duplicate0", Child: "join0"},
+					{Parent: "duplicate1", Child: "join0"},
 					{Parent: "join0", Child: "map0"},
 					{Parent: "map0", Child: "yield0"},
 				},

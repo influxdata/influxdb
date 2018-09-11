@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux"
-
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions"
 	"github.com/influxdata/influxql"
@@ -103,7 +102,7 @@ func parseFunction(expr *influxql.Call) (*function, error) {
 
 // createFunctionCursor creates a new cursor that calls a function on one of the columns
 // and returns the result.
-func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor) (cursor, error) {
+func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, normalize bool) (cursor, error) {
 	cur := &functionCursor{
 		call:   call,
 		parent: in,
@@ -117,8 +116,6 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor) (c
 		cur.id = t.op("count", &functions.CountOpSpec{
 			AggregateConfig: execute.AggregateConfig{
 				Columns: []string{value},
-				TimeSrc: execute.DefaultStartColLabel,
-				TimeDst: execute.DefaultTimeColLabel,
 			},
 		}, in.ID())
 		cur.value = value
@@ -155,8 +152,6 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor) (c
 		cur.id = t.op("sum", &functions.SumOpSpec{
 			AggregateConfig: execute.AggregateConfig{
 				Columns: []string{value},
-				TimeSrc: execute.DefaultStartColLabel,
-				TimeDst: execute.DefaultTimeColLabel,
 			},
 		}, in.ID())
 		cur.value = value
@@ -193,8 +188,6 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor) (c
 		cur.id = t.op("mean", &functions.MeanOpSpec{
 			AggregateConfig: execute.AggregateConfig{
 				Columns: []string{value},
-				TimeSrc: execute.DefaultStartColLabel,
-				TimeDst: execute.DefaultTimeColLabel,
 			},
 		}, in.ID())
 		cur.value = value
@@ -229,14 +222,25 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor) (c
 			Method:      "exact_selector",
 			AggregateConfig: execute.AggregateConfig{
 				Columns: []string{fieldName},
-				TimeSrc: execute.DefaultStartColLabel,
-				TimeDst: execute.DefaultTimeColLabel,
 			},
 		}, in.ID())
 		cur.value = fieldName
 		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
 	default:
 		return nil, fmt.Errorf("unimplemented function: %q", call.Name)
+	}
+
+	// If we have been told to normalize the time, we do it here.
+	if normalize {
+		if influxql.IsSelector(call) {
+			cur.id = t.op("drop", &functions.DropOpSpec{
+				Cols: []string{execute.DefaultTimeColLabel},
+			}, cur.id)
+		}
+		cur.id = t.op("duplicate", &functions.DuplicateOpSpec{
+			Col: execute.DefaultStartColLabel,
+			As:  execute.DefaultTimeColLabel,
+		}, cur.id)
 	}
 	return cur, nil
 }

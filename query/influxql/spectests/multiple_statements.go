@@ -80,10 +80,15 @@ func init() {
 						ID: "mean0",
 						Spec: &functions.MeanOpSpec{
 							AggregateConfig: execute.AggregateConfig{
-								TimeSrc: execute.DefaultStartColLabel,
-								TimeDst: execute.DefaultTimeColLabel,
 								Columns: []string{execute.DefaultValueColLabel},
 							},
+						},
+					},
+					{
+						ID: "duplicate0",
+						Spec: &functions.DuplicateOpSpec{
+							Col: execute.DefaultStartColLabel,
+							As:  execute.DefaultTimeColLabel,
 						},
 					},
 					{
@@ -237,7 +242,8 @@ func init() {
 					{Parent: "range0", Child: "filter0"},
 					{Parent: "filter0", Child: "group0"},
 					{Parent: "group0", Child: "mean0"},
-					{Parent: "mean0", Child: "map0"},
+					{Parent: "mean0", Child: "duplicate0"},
+					{Parent: "duplicate0", Child: "map0"},
 					{Parent: "map0", Child: "yield0"},
 					{Parent: "from1", Child: "range1"},
 					{Parent: "range1", Child: "filter1"},

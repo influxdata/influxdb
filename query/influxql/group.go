@@ -15,8 +15,9 @@ import (
 )
 
 type groupInfo struct {
-	call *influxql.Call
-	refs []*influxql.VarRef
+	call     *influxql.Call
+	refs     []*influxql.VarRef
+	selector bool
 }
 
 type groupVisitor struct {
@@ -88,8 +89,9 @@ func identifyGroups(stmt *influxql.SelectStatement) ([]*groupInfo, error) {
 			call = v.calls[0].call
 		}
 		return []*groupInfo{{
-			call: call,
-			refs: v.refs,
+			call:     call,
+			refs:     v.refs,
+			selector: true, // Always a selector if we are here.
 		}}, nil
 	}
 
@@ -98,6 +100,11 @@ func identifyGroups(stmt *influxql.SelectStatement) ([]*groupInfo, error) {
 	groups := make([]*groupInfo, 0, len(v.calls))
 	for _, fn := range v.calls {
 		groups = append(groups, &groupInfo{call: fn.call})
+	}
+
+	// If there is exactly one group and that contains a selector, then mark it as so.
+	if len(groups) == 1 && influxql.IsSelector(groups[0].call) {
+		groups[0].selector = true
 	}
 	return groups, nil
 }
@@ -224,7 +231,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 
 	// If a function call is present, evaluate the function call.
 	if gr.call != nil {
-		c, err := createFunctionCursor(t, gr.call, cur)
+		c, err := createFunctionCursor(t, gr.call, cur, !gr.selector)
 		if err != nil {
 			return nil, err
 		}

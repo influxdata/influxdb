@@ -90,6 +90,13 @@ func init() {
 						},
 						&aggregate,
 						{
+							ID: "duplicate0",
+							Spec: &functions.DuplicateOpSpec{
+								Col: execute.DefaultStartColLabel,
+								As:  execute.DefaultTimeColLabel,
+							},
+						},
+						{
 							ID: "window1",
 							Spec: &functions.WindowOpSpec{
 								Every:         flux.Duration(math.MaxInt64),
@@ -145,7 +152,8 @@ func init() {
 						{Parent: "filter0", Child: "group0"},
 						{Parent: "group0", Child: "window0"},
 						{Parent: "window0", Child: aggregate.ID},
-						{Parent: aggregate.ID, Child: "window1"},
+						{Parent: aggregate.ID, Child: "duplicate0"},
+						{Parent: "duplicate0", Child: "window1"},
 						{Parent: "window1", Child: "map0"},
 						{Parent: "map0", Child: "yield0"},
 					},
