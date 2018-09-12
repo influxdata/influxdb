@@ -80,6 +80,13 @@ func init() {
 						},
 						&aggregate,
 						{
+							ID: "duplicate0",
+							Spec: &functions.DuplicateOpSpec{
+								Col: execute.DefaultStartColLabel,
+								As:  execute.DefaultTimeColLabel,
+							},
+						},
+						{
 							ID: "map0",
 							Spec: &functions.MapOpSpec{
 								Fn: &semantic.FunctionExpression{
@@ -124,7 +131,8 @@ func init() {
 						{Parent: "range0", Child: "filter0"},
 						{Parent: "filter0", Child: "group0"},
 						{Parent: "group0", Child: aggregate.ID},
-						{Parent: aggregate.ID, Child: "map0"},
+						{Parent: aggregate.ID, Child: "duplicate0"},
+						{Parent: "duplicate0", Child: "map0"},
 						{Parent: "map0", Child: "yield0"},
 					},
 					Now: Now(),

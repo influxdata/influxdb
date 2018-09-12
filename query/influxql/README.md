@@ -170,11 +170,15 @@ If the aggregate is combined with conditions, the column name of `_value` is rep
 
 #### <a name="normalize-time"></a> Normalize the time column
 
-If a function was evaluated and the query type is an aggregate type, then all of the selector functions need to have their time normalized.
+If a function was evaluated and the query type is an aggregate type, then all of the functions need to have their time normalized. If the function is an aggregate, the following is added:
+
+    ... |> mean() |> duplicate(column: "_start", as: "_time")
+
+If it is a selector, then we need to also drop the existing `_time` column with the following:
 
     ... |> max() |> drop(columns: ["_time"]) |> duplicate(column: "_start", as: "_time")
 
-This **only gets applied to selectors when being run as an aggregate**. This step is skipped if the query is running as a selector and it does not apply when processing raw data.
+This step does not apply if there are no functions.
 
 #### <a name="combine-windows"></a> Combine windows
 
