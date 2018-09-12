@@ -57,12 +57,6 @@ func replF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	org, err := orgID(replFlags.OrgID)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
 	buckets, err := bucketService(flags.host, flags.token)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -75,7 +69,7 @@ func replF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	r, err := getFluxREPL(hosts, buckets, orgs, org, replFlags.Verbose)
+	r, err := getFluxREPL(hosts, buckets, orgs, replFlags.Verbose)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -84,7 +78,7 @@ func replF(cmd *cobra.Command, args []string) {
 	r.Run()
 }
 
-func getFluxREPL(storageHosts storage.Reader, buckets platform.BucketService, orgs platform.OrganizationService, org platform.ID, verbose bool) (*repl.REPL, error) {
+func getFluxREPL(storageHosts storage.Reader, buckets platform.BucketService, orgs platform.OrganizationService, verbose bool) (*repl.REPL, error) {
 	conf := control.Config{
 		ExecutorDependencies: make(execute.Dependencies),
 		ConcurrencyQuota:     runtime.NumCPU() * 2,
@@ -97,5 +91,5 @@ func getFluxREPL(storageHosts storage.Reader, buckets platform.BucketService, or
 	}
 
 	c := control.New(conf)
-	return repl.New(c, org), nil
+	return repl.New(c), nil
 }

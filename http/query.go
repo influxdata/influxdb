@@ -9,8 +9,10 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
+	"github.com/influxdata/platform/query"
 )
 
 // QueryRequest is a flux query request.
@@ -91,18 +93,18 @@ func (r QueryRequest) Validate() error {
 }
 
 // ProxyRequest returns a request to proxy from the flux.
-func (r QueryRequest) ProxyRequest() (*flux.ProxyRequest, error) {
+func (r QueryRequest) ProxyRequest() (*query.ProxyRequest, error) {
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
 	// Query is preferred over spec
 	var compiler flux.Compiler
 	if r.Query != "" {
-		compiler = flux.FluxCompiler{
+		compiler = lang.FluxCompiler{
 			Query: r.Query,
 		}
 	} else if r.Spec != nil {
-		compiler = flux.SpecCompiler{
+		compiler = lang.SpecCompiler{
 			Spec: r.Spec,
 		}
 	}
@@ -116,8 +118,8 @@ func (r QueryRequest) ProxyRequest() (*flux.ProxyRequest, error) {
 
 	// TODO(nathanielc): Use commentPrefix and dateTimeFormat
 	// once they are supported.
-	return &flux.ProxyRequest{
-		Request: flux.Request{
+	return &query.ProxyRequest{
+		Request: query.Request{
 			OrganizationID: r.org.ID,
 			Compiler:       compiler,
 		},
@@ -147,7 +149,7 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.Organ
 	return &req, err
 }
 
-func decodeProxyQueryRequest(ctx context.Context, r *http.Request, svc platform.OrganizationService) (*flux.ProxyRequest, error) {
+func decodeProxyQueryRequest(ctx context.Context, r *http.Request, svc platform.OrganizationService) (*query.ProxyRequest, error) {
 	req, err := decodeQueryRequest(ctx, r, svc)
 	if err != nil {
 		return nil, err

@@ -8,10 +8,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/platform"
 	pcontext "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/kit/errors"
+	"github.com/influxdata/platform/query"
 	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -29,7 +29,7 @@ type FluxHandler struct {
 
 	AuthorizationService platform.AuthorizationService
 	OrganizationService  platform.OrganizationService
-	ProxyQueryService    flux.ProxyQueryService
+	ProxyQueryService    query.ProxyQueryService
 }
 
 // NewFluxHandler returns a new handler at /v2/query for flux queries.
@@ -103,7 +103,7 @@ type FluxService struct {
 }
 
 // Query runs a flux query against a influx server and sends the results to the io.Writer.
-func (s *FluxService) Query(ctx context.Context, w io.Writer, req *flux.ProxyRequest) (int64, error) {
+func (s *FluxService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
 	u, err := newURL(s.URL, fluxPath)
 	if err != nil {
 		return 0, err

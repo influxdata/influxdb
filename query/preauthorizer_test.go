@@ -1,4 +1,4 @@
-package query
+package query_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/mock"
+	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
 )
 
@@ -40,7 +41,7 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 	// and no authorization
 	auth := &platform.Authorization{Status: platform.Active}
 	emptyBucketService := mock.NewBucketService()
-	preAuthorizer := NewPreAuthorizer(emptyBucketService)
+	preAuthorizer := query.NewPreAuthorizer(emptyBucketService)
 
 	err = preAuthorizer.PreAuthorize(ctx, spec, auth)
 	if diagnostic := cmp.Diff("Bucket service returned nil bucket", err.Error()); diagnostic != "" {
@@ -55,7 +56,7 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 		ID:   *id,
 	})
 
-	preAuthorizer = NewPreAuthorizer(bucketService)
+	preAuthorizer = query.NewPreAuthorizer(bucketService)
 	err = preAuthorizer.PreAuthorize(ctx, spec, auth)
 	if diagnostic := cmp.Diff(`No read permission for bucket: "my_bucket"`, err.Error()); diagnostic != "" {
 		t.Errorf("Authorize message mismatch: -want/+got:\n%v", diagnostic)

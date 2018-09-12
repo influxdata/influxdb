@@ -13,8 +13,10 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/task/backend"
 	"github.com/influxdata/platform/task/backend/executor"
@@ -27,7 +29,7 @@ type fakeQueryService struct {
 	queryErr error
 }
 
-var _ flux.AsyncQueryService = (*fakeQueryService)(nil)
+var _ query.AsyncQueryService = (*fakeQueryService)(nil)
 
 func makeSpec(q string) *flux.Spec {
 	qs, err := flux.Compile(context.Background(), q, time.Unix(123, 0))
@@ -49,7 +51,7 @@ func newFakeQueryService() *fakeQueryService {
 	return &fakeQueryService{queries: make(map[string]*fakeQuery)}
 }
 
-func (s *fakeQueryService) Query(ctx context.Context, req *flux.Request) (flux.Query, error) {
+func (s *fakeQueryService) Query(ctx context.Context, req *query.Request) (flux.Query, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.queryErr != nil {
@@ -58,9 +60,9 @@ func (s *fakeQueryService) Query(ctx context.Context, req *flux.Request) (flux.Q
 		return nil, err
 	}
 
-	sc, ok := req.Compiler.(flux.SpecCompiler)
+	sc, ok := req.Compiler.(lang.SpecCompiler)
 	if !ok {
-		return nil, fmt.Errorf("fakeQueryService only supports the flux.SpecCompiler, got %T", req.Compiler)
+		return nil, fmt.Errorf("fakeQueryService only supports the SpecCompiler, got %T", req.Compiler)
 	}
 
 	fq := &fakeQuery{
@@ -224,7 +226,7 @@ func createSyncSystem() *system {
 		st:   st,
 		ex: executor.NewQueryServiceExecutor(
 			zap.NewNop(),
-			flux.QueryServiceBridge{
+			query.QueryServiceBridge{
 				AsyncQueryService: svc,
 			},
 			st,

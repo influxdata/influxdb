@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/platform/query"
 	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -23,7 +24,7 @@ type ProxyQueryHandler struct {
 
 	Logger *zap.Logger
 
-	ProxyQueryService flux.ProxyQueryService
+	ProxyQueryService query.ProxyQueryService
 
 	CompilerMappings flux.CompilerMappings
 	DialectMappings  flux.DialectMappings
@@ -48,7 +49,7 @@ type HTTPDialect interface {
 func (h *ProxyQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req flux.ProxyRequest
+	var req query.ProxyRequest
 	req.WithCompilerMappings(h.CompilerMappings)
 	req.WithDialectMappings(h.DialectMappings)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -89,7 +90,7 @@ type ProxyQueryService struct {
 	InsecureSkipVerify bool
 }
 
-func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *flux.ProxyRequest) (int64, error) {
+func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
 	u, err := newURL(s.Addr, proxyQueryPath)
 	if err != nil {
 		return 0, err

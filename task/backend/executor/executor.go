@@ -8,14 +8,16 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/task/backend"
 	"go.uber.org/zap"
 )
 
 // queryServiceExecutor is an implementation of backend.Executor that depends on a QueryService.
 type queryServiceExecutor struct {
-	svc    flux.QueryService
+	svc    query.QueryService
 	st     backend.Store
 	logger *zap.Logger
 }
@@ -25,7 +27,7 @@ var _ backend.Executor = (*queryServiceExecutor)(nil)
 // NewQueryServiceExecutor returns a new executor based on the given QueryService.
 // In general, you should prefer NewAsyncQueryServiceExecutor, as that code is smaller and simpler,
 // because asynchronous queries are more in line with the Executor interface.
-func NewQueryServiceExecutor(logger *zap.Logger, svc flux.QueryService, st backend.Store) backend.Executor {
+func NewQueryServiceExecutor(logger *zap.Logger, svc query.QueryService, st backend.Store) backend.Executor {
 	return &queryServiceExecutor{logger: logger, svc: svc, st: st}
 }
 
@@ -41,7 +43,7 @@ func (e *queryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRu
 // syncRunPromise implements backend.RunPromise for a synchronous QueryService.
 type syncRunPromise struct {
 	qr     backend.QueuedRun
-	svc    flux.QueryService
+	svc    query.QueryService
 	t      *backend.StoreTask
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -123,9 +125,9 @@ func (p *syncRunPromise) doQuery() {
 		return
 	}
 
-	req := &flux.Request{
+	req := &query.Request{
 		OrganizationID: p.t.Org,
-		Compiler: flux.SpecCompiler{
+		Compiler: lang.SpecCompiler{
 			Spec: spec,
 		},
 	}
@@ -159,7 +161,7 @@ func (p *syncRunPromise) cancelOnContextDone() {
 
 // asyncQueryServiceExecutor is an implementation of backend.Executor that depends on an AsyncQueryService.
 type asyncQueryServiceExecutor struct {
-	svc    flux.AsyncQueryService
+	svc    query.AsyncQueryService
 	st     backend.Store
 	logger *zap.Logger
 }
@@ -167,7 +169,7 @@ type asyncQueryServiceExecutor struct {
 var _ backend.Executor = (*asyncQueryServiceExecutor)(nil)
 
 // NewQueryServiceExecutor returns a new executor based on the given AsyncQueryService.
-func NewAsyncQueryServiceExecutor(logger *zap.Logger, svc flux.AsyncQueryService, st backend.Store) backend.Executor {
+func NewAsyncQueryServiceExecutor(logger *zap.Logger, svc query.AsyncQueryService, st backend.Store) backend.Executor {
 	return &asyncQueryServiceExecutor{logger: logger, svc: svc, st: st}
 }
 
@@ -182,9 +184,9 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 		return nil, err
 	}
 
-	req := &flux.Request{
+	req := &query.Request{
 		OrganizationID: t.Org,
-		Compiler: flux.SpecCompiler{
+		Compiler: lang.SpecCompiler{
 			Spec: spec,
 		},
 	}
