@@ -81,15 +81,15 @@ func (cmd *Command) Run(args []string) (err error) {
 	}
 
 	if !cmd.ignore {
-		if f, err := os.Create(cmd.conflictPath); err != nil {
+		f, err := os.Create(cmd.conflictPath)
+		if err != nil {
 			return err
-		} else {
-			cmd.conflicts = gzip.NewWriter(f)
-			defer func() {
-				cmd.conflicts.Close()
-				f.Close()
-			}()
 		}
+		cmd.conflicts = gzip.NewWriter(f)
+		defer func() {
+			cmd.conflicts.Close()
+			f.Close()
+		}()
 	}
 
 	var wr format.Writer

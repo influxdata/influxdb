@@ -70,10 +70,9 @@ func (i *importer) CreateDatabase(rp *meta.RetentionPolicySpec) error {
 		(rpi.ShardGroupDuration != rp.ShardGroupDuration))
 	if nonmatchingRp {
 		return fmt.Errorf("retention policy %v already exists with different parameters", rp.Name)
-	} else {
-		if _, err := i.MetaClient.CreateRetentionPolicy(i.db, rp, false); err != nil {
-			return err
-		}
+	}
+	if _, err := i.MetaClient.CreateRetentionPolicy(i.db, rp, false); err != nil {
+		return err
 	}
 
 	i.rpi, err = i.MetaClient.RetentionPolicy(i.db, rp.Name)

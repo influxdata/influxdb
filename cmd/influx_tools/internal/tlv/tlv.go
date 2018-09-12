@@ -30,9 +30,8 @@ func ReadType(r io.Reader) (byte, error) {
 	if _, err := io.ReadFull(r, typ[:]); err != nil {
 		if err == io.EOF {
 			return 0, err
-		} else {
-			return 0, fmt.Errorf("read message type: %s", err)
 		}
+		return 0, fmt.Errorf("read message type: %s", err)
 	}
 	return typ[0], nil
 }

@@ -191,11 +191,11 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	}
 
 	var req storage.ReadRequest
-	if any, err := types.MarshalAny(&src); err != nil {
+	any, err := types.MarshalAny(&src)
+	if err != nil {
 		return err
-	} else {
-		req.ReadSource = any
 	}
+	req.ReadSource = any
 	req.TimestampRange.Start = cmd.startTime
 	req.TimestampRange.End = cmd.endTime
 	req.SeriesLimit = cmd.slimit

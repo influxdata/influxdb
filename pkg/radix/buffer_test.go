@@ -20,7 +20,7 @@ func TestBuffer(t *testing.T) {
 			t.Fatal("bad copy")
 		}
 
-		x1[0] += 1
+		x1[0]++
 		if bytes.Equal(x2, x1) {
 			t.Fatal("bad copy")
 		}
@@ -48,7 +48,7 @@ func TestBufferLarge(t *testing.T) {
 		t.Fatal("bad copy")
 	}
 
-	x1[0] += 1
+	x1[0]++
 	if bytes.Equal(x1, x2) {
 		t.Fatal("bad copy")
 	}

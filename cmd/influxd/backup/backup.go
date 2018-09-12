@@ -207,7 +207,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 
 	// Ensure that only one arg is specified.
 	if fs.NArg() != 1 {
-		return errors.New("Exactly one backup path is required.")
+		return errors.New("Exactly one backup path is required")
 	}
 	cmd.path = fs.Arg(0)
 
