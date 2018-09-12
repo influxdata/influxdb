@@ -1,6 +1,10 @@
 v1.6.3 [unreleased]
 -------------------
 
+### Features
+
+-	[#10280](https://github.com/influxdata/influxdb/pull/10280): Remove TSI1 HLL sketches from heap.
+
 ### Bugfixes
 
 -	[#10251](https://github.com/influxdata/influxdb/pull/10251): Fix the inherited interval for derivative and others.
