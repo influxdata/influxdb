@@ -109,7 +109,7 @@ func Unescape(in []byte) []byte {
 			}
 		}
 		out = append(out, in[i])
-		i += 1
+		i++
 	}
 	return out
 }
