@@ -191,6 +191,8 @@ func TestIndexSet_DedupeInmemIndexes(t *testing.T) {
 
 func TestIndex_Sketches(t *testing.T) {
 	checkCardinalities := func(t *testing.T, index *Index, state string, series, tseries, measurements, tmeasurements int) {
+		t.Helper()
+
 		// Get sketches and check cardinality...
 		sketch, tsketch, err := index.SeriesSketches()
 		if err != nil {
@@ -275,7 +277,14 @@ func TestIndex_Sketches(t *testing.T) {
 		}
 
 		// Check cardinalities after the delete
-		checkCardinalities(t, idx, "initial|reopen|delete", 2430, 486, 10, 2)
+		switch idx.Index.(type) {
+		case *tsi1.Index:
+			checkCardinalities(t, idx, "initial|reopen|delete", 2923, 0, 10, 2)
+		case *inmem.ShardIndex:
+			checkCardinalities(t, idx, "initial|reopen|delete", 2430, 486, 10, 2)
+		default:
+			panic("unreachable")
+		}
 
 		// Re-open step only applies to the TSI index.
 		if _, ok := idx.Index.(*tsi1.Index); ok {
@@ -285,7 +294,7 @@ func TestIndex_Sketches(t *testing.T) {
 			}
 
 			// Check cardinalities after the reopen
-			checkCardinalities(t, idx, "initial|reopen|delete|reopen", 2430, 486, 10, 2)
+			checkCardinalities(t, idx, "initial|reopen|delete|reopen", 2923, 0, 10, 2)
 		}
 		return nil
 	}
