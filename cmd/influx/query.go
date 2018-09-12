@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions"
@@ -28,23 +27,10 @@ var queryCmd = &cobra.Command{
 }
 
 var queryFlags struct {
-	StorageHosts string
-	OrgID        string
-	Verbose      bool
+	OrgID string
 }
 
 func init() {
-	queryCmd.PersistentFlags().StringVar(&queryFlags.StorageHosts, "storage-hosts", "localhost:8082", "Comma-separated list of storage hosts")
-	viper.BindEnv("STORAGE_HOSTS")
-	if h := viper.GetString("STORAGE_HOSTS"); h != "" {
-		queryFlags.StorageHosts = h
-	}
-
-	queryCmd.PersistentFlags().BoolVarP(&queryFlags.Verbose, "verbose", "v", false, "Verbose output")
-	viper.BindEnv("VERBOSE")
-	if viper.GetBool("VERBOSE") {
-		queryFlags.Verbose = true
-	}
 
 	queryCmd.PersistentFlags().StringVar(&queryFlags.OrgID, "org-id", "", "Organization ID")
 	viper.BindEnv("ORG_ID")
@@ -60,25 +46,14 @@ func fluxQueryF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	hosts, err := storageHostReader(strings.Split(queryFlags.StorageHosts, ","))
+	var orgID platform.ID
+	err = orgID.DecodeFromString(queryFlags.OrgID)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	buckets, err := bucketService(flags.host, flags.token)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	orgs, err := orgService(flags.host, flags.token)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	r, err := getFluxREPL(hosts, buckets, orgs, queryFlags.Verbose)
+	r, err := getFluxREPL(flags.host, flags.token, orgID)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

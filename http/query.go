@@ -178,6 +178,35 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	}, nil
 }
 
+// QueryRequestFromProxyRequest converts a query.ProxyRequest into a QueryRequest.
+// The ProxyRequest must contain supported compilers and dialects otherwise an error occurs.
+func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error) {
+	qr := new(QueryRequest)
+	switch c := req.Request.Compiler.(type) {
+	case lang.FluxCompiler:
+		qr.Type = "flux"
+		qr.Query = c.Query
+	case lang.SpecCompiler:
+		qr.Type = "flux"
+		qr.Spec = c.Spec
+	default:
+		return nil, fmt.Errorf("unsupported compiler %T", c)
+	}
+	switch d := req.Dialect.(type) {
+	case *csv.Dialect:
+		var header = !d.ResultEncoderConfig.NoHeader
+		qr.Dialect.Header = &header
+		qr.Dialect.Delimiter = string(d.ResultEncoderConfig.Delimiter)
+		qr.Dialect.CommentPrefix = "#"
+		qr.Dialect.DateTimeFormat = "RFC3339"
+		qr.Dialect.Annotations = d.ResultEncoderConfig.Annotations
+	default:
+		return nil, fmt.Errorf("unsupported dialect %T", d)
+	}
+
+	return qr, nil
+}
+
 func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.OrganizationService) (*QueryRequest, error) {
 	var req QueryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

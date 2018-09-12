@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/platform"
 )
 
 // QueryServiceBridge implements the QueryService interface while consuming the AsyncQueryService interface.
@@ -33,4 +34,22 @@ func (b ProxyQueryServiceBridge) Query(ctx context.Context, w io.Writer, req *Pr
 	defer results.Cancel()
 	encoder := req.Dialect.Encoder()
 	return encoder.Encode(w, results)
+}
+
+// REPLQuerier implements the repl.Querier interface while consuming a QueryService
+type REPLQuerier struct {
+	// Authorization is the authorization to provide for all requests
+	Authorization *platform.Authorization
+	// OrganizationID is the ID to provide for all requests
+	OrganizationID platform.ID
+	QueryService   QueryService
+}
+
+func (q *REPLQuerier) Query(ctx context.Context, compiler flux.Compiler) (flux.ResultIterator, error) {
+	req := &Request{
+		Authorization:  q.Authorization,
+		OrganizationID: q.OrganizationID,
+		Compiler:       compiler,
+	}
+	return q.QueryService.Query(ctx, req)
 }
