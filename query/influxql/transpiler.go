@@ -40,11 +40,7 @@ func (t *Transpiler) Transpile(ctx context.Context, txt string) (*flux.Spec, err
 
 	transpiler := newTranspilerState(t.dbrpMappingSvc, t.Config)
 	for i, s := range q.Statements {
-		stmt, ok := s.(*influxql.SelectStatement)
-		if !ok {
-			// TODO(jsternberg): Support meta queries.
-			return nil, fmt.Errorf("only supports select statements: %T", s)
-		} else if err := transpiler.Transpile(ctx, i, stmt); err != nil {
+		if err := transpiler.Transpile(ctx, i, s); err != nil {
 			return nil, err
 		}
 	}
@@ -78,7 +74,28 @@ func newTranspilerState(dbrpMappingSvc platform.DBRPMappingService, config *Conf
 	return state
 }
 
-func (t *transpilerState) Transpile(ctx context.Context, id int, stmt *influxql.SelectStatement) error {
+func (t *transpilerState) Transpile(ctx context.Context, id int, s influxql.Statement) error {
+	switch stmt := s.(type) {
+	case *influxql.SelectStatement:
+		if err := t.transpileSelect(ctx, id, stmt); err != nil {
+			return err
+		}
+	case *influxql.ShowTagValuesStatement:
+		if err := t.transpileShowTagValues(ctx, id, stmt); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown statement type %T", s)
+	}
+	return nil
+}
+
+func (t *transpilerState) transpileShowTagValues(ctx context.Context, id int, stmt *influxql.ShowTagValuesStatement) error {
+
+	return nil
+}
+
+func (t *transpilerState) transpileSelect(ctx context.Context, id int, stmt *influxql.SelectStatement) error {
 	// Clone the select statement and omit the time from the list of column names.
 	t.stmt = stmt.Clone()
 	t.stmt.OmitTime = true
