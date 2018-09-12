@@ -1040,8 +1040,14 @@ func TestStore_Sketches(t *testing.T) {
 			}
 		}
 
+		// Check cardinalities. In this case, the indexes behave differently.
+		expS, expTS, expM, expTM := 160, 0, 10, 5
+		if index == inmem.IndexName {
+			expS, expTS, expM, expTM = 160, 80, 10, 5
+		}
+
 		// Check cardinalities - tombstones should be in
-		if err := checkCardinalities(store.Store, 160, 80, 10, 5); err != nil {
+		if err := checkCardinalities(store.Store, expS, expTS, expM, expTM); err != nil {
 			return fmt.Errorf("[initial|re-open|delete] %v", err)
 		}
 
@@ -1051,12 +1057,7 @@ func TestStore_Sketches(t *testing.T) {
 		}
 
 		// Check cardinalities. In this case, the indexes behave differently.
-		//
-		// - The inmem index will report that there are 80 series and no tombstones.
-		// - The tsi1 index will report that there are 160 series and 80 tombstones.
-		//
-		// The result is the same, but the implementation differs.
-		expS, expTS, expM, expTM := 160, 80, 10, 5
+		expS, expTS, expM, expTM = 160, 0, 5, 5
 		if index == inmem.IndexName {
 			expS, expTS, expM, expTM = 80, 0, 5, 0
 		}

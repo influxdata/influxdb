@@ -408,28 +408,32 @@ func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) tsdb.Series
 
 // MeasurementsSketches returns the merged measurement sketches for the FileSet.
 func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-
-	// Iterate over all the files and merge the sketches into the result.
+	sketch, tSketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for _, f := range fs.files {
-		if err := f.MergeMeasurementsSketches(sketch, tsketch); err != nil {
+		if s, t, err := f.MeasurementsSketches(); err != nil {
+			return nil, nil, err
+		} else if err := sketch.Merge(s); err != nil {
+			return nil, nil, err
+		} else if err := tSketch.Merge(t); err != nil {
 			return nil, nil, err
 		}
 	}
-	return sketch, tsketch, nil
+	return sketch, tSketch, nil
 }
 
 // SeriesSketches returns the merged measurement sketches for the FileSet.
 func (fs *FileSet) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-
-	// Iterate over all the files and merge the sketches into the result.
+	sketch, tSketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for _, f := range fs.files {
-		if err := f.MergeSeriesSketches(sketch, tsketch); err != nil {
+		if s, t, err := f.SeriesSketches(); err != nil {
+			return nil, nil, err
+		} else if err := sketch.Merge(s); err != nil {
+			return nil, nil, err
+		} else if err := tSketch.Merge(t); err != nil {
 			return nil, nil, err
 		}
 	}
-	return sketch, tsketch, nil
+	return sketch, tSketch, nil
 }
 
 // File represents a log or index file.
@@ -456,8 +460,8 @@ type File interface {
 	TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator
 
 	// Sketches for cardinality estimation
-	MergeMeasurementsSketches(s, t estimator.Sketch) error
-	MergeSeriesSketches(s, t estimator.Sketch) error
+	MeasurementsSketches() (s, t estimator.Sketch, err error)
+	SeriesSketches() (s, t estimator.Sketch, err error)
 
 	// Bitmap series existance.
 	SeriesIDSet() (*tsdb.SeriesIDSet, error)
