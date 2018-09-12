@@ -82,7 +82,7 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 		host = h
 		port, err = strconv.Atoi(p)
 		if err != nil {
-			return url.URL{}, fmt.Errorf("invalid port number %q: %s\n", path, err)
+			return url.URL{}, fmt.Errorf("invalid port number %q: %s", path, err)
 		}
 	}
 
