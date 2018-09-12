@@ -31,7 +31,20 @@ install:
 # To run your custom scripts instead of automatic MSBuild
 build_script:
  - go get -t -v ./...
+
+before_test:
+ - go get github.com/golang/lint/golint
+
+test_script:
  - go test -timeout 15m -v ./...
+ - ps: |
+    Get-Content .\lint_clean.txt | ForEach-Object { golint $_ } | Tee-Object -Variable lints
+    if ($lints) {
+        echo $lints | ForEach-Object {
+            Add-AppveyorMessage -Message "golint regression $($_.Split(':')[0]) line $($_.Split(':')[1])" -Category "Error" -Details "$_"
+        }
+        exit 1
+    }
 
 # To disable deployment
 deploy: off
