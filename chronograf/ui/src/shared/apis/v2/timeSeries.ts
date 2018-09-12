@@ -1,3 +1,6 @@
+// Libraries
+import _ from 'lodash'
+
 // APIs
 import {analyzeQueries} from 'src/shared/apis'
 
@@ -5,19 +8,25 @@ import {analyzeQueries} from 'src/shared/apis'
 import replaceTemplates, {replaceInterval} from 'src/tempVars/utils/replace'
 import {getDeep} from 'src/utils/wrappers'
 import AJAX from 'src/utils/ajax'
+import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Types
-import {Template} from 'src/types'
+import {Template, FluxTable} from 'src/types'
 
 export const fetchTimeSeries = async (
   link: string,
   queries: string[],
   resolution: number,
   templates: Template[]
-) => {
+): Promise<FluxTable[]> => {
   const timeSeriesPromises = queries.map(async q => {
     try {
       const query = await replace(q, link, templates, resolution)
+      const dialect = {
+        header: true,
+        annotations: ['datatype', 'group', 'default'],
+        delimiter: ',',
+      }
 
       const {data} = await AJAX({
         method: 'POST',
@@ -25,6 +34,7 @@ export const fetchTimeSeries = async (
         data: {
           type: 'influxql',
           query,
+          dialect,
         },
       })
 
@@ -35,7 +45,14 @@ export const fetchTimeSeries = async (
     }
   })
 
-  return Promise.all(timeSeriesPromises)
+  try {
+    const responses = await Promise.all(timeSeriesPromises)
+    const tables = _.flatten(responses.map(r => parseResponse(r)))
+    return tables
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
 const replace = async (

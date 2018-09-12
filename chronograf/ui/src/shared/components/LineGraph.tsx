@@ -1,25 +1,21 @@
 // Libraries
 import React, {PureComponent, CSSProperties} from 'react'
 import Dygraph from 'src/shared/components/Dygraph'
-import {withRouter, RouteComponentProps} from 'react-router'
-import _ from 'lodash'
 
 // Components
-import SingleStat from 'src/shared/components/SingleStat'
 import {ErrorHandlingWith} from 'src/shared/decorators/errors'
 import InvalidData from 'src/shared/components/InvalidData'
 
 // Utils
 import {
-  timeSeriesToDygraph,
-  TimeSeriesToDyGraphReturnType,
-} from 'src/utils/timeSeriesTransformers'
+  fluxTablesToDygraph,
+  FluxTablesToDygraphResult,
+} from 'src/shared/parsing/flux/dygraph'
 
 // Types
 import {ColorString} from 'src/types/colors'
 import {DecimalPlaces} from 'src/types/dashboards'
-import {TimeSeriesServerResponse} from 'src/types/series'
-import {Axes, TimeRange, RemoteDataState} from 'src/types'
+import {Axes, TimeRange, RemoteDataState, FluxTable} from 'src/types'
 import {ViewType, CellQuery} from 'src/types/v2'
 
 interface Props {
@@ -30,7 +26,7 @@ interface Props {
   colors: ColorString[]
   loading: RemoteDataState
   decimalPlaces: DecimalPlaces
-  data: TimeSeriesServerResponse[]
+  data: FluxTable[]
   viewID: string
   cellHeight: number
   staticLegend: boolean
@@ -39,16 +35,14 @@ interface Props {
   activeQueryIndex?: number
 }
 
-type LineGraphProps = Props & RouteComponentProps<any, any>
-
 @ErrorHandlingWith(InvalidData)
-class LineGraph extends PureComponent<LineGraphProps> {
-  public static defaultProps: Partial<LineGraphProps> = {
+class LineGraph extends PureComponent<Props> {
+  public static defaultProps: Partial<Props> = {
     staticLegend: false,
   }
 
   private isValidData: boolean = true
-  private timeSeries: TimeSeriesToDyGraphReturnType
+  private timeSeries: FluxTablesToDygraphResult
 
   public componentWillMount() {
     const {data} = this.props
@@ -56,11 +50,7 @@ class LineGraph extends PureComponent<LineGraphProps> {
   }
 
   public parseTimeSeries(data) {
-    const {location} = this.props
-
-    this.timeSeries = timeSeriesToDygraph(data, location.pathname)
-    const timeSeries = _.get(this.timeSeries, 'timeSeries', [])
-    this.isValidData = this.validateTimeSeries(timeSeries)
+    this.timeSeries = fluxTablesToDygraph(data)
   }
 
   public componentWillUpdate(nextProps) {
@@ -79,7 +69,6 @@ class LineGraph extends PureComponent<LineGraphProps> {
     }
 
     const {
-      data,
       axes,
       type,
       colors,
@@ -88,13 +77,11 @@ class LineGraph extends PureComponent<LineGraphProps> {
       loading,
       queries,
       timeRange,
-      cellHeight,
       staticLegend,
-      decimalPlaces,
       handleSetHoverTime,
     } = this.props
 
-    const {labels, timeSeries, dygraphSeries} = this.timeSeries
+    const {labels, dygraphsData} = this.timeSeries
 
     const options = {
       rightGap: 0,
@@ -124,36 +111,18 @@ class LineGraph extends PureComponent<LineGraphProps> {
           queries={queries}
           options={options}
           timeRange={timeRange}
-          timeSeries={timeSeries}
+          timeSeries={dygraphsData}
           staticLegend={staticLegend}
-          dygraphSeries={dygraphSeries}
+          dygraphSeries={{}}
           isGraphFilled={this.isGraphFilled}
           containerStyle={this.containerStyle}
           handleSetHoverTime={handleSetHoverTime}
         >
           {type === ViewType.LinePlusSingleStat && (
-            <SingleStat
-              data={data}
-              lineGraph={true}
-              colors={colors}
-              prefix={this.prefix}
-              suffix={this.suffix}
-              cellHeight={cellHeight}
-              decimalPlaces={decimalPlaces}
-            />
+            <div>Single Stat Goes Here</div>
           )}
         </Dygraph>
       </div>
-    )
-  }
-
-  private validateTimeSeries = ts => {
-    return _.every(ts, r =>
-      _.every(
-        r,
-        (v, i: number) =>
-          (i === 0 && Date.parse(v)) || _.isNumber(v) || _.isNull(v)
-      )
     )
   }
 
@@ -169,26 +138,6 @@ class LineGraph extends PureComponent<LineGraphProps> {
 
   private get style(): CSSProperties {
     return {height: '100%'}
-  }
-
-  private get prefix(): string {
-    const {axes} = this.props
-
-    if (!axes) {
-      return ''
-    }
-
-    return axes.y.prefix
-  }
-
-  private get suffix(): string {
-    const {axes} = this.props
-
-    if (!axes) {
-      return ''
-    }
-
-    return axes.y.suffix
   }
 
   private get containerStyle(): CSSProperties {
@@ -209,4 +158,4 @@ const GraphLoadingDots = () => (
   </div>
 )
 
-export default withRouter<Props>(LineGraph)
+export default LineGraph

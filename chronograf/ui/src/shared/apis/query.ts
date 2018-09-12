@@ -66,14 +66,15 @@ const handleQueryFetchStatus = async (
 
 const replace = async (
   query: string,
-  link: string,
+  __: string, // this field is the link to analyze the query duration
   templates: Template[],
   resolution: number
 ): Promise<string> => {
   try {
     query = replaceTemplates(query, templates)
-    const durationMs = await duration(query, link)
-    return replaceInterval(query, Math.floor(resolution / 3), durationMs)
+    // TODO: analyze query duration for interval
+    // const durationMs = await duration(query, link)
+    return replaceInterval(query, Math.floor(resolution / 3), 1000 * 60 * 60)
   } catch (error) {
     console.error(error)
     throw error

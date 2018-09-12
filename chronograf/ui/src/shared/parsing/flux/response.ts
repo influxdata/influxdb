@@ -12,6 +12,7 @@ export const parseResponseError = (response: string): FluxTable[] => {
       id: uuid.v4(),
       name: 'Error',
       groupKey: {},
+      dataTypes: {},
       data,
     },
   ]
@@ -67,6 +68,7 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
 
   const groupRow = annotationData.find(row => row[0] === '#group')
   const defaultsRow = annotationData.find(row => row[0] === '#default')
+  const dataTypeRow = annotationData.find(row => row[0] === '#datatype')
 
   // groupRow = ['#group', 'false', 'true', 'true', 'false']
   const groupKeyIndices = groupRow.reduce((acc, value, i) => {
@@ -88,11 +90,20 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
       .map(([k, v]) => `${k}=${v}`)
       .join(' ')
 
+    const dataTypes = dataTypeRow.reduce(
+      (acc, dataType, i) => ({
+        ...acc,
+        [headerRow[i]]: dataType,
+      }),
+      {}
+    )
+
     return {
       id: uuid.v4(),
       data: [[...headerRow], ...tableData],
       name,
       groupKey,
+      dataTypes,
     }
   })
 

@@ -14,7 +14,7 @@ interface Label {
   responseIndex: number
 }
 
-export interface TimeSeriesToDyGraphReturnType {
+export interface TimeSeriesToDygraphReturnType {
   labels: string[]
   timeSeries: DygraphValue[][]
   dygraphSeries: DygraphSeries
@@ -28,7 +28,7 @@ interface TimeSeriesToTableGraphReturnType {
 export const timeSeriesToDygraph = (
   raw: TimeSeriesServerResponse[],
   pathname: string = ''
-): TimeSeriesToDyGraphReturnType => {
+): TimeSeriesToDygraphReturnType => {
   const isTable = false
   const isInDataExplorer = pathname.includes('data-explorer')
   const {sortedLabels, sortedTimeSeries} = groupByTimeSeriesTransform(
@@ -43,7 +43,7 @@ export const timeSeriesToDygraph = (
 
   const timeSeries = fastMap<TimeSeries, DygraphValue[]>(
     sortedTimeSeries,
-    ({time, values}) => [new Date(time), ...values]
+    ({time, values}) => [new Date(time as string), ...values]
   )
 
   const dygraphSeries = fastReduce<Label, DygraphSeries>(

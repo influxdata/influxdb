@@ -16,7 +16,7 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 
 // Types
 import {FluxTable} from 'src/types'
-import {DygraphSeries, DygraphValue} from 'src/types'
+import {DygraphSeries} from 'src/types'
 import {ViewType} from 'src/types/v2/dashboards'
 
 interface Props {
@@ -32,13 +32,15 @@ class FluxGraph extends PureComponent<Props> {
       position: 'absolute',
     }
 
+    const {dygraphsData, labels} = fluxTablesToDygraph(this.props.data)
+
     return (
       <div className="yield-node--graph">
         <Dygraph
           type={ViewType.Line}
-          labels={this.labels}
+          labels={labels}
           staticLegend={false}
-          timeSeries={this.timeSeries}
+          timeSeries={dygraphsData}
           colors={DEFAULT_LINE_COLORS}
           dygraphSeries={this.dygraphSeries}
           options={this.options}
@@ -54,19 +56,6 @@ class FluxGraph extends PureComponent<Props> {
       axisLineColor: '#383846',
       gridLineColor: '#383846',
     }
-  }
-
-  // [time, v1, v2, null, v3]
-  // time: [v1, v2, null, v3]
-  private get timeSeries(): DygraphValue[][] {
-    return fluxTablesToDygraph(this.props.data)
-  }
-
-  private get labels(): string[] {
-    const {data} = this.props
-    const names = data.map(d => d.name)
-
-    return ['time', ...names]
   }
 
   private get dygraphSeries(): DygraphSeries {

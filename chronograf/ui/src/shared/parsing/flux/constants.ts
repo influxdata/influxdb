@@ -92,6 +92,17 @@ export const TAGS_RESPONSE = `#datatype,string,long,string
 `
 
 // prettier-ignore
+
+export const SIMPLE = `
+#group,false,false,true,true,false,false,true,true,true,true
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
+#default,Results,,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
+,,0,2018-09-10T22:34:26.854028Z,2018-09-10T22:35:26.854028Z,2018-09-10T22:34:29Z,0,usage_guest,cpu,cpu1,bertrand.local
+,,0,2018-09-10T22:34:26.854028Z,2018-09-10T22:35:26.854028Z,2018-09-10T22:34:39Z,10,usage_guest,cpu,cpu1,bertrand.local
+
+
+`
 export const MULTI_SCHEMA_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
 #group,false,false,false,false,false,false,true,true,true,true
 #default,_result,,,,,,,,,
@@ -108,23 +119,35 @@ export const MULTI_SCHEMA_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dat
 
 
 `
-
-export const CSV_TO_DYGRAPH = `
-#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
-#group,false,false,true,true,false,false,true,true,true,true
-#default,_result,,,,,,,,,
-,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
-,,1,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:41Z,1,usage_idle,cpu,cpu-total,bertrand.local
-,,1,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:42Z,2,usage_idle,cpu,cpu-total,bertrand.local
-,,2,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:41Z,3,usage_idle,cpu,cpu-total,bertrand.local
-,,2,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:42Z,2,usage_idle,cpu,cpu-total,bertrand.local
-,,3,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:41Z,5,usage_idle,cpu,cpu-total,bertrand.local
-,,3,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:42Z,1,usage_idle,cpu,cpu-total,bertrand.local
+export const MULTI_VALUE_ROW = `
+#datatype,string,long,dateTime:RFC3339,double,double,string
+#group,false,false,false,false,false,true
+#default,0,,,,,
+,result,table,_time,mean_usage_idle,mean_usage_user,_measurement
+,,0,2018-09-10T16:54:37Z,85,10,cpu
+,,0,2018-09-10T16:54:38Z,87,7,cpu
+,,0,2018-09-10T16:54:39Z,89,5,cpu
+,,1,2018-09-10T16:54:37Z,8,1,mem
+,,1,2018-09-10T16:54:38Z,9,2,mem
+,,1,2018-09-10T16:54:39Z,10,3,mem
 
 
 `
 
-export const CSV_TO_DYGRAPH_MISMATCHED = `
+export const MIXED_DATATYPES = `
+#datatype,string,long,dateTime:RFC3339,double,string,string
+#group,false,false,false,false,false,true
+#default,0,,,,,
+,result,table,_time,mean_usage_idle,my_fun_col,_measurement
+,,0,2018-09-10T16:54:37Z,85,foo,cpu
+,,0,2018-09-10T16:54:39Z,89,foo,cpu
+,,1,2018-09-10T16:54:37Z,8,bar,mem
+,,1,2018-09-10T16:54:39Z,10,bar,mem
+
+
+`
+
+export const MISMATCHED = `
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
 #group,false,false,true,true,false,false,true,true,true
 #default,_result,,,,,,,,
