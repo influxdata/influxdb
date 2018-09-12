@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"path"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -37,6 +39,40 @@ func NewAuthorizationHandler() *AuthorizationHandler {
 	return h
 }
 
+type authResponse struct {
+	Links map[string]string `json:"links"`
+	platform.Authorization
+}
+
+func newAuthResponse(a *platform.Authorization) *authResponse {
+	return &authResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/v1/authorizations/%s", a.ID),
+			"user": fmt.Sprintf("/v1/users/%s", a.UserID),
+		},
+		Authorization: *a,
+	}
+}
+
+type authsResponse struct {
+	Links map[string]string `json:"links"`
+	Auths []*authResponse   `json:"auths"`
+}
+
+func newAuthsResponse(opts platform.FindOptions, f platform.AuthorizationFilter, as []*platform.Authorization) *authsResponse {
+	rs := make([]*authResponse, 0, len(as))
+	for _, a := range as {
+		rs = append(rs, newAuthResponse(a))
+	}
+	return &authsResponse{
+		// TODO(desa): update links to include paging and filter information
+		Links: map[string]string{
+			"self": "/v1/authorizations",
+		},
+		Auths: rs,
+	}
+}
+
 // handlePostAuthorization is the HTTP handler for the POST /v1/authorizations route.
 func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -56,7 +92,7 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, req.Authorization); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newAuthResponse(req.Authorization)); err != nil {
 		h.Logger.Info("failed to encode response", zap.String("handler", "postAuthorization"), zap.Error(err))
 		EncodeError(ctx, err, w)
 		return
@@ -89,14 +125,19 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 		return
 	}
 
-	as, _, err := h.AuthorizationService.FindAuthorizations(ctx, req.filter)
+	opts := platform.FindOptions{}
+	as, _, err := h.AuthorizationService.FindAuthorizations(ctx, req.filter, opts)
 	if err != nil {
+		// TODO(desa): fix this when using real errors library
+		if strings.Contains(err.Error(), "not found") {
+			err = kerrors.New(err.Error(), kerrors.NotFound)
+		}
 		// Don't log here, it should already be handled by the service
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, as); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newAuthsResponse(opts, req.filter, as)); err != nil {
 		h.Logger.Info("failed to encode response", zap.String("handler", "getAuthorizations"), zap.Error(err))
 		EncodeError(ctx, err, w)
 		return
@@ -149,12 +190,16 @@ func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *
 
 	a, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
 	if err != nil {
+		// TODO(desa): fix this when using real errors library
+		if strings.Contains(err.Error(), "not found") {
+			err = kerrors.New(err.Error(), kerrors.NotFound)
+		}
 		// Don't log here, it should already be handled by the service
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a)); err != nil {
 		h.Logger.Info("failed to encode response", zap.String("handler", "getAuthorization"), zap.Error(err))
 		EncodeError(ctx, err, w)
 		return
@@ -195,6 +240,10 @@ func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWrite
 
 	a, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
 	if err != nil {
+		// TODO(desa): fix this when using real errors library
+		if strings.Contains(err.Error(), "not found") {
+			err = kerrors.New(err.Error(), kerrors.NotFound)
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -207,7 +256,7 @@ func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWrite
 		}
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a)); err != nil {
 		h.Logger.Info("failed to encode response", zap.String("handler", "updateAuthorization"), zap.Error(err))
 		EncodeError(ctx, err, w)
 		return
@@ -260,12 +309,16 @@ func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, 
 	}
 
 	if err := h.AuthorizationService.DeleteAuthorization(ctx, req.ID); err != nil {
+		// TODO(desa): fix this when using real errors library
+		if strings.Contains(err.Error(), "not found") {
+			err = kerrors.New(err.Error(), kerrors.NotFound)
+		}
 		// Don't log here, it should already be handled by the service
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type deleteAuthorizationRequest struct {
@@ -375,13 +428,18 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 		return nil, 0, err
 	}
 
-	var bs []*platform.Authorization
+	var bs authsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&bs); err != nil {
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
 
-	return bs, len(bs), nil
+	auths := make([]*platform.Authorization, 0, len(bs.Auths))
+	for _, b := range bs.Auths {
+		auths = append(auths, &b.Authorization)
+	}
+
+	return auths, len(auths), nil
 }
 
 const (

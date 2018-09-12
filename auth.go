@@ -12,7 +12,7 @@ type Authorization struct {
 	Status      Status       `json:"status"`
 	User        string       `json:"user,omitempty"`
 	UserID      ID           `json:"userID,omitempty"`
-	Permissions []Permission `json:"permissions"`
+	Permissions []Permission `json:"permissions,omitempty"`
 }
 
 // Allowed returns true if the authorization is active and requested permission level
