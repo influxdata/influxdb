@@ -620,6 +620,7 @@ func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
 	b.Run("78888 series TagValueSeriesIDIterator", func(b *testing.B) {
 		b.ReportAllocs()
 		b.Run("cache", func(b *testing.B) {
+			tsi1.EnableBitsetCache = true
 			runBenchMark(b)
 		})
 
