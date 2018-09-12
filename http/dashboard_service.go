@@ -425,7 +425,7 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 
 // Valid validates that the dashboard ID is non zero valued and update has expected values set.
 func (r *patchDashboardRequest) Valid() error {
-	if len(r.DashboardID) == 0 {
+	if !r.DashboardID.Valid() {
 		return fmt.Errorf("missing dashboard ID")
 	}
 

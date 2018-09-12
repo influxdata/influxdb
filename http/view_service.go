@@ -288,7 +288,7 @@ func decodePatchViewRequest(ctx context.Context, r *http.Request) (*patchViewReq
 
 // Valid validates that the view ID is non zero valued and update has expected values set.
 func (r *patchViewRequest) Valid() error {
-	if len(r.ViewID) == 0 {
+	if !r.ViewID.Valid() {
 		return fmt.Errorf("missing view ID")
 	}
 
