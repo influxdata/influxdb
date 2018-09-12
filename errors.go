@@ -54,7 +54,7 @@ type Error struct {
 }
 
 // Error implement the error interface by outputing the Code and Err.
-func (e Error) Error() string {
+func (e *Error) Error() string {
 	var b strings.Builder
 
 	// Print the current operation in our stack, if any.

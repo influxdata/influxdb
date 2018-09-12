@@ -184,6 +184,8 @@ func platformF(cmd *cobra.Command, args []string) {
 		macroSvc = c
 	}
 
+	var onboardingSvc platform.OnboardingService = c
+
 	var queryService query.QueryService
 	{
 		// TODO(lh): this is temporary until query endpoint is added here.
@@ -303,6 +305,9 @@ func platformF(cmd *cobra.Command, args []string) {
 		sourceHandler.NewBucketService = source.NewBucketService
 		sourceHandler.NewQueryService = source.NewQueryService
 
+		setupHandler := http.NewSetupHandler()
+		setupHandler.OnboardingService = onboardingSvc
+
 		taskHandler := http.NewTaskHandler(logger)
 		taskHandler.TaskService = taskSvc
 
@@ -340,6 +345,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			MacroHandler:         macroHandler,
 			QueryHandler:         queryHandler,
 			WriteHandler:         writeHandler,
+			SetupHandler:         setupHandler,
 		}
 		reg.MustRegister(platformHandler.PrometheusCollectors()...)
 
