@@ -22,10 +22,10 @@ func dumpBufs(a, b []byte) {
 	for i := 0; i < longest; i++ {
 		var as, bs string
 		if i < len(a) {
-			as = fmt.Sprintf("%08b", a[i])
+			as = fmt.Sprintf("%08[1]b (%[1]d)", a[i])
 		}
 		if i < len(b) {
-			bs = fmt.Sprintf("%08b", b[i])
+			bs = fmt.Sprintf("%08[1]b (%[1]d)", b[i])
 		}
 
 		same := as == bs
@@ -36,7 +36,7 @@ func dumpBufs(a, b []byte) {
 
 func dumpBuf(b []byte) {
 	for i, v := range b {
-		fmt.Printf("%d %08b\n", i, v)
+		fmt.Printf("%[1]d %08[2]b (%[2]d)\n", i, v)
 	}
 	fmt.Println()
 }
