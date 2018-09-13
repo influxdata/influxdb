@@ -226,6 +226,9 @@ func (s *inmem) DisableTask(ctx context.Context, id platform.ID) error {
 }
 
 func (s *inmem) FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTaskMeta, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	meta, ok := s.runners[id.String()]
 	if !ok {
 		return nil, errors.New("task meta not found")
