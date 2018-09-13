@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/platform/query"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/influxdata/platform/query"
 )
 
 func TestFluxService_Query(t *testing.T) {
@@ -33,6 +33,7 @@ func TestFluxService_Query(t *testing.T) {
 						Query: "from()",
 					},
 				},
+				Dialect: csv.DefaultDialect(),
 			},
 			status: http.StatusOK,
 			want:   6,
@@ -48,6 +49,7 @@ func TestFluxService_Query(t *testing.T) {
 						Query: "from()",
 					},
 				},
+				Dialect: csv.DefaultDialect(),
 			},
 			status:  http.StatusUnauthorized,
 			wantErr: true,

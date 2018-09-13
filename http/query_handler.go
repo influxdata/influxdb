@@ -112,11 +112,8 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 		return 0, err
 	}
 
-	// TODO(goller): No way to send dialect information to the flux query handler at the moment.
-	// the query handler needs some way of taking the dialect encoding information.
-
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(r.Request); err != nil {
+	if err := json.NewEncoder(&body).Encode(r); err != nil {
 		return 0, err
 	}
 
