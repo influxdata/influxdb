@@ -43,201 +43,206 @@ func FloatArrayEncodeAll(src []float64, b []byte) ([]byte, error) {
 	prevLeading, prevTrailing := ^uint64(0), uint64(0)
 	var leading, trailing uint64
 	var mask uint64
-
-	encode := func(x float64) {
-		cur := math.Float64bits(x)
-		vDelta := cur ^ prev
-		if vDelta == 0 {
-			n++ // Write a zero bit. Nothing else to do.
-			prev = cur
-			return
-		}
-
-		// First the current bit of the current byte is set to indicate we're
-		// writing a delta value to the stream.
-		if n>>3 >= uint64(len(b)) { // Grow b — no room in current byte.
-			b = append(b, byte(0))
-		}
-
-		// n&7 - current bit in current byte.
-		// n>>3 - the current byte.
-		b[n>>3] |= 128 >> (n & 7) // Sets the current bit of the current byte.
-		n++
-
-		// Write the delta to b.
-
-		// Determine the leading and trailing zeros.
-		leading = uint64(bits.LeadingZeros64(vDelta))
-		trailing = uint64(bits.TrailingZeros64(vDelta))
-
-		// Clamp number of leading zeros to avoid overflow when encoding
-		leading &= 0x1F
-		if leading >= 32 {
-			leading = 31
-		}
-
-		// At least 2 further bits will be required.
-		if (n+2)>>3 >= uint64(len(b)) {
-			b = append(b, byte(0))
-		}
-
-		if prevLeading != ^uint64(0) && leading >= prevLeading && trailing >= prevTrailing {
-			n++ // Write a zero bit.
-
-			// Write the l least significant bits of vDelta to b, most significant
-			// bit first.
-			l := uint64(64 - prevLeading - prevTrailing)
-			for (n+l)>>3 >= uint64(len(b)) { // Keep growing b until we can fit all bits in.
-				b = append(b, byte(0))
-			}
-
-			// Full value to write.
-			v := (vDelta >> prevTrailing) << (64 - l) // l least signifciant bits of v.
-
-			var m = n & 7 // Current bit in current byte.
-			var written uint64
-			if m > 0 { // In this case the current byte is not full.
-				written = 8 - m
-				if l < written {
-					written = l
-				}
-				mask = v >> 56 // Move 8 MSB to 8 LSB
-				b[n>>3] |= byte(mask >> m)
-				n += written
-
-				if l-written == 0 {
-					prev = cur
-					return
-				}
-			}
-
-			vv := v << written // Move written bits out of the way.
-
-			// TODO(edd): Optimise this. It's unlikely we actually have 8 bytes to write.
-			if (n>>3)+8 >= uint64(len(b)) {
-				b = append(b, make([]byte, 8)...)
-			}
-			binary.BigEndian.PutUint64(b[n>>3:], vv)
-			n += (l - written)
-		} else {
-			prevLeading, prevTrailing = leading, trailing
-
-			// Set a single bit to indicate a value will follow.
-			b[n>>3] |= 128 >> (n & 7) // Set current bit on current byte
-			n++
-
-			// Write 5 bits of leading.
-			if (n+5)>>3 >= uint64(len(b)) {
-				b = append(b, byte(0))
-			}
-
-			// Enough room to write the 5 bits in the current byte?
-			var m = n & 7
-			l := uint64(5)
-			v := leading << 59 // 5 LSB of leading.
-			mask = v >> 56     // Move 5 MSB to 8 LSB
-
-			if m <= 3 { // 5 bits fit into current byte.
-				b[n>>3] |= byte(mask >> m)
-				n += l
-			} else { // In this case there are fewer than 5 bits available in current byte.
-				// First step is to fill current byte
-				written := 8 - m
-				b[n>>3] |= byte(mask >> m) // Some of mask will get lost.
-				n += written
-
-				// Second step is to write the lost part of mask into the next byte.
-				mask = v << written // Move written bits in previous byte out of way.
-				mask >>= 56
-
-				m = n & 7 // Recompute current bit.
-				b[n>>3] |= byte(mask >> m)
-				n += (l - written)
-			}
-
-			// Note that if leading == trailing == 0, then sigbits == 64.  But that
-			// value doesn't actually fit into the 6 bits we have.
-			// Luckily, we never need to encode 0 significant bits, since that would
-			// put us in the other case (vdelta == 0).  So instead we write out a 0 and
-			// adjust it back to 64 on unpacking.
-			sigbits := 64 - leading - trailing
-
-			if (n+6)>>3 >= uint64(len(b)) {
-				b = append(b, byte(0))
-			}
-
-			m = n & 7
-			l = uint64(6)
-			v = sigbits << 58 // Move 6 LSB of sigbits to MSB
-			mask = v >> 56    // Move 6 MSB to 8 LSB
-			if m <= 2 {
-				// The 6 bits fir into the current byte.
-				b[n>>3] |= byte(mask >> m)
-				n += l
-			} else { // In this case there are fewer than 6 bits available in current byte.
-				// First step is to fill the current byte.
-				written := 8 - m
-				b[n>>3] |= byte(mask >> m) // Write to the current bit.
-				n += written
-
-				// Second step is to write the lost part of mask into the next byte.
-				// Write l remaining bits into current byte.
-				mask = v << written // Remove bits written in previous byte out of way.
-				mask >>= 56
-
-				m = n & 7 // Recompute current bit.
-				b[n>>3] |= byte(mask >> m)
-				n += l - written
-			}
-
-			// Write final value.
-			m = n & 7
-			l = sigbits
-			v = (vDelta >> trailing) << (64 - l) // Move l LSB into MSB
-			for (n+l)>>3 >= uint64(len(b)) {     // Keep growing b until we can fit all bits in.
-				b = append(b, byte(0))
-			}
-
-			var written uint64
-			if m > 0 { // In this case the current byte is not full.
-				written = 8 - m
-				if l < written {
-					written = l
-				}
-				mask = v >> 56 // Move 8 MSB to 8 LSB
-				b[n>>3] |= byte(mask >> m)
-				n += written
-
-				if l-written == 0 {
-					prev = cur
-					return
-				}
-			}
-
-			// Shift remaining bits and write out in one go.
-			vv := v << written // Remove bits written in previous byte.
-			// TODO(edd): Optimise this.
-			if (n>>3)+8 >= uint64(len(b)) {
-				b = append(b, make([]byte, 8)...)
-			}
-
-			binary.BigEndian.PutUint64(b[n>>3:], vv)
-			n += (l - written)
-		}
-		prev = cur
-	}
+	var sum float64
 
 	// Encode remaining values.
-	for _, v := range src {
-		if math.IsNaN(v) {
-			return nil, fmt.Errorf("unsupported value: NaN")
+	for i := 0; !finished; i++ {
+		var x float64
+		if i < len(src) {
+			x = src[i]
+			sum += x
+		} else {
+			// Encode sentinal value to terminate batch
+			x = math.NaN()
+			finished = true
 		}
-		encode(v)
+
+		{
+			cur := math.Float64bits(x)
+			vDelta := cur ^ prev
+			if vDelta == 0 {
+				n++ // Write a zero bit. Nothing else to do.
+				prev = cur
+				continue
+			}
+
+			// First the current bit of the current byte is set to indicate we're
+			// writing a delta value to the stream.
+			if n>>3 >= uint64(len(b)) { // Grow b — no room in current byte.
+				b = append(b, byte(0))
+			}
+
+			// n&7 - current bit in current byte.
+			// n>>3 - the current byte.
+			b[n>>3] |= 128 >> (n & 7) // Sets the current bit of the current byte.
+			n++
+
+			// Write the delta to b.
+
+			// Determine the leading and trailing zeros.
+			leading = uint64(bits.LeadingZeros64(vDelta))
+			trailing = uint64(bits.TrailingZeros64(vDelta))
+
+			// Clamp number of leading zeros to avoid overflow when encoding
+			leading &= 0x1F
+			if leading >= 32 {
+				leading = 31
+			}
+
+			// At least 2 further bits will be required.
+			if (n+2)>>3 >= uint64(len(b)) {
+				b = append(b, byte(0))
+			}
+
+			if prevLeading != ^uint64(0) && leading >= prevLeading && trailing >= prevTrailing {
+				n++ // Write a zero bit.
+
+				// Write the l least significant bits of vDelta to b, most significant
+				// bit first.
+				l := uint64(64 - prevLeading - prevTrailing)
+				for (n+l)>>3 >= uint64(len(b)) { // Keep growing b until we can fit all bits in.
+					b = append(b, byte(0))
+				}
+
+				// Full value to write.
+				v := (vDelta >> prevTrailing) << (64 - l) // l least signifciant bits of v.
+
+				var m = n & 7 // Current bit in current byte.
+				var written uint64
+				if m > 0 { // In this case the current byte is not full.
+					written = 8 - m
+					if l < written {
+						written = l
+					}
+					mask = v >> 56 // Move 8 MSB to 8 LSB
+					b[n>>3] |= byte(mask >> m)
+					n += written
+
+					if l-written == 0 {
+						prev = cur
+						continue
+					}
+				}
+
+				vv := v << written // Move written bits out of the way.
+
+				// TODO(edd): Optimise this. It's unlikely we actually have 8 bytes to write.
+				if (n>>3)+8 >= uint64(len(b)) {
+					b = append(b, 0, 0, 0, 0, 0, 0, 0, 0)
+				}
+				binary.BigEndian.PutUint64(b[n>>3:], vv)
+				n += (l - written)
+			} else {
+				prevLeading, prevTrailing = leading, trailing
+
+				// Set a single bit to indicate a value will follow.
+				b[n>>3] |= 128 >> (n & 7) // Set current bit on current byte
+				n++
+
+				// Write 5 bits of leading.
+				if (n+5)>>3 >= uint64(len(b)) {
+					b = append(b, byte(0))
+				}
+
+				// Enough room to write the 5 bits in the current byte?
+				var m = n & 7
+				l := uint64(5)
+				v := leading << 59 // 5 LSB of leading.
+				mask = v >> 56     // Move 5 MSB to 8 LSB
+
+				if m <= 3 { // 5 bits fit into current byte.
+					b[n>>3] |= byte(mask >> m)
+					n += l
+				} else { // In this case there are fewer than 5 bits available in current byte.
+					// First step is to fill current byte
+					written := 8 - m
+					b[n>>3] |= byte(mask >> m) // Some of mask will get lost.
+					n += written
+
+					// Second step is to write the lost part of mask into the next byte.
+					mask = v << written // Move written bits in previous byte out of way.
+					mask >>= 56
+
+					m = n & 7 // Recompute current bit.
+					b[n>>3] |= byte(mask >> m)
+					n += (l - written)
+				}
+
+				// Note that if leading == trailing == 0, then sigbits == 64.  But that
+				// value doesn't actually fit into the 6 bits we have.
+				// Luckily, we never need to encode 0 significant bits, since that would
+				// put us in the other case (vdelta == 0).  So instead we write out a 0 and
+				// adjust it back to 64 on unpacking.
+				sigbits := 64 - leading - trailing
+
+				if (n+6)>>3 >= uint64(len(b)) {
+					b = append(b, byte(0))
+				}
+
+				m = n & 7
+				l = uint64(6)
+				v = sigbits << 58 // Move 6 LSB of sigbits to MSB
+				mask = v >> 56    // Move 6 MSB to 8 LSB
+				if m <= 2 {
+					// The 6 bits fir into the current byte.
+					b[n>>3] |= byte(mask >> m)
+					n += l
+				} else { // In this case there are fewer than 6 bits available in current byte.
+					// First step is to fill the current byte.
+					written := 8 - m
+					b[n>>3] |= byte(mask >> m) // Write to the current bit.
+					n += written
+
+					// Second step is to write the lost part of mask into the next byte.
+					// Write l remaining bits into current byte.
+					mask = v << written // Remove bits written in previous byte out of way.
+					mask >>= 56
+
+					m = n & 7 // Recompute current bit.
+					b[n>>3] |= byte(mask >> m)
+					n += l - written
+				}
+
+				// Write final value.
+				m = n & 7
+				l = sigbits
+				v = (vDelta >> trailing) << (64 - l) // Move l LSB into MSB
+				for (n+l)>>3 >= uint64(len(b)) {     // Keep growing b until we can fit all bits in.
+					b = append(b, byte(0))
+				}
+
+				var written uint64
+				if m > 0 { // In this case the current byte is not full.
+					written = 8 - m
+					if l < written {
+						written = l
+					}
+					mask = v >> 56 // Move 8 MSB to 8 LSB
+					b[n>>3] |= byte(mask >> m)
+					n += written
+
+					if l-written == 0 {
+						prev = cur
+						continue
+					}
+				}
+
+				// Shift remaining bits and write out in one go.
+				vv := v << written // Remove bits written in previous byte.
+				// TODO(edd): Optimise this.
+				if (n>>3)+8 >= uint64(len(b)) {
+					b = append(b, 0, 0, 0, 0, 0, 0, 0, 0)
+				}
+
+				binary.BigEndian.PutUint64(b[n>>3:], vv)
+				n += (l - written)
+			}
+			prev = cur
+		}
 	}
 
-	// Encode sentinal value to terminate batch
-	if !finished {
-		encode(math.NaN())
+	if math.IsNaN(sum) {
+		return nil, fmt.Errorf("unsupported value: NaN")
 	}
 
 	length := n >> 3
