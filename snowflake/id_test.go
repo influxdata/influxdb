@@ -48,3 +48,12 @@ func TestWithMachineID(t *testing.T) {
 		t.Errorf("expected machineID of %d but got %d", 1023, gen.Generator.MachineID())
 	}
 }
+
+func TestGlobalMachineID(t *testing.T) {
+	if !globalmachineID.set {
+		t.Error("expected global machine ID to be set")
+	}
+	if GlobalMachineID() < 0 || GlobalMachineID() > 1023 {
+		t.Error("expected global machine ID to be between 0 and 1023 inclusive")
+	}
+}
