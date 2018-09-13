@@ -157,14 +157,14 @@ type FluxQueryService struct {
 }
 
 // Query runs a flux query against a influx server and decodes the result
-func (s *FluxQueryService) Query(ctx context.Context, req *query.Request) (flux.ResultIterator, error) {
+func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.ResultIterator, error) {
 	u, err := newURL(s.URL, fluxPath)
 	if err != nil {
 		return nil, err
 	}
 
 	preq := &query.ProxyRequest{
-		Request: *req,
+		Request: *r,
 		Dialect: csv.DefaultDialect(),
 	}
 	var body bytes.Buffer
@@ -192,7 +192,6 @@ func (s *FluxQueryService) Query(ctx context.Context, req *query.Request) (flux.
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
 		return nil, err
