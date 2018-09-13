@@ -250,30 +250,17 @@ func (i *Index) Open() error {
 		i.partitions[j] = p
 	}
 
-	// Open all the Partitions in parallel.
-	partitionN := len(i.partitions)
-	n := i.availableThreads()
-
 	// Store results.
-	errC := make(chan error, partitionN)
+	errC := make(chan error, i.PartitionN)
 
-	// Run fn on each partition using a fixed number of goroutines.
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func(k int) {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= partitionN {
-					return // No more work.
-				}
-				err := i.partitions[idx].Open()
-				errC <- err
-			}
-		}(k)
+	fn := func(idx int) error {
+		return i.partitions[idx].Open()
 	}
 
+	i.forEachPartition(fn, errC)
+
 	// Check for error
-	for i := 0; i < partitionN; i++ {
+	for i := 0; i < cap(errC); i++ {
 		if err := <-errC; err != nil {
 			return err
 		}
@@ -288,7 +275,7 @@ func (i *Index) Open() error {
 
 	// Mark opened.
 	i.opened = true
-	i.logger.Info(fmt.Sprintf("index opened with %d partitions", partitionN))
+	i.logger.Info(fmt.Sprintf("index opened with %d partitions", i.PartitionN))
 	return nil
 }
 
@@ -353,6 +340,24 @@ func (i *Index) partition(key []byte) *Partition {
 // partitionIdx returns the index of the partition that key belongs in.
 func (i *Index) partitionIdx(key []byte) int {
 	return int(xxhash.Sum64(key) & (i.PartitionN - 1))
+}
+
+// forEachPartition iterates over all partitions in the index.
+func (i *Index) forEachPartition(fn func(int) error, errC chan error) {
+	n := i.availableThreads()
+	// Check each partition for the measurement concurrently.
+	var pidx uint32 // Index of maximum Partition being worked on.
+	for k := 0; k < n; k++ {
+		go func() {
+			for {
+				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to check
+				if idx >= len(i.partitions) {
+					return // No more work.
+				}
+				errC <- fn(idx)
+			}
+		}()
+	}
 }
 
 // availableThreads returns the minimum of GOMAXPROCS and the number of
@@ -442,37 +447,25 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 
 // MeasurementExists returns true if a measurement exists.
 func (i *Index) MeasurementExists(name []byte) (bool, error) {
-	n := i.availableThreads()
-
 	// Store errors
 	var found uint32 // Use this to signal we found the measurement.
 	errC := make(chan error, i.PartitionN)
 
-	// Check each partition for the measurement concurrently.
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func() {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to check
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
+	fn := func(idx int) error {
+		// Check if the measurement has been found. If it has don't
+		// need to check this partition and can just move on.
+		if atomic.LoadUint32(&found) == 1 {
+			return nil
+		}
 
-				// Check if the measurement has been found. If it has don't
-				// need to check this partition and can just move on.
-				if atomic.LoadUint32(&found) == 1 {
-					errC <- nil
-					continue
-				}
-
-				b, err := i.partitions[idx].MeasurementExists(name)
-				if b {
-					atomic.StoreUint32(&found, 1)
-				}
-				errC <- err
-			}
-		}()
+		b, err := i.partitions[idx].MeasurementExists(name)
+		if b {
+			atomic.StoreUint32(&found, 1)
+		}
+		return err
 	}
+
+	i.forEachPartition(fn, errC)
 
 	// Check for error
 	for i := 0; i < cap(errC); i++ {
@@ -503,30 +496,20 @@ func (i *Index) MeasurementHasSeries(name []byte) (bool, error) {
 // fn is a function that works on partition idx and calls into some method on
 // the partition that returns some ordered values.
 func (i *Index) fetchByteValues(fn func(idx int) ([][]byte, error)) ([][]byte, error) {
-	n := i.availableThreads()
-
 	// Store results.
 	names := make([][][]byte, i.PartitionN)
 	errC := make(chan error, i.PartitionN)
 
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func() {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
+	fnFetch := func(idx int) error {
+		pnames, err := fn(idx)
 
-				pnames, err := fn(idx)
-
-				// This is safe since there are no readers on names until all
-				// the writers are done.
-				names[idx] = pnames
-				errC <- err
-			}
-		}()
+		// This is safe since there are no readers on names until all
+		// the writers are done.
+		names[idx] = pnames
+		return err
 	}
+
+	i.forEachPartition(fnFetch, errC)
 
 	// Check for error
 	for i := 0; i < cap(errC); i++ {
@@ -579,23 +562,14 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 // DropMeasurement deletes a measurement from the index. It returns the first
 // error encountered, if any.
 func (i *Index) DropMeasurement(name []byte) error {
-	n := i.availableThreads()
-
 	// Store results.
 	errC := make(chan error, i.PartitionN)
 
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func() {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
-				errC <- i.partitions[idx].DropMeasurement(name)
-			}
-		}()
+	fn := func(idx int) error {
+		return i.partitions[idx].DropMeasurement(name)
 	}
+
+	i.forEachPartition(fn, errC)
 
 	// Check for error
 	for i := 0; i < cap(errC); i++ {
@@ -632,24 +606,14 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 		pTags[pidx] = append(pTags[pidx], tagsSlice[ki])
 	}
 
-	// Process each subset of series on each partition.
-	n := i.availableThreads()
-
 	// Store errors.
 	errC := make(chan error, i.PartitionN)
 
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func() {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
-				errC <- i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
-			}
-		}()
+	fn := func(idx int) error {
+		return i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
 	}
+
+	i.forEachPartition(fn, errC)
 
 	// Check for error
 	for i := 0; i < cap(errC); i++ {
@@ -754,37 +718,25 @@ func (i *Index) SeriesN() int64 {
 // HasTagKey returns true if tag key exists. It returns the first error
 // encountered if any.
 func (i *Index) HasTagKey(name, key []byte) (bool, error) {
-	n := i.availableThreads()
-
 	// Store errors
 	var found uint32 // Use this to signal we found the tag key.
 	errC := make(chan error, i.PartitionN)
 
-	// Check each partition for the tag key concurrently.
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func() {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to check
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
+	fn := func(idx int) error {
+		// Check if the tag key has already been found. If it has, we
+		// don't need to check this partition and can just move on.
+		if atomic.LoadUint32(&found) == 1 {
+			return nil
+		}
 
-				// Check if the tag key has already been found. If it has, we
-				// don't need to check this partition and can just move on.
-				if atomic.LoadUint32(&found) == 1 {
-					errC <- nil
-					continue
-				}
-
-				b, err := i.partitions[idx].HasTagKey(name, key)
-				if b {
-					atomic.StoreUint32(&found, 1)
-				}
-				errC <- err
-			}
-		}()
+		b, err := i.partitions[idx].HasTagKey(name, key)
+		if b {
+			atomic.StoreUint32(&found, 1)
+		}
+		return err
 	}
+
+	i.forEachPartition(fn, errC)
 
 	// Check for error
 	for i := 0; i < cap(errC); i++ {
@@ -799,37 +751,24 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 
 // HasTagValue returns true if tag value exists.
 func (i *Index) HasTagValue(name, key, value []byte) (bool, error) {
-	n := i.availableThreads()
-
 	// Store errors
 	var found uint32 // Use this to signal we found the tag key.
 	errC := make(chan error, i.PartitionN)
+	fn := func(idx int) error {
+		// Check if the tag key has already been found. If it has, we
+		// don't need to check this partition and can just move on.
+		if atomic.LoadUint32(&found) == 1 {
+			return nil
+		}
 
-	// Check each partition for the tag key concurrently.
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func() {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to check
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
-
-				// Check if the tag key has already been found. If it has, we
-				// don't need to check this partition and can just move on.
-				if atomic.LoadUint32(&found) == 1 {
-					errC <- nil
-					continue
-				}
-
-				b, err := i.partitions[idx].HasTagValue(name, key, value)
-				if b {
-					atomic.StoreUint32(&found, 1)
-				}
-				errC <- err
-			}
-		}()
+		b, err := i.partitions[idx].HasTagValue(name, key, value)
+		if b {
+			atomic.StoreUint32(&found, 1)
+		}
+		return err
 	}
+
+	i.forEachPartition(fn, errC)
 
 	// Check for error
 	for i := 0; i < cap(errC); i++ {
@@ -894,29 +833,18 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
 func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
-	n := i.availableThreads()
-
 	// Store results.
 	keys := make([]map[string]struct{}, i.PartitionN)
 	errC := make(chan error, i.PartitionN)
-
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func() {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= len(i.partitions) {
-					return // No more work.
-				}
-
-				// This is safe since there are no readers on keys until all
-				// the writers are done.
-				tagKeys, err := i.partitions[idx].MeasurementTagKeysByExpr(name, expr)
-				keys[idx] = tagKeys
-				errC <- err
-			}
-		}()
+	fn := func(idx int) error {
+		// This is safe since there are no readers on keys until all
+		// the writers are done.
+		tagKeys, err := i.partitions[idx].MeasurementTagKeysByExpr(name, expr)
+		keys[idx] = tagKeys
+		return err
 	}
+
+	i.forEachPartition(fn, errC)
 
 	// Check for error
 	for i := 0; i < cap(errC); i++ {
