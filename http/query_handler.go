@@ -62,7 +62,7 @@ func (h *FluxHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := decodeProxyQueryRequest(ctx, r, h.OrganizationService)
+	req, err := decodeProxyQueryRequest(ctx, r, auth, h.OrganizationService)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -95,6 +95,8 @@ func (h *FluxHandler) PrometheusCollectors() []prometheus.Collector {
 	return nil
 }
 
+var _ query.ProxyQueryService = (*FluxService)(nil)
+
 // FluxService connects to Influx via HTTP using tokens to run queries.
 type FluxService struct {
 	URL                string
@@ -103,13 +105,18 @@ type FluxService struct {
 }
 
 // Query runs a flux query against a influx server and sends the results to the io.Writer.
-func (s *FluxService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+// Will use the token from the context over the token within the service struct.
+func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequest) (int64, error) {
 	u, err := newURL(s.URL, fluxPath)
 	if err != nil {
 		return 0, err
 	}
+
+	// TODO(goller): No way to send dialect information to the flux query handler at the moment.
+	// the query handler needs some way of taking the dialect encoding information.
+
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(req); err != nil {
+	if err := json.NewEncoder(&body).Encode(r.Request); err != nil {
 		return 0, err
 	}
 
@@ -117,8 +124,15 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, req *query.ProxyRe
 	if err != nil {
 		return 0, err
 	}
-	SetToken(s.Token, hreq)
+
+	tok, err := pcontext.GetToken(ctx)
+	if err != nil {
+		tok = s.Token
+	}
+	SetToken(tok, hreq)
+
 	hreq.Header.Set("Content-Type", "application/json")
+	hreq.Header.Set("Accept", "text/csv")
 	hreq = hreq.WithContext(ctx)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
