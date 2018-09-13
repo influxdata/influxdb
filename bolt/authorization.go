@@ -341,5 +341,10 @@ func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platfo
 		return err
 	}
 
-	return tx.Bucket(authorizationBucket).Put(a.ID, b)
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket(authorizationBucket).Put(encodedID, b)
 }

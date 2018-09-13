@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -172,7 +171,7 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 }
 
 func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
-	if len(opts.UsingView) != 0 {
+	if opts.UsingView.Valid() {
 		// Creates a hard copy of a view
 		v, err := c.findViewByID(ctx, tx, opts.UsingView)
 		if err != nil {
@@ -184,7 +183,7 @@ func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *p
 		}
 		cell.ViewID = view.ID
 		return nil
-	} else if len(cell.ViewID) != 0 {
+	} else if cell.ViewID.Valid() {
 		// Creates a soft copy of a view
 		_, err := c.findViewByID(ctx, tx, cell.ViewID)
 		if err != nil {
@@ -217,7 +216,7 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 		}
 
 		for _, cell := range cs {
-			if len(cell.ID) == 0 {
+			if !cell.ID.Valid() {
 				return fmt.Errorf("cannot provide empty cell id")
 			}
 
@@ -226,7 +225,7 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 				return fmt.Errorf("cannot replace cells that were not already present")
 			}
 
-			if !bytes.Equal(cl.ViewID, cell.ViewID) {
+			if cl.ViewID == cell.ViewID {
 				return fmt.Errorf("cannot update view id in replace")
 			}
 		}
@@ -264,7 +263,7 @@ func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID, cellID pl
 
 		idx := -1
 		for i, cell := range d.Cells {
-			if bytes.Equal(cell.ID, cellID) {
+			if cell.ID == cellID {
 				idx = i
 				break
 			}
@@ -293,7 +292,7 @@ func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID pl
 
 		idx := -1
 		for i, cell := range d.Cells {
-			if bytes.Equal(cell.ID, cellID) {
+			if cell.ID == cellID {
 				idx = i
 				break
 			}
