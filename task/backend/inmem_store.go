@@ -286,7 +286,10 @@ func (s *inmem) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 func (s *inmem) FinishRun(ctx context.Context, taskID, runID platform.ID) error {
+	s.mu.RLock()
 	stm, ok := s.runners[taskID.String()]
+	s.mu.RUnlock()
+
 	if !ok {
 		return errors.New("taskRunner not found")
 	}
