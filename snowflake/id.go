@@ -42,7 +42,7 @@ func GlobalMachineID() int {
 	var id int
 	globalmachineID.RLock()
 	id = int(globalmachineID.id)
-	globalmachineID.Unlock()
+	globalmachineID.RUnlock()
 	return id
 }
 
