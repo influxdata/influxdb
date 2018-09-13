@@ -35,7 +35,9 @@ func NewExternalQueryHandler() *ExternalQueryHandler {
 
 func (h *ExternalQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	req, err := decodeProxyQueryRequest(ctx, r, h.OrganizationService)
+	// this handler doesn't support authorization checks.
+	var nilauth *platform.Authorization
+	req, err := decodeProxyQueryRequest(ctx, r, nilauth, h.OrganizationService)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
