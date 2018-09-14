@@ -20,6 +20,11 @@ The InfluxQL Transpiler exists to rewrite an InfluxQL query into its equivalent 
 	3. [Join the groups](#join-groups)
 	4. [Map and eval columns](#map-and-eval)
 2. [Show Tag Values](#show-tag-values)
+    1. [Create cursor](#show-tag-values-cursor)
+    2. [Filter by the measurement](#show-tag-values-measurement-filter)
+    3. [Evaluate the condition](#show-tag-values-evaluate-condition)
+    4. [Retrieve the key values](#show-tag-values-key-values)
+    5. [Find the distinct key values](#show-tag-values-distinct-key-values)
 3. [Encoding the results](#encoding)
 
 ## <a name="select-statement"></a> Select Statement
@@ -179,36 +184,76 @@ TODO(jsternberg): The `_time` variable is only needed for selectors and raw quer
 
 ## <a name="show-tag-values"></a> Show Tag Values
 
-Show tag values has the full form:
+In flux, retrieving the tag values is different than influxql. In influxdb 1.x, tags were included in the index and restricting them by time did not exist or make any sense. In the 2.0 platform, tag keys and values are scoped by time and it is more expensive to retrieve all of the tag values for all time. For this reason, there are some small changes to how the command works and therefore how it is transpiled.
+
+### <a name="show-tag-values-cursor"></a> Create cursor
+
+The first step is to construct the initial cursor. This is done similar to a select statement, but we do not filter on the fields.
 
 ```
-SHOW TAG VALUES 
-  [ON <database_name>]
-  [FROM <measurement>] 
-  WITH KEY [ [<operator> "<tag_key>" | <regular_expression>] | [IN ("<tag_key1>","<tag_key2")]] 
-  [WHERE <tag_key> <operator> ['<tag_value>' | <regular_expression>]] 
-  [LIMIT_clause] 
-  [OFFSET_clause]
+from(bucket: "telegraf/autogen") |>
+    |> range(start: -1h)
 ```
 
-In flux, for a single `<tag key>`, we can get the tag values:
+If no time specifier is specified, as would be expected by most transpiled queries, we default to the last hour. If a time range is present in the `WHERE` clause, that time is used instead.
+
+### <a name="show-tag-values-measurement-filter"></a> Filter by the measurement
+
+If a `FROM <measurement>` clause is present in the statement, then we filter by the measurement name.
 
 ```
-from(db:<database_name>)
-         |> range(start:<start>)
-         |> filter(fn:(r) => r._measurement == <measurement>)
-         |> filter(fn:(r) => <where_clause>)
-         |> group(by:[<tag_key>])
-         |> distinct(column:<tag_key>)
-         |> limit(n: limit_clause)
-         |> group(none:true)
+... |> filter(fn: (r) => r._measurement == <measurement>)
 ```
 
-TODO(Adam): In some cases `<tag_key>` is instead a set identified by a regex or IN clause. Need to determine the best way to issue a query to get the values for multiple tag keys. The trivial solution is to issue and yield multiple queries.
+This step may be skipped if the `FROM` clause is not present. In which case, it will return the tag values for every measurement.
 
-TODO(Adam): supporting `<regular_expression>` filters will require some kind of language support since the transpiler is not schema-aware.
+### <a name="show-tag-values-evaluate-condition"></a> Evaluate the condition
 
-## <a name="data-queries"></a>Data Queries
+The condition within the `WHERE` clause is evaluated. It generates a filter in the same way that a [select statement)(#evaluate-condition) would, but with the added assumption that all of the values refer to tags. There is no attempt made at determining if a value is a field or tag.
+
+### <a name="show-tag-values-key-values"></a> Retrieve the key values
+
+The key values are retrieved using the `keyValues` function. The `SHOW TAG VALUES` statement requires a tag key filter.
+
+If a single value is specified with the `=` operator, then that value is used as the single argument to the function.
+
+```
+# SHOW TAG VALUES WITH KEY = "host"
+... |> keyValues(keyCols: ["host"])
+```
+
+If the `IN` operator is used, then all of the values are used as a list argument to the `keyValues()`.
+
+```
+# SHOW TAG VALUES WITH KEY IN ("host", "region")
+... |> keyValues(keyCols: ["host", "region"])
+```
+
+If any other operation is used, such as `!=` or a regex operator, then a schema function must be used like follows:
+
+```
+# SHOW TAG VALUES WITH KEY != "host"
+... |> keyValues(fn: (schema) => schema.keys |> filter(fn: (col) => col.name != "host"))
+# SHOW TAG VALUES WITH KEY =~ /host|region/
+... |> keyValues(fn: (schema) => schema.keys |> filter(fn: (col) => col.name =~ /host|region/))
+# SHOW TAG VALUES WITH KEY !~ /host|region/
+... |> keyValues(fn: (schema) => schema.keys |> filter(fn: (col) => col.name !~ /host|region/))
+```
+
+TODO(jsternberg): The schema function has not been solidifed, but the basics are that we take the list of group keys and then run a filter using the condition.
+
+At this point, we have a table with the partition key that is organized by the keys and values of the selected columns.
+
+### <a name="show-tag-values-distinct-key-values"></a> Find the distinct key values
+
+We group by the measurement and the key and then use `distinct` on the values. After we find the distinct values, we group these values back by their measurements again so all of the tag values for a measurement are grouped together. We then rename the columns to the expected names.
+
+```
+... |> group(by: ["_measurement", "_key"])
+    |> distinct(column: "_value")
+    |> group(by: ["_measurement"])
+    |> rename(columns: {_key: "key", _value: "value"})
+```
 
 ### <a name="encoding"></a> Encoding the results
 
