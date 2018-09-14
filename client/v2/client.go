@@ -3,6 +3,7 @@ package client // import "github.com/influxdata/influxdb/client/v2"
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -422,6 +423,7 @@ type Query struct {
 	Precision       string
 	Chunked         bool
 	ChunkSize       int
+	Compressed      bool
 	Parameters      map[string]interface{}
 }
 
@@ -513,6 +515,10 @@ func (c *client) Query(q Query) (*Response, error) {
 	req.Header.Set("Content-Type", "")
 	req.Header.Set("User-Agent", c.useragent)
 
+	if q.Compressed {
+		req.Header.Set("Accept-Encoding", "gzip")
+	}
+
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
@@ -542,11 +548,23 @@ func (c *client) Query(q Query) (*Response, error) {
 	}
 	defer resp.Body.Close()
 
+	var dataReader io.ReadCloser
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
+		dataReader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("unable to initialize gzip reader: %s", err)
+		}
+		defer dataReader.Close() // nolint
+	default:
+		dataReader = resp.Body
+	}
+
 	// If we lack a X-Influxdb-Version header, then we didn't get a response from influxdb
 	// but instead some other service. If the error code is also a 500+ code, then some
 	// downstream loadbalancer/proxy/etc had an issue and we should report that.
 	if resp.Header.Get("X-Influxdb-Version") == "" && resp.StatusCode >= http.StatusInternalServerError {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := ioutil.ReadAll(dataReader)
 		if err != nil || len(body) == 0 {
 			return nil, fmt.Errorf("received status code %d from downstream server", resp.StatusCode)
 		}
@@ -559,7 +577,7 @@ func (c *client) Query(q Query) (*Response, error) {
 	if cType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); cType != "application/json" {
 		// Read up to 1kb of the body to help identify downstream errors and limit the impact of things
 		// like downstream serving a large file
-		body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1024))
+		body, err := ioutil.ReadAll(io.LimitReader(dataReader, 1024))
 		if err != nil || len(body) == 0 {
 			return nil, fmt.Errorf("expected json response, got empty body, with status: %v", resp.StatusCode)
 		}
@@ -569,7 +587,7 @@ func (c *client) Query(q Query) (*Response, error) {
 
 	var response Response
 	if q.Chunked {
-		cr := NewChunkedResponse(resp.Body)
+		cr := NewChunkedResponse(dataReader)
 		for {
 			r, err := cr.NextResponse()
 			if err != nil {
@@ -588,7 +606,7 @@ func (c *client) Query(q Query) (*Response, error) {
 			}
 		}
 	} else {
-		dec := json.NewDecoder(resp.Body)
+		dec := json.NewDecoder(dataReader)
 		dec.UseNumber()
 		decErr := dec.Decode(&response)
 
