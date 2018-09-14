@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 	"unicode/utf8"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/values"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/query"
@@ -18,6 +22,7 @@ import (
 // QueryRequest is a flux query request.
 type QueryRequest struct {
 	Spec    *flux.Spec   `json:"spec,omitempty"`
+	AST     *ast.Program `json:"ast,omitempty"`
 	Query   string       `json:"query"`
 	Type    string       `json:"type"`
 	Dialect QueryDialect `json:"dialect"`
@@ -54,8 +59,8 @@ func (r QueryRequest) WithDefaults() QueryRequest {
 
 // Validate checks the query request and returns an error if the request is invalid.
 func (r QueryRequest) Validate() error {
-	if r.Query == "" && r.Spec == nil {
-		return errors.New(`request body requires either spec or query`)
+	if r.Query == "" && r.Spec == nil && r.AST == nil {
+		return errors.New(`request body requires either query, spec, or AST`)
 	}
 
 	if r.Type != "flux" {
@@ -92,8 +97,39 @@ func (r QueryRequest) Validate() error {
 	return nil
 }
 
+func nowFunc(now time.Time) values.Function {
+	timeVal := values.NewTimeValue(values.ConvertTime(now))
+	ftype := semantic.NewFunctionType(semantic.FunctionSignature{
+		ReturnType: semantic.Time,
+	})
+	call := func(args values.Object) (values.Value, error) {
+		return timeVal, nil
+	}
+	sideEffect := false
+	return values.NewFunction("now", ftype, call, sideEffect)
+}
+
+func toSpec(p *ast.Program, now func() time.Time) (*flux.Spec, error) {
+	itrp := flux.NewInterpreter()
+	itrp.SetOption("now", nowFunc(now()))
+	_, decl := flux.BuiltIns()
+	semProg, err := semantic.New(p, decl)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := itrp.Eval(semProg); err != nil {
+		return nil, err
+	}
+	return flux.ToSpec(itrp, itrp.SideEffects()...), nil
+}
+
 // ProxyRequest returns a request to proxy from the flux.
 func (r QueryRequest) ProxyRequest() (*query.ProxyRequest, error) {
+	return r.proxyRequest(time.Now)
+}
+
+func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, error) {
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
@@ -102,6 +138,15 @@ func (r QueryRequest) ProxyRequest() (*query.ProxyRequest, error) {
 	if r.Query != "" {
 		compiler = lang.FluxCompiler{
 			Query: r.Query,
+		}
+	} else if r.AST != nil {
+		var err error
+		r.Spec, err = toSpec(r.AST, now)
+		if err != nil {
+			return nil, err
+		}
+		compiler = lang.SpecCompiler{
+			Spec: r.Spec,
 		}
 	} else if r.Spec != nil {
 		compiler = lang.SpecCompiler{

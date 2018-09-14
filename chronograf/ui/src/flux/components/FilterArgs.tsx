@@ -52,7 +52,7 @@ class FilterArgs extends PureComponent<Props, State> {
   public async convertStringToNodes() {
     const {links, value} = this.props
 
-    const ast = await getAST({url: links.ast, body: value})
+    const ast = await getAST({url: links.ast, query: value})
     const nodes = new Walker(ast).inOrderExpression
     this.setState({nodes, ast})
   }

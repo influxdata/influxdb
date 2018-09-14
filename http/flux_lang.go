@@ -3,29 +3,36 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/complete"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
 // FluxLangHandler represents an HTTP API handler for buckets.
 type FluxLangHandler struct {
 	*httprouter.Router
+	Now func() time.Time
 }
 
-type astRequest struct {
-	Body string `json:"body"`
+type langRequest struct {
+	Query string `json:"query"`
 }
 
 // NewFluxLangHandler returns a new instance of FluxLangHandler.
 func NewFluxLangHandler() *FluxLangHandler {
 	h := &FluxLangHandler{
 		Router: httprouter.New(),
+		Now:    time.Now,
 	}
 
 	h.HandlerFunc("GET", "/v2/flux", h.getFlux)
 	h.HandlerFunc("POST", "/v2/flux/ast", h.postFluxAST)
+	h.HandlerFunc("POST", "/v2/flux/spec", h.postFluxSpec)
 	h.HandlerFunc("GET", "/v2/flux/suggestions", h.getFluxSuggestions)
 	h.HandlerFunc("GET", "/v2/flux/suggestions/:name", h.getFluxSuggestion)
 	return h
@@ -72,24 +79,63 @@ func (h *FluxLangHandler) getFlux(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type postFluxASTResponse struct {
+	AST *ast.Program `json:"ast"`
+}
+
 // postFluxAST returns a flux AST for provided flux string
 func (h *FluxLangHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
-	var request astRequest
+	var request langRequest
 	ctx := r.Context()
 
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		EncodeError(ctx, errors.MalformedDataf("invalid json: %v", err), w)
 		return
 	}
 
-	ast, err := parser.NewAST(request.Body)
+	ast, err := parser.NewAST(request.Query)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		EncodeError(ctx, errors.InvalidDataf("invalid json: %v", err), w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, ast); err != nil {
+	res := postFluxASTResponse{
+		AST: ast,
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type postFluxSpecResponse struct {
+	Spec *flux.Spec `json:"spec"`
+}
+
+// postFluxSpe returns a flux Spec for provided flux string
+func (h *FluxLangHandler) postFluxSpec(w http.ResponseWriter, r *http.Request) {
+	var req langRequest
+	ctx := r.Context()
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		EncodeError(ctx, errors.MalformedDataf("invalid json: %v", err), w)
+		return
+	}
+
+	spec, err := flux.Compile(ctx, req.Query, h.Now())
+	if err != nil {
+		EncodeError(ctx, errors.InvalidDataf("invalid json: %v", err), w)
+		return
+	}
+
+	res := postFluxSpecResponse{
+		Spec: spec,
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
