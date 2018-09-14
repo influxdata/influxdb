@@ -33,25 +33,30 @@ type Macro struct {
 	Arguments MacroArguments `json:"arguments"`
 }
 
+// A MacroUpdate describes a set of changes that can be applied to a Macro
 type MacroUpdate struct {
 	Name      string         `json:"name"`
 	Selected  []string       `json:"selected"`
 	Arguments MacroArguments `json:"arguments"`
 }
 
+// A MacroArguments contains arguments used when expanding a Macro
 type MacroArguments struct {
 	Type   string      `json:"type"`   // "constant", "map", or "query"
 	Values interface{} `json:"values"` // either MacroQueryValues, MacroConstantValues, MacroMapValues
 }
 
+// MacroQueryValues contains a query used when expanding a query-based Macro
 type MacroQueryValues struct {
 	Query    string `json:"query"`
 	Language string `json:"language"` // "influxql" or "flux"
 }
 
-type MacroConstantValues = []string
+// MacroConstantValues are the data for expanding a constants-based Macro
+type MacroConstantValues []string
 
-type MacroMapValues = map[string]string
+// MacroMapValues are the data for expanding a map-based Macro
+type MacroMapValues map[string]string
 
 // Valid returns an error if a Macro contains invalid data
 func (m *Macro) Valid() error {
@@ -102,6 +107,8 @@ func (u *MacroUpdate) Apply(m *Macro) error {
 	return nil
 }
 
+// UnmarshalJSON unmarshals json into a MacroArguments struct, using the `Type`
+// field to assign the approriate struct to the `Values` field
 func (a *MacroArguments) UnmarshalJSON(data []byte) error {
 	type Alias MacroArguments
 	aux := struct{ *Alias }{Alias: (*Alias)(a)}
