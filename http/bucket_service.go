@@ -94,23 +94,24 @@ type postBucketRequest struct {
 	Bucket *platform.Bucket
 }
 
+func (b postBucketRequest) Validate() error {
+	// TODO(goller): hey leo, is this ok?
+	if b.Bucket.Organization == "" && len(b.Bucket.OrganizationID) == 0 {
+		return fmt.Errorf("bucket requires an organization")
+	}
+	return nil
+}
+
 func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketRequest, error) {
 	b := &platform.Bucket{}
-
-	queryParams := r.URL.Query()
-	orgName := queryParams.Get("org")
-	if orgName == "" {
-		return nil, errors.New("The \"org\" is required via query param.")
-	}
-
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
 		return nil, err
 	}
-	b.Organization = orgName
 
-	return &postBucketRequest{
+	req := &postBucketRequest{
 		Bucket: b,
-	}, nil
+	}
+	return req, req.Validate()
 }
 
 // handleGetBucket is the HTTP handler for the GET /v1/buckets/:id route.

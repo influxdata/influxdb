@@ -29,7 +29,7 @@ type Error struct {
 
 // Error implements the error interface.
 func (e Error) Error() string {
-	return fmt.Sprintf("%v (error reference code: %d)", e.Err, e.Reference)
+	return e.Err
 }
 
 // Errorf constructs an Error with the given reference code and format.
@@ -40,6 +40,7 @@ func Errorf(ref int, format string, i ...interface{}) error {
 	}
 }
 
+// New creates a new error with a message and error code.
 func New(msg string, ref ...int) error {
 	refCode := InternalError
 	if len(ref) == 1 {

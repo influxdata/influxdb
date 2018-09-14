@@ -312,7 +312,6 @@ func TestService_handlePostBucket(t *testing.T) {
   },
   "id": "020f755c3c082000",
   "organizationID": "30",
-  "organization": "30",
   "name": "hello",
   "retentionPeriod": 0
 }
@@ -589,8 +588,6 @@ func TestService_handlePatchBucket(t *testing.T) {
 }
 
 func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, func()) {
-	t.Helper()
-
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
 
