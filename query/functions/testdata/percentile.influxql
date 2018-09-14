@@ -1,1 +1,0 @@
-select percentile("used_percent", 75) from telegraf..disk

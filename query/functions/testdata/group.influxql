@@ -1,1 +1,0 @@
-SELECT max(io_time) FROM testdb..diskio GROUP BY "name"
