@@ -1,1 +1,0 @@
-select derivative("used_percent") FROM testdb..disk

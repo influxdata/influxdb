@@ -114,8 +114,12 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 		return 0, err
 	}
 
+	qreq, err := QueryRequestFromProxyRequest(r)
+	if err != nil {
+		return 0, err
+	}
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(r); err != nil {
+	if err := json.NewEncoder(&body).Encode(qreq); err != nil {
 		return 0, err
 	}
 
@@ -167,8 +171,12 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 		Request: *r,
 		Dialect: csv.DefaultDialect(),
 	}
+	qreq, err := QueryRequestFromProxyRequest(preq)
+	if err != nil {
+		return nil, err
+	}
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(preq); err != nil {
+	if err := json.NewEncoder(&body).Encode(qreq); err != nil {
 		return nil, err
 	}
 

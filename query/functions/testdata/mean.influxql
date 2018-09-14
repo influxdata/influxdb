@@ -1,1 +1,0 @@
-select mean("used_percent") from telegraf..disk

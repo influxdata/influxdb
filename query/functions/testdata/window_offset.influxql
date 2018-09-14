@@ -1,1 +1,0 @@
-select mean(io_time) from testdb..diskio where time >= '2018-05-22T19:53:26Z' and time < now() group by time(1s, 2s)
