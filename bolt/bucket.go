@@ -169,12 +169,6 @@ func filterBucketsFn(filter platform.BucketFilter) func(b *platform.Bucket) bool
 		}
 	}
 
-	if filter.Type != 0 {
-		return func(b *platform.Bucket) bool {
-			return b.Type == filter.Type
-		}
-	}
-
 	return func(b *platform.Bucket) bool { return true }
 }
 
@@ -244,10 +238,6 @@ func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.B
 
 // CreateBucket creates a platform bucket and sets b.ID.
 func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
-	if b.Type == 0 {
-		b.Type = platform.BucketTypeUser
-	}
-
 	return c.db.Update(func(tx *bolt.Tx) error {
 		if len(b.OrganizationID) == 0 {
 			o, err := c.findOrganizationByName(ctx, tx, b.Organization)
@@ -264,17 +254,7 @@ func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 			return fmt.Errorf("bucket with name %s already exists", b.Name)
 		}
 
-		if b.Type == platform.BucketTypeUser {
-			b.ID = c.IDGenerator.ID()
-		} else {
-			idstr := fmt.Sprintf("%s%d", b.OrganizationID, b.Type)
-			id, err := platform.IDFromString(idstr)
-			if err != nil {
-				return err
-			}
-			b.ID = *id
-		}
-
+		b.ID = c.IDGenerator.ID()
 		return c.putBucket(ctx, tx, b)
 	})
 }

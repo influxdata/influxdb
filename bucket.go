@@ -2,14 +2,14 @@ package platform
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
 type BucketType int
 
 const (
-	BucketTypeUser = BucketType(iota + 10)
-	BucketTypeLogs
+	BucketTypeLogs = BucketType(iota + 10)
 )
 
 // Bucket is a bucket. 🎉
@@ -20,7 +20,6 @@ type Bucket struct {
 	Name                string        `json:"name"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
-	Type                BucketType    `json:"-"` // Only user buckets will be visible over HTTP
 }
 
 // BucketService represents a service for managing bucket data.
@@ -59,7 +58,6 @@ type BucketFilter struct {
 	Name           *string
 	OrganizationID *ID
 	Organization   *string
-	Type           BucketType
 }
 
 // FindOptions represents options passed to all find methods with multiple results.
@@ -68,4 +66,9 @@ type FindOptions struct {
 	Offset     int
 	SortBy     string
 	Descending bool
+}
+
+// InternalBucketID returns the ID for an organization's specified internal bucket
+func InternalBucketID(t BucketType) (*ID, error) {
+	return IDFromString(fmt.Sprintf("%d", t))
 }

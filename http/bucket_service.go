@@ -106,7 +106,6 @@ func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketR
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
 		return nil, err
 	}
-	b.Type = platform.BucketTypeUser
 	b.Organization = orgName
 
 	return &postBucketRequest{
@@ -361,9 +360,6 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 
 // FindBucket returns the first bucket that matches filter.
 func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
-	// don't expose internal buckets
-	filter.Type = platform.BucketTypeUser
-
 	bs, n, err := s.FindBuckets(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -379,9 +375,6 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
 func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
-	// don't expose internal buckets
-	filter.Type = platform.BucketTypeUser
-
 	u, err := newURL(s.Addr, bucketPath)
 	if err != nil {
 		return nil, 0, err
