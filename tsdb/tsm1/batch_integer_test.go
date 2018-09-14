@@ -126,6 +126,74 @@ func testIntegerArrayEncodeAll_Compare(t *testing.T, input []int64, encoding byt
 	}
 }
 
+func TestUnsignedArrayEncodeAll_Compare(t *testing.T) {
+	// generate random values (should use simple8b)
+	input := make([]uint64, 1000)
+	for i := 0; i < len(input); i++ {
+		input[i] = uint64(rand.Int63n(100000))
+	}
+	sort.Slice(input, func(i int, j int) bool { return input[i] < input[j] })
+	testUnsignedArrayEncodeAll_Compare(t, input, intCompressedSimple)
+
+	// Generate same values (should use RLE)
+	for i := 0; i < len(input); i++ {
+		input[i] = 1232342341234
+	}
+	testUnsignedArrayEncodeAll_Compare(t, input, intCompressedRLE)
+
+	// Generate large random values that are not sorted. The deltas will be large
+	// and the values should be stored uncompressed.
+	for i := 0; i < len(input); i++ {
+		input[i] = rand.Uint64()
+	}
+	testUnsignedArrayEncodeAll_Compare(t, input, intUncompressed)
+}
+
+func testUnsignedArrayEncodeAll_Compare(t *testing.T, input []uint64, encoding byte) {
+	exp := make([]uint64, len(input))
+	copy(exp, input)
+
+	s := NewIntegerEncoder(1000)
+	for _, v := range input {
+		s.Write(int64(v))
+	}
+
+	buf1, err := s.Bytes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, exp := buf1[0]>>4, encoding; got != exp {
+		t.Fatalf("got encoding %v, expected %v", got, encoding)
+	}
+
+	var buf2 []byte
+	buf2, err = UnsignedArrayEncodeAll(input, buf2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v\nbuf: %db %x", err, len(buf2), buf2)
+	}
+
+	if got, exp := buf2[0]>>4, encoding; got != exp {
+		t.Fatalf("got encoding %v, expected %v", got, encoding)
+	}
+
+	result, err := UnsignedArrayDecodeAll(buf2, nil)
+	if err != nil {
+		dumpBufs(buf1, buf2)
+		t.Fatalf("unexpected error: %v\nbuf: %db %x", err, len(buf2), buf2)
+	}
+
+	if got := result; !reflect.DeepEqual(got, exp) {
+		t.Fatalf("got result %v, expected %v", got, exp)
+	}
+
+	// Check that the encoders are byte for byte the same...
+	if !bytes.Equal(buf1, buf2) {
+		dumpBufs(buf1, buf2)
+		t.Fatalf("Raw bytes differ for encoders")
+	}
+}
+
 func TestIntegerArrayEncodeAll_One(t *testing.T) {
 	v1 := int64(1)
 

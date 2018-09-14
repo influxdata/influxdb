@@ -114,6 +114,20 @@ func IntegerArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 	return b[:sz], nil
 }
 
+// UnsignedArrayEncodeAll encodes src into b, returning b and any error encountered.
+// The returned slice may be of a different length and capactity to b.
+//
+// UnsignedArrayEncodeAll implements batch oriented versions of the three integer
+// encoding types we support: uncompressed, simple8b and RLE.
+//
+// Important: IntegerArrayEncodeAll modifies the contents of src by using it as
+// scratch space for delta encoded values. It is NOT SAFE to use src after
+// passing it into IntegerArrayEncodeAll.
+func UnsignedArrayEncodeAll(src []uint64, b []byte) ([]byte, error) {
+	srcint := reintepretUint64ToInt64Slice(src)
+	return IntegerArrayEncodeAll(srcint, b)
+}
+
 var (
 	integerBatchDecoderFunc = [...]func(b []byte, dst []int64) ([]int64, error){
 		integerBatchDecodeAllUncompressed,
