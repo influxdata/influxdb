@@ -20,6 +20,9 @@ type MacroService interface {
 	// UpdateMacro updates a single macro with a changeset
 	UpdateMacro(ctx context.Context, id ID, update *MacroUpdate) (*Macro, error)
 
+	// UpdateMacro replaces a single macro
+	PutMacro(ctx context.Context, macro *Macro) error
+
 	// DeleteMacro removes a macro from the store
 	DeleteMacro(ctx context.Context, id ID) error
 }

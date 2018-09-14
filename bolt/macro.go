@@ -91,6 +91,13 @@ func (c *Client) CreateMacro(ctx context.Context, macro *platform.Macro) error {
 	})
 }
 
+// PutMacro puts a macro in the store
+func (c *Client) PutMacro(ctx context.Context, macro *platform.Macro) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		return c.putMacro(ctx, tx, macro)
+	})
+}
+
 func (c *Client) putMacro(ctx context.Context, tx *bolt.Tx, macro *platform.Macro) error {
 	j, err := json.Marshal(macro)
 	if err != nil {

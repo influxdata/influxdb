@@ -16,6 +16,7 @@ type Service struct {
 	userKV                sync.Map
 	dashboardKV           sync.Map
 	viewKV                sync.Map
+	macroKV               sync.Map
 	dbrpMappingKV         sync.Map
 	userResourceMappingKV sync.Map
 	scraperTargetKV       sync.Map
