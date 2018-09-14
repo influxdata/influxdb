@@ -124,7 +124,10 @@ func fluxF(cmd *cobra.Command, args []string) {
 	queryHandler.Logger = logger.With(zap.String("handler", "query"))
 
 	handler := http.NewHandlerFromRegistry("query", reg)
-	handler.Handler = queryHandler
+	handler.Handler = &Handler{
+		QueryHandler:    queryHandler,
+		FluxLangHandler: http.NewFluxLangHandler(),
+	}
 	handler.Logger = logger
 	handler.Tracer = tracer
 
@@ -234,4 +237,28 @@ func (l bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool)
 	// Cheat and return the bucket name as the ID
 	// The deps.Reader will interpret this as the db/rp for the RPC call
 	return platform.ID(name), true
+}
+
+// Handler handles the incoming http requests for fluxd.
+type Handler struct {
+	QueryHandler    *http.ExternalQueryHandler
+	FluxLangHandler *http.FluxLangHandler
+}
+
+// ServeHTTP delegates a request to the appropriate subhandler.
+func (h *Handler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request) {
+	if strings.HasPrefix(r.URL.Path, "/ping") {
+		h.QueryHandler.ServeHTTP(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/query") {
+		h.QueryHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/v2/flux") {
+		h.FluxLangHandler.ServeHTTP(w, r)
+		return
+	}
+	nethttp.NotFound(w, r)
 }

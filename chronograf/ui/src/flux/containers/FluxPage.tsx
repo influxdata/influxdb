@@ -599,7 +599,7 @@ export class FluxPage extends PureComponent<Props, State> {
     const {links, notify, script} = this.props
 
     try {
-      const ast = await getAST({url: links.ast, body: script})
+      const ast = await getAST({url: links.ast, query: script})
       const body = bodyNodes(ast, this.state.suggestions)
       const status = {type: 'success', text: ''}
       notify(validateSuccess())
@@ -620,7 +620,7 @@ export class FluxPage extends PureComponent<Props, State> {
     }
 
     try {
-      const ast = await getAST({url: links.ast, body: script})
+      const ast = await getAST({url: links.ast, query: script})
 
       if (update) {
         this.props.updateScript(script)
@@ -643,7 +643,7 @@ export class FluxPage extends PureComponent<Props, State> {
     }
 
     try {
-      await getAST({url: links.ast, body: script})
+      await getAST({url: links.ast, query: script})
     } catch (error) {
       this.setState({status: this.parseError(error)})
       return console.error('Could not parse AST', error)

@@ -41,7 +41,7 @@ export class FilterPreview extends PureComponent<Props, State> {
   public async convertStringToNodes() {
     const {links, filterString} = this.props
 
-    const ast = await getAST({url: links.ast, body: filterString})
+    const ast = await getAST({url: links.ast, query: filterString})
     const nodes = new Walker(ast).inOrderExpression
     this.setState({nodes, ast})
   }
