@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/chronograf/server"
+	"github.com/influxdata/platform/gather"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/kit/prom"
 	"github.com/influxdata/platform/nats"
@@ -45,8 +46,8 @@ func main() {
 }
 
 const (
-	// NatsSubject is the subject that subscribers and publishers use for writing and consuming line protocol
-	NatsSubject = "ingress"
+	// IngressSubject is the subject that subscribers and publishers use for writing and consuming line protocol
+	IngressSubject = "ingress"
 	// IngressGroup is the Nats Streaming Subscriber group, allowing multiple subscribers to distribute work
 	IngressGroup = "ingress"
 )
@@ -119,6 +120,7 @@ var platformCmd = &cobra.Command{
 }
 
 func platformF(cmd *cobra.Command, args []string) {
+	ctx := context.Background()
 	// Create top level logger
 	logger := influxlogger.New(os.Stdout)
 
@@ -129,7 +131,7 @@ func platformF(cmd *cobra.Command, args []string) {
 	c := bolt.NewClient()
 	c.Path = boltPath
 
-	if err := c.Open(context.TODO()); err != nil {
+	if err := c.Open(ctx); err != nil {
 		logger.Error("failed opening bolt", zap.Error(err))
 		os.Exit(1)
 	}
@@ -208,7 +210,9 @@ func platformF(cmd *cobra.Command, args []string) {
 		// see issue #563
 	}
 
-	chronografSvc, err := server.NewServiceV2(context.TODO(), c.DB())
+	var scraperTargetSvc platform.ScraperTargetStoreService = c
+
+	chronografSvc, err := server.NewServiceV2(ctx, c.DB())
 	if err != nil {
 		logger.Error("failed creating chronograf service", zap.Error(err))
 		os.Exit(1)
@@ -239,10 +243,19 @@ func platformF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if err := subscriber.Subscribe(NatsSubject, IngressGroup, &nats.LogHandler{Logger: logger}); err != nil {
+	if err := subscriber.Subscribe(IngressSubject, IngressGroup, &nats.LogHandler{Logger: logger}); err != nil {
 		logger.Error("failed to create nats subscriber", zap.Error(err))
 		os.Exit(1)
 	}
+
+	scraperScheduler, err := gather.NewScheduler(10, logger, scraperTargetSvc, publisher, subscriber, 0, 0)
+	if err != nil {
+		logger.Error("failed to create scraper subscriber", zap.Error(err))
+		os.Exit(1)
+	}
+	go func() {
+		errc <- scraperScheduler.Run(ctx)
+	}()
 
 	httpServer := &nethttp.Server{
 		Addr: httpBindAddress,
@@ -285,7 +298,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		taskHandler.TaskService = taskSvc
 
 		publishFn := func(r io.Reader) error {
-			return publisher.Publish(NatsSubject, r)
+			return publisher.Publish(IngressSubject, r)
 		}
 
 		writeHandler := http.NewWriteHandler(publishFn)
@@ -335,7 +348,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		logger.Fatal("unable to start platform", zap.Error(err))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	httpServer.Shutdown(ctx)
 }

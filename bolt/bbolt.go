@@ -113,6 +113,11 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
+		// Always create Scraper bucket.
+		if err := c.initializeScraperTargets(ctx, tx); err != nil {
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		return err

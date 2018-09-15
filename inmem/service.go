@@ -18,6 +18,7 @@ type Service struct {
 	viewKV                sync.Map
 	dbrpMappingKV         sync.Map
 	userResourceMappingKV sync.Map
+	scraperTargetKV       sync.Map
 
 	TokenGenerator platform.TokenGenerator
 	IDGenerator    platform.IDGenerator

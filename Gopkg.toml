@@ -98,3 +98,7 @@ required = [
 [[constraint]]
   branch = "master"
   name = "github.com/influxdata/flux"
+
+[[constraint]]  
+  name = "github.com/prometheus/prometheus"
+  version = "=2.3.2"
