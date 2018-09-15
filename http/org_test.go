@@ -33,27 +33,7 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 
 	return &client, done
 }
-
-func TestOrganizationService_CreateOrganization(t *testing.T) {
-	platformtesting.CreateOrganization(initOrganizationService, t)
-}
-
-func TestOrganizationService_FindOrganizationByID(t *testing.T) {
-	platformtesting.FindOrganizationByID(initOrganizationService, t)
-}
-
-func TestOrganizationService_FindOrganizations(t *testing.T) {
-	platformtesting.FindOrganizations(initOrganizationService, t)
-}
-
-func TestOrganizationService_DeleteOrganization(t *testing.T) {
-	platformtesting.DeleteOrganization(initOrganizationService, t)
-}
-
-func TestOrganizationService_FindOrganization(t *testing.T) {
-	platformtesting.FindOrganization(initOrganizationService, t)
-}
-
-func TestOrganizationService_UpdateOrganization(t *testing.T) {
-	platformtesting.UpdateOrganization(initOrganizationService, t)
+func TestOrganizationService(t *testing.T) {
+	t.Parallel()
+	platformtesting.OrganizationService(initOrganizationService, t)
 }

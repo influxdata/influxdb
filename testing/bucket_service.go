@@ -39,6 +39,52 @@ type BucketFields struct {
 	Organizations []*platform.Organization
 }
 
+type bucketServiceF func(
+	init func(BucketFields, *testing.T) (platform.BucketService, func()),
+	t *testing.T,
+)
+
+// BucketService tests all the service functions.
+func BucketService(
+	init func(BucketFields, *testing.T) (platform.BucketService, func()),
+	t *testing.T,
+) {
+	tests := []struct {
+		name string
+		fn   bucketServiceF
+	}{
+		{
+			name: "CreateBucket",
+			fn:   CreateBucket,
+		},
+		{
+			name: "FindBucketByID",
+			fn:   FindBucketByID,
+		},
+		{
+			name: "FindBuckets",
+			fn:   FindBuckets,
+		},
+		{
+			name: "FindBucket",
+			fn:   FindBucket,
+		},
+		{
+			name: "UpdateBucket",
+			fn:   UpdateBucket,
+		},
+		{
+			name: "DeleteBucket",
+			fn:   DeleteBucket,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fn(init, t)
+		})
+	}
+}
+
 // CreateBucket testing
 func CreateBucket(
 	init func(BucketFields, *testing.T) (platform.BucketService, func()),

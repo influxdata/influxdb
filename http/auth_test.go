@@ -501,7 +501,6 @@ func TestAuthorizationService_FindAuthorizationByToken(t *testing.T) {
 }
 
 func TestAuthorizationService_FindAuthorizations(t *testing.T) {
-	// TODO: skip "find authorization by token
 	platformtesting.FindAuthorizations(initAuthorizationService, t)
 }
 

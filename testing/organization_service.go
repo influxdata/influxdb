@@ -36,6 +36,47 @@ type OrganizationFields struct {
 	Organizations []*platform.Organization
 }
 
+// OrganizationService tests all the service functions.
+func OrganizationService(
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()), t *testing.T,
+) {
+	tests := []struct {
+		name string
+		fn   func(init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
+			t *testing.T)
+	}{
+		{
+			name: "CreateOrganization",
+			fn:   CreateOrganization,
+		},
+		{
+			name: "FindOrganizationByID",
+			fn:   FindOrganizationByID,
+		},
+		{
+			name: "FindOrganizations",
+			fn:   FindOrganizations,
+		},
+		{
+			name: "DeleteOrganization",
+			fn:   DeleteOrganization,
+		},
+		{
+			name: "FindOrganization",
+			fn:   FindOrganization,
+		},
+		{
+			name: "UpdateOrganization",
+			fn:   UpdateOrganization,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fn(init, t)
+		})
+	}
+}
+
 // CreateOrganization testing
 func CreateOrganization(
 	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),

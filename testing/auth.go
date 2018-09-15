@@ -40,6 +40,43 @@ type AuthorizationFields struct {
 	Users          []*platform.User
 }
 
+// AuthorizationService tests all the service functions.
+func AuthorizationService(
+	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, func()), t *testing.T,
+) {
+	tests := []struct {
+		name string
+		fn   func(init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, func()),
+			t *testing.T)
+	}{
+		{
+			name: "CreateAuthorization",
+			fn:   CreateAuthorization,
+		},
+		{
+			name: "FindAuthorizationByID",
+			fn:   FindAuthorizationByID,
+		},
+		{
+			name: "FindAuthorizationByToken",
+			fn:   FindAuthorizationByToken,
+		},
+		{
+			name: "FindAuthorizations",
+			fn:   FindAuthorizations,
+		},
+		{
+			name: "DeleteAuthorization",
+			fn:   DeleteAuthorization,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fn(init, t)
+		})
+	}
+}
+
 // CreateAuthorization testing
 func CreateAuthorization(
 	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, func()),

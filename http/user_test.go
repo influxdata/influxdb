@@ -33,32 +33,7 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 	return &client, done
 }
 
-func TestUserService_CreateUser(t *testing.T) {
+func TestUserService(t *testing.T) {
 	t.Parallel()
-	platformtesting.CreateUser(initUserService, t)
-}
-
-func TestUserService_FindUserByID(t *testing.T) {
-	t.Parallel()
-	platformtesting.FindUserByID(initUserService, t)
-}
-
-func TestUserService_FindUsers(t *testing.T) {
-	t.Parallel()
-	platformtesting.FindUsers(initUserService, t)
-}
-
-func TestUserService_DeleteUser(t *testing.T) {
-	t.Parallel()
-	platformtesting.DeleteUser(initUserService, t)
-}
-
-func TestUserService_FindUser(t *testing.T) {
-	t.Parallel()
-	platformtesting.FindUser(initUserService, t)
-}
-
-func TestUserService_UpdateUser(t *testing.T) {
-	t.Parallel()
-	platformtesting.UpdateUser(initUserService, t)
+	platformtesting.UserService(initUserService, t)
 }
