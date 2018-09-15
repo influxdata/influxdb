@@ -166,7 +166,9 @@ func (stm *StoreTaskMeta) NextDueRun() (int64, error) {
 	}
 
 	latest := stm.LatestCompleted
-	for _, cr := range stm.CurrentlyRunning {
+	currRun := make([]*StoreTaskMetaRun, len(stm.CurrentlyRunning))
+	copy(currRun, stm.CurrentlyRunning)
+	for _, cr := range currRun {
 		if cr.Now > latest {
 			latest = cr.Now
 		}
