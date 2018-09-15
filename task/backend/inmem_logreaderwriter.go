@@ -119,7 +119,13 @@ func (r *runReaderWriter) ListRuns(ctx context.Context, runFilter platform.RunFi
 		beforeIndex = afterIndex + runFilter.Limit
 	}
 
-	return runs[afterIndex:beforeIndex], nil
+	runs = runs[afterIndex:beforeIndex]
+	for i := range runs {
+		// Copy every element, to avoid a data race if the original Run is modified in UpdateRunState or AddRunLog.
+		r := *runs[i]
+		runs[i] = &r
+	}
+	return runs, nil
 }
 
 func (r *runReaderWriter) FindRunByID(ctx context.Context, orgID, taskID, runID platform.ID) (*platform.Run, error) {
