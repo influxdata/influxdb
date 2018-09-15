@@ -15,7 +15,7 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
 
-	ctx := context.TODO()
+	ctx := context.Background()
 	for _, o := range f.Organizations {
 		if err := svc.PutOrganization(ctx, o); err != nil {
 			t.Fatalf("failed to populate organizations")

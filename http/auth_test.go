@@ -234,7 +234,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -416,7 +416,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -460,7 +460,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 
-	ctx := context.TODO()
+	ctx := context.Background()
 	for _, u := range f.Users {
 		if err := svc.PutUser(ctx, u); err != nil {
 			t.Fatalf("failed to populate users")
