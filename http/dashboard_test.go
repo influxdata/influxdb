@@ -272,7 +272,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -474,7 +474,7 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -643,7 +643,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(b))
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -745,7 +745,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(b))
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -822,7 +822,7 @@ func TestService_handleDeleteDashboardCell(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -956,7 +956,7 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(b))
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{

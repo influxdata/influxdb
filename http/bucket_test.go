@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/inmem"
 	"github.com/influxdata/platform/mock"
+	platformtesting "github.com/influxdata/platform/testing"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -233,7 +235,7 @@ func TestService_handleGetBucket(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -310,7 +312,6 @@ func TestService_handlePostBucket(t *testing.T) {
   },
   "id": "020f755c3c082000",
   "organizationID": "30",
-  "organization": "30",
   "name": "hello",
   "retentionPeriod": 0
 }
@@ -416,7 +417,7 @@ func TestService_handleDeleteBucket(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -556,7 +557,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(b))
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -584,4 +585,35 @@ func TestService_handlePatchBucket(t *testing.T) {
 			}
 		})
 	}
+}
+
+func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, func()) {
+	svc := inmem.NewService()
+	svc.IDGenerator = f.IDGenerator
+
+	ctx := context.Background()
+	for _, o := range f.Organizations {
+		if err := svc.PutOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to populate organizations")
+		}
+	}
+	for _, b := range f.Buckets {
+		if err := svc.PutBucket(ctx, b); err != nil {
+			t.Fatalf("failed to populate buckets")
+		}
+	}
+
+	handler := NewBucketHandler()
+	handler.BucketService = svc
+	server := httptest.NewServer(handler)
+	client := BucketService{
+		Addr: server.URL,
+	}
+	done := server.Close
+
+	return &client, done
+}
+
+func TestBucketService(t *testing.T) {
+	platformtesting.BucketService(initBucketService, t)
 }

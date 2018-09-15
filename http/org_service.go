@@ -40,6 +40,14 @@ type orgsResponse struct {
 	Organizations []*orgResponse    `json:"orgs"`
 }
 
+func (o orgsResponse) ToPlatform() []*platform.Organization {
+	orgs := make([]*platform.Organization, len(o.Organizations))
+	for i := range o.Organizations {
+		orgs[i] = &o.Organizations[i].Organization
+	}
+	return orgs
+}
+
 func newOrgsResponse(orgs []*platform.Organization) *orgsResponse {
 	res := orgsResponse{
 		Links: map[string]string{
@@ -296,11 +304,13 @@ type OrganizationService struct {
 	InsecureSkipVerify bool
 }
 
+// FindOrganizationByID gets a single organization with a given id using HTTP.
 func (s *OrganizationService) FindOrganizationByID(ctx context.Context, id platform.ID) (*platform.Organization, error) {
 	filter := platform.OrganizationFilter{ID: &id}
 	return s.FindOrganization(ctx, filter)
 }
 
+// FindOrganization gets a single organization matching the filter using HTTP.
 func (s *OrganizationService) FindOrganization(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 	os, n, err := s.FindOrganizations(ctx, filter)
 	if err != nil {
@@ -314,6 +324,7 @@ func (s *OrganizationService) FindOrganization(ctx context.Context, filter platf
 	return os[0], nil
 }
 
+// FindOrganizations returns all organizations that match the filter via HTTP.
 func (s *OrganizationService) FindOrganizations(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error) {
 	url, err := newURL(s.Addr, organizationPath)
 	if err != nil {
@@ -346,12 +357,13 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 		return nil, 0, err
 	}
 
-	var os []*platform.Organization
+	var os orgsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&os); err != nil {
 		return nil, 0, err
 	}
 
-	return os, len(os), nil
+	orgs := os.ToPlatform()
+	return orgs, len(orgs), nil
 
 }
 
@@ -398,6 +410,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 	return nil
 }
 
+// UpdateOrganization updates the organization over HTTP.
 func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error) {
 	u, err := newURL(s.Addr, organizationIDPath(id))
 	if err != nil {
@@ -437,6 +450,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 	return &o, nil
 }
 
+// DeleteOrganization removes organization id over HTTP.
 func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	u, err := newURL(s.Addr, organizationIDPath(id))
 	if err != nil {

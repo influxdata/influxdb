@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/platform/inmem"
+	platformtesting "github.com/influxdata/platform/testing"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -232,7 +234,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -414,7 +416,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -442,4 +444,66 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			}
 		})
 	}
+}
+
+func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.T) (platform.AuthorizationService, func()) {
+	t.Helper()
+	if t.Name() == "TestAuthorizationService_FindAuthorizations/find_authorization_by_token" {
+		/*
+			TODO(goller): need a secure way to communicate get
+			 authorization by token string via headers or something
+		*/
+		t.Skip("TestAuthorizationService_FindAuthorizations/find_authorization_by_token skipped because user tokens cannot be queried")
+	}
+
+	svc := inmem.NewService()
+	svc.IDGenerator = f.IDGenerator
+	svc.TokenGenerator = f.TokenGenerator
+
+	ctx := context.Background()
+	for _, u := range f.Users {
+		if err := svc.PutUser(ctx, u); err != nil {
+			t.Fatalf("failed to populate users")
+		}
+	}
+	for _, u := range f.Authorizations {
+		if err := svc.PutAuthorization(ctx, u); err != nil {
+			t.Fatalf("failed to populate authorizations")
+		}
+	}
+
+	handler := NewAuthorizationHandler()
+	handler.AuthorizationService = svc
+	server := httptest.NewServer(handler)
+	client := AuthorizationService{
+		Addr: server.URL,
+	}
+	done := server.Close
+
+	return &client, done
+}
+
+func TestAuthorizationService_CreateAuthorization(t *testing.T) {
+	platformtesting.CreateAuthorization(initAuthorizationService, t)
+}
+
+func TestAuthorizationService_FindAuthorizationByID(t *testing.T) {
+	platformtesting.FindAuthorizationByID(initAuthorizationService, t)
+}
+
+func TestAuthorizationService_FindAuthorizationByToken(t *testing.T) {
+	/*
+		TODO(goller): need a secure way to communicate get
+		authorization by token string via headers or something
+	*/
+	t.Skip()
+	platformtesting.FindAuthorizationByToken(initAuthorizationService, t)
+}
+
+func TestAuthorizationService_FindAuthorizations(t *testing.T) {
+	platformtesting.FindAuthorizations(initAuthorizationService, t)
+}
+
+func TestAuthorizationService_DeleteAuthorization(t *testing.T) {
+	platformtesting.DeleteAuthorization(initAuthorizationService, t)
 }

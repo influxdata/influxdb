@@ -11,7 +11,7 @@ import (
 func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, func()) {
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
-	ctx := context.TODO()
+	ctx := context.Background()
 	for _, u := range f.Users {
 		if err := s.PutUser(ctx, u); err != nil {
 			t.Fatalf("failed to populate users")

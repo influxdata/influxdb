@@ -37,6 +37,47 @@ type UserFields struct {
 	Users       []*platform.User
 }
 
+// UserService tests all the service functions.
+func UserService(
+	init func(UserFields, *testing.T) (platform.UserService, func()), t *testing.T,
+) {
+	tests := []struct {
+		name string
+		fn   func(init func(UserFields, *testing.T) (platform.UserService, func()),
+			t *testing.T)
+	}{
+		{
+			name: "CreateUser",
+			fn:   CreateUser,
+		},
+		{
+			name: "FindUserByID",
+			fn:   FindUserByID,
+		},
+		{
+			name: "FindUsers",
+			fn:   FindUsers,
+		},
+		{
+			name: "DeleteUser",
+			fn:   DeleteUser,
+		},
+		{
+			name: "FindUser",
+			fn:   FindUser,
+		},
+		{
+			name: "UpdateUser",
+			fn:   UpdateUser,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fn(init, t)
+		})
+	}
+}
+
 // CreateUser testing
 func CreateUser(
 	init func(UserFields, *testing.T) (platform.UserService, func()),
