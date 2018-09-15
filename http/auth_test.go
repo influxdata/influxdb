@@ -478,9 +478,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	client := AuthorizationService{
 		Addr: server.URL,
 	}
-	done := func() {
-		server.Close()
-	}
+	done := server.Close
 
 	return &client, done
 }

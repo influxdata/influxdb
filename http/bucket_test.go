@@ -235,7 +235,7 @@ func TestService_handleGetBucket(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -417,7 +417,7 @@ func TestService_handleDeleteBucket(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -557,7 +557,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(b))
 
 			r = r.WithContext(context.WithValue(
-				context.TODO(),
+				context.Background(),
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
@@ -591,7 +591,7 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
 
-	ctx := context.TODO()
+	ctx := context.Background()
 	for _, o := range f.Organizations {
 		if err := svc.PutOrganization(ctx, o); err != nil {
 			t.Fatalf("failed to populate organizations")
@@ -609,9 +609,7 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 	client := BucketService{
 		Addr: server.URL,
 	}
-	done := func() {
-		server.Close()
-	}
+	done := server.Close
 
 	return &client, done
 }

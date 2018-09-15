@@ -29,9 +29,7 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	client := OrganizationService{
 		Addr: server.URL,
 	}
-	done := func() {
-		server.Close()
-	}
+	done := server.Close
 
 	return &client, done
 }
