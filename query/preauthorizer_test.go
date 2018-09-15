@@ -53,7 +53,7 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 
 	// Try to authorize with a bucket service that knows about one bucket
 	// (still no authorization)
-	id, _ := platform.IDFromString("DEADBEEF")
+	id, _ := platform.IDFromString("deadbeefdeadbeef")
 	bucketService := newBucketServiceWithOneBucket(platform.Bucket{
 		Name: "my_bucket",
 		ID:   *id,
