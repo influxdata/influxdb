@@ -88,7 +88,6 @@ func (s *Service) UpdateDashboard(ctx context.Context, id platform.ID, upd platf
 	}
 
 	s.dashboardKV.Store(o.ID.String(), o)
-
 	return o, nil
 }
 

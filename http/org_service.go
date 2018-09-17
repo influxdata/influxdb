@@ -53,6 +53,7 @@ func newOrgsResponse(orgs []*platform.Organization) *orgsResponse {
 		Links: map[string]string{
 			"self": "/v2/orgs",
 		},
+		Organizations: []*orgResponse{},
 	}
 	for _, org := range orgs {
 		res.Organizations = append(res.Organizations, newOrgResponse(org))
