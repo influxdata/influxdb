@@ -283,7 +283,7 @@ func UpdateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 				update: &platform.MacroUpdate{},
 			},
 			wants: wants{
-				err:    fmt.Errorf("macro with ID %s not found (error reference code: 5)", idA),
+				err:    fmt.Errorf("macro with ID %s not found", idA),
 				macros: []*platform.Macro{},
 			},
 		},
