@@ -3,6 +3,7 @@ import _ from 'lodash'
 import AJAX from 'src/utils/ajax'
 import {Service, FluxTable} from 'src/types'
 import {updateService} from 'src/shared/apis'
+import {getDeep} from 'src/utils/wrappers'
 import {
   parseResponse,
   parseResponseError,
@@ -36,7 +37,7 @@ export const getAST = async (request: ASTRequest) => {
       data: {query},
     })
 
-    return data.ast
+    return getDeep<ASTRequest>(data, 'ast', {url: '', query: ''})
   } catch (error) {
     console.error('Could not parse query', error)
     throw error
