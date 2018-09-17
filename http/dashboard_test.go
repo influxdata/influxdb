@@ -11,7 +11,9 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/inmem"
 	"github.com/influxdata/platform/mock"
+	platformtesting "github.com/influxdata/platform/testing"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -988,4 +990,55 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_dashboardCellIDPath(t *testing.T) {
+	t.Parallel()
+	dashboard, err := platform.IDFromString("deadbeef")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cell, err := platform.IDFromString("cade9a7e")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "/v2/dashboards/deadbeef/cells/cade9a7e"
+	if got := dashboardCellIDPath(*dashboard, *cell); got != want {
+		t.Errorf("dashboardCellIDPath() = got: %s want: %s", got, want)
+	}
+}
+
+func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (platform.DashboardService, func()) {
+	t.Helper()
+	svc := inmem.NewService()
+	svc.IDGenerator = f.IDGenerator
+
+	ctx := context.Background()
+	for _, o := range f.Dashboards {
+		if err := svc.PutDashboard(ctx, o); err != nil {
+			t.Fatalf("failed to populate organizations")
+		}
+	}
+	for _, b := range f.Views {
+		if err := svc.PutView(ctx, b); err != nil {
+			t.Fatalf("failed to populate views")
+		}
+	}
+
+	handler := NewDashboardHandler()
+	handler.DashboardService = svc
+	server := httptest.NewServer(handler)
+	client := DashboardService{
+		Addr: server.URL,
+	}
+	done := server.Close
+
+	return &client, done
+}
+
+func TestDashboardService(t *testing.T) {
+	t.Parallel()
+	platformtesting.DashboardService(initDashboardService, t)
 }

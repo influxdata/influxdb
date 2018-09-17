@@ -38,6 +38,55 @@ type DashboardFields struct {
 	Views       []*platform.View
 }
 
+// DashboardService tests all the service functions.
+func DashboardService(
+	init func(DashboardFields, *testing.T) (platform.DashboardService, func()), t *testing.T,
+) {
+	tests := []struct {
+		name string
+		fn   func(init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+			t *testing.T)
+	}{
+		{
+			name: "FindDashboardByID",
+			fn:   FindDashboardByID,
+		},
+		{
+			name: "FindDashboards",
+			fn:   FindDashboards,
+		},
+		{
+			name: "CreateDashboard",
+			fn:   CreateDashboard,
+		},
+		{
+			name: "UpdateDashboard",
+			fn:   UpdateDashboard,
+		},
+		{
+			name: "AddDashboardCell",
+			fn:   AddDashboardCell,
+		},
+		{
+			name: "RemoveDashboardCell",
+			fn:   RemoveDashboardCell,
+		},
+		{
+			name: "UpdateDashboardCell",
+			fn:   UpdateDashboardCell,
+		},
+		{
+			name: "ReplaceDashboardCells",
+			fn:   ReplaceDashboardCells,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fn(init, t)
+		})
+	}
+}
+
 // CreateDashboard testing
 func CreateDashboard(
 	init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
@@ -96,7 +145,7 @@ func CreateDashboard(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.CreateDashboard(ctx, tt.args.dashboard)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -180,7 +229,7 @@ func AddDashboardCell(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.AddDashboardCell(ctx, tt.args.dashboardID, tt.args.cell, platform.AddDashboardCellOptions{})
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -253,7 +302,7 @@ func FindDashboardByID(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			dashboard, err := s.FindDashboardByID(ctx, tt.args.id)
 			if (err != nil) != (tt.wants.err != nil) {
@@ -353,7 +402,7 @@ func FindDashboards(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			filter := platform.DashboardFilter{}
 			if tt.args.ID != nil {
@@ -460,7 +509,7 @@ func DeleteDashboard(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.DeleteDashboard(ctx, tt.args.ID)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -536,7 +585,7 @@ func UpdateDashboard(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			upd := platform.DashboardUpdate{}
 			if tt.args.name != "" {
@@ -636,7 +685,7 @@ func RemoveDashboardCell(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.RemoveDashboardCell(ctx, tt.args.dashboardID, tt.args.cellID)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -736,7 +785,7 @@ func UpdateDashboardCell(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			upd := platform.CellUpdate{}
 			if tt.args.x != 0 {
 				upd.X = &tt.args.x
@@ -990,7 +1039,7 @@ func ReplaceDashboardCells(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.ReplaceDashboardCells(ctx, tt.args.dashboardID, tt.args.cells)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
