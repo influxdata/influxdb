@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path"
 
@@ -152,6 +153,46 @@ func decodeDeleteUserRequest(ctx context.Context, r *http.Request) (*deleteUserR
 	}, nil
 }
 
+type usersResponse struct {
+	Links map[string]string `json:"links"`
+	Users []*userResponse   `json:"users"`
+}
+
+func (us usersResponse) ToPlatform() []*platform.User {
+	users := make([]*platform.User, len(us.Users))
+	for i := range us.Users {
+		users[i] = &us.Users[i].User
+	}
+	return users
+}
+
+func newUsersResponse(users []*platform.User) *usersResponse {
+	res := usersResponse{
+		Links: map[string]string{
+			"self": "/v2/users",
+		},
+		Users: []*userResponse{},
+	}
+	for _, user := range users {
+		res.Users = append(res.Users, newUserResponse(user))
+	}
+	return &res
+}
+
+type userResponse struct {
+	Links map[string]string `json:"links"`
+	platform.User
+}
+
+func newUserResponse(u *platform.User) *userResponse {
+	return &userResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/v2/users/%s", u.ID),
+		},
+		User: *u,
+	}
+}
+
 // handleGetUsers is the HTTP handler for the GET /v1/users route.
 func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -168,7 +209,8 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, users); err != nil {
+	err = encodeResponse(ctx, w, http.StatusOK, newUsersResponse(users))
+	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -333,12 +375,13 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 		return nil, 0, err
 	}
 
-	var bs []*platform.User
-	if err := json.NewDecoder(resp.Body).Decode(&bs); err != nil {
+	var r usersResponse
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
 		return nil, 0, err
 	}
 
-	return bs, len(bs), nil
+	us := r.ToPlatform()
+	return us, len(us), nil
 }
 
 const (
