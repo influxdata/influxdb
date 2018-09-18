@@ -1,15 +1,19 @@
 package tsi1_test
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
+	"sync"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -18,7 +22,7 @@ const M, K = 4096, 6
 
 // Ensure index can iterate over all measurement names.
 func TestIndex_ForEachMeasurementName(t *testing.T) {
-	idx := MustOpenIndex(1)
+	idx := MustOpenDefaultIndex()
 	defer idx.Close()
 
 	// Add series to index.
@@ -71,7 +75,7 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 
 // Ensure index can return whether a measurement exists.
 func TestIndex_MeasurementExists(t *testing.T) {
-	idx := MustOpenIndex(1)
+	idx := MustOpenDefaultIndex()
 	defer idx.Close()
 
 	// Add series to index.
@@ -133,7 +137,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 
 // Ensure index can return a list of matching measurements.
 func TestIndex_MeasurementNamesByRegex(t *testing.T) {
-	idx := MustOpenIndex(1)
+	idx := MustOpenDefaultIndex()
 	defer idx.Close()
 
 	// Add series to index.
@@ -158,7 +162,7 @@ func TestIndex_MeasurementNamesByRegex(t *testing.T) {
 
 // Ensure index can delete a measurement and all related keys, values, & series.
 func TestIndex_DropMeasurement(t *testing.T) {
-	idx := MustOpenIndex(1)
+	idx := MustOpenDefaultIndex()
 	defer idx.Close()
 
 	// Add series to index.
@@ -205,7 +209,7 @@ func TestIndex_DropMeasurement(t *testing.T) {
 
 func TestIndex_Open(t *testing.T) {
 	// Opening a fresh index should set the MANIFEST version to current version.
-	idx := NewIndex(tsi1.DefaultPartitionN)
+	idx := NewDefaultIndex()
 	t.Run("open new index", func(t *testing.T) {
 		if err := idx.Open(); err != nil {
 			t.Fatal(err)
@@ -234,7 +238,7 @@ func TestIndex_Open(t *testing.T) {
 	incompatibleVersions := []int{-1, 0, 2}
 	for _, v := range incompatibleVersions {
 		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
-			idx = NewIndex(tsi1.DefaultPartitionN)
+			idx = NewDefaultIndex()
 			// Manually create a MANIFEST file for an incompatible index version.
 			// under one of the partitions.
 			partitionPath := filepath.Join(idx.Path(), "2")
@@ -308,6 +312,160 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 	})
 }
 
+func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
+	idx1 := MustOpenDefaultIndex() // Uses the single series creation method CreateSeriesIfNotExists
+	defer idx1.Close()
+	idx2 := MustOpenDefaultIndex() // Uses the batch series creation method CreateSeriesListIfNotExists
+	defer idx2.Close()
+
+	// Add some series.
+	data := []struct {
+		Key  string
+		Name string
+		Tags map[string]string
+	}{
+		{"cpu,region=west,server=a", "cpu", map[string]string{"region": "west", "server": "a"}},
+		{"cpu,region=west,server=b", "cpu", map[string]string{"region": "west", "server": "b"}},
+		{"cpu,region=east,server=a", "cpu", map[string]string{"region": "east", "server": "a"}},
+		{"cpu,region=north,server=c", "cpu", map[string]string{"region": "north", "server": "c"}},
+		{"cpu,region=south,server=s", "cpu", map[string]string{"region": "south", "server": "s"}},
+		{"mem,region=west,server=a", "mem", map[string]string{"region": "west", "server": "a"}},
+		{"mem,region=west,server=b", "mem", map[string]string{"region": "west", "server": "b"}},
+		{"mem,region=west,server=c", "mem", map[string]string{"region": "west", "server": "c"}},
+		{"disk,region=east,server=a", "disk", map[string]string{"region": "east", "server": "a"}},
+		{"disk,region=east,server=a", "disk", map[string]string{"region": "east", "server": "a"}},
+		{"disk,region=north,server=c", "disk", map[string]string{"region": "north", "server": "c"}},
+	}
+
+	var batchKeys [][]byte
+	var batchNames [][]byte
+	var batchTags []models.Tags
+	for _, pt := range data {
+		if err := idx1.CreateSeriesIfNotExists([]byte(pt.Key), []byte(pt.Name), models.NewTags(pt.Tags)); err != nil {
+			t.Fatal(err)
+		}
+
+		batchKeys = append(batchKeys, []byte(pt.Key))
+		batchNames = append(batchNames, []byte(pt.Name))
+		batchTags = append(batchTags, models.NewTags(pt.Tags))
+	}
+
+	if err := idx2.CreateSeriesListIfNotExists(batchKeys, batchNames, batchTags); err != nil {
+		t.Fatal(err)
+	}
+
+	testTagValueSeriesIDIterator := func(t *testing.T, name, key, value string, expKeys []string) {
+		for i, idx := range []*Index{idx1, idx2} {
+			sitr, err := idx.TagValueSeriesIDIterator([]byte(name), []byte(key), []byte(value))
+			if err != nil {
+				t.Fatalf("[index %d] %v", i, err)
+			} else if sitr == nil {
+				t.Fatalf("[index %d] series id iterater nil", i)
+			}
+
+			// Convert series ids to series keys.
+			itr := tsdb.NewSeriesIteratorAdapter(idx.SeriesFile.SeriesFile, sitr)
+			if itr == nil {
+				t.Fatalf("[index %d] got nil iterator", i)
+			}
+			defer itr.Close()
+
+			var keys []string
+			for e, err := itr.Next(); err == nil; e, err = itr.Next() {
+				if e == nil {
+					break
+				}
+				keys = append(keys, string(models.MakeKey(e.Name(), e.Tags())))
+			}
+
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Iterator was in series id order, which may not be series key order.
+			sort.Strings(keys)
+			if got, exp := keys, expKeys; !reflect.DeepEqual(got, exp) {
+				t.Fatalf("[index %d] got %v, expected %v", i, got, exp)
+			}
+		}
+	}
+
+	// Test that correct series are initially returned
+	t.Run("initial", func(t *testing.T) {
+		testTagValueSeriesIDIterator(t, "mem", "region", "west", []string{
+			"mem,region=west,server=a",
+			"mem,region=west,server=b",
+			"mem,region=west,server=c",
+		})
+	})
+
+	// The result should now be cached, and the same result should be returned.
+	t.Run("cached", func(t *testing.T) {
+		testTagValueSeriesIDIterator(t, "mem", "region", "west", []string{
+			"mem,region=west,server=a",
+			"mem,region=west,server=b",
+			"mem,region=west,server=c",
+		})
+	})
+
+	// Adding a new series that would be referenced by some cached bitsets (in this case
+	// the bitsets for mem->region->west and mem->server->c) should cause the cached
+	// bitsets to be updated.
+	if err := idx1.CreateSeriesIfNotExists(
+		[]byte("mem,region=west,root=x,server=c"),
+		[]byte("mem"),
+		models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"}),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := idx2.CreateSeriesListIfNotExists(
+		[][]byte{[]byte("mem,region=west,root=x,server=c")},
+		[][]byte{[]byte("mem")},
+		[]models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("insert series", func(t *testing.T) {
+		testTagValueSeriesIDIterator(t, "mem", "region", "west", []string{
+			"mem,region=west,root=x,server=c",
+			"mem,region=west,server=a",
+			"mem,region=west,server=b",
+			"mem,region=west,server=c",
+		})
+	})
+
+	if err := idx1.CreateSeriesIfNotExists(
+		[]byte("mem,region=west,root=x,server=c"),
+		[]byte("mem"),
+		models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"}),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := idx2.CreateSeriesListIfNotExists(
+		[][]byte{[]byte("mem,region=west,root=x,server=c")},
+		[][]byte{[]byte("mem")},
+		[]models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("insert same series", func(t *testing.T) {
+		testTagValueSeriesIDIterator(t, "mem", "region", "west", []string{
+			"mem,region=west,root=x,server=c",
+			"mem,region=west,server=a",
+			"mem,region=west,server=b",
+			"mem,region=west,server=c",
+		})
+	})
+
+	t.Run("no matching series", func(t *testing.T) {
+		testTagValueSeriesIDIterator(t, "foo", "bar", "zoo", nil)
+	})
+}
+
 // Index is a test wrapper for tsi1.Index.
 type Index struct {
 	*tsi1.Index
@@ -322,6 +480,11 @@ func NewIndex(partitionN uint64) *Index {
 	return idx
 }
 
+// NewIndex returns a new instance of Index with default number of partitions at a temporary path.
+func NewDefaultIndex() *Index {
+	return NewIndex(tsi1.DefaultPartitionN)
+}
+
 // MustOpenIndex returns a new, open index. Panic on error.
 func MustOpenIndex(partitionN uint64) *Index {
 	idx := NewIndex(partitionN)
@@ -329,6 +492,11 @@ func MustOpenIndex(partitionN uint64) *Index {
 		panic(err)
 	}
 	return idx
+}
+
+// MustOpenIndex returns a new, open index with the default number of partitions.
+func MustOpenDefaultIndex() *Index {
+	return MustOpenIndex(tsi1.DefaultPartitionN)
 }
 
 // Open opens the underlying tsi1.Index and tsdb.SeriesFile
@@ -410,4 +578,273 @@ func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
 		tags = append(tags, s.Tags)
 	}
 	return idx.CreateSeriesListIfNotExists(keys, names, tags)
+}
+
+var tsiditr tsdb.SeriesIDIterator
+
+// Calling TagValueSeriesIDIterator on the index involves merging several
+// SeriesIDSets together.BenchmarkIndex_TagValueSeriesIDIterator, which can have
+// a non trivial cost. In the case of `tsi` files, the mmapd sets are merged
+// together. In the case of tsl files the sets need to are cloned and then merged.
+//
+// Typical results on an i7 laptop
+// BenchmarkIndex_IndexFile_TagValueSeriesIDIterator/78888_series_TagValueSeriesIDIterator/cache-8   	 2000000	       643 ns/op	     744 B/op	      13 allocs/op
+// BenchmarkIndex_IndexFile_TagValueSeriesIDIterator/78888_series_TagValueSeriesIDIterator/no_cache-8      10000	    130749 ns/op	  124952 B/op	     350 allocs/op
+func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
+	var err error
+	sfile := NewSeriesFile()
+	// Load index
+	idx := tsi1.NewIndex(sfile.SeriesFile, "foo",
+		tsi1.WithPath("testdata/index-file-index"),
+		tsi1.DisableCompactions(),
+	)
+	defer sfile.Close()
+
+	if err = idx.Open(); err != nil {
+		b.Fatal(err)
+	}
+	defer idx.Close()
+
+	runBenchMark := func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			tsiditr, err = idx.TagValueSeriesIDIterator([]byte("m4"), []byte("tag0"), []byte("value4"))
+			if err != nil {
+				b.Fatal(err)
+			} else if tsiditr == nil {
+				b.Fatal("got nil iterator")
+			}
+		}
+	}
+
+	// This benchmark will merge eight bitsets each containing ~10,000 series IDs.
+	b.Run("78888 series TagValueSeriesIDIterator", func(b *testing.B) {
+		b.ReportAllocs()
+		b.Run("cache", func(b *testing.B) {
+			tsi1.EnableBitsetCache = true
+			runBenchMark(b)
+		})
+
+		b.Run("no cache", func(b *testing.B) {
+			tsi1.EnableBitsetCache = false
+			runBenchMark(b)
+		})
+	})
+}
+
+var errResult error
+
+// Typical results on an i7 laptop
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_1000/partition_1-8         	       1	4004452124 ns/op	2381998144 B/op	21686990 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_1000/partition_2-8         	       1	2625853773 ns/op	2368913968 B/op	21765385 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_1000/partition_4-8         	       1	2127205189 ns/op	2338013584 B/op	21908381 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_1000/partition_8-8         	       1	2331960889 ns/op	2332643248 B/op	22191763 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_1000/partition_16-8        	       1	2398489751 ns/op	2299551824 B/op	22670465 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_10000/partition_1-8        	       1	3404683972 ns/op	2387236504 B/op	21600671 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_10000/partition_2-8        	       1	2173772186 ns/op	2329237224 B/op	21631104 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_10000/partition_4-8        	       1	1729089575 ns/op	2299161840 B/op	21699878 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_10000/partition_8-8        	       1	1644295339 ns/op	2161473200 B/op	21796469 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_10000/partition_16-8       	       1	1683275418 ns/op	2171872432 B/op	21925974 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_1-8       	       1	3330508160 ns/op	2333250904 B/op	21574887 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_2-8       	       1	2278604285 ns/op	2292600808 B/op	21628966 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_4-8       	       1	1760098762 ns/op	2243730672 B/op	21684608 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_8-8       	       1	1693312924 ns/op	2166924112 B/op	21753079 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_16-8      	       1	1663610452 ns/op	2131177160 B/op	21806209 allocs/op
+func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
+	// Read line-protocol and coerce into tsdb format.
+	keys := make([][]byte, 0, 1e6)
+	names := make([][]byte, 0, 1e6)
+	tags := make([]models.Tags, 0, 1e6)
+
+	// 1M series generated with:
+	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
+	fd, err := os.Open("../../testdata/line-protocol-1M.txt.gz")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	gzr, err := gzip.NewReader(fd)
+	if err != nil {
+		fd.Close()
+		b.Fatal(err)
+	}
+
+	data, err := ioutil.ReadAll(gzr)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	if err := fd.Close(); err != nil {
+		b.Fatal(err)
+	}
+
+	points, err := models.ParsePoints(data)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for _, pt := range points {
+		keys = append(keys, pt.Key())
+		names = append(names, pt.Name())
+		tags = append(tags, pt.Tags())
+	}
+
+	batchSizes := []int{1000, 10000, 100000}
+	partitions := []uint64{1, 2, 4, 8, 16}
+	for _, sz := range batchSizes {
+		b.Run(fmt.Sprintf("batch size %d", sz), func(b *testing.B) {
+			for _, partition := range partitions {
+				b.Run(fmt.Sprintf("partition %d", partition), func(b *testing.B) {
+					idx := MustOpenIndex(partition)
+					for j := 0; j < b.N; j++ {
+						for i := 0; i < len(keys); i += sz {
+							k := keys[i : i+sz]
+							n := names[i : i+sz]
+							t := tags[i : i+sz]
+							if errResult = idx.CreateSeriesListIfNotExists(k, n, t); errResult != nil {
+								b.Fatal(err)
+							}
+						}
+						// Reset the index...
+						b.StopTimer()
+						if err := idx.Close(); err != nil {
+							b.Fatal(err)
+						}
+						idx = MustOpenIndex(partition)
+						b.StartTimer()
+					}
+				})
+			}
+		})
+	}
+}
+
+// This benchmark concurrently writes series to the index and fetches cached bitsets.
+// The idea is to emphasize the performance difference when bitset caching is on and off.
+//
+// Typical results for an i7 laptop
+// BenchmarkIndex_ConcurrentWriteQuery/partition_1/queries_100000/cache-8   	       	1	3836451407 ns/op	2453296232 B/op		22648482 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_4/queries_100000/cache-8            	1	1836598730 ns/op	2435668224 B/op		22908705 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_8/queries_100000/cache-8            	1	1714771527 ns/op	2341518456 B/op		23450621 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_16/queries_100000/cache-8           	1	1810658403 ns/op	2401239408 B/op		23868079 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_1/queries_100000/no_cache-8           	1	4044478305 ns/op	4414915048 B/op		27292357 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_4/queries_100000/no_cache-8         	1	18663345153 ns/op	23035974472 B/op	54015704 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_8/queries_100000/no_cache-8         	1	22242979152 ns/op	28178915600 B/op	80156305 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_16/queries_100000/no_cache-8        	1	24817283922 ns/op	34613960984 B/op	150356327 allocs/op
+func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
+	// Read line-protocol and coerce into tsdb format.
+	keys := make([][]byte, 0, 1e6)
+	names := make([][]byte, 0, 1e6)
+	tags := make([]models.Tags, 0, 1e6)
+
+	// 1M series generated with:
+	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
+	fd, err := os.Open("testdata/line-protocol-1M.txt.gz")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	gzr, err := gzip.NewReader(fd)
+	if err != nil {
+		fd.Close()
+		b.Fatal(err)
+	}
+
+	data, err := ioutil.ReadAll(gzr)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	if err := fd.Close(); err != nil {
+		b.Fatal(err)
+	}
+
+	points, err := models.ParsePoints(data)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for _, pt := range points {
+		keys = append(keys, pt.Key())
+		names = append(names, pt.Name())
+		tags = append(tags, pt.Tags())
+	}
+
+	runBenchmark := func(b *testing.B, queryN int, partitions uint64) {
+		idx := MustOpenIndex(partitions)
+		var wg sync.WaitGroup
+
+		// Run concurrent iterator...
+		runIter := func() {
+			keys := [][]string{
+				{"m0", "tag2", "value4"},
+				{"m1", "tag3", "value5"},
+				{"m2", "tag4", "value6"},
+				{"m3", "tag0", "value8"},
+				{"m4", "tag5", "value0"},
+			}
+
+			for i := 0; i < queryN/5; i++ {
+				for _, key := range keys {
+					itr, err := idx.TagValueSeriesIDIterator([]byte(key[0]), []byte(key[1]), []byte(key[2]))
+					if err != nil {
+						b.Fatal(err)
+					} else if itr == nil {
+						b.Fatal("got nil iterator")
+					}
+					if err := itr.Close(); err != nil {
+						b.Fatal(err)
+					}
+				}
+			}
+		}
+
+		wg.Add(1)
+		go func() { defer wg.Done(); runIter() }()
+		batchSize := 10000
+		for j := 0; j < 1; j++ {
+			for i := 0; i < len(keys); i += batchSize {
+				k := keys[i : i+batchSize]
+				n := names[i : i+batchSize]
+				t := tags[i : i+batchSize]
+				if errResult = idx.CreateSeriesListIfNotExists(k, n, t); errResult != nil {
+					b.Fatal(err)
+				}
+			}
+
+			// Wait for queries to finish
+			wg.Wait()
+
+			// Reset the index...
+			b.StopTimer()
+			if err := idx.Close(); err != nil {
+				b.Fatal(err)
+			}
+
+			// Re-open everything
+			idx = MustOpenIndex(partitions)
+			wg.Add(1)
+			go func() { defer wg.Done(); runIter() }()
+			b.StartTimer()
+		}
+	}
+
+	partitions := []uint64{1, 4, 8, 16}
+	queries := []int{1e5}
+	for _, partition := range partitions {
+		b.Run(fmt.Sprintf("partition %d", partition), func(b *testing.B) {
+			for _, queryN := range queries {
+				b.Run(fmt.Sprintf("queries %d", queryN), func(b *testing.B) {
+					b.Run("cache", func(b *testing.B) {
+						tsi1.EnableBitsetCache = true
+						runBenchmark(b, queryN, partition)
+					})
+
+					b.Run("no cache", func(b *testing.B) {
+						tsi1.EnableBitsetCache = false
+						runBenchmark(b, queryN, partition)
+					})
+				})
+			}
+		})
+	}
 }

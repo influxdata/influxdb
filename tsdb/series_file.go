@@ -378,6 +378,8 @@ func parseSeriesKey(data []byte, dst models.Tags) ([]byte, models.Tags) {
 	dst = dst[:cap(dst)] // Grow dst to use full capacity
 	if got, want := len(dst), tagN; got < want {
 		dst = append(dst, make(models.Tags, want-got)...)
+	} else if got > want {
+		dst = dst[:want]
 	}
 	dst = dst[:tagN]
 

@@ -133,7 +133,6 @@ func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
 
 		name, tags := ParseSeriesKey(key)
 		deleted := itr.sfile.IsDeleted(elem.SeriesID)
-
 		return &seriesElemAdapter{
 			name:    name,
 			tags:    tags,
@@ -416,7 +415,7 @@ func (itr *seriesIDExprIterator) Next() (SeriesIDElem, error) {
 }
 
 // MergeSeriesIDIterators returns an iterator that merges a set of iterators.
-// Iterators that are first in the list take precendence and a deletion by those
+// Iterators that are first in the list take precedence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeSeriesIDIterators(itrs ...SeriesIDIterator) SeriesIDIterator {
 	if n := len(itrs); n == 0 {

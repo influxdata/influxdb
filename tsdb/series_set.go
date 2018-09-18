@@ -5,7 +5,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/RoaringBitmap/roaring"
+	"github.com/influxdata/roaring"
 )
 
 // SeriesIDSet represents a lockable bitmap of series ids.
@@ -50,12 +50,39 @@ func (s *SeriesIDSet) AddNoLock(id uint64) {
 	s.bitmap.Add(uint32(id))
 }
 
+// AddMany adds multiple ids to the SeriesIDSet. AddMany takes a lock, so may not be
+// optimal to call many times with few ids.
+func (s *SeriesIDSet) AddMany(ids ...uint64) {
+	if len(ids) == 0 {
+		return
+	}
+
+	a32 := make([]uint32, len(ids))
+	for i := range ids {
+		a32[i] = uint32(ids[i])
+	}
+
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap.AddMany(a32)
+}
+
 // Contains returns true if the id exists in the set.
 func (s *SeriesIDSet) Contains(id uint64) bool {
 	s.RLock()
 	x := s.ContainsNoLock(id)
 	s.RUnlock()
 	return x
+}
+
+// SetCOW sets the copy-on-write status of the underlying bitmap. When SetCOW(true)
+// is called, modifications to the bitmap will result in copies of the relevant
+// data structures being made, preventing consumers of clones of the bitmap from
+// seeing those modifications.
+func (s *SeriesIDSet) SetCOW(b bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap.SetCopyOnWrite(b)
 }
 
 // ContainsNoLock returns true if the id exists in the set. ContainsNoLock is
@@ -106,6 +133,19 @@ func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
 	s.Lock()
 	s.bitmap = result
 	s.Unlock()
+}
+
+// MergeInPlace merges other into s, modifying s in the process.
+func (s *SeriesIDSet) MergeInPlace(other *SeriesIDSet) {
+	if s == other {
+		return
+	}
+
+	other.RLock()
+	s.Lock()
+	s.bitmap.Or(other.bitmap)
+	s.Unlock()
+	other.RUnlock()
 }
 
 // Equals returns true if other and s are the same set of ids.
@@ -217,6 +257,18 @@ func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
 	s.RLock()
 	defer s.RUnlock()
 	return s.bitmap.WriteTo(w)
+}
+
+// Clear clears the underlying bitmap for re-use. Clear is safe for use by multiple goroutines.
+func (s *SeriesIDSet) Clear() {
+	s.Lock()
+	defer s.Unlock()
+	s.ClearNoLock()
+}
+
+// ClearNoLock clears the underlying bitmap for re-use without taking a lock.
+func (s *SeriesIDSet) ClearNoLock() {
+	s.bitmap.Clear()
 }
 
 // Slice returns a slice of series ids.
