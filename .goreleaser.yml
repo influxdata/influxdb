@@ -95,3 +95,7 @@ dockers:
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
+
+# Do not make github release
+release:
+  disabled: true
