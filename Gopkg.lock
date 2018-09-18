@@ -144,6 +144,32 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:60c9794469b42f5dd51df4652a93fbcba5ddcd990a02fd234be3cb44c18b0e67"
+  name = "github.com/influxdata/flux"
+  packages = [
+    ".",
+    "ast",
+    "builtin",
+    "compiler",
+    "control",
+    "csv",
+    "execute",
+    "functions",
+    "functions/storage",
+    "interpreter",
+    "iocounter",
+    "lang",
+    "options",
+    "parser",
+    "plan",
+    "semantic",
+    "values",
+  ]
+  pruneopts = "UT"
+  revision = "272ec9cad23d26d93339feca224ee1f9a29a21c4"
+
+[[projects]]
+  branch = "master"
   digest = "1:ac08c9f0449762095e72fcf636b8b2cfd1e16fea10d4f69776efddc95dc3a7be"
   name = "github.com/influxdata/influxql"
   packages = [
@@ -152,6 +178,25 @@
   ]
   pruneopts = "UT"
   revision = "c661ab7db8ad858626cc7a2114e786f4e7463564"
+
+[[projects]]
+  branch = "master"
+  digest = "1:b263f6201ed97bab3221ed8af2dc7575b2f07e7410b3e311a3149515ba3780f6"
+  name = "github.com/influxdata/platform"
+  packages = [
+    ".",
+    "query",
+  ]
+  pruneopts = "UT"
+  revision = "34fd898d6ced9f42dd5111526dfbdc2b62fd3279"
+
+[[projects]]
+  branch = "master"
+  digest = "1:b07e7ba2bb99a70ce3318ea387a62666371c1ab4f9bfcae192a59e3f4b8ffa56"
+  name = "github.com/influxdata/tdigest"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a7d76c6f093a59b94a01c6c2b8429122d444a8cc"
 
 [[projects]]
   branch = "master"
@@ -234,6 +279,18 @@
   version = "v1.0.1"
 
 [[projects]]
+  digest = "1:d4d60a22dc6c84bf1f8d2991cddcb98fb25f433f8a856fb6888fc21885998a13"
+  name = "github.com/mna/pigeon"
+  packages = [
+    ".",
+    "ast",
+    "builder",
+  ]
+  pruneopts = "UT"
+  revision = "9df264905d4734c0133161d8c67828ff522b154a"
+  version = "v1.0.0"
+
+[[projects]]
   branch = "master"
   digest = "1:c22fdadfe2de0e1df75987cac34f1c721157dc24f180c76b4ef66a3c9637a799"
   name = "github.com/mschoch/smat"
@@ -276,6 +333,14 @@
   pruneopts = "UT"
   revision = "bb6d471dc95d4fe11e432687f8b70ff496cf3136"
   version = "v1.0.0"
+
+[[projects]]
+  digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [[projects]]
   digest = "1:70f78dea42b8c0ff38ecf5487eaa79006fa2193fc804fc7c1d7222745d9e2522"
@@ -327,6 +392,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "101a6d2f8b52abfc409ac188958e7e7be0116331"
+
+[[projects]]
+  digest = "1:274f67cb6fed9588ea2521ecdac05a6d62a8c51c074c1fccc6a49a40ba80e925"
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
+  version = "v1.2.0"
 
 [[projects]]
   digest = "1:eaa6698f44de8f2977e93c9b946e60a8af75f565058658aad2df8032b55c84e5"
@@ -530,7 +603,20 @@
     "github.com/golang/snappy",
     "github.com/google/go-cmp/cmp",
     "github.com/google/go-cmp/cmp/cmpopts",
+    "github.com/influxdata/flux",
+    "github.com/influxdata/flux/ast",
+    "github.com/influxdata/flux/builtin",
+    "github.com/influxdata/flux/control",
+    "github.com/influxdata/flux/csv",
+    "github.com/influxdata/flux/execute",
+    "github.com/influxdata/flux/functions",
+    "github.com/influxdata/flux/functions/storage",
+    "github.com/influxdata/flux/lang",
+    "github.com/influxdata/flux/semantic",
+    "github.com/influxdata/flux/values",
     "github.com/influxdata/influxql",
+    "github.com/influxdata/platform",
+    "github.com/influxdata/platform/query",
     "github.com/influxdata/usage-client/v1",
     "github.com/jsternberg/zap-logfmt",
     "github.com/jwilder/encoding/simple8b",
@@ -540,6 +626,7 @@
     "github.com/opentracing/opentracing-go/ext",
     "github.com/paulbellamy/ratecounter",
     "github.com/peterh/liner",
+    "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/retailnext/hllpp",
     "github.com/tinylib/msgp/msgp",

@@ -14,6 +14,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
+	"github.com/influxdata/influxdb/flux/control"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
@@ -286,7 +287,9 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
 	srv.Handler.BuildType = "OSS"
-	srv.Handler.Store = storage.NewStore(s.TSDBStore, s.MetaClient)
+	ss := storage.NewStore(s.TSDBStore, s.MetaClient)
+	srv.Handler.Store = ss
+	srv.Handler.Controller = control.NewController(ss, s.Logger)
 
 	s.Services = append(s.Services, srv)
 }
