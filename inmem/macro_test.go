@@ -14,7 +14,7 @@ func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.Mac
 
 	ctx := context.TODO()
 	for _, macro := range f.Macros {
-		if err := s.PutMacro(ctx, macro); err != nil {
+		if err := s.ReplaceMacro(ctx, macro); err != nil {
 			t.Fatalf("failed to populate macros")
 		}
 	}

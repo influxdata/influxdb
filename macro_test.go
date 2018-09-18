@@ -31,7 +31,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 				ID:       platform.ID("0"),
 				Name:     "howdy",
 				Selected: make([]string, 0),
-				Arguments: platform.MacroArguments{
+				Arguments: &platform.MacroArguments{
 					Type:   "constant",
 					Values: platform.MacroConstantValues{"a", "b", "c"},
 				},
@@ -57,7 +57,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 				ID:       platform.ID("0"),
 				Name:     "howdy",
 				Selected: make([]string, 0),
-				Arguments: platform.MacroArguments{
+				Arguments: &platform.MacroArguments{
 					Type:   "map",
 					Values: platform.MacroMapValues{"a": "A", "b": "B"},
 				},
@@ -83,7 +83,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 				ID:       platform.ID("0"),
 				Name:     "howdy",
 				Selected: make([]string, 0),
-				Arguments: platform.MacroArguments{
+				Arguments: &platform.MacroArguments{
 					Type: "query",
 					Values: platform.MacroQueryValues{
 						Query:    "howdy",

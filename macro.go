@@ -20,8 +20,8 @@ type MacroService interface {
 	// UpdateMacro updates a single macro with a changeset
 	UpdateMacro(ctx context.Context, id ID, update *MacroUpdate) (*Macro, error)
 
-	// UpdateMacro replaces a single macro
-	PutMacro(ctx context.Context, macro *Macro) error
+	// ReplaceMacro replaces a single macro
+	ReplaceMacro(ctx context.Context, macro *Macro) error
 
 	// DeleteMacro removes a macro from the store
 	DeleteMacro(ctx context.Context, id ID) error
@@ -30,17 +30,17 @@ type MacroService interface {
 // A Macro describes a keyword that can be expanded into several possible
 // values when used in an InfluxQL or Flux query
 type Macro struct {
-	ID        ID             `json:"id"`
-	Name      string         `json:"name"`
-	Selected  []string       `json:"selected"`
-	Arguments MacroArguments `json:"arguments"`
+	ID        ID              `json:"id"`
+	Name      string          `json:"name"`
+	Selected  []string        `json:"selected"`
+	Arguments *MacroArguments `json:"arguments"`
 }
 
 // A MacroUpdate describes a set of changes that can be applied to a Macro
 type MacroUpdate struct {
-	Name      string         `json:"name"`
-	Selected  []string       `json:"selected"`
-	Arguments MacroArguments `json:"arguments"`
+	Name      string          `json:"name"`
+	Selected  []string        `json:"selected"`
+	Arguments *MacroArguments `json:"arguments"`
 }
 
 // A MacroArguments contains arguments used when expanding a Macro
@@ -86,7 +86,7 @@ func (m *Macro) Valid() error {
 
 // Valid returns an error if a Macro changeset is not valid
 func (u *MacroUpdate) Valid() error {
-	if u.Name == "" && u.Selected == nil && u.Arguments == (MacroArguments{}) {
+	if u.Name == "" && u.Selected == nil && u.Arguments == nil {
 		return fmt.Errorf("no fields supplied in update")
 	}
 
@@ -103,7 +103,7 @@ func (u *MacroUpdate) Apply(m *Macro) error {
 		m.Selected = u.Selected
 	}
 
-	if u.Arguments != (MacroArguments{}) {
+	if u.Arguments != nil {
 		m.Arguments = u.Arguments
 	}
 

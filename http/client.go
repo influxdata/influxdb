@@ -17,6 +17,7 @@ type Service struct {
 	*UserService
 	*BucketService
 	*QueryService
+	*MacroService
 	*DashboardService
 }
 
@@ -47,6 +48,10 @@ func NewService(addr, token string) *Service {
 			Token: token,
 		},
 		DashboardService: &DashboardService{
+			Addr:  addr,
+			Token: token,
+		},
+		MacroService: &MacroService{
 			Addr:  addr,
 			Token: token,
 		},

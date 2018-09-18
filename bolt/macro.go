@@ -91,8 +91,8 @@ func (c *Client) CreateMacro(ctx context.Context, macro *platform.Macro) error {
 	})
 }
 
-// PutMacro puts a macro in the store
-func (c *Client) PutMacro(ctx context.Context, macro *platform.Macro) error {
+// ReplaceMacro puts a macro in the store
+func (c *Client) ReplaceMacro(ctx context.Context, macro *platform.Macro) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		return c.putMacro(ctx, tx, macro)
 	})

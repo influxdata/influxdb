@@ -13,7 +13,7 @@ type MacroService struct {
 	FindMacroByIDF func(context.Context, platform.ID) (*platform.Macro, error)
 	CreateMacroF   func(context.Context, *platform.Macro) error
 	UpdateMacroF   func(ctx context.Context, id platform.ID, update *platform.MacroUpdate) (*platform.Macro, error)
-	PutMacroF      func(context.Context, *platform.Macro) error
+	ReplaceMacroF  func(context.Context, *platform.Macro) error
 	DeleteMacroF   func(context.Context, platform.ID) error
 }
 
@@ -21,8 +21,8 @@ func (s *MacroService) CreateMacro(ctx context.Context, macro *platform.Macro) e
 	return s.CreateMacroF(ctx, macro)
 }
 
-func (s *MacroService) PutMacro(ctx context.Context, macro *platform.Macro) error {
-	return s.PutMacroF(ctx, macro)
+func (s *MacroService) ReplaceMacro(ctx context.Context, macro *platform.Macro) error {
+	return s.ReplaceMacroF(ctx, macro)
 }
 
 func (s *MacroService) FindMacros(ctx context.Context) ([]*platform.Macro, error) {

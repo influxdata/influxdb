@@ -48,7 +48,7 @@ func (s *Service) FindMacros(ctx context.Context) ([]*platform.Macro, error) {
 // CreateMacro implements the platform.MacroService interface
 func (s *Service) CreateMacro(ctx context.Context, m *platform.Macro) error {
 	m.ID = s.IDGenerator.ID()
-	return s.PutMacro(ctx, m)
+	return s.ReplaceMacro(ctx, m)
 }
 
 // UpdateMacro implements the platform.MacroService interface
@@ -62,7 +62,7 @@ func (s *Service) UpdateMacro(ctx context.Context, id platform.ID, update *platf
 		return nil, err
 	}
 
-	if err := s.PutMacro(ctx, macro); err != nil {
+	if err := s.ReplaceMacro(ctx, macro); err != nil {
 		return nil, err
 	}
 
@@ -81,8 +81,8 @@ func (s *Service) DeleteMacro(ctx context.Context, id platform.ID) error {
 	return nil
 }
 
-// PutMacro stores a Macro in the key value store
-func (s *Service) PutMacro(ctx context.Context, m *platform.Macro) error {
+// ReplaceMacro stores a Macro in the key value store
+func (s *Service) ReplaceMacro(ctx context.Context, m *platform.Macro) error {
 	s.macroKV.Store(m.ID.String(), m)
 	return nil
 }

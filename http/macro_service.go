@@ -1,14 +1,20 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
+)
+
+const (
+	macroPath = "/v2/macros"
 )
 
 // MacroHandler is the handler for the macro service
@@ -28,6 +34,7 @@ func NewMacroHandler() *MacroHandler {
 	h.HandlerFunc("POST", "/v2/macros", h.handlePostMacro)
 	h.HandlerFunc("GET", "/v2/macros/:id", h.handleGetMacro)
 	h.HandlerFunc("PATCH", "/v2/macros/:id", h.handlePatchMacro)
+	h.HandlerFunc("PUT", "/v2/macros/:id", h.handlePutMacro)
 	h.HandlerFunc("DELETE", "/v2/macros/:id", h.handleDeleteMacro)
 
 	return h
@@ -40,6 +47,14 @@ type macrosLinks struct {
 type getMacrosResponse struct {
 	Macros []macroResponse `json:"macros"`
 	Links  macrosLinks     `json:"links"`
+}
+
+func (r getMacrosResponse) ToPlatform() []*platform.Macro {
+	macros := make([]*platform.Macro, len(r.Macros))
+	for i := range r.Macros {
+		macros[i] = r.Macros[i].Macro
+	}
+	return macros
 }
 
 func newGetMacrosResponse(macros []*platform.Macro) getMacrosResponse {
@@ -229,18 +244,285 @@ func decodePatchMacroRequest(ctx context.Context, r *http.Request) (*patchMacroR
 	return req, nil
 }
 
+func (h *MacroHandler) handlePutMacro(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodePutMacroRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	err = h.MacroService.ReplaceMacro(ctx, req.macro)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	err = encodeResponse(ctx, w, http.StatusOK, newMacroResponse(req.macro))
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type putMacroRequest struct {
+	macro *platform.Macro
+}
+
+func (r *putMacroRequest) Valid() error {
+	return r.macro.Valid()
+}
+
+func decodePutMacroRequest(ctx context.Context, r *http.Request) (*putMacroRequest, error) {
+	m := &platform.Macro{}
+
+	err := json.NewDecoder(r.Body).Decode(m)
+	if err != nil {
+		return nil, kerrors.MalformedDataf(err.Error())
+	}
+
+	req := &putMacroRequest{
+		macro: m,
+	}
+
+	if err := req.Valid(); err != nil {
+		return nil, kerrors.InvalidDataf(err.Error())
+	}
+
+	return req, nil
+}
+
 func (h *MacroHandler) handleDeleteMacro(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	id, err := requestMacroID(ctx)
 	if err != nil {
 		EncodeError(ctx, err, w)
+		return
 	}
 
 	err = h.MacroService.DeleteMacro(ctx, id)
 	if err != nil {
 		EncodeError(ctx, err, w)
+		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// MacroService is a macro service over HTTP to the influxdb server
+type MacroService struct {
+	Addr               string
+	Token              string
+	InsecureSkipVerify bool
+}
+
+// FindMacroByID finds a single macro from the store by its ID
+func (s *MacroService) FindMacroByID(ctx context.Context, id platform.ID) (*platform.Macro, error) {
+	path := macroIDPath(id)
+	url, err := newURL(s.Addr, path)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	SetToken(s.Token, req)
+	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return nil, err
+	}
+
+	var mr macroResponse
+	if err := json.NewDecoder(resp.Body).Decode(&mr); err != nil {
+		return nil, err
+	}
+
+	macro := mr.Macro
+	return macro, nil
+}
+
+// FindMacros returns all macros in the store
+func (s *MacroService) FindMacros(ctx context.Context) ([]*platform.Macro, error) {
+	url, err := newURL(s.Addr, macroPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	SetToken(s.Token, req)
+	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return nil, err
+	}
+
+	var ms getMacrosResponse
+	if err := json.NewDecoder(resp.Body).Decode(&ms); err != nil {
+		return nil, err
+	}
+
+	macros := ms.ToPlatform()
+	return macros, nil
+}
+
+// CreateMacro creates a new macro and assigns it an platform.ID
+func (s *MacroService) CreateMacro(ctx context.Context, m *platform.Macro) error {
+	if err := m.Valid(); err != nil {
+		return kerrors.InvalidDataf(err.Error())
+	}
+
+	url, err := newURL(s.Addr, macroPath)
+	if err != nil {
+		return err
+	}
+
+	octets, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", url.String(), bytes.NewReader(octets))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(s.Token, req)
+
+	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return err
+	}
+
+	return json.NewDecoder(resp.Body).Decode(m)
+}
+
+// UpdateMacro updates a single macro with a changeset
+func (s *MacroService) UpdateMacro(ctx context.Context, id platform.ID, update *platform.MacroUpdate) (*platform.Macro, error) {
+	u, err := newURL(s.Addr, macroIDPath(id))
+	if err != nil {
+		return nil, err
+	}
+
+	octets, err := json.Marshal(update)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(octets))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(s.Token, req)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return nil, err
+	}
+
+	var m platform.Macro
+	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return &m, nil
+}
+
+// ReplaceMacro replaces a single macro
+func (s *MacroService) ReplaceMacro(ctx context.Context, macro *platform.Macro) error {
+	u, err := newURL(s.Addr, macroIDPath(macro.ID))
+	if err != nil {
+		return err
+	}
+
+	octets, err := json.Marshal(macro)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PUT", u.String(), bytes.NewReader(octets))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(s.Token, req)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return err
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&macro); err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return nil
+}
+
+// DeleteMacro removes a macro from the store
+func (s *MacroService) DeleteMacro(ctx context.Context, id platform.ID) error {
+	u, err := newURL(s.Addr, macroIDPath(id))
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	SetToken(s.Token, req)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	return CheckError(resp)
+}
+
+func macroIDPath(id platform.ID) string {
+	return path.Join(macroPath, id.String())
 }
