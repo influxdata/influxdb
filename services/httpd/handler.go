@@ -24,6 +24,8 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/control"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -37,6 +39,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
+	pquery "github.com/influxdata/platform/query"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
@@ -112,6 +115,10 @@ type Handler struct {
 
 	Store Store
 
+	// Flux services
+	Controller       *control.Controller
+	CompilerMappings flux.CompilerMappings
+
 	Config    *Config
 	Logger    *zap.Logger
 	CLFLogger *log.Logger
@@ -171,6 +178,10 @@ func NewHandler(c Config) *Handler {
 		Route{
 			"prometheus-read", // Prometheus remote read
 			"POST", "/api/v1/prom/read", true, true, h.servePromRead,
+		},
+		Route{
+			"flux-read", // Prometheus remote read
+			"POST", "/v2/query", true, true, h.serveFluxQuery,
 		},
 		Route{ // Ping
 			"ping",
@@ -1090,6 +1101,74 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	}
 
 	atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(len(compressed)))
+}
+
+func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeQueryRequest(r)
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	pr := req.ProxyRequest()
+	ctx = pquery.ContextWithRequest(ctx, &pr.Request)
+	q, err := h.Controller.Query(ctx, pr.Request.Compiler)
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer func() {
+		q.Cancel()
+		q.Done()
+	}()
+
+	// Setup headers
+	//stats, hasStats := results.(flux.Statisticser)
+	//if hasStats {
+	//	w.Header().Set("Trailer", statsTrailer)
+	//}
+
+	// NOTE: We do not write out the headers here.
+	// It is possible that if the encoding step fails
+	// that we can write an error header so long as
+	// the encoder did not write anything.
+	// As such we rely on the http.ResponseWriter behavior
+	// to write an StatusOK header with the first write.
+
+	switch r.Header.Get("Accept") {
+	case "text/csv":
+		fallthrough
+	default:
+
+		if hd, ok := pr.Dialect.(httpDialect); !ok {
+			h.httpError(w, fmt.Sprintf("unsupported dialect over HTTP %T", req.Dialect), http.StatusBadRequest)
+			return
+		} else {
+			hd.SetHeaders(w)
+		}
+		encoder := pr.Dialect.Encoder()
+		results := flux.NewResultIteratorFromQuery(q)
+		n, err := encoder.Encode(w, results)
+		if err != nil {
+			results.Cancel()
+			if n == 0 {
+				// If the encoder did not write anything, we can write an error header.
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+			}
+		}
+	}
+
+	//if hasStats {
+	//	data, err := json.Marshal(stats.Statistics())
+	//	if err != nil {
+	//		h.Logger.Info("Failed to encode statistics", zap.Error(err))
+	//		return
+	//	}
+	//	// Write statisitcs trailer
+	//	w.Header().Set(statsTrailer, string(data))
+	//}
 }
 
 // serveExpvar serves internal metrics in /debug/vars format over HTTP.

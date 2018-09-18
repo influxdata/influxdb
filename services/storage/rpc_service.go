@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"math"
 	"strings"
 
 	"github.com/gogo/protobuf/types"
@@ -91,14 +90,6 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 			zap.String("group_keys", groupKeys),
 			zap.String("aggregate", agg.String()),
 		)
-	}
-
-	if req.Hints.NoPoints() {
-		req.PointsLimit = -1
-	}
-
-	if req.PointsLimit == 0 {
-		req.PointsLimit = math.MaxInt64
 	}
 
 	w := NewResponseWriter(stream, req.Hints)

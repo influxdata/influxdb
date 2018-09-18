@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"math"
 	"sort"
 	"time"
 
@@ -125,6 +126,14 @@ func (s *localStore) Read(ctx context.Context, req *ReadRequest) (ResultSet, err
 		panic("Read: len(Grouping) > 0")
 	}
 
+	if req.Hints.NoPoints() {
+		req.PointsLimit = -1
+	}
+
+	if req.PointsLimit == 0 {
+		req.PointsLimit = math.MaxInt64
+	}
+
 	source, err := getReadSource(req)
 	if err != nil {
 		return nil, err
@@ -165,6 +174,14 @@ func (s *localStore) Read(ctx context.Context, req *ReadRequest) (ResultSet, err
 func (s *localStore) GroupRead(ctx context.Context, req *ReadRequest) (GroupResultSet, error) {
 	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
 		return nil, errors.New("GroupRead: SeriesLimit and SeriesOffset not supported when Grouping")
+	}
+
+	if req.Hints.NoPoints() {
+		req.PointsLimit = -1
+	}
+
+	if req.PointsLimit == 0 {
+		req.PointsLimit = math.MaxInt64
 	}
 
 	source, err := getReadSource(req)
