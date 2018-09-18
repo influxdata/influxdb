@@ -327,7 +327,8 @@
   revision = "53e6ce116135b80d037921a7fdd5138cf32d7a8a"
 
 [[projects]]
-  digest = "1:6f95db9a2709519edc486a797638bcc34b58641fa57337d4e7ab26b0ea22cf9c"
+  branch = "nc-publish-snapshots"
+  digest = "1:3d05afb045e8b61928914bab0b543234270d0d2e72994f61830cdff5fedd0c12"
   name = "github.com/goreleaser/goreleaser"
   packages = [
     ".",
@@ -337,29 +338,30 @@
     "internal/git",
     "internal/http",
     "internal/linux",
+    "internal/pipe",
+    "internal/pipe/archive",
+    "internal/pipe/artifactory",
+    "internal/pipe/before",
+    "internal/pipe/brew",
+    "internal/pipe/build",
+    "internal/pipe/changelog",
+    "internal/pipe/checksums",
+    "internal/pipe/defaults",
+    "internal/pipe/dist",
+    "internal/pipe/docker",
+    "internal/pipe/effectiveconfig",
+    "internal/pipe/env",
+    "internal/pipe/git",
+    "internal/pipe/nfpm",
+    "internal/pipe/project",
+    "internal/pipe/put",
+    "internal/pipe/release",
+    "internal/pipe/s3",
+    "internal/pipe/scoop",
+    "internal/pipe/sign",
+    "internal/pipe/snapcraft",
+    "internal/pipe/snapshot",
     "internal/pipeline",
-    "internal/pipeline/archive",
-    "internal/pipeline/artifactory",
-    "internal/pipeline/before",
-    "internal/pipeline/brew",
-    "internal/pipeline/build",
-    "internal/pipeline/changelog",
-    "internal/pipeline/checksums",
-    "internal/pipeline/defaults",
-    "internal/pipeline/dist",
-    "internal/pipeline/docker",
-    "internal/pipeline/effectiveconfig",
-    "internal/pipeline/env",
-    "internal/pipeline/git",
-    "internal/pipeline/nfpm",
-    "internal/pipeline/project",
-    "internal/pipeline/put",
-    "internal/pipeline/release",
-    "internal/pipeline/s3",
-    "internal/pipeline/scoop",
-    "internal/pipeline/sign",
-    "internal/pipeline/snapcraft",
-    "internal/pipeline/snapshot",
     "internal/semerrgroup",
     "internal/tmpl",
     "pkg/archive",
@@ -370,8 +372,8 @@
     "pkg/context",
   ]
   pruneopts = "UT"
-  revision = "93a0055d036200749a25b5a3454737b0de6af2d3"
-  version = "v0.84.0"
+  revision = "c23174192b3ae0b3eeff952c1c8108882824660e"
+  source = "https://github.com/influxdata/goreleaser.git"
 
 [[projects]]
   digest = "1:555e46bfe479a0c08e69f57cbce309be0c5fb2f8bc203dc0be6132758a8dd158"
