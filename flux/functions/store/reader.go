@@ -121,7 +121,6 @@ func (bi *tableIterator) Do(f func(flux.Table) error) error {
 func (bi *tableIterator) handleRead(f func(flux.Table) error, rs ostorage.ResultSet) error {
 	defer func() {
 		rs.Close()
-		fmt.Println("handleRead: DONE")
 	}()
 
 READ:
@@ -167,7 +166,6 @@ READ:
 		select {
 		case <-table.Done():
 		case <-bi.ctx.Done():
-			fmt.Println("CANCELED")
 			break READ
 		}
 	}
@@ -177,7 +175,6 @@ READ:
 func (bi *tableIterator) handleReadNoPoints(f func(flux.Table) error, rs ostorage.ResultSet) error {
 	defer func() {
 		rs.Close()
-		fmt.Println("handleReadNoPoints: DONE")
 	}()
 
 READ:
@@ -199,7 +196,6 @@ READ:
 		select {
 		case <-table.Done():
 		case <-bi.ctx.Done():
-			fmt.Println("CANCELED")
 			break READ
 		}
 	}
@@ -209,7 +205,6 @@ READ:
 func (bi *tableIterator) handleGroupRead(f func(flux.Table) error, rs ostorage.GroupResultSet) error {
 	defer func() {
 		rs.Close()
-		fmt.Println("handleGroupRead: DONE")
 	}()
 	gc := rs.Next()
 READ:
@@ -258,7 +253,6 @@ READ:
 		select {
 		case <-table.Done():
 		case <-bi.ctx.Done():
-			fmt.Println("CANCELED")
 			break READ
 		}
 
@@ -270,7 +264,6 @@ READ:
 func (bi *tableIterator) handleGroupReadNoPoints(f func(flux.Table) error, rs ostorage.GroupResultSet) error {
 	defer func() {
 		rs.Close()
-		fmt.Println("handleGroupReadNoPoints: DONE")
 	}()
 	gc := rs.Next()
 READ:
@@ -287,7 +280,6 @@ READ:
 		select {
 		case <-table.Done():
 		case <-bi.ctx.Done():
-			fmt.Println("CANCELED")
 			break READ
 		}
 
