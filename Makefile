@@ -136,9 +136,7 @@ bench: vendor
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
 nightly: bin/$(GOOS)/goreleaser all
-	PATH=./bin/$(GOOS):${PATH} goreleaser --snapshot --rm-dist
-	docker push quay.io/influxdb/flux:nightly
-	docker push quay.io/influxdb/influx:nightly
+	PATH=./bin/$(GOOS):${PATH} goreleaser --snapshot --rm-dist --publish-snapshots
 
 # Recursively clean all subdirs
 clean: $(SUBDIRS)

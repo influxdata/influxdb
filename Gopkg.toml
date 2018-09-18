@@ -37,7 +37,8 @@ required = [
 
 [[constraint]]
   name = "github.com/goreleaser/goreleaser"
-  version = "0.84.0"
+  branch = "nc-publish-snapshots"
+  source = "https://github.com/influxdata/goreleaser.git"
 
 [[constraint]]
   name = "github.com/kevinburke/go-bindata"
