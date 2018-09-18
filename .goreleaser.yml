@@ -98,4 +98,4 @@ dockers:
 
 # Do not make github release
 release:
-  disabled: true
+  disable: true
