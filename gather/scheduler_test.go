@@ -18,6 +18,7 @@ import (
 )
 
 func TestScheduler(t *testing.T) {
+	t.Skip("https://github.com/influxdata/platform/issues/851")
 	_, publisher, subscriber := newTestingNats(t)
 
 	// Create top level logger
