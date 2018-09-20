@@ -46,7 +46,7 @@ require (
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.5 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/influxdata/flux v0.0.0-20180914200022-922ba932b106
+	github.com/influxdata/flux v0.0.0-20180919192308-1335e4da35f6
 	github.com/influxdata/influxdb v0.0.0-20180904211643-ab81104697f6
 	github.com/influxdata/influxql v0.0.0-20180823200743-a7267bff5327
 	github.com/influxdata/line-protocol v0.0.0-20180522152040-32c6aa80de5e
@@ -60,6 +60,7 @@ require (
 	github.com/lib/pq v1.0.0 // indirect
 	github.com/magiconair/properties v1.7.6 // indirect
 	github.com/masterminds/semver v1.4.2 // indirect
+	github.com/mattn/go-tty v0.0.0-20180907095812-13ff1204f104 // indirect
 	github.com/mattn/go-zglob v0.0.0-20180424081617-9960a2570590 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/mitchellh/go-homedir v0.0.0-20180523094522-3864e76763d9 // indirect
@@ -80,6 +81,7 @@ require (
 	github.com/prometheus/client_golang v0.0.0-20171201122222-661e31bf844d
 	github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910
 	github.com/prometheus/common v0.0.0-20180801064454-c7de2306084e
+	github.com/prometheus/procfs v0.0.0-20180920065004-418d78d0b9a7 // indirect
 	github.com/satori/go.uuid v1.2.0
 	github.com/segmentio/kafka-go v0.1.0
 	github.com/sirupsen/logrus v1.0.6
@@ -97,10 +99,12 @@ require (
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6 // indirect
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20180723164146-c126467f60eb // indirect
-	golang.org/x/net v0.0.0-20180906233101-161cd47e91fd
+	golang.org/x/net v0.0.0-20180911220305-26e67e76b6c3
 	golang.org/x/oauth2 v0.0.0-20180521191639-dd5f5d8e78ce
+	golang.org/x/sys v0.0.0-20180920110915-d641721ec2de // indirect
 	golang.org/x/text v0.3.0
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2 // indirect
+	golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e // indirect
 	google.golang.org/api v0.0.0-20180723152133-cd7aead8ef37
 	google.golang.org/appengine v1.0.0 // indirect
 	google.golang.org/genproto v0.0.0-20180831171423-11092d34479b // indirect
