@@ -41,7 +41,7 @@ func NewFluxHandler() *FluxHandler {
 		Logger: zap.NewNop(),
 	}
 
-	h.HandlerFunc("POST", "/v2/query", h.handlePostQuery)
+	h.HandlerFunc("POST", fluxPath, h.handlePostQuery)
 	return h
 }
 

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	queryPath = "/v1/query"
+	queryPath = "/v2/querysvc"
 
 	statsTrailer = "Influx-Query-Statistics"
 )
