@@ -3,18 +3,17 @@
     ----------------------------------------------
 */
 
-$sidebar--width: 54px;
-$sidebar-menu--gutter: 16px;
+$nav--gutter: 16px;
 
-$sidebar-menu--bg: $c-pool;
-$sidebar-menu--bg-accent: $c-comet;
+$nav--bg: $c-pool;
+$nav--bg-accent: $c-comet;
 
 .nav {
   display: flex;
   flex-direction: column;
   background-color: $g3-castle;
   border-radius: 0 $radius $radius 0;
-  width: $sidebar--width;
+  width: $nav-size;
 
   a:link,
   a:active,
@@ -25,8 +24,8 @@ $sidebar-menu--bg-accent: $c-comet;
 }
 
 .nav--item {
-  width: $sidebar--width;
-  height: $sidebar--width;
+  width: $nav-size;
+  height: $nav-size;
   position: relative;
 }
 
@@ -44,15 +43,15 @@ $sidebar-menu--bg-accent: $c-comet;
     top: 50%;
     left: 50%;
     transform: translate(-50%,-50%);
-    font-size: $sidebar--width * 0.4222;
+    font-size: $nav-size * 0.4222;
   }
 }
 
 .nav--item-menu {
   position: absolute;
   top: 0;
-  left: $sidebar--width;
-  @include gradient-h($sidebar-menu--bg,$sidebar-menu--bg-accent);
+  left: $nav-size;
+  @include gradient-h($nav--bg,$nav--bg-accent);
   display: none;
   flex-direction: column;
   align-items: stretch;
@@ -63,11 +62,11 @@ $sidebar-menu--bg-accent: $c-comet;
 .nav--item-header {
   display: block;
   color: $g20-white;
-  height: $sidebar--width;
-  line-height: $sidebar--width;
+  height: $nav-size;
+  line-height: $nav-size;
   font-size: 19px;
   font-weight: 400;
-  padding: 0px $sidebar-menu--gutter;
+  padding: 0px $nav--gutter;
   white-space: nowrap;
 }
 
@@ -77,7 +76,7 @@ $sidebar-menu--bg-accent: $c-comet;
 
   .nav--item-icon {
     color: $g20-white;
-    background-color: $sidebar-menu--bg;
+    background-color: $nav--bg;
   }
 
   .nav--item-menu {
@@ -100,7 +99,7 @@ $sidebar-menu--bg-accent: $c-comet;
 // Active Hover State
 .nav--item.active:hover {
   .nav--item-icon {
-    background-color: $sidebar-menu--bg;
+    background-color: $nav--bg;
     text-shadow:
       0 0 9px $c-yeti,
       0 0 15px $c-hydrogen,

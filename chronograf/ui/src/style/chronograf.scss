@@ -22,9 +22,9 @@
 @import 'components/code-mirror/theme';
 
 // Layout
-@import '../page_layout/components/Nav';
+@import '../page_layout/PageLayout';
+
 @import 'layout/page';
-@import 'layout/page-header';
 @import 'layout/page-subsections';
 @import 'layout/overlay-technology';
 

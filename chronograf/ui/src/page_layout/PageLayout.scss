@@ -1,0 +1,36 @@
+/*
+   Page Layout Styles
+   -----------------------------------------------------------------------------
+*/
+
+$nav-size: 54px;
+$nav-breakpoint: 660px;
+$page-header-size: 80px;
+$page-max-width: 1300px;
+$page-gutter: 54px;
+$page-title-size: 21px;
+$page-title-weight: 400;
+
+$sidebar--width: 54px; //delete this later
+
+.chronograf-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  color: $g17-whisper;
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+}
+
+@media screen and (min-width: $nav-breakpoint) {
+  .chronograf-root {
+    flex-direction: row;
+  }
+}
+
+@import 'components/Nav';
+@import 'components/Page';

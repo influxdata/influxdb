@@ -2,12 +2,12 @@
 import React, {Component} from 'react'
 
 // Components
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import {Page, PageHeader, PageContents} from 'src/page_layout'
 
 // Types
 import {Source, Cell} from 'src/types/v2'
 
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -21,18 +21,19 @@ interface Props {
 class StatusPage extends Component<Props> {
   public render() {
     return (
-      <div className="page">
-        <PageHeader
-          titleText="Status"
-          fullWidth={true}
-          sourceIndicator={true}
-        />
-        <FancyScrollbar className="page-contents">
+      <Page>
+        <PageHeader fullWidth={true}>
+          <PageHeader.Left>
+            <h1 className="page--title">Status Page</h1>
+          </PageHeader.Left>
+          <PageHeader.Right />
+        </PageHeader>
+        <PageContents fullWidth={true} scrollable={true}>
           <div className="dashboard container-fluid full-width">
             {JSON.stringify(this.cells)}
           </div>
-        </FancyScrollbar>
-      </div>
+        </PageContents>
+      </Page>
     )
   }
 

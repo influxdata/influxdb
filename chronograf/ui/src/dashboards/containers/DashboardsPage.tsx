@@ -7,8 +7,12 @@ import _ from 'lodash'
 
 // Components
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
-import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import {Page, PageHeader, PageContents} from 'src/page_layout'
+import SearchBar from 'src/shared/components/SearchBar'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
+import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 
+// Utils
 import {getDeep} from 'src/utils/wrappers'
 
 // APIs
@@ -34,7 +38,9 @@ import {Notification} from 'src/types/notifications'
 import {DashboardFile, Cell} from 'src/types/v2/dashboards'
 import {Links, Dashboard} from 'src/types/v2'
 
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
 interface Props {
   router: InjectedRouter
   links: Links
@@ -46,8 +52,22 @@ interface Props {
   dashboards: Dashboard[]
 }
 
+interface State {
+  searchTerm: string
+  isImportingDashboard: boolean
+}
+
 @ErrorHandling
-class DashboardsPage extends PureComponent<Props> {
+class DashboardsPage extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      searchTerm: '',
+      isImportingDashboard: false,
+    }
+  }
+
   public async componentDidMount() {
     const {handleGetDashboards, dashboards, links} = this.props
     await handleGetDashboards(links.dashboards)
@@ -57,20 +77,48 @@ class DashboardsPage extends PureComponent<Props> {
 
   public render() {
     const {dashboards, notify} = this.props
+    const {searchTerm} = this.state
 
     return (
-      <div className="page">
-        <PageHeader titleText="Dashboards" sourceIndicator={false} />
-        <DashboardsContents
-          dashboards={dashboards}
-          onDeleteDashboard={this.handleDeleteDashboard}
-          onCreateDashboard={this.handleCreateDashboard}
-          onCloneDashboard={this.handleCloneDashboard}
-          onExportDashboard={this.handleExportDashboard}
-          onImportDashboard={this.handleImportDashboard}
-          notify={notify}
-        />
-      </div>
+      <>
+        <Page>
+          <PageHeader fullWidth={false}>
+            <PageHeader.Left>
+              <h1 className="page--title">Dashboards</h1>
+            </PageHeader.Left>
+            <PageHeader.Right>
+              <SearchBar
+                placeholder="Filter by Name..."
+                onSearch={this.filterDashboards}
+              />
+              <button
+                className="btn btn-sm btn-default"
+                onClick={this.handleToggleOverlay}
+              >
+                <span className="icon import" /> Import Dashboard
+              </button>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={this.handleCreateDashboard}
+              >
+                <span className="icon plus" /> Create Dashboard
+              </button>
+            </PageHeader.Right>
+          </PageHeader>
+          <PageContents fullWidth={false} scrollable={true}>
+            <DashboardsContents
+              dashboards={dashboards}
+              onDeleteDashboard={this.handleDeleteDashboard}
+              onCreateDashboard={this.handleCreateDashboard}
+              onCloneDashboard={this.handleCloneDashboard}
+              onExportDashboard={this.handleExportDashboard}
+              notify={notify}
+              searchTerm={searchTerm}
+            />
+          </PageContents>
+        </Page>
+        {this.renderImportOverlay}
+      </>
     )
   }
 
@@ -155,6 +203,29 @@ class DashboardsPage extends PureComponent<Props> {
       name,
       cells: cellsWithDefaultsApplied,
     })
+  }
+
+  private filterDashboards = (searchTerm: string): void => {
+    this.setState({searchTerm})
+  }
+
+  private handleToggleOverlay = (): void => {
+    this.setState({isImportingDashboard: !this.state.isImportingDashboard})
+  }
+
+  private get renderImportOverlay(): JSX.Element {
+    const {notify} = this.props
+    const {isImportingDashboard} = this.state
+
+    return (
+      <OverlayTechnology visible={isImportingDashboard}>
+        <ImportDashboardOverlay
+          onDismissOverlay={this.handleToggleOverlay}
+          onImportDashboard={this.handleImportDashboard}
+          notify={notify}
+        />
+      </OverlayTechnology>
+    )
   }
 }
 

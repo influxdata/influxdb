@@ -1,6 +1,8 @@
 /*
-  Setting lowermost styles here
+   Reset
+   -----------------------------------------------------------------------------
 */
+
 * {
   margin: 0;
   padding: 0;
@@ -11,12 +13,10 @@ html, body {
   background-color: $g0-obsidian;
 }
 body {
-  display: flex;
   padding: 0;
   width: 100%;
   height: 100%;
   position: absolute;
-  align-items: stretch;
   overflow: hidden;
 
   > #react-root {
@@ -25,9 +25,5 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-
-    .container {
-      margin-top: 60px;
-    }
   }
 }
