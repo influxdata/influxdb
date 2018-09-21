@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {NavMenuItem} from 'src/side_nav/components/NavMenuItem'
+import NavMenuItem from 'src/side_nav/components/NavMenuItem'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -30,13 +30,14 @@ class NavMenu extends PureComponent<Props> {
 
     return (
       <nav className="nav">
-        {navItems.map(({highlightWhen, icon, link, location}) => (
+        {navItems.map(({title, highlightWhen, icon, link, location}) => (
           <NavMenuItem
+            title={title}
             highlightWhen={highlightWhen}
             link={link}
             location={location}
           >
-            <span className={`icon ${icon}`} />
+            <span className={`icon sidebar--icon ${icon}`} />
           </NavMenuItem>
         ))}
       </nav>

@@ -6,17 +6,12 @@ $page-header-size: 19px;
 $page-header-weight: 400 !important;
 
 .page-header {
-  height: $chronograf-page-header-height;
+  height: 80px;
   width: 100%;
   padding: 0 $page-wrapper-padding;
   display: flex;
   justify-content: center;
   align-items: center;
-  position: absolute;
-  top: 0;
-  left: 0;
-  border: none;
-  margin: 0;
 }
 
 .page-header--container {

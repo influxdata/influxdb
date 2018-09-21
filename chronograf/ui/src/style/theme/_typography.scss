@@ -12,42 +12,44 @@ body {
 
 // Base Link Styles
 // -----------------------------------------------------------------------------
-a:link,
-a:visited {
-  color: $ix-link-default;
-  transition: color 0.2s ease;
-  text-decoration: none;
-  font-weight: 700;
+.page {
+  a:link,
+  a:visited {
+    color: $ix-link-default;
+    transition: color 0.2s ease;
+    text-decoration: none;
+    font-weight: 700;
 
-  &.link-danger {
-    color: $ix-link-danger;
+    &.link-danger {
+      color: $ix-link-danger;
+    }
+    &.link-success {
+      color: $ix-link-success;
+    }
+    &.link-warning {
+      color: $ix-link-warning;
+    }
+    &.link-info {
+      color: $ix-link-info;
+    }
   }
-  &.link-success {
-    color: $ix-link-success;
-  }
-  &.link-warning {
-    color: $ix-link-warning;
-  }
-  &.link-info {
-    color: $ix-link-info;
-  }
-}
-a:hover,
-a:active {
-  color: $ix-link-default-hover;
-  text-decoration: none;
+  a:hover,
+  a:active {
+    color: $ix-link-default-hover;
+    text-decoration: none;
 
-  &.link-danger {
-    color: $ix-link-danger-hover;
-  }
-  &.link-success {
-    color: $ix-link-success-hover;
-  }
-  &.link-warning {
-    color: $ix-link-warning-hover;
-  }
-  &.link-info {
-    color: $ix-link-info-hover;
+    &.link-danger {
+      color: $ix-link-danger-hover;
+    }
+    &.link-success {
+      color: $ix-link-success-hover;
+    }
+    &.link-warning {
+      color: $ix-link-warning-hover;
+    }
+    &.link-info {
+      color: $ix-link-info-hover;
+    }
   }
 }
 

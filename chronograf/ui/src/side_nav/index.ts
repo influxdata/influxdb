@@ -1,2 +1,2 @@
-import SideNav from 'src/side_nav/containers/SideNav'
-export default SideNav
+import Nav from 'src/side_nav/containers/Nav'
+export default Nav

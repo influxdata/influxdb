@@ -20,26 +20,21 @@ $dash-ceo-z: $dygraph-legend-z + 10;
 
 .page {
   height: 100%;
-  flex-grow: 1;
+  flex: 1 0 calc(100% - 50px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
-.page-contents,
-.page-contents--split {
-  position: absolute !important;
-  top: $chronograf-page-header-height;
-  left: 0;
-  width: 100%;
-  height: calc(100% - #{$chronograf-page-header-height}) !important;
+.page-contents {
+  height: calc(100% - 80px) !important;
 
   &:only-child {
     top: 0;
     height: 100% !important;
   }
 }
-.page-contents--split {
-  display: flex;
-  align-items: stretch;
-}
+
 .template-control-bar.show + .page-contents {
   top: $chronograf-page-header-height * 2;
   height: calc(100% - #{$chronograf-page-header-height * 2}) !important;

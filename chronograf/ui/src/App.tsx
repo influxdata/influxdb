@@ -1,6 +1,6 @@
 import React, {SFC, ReactChildren} from 'react'
 
-import SideNav from 'src/side_nav'
+import Nav from 'src/side_nav'
 import Notifications from 'src/shared/components/Notifications'
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
 const App: SFC<Props> = ({children}) => (
   <div className="chronograf-root">
     <Notifications />
-    <SideNav />
+    <Nav />
     {children}
   </div>
 )
