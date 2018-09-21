@@ -2,14 +2,12 @@ import React, {Component, ReactElement} from 'react'
 import classnames from 'classnames'
 
 import Title from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
 
 interface Props {
   titleText?: string
   titleComponents?: ReactElement<any>
   optionsComponents?: ReactElement<any>
   fullWidth?: boolean
-  sourceIndicator?: boolean
   inPresentationMode?: boolean
 }
 
@@ -25,23 +23,10 @@ class PageHeader extends Component<Props> {
       <div className={this.className}>
         <div className="page-header--container">
           <div className="page-header--left">{this.renderLeft}</div>
-          <div className="page-header--right">
-            {this.sourceIndicator}
-            {this.renderRight}
-          </div>
+          <div className="page-header--right">{this.renderRight}</div>
         </div>
       </div>
     )
-  }
-
-  private get sourceIndicator(): JSX.Element {
-    const {sourceIndicator} = this.props
-
-    if (!sourceIndicator) {
-      return
-    }
-
-    return <SourceIndicator />
   }
 
   private get renderLeft(): JSX.Element {
