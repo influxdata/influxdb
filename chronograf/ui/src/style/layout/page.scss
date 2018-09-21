@@ -8,17 +8,21 @@ $dash-ceo-z: $dygraph-legend-z + 10;
 
 .chronograf-root {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   position: absolute;
   width: 100%;
   height: 100%;
   top: 0;
   left: 0;
   color: $g17-whisper;
+  @include gradient-v($g2-kevlar,$g0-obsidian);
 }
+
 .page {
+  height: 100%;
   flex-grow: 1;
 }
+
 .page-contents,
 .page-contents--split {
   position: absolute !important;
@@ -26,7 +30,6 @@ $dash-ceo-z: $dygraph-legend-z + 10;
   left: 0;
   width: 100%;
   height: calc(100% - #{$chronograf-page-header-height}) !important;
-  @include gradient-v($g2-kevlar,$g0-obsidian);
 
   &:only-child {
     top: 0;

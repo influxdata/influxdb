@@ -35,8 +35,10 @@ $sidebar-menu--gutter: 18px;
   display: flex;
   flex-direction: column;
   width: $sidebar--width;
-  @include gradient-v($sidebar--gradient-start,$sidebar--gradient-end);
+  background-color: $g3-castle;
+  border-radius: 0 $radius $radius 0;
 }
+
 .sidebar--bottom {
   position: absolute;
   bottom: 0;
