@@ -15,6 +15,13 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
+var fullBlockFloat64Ones []float64
+
+func init() {
+	for i := 0; i < 1000; i++ {
+		fullBlockFloat64Ones = append(fullBlockFloat64Ones, 1.0)
+	}
+}
 func TestFloatArrayEncodeAll(t *testing.T) {
 	examples := [][]float64{
 		{12, 12, 24, 13, 24, 24, 24, 24}, // From example paper.
@@ -28,6 +35,7 @@ func TestFloatArrayEncodeAll(t *testing.T) {
 			3.5635180996210295e+307}, // Failed during early development
 		{6.00065e+06, 6.000656e+06, 6.000657e+06, 6.000659e+06, 6.000661e+06}, // Similar values.
 		twoHoursData,
+		fullBlockFloat64Ones,
 		{},
 	}
 
