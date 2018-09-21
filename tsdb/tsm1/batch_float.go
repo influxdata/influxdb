@@ -68,7 +68,7 @@ func FloatArrayEncodeAll(src []float64, b []byte) ([]byte, error) {
 
 			// First the current bit of the current byte is set to indicate we're
 			// writing a delta value to the stream.
-			if n>>3 >= uint64(len(b)) { // Grow b — no room in current byte.
+			for n>>3 >= uint64(len(b)) { // Keep growing b until we can fit all bits in.
 				b = append(b, byte(0))
 			}
 
