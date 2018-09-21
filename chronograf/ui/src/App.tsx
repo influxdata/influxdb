@@ -1,6 +1,6 @@
 import React, {SFC, ReactChildren} from 'react'
 
-import Nav from 'src/side_nav'
+import Nav from 'src/page_layout'
 import Notifications from 'src/shared/components/Notifications'
 
 interface Props {

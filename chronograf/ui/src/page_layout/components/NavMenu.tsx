@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import NavMenuItem from 'src/side_nav/components/NavMenuItem'
+import NavMenuItem from 'src/page_layout/components/NavMenuItem'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
