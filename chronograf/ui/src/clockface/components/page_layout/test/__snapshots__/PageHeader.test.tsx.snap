@@ -28,7 +28,6 @@ exports[`PageHeader matches snapshot with minimal props 1`] = `
     <PageHeaderRight
       key=".2"
       offsetPixels={100}
-      showSourceIndicator={false}
     />
   </div>
 </div>

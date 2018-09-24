@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import {Page} from 'src/reusable_ui'
+import {Page} from 'src/clockface'
 
 describe('PageHeader', () => {
   let wrapper

@@ -3,7 +3,7 @@ import {shallow} from 'enzyme'
 
 import WizardFullScreen from 'src/clockface/components/wizard/WizardFullScreen'
 import WizardController from 'src/clockface/components/wizard/WizardController'
-import SplashPage from 'src/shared/components/SplashPage'
+import SplashPage from 'src/shared/components/splash_page/SplashPage'
 
 describe('WizardFullScreen', () => {
   let wrapper
