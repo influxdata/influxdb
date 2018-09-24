@@ -1,6 +1,6 @@
 import * as React from 'react'
 import CellMeasurerCacheDecorator from './CellMeasurerCacheDecorator'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import {Grid} from 'react-virtualized'
 
 const SCROLLBAR_SIZE_BUFFER = 20

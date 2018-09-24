@@ -2,7 +2,7 @@
 import React, {Component} from 'react'
 
 // Components
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

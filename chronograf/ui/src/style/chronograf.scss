@@ -8,6 +8,9 @@
 @import 'modules/variables';
 @import 'modules/mixins';
 @import 'modules/helpers';
+@import 'modules/reset';
+@import 'modules/grid';
+@import 'modules/typography';
 
 // Fonts
 @import 'fonts/fonts';
@@ -15,9 +18,6 @@
 
 // Clockface UI Kit
 @import '../clockface/styles';
-
-// Theme
-@import 'theme/chronograf-theme';
 
 // Vendor
 @import 'external/codemirror';
@@ -27,14 +27,16 @@
 // Layout
 @import '../page_layout/PageLayout';
 
-@import 'layout/page';
-@import 'layout/page-subsections';
-@import 'layout/overlay-technology';
-
 // Components
-@import 'components/fancy-scrollbars';
+// TODO: Import these styles into their respective components instead of this stylesheet
+@import '../shared/components/fancy_scrollbar/FancyScrollbar';
+@import '../shared/components/notifications/Notifications.scss';
 @import '../dashboards/components/rename_dashboard/RenameDashboard.scss';
 @import 'components/crosshairs';
+@import 'components/threesizer';
+@import 'components/graph-tips';
+@import 'components/graph';
+@import 'components/page-spinner';
 
 
 @import 'components/ceo-display-options';
@@ -44,17 +46,13 @@
 @import 'components/fill-query';
 @import 'components/flip-toggle';
 @import 'components/function-selector';
-@import 'components/graph-tips';
-@import 'components/graph';
 @import 'components/input-click-to-edit';
 @import 'components/input-tag-list';
-@import 'components/page-spinner';
 @import 'components/single-stat';
 @import 'components/static-legend';
 @import 'components/query-maker';
 @import 'components/react-tooltips';
 @import 'components/table-graph';
-@import 'components/threesizer';
 @import 'components/threshold-controls';
 @import 'components/histogram-chart';
 

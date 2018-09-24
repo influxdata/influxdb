@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import ExpressionNode from 'src/flux/components/ExpressionNode'
 import VariableNode from 'src/flux/components/VariableNode'
 import FuncSelector from 'src/flux/components/FuncSelector'

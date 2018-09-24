@@ -4,7 +4,7 @@ import _ from 'lodash'
 import classnames from 'classnames'
 
 import OnClickOutside from 'src/shared/components/OnClickOutside'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

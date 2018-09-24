@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {Notification as NotificationType} from 'src/types/notifications'
-import Notification from 'src/shared/components/Notification'
+import Notification from 'src/shared/components/notifications/Notification'
 
 interface Props {
   inPresentationMode?: boolean

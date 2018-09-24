@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import DatabaseList from 'src/flux/components/DatabaseList'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'

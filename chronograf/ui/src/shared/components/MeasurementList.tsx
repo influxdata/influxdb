@@ -7,7 +7,7 @@ import showMeasurementsParser from 'src/shared/parsing/showMeasurements'
 
 import {QueryConfig, Source, Tag} from 'src/types'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import MeasurementListFilter from 'src/shared/components/MeasurementListFilter'
 import MeasurementListItem from 'src/shared/components/MeasurementListItem'
 import {ErrorHandling} from 'src/shared/decorators/errors'

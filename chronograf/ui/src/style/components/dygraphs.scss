@@ -74,7 +74,7 @@
   display: block !important;
   position: absolute;
   padding: 8px;
-  z-index: $dygraph-legend-z;
+  z-index: $z--dygraph-legend;
   border-radius: 3px;
   user-select: text;
   transform: translateX(-50%);

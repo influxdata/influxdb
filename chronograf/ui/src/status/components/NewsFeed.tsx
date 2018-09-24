@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 
 import {fetchJSONFeedAsync} from 'src/status/actions'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import JSONFeedReader from 'src/status/components/JSONFeedReader'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

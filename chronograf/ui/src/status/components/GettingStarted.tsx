@@ -1,6 +1,6 @@
 import React, {Component} from 'react'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling

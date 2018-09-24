@@ -2,7 +2,7 @@ import React, {Component} from 'react'
 
 import classnames from 'classnames'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {ColorNumber, ThresholdColor} from 'src/types/colors'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'

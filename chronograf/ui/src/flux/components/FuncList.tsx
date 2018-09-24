@@ -1,6 +1,6 @@
 import React, {SFC, ChangeEvent, KeyboardEvent} from 'react'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import FuncSelectorInput from 'src/shared/components/FuncSelectorInput'
 import FuncListItem from 'src/flux/components/FuncListItem'
 

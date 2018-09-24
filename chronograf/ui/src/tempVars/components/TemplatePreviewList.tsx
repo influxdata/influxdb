@@ -2,7 +2,7 @@ import React, {PureComponent} from 'react'
 import uuid from 'uuid'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import TemplatePreviewListItem from 'src/tempVars/components/TemplatePreviewListItem'
 import {TEMPLATE_PREVIEW_LIST_DIMENSIONS as DIMENSIONS} from 'src/tempVars/constants'
 

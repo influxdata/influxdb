@@ -7,7 +7,7 @@ import TableSidebar from 'src/flux/components/TableSidebar'
 import TimeMachineTable from 'src/flux/components/TimeMachineTable'
 import FluxGraph from 'src/flux/components/FluxGraph'
 import NoResults from 'src/flux/components/NoResults'
-import RadioButtons from 'src/clockface/components/radio_buttons/RadioButtons'
+import {Radio} from 'src/clockface'
 
 interface Props {
   data: FluxTable[]
@@ -48,11 +48,26 @@ class TimeMachineVis extends PureComponent<Props, State> {
     return (
       <>
         <div className="yield-node--controls">
-          <RadioButtons
-            buttons={[VisType.Table, VisType.Line]}
-            activeButton={visType}
-            onChange={this.selectVisType}
-          />
+          <Radio>
+            <Radio.Button
+              id="vis-type--table"
+              active={visType === VisType.Table}
+              value={VisType.Table}
+              onClick={this.selectVisType}
+              titleText="View results in a Table"
+            >
+              Table
+            </Radio.Button>
+            <Radio.Button
+              id="vis-type--line"
+              active={visType === VisType.Line}
+              value={VisType.Line}
+              onClick={this.selectVisType}
+              titleText="View results on a Line Graph"
+            >
+              Line
+            </Radio.Button>
+          </Radio>
           <div className="yield-node--name">{`"${yieldName}"`}</div>
         </div>
         <div className="yield-node--visualization">{this.vis}</div>

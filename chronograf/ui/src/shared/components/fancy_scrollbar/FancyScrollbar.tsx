@@ -1,7 +1,10 @@
-import _ from 'lodash'
+// Libraries
 import React, {Component} from 'react'
+import _ from 'lodash'
 import classnames from 'classnames'
 import {Scrollbars} from 'react-custom-scrollbars'
+
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface DefaultProps {

@@ -7,7 +7,7 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 import DropdownDivider from 'src/clockface/components/dropdowns/DropdownDivider'
 import DropdownItem from 'src/clockface/components/dropdowns/DropdownItem'
 import DropdownButton from 'src/clockface/components/dropdowns/DropdownButton'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Types
 import {
