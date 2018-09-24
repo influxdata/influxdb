@@ -2,7 +2,7 @@
 import React, {PureComponent, ReactElement} from 'react'
 
 // Components
-import SplashPage from 'src/shared/components/SplashPage'
+import SplashPage from 'src/shared/components/splash_page/SplashPage'
 import WizardController from 'src/clockface/components/wizard/WizardController'
 
 import {WizardStepProps} from 'src/clockface/components/wizard/WizardStep'

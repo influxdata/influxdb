@@ -3,7 +3,7 @@ import React, {Component} from 'react'
 import {PageHeader} from 'src/page_layout'
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
-import GraphTips from 'src/shared/components/GraphTips'
+import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenameDashboard from 'src/dashboards/components/rename_dashboard/RenameDashboard'
 import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
 

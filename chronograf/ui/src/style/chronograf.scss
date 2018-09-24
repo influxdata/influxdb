@@ -4,13 +4,13 @@
 */
 
 // Modules
-@import 'modules/influx-colors';
-@import 'modules/variables';
-@import 'modules/mixins';
-@import 'modules/helpers';
-@import 'modules/reset';
-@import 'modules/grid';
-@import 'modules/typography';
+@import 'influx-colors';
+@import 'reset';
+@import 'variables';
+@import 'mixins';
+@import 'helpers';
+@import 'grid';
+@import 'typography';
 
 // Fonts
 @import 'fonts/fonts';
@@ -19,45 +19,28 @@
 // Clockface UI Kit
 @import '../clockface/styles';
 
-// Vendor
-@import 'external/codemirror';
-@import 'external/react-grid-layout';
-@import 'components/code-mirror/theme';
-
-// Layout
-@import '../page_layout/PageLayout';
-
 // Components
 // TODO: Import these styles into their respective components instead of this stylesheet
+@import '../page_layout/PageLayout';
 @import '../shared/components/fancy_scrollbar/FancyScrollbar';
-@import '../shared/components/notifications/Notifications.scss';
-@import '../dashboards/components/rename_dashboard/RenameDashboard.scss';
-@import 'components/crosshairs';
-@import 'components/threesizer';
-@import 'components/graph-tips';
-@import 'components/graph';
-@import 'components/page-spinner';
-
-
-@import 'components/ceo-display-options';
-@import 'components/custom-time-range';
-@import 'components/dygraphs';
-@import 'components/fancy-table';
-@import 'components/fill-query';
-@import 'components/flip-toggle';
-@import 'components/function-selector';
-@import 'components/input-click-to-edit';
-@import 'components/input-tag-list';
-@import 'components/single-stat';
-@import 'components/static-legend';
-@import 'components/query-maker';
-@import 'components/react-tooltips';
-@import 'components/table-graph';
-@import 'components/threshold-controls';
-@import 'components/histogram-chart';
-
-// Pages
-@import 'pages/auth-page';
-@import 'pages/dashboards';
-@import 'pages/time-machine';
-
+@import '../shared/components/notifications/Notifications';
+@import '../shared/components/threesizer/Threesizer';
+@import '../shared/components/crosshair/Crosshair';
+@import '../shared/components/graph_tips/GraphTips';
+@import '../shared/components/page_spinner/PageSpinner';
+@import '../shared/components/cells/Cells';
+@import '../shared/components/cells/react-grid-layout';
+@import '../shared/components/cells/Dashboards';
+@import '../shared/components/dygraph/Dygraph';
+@import '../shared/components/splash_page/SplashPage';
+@import '../shared/components/code_mirror/CodeMirror';
+@import '../shared/components/code_mirror/CodeMirrorTheme';
+@import '../dashboards/components/rename_dashboard/RenameDashboard';
+@import '../dashboards/components/dashboard_empty/DashboardEmpty';
+@import '../flux/components/time_machine/TimeMachine';
+@import '../flux/components/time_machine/flux-overlay';
+@import '../flux/components/time_machine/flux-editor';
+@import '../flux/components/time_machine/flux-builder';
+@import '../flux/components/time_machine/flux-explorer';
+@import '../flux/components/time_machine/visualization';
+@import '../flux/components/time_machine/add-func-button';

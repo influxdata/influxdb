@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import Dygraph from 'src/shared/components/Dygraph'
+import Dygraph from 'src/shared/components/dygraph/Dygraph'
 
 // Utils
 import {fluxTablesToDygraph} from 'src/shared/parsing/flux/dygraph'

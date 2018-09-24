@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, CSSProperties} from 'react'
-import Dygraph from 'src/shared/components/Dygraph'
+import Dygraph from 'src/shared/components/dygraph/Dygraph'
 
 // Components
 import {ErrorHandlingWith} from 'src/shared/decorators/errors'

@@ -8,7 +8,7 @@ import ReactResizeDetector from 'react-resize-detector'
 import D from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import StaticLegend from 'src/shared/components/StaticLegend'
-import Crosshair from 'src/shared/components/Crosshair'
+import Crosshair from 'src/shared/components/crosshair/Crosshair'
 
 // Utils
 import getRange, {getStackedRange} from 'src/shared/parsing/getRangeForDygraph'
