@@ -33,9 +33,10 @@
 
 // Components
 @import 'components/fancy-scrollbars';
-
-
+@import '../dashboards/components/rename_dashboard/RenameDashboard.scss';
 @import 'components/crosshairs';
+
+
 @import 'components/ceo-display-options';
 @import 'components/custom-time-range';
 @import 'components/dygraphs';

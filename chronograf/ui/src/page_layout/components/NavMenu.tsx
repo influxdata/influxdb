@@ -32,6 +32,7 @@ class NavMenu extends PureComponent<Props> {
       <nav className="nav">
         {navItems.map(({title, highlightWhen, icon, link, location}) => (
           <NavMenuItem
+            key={`navigation--${title}`}
             title={title}
             highlightWhen={highlightWhen}
             link={link}

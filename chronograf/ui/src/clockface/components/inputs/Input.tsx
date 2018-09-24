@@ -21,7 +21,7 @@ interface Props {
   value?: string
   placeholder?: string
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void
-  onBlur?: () => void
+  onBlur?: (e?: ChangeEvent<HTMLInputElement>) => void
   onFocus?: () => void
   onKeyPress?: (e: KeyboardEvent<HTMLInputElement>) => void
   onKeyUp?: (e: KeyboardEvent<HTMLInputElement>) => void

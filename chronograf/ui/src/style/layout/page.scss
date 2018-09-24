@@ -6,17 +6,6 @@
 $dygraph-legend-z: 500;
 $dash-ceo-z: $dygraph-legend-z + 10;
 
-
-.container-fluid {
-  margin: 0 auto;
-  padding: ($chronograf-page-header-height / 2) $page-wrapper-padding;
-  max-width: $page-wrapper-max-width;
-
-  &.full-width {
-    max-width: 100%;
-  }
-}
-
 /* Presentation Mode */
 .page-contents.presentation-mode {
   top: 0;

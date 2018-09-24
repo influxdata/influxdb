@@ -78,3 +78,13 @@
 .page-contents {
   height: calc(100% - #{$page-header-size}) !important;
 }
+
+.container-fluid {
+  margin: 0 auto;
+  padding: 0 $page-gutter;
+  max-width: $page-max-width;
+
+  &.full-width {
+    max-width: 100%;
+  }
+}

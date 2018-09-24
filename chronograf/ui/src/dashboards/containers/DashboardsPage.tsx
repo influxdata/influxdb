@@ -8,8 +8,13 @@ import _ from 'lodash'
 // Components
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
 import {Page, PageHeader, PageContents} from 'src/page_layout'
-import SearchBar from 'src/shared/components/SearchBar'
-import {OverlayTechnology} from 'src/clockface'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
+import {
+  OverlayTechnology,
+  Button,
+  ComponentColor,
+  IconFont,
+} from 'src/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 
 // Utils
@@ -87,22 +92,23 @@ class DashboardsPage extends PureComponent<Props, State> {
               <h1 className="page--title">Dashboards</h1>
             </PageHeader.Left>
             <PageHeader.Right>
-              <SearchBar
-                placeholder="Filter by Name..."
+              <SearchWidget
+                placeholderText="Filter dashboards by name..."
                 onSearch={this.filterDashboards}
               />
-              <button
-                className="btn btn-sm btn-default"
+              <Button
                 onClick={this.handleToggleOverlay}
-              >
-                <span className="icon import" /> Import Dashboard
-              </button>
-              <button
-                className="btn btn-sm btn-primary"
+                icon={IconFont.Import}
+                text="Import Dashboard"
+                titleText="Import a dashboard from a file"
+              />
+              <Button
+                color={ComponentColor.Primary}
                 onClick={this.handleCreateDashboard}
-              >
-                <span className="icon plus" /> Create Dashboard
-              </button>
+                icon={IconFont.Plus}
+                text="Create Dashboard"
+                titleText="Create a new dashboard"
+              />
             </PageHeader.Right>
           </PageHeader>
           <PageContents fullWidth={false} scrollable={true}>

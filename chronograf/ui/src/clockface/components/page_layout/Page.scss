@@ -28,15 +28,6 @@
   align-items: stretch;
 }
 
-.container-fluid {
-  margin: 0 auto;
-  padding: ($chronograf-page-header-height / 2) $page-wrapper-padding;
-  max-width: $page-wrapper-max-width;
-
-  &.full-width {
-    max-width: 100%;
-  }
-}
 
 .template-control-bar + .page-contents,
 .annotation-control-bar + .page-contents {

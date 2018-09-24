@@ -1,7 +1,6 @@
 import React, {Component} from 'react'
 
-import PageHeader from 'src/clockface/components/page_layout/PageHeader'
-import PageHeaderTitle from 'src/clockface/components/page_layout/PageHeaderTitle'
+import {PageHeader} from 'src/page_layout'
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/GraphTips'
@@ -38,16 +37,11 @@ class DashboardHeader extends Component<Props> {
   }
 
   public render() {
-    const {isHidden} = this.props
-
     return (
-      <PageHeader
-        fullWidth={true}
-        sourceIndicator={true}
-        titleComponents={this.renderPageTitle}
-        optionsComponents={this.optionsComponents}
-        inPresentationMode={isHidden}
-      />
+      <PageHeader fullWidth={true}>
+        <PageHeader.Left>{this.renderPageTitle}</PageHeader.Left>
+        <PageHeader.Right>{this.optionsComponents}</PageHeader.Right>
+      </PageHeader>
     )
   }
 
@@ -131,7 +125,7 @@ class DashboardHeader extends Component<Props> {
       )
     }
 
-    return <PageHeaderTitle title={activeDashboard} />
+    return <h1 className="page--title">{activeDashboard}</h1>
   }
 }
 

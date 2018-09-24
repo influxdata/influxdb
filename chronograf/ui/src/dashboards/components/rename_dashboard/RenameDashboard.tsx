@@ -1,6 +1,5 @@
 import React, {Component, KeyboardEvent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import './RenameDashboard.scss'
 import {
   DASHBOARD_NAME_MAX_LENGTH,
   DEFAULT_DASHBOARD_NAME,

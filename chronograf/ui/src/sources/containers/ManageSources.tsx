@@ -5,8 +5,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import * as sourcesActions from 'src/shared/actions/sources'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import PageHeader from 'src/clockface/components/page_layout/PageHeader'
+import {Page, PageHeader, PageContents} from 'src/page_layout'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
 import {sourceDeleted, sourceDeleteFailed} from 'src/shared/copy/notifications'
@@ -30,19 +29,22 @@ class ManageSources extends PureComponent<Props> {
     const {sources, source} = this.props
 
     return (
-      <div className="page" id="manage-sources-page">
-        <PageHeader titleText="Configuration" sourceIndicator={true} />
-        <FancyScrollbar className="page-contents">
-          <div className="container-fluid">
-            <InfluxTable
-              source={source}
-              sources={sources}
-              onDeleteSource={this.handleDeleteSource}
-            />
-            <p className="version-number">Chronograf Version: {VERSION}</p>
-          </div>
-        </FancyScrollbar>
-      </div>
+      <Page>
+        <PageHeader fullWidth={false}>
+          <PageHeader.Left>
+            <h1 className="page--title">Configuration</h1>
+          </PageHeader.Left>
+          <PageHeader.Right />
+        </PageHeader>
+        <PageContents fullWidth={false} scrollable={true}>
+          <InfluxTable
+            source={source}
+            sources={sources}
+            onDeleteSource={this.handleDeleteSource}
+          />
+          <p className="version-number">Chronograf Version: {VERSION}</p>
+        </PageContents>
+      </Page>
     )
   }
 
