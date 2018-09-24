@@ -74,8 +74,8 @@ func (s *Service) RemoveTarget(ctx context.Context, id platform.ID) error {
 
 // UpdateTarget updates a scraper target.
 func (s *Service) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (target *platform.ScraperTarget, err error) {
-	if len(update.ID) == 0 {
-		return nil, errors.New("update scraper: id is empty")
+	if !update.ID.Valid() {
+		return nil, errors.New("update scraper: id is invalid")
 	}
 	target, err = s.loadScraperTarget(update.ID)
 	if err != nil {

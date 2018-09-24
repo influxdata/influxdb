@@ -61,7 +61,7 @@ func (s *Service) filterUserResourceMappings(ctx context.Context, fn func(m *pla
 }
 
 func (s *Service) FindUserResourceMappings(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.UserResourceMapping, int, error) {
-	if filter.ResourceID != nil && filter.UserID != nil {
+	if filter.ResourceID.Valid() && filter.UserID.Valid() {
 		m, err := s.FindUserResourceBy(ctx, filter.ResourceID, filter.UserID)
 		if err != nil {
 			return nil, 0, err
@@ -70,8 +70,8 @@ func (s *Service) FindUserResourceMappings(ctx context.Context, filter platform.
 	}
 
 	filterFunc := func(mapping *platform.UserResourceMapping) bool {
-		return (filter.UserID == nil || (filter.UserID.String()) == mapping.UserID.String()) &&
-			(filter.ResourceID == nil || (filter.ResourceID.String()) == mapping.ResourceID.String()) &&
+		return (!filter.UserID.Valid() || filter.UserID == mapping.UserID) &&
+			(!filter.ResourceID.Valid() || filter.ResourceID == mapping.ResourceID) &&
 			(filter.UserType == "" || (filter.UserType == mapping.UserType)) &&
 			(filter.ResourceType == "" || (filter.ResourceType == mapping.ResourceType))
 	}

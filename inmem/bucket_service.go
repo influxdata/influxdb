@@ -1,7 +1,6 @@
 package inmem
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -121,7 +120,7 @@ func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter,
 
 	if filter.Name != nil && filter.OrganizationID != nil {
 		filterFunc = func(b *platform.Bucket) bool {
-			return b.Name == *filter.Name && bytes.Equal(b.OrganizationID, *filter.OrganizationID)
+			return b.Name == *filter.Name && b.OrganizationID == *filter.OrganizationID
 		}
 	} else if filter.Name != nil {
 		// filter by bucket name
@@ -131,7 +130,7 @@ func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter,
 	} else if filter.OrganizationID != nil {
 		// filter by organization id
 		filterFunc = func(b *platform.Bucket) bool {
-			return bytes.Equal(b.OrganizationID, *filter.OrganizationID)
+			return b.OrganizationID == *filter.OrganizationID
 		}
 	}
 
@@ -159,7 +158,7 @@ func (s *Service) FindBuckets(ctx context.Context, filter platform.BucketFilter,
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
 func (s *Service) CreateBucket(ctx context.Context, b *platform.Bucket) error {
-	if len(b.OrganizationID) == 0 {
+	if !b.OrganizationID.Valid() {
 		o, err := s.findOrganizationByName(ctx, b.Organization)
 		if err != nil {
 			return err

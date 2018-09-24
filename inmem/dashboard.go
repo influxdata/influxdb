@@ -1,7 +1,6 @@
 package inmem
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -143,7 +142,7 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID platform.
 
 	idx := -1
 	for i, cell := range d.Cells {
-		if bytes.Equal(cell.ID, cellID) {
+		if cell.ID == cellID {
 			idx = i
 			break
 		}
@@ -169,7 +168,7 @@ func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID platform.
 
 	idx := -1
 	for i, cell := range d.Cells {
-		if bytes.Equal(cell.ID, cellID) {
+		if cell.ID == cellID {
 			idx = i
 			break
 		}
@@ -203,7 +202,7 @@ func (s *Service) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs 
 	}
 
 	for _, cell := range cs {
-		if len(cell.ID) == 0 {
+		if !cell.ID.Valid() {
 			return fmt.Errorf("cannot provide empty cell id")
 		}
 
@@ -212,7 +211,7 @@ func (s *Service) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs 
 			return fmt.Errorf("cannot replace cells that were not already present")
 		}
 
-		if !bytes.Equal(cl.ViewID, cell.ViewID) {
+		if cl.ViewID != cell.ViewID {
 			return fmt.Errorf("cannot update view id in replace")
 		}
 	}

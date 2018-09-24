@@ -1,7 +1,6 @@
 package inmem
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -73,7 +72,7 @@ func (s *Service) FindAuthorizationByToken(ctx context.Context, t string) (*plat
 func filterAuthorizationsFn(filter platform.AuthorizationFilter) func(a *platform.Authorization) bool {
 	if filter.ID != nil {
 		return func(a *platform.Authorization) bool {
-			return bytes.Equal(a.ID, *filter.ID)
+			return a.ID == *filter.ID
 		}
 	}
 
@@ -85,7 +84,7 @@ func filterAuthorizationsFn(filter platform.AuthorizationFilter) func(a *platfor
 
 	if filter.UserID != nil {
 		return func(a *platform.Authorization) bool {
-			return bytes.Equal(a.UserID, *filter.UserID)
+			return a.UserID == *filter.UserID
 		}
 	}
 
@@ -140,7 +139,7 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 
 // CreateAuthorization sets a.Token and a.ID and creates an platform.Authorization
 func (s *Service) CreateAuthorization(ctx context.Context, a *platform.Authorization) error {
-	if len(a.UserID) == 0 {
+	if !a.UserID.Valid() {
 		u, err := s.findUserByName(ctx, a.User)
 		if err != nil {
 			return err
