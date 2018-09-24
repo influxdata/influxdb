@@ -2,18 +2,14 @@
   Slide Toggle Component
   ------------------------------------------------------------------------------
 */
-@import 'src/style/modules/influx-colors';
-@import 'src/style/modules/variables';
-
-$slide-toggle-border: 2px;
 
 .slide-toggle {
   background-color: $g1-raven;
   position: relative;
-  padding: 0 ($slide-toggle-border * 2);
+  padding: 0 ($ix-border * 2);
   display: inline-block;
   transition: background-color 0.25s ease, border-color 0.25s ease;
-  border: $slide-toggle-border solid $g5-pepper;
+  border: $ix-border solid $g5-pepper;
 
   &:hover {
     cursor: pointer;

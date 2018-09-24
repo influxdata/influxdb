@@ -1,0 +1,155 @@
+/*
+    Page Layout
+    ----------------------------------------------------------------------------
+*/
+
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  flex: 1 0 0;
+  width: calc(100% - 60px);
+}
+.page-contents,
+.page-contents--split {
+  position: relative;
+  height: calc(100% - #{$chronograf-page-header-height}) !important;
+  flex: 1 0 0;
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+
+  &:only-child {
+    height: 100% !important;
+  }
+}
+
+.page-contents--split {
+  display: flex;
+  align-items: stretch;
+}
+
+.container-fluid {
+  margin: 0 auto;
+  padding: ($chronograf-page-header-height / 2) $page-wrapper-padding;
+  max-width: $page-wrapper-max-width;
+
+  &.full-width {
+    max-width: 100%;
+  }
+}
+
+.template-control-bar + .page-contents,
+.annotation-control-bar + .page-contents {
+  height: calc(100% - #{$chronograf-page-header-height * 2}) !important;
+}
+
+/* Presentation Mode */
+.page-contents.presentation-mode {
+  top: 0;
+  height: 100% !important;
+
+  .container-fluid {padding: 8px}
+}
+
+/*
+  Page Header
+  ------------------------------------------------------------------------------
+*/
+
+.page-header {
+  height: $chronograf-page-header-height;
+  padding: 0 $page-wrapper-padding;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: $g0-obsidian;
+}
+
+.page-header--container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  width: 100%;
+  max-width: ($page-wrapper-max-width - $page-wrapper-padding - $page-wrapper-padding);
+}
+
+// If specified as a full width page header
+.page-header.full-width .page-header--container {
+  max-width: 100%;
+}
+
+// Left, Center, and Right pieces of the page header
+.page-header--left,
+.page-header--center,
+.page-header--right {
+  display: flex;
+  align-items: center;
+}
+.page-header--left {
+  flex: 1 0 0;
+  justify-content: flex-start;
+  > * {
+    margin: 0 4px 0 0;
+  }
+}
+.page-header--right {
+  justify-content: flex-end;
+  > * {
+    margin: 0 0 0 4px !important;
+
+    &:only-child {
+      margin-right: 0 !important;
+    }
+  }
+}
+.page-header--center {
+  justify-content: center;
+}
+
+.page-header--title {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  margin: 0;
+  display: inline-block;
+  vertical-align: middle;
+  @include no-user-select();
+  cursor: default;
+}
+
+// TODO: Refactor this to be a part of overlay styles
+.page-header__dismiss {
+  width: ($chronograf-page-header-height - 20px);
+  height: ($chronograf-page-header-height - 20px);
+  position: relative;
+
+  /* Use psuedo elements to render the X */
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 22px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g11-sidewalk;
+    transition: background-color 0.25s ease;
+  }
+  &:before {
+    transform: translate(-50%,-50%) rotate(45deg);
+  }
+  &:after {
+    transform: translate(-50%,-50%) rotate(-45deg);
+  }
+  /* Hover State */
+  &:hover {
+    cursor: pointer;
+  }
+  &:hover:before,
+  &:hover:after {
+    background-color: $g18-cloud;
+  }
+}

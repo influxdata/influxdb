@@ -1,0 +1,249 @@
+/*
+  Input Styles
+  ------------------------------------------------------------------------------
+*/
+
+$input-bg: $g2-kevlar;
+$input-disabled-bg: $g3-castle;
+
+$input-text: $g15-platinum;
+$input-border: $g5-pepper;
+$input-hover-text: $g17-whisper;
+$input-hover-border: $g7-graphite;
+$input-focus-text: $g20-white;
+$input-focus-border: $c-pool;
+$input-disabled-text: $g9-mountain;
+
+$input-field-z: 1;
+$input-shadow-z: $input-field-z + 1;
+$input-status-z: $input-field-z + 2;
+
+.input {
+  position: relative;
+}
+
+.input-field {
+  position: relative;
+  z-index: $input-field-z;
+  width: 100%;
+  font-weight: 600;
+  font-family: $ix-text-font;
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    color 0.25s ease;
+  outline: none;
+  appearance: none;
+  border-radius: $radius;
+  background-color: $input-bg;
+  color: $input-text;
+  border: $ix-border solid $input-border;
+
+  &:hover {
+    border-color: $input-hover-border;
+    color: $input-hover-text;
+  }
+
+  &:focus {
+    color: $input-focus-text;
+    border-color: $input-focus-border;
+    box-shadow: 0 0 6px 0 $input-focus-border;
+  }
+
+  &[disabled],
+  &[disabled]:hover {
+    cursor: default;
+    border-color: $input-border;
+    background-color: $input-disabled-bg;
+    color: $input-disabled-text;
+    font-style: italic;
+  }
+
+  &::-webkit-input-placeholder {
+    color: $input-disabled-text;
+    font-weight: 600 !important;
+    font-style: italic;
+  }
+  &::-moz-placeholder {
+    color: $input-disabled-text;
+    font-weight: 600 !important;
+    font-style: italic;
+  }
+  &:-ms-input-placeholder {
+    color: $input-disabled-text;
+    font-weight: 600 !important;
+    font-style: italic;
+  }
+  &:-moz-placeholder {
+    color: $input-disabled-text;
+    font-weight: 600 !important;
+    font-style: italic;
+  }
+}
+
+/*
+  Input Icons (Including Status)
+  ------------------------------------------------------------------------------
+*/
+.input-icon,
+.input-status {
+  pointer-events: none;
+  top: 50%;
+  position: absolute;
+  z-index: $input-status-z;
+  transition: color 0.25s ease;
+  font-size: 1.1em;
+}
+
+.input-status {
+  transform: translate(50%, -50%);
+}
+
+.input-icon {
+  transform: translate(-50%, -50%);
+  color: $input-text;
+}
+
+.input-field:hover + .input-icon {
+  color: $input-hover-text
+}
+
+.input-field:focus + .input-icon {
+  color: $input-focus-text;
+}
+
+.input--disabled .input-icon,
+.input--disabled .input-field:hover + .input-icon {
+  color: $input-disabled-text;
+}
+
+.input-shadow {
+  pointer-events: none;
+  position: absolute;
+  z-index: $input-shadow-z;
+  height: calc(100% - #{$ix-border * 2});
+  top: $ix-border;
+  border-radius: 0 3px 3px 0;
+  @include gradient-h(rgba($input-bg, 0), $input-bg);
+  border-style: solid;
+  border-color: $input-bg;
+  border-width: 0;
+  transition: opacity 0.25s ease;
+  opacity: 0;
+}
+
+.input-status + .input-shadow {
+  opacity: 1;
+}
+
+/*
+  Size Modifiers
+  ------------------------------------------------------------------------------
+*/
+@mixin inputSizeModifier($fontSize, $padding, $height) {
+  height: $height;
+  font-size: $fontSize;
+
+  .input-field {
+    font-size: $fontSize;
+    padding: 0 $padding;
+    height: $height;
+  }
+
+  &.input--has-icon .input-field {
+    padding-left: $height;
+  }
+
+  .input-icon {
+    left: ($height / 2) + $ix-border;
+  }
+
+  .input-status {
+    right: $height / 2;
+  }
+
+  .input-shadow {
+    width: $height;
+    right: $padding;
+    border-right-width: $padding;
+  }
+
+  .input-spinner {
+    width: $height / 2;
+    height: $height / 2;
+  }
+}
+
+.input-xs {
+  @include inputSizeModifier($form-xs-font, $form-xs-padding, $form-xs-height);
+}
+.input-sm {
+  @include inputSizeModifier($form-sm-font, $form-sm-padding, $form-sm-height);
+}
+.input-md {
+  @include inputSizeModifier($form-md-font, $form-md-padding, $form-md-height);
+}
+.input-lg {
+  @include inputSizeModifier($form-lg-font, $form-lg-padding, $form-lg-height);
+}
+
+/*
+  Valid State
+  ------------------------------------------------------------------------------
+*/
+.input--valid {
+  .input-status {
+    color: $c-rainforest;
+  }
+}
+
+/*
+  Error State
+  ------------------------------------------------------------------------------
+*/
+.input--error {
+  .input-status {
+    color: $c-dreamsicle;
+  }
+  .input-field {
+    border-color: $c-curacao
+  }
+  .input-field:hover {
+    border-color: $c-dreamsicle;
+  }
+  .input-field:focus {
+    border-color: $c-dreamsicle;
+    box-shadow: 0 0 6px 0 $c-fire;
+  }
+}
+
+/*
+  Loading State
+  ------------------------------------------------------------------------------
+*/
+.input--loading {
+  .input-status {
+    color: $c-pool;
+  }
+}
+
+@keyframes LoadingSpinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.input-spinner {
+  border-style: solid;
+  border-radius: 50%; 
+  animation-duration: 0.85s;
+  animation-name: LoadingSpinner;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  border: $ix-border solid $g5-pepper;
+  border-top-color: $c-pool;
+}

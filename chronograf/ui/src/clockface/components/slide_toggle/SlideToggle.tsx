@@ -1,9 +1,11 @@
+// Libraries
 import React, {Component} from 'react'
 import classnames from 'classnames'
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import './slide-toggle.scss'
 
+// Types
 import {ComponentColor, ComponentSize} from 'src/reusable_ui/types'
+
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   onChange: () => void

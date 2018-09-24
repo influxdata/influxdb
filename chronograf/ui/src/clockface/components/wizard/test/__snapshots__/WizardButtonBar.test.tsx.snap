@@ -1,0 +1,33 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`WizardButtonBar matches snapshot when provided minimal props 1`] = `
+<div
+  className="wizard-button-bar"
+>
+  <button
+    className="btn btn-md btn-primary"
+    onClick={[MockFunction]}
+  >
+    Next
+  </button>
+</div>
+`;
+
+exports[`WizardButtonBar with decrement and last step is "true" matches snapshot when provided decrement function and last step as "true" 1`] = `
+<div
+  className="wizard-button-bar"
+>
+  <button
+    className="btn btn-md btn-default"
+    onClick={[MockFunction]}
+  >
+    Previous
+  </button>
+  <button
+    className="btn btn-md btn-success"
+    onClick={[MockFunction]}
+  >
+    Next
+  </button>
+</div>
+`;

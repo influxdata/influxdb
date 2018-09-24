@@ -1,83 +1,79 @@
+// Libraries
 import React, {Component} from 'react'
 import classnames from 'classnames'
-import _ from 'lodash'
 
+// Components
+import RadioButton from 'src/reusable_ui/components/radio_buttons/RadioButton'
+
+// Types
 import {ComponentColor, ComponentSize, ButtonShape} from 'src/reusable_ui/types'
 
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
 interface Props {
+  children: JSX.Element[]
   customClass?: string
   color?: ComponentColor
   size?: ComponentSize
   shape?: ButtonShape
-  disabled?: boolean
-  buttons: string[]
-  activeButton: string
-  onChange: (RadioButton) => void
 }
 
-class RadioButtons extends Component<Props> {
-  public static defaultProps = {
+@ErrorHandling
+class Radio extends Component<Props> {
+  public static defaultProps: Partial<Props> = {
     color: ComponentColor.Default,
     size: ComponentSize.Small,
     shape: ButtonShape.Default,
-    disabled: false,
   }
+
+  public static Button = RadioButton
 
   public render() {
-    return <div className={this.containerClassName}>{this.buttons}</div>
-  }
+    const {children} = this.props
 
-  private get buttons(): JSX.Element[] {
-    const {buttons} = this.props
+    this.validateChildCount()
 
-    return buttons.map(button => (
-      <div
-        key={button}
-        className={this.buttonClassName(button)}
-        onClick={this.handleButtonClick(button)}
-      >
-        {this.buttonText(button)}
+    return (
+      <div className={this.containerClassName}>
+        {React.Children.map(children, (child: JSX.Element) => {
+          if (this.childTypeIsValid(child)) {
+            return <RadioButton {...child.props} key={child.props.id} />
+          } else {
+            throw new Error(
+              '<Radio> expected children of type <Radio.Button />'
+            )
+          }
+        })}
       </div>
-    ))
-  }
-
-  private buttonText = (button): JSX.Element => {
-    if (_.startsWith(button, 'icon')) {
-      return <span className={button} />
-    }
-
-    return <>{button}</>
+    )
   }
 
   private get containerClassName(): string {
     const {color, size, shape, customClass} = this.props
 
-    return classnames(
-      `radio-buttons radio-buttons-${color} radio-buttons-${size}`,
-      {
-        'radio-buttons-square': shape === ButtonShape.Square,
-        'radio-buttons-stretch': shape === ButtonShape.StretchToFit,
-        [customClass]: customClass,
-      }
-    )
-  }
-
-  private buttonClassName = (button: string): string => {
-    const {activeButton} = this.props
-
-    return classnames('radio-button', {
-      active: _.isEqual(button, activeButton),
+    return classnames('radio-buttons', {
+      [`radio-buttons--${color}`]: color,
+      [`radio-buttons--${size}`]: size,
+      'radio-buttons--square': shape === ButtonShape.Square,
+      'radio-buttons--stretch': shape === ButtonShape.StretchToFit,
+      [customClass]: customClass,
     })
   }
 
-  private handleButtonClick = (button: string) => (): void => {
-    const {onChange, disabled} = this.props
-    if (disabled) {
-      return
-    }
+  private validateChildCount = (): void => {
+    const {children} = this.props
+    const MINIMUM_CHILD_COUNT = 2
 
-    onChange(button)
+    if (React.Children.count(children) < MINIMUM_CHILD_COUNT) {
+      throw new Error(
+        '<Radio> requires at least 2 child elements. We recommend using <Radio.Button />'
+      )
+    }
   }
+
+  private childTypeIsValid = (child: JSX.Element): boolean =>
+    child.type === RadioButton
 }
 
-export default RadioButtons
+export default Radio

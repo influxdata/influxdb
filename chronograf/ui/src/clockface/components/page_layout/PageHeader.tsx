@@ -1,17 +1,33 @@
-import React, {Component, ReactElement} from 'react'
+// Libraries
+import React, {Component} from 'react'
 import classnames from 'classnames'
 
-import Title from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
+// Components
+import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
+import PageHeaderLeft from 'src/reusable_ui/components/page_layout/PageHeaderLeft'
+import PageHeaderCenter from 'src/reusable_ui/components/page_layout/PageHeaderCenter'
+import PageHeaderRight from 'src/reusable_ui/components/page_layout/PageHeaderRight'
+
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  titleText?: string
-  titleComponents?: ReactElement<any>
-  optionsComponents?: ReactElement<any>
+  children: JSX.Element[]
   fullWidth?: boolean
   inPresentationMode?: boolean
 }
 
+@ErrorHandling
 class PageHeader extends Component<Props> {
+  public static defaultProps: Partial<Props> = {
+    fullWidth: false,
+    inPresentationMode: false,
+  }
+
+  public static Title = PageHeaderTitle
+  public static Left = PageHeaderLeft
+  public static Center = PageHeaderCenter
+  public static Right = PageHeaderRight
+
   public render() {
     const {inPresentationMode} = this.props
 
@@ -21,44 +37,96 @@ class PageHeader extends Component<Props> {
 
     return (
       <div className={this.className}>
-        <div className="page-header--container">
-          <div className="page-header--left">{this.renderLeft}</div>
-          <div className="page-header--right">{this.renderRight}</div>
-        </div>
+        <div className="page-header--container">{this.children}</div>
       </div>
     )
-  }
-
-  private get renderLeft(): JSX.Element {
-    const {titleText, titleComponents} = this.props
-
-    if (!titleText && !titleComponents) {
-      throw new Error(
-        'PageHeader requires either titleText or titleComponents prop'
-      )
-    }
-
-    if (!titleComponents) {
-      return <Title title={titleText} />
-    }
-
-    return titleComponents
-  }
-
-  private get renderRight(): JSX.Element {
-    const {optionsComponents} = this.props
-
-    if (!optionsComponents) {
-      return
-    }
-
-    return optionsComponents
   }
 
   private get className(): string {
     const {fullWidth} = this.props
 
     return classnames('page-header', {'full-width': fullWidth})
+  }
+
+  private childTypeIsValid = (child: JSX.Element): boolean =>
+    child.type === PageHeaderLeft ||
+    child.type === PageHeaderCenter ||
+    child.type === PageHeaderRight
+
+  private get children(): JSX.Element[] {
+    const {children} = this.props
+
+    if (React.Children.count(children) === 0) {
+      throw new Error(
+        '<Page.Header> requires 1 child of each type: <Page.Header.Left> and <Page.Header.Right>'
+      )
+    }
+
+    React.Children.forEach(children, (child: JSX.Element) => {
+      if (!this.childTypeIsValid(child)) {
+        throw new Error(
+          '<Page.Header> expected children of type <Page.Header.Left>, <Page.Header.Center>, or <Page.Header.Right>'
+        )
+      }
+    })
+
+    let leftChildCount = 0
+    let centerChildCount = 0
+    let rightChildCount = 0
+    let centerWidthPixels = 0
+
+    React.Children.forEach(children, (child: JSX.Element) => {
+      if (child.type === PageHeaderLeft) {
+        leftChildCount += 1
+      }
+
+      if (child.type === PageHeaderCenter) {
+        centerChildCount += 1
+        centerWidthPixels = child.props.widthPixels
+      }
+
+      if (child.type === PageHeaderRight) {
+        rightChildCount += 1
+      }
+    })
+
+    if (leftChildCount > 1 || centerChildCount > 1 || rightChildCount > 1) {
+      throw new Error(
+        '<Page.Header> expects at most 1 of each child type: <Page.Header.Left>, <Page.Header.Center>, or <Page.Header.Right>'
+      )
+    }
+
+    if (leftChildCount === 0 || rightChildCount === 0) {
+      throw new Error(
+        '<Page.Header> requires 1 child of each type: <Page.Header.Left> and <Page.Header.Right>'
+      )
+    }
+
+    if (centerWidthPixels) {
+      return React.Children.map(children, (child: JSX.Element) => {
+        if (child.type === PageHeaderLeft) {
+          return (
+            <PageHeaderLeft
+              {...child.props}
+              offsetPixels={centerWidthPixels / 2}
+            />
+          )
+        }
+
+        if (child.type === PageHeaderRight) {
+          return (
+            <PageHeaderRight
+              {...child.props}
+              offsetPixels={centerWidthPixels / 2}
+            />
+          )
+        }
+
+        return <PageHeaderCenter {...child.props} />
+      })
+    }
+
+    return children
   }
 }
 

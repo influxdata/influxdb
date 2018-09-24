@@ -9,7 +9,7 @@ import _ from 'lodash'
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
 import {Page, PageHeader, PageContents} from 'src/page_layout'
 import SearchBar from 'src/shared/components/SearchBar'
-import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
+import {OverlayTechnology} from 'src/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 
 // Utils

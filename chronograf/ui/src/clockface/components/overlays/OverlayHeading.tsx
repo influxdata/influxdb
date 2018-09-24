@@ -1,7 +1,7 @@
 import React, {PureComponent, ReactChildren} from 'react'
 
 interface Props {
-  children?: ReactChildren | JSX.Element
+  children?: ReactChildren | JSX.Element | JSX.Element[]
   title: string
   onDismiss?: () => void
 }

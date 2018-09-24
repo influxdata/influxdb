@@ -1,0 +1,17 @@
+/*
+  Full Screen Wizard Styles
+  ------------------------------------------------------------------------------
+*/
+
+.wizard-container {
+  padding: 30px;
+  display: inline-flex;
+  border-radius: $radius;
+  min-width: 800px;
+  max-width: 1200px;
+  background-color: $g1-raven;
+}
+
+.wizard-title {
+  margin-top: $ix-marg-c;
+}
