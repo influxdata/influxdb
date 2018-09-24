@@ -79,7 +79,7 @@ func AddTarget(
 						OrgName:    "org1",
 						BucketName: "bucket1",
 						URL:        "url1",
-						ID:         idFromString(t, targetOneID),
+						ID:         MustIDFromString(targetOneID),
 					},
 				},
 			},
@@ -95,7 +95,7 @@ func AddTarget(
 						OrgName:    "org1",
 						BucketName: "bucket1",
 						URL:        "url1",
-						ID:         idFromString(t, targetOneID),
+						ID:         MustIDFromString(targetOneID),
 					},
 				},
 			},
@@ -116,7 +116,7 @@ func AddTarget(
 						OrgName:    "org1",
 						BucketName: "bucket1",
 						URL:        "url1",
-						ID:         idFromString(t, targetOneID),
+						ID:         MustIDFromString(targetOneID),
 					},
 					{
 						Name:       "name2",
@@ -124,7 +124,7 @@ func AddTarget(
 						OrgName:    "org2",
 						BucketName: "bucket2",
 						URL:        "url2",
-						ID:         idFromString(t, targetTwoID),
+						ID:         MustIDFromString(targetTwoID),
 					},
 				},
 			},
@@ -185,7 +185,7 @@ func ListTargets(
 						OrgName:    "org1",
 						BucketName: "bucket1",
 						URL:        "url1",
-						ID:         idFromString(t, targetOneID),
+						ID:         MustIDFromString(targetOneID),
 					},
 					{
 						Name:       "name2",
@@ -193,7 +193,7 @@ func ListTargets(
 						OrgName:    "org2",
 						BucketName: "bucket2",
 						URL:        "url2",
-						ID:         idFromString(t, targetTwoID),
+						ID:         MustIDFromString(targetTwoID),
 					},
 				},
 			},
@@ -205,7 +205,7 @@ func ListTargets(
 						OrgName:    "org1",
 						BucketName: "bucket1",
 						URL:        "url1",
-						ID:         idFromString(t, targetOneID),
+						ID:         MustIDFromString(targetOneID),
 					},
 					{
 						Name:       "name2",
@@ -213,7 +213,7 @@ func ListTargets(
 						OrgName:    "org2",
 						BucketName: "bucket2",
 						URL:        "url2",
-						ID:         idFromString(t, targetTwoID),
+						ID:         MustIDFromString(targetTwoID),
 					},
 				},
 			},
@@ -266,21 +266,21 @@ func GetTargetByID(
 			fields: TargetFields{
 				Targets: []platform.ScraperTarget{
 					{
-						ID:   idFromString(t, targetOneID),
+						ID:   MustIDFromString(targetOneID),
 						Name: "target1",
 					},
 					{
-						ID:   idFromString(t, targetTwoID),
+						ID:   MustIDFromString(targetTwoID),
 						Name: "target2",
 					},
 				},
 			},
 			args: args{
-				id: idFromString(t, targetTwoID),
+				id: MustIDFromString(targetTwoID),
 			},
 			wants: wants{
 				target: &platform.ScraperTarget{
-					ID:   idFromString(t, targetTwoID),
+					ID:   MustIDFromString(targetTwoID),
 					Name: "target2",
 				},
 			},
@@ -332,20 +332,20 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 			fields: TargetFields{
 				Targets: []platform.ScraperTarget{
 					{
-						ID: idFromString(t, targetOneID),
+						ID: MustIDFromString(targetOneID),
 					},
 					{
-						ID: idFromString(t, targetTwoID),
+						ID: MustIDFromString(targetTwoID),
 					},
 				},
 			},
 			args: args{
-				ID: idFromString(t, targetOneID),
+				ID: MustIDFromString(targetOneID),
 			},
 			wants: wants{
 				targets: []platform.ScraperTarget{
 					{
-						ID: idFromString(t, targetTwoID),
+						ID: MustIDFromString(targetTwoID),
 					},
 				},
 			},
@@ -355,24 +355,24 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 			fields: TargetFields{
 				Targets: []platform.ScraperTarget{
 					{
-						ID: idFromString(t, targetOneID),
+						ID: MustIDFromString(targetOneID),
 					},
 					{
-						ID: idFromString(t, targetTwoID),
+						ID: MustIDFromString(targetTwoID),
 					},
 				},
 			},
 			args: args{
-				ID: idFromString(t, targetThreeID),
+				ID: MustIDFromString(targetThreeID),
 			},
 			wants: wants{
 				err: fmt.Errorf("scraper target is not found"),
 				targets: []platform.ScraperTarget{
 					{
-						ID: idFromString(t, targetOneID),
+						ID: MustIDFromString(targetOneID),
 					},
 					{
-						ID: idFromString(t, targetTwoID),
+						ID: MustIDFromString(targetTwoID),
 					},
 				},
 			},
@@ -430,11 +430,11 @@ func UpdateTarget(
 			fields: TargetFields{
 				Targets: []platform.ScraperTarget{
 					{
-						ID:  idFromString(t, targetOneID),
+						ID:  MustIDFromString(targetOneID),
 						URL: "url1",
 					},
 					{
-						ID:  idFromString(t, targetTwoID),
+						ID:  MustIDFromString(targetTwoID),
 						URL: "url2",
 					},
 				},
@@ -451,17 +451,17 @@ func UpdateTarget(
 			fields: TargetFields{
 				Targets: []platform.ScraperTarget{
 					{
-						ID:  idFromString(t, targetOneID),
+						ID:  MustIDFromString(targetOneID),
 						URL: "url1",
 					},
 					{
-						ID:  idFromString(t, targetTwoID),
+						ID:  MustIDFromString(targetTwoID),
 						URL: "url2",
 					},
 				},
 			},
 			args: args{
-				id:  idFromString(t, targetThreeID),
+				id:  MustIDFromString(targetThreeID),
 				url: "changed",
 			},
 			wants: wants{
@@ -473,22 +473,22 @@ func UpdateTarget(
 			fields: TargetFields{
 				Targets: []platform.ScraperTarget{
 					{
-						ID:  idFromString(t, targetOneID),
+						ID:  MustIDFromString(targetOneID),
 						URL: "url1",
 					},
 					{
-						ID:  idFromString(t, targetTwoID),
+						ID:  MustIDFromString(targetTwoID),
 						URL: "url2",
 					},
 				},
 			},
 			args: args{
-				id:  idFromString(t, targetOneID),
+				id:  MustIDFromString(targetOneID),
 				url: "changed",
 			},
 			wants: wants{
 				target: &platform.ScraperTarget{
-					ID:  idFromString(t, targetOneID),
+					ID:  MustIDFromString(targetOneID),
 					URL: "changed",
 				},
 			},
