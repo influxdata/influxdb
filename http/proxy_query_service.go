@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	proxyQueryPath = "/v1/query"
+	proxyQueryPath = "/v2/queryproxysvc"
 )
 
 type ProxyQueryHandler struct {
