@@ -17,8 +17,9 @@ import (
 type OrgHandler struct {
 	*httprouter.Router
 
-	OrganizationService platform.OrganizationService
-	BucketService       platform.BucketService
+	OrganizationService        platform.OrganizationService
+	BucketService              platform.BucketService
+	UserResourceMappingService platform.UserResourceMappingService
 }
 
 // NewOrgHandler returns a new instance of OrgHandler.
@@ -32,6 +33,9 @@ func NewOrgHandler() *OrgHandler {
 	h.HandlerFunc("GET", "/v1/orgs/:id", h.handleGetOrg)
 	h.HandlerFunc("PATCH", "/v1/orgs/:id", h.handlePatchOrg)
 	h.HandlerFunc("DELETE", "/v1/orgs/:id", h.handleDeleteOrg)
+	h.HandlerFunc("POST", "/v1/orgs/:id/members", h.handlePostOrgMember)
+	h.HandlerFunc("GET", "/v1/orgs/:id/members", h.handleGetOrgMembers)
+	h.HandlerFunc("DELETE", "/v1/orgs/:id/members/:mid", h.handleDeleteOrgMember)
 	return h
 }
 
@@ -70,7 +74,7 @@ func newOrgResponse(o *platform.Organization) *orgResponse {
 	return &orgResponse{
 		Links: map[string]string{
 			"self":       fmt.Sprintf("/v2/orgs/%s", o.ID),
-			"users":      fmt.Sprintf("/v2/orgs/%s/users", o.ID),
+			"members":    fmt.Sprintf("/v2/orgs/%s/members", o.ID),
 			"buckets":    fmt.Sprintf("/v2/buckets?org=%s", o.Name),
 			"tasks":      fmt.Sprintf("/v2/tasks?org=%s", o.Name),
 			"dashboards": fmt.Sprintf("/v2/dashboards?org=%s", o.Name),
@@ -291,6 +295,139 @@ func decodePatchOrgRequest(ctx context.Context, r *http.Request) (*patchOrgReque
 	return &patchOrgRequest{
 		Update: upd,
 		OrgID:  i,
+	}, nil
+}
+
+func (h *OrgHandler) handlePostOrgMember(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodePostOrgMemberRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	mapping := &platform.UserResourceMapping{
+		ResourceID: req.OrgID,
+		UserID:     req.MemberID,
+		UserType:   platform.Member,
+	}
+
+	if err := h.UserResourceMappingService.CreateUserResourceMapping(ctx, mapping); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusCreated, mapping); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type postOrgMemberRequest struct {
+	MemberID platform.ID
+	OrgID    platform.ID
+}
+
+func decodePostOrgMemberRequest(ctx context.Context, r *http.Request) (*postOrgMemberRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var oid platform.ID
+	if err := oid.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	u := &platform.User{}
+	if err := json.NewDecoder(r.Body).Decode(u); err != nil {
+		return nil, err
+	}
+
+	if u.ID == nil {
+		return nil, kerrors.InvalidDataf("user id missing")
+	}
+
+	return &postOrgMemberRequest{
+		MemberID: u.ID,
+		OrgID:    oid,
+	}, nil
+}
+
+func (h *OrgHandler) handleGetOrgMembers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetOrgRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	filter := platform.UserResourceMappingFilter{
+		ResourceID: req.OrgID,
+		UserType:   platform.Member,
+	}
+	mappings, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, mappings); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+func (h *OrgHandler) handleDeleteOrgMember(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeDeleteOrgMemberRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.UserResourceMappingService.DeleteUserResourceMapping(ctx, req.OrgID, req.MemberID); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type deleteOrgMemberRequest struct {
+	MemberID platform.ID
+	OrgID    platform.ID
+}
+
+func decodeDeleteOrgMemberRequest(ctx context.Context, r *http.Request) (*deleteOrgMemberRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var oid platform.ID
+	if err := oid.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	id = params.ByName("mid")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing member id")
+	}
+
+	var mid platform.ID
+	if err := mid.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	return &deleteOrgMemberRequest{
+		MemberID: mid,
+		OrgID:    oid,
 	}, nil
 }
 

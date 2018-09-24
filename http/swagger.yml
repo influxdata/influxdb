@@ -1491,19 +1491,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/orgs/{orgID}/users':
+  '/orgs/{orgID}/members':
     get:
       tags:
         - Users
         - Organizations
-      summary: List all users in an organization
+      summary: List all members of an organization
       parameters:
         - in: path
           name: orgID
           schema:
             type: string
           required: true
-          description: ID of the orgnaization
+          description: ID of the organization
       responses:
         '200':
           description: a list of users the belong to an organization
@@ -1521,7 +1521,7 @@ paths:
       tags:
         - Users
         - Organizations
-      summary: Add user to an organization
+      summary: Add organization member
       parameters:
         - in: path
           name: orgID
@@ -1530,7 +1530,7 @@ paths:
           required: true
           description: ID of the orgnaization
       requestBody:
-        description: adds user to an organization
+        description: user to add as member
         required: true
         content:
           application/json:
@@ -1549,19 +1549,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/orgs/{orgID}/users/{userID}':
+  '/orgs/{orgID}/members/{userID}':
     delete:
       tags:
         - Users
         - Organizations
-      summary: removes a user from an org
+      summary: removes a member from an organization
       parameters:
         - in: path
           name: userID
           schema:
             type: string
           required: true
-          description: ID of user to delete
+          description: ID of member to remove
         - in: path
           name: orgID
           schema:
@@ -1570,7 +1570,7 @@ paths:
           description: ID of the orgnaization
       responses:
         '204':
-          description: user removed
+          description: member removed
         default:
           description: unexpected error
           content:
