@@ -4,53 +4,55 @@ exports[`Wizard Progress Bar when no steps are complete matches snapshot 1`] = `
 <div
   className="wizard-progress-bar"
 >
-  <div
-    className="wizard-progress-button"
-    key="stepEle0"
-  >
+  <React.Fragment>
     <div
-      className="wizard-progress-title"
+      className="wizard-progress-button"
+      key="stepEle0"
     >
-      this is step1
+      <div
+        className="wizard-progress-title"
+      >
+        this is step1
+      </div>
+      <span
+        className="icon circle-thick current"
+      />
     </div>
-    <span
-      className="icon circle-thick current"
+    <ProgressConnector
+      key="connectorEle0"
+      status="some"
     />
-  </div>
-  <ProgressConnector
-    key="connectorEle0"
-    status="some"
-  />
-  <div
-    className="wizard-progress-button"
-    key="stepEle1"
-  >
     <div
-      className="wizard-progress-title"
+      className="wizard-progress-button"
+      key="stepEle1"
     >
-      this is step2
+      <div
+        className="wizard-progress-title"
+      >
+        this is step2
+      </div>
+      <span
+        className="icon circle-thick"
+      />
     </div>
-    <span
-      className="icon circle-thick"
+    <ProgressConnector
+      key="connectorEle1"
+      status="none"
     />
-  </div>
-  <ProgressConnector
-    key="connectorEle1"
-    status="none"
-  />
-  <div
-    className="wizard-progress-button"
-    key="stepEle2"
-  >
     <div
-      className="wizard-progress-title"
+      className="wizard-progress-button"
+      key="stepEle2"
     >
-      this is step3
+      <div
+        className="wizard-progress-title"
+      >
+        this is step3
+      </div>
+      <span
+        className="icon circle-thick"
+      />
     </div>
-    <span
-      className="icon circle-thick"
-    />
-  </div>
+  </React.Fragment>
 </div>
 `;
 
@@ -58,52 +60,54 @@ exports[`Wizard Progress Bar when the first two steps are completed matches snap
 <div
   className="wizard-progress-bar"
 >
-  <div
-    className="wizard-progress-button"
-    key="stepEle0"
-  >
+  <React.Fragment>
     <div
-      className="wizard-progress-title"
+      className="wizard-progress-button"
+      key="stepEle0"
     >
-      this is step1
+      <div
+        className="wizard-progress-title"
+      >
+        this is step1
+      </div>
+      <span
+        className="icon checkmark"
+      />
     </div>
-    <span
-      className="icon checkmark"
+    <ProgressConnector
+      key="connectorEle0"
+      status="full"
     />
-  </div>
-  <ProgressConnector
-    key="connectorEle0"
-    status="full"
-  />
-  <div
-    className="wizard-progress-button"
-    key="stepEle1"
-  >
     <div
-      className="wizard-progress-title"
+      className="wizard-progress-button"
+      key="stepEle1"
     >
-      this is step2
+      <div
+        className="wizard-progress-title"
+      >
+        this is step2
+      </div>
+      <span
+        className="icon checkmark"
+      />
     </div>
-    <span
-      className="icon checkmark"
+    <ProgressConnector
+      key="connectorEle1"
+      status="full"
     />
-  </div>
-  <ProgressConnector
-    key="connectorEle1"
-    status="full"
-  />
-  <div
-    className="wizard-progress-button"
-    key="stepEle2"
-  >
     <div
-      className="wizard-progress-title"
+      className="wizard-progress-button"
+      key="stepEle2"
     >
-      this is step3
+      <div
+        className="wizard-progress-title"
+      >
+        this is step3
+      </div>
+      <span
+        className="icon checkmark"
+      />
     </div>
-    <span
-      className="icon checkmark"
-    />
-  </div>
+  </React.Fragment>
 </div>
 `;
