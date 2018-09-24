@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import PageHeader from 'src/clockface/components/page_layout/PageHeader'
 
 describe('PageHeader', () => {
   it('should throw an error if neither titleText nor titleComponents is supplied', () => {

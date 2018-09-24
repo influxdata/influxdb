@@ -3,10 +3,10 @@ import React, {Component, ComponentClass} from 'react'
 import _ from 'lodash'
 
 // Components
-import FormElement from 'src/reusable_ui/components/form_layout/FormElement'
-import FormLabel from 'src/reusable_ui/components/form_layout/FormLabel'
-import FormDivider from 'src/reusable_ui/components/form_layout/FormDivider'
-import FormFooter from 'src/reusable_ui/components/form_layout/FormFooter'
+import FormElement from 'src/clockface/components/form_layout/FormElement'
+import FormLabel from 'src/clockface/components/form_layout/FormLabel'
+import FormDivider from 'src/clockface/components/form_layout/FormDivider'
+import FormFooter from 'src/clockface/components/form_layout/FormFooter'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

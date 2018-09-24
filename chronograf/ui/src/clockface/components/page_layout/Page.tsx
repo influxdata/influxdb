@@ -3,9 +3,9 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Components
-import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
-import PageTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
-import PageContents from 'src/reusable_ui/components/page_layout/PageContents'
+import PageHeader from 'src/clockface/components/page_layout/PageHeader'
+import PageTitle from 'src/clockface/components/page_layout/PageHeaderTitle'
+import PageContents from 'src/clockface/components/page_layout/PageContents'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

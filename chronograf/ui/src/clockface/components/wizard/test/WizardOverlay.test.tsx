@@ -1,12 +1,12 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import WizardOverlay from 'src/reusable_ui/components/wizard/WizardOverlay'
-import WizardController from 'src/reusable_ui/components/wizard/WizardController'
-import OverlayBody from 'src/reusable_ui/components/overlays/OverlayBody'
-import OverlayContainer from 'src/reusable_ui/components/overlays/OverlayContainer'
-import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
-import OverlayHeading from 'src/reusable_ui/components/overlays/OverlayHeading'
+import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
+import WizardController from 'src/clockface/components/wizard/WizardController'
+import OverlayBody from 'src/clockface/components/overlays/OverlayBody'
+import OverlayContainer from 'src/clockface/components/overlays/OverlayContainer'
+import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
+import OverlayHeading from 'src/clockface/components/overlays/OverlayHeading'
 
 describe('WizardOverlay', () => {
   let wrapper

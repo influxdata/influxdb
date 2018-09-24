@@ -1,8 +1,8 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import ProgressConnector from 'src/reusable_ui/components/wizard/ProgressConnector'
-import {ConnectorState} from 'src/reusable_ui/constants/wizard'
+import ProgressConnector from 'src/clockface/components/wizard/ProgressConnector'
+import {ConnectorState} from 'src/clockface/constants/wizard'
 
 describe('Progress Connector', () => {
   let wrapper

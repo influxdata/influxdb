@@ -2,11 +2,11 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import ProgressConnector from 'src/reusable_ui/components/wizard/ProgressConnector'
+import ProgressConnector from 'src/clockface/components/wizard/ProgressConnector'
 
 // Types
 import {Step} from 'src/types/wizard'
-import {ConnectorState, StepStatus} from 'src/reusable_ui/constants/wizard'
+import {ConnectorState, StepStatus} from 'src/clockface/constants/wizard'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

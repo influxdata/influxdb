@@ -8,7 +8,7 @@ import React, {
 import classnames from 'classnames'
 
 // Types
-import {ComponentStatus, ComponentSize, IconFont} from 'src/reusable_ui/types'
+import {ComponentStatus, ComponentSize, IconFont} from 'src/clockface/types'
 
 export enum InputType {
   Text = 'text',

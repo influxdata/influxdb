@@ -2,7 +2,7 @@
 import React, {Component, CSSProperties} from 'react'
 
 // Constants
-import {DEFAULT_PAGE_HEADER_CENTER_WIDTH} from 'src/reusable_ui/components/page_layout/constants'
+import {DEFAULT_PAGE_HEADER_CENTER_WIDTH} from 'src/clockface/components/page_layout/constants'
 const MIN_CHILD_COUNT = 1
 
 interface Props {

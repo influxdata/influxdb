@@ -1,8 +1,8 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import WizardStep from 'src/reusable_ui/components/wizard/WizardStep'
-import WizardButtonBar from 'src/reusable_ui/components/wizard/WizardButtonBar'
+import WizardStep from 'src/clockface/components/wizard/WizardStep'
+import WizardButtonBar from 'src/clockface/components/wizard/WizardButtonBar'
 
 describe('WizardStep', () => {
   let wrapper

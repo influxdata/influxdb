@@ -3,7 +3,7 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Types
-import {Columns} from 'src/reusable_ui/types'
+import {Columns} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

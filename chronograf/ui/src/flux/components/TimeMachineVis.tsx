@@ -7,7 +7,7 @@ import TableSidebar from 'src/flux/components/TableSidebar'
 import TimeMachineTable from 'src/flux/components/TimeMachineTable'
 import FluxGraph from 'src/flux/components/FluxGraph'
 import NoResults from 'src/flux/components/NoResults'
-import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
+import RadioButtons from 'src/clockface/components/radio_buttons/RadioButtons'
 
 interface Props {
   data: FluxTable[]

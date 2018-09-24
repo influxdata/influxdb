@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import CardSelectCard from 'src/reusable_ui/components/card_select/CardSelectCard'
+import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 
 describe('Card Select Card', () => {
   let wrapper

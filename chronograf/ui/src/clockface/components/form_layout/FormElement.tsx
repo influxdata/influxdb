@@ -3,12 +3,12 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Components
-import FormLabel from 'src/reusable_ui/components/form_layout/FormLabel'
-import FormElementError from 'src/reusable_ui/components/form_layout/FormElementError'
-import FormHelpText from 'src/reusable_ui/components/form_layout/FormHelpText'
+import FormLabel from 'src/clockface/components/form_layout/FormLabel'
+import FormElementError from 'src/clockface/components/form_layout/FormElementError'
+import FormHelpText from 'src/clockface/components/form_layout/FormHelpText'
 
 // Types
-import {Columns} from 'src/reusable_ui/types'
+import {Columns} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

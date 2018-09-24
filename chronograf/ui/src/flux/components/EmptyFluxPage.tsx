@@ -1,6 +1,6 @@
 import React, {SFC} from 'react'
 
-import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import PageHeader from 'src/clockface/components/page_layout/PageHeader'
 
 interface Props {
   onGoToNewService: () => void

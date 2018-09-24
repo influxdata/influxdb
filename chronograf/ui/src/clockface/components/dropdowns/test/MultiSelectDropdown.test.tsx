@@ -1,8 +1,8 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import MultiSelectDropdown from 'src/reusable_ui/components/dropdowns/MultiSelectDropdown'
-import DropdownButton from 'src/reusable_ui/components/dropdowns/DropdownButton'
+import MultiSelectDropdown from 'src/clockface/components/dropdowns/MultiSelectDropdown'
+import DropdownButton from 'src/clockface/components/dropdowns/DropdownButton'
 
 describe('MultiSelectDropdown', () => {
   let wrapper

@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 
-import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
+import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
 import TemplateDropdown from 'src/tempVars/components/TemplateDropdown'
 import TextTemplateSelector from 'src/tempVars/components/TextTemplateSelector'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'

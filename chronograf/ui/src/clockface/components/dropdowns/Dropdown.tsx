@@ -4,9 +4,9 @@ import classnames from 'classnames'
 
 // Components
 import {ClickOutside} from 'src/shared/components/ClickOutside'
-import DropdownDivider from 'src/reusable_ui/components/dropdowns/DropdownDivider'
-import DropdownItem from 'src/reusable_ui/components/dropdowns/DropdownItem'
-import DropdownButton from 'src/reusable_ui/components/dropdowns/DropdownButton'
+import DropdownDivider from 'src/clockface/components/dropdowns/DropdownDivider'
+import DropdownItem from 'src/clockface/components/dropdowns/DropdownItem'
+import DropdownButton from 'src/clockface/components/dropdowns/DropdownButton'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 // Types
@@ -16,7 +16,7 @@ import {
   ComponentColor,
   ComponentSize,
   IconFont,
-} from 'src/reusable_ui/types'
+} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import ProtoboardIcon from 'src/reusable_ui/components/card_select/ProtoboardIcon'
+import ProtoboardIcon from 'src/clockface/components/card_select/ProtoboardIcon'
 
 interface Props {
   id: string

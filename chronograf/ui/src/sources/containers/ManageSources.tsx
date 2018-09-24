@@ -6,7 +6,7 @@ import * as sourcesActions from 'src/shared/actions/sources'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import PageHeader from 'src/clockface/components/page_layout/PageHeader'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
 import {sourceDeleted, sourceDeleteFailed} from 'src/shared/copy/notifications'

@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Types
-import {ConnectorState} from 'src/reusable_ui/constants/wizard'
+import {ConnectorState} from 'src/clockface/constants/wizard'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

@@ -2,7 +2,7 @@
 import React, {PureComponent, ReactNode} from 'react'
 
 // Components
-import WizardButtonBar from 'src/reusable_ui/components/wizard/WizardButtonBar'
+import WizardButtonBar from 'src/clockface/components/wizard/WizardButtonBar'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {NextReturn} from 'src/types/wizard'

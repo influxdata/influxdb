@@ -1,9 +1,9 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import WizardController from 'src/reusable_ui/components/wizard/WizardController'
-import WizardStep from 'src/reusable_ui/components/wizard/WizardStep'
-import WizardProgressBar from 'src/reusable_ui/components/wizard/WizardProgressBar'
+import WizardController from 'src/clockface/components/wizard/WizardController'
+import WizardStep from 'src/clockface/components/wizard/WizardStep'
+import WizardProgressBar from 'src/clockface/components/wizard/WizardProgressBar'
 
 describe('WizardController', () => {
   let wrapper

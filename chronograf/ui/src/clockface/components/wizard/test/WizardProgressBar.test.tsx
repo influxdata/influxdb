@@ -1,10 +1,10 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import WizardProgressBar from 'src/reusable_ui/components/wizard/WizardProgressBar'
-import ProgressConnector from 'src/reusable_ui/components/wizard/ProgressConnector'
+import WizardProgressBar from 'src/clockface/components/wizard/WizardProgressBar'
+import ProgressConnector from 'src/clockface/components/wizard/ProgressConnector'
 
-import {StepStatus} from 'src/reusable_ui/constants/wizard'
+import {StepStatus} from 'src/clockface/constants/wizard'
 
 describe('Wizard Progress Bar', () => {
   let wrapper

@@ -2,13 +2,13 @@
 import React, {PureComponent, ReactElement} from 'react'
 
 // Components
-import OverlayBody from 'src/reusable_ui/components/overlays/OverlayBody'
-import OverlayContainer from 'src/reusable_ui/components/overlays/OverlayContainer'
-import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
-import WizardController from 'src/reusable_ui/components/wizard/WizardController'
-import OverlayHeading from 'src/reusable_ui/components/overlays/OverlayHeading'
+import OverlayBody from 'src/clockface/components/overlays/OverlayBody'
+import OverlayContainer from 'src/clockface/components/overlays/OverlayContainer'
+import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
+import WizardController from 'src/clockface/components/wizard/WizardController'
+import OverlayHeading from 'src/clockface/components/overlays/OverlayHeading'
 
-import {WizardStepProps} from 'src/reusable_ui/components/wizard/WizardStep'
+import {WizardStepProps} from 'src/clockface/components/wizard/WizardStep'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {ToggleWizard} from 'src/types/wizard'

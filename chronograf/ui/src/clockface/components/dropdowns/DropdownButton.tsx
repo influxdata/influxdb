@@ -9,7 +9,7 @@ import {
   ComponentSize,
   IconFont,
   DropdownChild,
-} from 'src/reusable_ui/types'
+} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

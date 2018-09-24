@@ -3,10 +3,10 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Components
-import RadioButton from 'src/reusable_ui/components/radio_buttons/RadioButton'
+import RadioButton from 'src/clockface/components/radio_buttons/RadioButton'
 
 // Types
-import {ComponentColor, ComponentSize, ButtonShape} from 'src/reusable_ui/types'
+import {ComponentColor, ComponentSize, ButtonShape} from 'src/clockface/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

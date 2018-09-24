@@ -3,10 +3,10 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Components
-import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
-import PageHeaderLeft from 'src/reusable_ui/components/page_layout/PageHeaderLeft'
-import PageHeaderCenter from 'src/reusable_ui/components/page_layout/PageHeaderCenter'
-import PageHeaderRight from 'src/reusable_ui/components/page_layout/PageHeaderRight'
+import PageHeaderTitle from 'src/clockface/components/page_layout/PageHeaderTitle'
+import PageHeaderLeft from 'src/clockface/components/page_layout/PageHeaderLeft'
+import PageHeaderCenter from 'src/clockface/components/page_layout/PageHeaderCenter'
+import PageHeaderRight from 'src/clockface/components/page_layout/PageHeaderRight'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

@@ -1,8 +1,8 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import WizardFullScreen from 'src/reusable_ui/components/wizard/WizardFullScreen'
-import WizardController from 'src/reusable_ui/components/wizard/WizardController'
+import WizardFullScreen from 'src/clockface/components/wizard/WizardFullScreen'
+import WizardController from 'src/clockface/components/wizard/WizardController'
 import SplashPage from 'src/shared/components/SplashPage'
 
 describe('WizardFullScreen', () => {

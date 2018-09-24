@@ -4,9 +4,9 @@ import classnames from 'classnames'
 import _ from 'lodash'
 
 // Components
-import PanelHeader from 'src/reusable_ui/components/panel/PanelHeader'
-import PanelBody from 'src/reusable_ui/components/panel/PanelBody'
-import PanelFooter from 'src/reusable_ui/components/panel/PanelFooter'
+import PanelHeader from 'src/clockface/components/panel/PanelHeader'
+import PanelBody from 'src/clockface/components/panel/PanelBody'
+import PanelFooter from 'src/clockface/components/panel/PanelFooter'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

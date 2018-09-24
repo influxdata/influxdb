@@ -3,9 +3,9 @@ import React, {PureComponent, ReactElement} from 'react'
 
 // Components
 import SplashPage from 'src/shared/components/SplashPage'
-import WizardController from 'src/reusable_ui/components/wizard/WizardController'
+import WizardController from 'src/clockface/components/wizard/WizardController'
 
-import {WizardStepProps} from 'src/reusable_ui/components/wizard/WizardStep'
+import {WizardStepProps} from 'src/clockface/components/wizard/WizardStep'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

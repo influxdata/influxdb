@@ -3,7 +3,7 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Types
-import {ComponentColor, ComponentSize} from 'src/reusable_ui/types'
+import {ComponentColor, ComponentSize} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

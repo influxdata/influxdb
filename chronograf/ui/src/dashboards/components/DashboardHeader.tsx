@@ -1,7 +1,7 @@
 import React, {Component} from 'react'
 
-import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
-import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
+import PageHeader from 'src/clockface/components/page_layout/PageHeader'
+import PageHeaderTitle from 'src/clockface/components/page_layout/PageHeaderTitle'
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/GraphTips'

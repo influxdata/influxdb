@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import SlideToggle from 'src/reusable_ui/components/slide_toggle/SlideToggle'
-import {ComponentColor, ComponentSize} from 'src/reusable_ui/types'
+import SlideToggle from 'src/clockface/components/slide_toggle/SlideToggle'
+import {ComponentColor, ComponentSize} from 'src/clockface/types'
 
 interface Props {
   isChecked: boolean

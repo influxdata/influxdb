@@ -1,7 +1,7 @@
 import React from 'react'
 import {mount} from 'enzyme'
 
-import Dropdown from 'src/reusable_ui/components/dropdowns/Dropdown'
+import Dropdown from 'src/clockface/components/dropdowns/Dropdown'
 
 describe('Dropdown', () => {
   let wrapper
