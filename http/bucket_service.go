@@ -199,8 +199,7 @@ type postBucketRequest struct {
 }
 
 func (b postBucketRequest) Validate() error {
-	// TODO(goller): hey leo, is this ok?
-	if b.Bucket.Organization == "" && len(b.Bucket.OrganizationID) == 0 {
+	if b.Bucket.Organization == "" && !b.Bucket.OrganizationID.Valid() {
 		return fmt.Errorf("bucket requires an organization")
 	}
 	return nil

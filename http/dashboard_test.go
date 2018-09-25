@@ -997,17 +997,17 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 
 func Test_dashboardCellIDPath(t *testing.T) {
 	t.Parallel()
-	dashboard, err := platform.IDFromString("deadbeef")
+	dashboard, err := platform.IDFromString("deadbeefdeadbeef")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cell, err := platform.IDFromString("cade9a7e")
+	cell, err := platform.IDFromString("cade9a7ecade9a7e")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want := "/api/v2/dashboards/deadbeef/cells/cade9a7e"
+	want := "/api/v2/dashboards/deadbeefdeadbeef/cells/cade9a7ecade9a7e"
 	if got := dashboardCellIDPath(*dashboard, *cell); got != want {
 		t.Errorf("dashboardCellIDPath() = got: %s want: %s", got, want)
 	}
@@ -1042,6 +1042,6 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 }
 
 func TestDashboardService(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 	platformtesting.DashboardService(initDashboardService, t)
 }

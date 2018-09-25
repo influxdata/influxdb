@@ -3,14 +3,15 @@ package http
 import (
 	"bytes"
 	"context"
-	"github.com/influxdata/flux/csv"
-	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/platform/mock"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/platform/mock"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -373,7 +374,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
-							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeef"); return *s }(),
+							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 						}, nil
 					},
 				},
@@ -387,7 +388,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 					Header:         func(x bool) *bool { return &x }(true),
 				},
 				org: &platform.Organization{
-					ID: func() platform.ID { s, _ := platform.IDFromString("deadbeef"); return *s }(),
+					ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 				},
 			},
 		},
@@ -440,14 +441,14 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
-							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeef"); return *s }(),
+							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 						}, nil
 					},
 				},
 			},
 			want: &query.ProxyRequest{
 				Request: query.Request{
-					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeef"); return *s }(),
+					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 					Compiler: lang.FluxCompiler{
 						Query: "from()",
 					},

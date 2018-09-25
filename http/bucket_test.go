@@ -314,7 +314,6 @@ func TestService_handlePostBucket(t *testing.T) {
   },
   "id": "020f755c3c082000",
   "organizationID": "6f626f7274697320",
-  "organization": "30",
   "name": "hello",
   "retentionPeriod": "0s"
 }

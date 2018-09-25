@@ -116,6 +116,7 @@ func CreateAuthorization(
 			},
 			args: args{
 				authorization: &platform.Authorization{
+					ID:   MustIDFromString(authOneID),
 					User: "cooluser",
 					Permissions: []platform.Permission{
 						platform.CreateUserPermission,
@@ -173,6 +174,7 @@ func CreateAuthorization(
 			args: args{
 				authorization: &platform.Authorization{
 					User: "regularuser",
+					ID:   MustIDFromString(authTwoID),
 					Permissions: []platform.Permission{
 						platform.CreateUserPermission,
 					},
