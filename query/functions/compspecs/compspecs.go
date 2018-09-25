@@ -16,7 +16,6 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query/influxql"
-	"github.com/influxdata/platform/query/semantic/semantictest"
 	platformtesting "github.com/influxdata/platform/testing"
 
 	"github.com/google/go-cmp/cmp"

@@ -8,8 +8,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
-	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
+	platformtesting "github.com/influxdata/platform/testing"
 )
 
 var CmpOpts = []cmp.Option{
@@ -59,7 +59,7 @@ func TestRequest_JSON(t *testing.T) {
 			name: "simple",
 			data: `{"organization_id":"aaaaaaaaaaaaaaaa","compiler":{"a":"my custom compiler"},"compiler_type":"compilerA"}`,
 			want: query.Request{
-				OrganizationID: platform.ID{0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA},
+				OrganizationID: platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa"),
 				Compiler: &compilerA{
 					A: "my custom compiler",
 				},
@@ -97,7 +97,7 @@ func TestProxyRequest_JSON(t *testing.T) {
 			data: `{"request":{"organization_id":"aaaaaaaaaaaaaaaa","compiler":{"a":"my custom compiler"},"compiler_type":"compilerA"},"dialect":{"b":42},"dialect_type":"dialectB"}`,
 			want: query.ProxyRequest{
 				Request: query.Request{
-					OrganizationID: platform.ID{0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA},
+					OrganizationID: platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa"),
 					Compiler: &compilerA{
 						A: "my custom compiler",
 					},
