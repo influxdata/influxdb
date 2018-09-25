@@ -59,18 +59,30 @@ func ParseDuration(s string) (time.Duration, error) {
 		measure = n
 
 		// Extract the unit of measure.
-		// If the last two characters are "ms" then parse as milliseconds.
-		// Otherwise just use the last character as the unit of measure.
 		unit = string(a[i])
 		switch a[i] {
 		case 'u', 'µ':
 			d += time.Duration(n) * time.Microsecond
-		case 'm':
 			if i+1 < len(a) && a[i+1] == 's' {
 				unit = string(a[i : i+2])
-				d += time.Duration(n) * time.Millisecond
 				i += 2
 				continue
+			}
+		case 'm':
+			// Check for `mo` and `ms`; month and millisecond, respectively.
+			if i+1 < len(a) {
+				switch a[i+1] {
+				case 's': // ms == milliseconds
+					unit = string(a[i : i+2])
+					d += time.Duration(n) * time.Millisecond
+					i += 2
+					continue
+				case 'o': // mo == month
+					unit = string(a[i : i+2])
+					d += time.Duration(n) * 30 * 24 * time.Hour
+					i += 2
+					continue
+				}
 			}
 			d += time.Duration(n) * time.Minute
 		case 's':
@@ -81,6 +93,8 @@ func ParseDuration(s string) (time.Duration, error) {
 			d += time.Duration(n) * 24 * time.Hour
 		case 'w':
 			d += time.Duration(n) * 7 * 24 * time.Hour
+		case 'y':
+			d += time.Duration(n) * 365 * 24 * time.Hour
 		default:
 			return 0, ErrInvalidDuration
 		}
@@ -102,6 +116,8 @@ func ParseDuration(s string) (time.Duration, error) {
 func FormatDuration(d time.Duration) string {
 	if d == 0 {
 		return "0s"
+	} else if d%(365*24*time.Hour) == 0 {
+		return fmt.Sprintf("%dy", d/(365*24*time.Hour))
 	} else if d%(7*24*time.Hour) == 0 {
 		return fmt.Sprintf("%dw", d/(7*24*time.Hour))
 	} else if d%(24*time.Hour) == 0 {
