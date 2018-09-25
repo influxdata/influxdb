@@ -23,7 +23,7 @@ func bucketF(cmd *cobra.Command, args []string) {
 	cmd.Usage()
 }
 
-// Create Command
+// BucketCreateFlags define the Create Command
 type BucketCreateFlags struct {
 	name      string
 	org       string
@@ -41,7 +41,7 @@ func init() {
 	}
 
 	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.name, "name", "n", "", "name of bucket that will be created")
-	bucketCreateCmd.Flags().DurationVarP(&bucketCreateFlags.retention, "retention", "r", 0, "duration data will live in bucket")
+	bucketCreateCmd.Flags().DurationVarP(&bucketCreateFlags.retention, "retention", "r", 0, "duration in nanoseconds data will live in bucket")
 	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.org, "org", "o", "", "name of the organization that owns the bucket")
 	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.orgID, "org-id", "", "", "id of the organization that owns the bucket")
 	bucketCreateCmd.MarkFlagRequired("name")
@@ -102,7 +102,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 	w.Flush()
 }
 
-// Find Command
+// BucketFindFlags define the Find Command
 type BucketFindFlags struct {
 	name  string
 	id    string
@@ -192,7 +192,7 @@ func bucketFindF(cmd *cobra.Command, args []string) {
 	w.Flush()
 }
 
-// Update Command
+// BucketUpdateFlags define the Update Command
 type BucketUpdateFlags struct {
 	id        string
 	name      string
@@ -260,7 +260,7 @@ func bucketUpdateF(cmd *cobra.Command, args []string) {
 	w.Flush()
 }
 
-// Delete command
+// BucketDeleteFlags define the Delete command
 type BucketDeleteFlags struct {
 	id string
 }
