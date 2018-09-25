@@ -57,6 +57,7 @@ var (
 	authorizationPath string
 	boltPath          string
 	walPath           string
+	developerMode     bool
 )
 
 func influxDir() (string, error) {
@@ -88,7 +89,7 @@ func init() {
 		httpBindAddress = h
 	}
 
-	platformCmd.Flags().StringVar(&authorizationPath, "authorizationPath", "", "path to a bootstrap token")
+	platformCmd.Flags().StringVar(&authorizationPath, "authorization-path", "", "path to a bootstrap token")
 	viper.BindEnv("TOKEN_PATH")
 	if h := viper.GetString("TOKEN_PATH"); h != "" {
 		authorizationPath = h
@@ -98,6 +99,12 @@ func init() {
 	viper.BindEnv("BOLT_PATH")
 	if h := viper.GetString("BOLT_PATH"); h != "" {
 		boltPath = h
+	}
+
+	platformCmd.Flags().BoolVar(&developerMode, "developer-mode", false, "serve assets from the local filesystem in developer mode")
+	viper.BindEnv("DEV_MODE")
+	if h := viper.GetBool("DEV_MODE"); h {
+		developerMode = h
 	}
 
 	dir, err := influxDir()
@@ -287,6 +294,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		authHandler.Logger = logger.With(zap.String("handler", "auth"))
 
 		assetHandler := http.NewAssetHandler()
+		assetHandler.Develop = developerMode
 		fluxLangHandler := http.NewFluxLangHandler()
 
 		sourceHandler := http.NewSourceHandler()

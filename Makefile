@@ -11,7 +11,7 @@
 #    * All recursive Makefiles must support the targets: all and clean.
 #
 
-SUBDIRS := query task chronograf/ui
+SUBDIRS := query task
 
 GO_ARGS=-tags '$(GO_TAGS)'
 
@@ -63,6 +63,10 @@ all: node_modules $(UTILS) subdirs generate $(CMDS)
 subdirs: $(SUBDIRS)
 	@for d in $^; do $(MAKE) -C $$d all; done
 
+
+chronograf/ui:
+	$(MAKE) -C chronograf/ui all
+
 #
 # Define targets for commands
 #
@@ -85,10 +89,14 @@ bin/$(GOOS)/goreleaser: go.mod go.sum
 bin/$(GOOS)/go-bindata: go.mod go.sum
 	$(GO_BUILD) -o $@ github.com/kevinburke/go-bindata/go-bindata
 
+
 node_modules: chronograf/ui/node_modules
 
 chronograf/ui/node_modules:
 	make -C chronograf/ui node_modules
+
+chronograf/ui/build:
+	mkdir -p chronograf/ui/build
 
 #
 # Define action only targets
@@ -131,7 +139,27 @@ nightly: bin/$(GOOS)/goreleaser all
 # Recursively clean all subdirs
 clean: $(SUBDIRS)
 	@for d in $^; do $(MAKE) -C $$d $(MAKECMDGOALS); done
+	$(MAKE) -C chronograf/ui $(MAKECMDGOALS)
 	rm -rf bin
 
+
+define CHRONOGIRAFFE
+             ._ o o
+             \_`-)|_
+          ,""      _\_
+        ,"  ## |   0 0.
+      ," ##   ,-\__    `.
+    ,"       /     `--._;) - "HAI, I'm Chronogiraffe. Let's be friends!"
+  ,"     ## /
+,"   ##    /
+endef
+export CHRONOGIRAFFE
+chronogiraffe: $(UTILS) subdirs generate $(CMDS)
+	@echo "$$CHRONOGIRAFFE"
+
+run: chronogiraffe
+	./bin/$(GOOS)/influxd --developer-mode=true
+
+
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) fmt test test-go test-js test-go-race bench clean node_modules vet nightly
+.PHONY: all subdirs $(SUBDIRS) run fmt test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe
