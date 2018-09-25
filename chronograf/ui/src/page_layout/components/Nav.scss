@@ -10,10 +10,10 @@ $nav--bg-accent: $c-comet;
 
 .nav {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   background-color: $g3-castle;
-  border-radius: 0 $radius $radius 0;
-  width: $nav-size;
+  border-radius: 0 0 $radius $radius;
+  height: $nav-size;
 
   a:link,
   a:active,
@@ -47,15 +47,24 @@ $nav--bg-accent: $c-comet;
   }
 }
 
+.nav--item:first-child .nav--item-icon {
+  border-bottom-left-radius: $radius;
+}
+
+.nav--item:last-child .nav--item-icon {
+  border-bottom-right-radius: $radius;
+}
+
 .nav--item-menu {
   position: absolute;
-  top: 0;
-  left: $nav-size;
-  @include gradient-h($nav--bg,$nav--bg-accent);
+  top: $nav-size;
+  left: 50%;
+  transform: translateX(-50%);
+  @include gradient-v($nav--bg,$nav--bg-accent);
   display: none;
   flex-direction: column;
   align-items: stretch;
-  border-radius: 0 $radius $radius 0;
+  border-radius: $radius;
   overflow: hidden;
 }
 
@@ -77,6 +86,7 @@ $nav--bg-accent: $c-comet;
   .nav--item-icon {
     color: $g20-white;
     background-color: $nav--bg;
+    border-radius: 0;
   }
 
   .nav--item-menu {
@@ -88,7 +98,7 @@ $nav--bg-accent: $c-comet;
 .nav--item.active {
   .nav--item-icon {
     color: $g20-white;
-    background-color: $g4-onyx;
+    background-color: $g6-smoke;
     text-shadow:
       0 0 9px $c-laser,
       0 0 15px $c-ocean,
@@ -106,3 +116,35 @@ $nav--bg-accent: $c-comet;
       0 0 20px $c-laser;
   }
 }
+
+// Vertical Menu
+@media screen and (min-width: $nav-breakpoint) {
+  .nav {
+    flex-direction: column;
+    height: auto;
+    width: $nav-size;
+    border-radius: 0 $radius $radius 0;
+  }
+
+  .nav--item-menu {
+    top: 0;
+    left: $nav-size;
+    border-radius: 0 $radius $radius 0;
+    transform: translateX(0);
+    @include gradient-h($nav--bg,$nav--bg-accent);
+  }
+
+  .nav--item:first-child .nav--item-icon {
+    border-bottom-left-radius: 0;
+    border-top-right-radius: $radius;
+  }
+
+  .nav--item:last-child .nav--item-icon {
+    border-bottom-right-radius: $radius;
+  }
+
+  .nav--item:hover .nav--item-icon {
+    border-radius: 0;
+  }
+}
+
