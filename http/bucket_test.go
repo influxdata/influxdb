@@ -516,7 +516,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "example",
-  "retentionPeriod": "1u"
+  "retentionPeriod": "1234ns"
 }
 `,
 			},

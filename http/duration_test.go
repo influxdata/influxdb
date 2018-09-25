@@ -13,6 +13,8 @@ func TestParseDuration(t *testing.T) {
 		want    time.Duration
 		wantErr bool
 	}{
+		{s: `10n`, want: 10 * time.Nanosecond},
+		{s: `10ns`, want: 10 * time.Nanosecond},
 		{s: `10u`, want: 10 * time.Microsecond},
 		{s: `10µ`, want: 10 * time.Microsecond},
 		{s: `10us`, want: 10 * time.Microsecond},
@@ -32,6 +34,7 @@ func TestParseDuration(t *testing.T) {
 		{s: ``, wantErr: true},
 		{s: `3`, wantErr: true},
 		{s: `3mm`, wantErr: true},
+		{s: `3nm`, wantErr: true},
 		{s: `1000`, wantErr: true},
 		{s: `w`, wantErr: true},
 		{s: `ms`, wantErr: true},
@@ -60,14 +63,16 @@ func TestFormatDuration(t *testing.T) {
 		d    time.Duration
 		want string
 	}{
-		{d: 3 * time.Microsecond, want: `3u`},
-		{d: 1001 * time.Microsecond, want: `1001u`},
+		{d: 3 * time.Nanosecond, want: `3ns`},
+		{d: 3 * time.Microsecond, want: `3us`},
+		{d: 1001 * time.Microsecond, want: `1001us`},
 		{d: 15 * time.Millisecond, want: `15ms`},
 		{d: 100 * time.Second, want: `100s`},
 		{d: 2 * time.Minute, want: `2m`},
 		{d: 2 * time.Hour, want: `2h`},
 		{d: 2 * 24 * time.Hour, want: `2d`},
 		{d: 2 * 7 * 24 * time.Hour, want: `2w`},
+		{d: 2 * 30 * 24 * time.Hour, want: `2mo`},
 		{d: 2 * 365 * 24 * time.Hour, want: `2y`},
 	}
 

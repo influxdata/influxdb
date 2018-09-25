@@ -61,6 +61,13 @@ func ParseDuration(s string) (time.Duration, error) {
 		// Extract the unit of measure.
 		unit = string(a[i])
 		switch a[i] {
+		case 'n':
+			d += time.Duration(n) * time.Nanosecond
+			if i+1 < len(a) && a[i+1] == 's' {
+				unit = string(a[i : i+2])
+				i += 2
+				continue
+			}
 		case 'u', 'µ':
 			d += time.Duration(n) * time.Microsecond
 			if i+1 < len(a) && a[i+1] == 's' {
@@ -118,6 +125,8 @@ func FormatDuration(d time.Duration) string {
 		return "0s"
 	} else if d%(365*24*time.Hour) == 0 {
 		return fmt.Sprintf("%dy", d/(365*24*time.Hour))
+	} else if d%(30*24*time.Hour) == 0 {
+		return fmt.Sprintf("%dmo", d/(30*24*time.Hour))
 	} else if d%(7*24*time.Hour) == 0 {
 		return fmt.Sprintf("%dw", d/(7*24*time.Hour))
 	} else if d%(24*time.Hour) == 0 {
@@ -130,11 +139,10 @@ func FormatDuration(d time.Duration) string {
 		return fmt.Sprintf("%ds", d/time.Second)
 	} else if d%time.Millisecond == 0 {
 		return fmt.Sprintf("%dms", d/time.Millisecond)
+	} else if d%time.Microsecond == 0 {
+		return fmt.Sprintf("%dus", d/time.Microsecond)
 	}
-	// Although we accept both "u" and "µ" when reading microsecond durations,
-	// we output with "u", which can be represented in 1 byte,
-	// instead of "µ", which requires 2 bytes.
-	return fmt.Sprintf("%du", d/time.Microsecond)
+	return fmt.Sprintf("%dns", d/time.Nanosecond)
 }
 
 // split splits a string into a slice of runes.
