@@ -44,14 +44,16 @@ func TestService_handleGetBuckets(t *testing.T) {
 					FindBucketsFn: func(ctx context.Context, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, int, error) {
 						return []*platform.Bucket{
 							{
-								ID:             platform.ID("0"),
-								Name:           "hello",
-								OrganizationID: platform.ID("10"),
+								ID:              platform.ID("0"),
+								Name:            "hello",
+								OrganizationID:  platform.ID("10"),
+								RetentionPeriod: 2 * time.Second,
 							},
 							{
-								ID:             platform.ID("2"),
-								Name:           "example",
-								OrganizationID: platform.ID("20"),
+								ID:              platform.ID("2"),
+								Name:            "example",
+								OrganizationID:  platform.ID("20"),
+								RetentionPeriod: 24 * time.Hour,
 							},
 						}, 2, nil
 					},
@@ -75,7 +77,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "id": "30",
       "organizationID": "3130",
       "name": "hello",
-      "retentionPeriod": 0
+      "retentionPeriod": "2s"
     },
     {
       "links": {
@@ -85,7 +87,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "id": "32",
       "organizationID": "3230",
       "name": "example",
-      "retentionPeriod": 0
+	  "retentionPeriod": "1d"
     }
   ]
 }
@@ -179,9 +181,10 @@ func TestService_handleGetBucket(t *testing.T) {
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
 						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
 							return &platform.Bucket{
-								ID:             mustParseID("020f755c3c082000"),
-								OrganizationID: mustParseID("020f755c3c082000"),
-								Name:           "hello",
+								ID:              mustParseID("020f755c3c082000"),
+								OrganizationID:  mustParseID("020f755c3c082000"),
+								Name:            "hello",
+								RetentionPeriod: 30 * time.Second,
 							}, nil
 						}
 
@@ -204,7 +207,7 @@ func TestService_handleGetBucket(t *testing.T) {
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "hello",
-  "retentionPeriod": 0
+  "retentionPeriod": "30s"
 }
 `,
 			},
@@ -313,7 +316,7 @@ func TestService_handlePostBucket(t *testing.T) {
   "id": "020f755c3c082000",
   "organizationID": "30",
   "name": "hello",
-  "retentionPeriod": 0
+  "retentionPeriod": "0s"
 }
 `,
 			},
@@ -325,7 +328,7 @@ func TestService_handlePostBucket(t *testing.T) {
 			h := NewBucketHandler()
 			h.BucketService = tt.fields.BucketService
 
-			b, err := json.Marshal(tt.args.bucket)
+			b, err := json.Marshal(newBucket(tt.args.bucket))
 			if err != nil {
 				t.Fatalf("failed to unmarshal bucket: %v", err)
 			}
@@ -340,7 +343,8 @@ func TestService_handlePostBucket(t *testing.T) {
 			body, _ := ioutil.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. handlePostBucket() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+				msg := res.Header.Get(ErrorHeader)
+				t.Errorf("%q. handlePostBucket() = %v, want %v: %s", tt.name, res.StatusCode, tt.wants.statusCode, msg)
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostBucket() = %v, want %v", tt.name, content, tt.wants.contentType)
@@ -512,7 +516,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "example",
-  "retentionPeriod": 1234
+  "retentionPeriod": "1u"
 }
 `,
 			},
@@ -549,7 +553,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 				upd.RetentionPeriod = &tt.args.retention
 			}
 
-			b, err := json.Marshal(upd)
+			b, err := json.Marshal(newBucketUpdate(&upd))
 			if err != nil {
 				t.Fatalf("failed to unmarshal bucket update: %v", err)
 			}

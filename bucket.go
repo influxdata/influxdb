@@ -6,9 +6,11 @@ import (
 	"time"
 )
 
+// BucketType defines known system-buckets.
 type BucketType int
 
 const (
+	// BucketTypeLogs defines the bucket ID of the system logs.
 	BucketTypeLogs = BucketType(iota + 10)
 )
 

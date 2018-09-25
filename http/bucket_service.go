@@ -35,9 +35,94 @@ func NewBucketHandler() *BucketHandler {
 	return h
 }
 
+// bucket is used for serialization/deserialization with duration string syntax.
+type bucket struct {
+	ID                  platform.ID `json:"id,omitempty"`
+	OrganizationID      platform.ID `json:"organizationID,omitempty"`
+	Organization        string      `json:"organization,omitempty"`
+	Name                string      `json:"name"`
+	RetentionPolicyName string      `json:"rp,omitempty"` // This to support v1 sources
+	RetentionPeriod     string      `json:"retentionPeriod"`
+}
+
+func (b *bucket) toPlatform() (*platform.Bucket, error) {
+	if b == nil {
+		return nil, nil
+	}
+
+	d, err := ParseDuration(b.RetentionPeriod)
+	if err != nil {
+		return nil, err
+	}
+
+	return &platform.Bucket{
+		ID:                  b.ID,
+		OrganizationID:      b.OrganizationID,
+		Organization:        b.Organization,
+		Name:                b.Name,
+		RetentionPolicyName: b.RetentionPolicyName,
+		RetentionPeriod:     d,
+	}, nil
+}
+
+func newBucket(pb *platform.Bucket) *bucket {
+	if pb == nil {
+		return nil
+	}
+
+	return &bucket{
+		ID:                  pb.ID,
+		OrganizationID:      pb.OrganizationID,
+		Organization:        pb.Organization,
+		Name:                pb.Name,
+		RetentionPolicyName: pb.RetentionPolicyName,
+		RetentionPeriod:     FormatDuration(pb.RetentionPeriod),
+	}
+}
+
+// bucketUpdate is used for serialization/deserialization with duration string syntax.
+type bucketUpdate struct {
+	Name            *string `json:"name,omitempty"`
+	RetentionPeriod *string `json:"retentionPeriod,omitempty"`
+}
+
+func (b *bucketUpdate) toPlatform() (*platform.BucketUpdate, error) {
+	if b == nil {
+		return nil, nil
+	}
+
+	up := &platform.BucketUpdate{
+		Name: b.Name,
+	}
+	if b.RetentionPeriod != nil {
+		d, err := ParseDuration(*b.RetentionPeriod)
+		if err != nil {
+			return nil, err
+		}
+		up.RetentionPeriod = &d
+	}
+
+	return up, nil
+}
+
+func newBucketUpdate(pb *platform.BucketUpdate) *bucketUpdate {
+	if pb == nil {
+		return nil
+	}
+
+	up := &bucketUpdate{
+		Name: pb.Name,
+	}
+	if pb.RetentionPeriod != nil {
+		d := FormatDuration(*pb.RetentionPeriod)
+		up.RetentionPeriod = &d
+	}
+	return up
+}
+
 type bucketResponse struct {
 	Links map[string]string `json:"links"`
-	platform.Bucket
+	bucket
 }
 
 func newBucketResponse(b *platform.Bucket) *bucketResponse {
@@ -46,7 +131,7 @@ func newBucketResponse(b *platform.Bucket) *bucketResponse {
 			"self": fmt.Sprintf("/v1/buckets/%s", b.ID),
 			"org":  fmt.Sprintf("/v1/orgs/%s", b.OrganizationID),
 		},
-		Bucket: *b,
+		bucket: *newBucket(b),
 	}
 }
 
@@ -103,14 +188,20 @@ func (b postBucketRequest) Validate() error {
 }
 
 func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketRequest, error) {
-	b := &platform.Bucket{}
+	b := &bucket{}
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
 		return nil, err
 	}
 
-	req := &postBucketRequest{
-		Bucket: b,
+	pb, err := b.toPlatform()
+	if err != nil {
+		return nil, err
 	}
+
+	req := &postBucketRequest{
+		Bucket: pb,
+	}
+
 	return req, req.Validate()
 }
 
@@ -305,13 +396,18 @@ func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucke
 		return nil, err
 	}
 
-	var upd platform.BucketUpdate
-	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
+	bu := &bucketUpdate{}
+	if err := json.NewDecoder(r.Body).Decode(bu); err != nil {
+		return nil, err
+	}
+
+	upd, err := bu.toPlatform()
+	if err != nil {
 		return nil, err
 	}
 
 	return &patchBucketRequest{
-		Update:   upd,
+		Update:   *upd,
 		BucketID: i,
 	}, nil
 }
@@ -350,13 +446,12 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 		return nil, err
 	}
 
-	var b platform.Bucket
-	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
+	var br bucketResponse
+	if err := json.NewDecoder(resp.Body).Decode(&br); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	return &b, nil
+	return br.toPlatform()
 }
 
 // FindBucket returns the first bucket that matches filter.
@@ -421,7 +516,12 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 
 	buckets := make([]*platform.Bucket, 0, len(bs.Buckets))
 	for _, b := range bs.Buckets {
-		buckets = append(buckets, &b.Bucket)
+		pb, err := b.bucket.toPlatform()
+		if err != nil {
+			return nil, 0, err
+		}
+
+		buckets = append(buckets, pb)
 	}
 
 	return buckets, len(buckets), nil
@@ -434,7 +534,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 		return err
 	}
 
-	octets, err := json.Marshal(b)
+	octets, err := json.Marshal(newBucket(b))
 	if err != nil {
 		return err
 	}
@@ -459,11 +559,13 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 		return err
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(b); err != nil {
+	var br bucketResponse
+	if err := json.NewDecoder(resp.Body).Decode(&br); err != nil {
 		return err
 	}
 
-	return nil
+	b, err = br.toPlatform()
+	return err
 }
 
 // UpdateBucket updates a single bucket with changeset.
@@ -474,7 +576,8 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 		return nil, err
 	}
 
-	octets, err := json.Marshal(upd)
+	bu := newBucketUpdate(&upd)
+	octets, err := json.Marshal(bu)
 	if err != nil {
 		return nil, err
 	}
@@ -498,13 +601,12 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 		return nil, err
 	}
 
-	var b platform.Bucket
-	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
+	var br bucketResponse
+	if err := json.NewDecoder(resp.Body).Decode(&br); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	return &b, nil
+	return br.toPlatform()
 }
 
 // DeleteBucket removes a bucket by ID.
