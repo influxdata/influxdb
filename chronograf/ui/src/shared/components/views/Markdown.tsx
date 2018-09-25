@@ -3,7 +3,7 @@ import React, {Component} from 'react'
 import ReactMarkdown from 'react-markdown'
 
 // Components
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Utils
 import {humanizeNote} from 'src/dashboards/utils/notes'

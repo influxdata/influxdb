@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import SlideToggle from 'src/reusable_ui/components/slide_toggle/SlideToggle'
+import {SlideToggle} from 'src/clockface'
 
 interface Props {
   dashboardLink: string
