@@ -3,44 +3,38 @@
   ------------------------------------------------------------------------------
 */
 
-@import 'src/style/modules/influx-colors';
-@import 'src/style/modules/variables';
-@import 'src/style/modules/mixins';
-@import 'src/style/layout/page-header';
-
-$rename-dash-title-padding: 7px;
+$rename-dash-title-padding: 8px;
 
 .rename-dashboard {
   height: $form-sm-height;
   min-width: 0;
-  width: 100%;;
+  width: 100%;
 }
-.dashboard-switcher + .rename-dashboard {
-  width: calc(100% - 38px);
+
+.rename-dashboard--title,
+.rename-dashboard--input {
+  position: relative;
+  width: calc(100% + #{$rename-dash-title-padding});
+  left: -$rename-dash-title-padding;
+  height: $form-sm-height;
+  border: $ix-border solid transparent;
+  padding: 0 $form-sm-height 0 $rename-dash-title-padding;
+  border-radius: $radius;
+  font-size: $page-title-size;
+  font-weight: $page-title-weight;
+  font-family: $ix-text-font;
+  word-spacing: 0.3em;
 }
 
 .rename-dashboard--title {
-  width: 100%;
   position: relative;
-  padding: 0 $form-sm-height 0 $rename-dash-title-padding;
-  border: $ix-border solid $g0-obsidian;
-  height: $form-sm-height;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-radius: $radius;
   @include no-user-select();
   color: $g17-whisper;
-  transition:
-  color 0.25s ease,
-  background-color 0.25s ease,
-  border-color 0.25s ease;
-  text-transform: none;
-  letter-spacing: 0;
-  line-height: $form-sm-height - $ix-border;
-  margin: 0;
-  font-size: $page-header-size;
-  font-weight: $page-header-weight;
+  transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+  line-height: $form-sm-height - ($ix-border * 2);
   
   .icon {
     position: absolute;
@@ -65,8 +59,11 @@ $rename-dash-title-padding: 7px;
   }
 }
 
-input.form-control.input-sm.rename-dashboard--input {
-  padding: 0 $rename-dash-title-padding;
-  font-size: $page-header-size;
-  font-weight: $page-header-weight;
+.rename-dashboard--input {
+  color: $g20-white;
+  background-color: $g2-kevlar;
+
+  &:focus {
+    border-color: $c-pool;
+  }
 }

@@ -3,7 +3,7 @@ import {Link} from 'react-router'
 
 import classnames from 'classnames'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import DropdownMenuItem from 'src/shared/components/DropdownMenuItem'
 import {
   OnActionHandler,

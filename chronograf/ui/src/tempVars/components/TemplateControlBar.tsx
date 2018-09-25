@@ -4,7 +4,7 @@ import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import TemplateControl from 'src/tempVars/components/TemplateControl'
-import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
+import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import {graphFromTemplates} from 'src/tempVars/utils/graph'
 

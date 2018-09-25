@@ -1,0 +1,52 @@
+/*
+  Grid Sizer
+  ------------------------------------------------------------------------------
+*/
+
+$card-select--gutter: 4px;
+
+.grid-sizer {
+  width: 100%;
+  display: inline-block;
+}
+
+.grid-sizer--cell {
+  float: left;
+  position: relative;
+  width: calc(100% - #{$card-select--gutter});
+  height: calc(100% - #{$card-select--gutter});
+  margin: $card-select--gutter / 2;
+}
+
+.grid-sizer--col-2 {
+  width: calc(50% - #{$card-select--gutter});
+  padding-bottom: 50%;
+}
+
+.grid-sizer--col-3 {
+  width: calc(33.3333% - #{$card-select--gutter});
+  padding-bottom: 33.3333%;
+}
+
+.grid-sizer--col-4 {
+  width: calc(25% - #{$card-select--gutter});
+  padding-bottom: 25%;
+}
+
+.grid-sizer--col-5 {
+  width: calc(20% - #{$card-select--gutter});
+  padding-bottom: 20%;
+}
+
+.grid-sizer--col-6 {
+  width: calc(16.6667% - #{$card-select--gutter});
+  padding-bottom: 16.6667%;
+}
+
+.grid-sizer--content {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  position: absolute;
+}

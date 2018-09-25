@@ -1,0 +1,67 @@
+/*
+  Dropdown Button
+  ------------------------------------------------------------------------------
+*/
+
+/* Button */
+.dropdown--button {
+  position: relative;
+}
+
+.dropdown--selected,
+.dropdown--icon,
+.dropdown--caret {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.dropdown--icon {
+  top: 48%;
+}
+
+.dropdown--selected {
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dropdown--caret {
+  margin: 0;
+  font-size: 0.9em;
+}
+
+/* Button Size Modifiers */
+@mixin buttonSizing($padding, $font) {
+  .dropdown--icon,
+  .dropdown--selected {
+    left: $padding;
+  }
+  .dropdown--selected {
+    width: calc(100% - #{($padding * 2) + $font});
+  }
+  .dropdown--icon + .dropdown--selected {
+    left: $padding + ($font * 1.5);
+    width: calc(100% - #{($padding * 2) + ($font * 2.5)});
+  }
+  .dropdown--caret {
+    right: $padding;
+  }
+}
+
+.dropdown--button.button-xs {
+  @include buttonSizing($form-xs-padding, $form-xs-font);
+}
+
+.dropdown--button.button-sm {
+  @include buttonSizing($form-sm-padding, $form-sm-font);
+}
+
+.dropdown--button.button-md {
+  @include buttonSizing($form-md-padding, $form-md-font);
+}
+
+.dropdown--button.button-lg {
+  @include buttonSizing($form-lg-padding, $form-lg-font);
+}

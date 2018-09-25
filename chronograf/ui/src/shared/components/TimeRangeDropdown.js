@@ -4,7 +4,7 @@ import classnames from 'classnames'
 import moment from 'moment'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import CustomTimeRangeOverlay from 'shared/components/CustomTimeRangeOverlay'
 
 import {timeRanges} from 'shared/data/timeRanges'

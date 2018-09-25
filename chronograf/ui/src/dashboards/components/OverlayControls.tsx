@@ -2,8 +2,8 @@ import React, {SFC} from 'react'
 
 import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import SourceSelector from 'src/dashboards/components/SourceSelector'
-import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
-import {ButtonShape} from 'src/reusable_ui/types'
+import RadioButtons from 'src/clockface/components/radio_buttons/RadioButtons'
+import {ButtonShape} from 'src/clockface/types'
 
 import {CEOTabs} from 'src/dashboards/constants'
 

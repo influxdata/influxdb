@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
-import SlideToggle from 'src/reusable_ui/components/slide_toggle/SlideToggle'
-import {ComponentColor} from 'src/reusable_ui/types'
+import SlideToggle from 'src/clockface/components/slide_toggle/SlideToggle'
+import {ComponentColor} from 'src/clockface/types'
 
 import {OnChangeArg} from 'src/types/flux'
 

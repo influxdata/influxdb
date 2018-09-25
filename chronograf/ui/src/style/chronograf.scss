@@ -4,89 +4,44 @@
 */
 
 // Modules
-@import 'modules/influx-colors';
-@import 'modules/variables';
-@import 'modules/mixins';
-@import 'modules/helpers';
+@import 'influx-colors';
+@import 'reset';
+@import 'variables';
+@import 'mixins';
+@import 'helpers';
+@import 'grid';
+@import 'typography';
 
 // Fonts
 @import 'fonts/fonts';
 @import 'fonts/icon-font';
 
-// Theme
-@import 'theme/chronograf-theme';
-
-// Vendor
-@import 'external/fixed-data-table-base';
-@import 'external/fixed-data-table-style';
-@import 'external/fixed-data-table';
-@import 'external/codemirror';
-@import 'external/react-grid-layout';
-
-// Layout
-@import 'layout/page';
-@import 'layout/page-header';
-@import 'layout/page-subsections';
-@import 'layout/sidebar';
-@import 'layout/overlay-technology';
+// Clockface UI Kit
+@import 'src/clockface/styles';
 
 // Components
+// TODO: Import these styles into their respective components instead of this stylesheet
+@import 'src/page_layout/PageLayout';
+@import 'src/shared/components/fancy_scrollbar/FancyScrollbar';
+@import 'src/shared/components/notifications/Notifications';
+@import 'src/shared/components/threesizer/Threesizer';
+@import 'src/shared/components/crosshair/Crosshair';
+@import 'src/shared/components/graph_tips/GraphTips';
+@import 'src/shared/components/page_spinner/PageSpinner';
+@import 'src/shared/components/cells/Cells';
+@import 'src/shared/components/cells/react-grid-layout';
+@import 'src/shared/components/cells/Dashboards';
+@import 'src/shared/components/dygraph/Dygraph';
+@import 'src/shared/components/splash_page/SplashPage';
+@import 'src/shared/components/code_mirror/CodeMirror';
+@import 'src/shared/components/code_mirror/CodeMirrorTheme';
+@import 'src/dashboards/components/rename_dashboard/RenameDashboard';
+@import 'src/dashboards/components/dashboard_empty/DashboardEmpty';
+@import 'src/flux/components/time_machine/TimeMachine';
+@import 'src/flux/components/time_machine/flux-overlay';
+@import 'src/flux/components/time_machine/flux-editor';
+@import 'src/flux/components/time_machine/flux-builder';
+@import 'src/flux/components/time_machine/flux-explorer';
+@import 'src/flux/components/time_machine/visualization';
+@import 'src/flux/components/time_machine/add-func-button';
 @import 'src/shared/components/views/Markdown';
-@import 'components/annotations';
-@import 'components/crosshairs';
-@import 'components/ceo-display-options';
-@import 'components/confirm-button';
-@import 'components/confirm-or-cancel';
-@import 'components/code-mirror/theme';
-@import 'components/color-dropdown';
-@import 'components/custom-time-range';
-@import 'components/customize-fields';
-@import 'components/drag-and-drop';
-@import 'components/dygraphs';
-@import 'components/fancy-scrollbars';
-@import 'components/fancy-table';
-@import 'components/fill-query';
-@import 'components/flip-toggle';
-@import 'components/function-selector';
-@import 'components/graph-tips';
-@import 'components/graph';
-@import 'components/input-click-to-edit';
-@import 'components/input-tag-list';
-@import 'components/logs-viewer-options';
-@import 'components/newsfeed';
-@import 'components/opt-in';
-@import 'components/organizations-table';
-@import 'components/page-header-dropdown';
-@import 'components/page-header-editable';
-@import 'components/page-spinner';
-@import 'components/single-stat';
-@import 'components/static-legend';
-@import 'components/query-maker';
-@import 'components/react-tooltips';
-@import 'components/redacted-input';
-@import 'components/resizer';
-@import 'components/search-widget';
-@import 'components/info-indicators';
-@import 'components/source-selector';
-@import 'components/tables';
-@import 'components/table-graph';
-@import 'components/threesizer';
-@import 'components/threshold-controls';
-@import 'components/kapacitor-logs-table';
-@import 'components/dropdown-placeholder';
-@import 'components/histogram-chart';
-
-// Pages
-@import 'pages/config-endpoints';
-@import 'pages/auth-page';
-@import 'pages/kapacitor';
-@import 'pages/dashboards';
-@import 'pages/admin';
-@import 'pages/users';
-@import 'pages/tickscript-editor';
-@import 'pages/time-machine';
-@import 'pages/manage-providers';
-@import 'pages/logs-viewer';
-
-// TODO
-@import 'unsorted';

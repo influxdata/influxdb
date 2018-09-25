@@ -3,7 +3,7 @@ import uuid from 'uuid'
 import classnames from 'classnames'
 
 import {ClickOutside} from 'src/shared/components/ClickOutside'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 import {ColorNumber} from 'src/types/colors'
 import {LINE_COLOR_SCALES} from 'src/shared/constants/graphColorPalettes'

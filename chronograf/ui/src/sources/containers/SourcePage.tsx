@@ -12,10 +12,9 @@ import {
 } from 'src/shared/actions/sources'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-import Notifications from 'src/shared/components/Notifications'
+import Notifications from 'src/shared/components/notifications/Notifications'
 import SourceForm from 'src/sources/components/SourceForm'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import {Page, PageHeader, PageContents} from 'src/page_layout'
 import {DEFAULT_SOURCE} from 'src/shared/constants'
 
 const INITIAL_PATH = '/sources/new'
@@ -69,28 +68,29 @@ class SourcePage extends PureComponent<Props, State> {
     const {source, editMode, isInitialSource} = this.state
 
     return (
-      <div className={`${isInitialSource ? '' : 'page'}`}>
+      <Page>
         <Notifications />
-        <PageHeader titleText={this.pageTitle} />
-        <FancyScrollbar className="page-contents">
-          <div className="container-fluid">
-            <div className="row">
-              <div className="col-md-8 col-md-offset-2">
-                <div className="panel">
-                  <SourceForm
-                    source={source}
-                    editMode={editMode}
-                    onInputChange={this.handleInputChange}
-                    onSubmit={this.handleSubmit}
-                    onBlurSourceURL={this.handleBlurSourceURL}
-                    isInitialSource={isInitialSource}
-                  />
-                </div>
-              </div>
+        <PageHeader fullWidth={false}>
+          <PageHeader.Left>
+            <h1 className="page--title">{this.pageTitle}</h1>
+          </PageHeader.Left>
+          <PageHeader.Right />
+        </PageHeader>
+        <PageContents fullWidth={false} scrollable={true}>
+          <div className="col-md-8 col-md-offset-2">
+            <div className="panel">
+              <SourceForm
+                source={source}
+                editMode={editMode}
+                onInputChange={this.handleInputChange}
+                onSubmit={this.handleSubmit}
+                onBlurSourceURL={this.handleBlurSourceURL}
+                isInitialSource={isInitialSource}
+              />
             </div>
           </div>
-        </FancyScrollbar>
-      </div>
+        </PageContents>
+      </Page>
     )
   }
 

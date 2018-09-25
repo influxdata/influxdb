@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 import uuid from 'uuid'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import Threshold from 'src/dashboards/components/Threshold'
 import GraphOptionsDecimalPlaces from 'src/dashboards/components/GraphOptionsDecimalPlaces'
 

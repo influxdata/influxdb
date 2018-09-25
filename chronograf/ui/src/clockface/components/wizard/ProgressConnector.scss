@@ -1,0 +1,37 @@
+/*
+  Wizard Progress Connector Styles
+  ------------------------------------------------------------------------------
+*/
+
+.wizard-progress-connector {
+  width: 50px;
+  height: 2px;
+  background-color: $g7-graphite;
+  position: relative;
+  display: inline-block;
+  border-radius: 2px;
+}
+
+.wizard-progress-connector:after {
+  content: '\A';
+  position: absolute;
+  background-color: $c-rainforest;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  border-radius: 2px;
+  transition: all 0.5s;
+}
+
+.wizard-progress-connector--none:after {
+  width: 0;
+}
+
+.wizard-progress-connector--some:after {
+  width: 50%;
+}
+
+.wizard-progress-connector--full:after {
+  width: 100%;
+}

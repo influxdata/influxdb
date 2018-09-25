@@ -29,8 +29,12 @@
   // Better Font Rendering
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
+
+  &.add-cell:before {content: "\e925";}
+  &.alert-triangle:before {content: "\e926";}
   &.alerts:before {content: "\e921";}
+  &.annotate:before {content: "\e953";}
+  &.annotate-plus:before {content: "\e952";}
   &.authzero:before {content: "\e951";}
   &.bar-chart:before {content: "\e913";}
   &.capacitor2:before {content: "\e923";}
@@ -40,6 +44,7 @@
   &.caret-up:before {content: "\e906";}
   &.checkmark:before {content: "\e918";}
   &.circle:before {content: "\e940";}
+  &.circle-thick:before {content: "\e90e";}
   &.clock:before {content: "\e920";}
   &.cog-outline:before {content: "\e91c";}
   &.cog-thick:before {content: "\e90c";}
@@ -60,17 +65,22 @@
   &.eye:before {content: "\e91f";}
   &.eye-closed:before {content: "\e956";}
   &.eye-open:before {content: "\e957";}
+  &.github:before {content: "\e928";}
+  &.google:before {content: "\e92a";}
   &.graphline-2:before {content: "\e924";}
   &.group:before {content: "\e908";}
   &.heroku:before {content: "\e947";}
   &.heroku-simple:before {content: "\e948";}
   &.import:before {content: "\e910";}
+  &.link:before {content: "\e92e";}
   &.oauth:before {content: "\e94f";}
   &.octagon:before {content: "\e92d";}
   &.okta:before {content: "\e912";}
   &.pause:before {content: "\e94a";}
+  &.pencil:before {content: "\e92f";}
   &.play:before {content: "\e914";}
   &.plus:before {content: "\e90a";}
+  &.plus-skinny:before {content: "\e922";}
   &.pulse-c:before {content: "\e936";}
   &.refresh:before {content: "\e949";}
   &.remove:before {content: "\e909";}
@@ -78,6 +88,8 @@
   &.server2:before {content: "\e94c";}
   &.shuffle:before {content: "\e94e";}
   &.square:before {content: "\e93e";}
+  &.star:before {content: "\e930";}
+  &.stop:before {content: "\e931";}
   &.text-block:before {content: "\e911";}
   &.trash:before {content: "\e905";}
   &.triangle:before {content: "\e92c";}
@@ -87,12 +99,6 @@
   &.user-remove:before {content: "\e904";}
   &.wood:before {content: "\e91e";}
   &.wrench:before {content: "\e919";}
-  &.alert-triangle:before {content: "\f02d";}
-  &.link:before {content: "\f05c";}
-  &.pencil:before {content: "\f058";}
-  &.star:before {content: "\f02a";}
-  &.stop:before {content: "\f08f";}
-  &.zap:before {content: "\26a1";}
-  &.google:before {content: "\ea88";}
-  &.github:before {content: "\eab0";}
+  &.zap:before {content: "\e932";}
+  &.chat:before {content: "\e933";}
 }

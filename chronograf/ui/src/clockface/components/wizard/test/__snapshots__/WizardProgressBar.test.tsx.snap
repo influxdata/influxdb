@@ -1,0 +1,113 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Wizard Progress Bar when no steps are complete matches snapshot 1`] = `
+<div
+  className="wizard-progress-bar"
+>
+  <React.Fragment>
+    <div
+      className="wizard-progress-button"
+      key="stepEle0"
+    >
+      <div
+        className="wizard-progress-title"
+      >
+        this is step1
+      </div>
+      <span
+        className="icon circle-thick current"
+      />
+    </div>
+    <ProgressConnector
+      key="connectorEle0"
+      status="some"
+    />
+    <div
+      className="wizard-progress-button"
+      key="stepEle1"
+    >
+      <div
+        className="wizard-progress-title"
+      >
+        this is step2
+      </div>
+      <span
+        className="icon circle-thick"
+      />
+    </div>
+    <ProgressConnector
+      key="connectorEle1"
+      status="none"
+    />
+    <div
+      className="wizard-progress-button"
+      key="stepEle2"
+    >
+      <div
+        className="wizard-progress-title"
+      >
+        this is step3
+      </div>
+      <span
+        className="icon circle-thick"
+      />
+    </div>
+  </React.Fragment>
+</div>
+`;
+
+exports[`Wizard Progress Bar when the first two steps are completed matches snapshot 1`] = `
+<div
+  className="wizard-progress-bar"
+>
+  <React.Fragment>
+    <div
+      className="wizard-progress-button"
+      key="stepEle0"
+    >
+      <div
+        className="wizard-progress-title"
+      >
+        this is step1
+      </div>
+      <span
+        className="icon checkmark"
+      />
+    </div>
+    <ProgressConnector
+      key="connectorEle0"
+      status="full"
+    />
+    <div
+      className="wizard-progress-button"
+      key="stepEle1"
+    >
+      <div
+        className="wizard-progress-title"
+      >
+        this is step2
+      </div>
+      <span
+        className="icon checkmark"
+      />
+    </div>
+    <ProgressConnector
+      key="connectorEle1"
+      status="full"
+    />
+    <div
+      className="wizard-progress-button"
+      key="stepEle2"
+    >
+      <div
+        className="wizard-progress-title"
+      >
+        this is step3
+      </div>
+      <span
+        className="icon checkmark"
+      />
+    </div>
+  </React.Fragment>
+</div>
+`;

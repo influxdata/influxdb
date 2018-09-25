@@ -1,0 +1,220 @@
+/*
+  Dygraphs Styles
+  ------------------------------------------------------------------------------
+  Overrides out-of-the-box styles
+*/
+
+.dygraph {
+  &:hover {
+    cursor: default;
+  }
+}
+
+/* Axis Labels */
+.dygraph-axis-label {
+  color: $g11-sidewalk !important;
+  font-weight: 600 !important;
+  user-select: none;
+  font-size: 11px;
+}
+.dygraph-axis-label-y {
+  padding: 0 9px 0 0 !important;
+  text-align: right !important;
+  left: 0 !important;
+  user-select: none;
+}
+.dygraph-axis-label-y2 {
+  padding: 0 0 0 9px !important;
+  text-align: left !important;
+  user-select: none;
+}
+
+/* Vertical Axis Labels */
+.dygraph-ylabel,
+.dygraph-y2label {
+  user-select: none;
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  font-size: 11px;
+  top: -12px !important;
+  color: $g11-sidewalk;
+  font-weight: 600;
+  padding: 0 0 2px 0 !important;
+  border-bottom: 2px solid $g4-onyx !important;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dygraph-ylabel {
+  transform: rotate(-90deg);
+}
+.dygraph-y2label {
+  transform: rotate(90deg);
+}
+
+.graph--hasYLabel {
+  .dygraph-axis-label-y {
+    padding: 0 4px 0 0 !important;
+  }
+  .dygraph-axis-label-y2 {
+    padding: 0 0 0 4px !important;
+  }
+}
+
+/*
+  Legend Styles
+  ------------------------------------------------------------------------------
+*/
+.dygraph-child-container .dygraph-legend {
+  display: none !important; // hide default legend
+}
+.dygraph-legend {
+  background-color: $g0-obsidian;
+  display: block !important;
+  position: absolute;
+  padding: 8px;
+  z-index: $z--dygraph-legend;
+  border-radius: 3px;
+  user-select: text;
+  transform: translateX(-50%);
+  @extend %drop-shadow;
+
+  &.hidden {
+    display: none !important;
+  }
+
+  // Arrow (default is on top of legend aka below graph)
+  &:after {
+    content: '';
+    position: absolute;
+    border-width: 8px;
+    border-style: solid;
+    border-color: transparent;
+  }
+  &.dygraph-legend--top:after {
+    top: -16px;
+    border-bottom-color: $g0-obsidian;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  &.dygraph-legend--bottom:after {
+    bottom: -16px;
+    border-top-color: $g0-obsidian;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  &.dygraph-legend--left:after {
+    left: -16px;
+    border-right-color: $g0-obsidian;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  &.dygraph-legend--right:after {
+    right: -16px;
+    border-left-color: $g0-obsidian;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+}
+.dygraph-legend--header {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+
+  > .btn {
+    margin-left: 4px;
+  }
+}
+.dygraph-legend--timestamp {
+  margin-right: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  font-weight: 600;
+  color: $g13-mist;
+  flex: 1 0 0;
+}
+.dygraph-legend--filter {
+  flex: 1 0 0;
+  margin-top: 8px;
+}
+.dygraph-legend--contents {
+  font-size: 13px;
+  color: $g15-platinum;
+  font-weight: 600;
+  line-height: 13px;
+  max-height: 123px;
+  margin-top: 8px;
+  overflow-y: auto;
+  @include custom-scrollbar-round($g0-obsidian, $g3-castle);
+}
+.dygraph-legend--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  opacity: 1;
+  font-size: 11px;
+  line-height: 11px;
+  font-weight: 600;
+  padding: 3px 0;
+
+  span {
+    font-weight: 900;
+    padding: 0;
+    white-space: nowrap;
+  }
+  figure {
+    white-space: nowrap;
+    padding-left: 10px;
+    font-family: $code-font;
+  }
+
+  &.highlight {
+    opacity: 1;
+    background-color: $g3-castle;
+    figure {
+      color: $g20-white;
+    }
+  }
+  &.highlight:only-child {
+    background-color: transparent;
+  }
+}
+
+// Sorting Buttons
+.sort-btn {
+  position: relative;
+}
+.sort-btn--rotator {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.sort-btn--top,
+.sort-btn--bottom {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 900;
+  color: $g20-white;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.sort-btn--top {
+  left: 3px;
+  top: -3px;
+}
+.sort-btn--bottom {
+  bottom: -4px;
+  left: 12px;
+}
+// Toggled State
+.sort-btn.sort-btn--desc {
+  .sort-btn--rotator {
+    transform: rotate(180deg);
+  }
+  .sort-btn--top,
+  .sort-btn--bottom {
+    transform: rotate(-180deg);
+  }
+}

@@ -1,0 +1,34 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`PageHeader matches snapshot in presentation mode 1`] = `""`;
+
+exports[`PageHeader matches snapshot with minimal props 1`] = `
+<div
+  className="page-header"
+>
+  <div
+    className="page-header--container"
+  >
+    <PageHeaderLeft
+      key=".0"
+      offsetPixels={100}
+    >
+      <PageTitle
+        title="Yeehaw"
+      />
+    </PageHeaderLeft>
+    <PageHeaderCenter
+      key=".1"
+      widthPixels={200}
+    >
+      <p>
+        Center!
+      </p>
+    </PageHeaderCenter>
+    <PageHeaderRight
+      key=".2"
+      offsetPixels={100}
+    />
+  </div>
+</div>
+`;

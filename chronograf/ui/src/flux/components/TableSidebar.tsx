@@ -3,7 +3,7 @@ import _ from 'lodash'
 
 import {FluxTable} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import TableSidebarItem from 'src/flux/components/TableSidebarItem'
 
 interface Props {

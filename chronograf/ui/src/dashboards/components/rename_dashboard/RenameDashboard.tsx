@@ -1,10 +1,11 @@
-import React, {Component, KeyboardEvent} from 'react'
+// Libraries
+import React, {Component, KeyboardEvent, ChangeEvent} from 'react'
+
+// Constants
+import {DASHBOARD_NAME_MAX_LENGTH} from 'src/dashboards/constants/index'
+
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import './RenameDashboard.scss'
-import {
-  DASHBOARD_NAME_MAX_LENGTH,
-  DEFAULT_DASHBOARD_NAME,
-} from 'src/dashboards/constants/index'
 
 interface Props {
   onRename: (name: string) => void
@@ -13,18 +14,17 @@ interface Props {
 
 interface State {
   isEditing: boolean
-  reset: boolean
+  workingName: string
 }
+
 @ErrorHandling
 class RenameDashboard extends Component<Props, State> {
-  private inputRef: HTMLInputElement
-
   constructor(props: Props) {
     super(props)
 
     this.state = {
       isEditing: false,
-      reset: false,
+      workingName: props.name,
     }
   }
 
@@ -50,22 +50,21 @@ class RenameDashboard extends Component<Props, State> {
   }
 
   private get input(): JSX.Element {
-    const {name} = this.props
+    const {workingName} = this.state
 
     return (
       <input
         maxLength={DASHBOARD_NAME_MAX_LENGTH}
         type="text"
-        className="rename-dashboard--input form-control input-sm"
-        defaultValue={name}
-        autoComplete="off"
+        value={workingName}
         autoFocus={true}
         spellCheck={false}
-        onBlur={this.handleInputBlur}
-        onKeyDown={this.handleKeyDown}
-        onFocus={this.handleFocus}
         placeholder="Name this Dashboard"
-        ref={r => (this.inputRef = r)}
+        onFocus={this.handleInputFocus}
+        onBlur={this.handleInputBlur(false)}
+        onChange={this.handleInputChange}
+        onKeyDown={this.handleKeyDown}
+        className="rename-dashboard--input"
       />
     )
   }
@@ -74,31 +73,34 @@ class RenameDashboard extends Component<Props, State> {
     this.setState({isEditing: true})
   }
 
-  private handleInputBlur = e => {
+  private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({workingName: e.target.value})
+  }
+
+  private handleInputBlur = (reset: boolean) => (): void => {
     const {onRename} = this.props
-    const {reset} = this.state
 
     if (reset) {
-      this.setState({isEditing: false})
+      onRename(this.props.name)
     } else {
-      const newName = e.target.value || DEFAULT_DASHBOARD_NAME
-      onRename(newName)
+      onRename(this.state.workingName)
     }
-    this.setState({isEditing: false, reset: false})
+
+    this.setState({isEditing: false})
   }
 
   private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') {
-      this.inputRef.blur()
+      this.handleInputBlur(false)()
     }
+
     if (e.key === 'Escape') {
-      this.inputRef.value = this.props.name
-      this.setState({reset: true}, () => this.inputRef.blur())
+      this.handleInputBlur(true)()
     }
   }
 
-  private handleFocus = (e): void => {
-    e.target.select()
+  private handleInputFocus = (e: ChangeEvent<HTMLInputElement>): void => {
+    e.currentTarget.select()
   }
 }
 

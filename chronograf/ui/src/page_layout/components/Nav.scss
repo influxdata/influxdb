@@ -1,0 +1,108 @@
+/*
+    Sidebar Navigation Styles
+    ----------------------------------------------
+*/
+
+$nav--gutter: 16px;
+
+$nav--bg: $c-pool;
+$nav--bg-accent: $c-comet;
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  background-color: $g3-castle;
+  border-radius: 0 $radius $radius 0;
+  width: $nav-size;
+
+  a:link,
+  a:active,
+  a:visited,
+  a:hover {
+    text-decoration: none;
+  }
+}
+
+.nav--item {
+  width: $nav-size;
+  height: $nav-size;
+  position: relative;
+}
+
+.nav--item-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  color: $g11-sidewalk;
+  transition:
+    text-shadow 0.4s ease;
+
+  > .icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    font-size: $nav-size * 0.4222;
+  }
+}
+
+.nav--item-menu {
+  position: absolute;
+  top: 0;
+  left: $nav-size;
+  @include gradient-h($nav--bg,$nav--bg-accent);
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  border-radius: 0 $radius $radius 0;
+  overflow: hidden;
+}
+
+.nav--item-header {
+  display: block;
+  color: $g20-white;
+  height: $nav-size;
+  line-height: $nav-size;
+  font-size: 19px;
+  font-weight: 400;
+  padding: 0px $nav--gutter;
+  white-space: nowrap;
+}
+
+// Hover State
+.nav--item:hover {
+  z-index: 9000;
+
+  .nav--item-icon {
+    color: $g20-white;
+    background-color: $nav--bg;
+  }
+
+  .nav--item-menu {
+    display: flex;
+  }
+}
+
+// Active State
+.nav--item.active {
+  .nav--item-icon {
+    color: $g20-white;
+    background-color: $g4-onyx;
+    text-shadow:
+      0 0 9px $c-laser,
+      0 0 15px $c-ocean,
+      0 0 20px $c-amethyst;
+  }
+}
+
+// Active Hover State
+.nav--item.active:hover {
+  .nav--item-icon {
+    background-color: $nav--bg;
+    text-shadow:
+      0 0 9px $c-yeti,
+      0 0 15px $c-hydrogen,
+      0 0 20px $c-laser;
+  }
+}

@@ -1,0 +1,94 @@
+/*
+  Card Selector Card
+  ------------------------------------------------------------------------------
+*/
+
+.card-select--card {
+    min-width: 100%;
+    min-height: 100%;
+    background-color: $g1-raven;
+    border-radius: $radius;
+    border: $ix-border solid transparent;
+    transition: border-color .2s ease, background-color .2s ease;
+    box-sizing: border-box;
+}
+
+.card-select--container {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    cursor: pointer;
+    font-size: 22px;
+    user-select: none;
+    width: 100%;
+    height: 100%;
+    display: inline-flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    input {
+        position: absolute;
+        opacity: 0;
+        cursor: pointer;
+    }
+}
+
+.card-select--image {
+    justify-content: center;
+    max-width: 60%;
+    filter: grayscale(0.80) opacity(30%);
+    transition: filter .2s ease;
+    img {
+        width: 100%;
+        height: 100%;
+        font-size: $ix-text-base;
+    }
+}
+
+.card-select--active:hover,
+.card-select--active.card-select--checked {
+    background-color: $g5-pepper;
+    .card-select--image {
+        filter: grayscale(0) opacity(100%);
+    }
+}
+
+.card-select--active.card-select--checked {
+    border-color: $c-rainforest;
+}
+
+.card-select--disabled {
+    opacity: .3;
+    .card-select--container {
+        cursor: not-allowed;
+    }
+}
+
+.card-select--label {
+  text-align: center;
+  min-width: 100%;
+  display: inline-block;
+  position: absolute;
+  bottom: 5%;
+  font-family: $ix-text-font;
+  color: $ix-text-default;
+  font-size: $ix-text-base;
+  font-weight: 600;
+}
+
+.card-select--checkmark {
+    position: absolute;
+    left: 5%;
+    top: 5%;
+    height: 22px;
+    width: 22px;
+    color: $c-rainforest;
+    opacity: 0;
+    transition: opacity .2s ease;
+}
+
+.card-select--checkmark.card-select--checked {
+    opacity: 1;
+}
