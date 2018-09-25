@@ -3,17 +3,20 @@ import {Link, withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 import ConfirmButton from 'src/shared/components/ConfirmButton'
+import DefaultToggle from 'src/dashboards/components/DashboardDefaultToggle'
 
 import {Dashboard} from 'src/types/v2'
 
 interface Props {
   dashboards: Dashboard[]
+  defaultDashboardLink: string
   onDeleteDashboard: (dashboard: Dashboard) => () => void
   onCreateDashboard: () => void
   onCloneDashboard: (
     dashboard: Dashboard
   ) => (event: MouseEvent<HTMLButtonElement>) => void
   onExportDashboard: (dashboard: Dashboard) => () => void
+  onSetDefaultDashboard: (dashboardLink: string) => void
 }
 
 class DashboardsTable extends PureComponent<Props & WithRouterProps> {
@@ -23,6 +26,8 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
       onCloneDashboard,
       onDeleteDashboard,
       onExportDashboard,
+      onSetDefaultDashboard,
+      defaultDashboardLink,
     } = this.props
 
     if (!dashboards.length) {
@@ -34,6 +39,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
         <thead>
           <tr>
             <th>Name</th>
+            <th>Default Dashboard</th>
             <th />
           </tr>
         </thead>
@@ -44,6 +50,13 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
                 <Link to={`/dashboards/${dashboard.id}?${this.sourceParam}`}>
                   {dashboard.name}
                 </Link>
+              </td>
+              <td>
+                <DefaultToggle
+                  dashboardLink={dashboard.links.self}
+                  defaultDashboardLink={defaultDashboardLink}
+                  onChangeDefault={onSetDefaultDashboard}
+                />
               </td>
               <td className="text-right">
                 <button

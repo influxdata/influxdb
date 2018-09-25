@@ -15,7 +15,9 @@ class ConnectionLink extends PureComponent<Props> {
     return (
       <h5 className="margin-zero">
         <Link
-          to={`${stripPrefix(location.pathname)}${source.id}/edit`}
+          to={`${stripPrefix(location.pathname)}/${source.id}/edit?${
+            this.sourceParam
+          }`}
           className={this.className}
         >
           <strong>{source.name}</strong>
@@ -23,6 +25,12 @@ class ConnectionLink extends PureComponent<Props> {
         </Link>
       </h5>
     )
+  }
+
+  private get sourceParam(): string {
+    const {currentSource} = this.props
+
+    return `sourceID=${currentSource.id}`
   }
 
   private get className(): string {

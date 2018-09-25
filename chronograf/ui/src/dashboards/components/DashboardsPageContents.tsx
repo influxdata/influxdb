@@ -12,6 +12,8 @@ import {Notification} from 'src/types/notifications'
 
 interface Props {
   dashboards: Dashboard[]
+  defaultDashboardLink: string
+  onSetDefaultDashboard: (dashboardLink: string) => void
   onDeleteDashboard: (dashboard: Dashboard) => () => void
   onCreateDashboard: () => void
   onCloneDashboard: (
@@ -44,6 +46,8 @@ class DashboardsPageContents extends Component<Props, State> {
       onCreateDashboard,
       onCloneDashboard,
       onExportDashboard,
+      defaultDashboardLink,
+      onSetDefaultDashboard,
     } = this.props
 
     return (
@@ -60,6 +64,8 @@ class DashboardsPageContents extends Component<Props, State> {
                     onCreateDashboard={onCreateDashboard}
                     onCloneDashboard={onCloneDashboard}
                     onExportDashboard={onExportDashboard}
+                    defaultDashboardLink={defaultDashboardLink}
+                    onSetDefaultDashboard={onSetDefaultDashboard}
                   />
                 </div>
               </div>

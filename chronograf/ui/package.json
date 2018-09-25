@@ -120,6 +120,7 @@
     "react-dnd-html5-backend": "^2.6.0",
     "react-dom": "^16.3.1",
     "react-grid-layout": "^0.16.6",
+    "react-markdown": "^3.6.0",
     "react-onclickoutside": "^5.2.0",
     "react-redux": "^4.4.0",
     "react-resize-detector": "^2.3.0",

@@ -58,14 +58,19 @@ export interface DecimalPlaces {
   digits: number
 }
 
+export interface MarkDownProperties {
+  type: ViewType.Markdown
+  text: string
+}
+
 export interface View {
   id: string
   name: string
-  properties: V1View
+  properties: MarkDownProperties | V1View
 }
 
 export interface V1View {
-  type: ViewType
+  type: V1ViewTypes
   queries: CellQuery[]
   shape: ViewShape
   axes: Axes
@@ -76,7 +81,6 @@ export interface V1View {
   decimalPlaces: DecimalPlaces
   links: CellLinks
   legend: Legend
-  isWidget?: boolean
   inView: boolean
 }
 
@@ -86,6 +90,10 @@ export enum ViewShape {
 }
 
 export enum ViewType {
+  Markdown = 'markdown',
+}
+
+export enum V1ViewTypes {
   Line = 'line',
   Stacked = 'line-stacked',
   StepPlot = 'line-stepplot',
@@ -108,6 +116,7 @@ export interface Dashboard {
   id: string
   cells: Cell[]
   name: string
+  default: boolean
   links: DashboardLinks
   meta?: {[x: string]: any}
 }

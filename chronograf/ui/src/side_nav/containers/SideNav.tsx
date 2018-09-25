@@ -31,15 +31,12 @@ class SideNav extends PureComponent<Props> {
     const id = query.sourceID || _.get(defaultSource, 'id', 0)
 
     const sourceParam = `?sourceID=${id}`
-    const isDefaultPage = pathname.split('/').includes('status')
 
     return isHidden ? null : (
       <nav className="sidebar">
-        <div
-          className={isDefaultPage ? 'sidebar--item active' : 'sidebar--item'}
-        >
+        <div className={'sidebar--item'}>
           <Link
-            to={`/status/${sourceParam}`}
+            to={`/${sourceParam}`}
             className="sidebar--square sidebar--logo"
           >
             <span className="sidebar--icon icon cubo-uniform" />
