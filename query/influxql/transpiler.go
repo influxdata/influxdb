@@ -142,9 +142,13 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 		for i := len(measurementNames) - 2; i >= 0; i-- {
 			expr = &semantic.LogicalExpression{
 				Operator: ast.OrOperator,
-				Left: &semantic.MemberExpression{
-					Object:   &semantic.IdentifierExpression{Name: "r"},
-					Property: "_measurement",
+				Left: &semantic.BinaryExpression{
+					Operator: ast.EqualOperator,
+					Left: &semantic.MemberExpression{
+						Object:   &semantic.IdentifierExpression{Name: "r"},
+						Property: "_measurement",
+					},
+					Right: &semantic.StringLiteral{Value: measurementNames[i]},
 				},
 				Right: expr,
 			}
