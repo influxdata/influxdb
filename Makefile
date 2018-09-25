@@ -67,7 +67,7 @@ subdirs: $(SUBDIRS)
 # Define targets for commands
 #
 $(CMDS): $(SOURCES)
-	$(GO_BUILD) -i -o $@ ./cmd/$(shell basename "$@")
+	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
 #
 # Define targets for utilities
