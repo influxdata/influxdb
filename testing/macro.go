@@ -109,6 +109,7 @@ func CreateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 			},
 			args: args{
 				macro: &platform.Macro{
+					ID:       MustIDFromString(idB),
 					Name:     "my-macro",
 					Selected: []string{"a"},
 					Arguments: &platform.MacroArguments{

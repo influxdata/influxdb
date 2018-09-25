@@ -105,6 +105,7 @@ func CreateOrganization(
 			args: args{
 				organization: &platform.Organization{
 					Name: "name1",
+					ID:   MustIDFromString(orgOneID),
 				},
 			},
 			wants: wants{
@@ -129,6 +130,7 @@ func CreateOrganization(
 			},
 			args: args{
 				organization: &platform.Organization{
+					ID:   MustIDFromString(orgTwoID),
 					Name: "organization2",
 				},
 			},
@@ -158,6 +160,7 @@ func CreateOrganization(
 			},
 			args: args{
 				organization: &platform.Organization{
+					ID:   MustIDFromString(orgOneID),
 					Name: "organization1",
 				},
 			},

@@ -127,6 +127,7 @@ func CreateDashboard(
 			},
 			args: args{
 				dashboard: &platform.Dashboard{
+					ID:   MustIDFromString(dashTwoID),
 					Name: "dashboard2",
 				},
 			},
