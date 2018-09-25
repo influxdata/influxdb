@@ -1,12 +1,15 @@
+// Libraries
 import React, {Component} from 'react'
 
+// Components
 import {PageHeader} from 'src/page_layout'
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenameDashboard from 'src/dashboards/components/rename_dashboard/RenameDashboard'
-import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
+import {Button, ButtonShape, ComponentColor, IconFont} from 'src/clockface'
 
+// Types
 import * as AppActions from 'src/types/actions/app'
 import * as QueriesModels from 'src/types/queries'
 import {Dashboard, DashboardSwitcherLinks} from 'src/types/v2/dashboards'
@@ -37,24 +40,6 @@ class DashboardHeader extends Component<Props> {
   }
 
   public render() {
-    return (
-      <PageHeader fullWidth={true}>
-        <PageHeader.Left>{this.renderPageTitle}</PageHeader.Left>
-        <PageHeader.Right>{this.optionsComponents}</PageHeader.Right>
-      </PageHeader>
-    )
-  }
-
-  private get renderPageTitle(): JSX.Element {
-    return (
-      <>
-        {this.dashboardSwitcher}
-        {this.dashboardTitle}
-      </>
-    )
-  }
-
-  private get optionsComponents(): JSX.Element {
     const {
       handleChooseAutoRefresh,
       onManualRefresh,
@@ -65,29 +50,32 @@ class DashboardHeader extends Component<Props> {
     } = this.props
 
     return (
-      <>
-        <GraphTips />
-        {this.addCellButton}
-        <AutoRefreshDropdown
-          onChoose={handleChooseAutoRefresh}
-          onManualRefresh={onManualRefresh}
-          selected={autoRefresh}
-          iconName="refresh"
-        />
-        <TimeRangeDropdown
-          onChooseTimeRange={handleChooseTimeRange}
-          selected={{
-            upper: zoomedUpper || upper,
-            lower: zoomedLower || lower,
-          }}
-        />
-        <button
-          className="btn btn-default btn-sm btn-square"
-          onClick={this.handleClickPresentationButton}
-        >
-          <span className="icon expand-a" />
-        </button>
-      </>
+      <PageHeader fullWidth={true}>
+        <PageHeader.Left>{this.dashboardTitle}</PageHeader.Left>
+        <PageHeader.Right>
+          <GraphTips />
+          {this.addCellButton}
+          <AutoRefreshDropdown
+            onChoose={handleChooseAutoRefresh}
+            onManualRefresh={onManualRefresh}
+            selected={autoRefresh}
+            iconName="refresh"
+          />
+          <TimeRangeDropdown
+            onChooseTimeRange={handleChooseTimeRange}
+            selected={{
+              upper: zoomedUpper || upper,
+              lower: zoomedLower || lower,
+            }}
+          />
+          <Button
+            icon={IconFont.ExpandA}
+            titleText="Enter Presentation Mode"
+            shape={ButtonShape.Square}
+            onClick={this.handleClickPresentationButton}
+          />
+        </PageHeader.Right>
+      </PageHeader>
     )
   }
 
@@ -100,19 +88,14 @@ class DashboardHeader extends Component<Props> {
 
     if (dashboard) {
       return (
-        <button className="btn btn-primary btn-sm" onClick={onAddCell}>
-          <span className="icon plus" />
-          Add Cell
-        </button>
+        <Button
+          shape={ButtonShape.Square}
+          icon={IconFont.AddCell}
+          color={ComponentColor.Primary}
+          onClick={onAddCell}
+          titleText="Add cell to dashboard"
+        />
       )
-    }
-  }
-
-  private get dashboardSwitcher(): JSX.Element {
-    const {dashboardLinks} = this.props
-
-    if (dashboardLinks.links.length > 1) {
-      return <DashboardSwitcher dashboardLinks={dashboardLinks} />
     }
   }
 

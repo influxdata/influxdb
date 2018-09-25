@@ -22,7 +22,7 @@ interface Props {
   placeholder?: string
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void
   onBlur?: (e?: ChangeEvent<HTMLInputElement>) => void
-  onFocus?: () => void
+  onFocus?: (e?: ChangeEvent<HTMLInputElement>) => void
   onKeyPress?: (e: KeyboardEvent<HTMLInputElement>) => void
   onKeyUp?: (e: KeyboardEvent<HTMLInputElement>) => void
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void
@@ -36,6 +36,7 @@ interface Props {
   titleText?: string
   disabledTitleText?: string
   customClass?: string
+  maxLength?: number
 }
 
 class Input extends Component<Props> {
@@ -65,6 +66,7 @@ class Input extends Component<Props> {
       onKeyPress,
       onKeyUp,
       onKeyDown,
+      maxLength,
     } = this.props
 
     return (
@@ -84,6 +86,7 @@ class Input extends Component<Props> {
           onKeyDown={onKeyDown}
           className="input-field"
           disabled={status === ComponentStatus.Disabled}
+          maxLength={maxLength}
         />
         {this.icon}
         {this.statusIndicator}
