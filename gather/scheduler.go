@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// nats subjects
 const (
 	MetricsSubject    = "metrics"
 	promTargetSubject = "promTarget"
@@ -29,6 +30,8 @@ type Scheduler struct {
 	Publisher nats.Publisher
 
 	Logger *zap.Logger
+
+	gather chan struct{}
 }
 
 // NewScheduler creates a new Scheduler and subscriptions for scraper jobs.
@@ -53,6 +56,7 @@ func NewScheduler(
 		Timeout:   timeout,
 		Publisher: p,
 		Logger:    l,
+		gather:    make(chan struct{}, 100),
 	}
 
 	for i := 0; i < numScrapers; i++ {
@@ -72,11 +76,23 @@ func NewScheduler(
 // Run will retrieve scraper targets from the target storage,
 // and publish them to nats job queue for gather.
 func (s *Scheduler) Run(ctx context.Context) error {
+	go func(s *Scheduler) {
+		for {
+			select {
+			case <-time.After(s.Interval):
+				s.gather <- struct{}{}
+			}
+		}
+	}(s)
+	return s.run(ctx)
+}
+
+func (s *Scheduler) run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(s.Interval):
+		case <-s.gather:
 			ctx, cancel := context.WithTimeout(ctx, s.Timeout)
 			defer cancel()
 			targets, err := s.Targets.ListTargets(ctx)

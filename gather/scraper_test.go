@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -184,25 +185,36 @@ go_memstats_gc_cpu_fraction 1.972734963012756e-05
 // mockStorage implement storage interface
 // and platform.ScraperTargetStoreService interface.
 type mockStorage struct {
-	Metrics map[int64]Metrics
-	Targets []platform.ScraperTarget
+	sync.RWMutex
+	TotalGatherJobs chan struct{}
+	Metrics         map[int64]Metrics
+	Targets         []platform.ScraperTarget
 }
 
 func (s *mockStorage) Record(ms []Metrics) error {
+	s.Lock()
+	defer s.Unlock()
 	for _, m := range ms {
 		s.Metrics[m.Timestamp] = m
 	}
+	s.TotalGatherJobs <- struct{}{}
 	return nil
 }
 
 func (s *mockStorage) ListTargets(ctx context.Context) (targets []platform.ScraperTarget, err error) {
+	s.RLock()
+	defer s.RUnlock()
 	if s.Targets == nil {
+		s.Lock()
 		s.Targets = make([]platform.ScraperTarget, 0)
+		s.Unlock()
 	}
 	return s.Targets, nil
 }
 
 func (s *mockStorage) AddTarget(ctx context.Context, t *platform.ScraperTarget) error {
+	s.Lock()
+	defer s.Unlock()
 	if s.Targets == nil {
 		s.Targets = make([]platform.ScraperTarget, 0)
 	}
@@ -211,6 +223,9 @@ func (s *mockStorage) AddTarget(ctx context.Context, t *platform.ScraperTarget) 
 }
 
 func (s *mockStorage) RemoveTarget(ctx context.Context, id platform.ID) error {
+	s.Lock()
+	defer s.Unlock()
+
 	if s.Targets == nil {
 		return nil
 	}
@@ -224,6 +239,9 @@ func (s *mockStorage) RemoveTarget(ctx context.Context, id platform.ID) error {
 }
 
 func (s *mockStorage) GetTargetByID(ctx context.Context, id platform.ID) (target *platform.ScraperTarget, err error) {
+	s.RLock()
+	defer s.RUnlock()
+
 	for k, v := range s.Targets {
 		if v.ID.String() == id.String() {
 			target = &s.Targets[k]
@@ -236,6 +254,9 @@ func (s *mockStorage) GetTargetByID(ctx context.Context, id platform.ID) (target
 }
 
 func (s *mockStorage) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (target *platform.ScraperTarget, err error) {
+	s.Lock()
+	defer s.Unlock()
+
 	for k, v := range s.Targets {
 		if v.ID.String() == string(update.ID) {
 			s.Targets[k] = *update
