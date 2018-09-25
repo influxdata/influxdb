@@ -443,7 +443,7 @@ func UpdateTarget(
 				url: "changed",
 			},
 			wants: wants{
-				err: errors.New("update scraper: id is empty"),
+				err: errors.New("update scraper: id is invalid"),
 			},
 		},
 		{

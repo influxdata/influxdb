@@ -1,7 +1,6 @@
 package inmem
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -29,7 +28,7 @@ func (s *Service) FindViewByID(ctx context.Context, id platform.ID) (*platform.V
 func filterViewFn(filter platform.ViewFilter) func(d *platform.View) bool {
 	if filter.ID != nil {
 		return func(d *platform.View) bool {
-			return bytes.Equal(d.ID, *filter.ID)
+			return d.ID == *filter.ID
 		}
 	}
 
