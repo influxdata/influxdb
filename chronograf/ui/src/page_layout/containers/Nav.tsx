@@ -47,7 +47,7 @@ class SideNav extends PureComponent<Props> {
     return [
       {
         title: 'Status',
-        link: `/status/${this.sourceParam}`,
+        link: `/${this.sourceParam}`,
         icon: 'cubo-uniform',
         location: location.pathname,
         highlightWhen: ['status'],
