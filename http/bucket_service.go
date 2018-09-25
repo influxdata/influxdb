@@ -128,8 +128,8 @@ type bucketResponse struct {
 func newBucketResponse(b *platform.Bucket) *bucketResponse {
 	return &bucketResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/v1/buckets/%s", b.ID),
-			"org":  fmt.Sprintf("/v1/orgs/%s", b.OrganizationID),
+			"self": fmt.Sprintf("/v2/buckets/%s", b.ID),
+			"org":  fmt.Sprintf("/v2/orgs/%s", b.OrganizationID),
 		},
 		bucket: *newBucket(b),
 	}
@@ -148,7 +148,7 @@ func newBucketsResponse(opts platform.FindOptions, f platform.BucketFilter, bs [
 	return &bucketsResponse{
 		// TODO(desa): update links to include paging and filter information
 		Links: map[string]string{
-			"self": "/v1/buckets",
+			"self": "/v2/buckets",
 		},
 		Buckets: rs,
 	}

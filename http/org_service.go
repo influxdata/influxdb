@@ -28,14 +28,14 @@ func NewOrgHandler() *OrgHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v1/orgs", h.handlePostOrg)
-	h.HandlerFunc("GET", "/v1/orgs", h.handleGetOrgs)
-	h.HandlerFunc("GET", "/v1/orgs/:id", h.handleGetOrg)
-	h.HandlerFunc("PATCH", "/v1/orgs/:id", h.handlePatchOrg)
-	h.HandlerFunc("DELETE", "/v1/orgs/:id", h.handleDeleteOrg)
-	h.HandlerFunc("POST", "/v1/orgs/:id/members", h.handlePostOrgMember)
-	h.HandlerFunc("GET", "/v1/orgs/:id/members", h.handleGetOrgMembers)
-	h.HandlerFunc("DELETE", "/v1/orgs/:id/members/:mid", h.handleDeleteOrgMember)
+	h.HandlerFunc("POST", "/v2/orgs", h.handlePostOrg)
+	h.HandlerFunc("GET", "/v2/orgs", h.handleGetOrgs)
+	h.HandlerFunc("GET", "/v2/orgs/:id", h.handleGetOrg)
+	h.HandlerFunc("PATCH", "/v2/orgs/:id", h.handlePatchOrg)
+	h.HandlerFunc("DELETE", "/v2/orgs/:id", h.handleDeleteOrg)
+	h.HandlerFunc("POST", "/v2/orgs/:id/members", h.handlePostOrgMember)
+	h.HandlerFunc("GET", "/v2/orgs/:id/members", h.handleGetOrgMembers)
+	h.HandlerFunc("DELETE", "/v2/orgs/:id/members/:mid", h.handleDeleteOrgMember)
 	return h
 }
 
