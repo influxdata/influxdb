@@ -85,6 +85,8 @@ func ParseDuration(s string) (time.Duration, error) {
 					i += 2
 					continue
 				case 'o': // mo == month
+					// TODO(goller): use real duration values:
+					// https://github.com/influxdata/platform/issues/657
 					unit = string(a[i : i+2])
 					d += time.Duration(n) * 30 * 24 * time.Hour
 					i += 2
@@ -99,8 +101,12 @@ func ParseDuration(s string) (time.Duration, error) {
 		case 'd':
 			d += time.Duration(n) * 24 * time.Hour
 		case 'w':
+			// TODO(goller): use real duration values:
+			// https://github.com/influxdata/platform/issues/657
 			d += time.Duration(n) * 7 * 24 * time.Hour
 		case 'y':
+			// TODO(goller): use real duration values:
+			// https://github.com/influxdata/platform/issues/657
 			d += time.Duration(n) * 365 * 24 * time.Hour
 		default:
 			return 0, ErrInvalidDuration
