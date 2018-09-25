@@ -20,9 +20,6 @@ import (
 )
 
 var (
-	// ErrFormatNotFound is returned when no format can be determined from a path.
-	ErrFormatNotFound = errors.New("format not found")
-
 	// ErrUnknownEngineFormat is returned when the engine format is
 	// unknown. ErrUnknownEngineFormat is currently returned if a format
 	// other than tsm1 is encountered.
@@ -88,14 +85,6 @@ type Engine interface {
 type SeriesIDSets interface {
 	ForEach(f func(ids *SeriesIDSet)) error
 }
-
-// EngineFormat represents the format for an engine.
-type EngineFormat int
-
-const (
-	// TSM1Format is the format used by the tsm1 engine.
-	TSM1Format EngineFormat = 2
-)
 
 // NewEngineFunc creates a new engine.
 type NewEngineFunc func(id uint64, i Index, path string, walPath string, sfile *SeriesFile, options EngineOptions) Engine

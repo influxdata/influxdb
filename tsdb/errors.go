@@ -6,18 +6,8 @@ import (
 )
 
 var (
-	// ErrFieldOverflow is returned when too many fields are created on a measurement.
-	ErrFieldOverflow = errors.New("field overflow")
-
 	// ErrFieldTypeConflict is returned when a new field already exists with a different type.
 	ErrFieldTypeConflict = errors.New("field type conflict")
-
-	// ErrFieldNotFound is returned when a field cannot be found.
-	ErrFieldNotFound = errors.New("field not found")
-
-	// ErrFieldUnmappedID is returned when the system is presented, during decode, with a field ID
-	// there is no mapping for.
-	ErrFieldUnmappedID = errors.New("field ID not mapped")
 
 	// ErrEngineClosed is returned when a caller attempts indirectly to
 	// access the shard's underlying engine.
@@ -27,16 +17,8 @@ var (
 	// queries or writes.
 	ErrShardDisabled = errors.New("shard is disabled")
 
-	// ErrUnknownFieldsFormat is returned when the fields index file is not identifiable by
-	// the file's magic number.
-	ErrUnknownFieldsFormat = errors.New("unknown field index format")
-
 	// ErrUnknownFieldType is returned when the type of a field cannot be determined.
 	ErrUnknownFieldType = errors.New("unknown field type")
-
-	// ErrShardNotIdle is returned when an operation requring the shard to be idle/cold is
-	// attempted on a hot shard.
-	ErrShardNotIdle = errors.New("shard not idle")
 )
 
 // A ShardError implements the error interface, and contains extra

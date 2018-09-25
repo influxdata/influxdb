@@ -12,10 +12,8 @@ const (
 	seriesIDValueMask = 0xFFFFFFFF                // series ids numerically are 32 bits
 	seriesIDTypeShift = 32                        // we put the type right after the value info
 	seriesIDTypeMask  = 0xFF << seriesIDTypeShift // a mask for the type byte
+	seriesIDSize      = 8
 )
-
-// SeriesIDHasType returns if the raw id contains type information.
-func SeriesIDHasType(id uint64) bool { return id&seriesIDTypeFlag > 0 }
 
 // SeriesID is the type of a series id. It is logically a uint64, but encoded as a struct so
 // that we gain more type checking when changing operations on it. The field is exported only
@@ -72,9 +70,9 @@ func (s SeriesIDTyped) Type() models.FieldType {
 type (
 	// some static assertions that the SeriesIDSize matches the structs we defined.
 	// if the values are not the same, at least one will be negative causing a compilation failure
-	_ [SeriesIDSize - unsafe.Sizeof(SeriesID{})]byte
-	_ [unsafe.Sizeof(SeriesID{}) - SeriesIDSize]byte
+	_ [seriesIDSize - unsafe.Sizeof(SeriesID{})]byte
+	_ [unsafe.Sizeof(SeriesID{}) - seriesIDSize]byte
 
-	_ [SeriesIDSize - unsafe.Sizeof(SeriesIDTyped{})]byte
-	_ [unsafe.Sizeof(SeriesIDTyped{}) - SeriesIDSize]byte
+	_ [seriesIDSize - unsafe.Sizeof(SeriesIDTyped{})]byte
+	_ [unsafe.Sizeof(SeriesIDTyped{}) - seriesIDSize]byte
 )

@@ -1,7 +1,6 @@
 package tsdb
 
 import (
-	"bytes"
 	"errors"
 	"sort"
 	"sync"
@@ -33,21 +32,6 @@ type seriesCursor struct {
 type SeriesCursorRow struct {
 	Name []byte
 	Tags models.Tags
-}
-
-func (r *SeriesCursorRow) Compare(other *SeriesCursorRow) int {
-	if r == other {
-		return 0
-	} else if r == nil {
-		return -1
-	} else if other == nil {
-		return 1
-	}
-	cmp := bytes.Compare(r.Name, other.Name)
-	if cmp != 0 {
-		return cmp
-	}
-	return models.CompareTags(r.Tags, other.Tags)
 }
 
 // newSeriesCursor returns a new instance of SeriesCursor.

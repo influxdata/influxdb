@@ -108,19 +108,6 @@ func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
 	s.Unlock()
 }
 
-// Equals returns true if other and s are the same set of ids.
-func (s *SeriesIDSet) Equals(other *SeriesIDSet) bool {
-	if s == other {
-		return true
-	}
-
-	s.RLock()
-	defer s.RUnlock()
-	other.RLock()
-	defer other.RUnlock()
-	return s.bitmap.Equals(other.bitmap)
-}
-
 // And returns a new SeriesIDSet containing elements that were present in s and other.
 func (s *SeriesIDSet) And(other *SeriesIDSet) *SeriesIDSet {
 	s.RLock()
@@ -174,13 +161,6 @@ func (s *SeriesIDSet) Diff(other *SeriesIDSet) {
 	s.Lock()
 	defer s.Unlock()
 	s.bitmap = roaring.AndNot(s.bitmap, other.bitmap)
-}
-
-// Clone returns a new SeriesIDSet with a deep copy of the underlying bitmap.
-func (s *SeriesIDSet) Clone() *SeriesIDSet {
-	s.RLock()
-	defer s.RUnlock()
-	return s.CloneNoLock()
 }
 
 // CloneNoLock calls Clone without taking a lock.

@@ -55,17 +55,3 @@ type CursorIterator interface {
 }
 
 type CursorIterators []CursorIterator
-
-func CreateCursorIterators(ctx context.Context, shards []*Shard) (CursorIterators, error) {
-	q := make(CursorIterators, 0, len(shards))
-	for _, s := range shards {
-		// possible errors are ErrEngineClosed or ErrShardDisabled, so we can safely skip those shards
-		if cq, err := s.CreateCursorIterator(ctx); cq != nil && err == nil {
-			q = append(q, cq)
-		}
-	}
-	if len(q) == 0 {
-		return nil, nil
-	}
-	return q, nil
-}

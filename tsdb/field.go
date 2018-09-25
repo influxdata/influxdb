@@ -220,13 +220,6 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name []byte, typ influxql.Dat
 	return nil
 }
 
-func (m *MeasurementFields) FieldN() int {
-	m.mu.RLock()
-	n := len(m.fields)
-	m.mu.RUnlock()
-	return n
-}
-
 // Field returns the field for name, or nil if there is no field for name.
 func (m *MeasurementFields) Field(name string) *Field {
 	m.mu.RLock()
@@ -254,28 +247,6 @@ func (m *MeasurementFields) FieldBytes(name []byte) *Field {
 	f := m.fields[string(name)]
 	m.mu.RUnlock()
 	return f
-}
-
-// FieldSet returns the set of fields and their types for the measurement.
-func (m *MeasurementFields) FieldSet() map[string]influxql.DataType {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	fields := make(map[string]influxql.DataType)
-	for name, f := range m.fields {
-		fields[name] = f.Type
-	}
-	return fields
-}
-
-func (m *MeasurementFields) ForEachField(fn func(name string, typ influxql.DataType) bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	for name, f := range m.fields {
-		if !fn(name, f.Type) {
-			return
-		}
-	}
 }
 
 // Clone returns copy of the MeasurementFields
@@ -362,13 +333,6 @@ func (fs *MeasurementFieldSet) CreateFieldsIfNotExists(name []byte) *Measurement
 	}
 	fs.mu.Unlock()
 	return mf
-}
-
-// Delete removes a field set for a measurement.
-func (fs *MeasurementFieldSet) Delete(name string) {
-	fs.mu.Lock()
-	delete(fs.fields, name)
-	fs.mu.Unlock()
 }
 
 // DeleteWithLock executes fn and removes a field set from a measurement under lock.

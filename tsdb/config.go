@@ -74,14 +74,6 @@ type Config struct {
 	Engine string `toml:"-"`
 	Index  string `toml:"index-version"`
 
-	// General WAL configuration options
-	WALDir string `toml:"wal-dir"`
-
-	// WALFsyncDelay is the amount of time that a write will wait before fsyncing.  A duration
-	// greater than 0 can be used to batch up multiple fsync calls.  This is useful for slower
-	// disks or when WAL write contention is seen.  A value of 0 fsyncs every write to the WAL.
-	WALFsyncDelay toml.Duration `toml:"wal-fsync-delay"`
-
 	// Enables unicode validation on series keys on write.
 	ValidateKeys bool `toml:"validate-keys"`
 
@@ -159,8 +151,6 @@ func NewConfig() Config {
 func (c *Config) Validate() error {
 	if c.Dir == "" {
 		return errors.New("Data.Dir must be specified")
-	} else if c.WALDir == "" {
-		return errors.New("Data.WALDir must be specified")
 	}
 
 	if c.MaxConcurrentCompactions < 0 {
@@ -196,8 +186,6 @@ func (c *Config) Validate() error {
 func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 	return diagnostics.RowFromMap(map[string]interface{}{
 		"dir":                                c.Dir,
-		"wal-dir":                            c.WALDir,
-		"wal-fsync-delay":                    c.WALFsyncDelay,
 		"cache-max-memory-size":              c.CacheMaxMemorySize,
 		"cache-snapshot-memory-size":         c.CacheSnapshotMemorySize,
 		"cache-snapshot-write-cold-duration": c.CacheSnapshotWriteColdDuration,
