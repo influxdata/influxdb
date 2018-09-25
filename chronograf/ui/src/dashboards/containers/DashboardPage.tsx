@@ -162,7 +162,7 @@ class DashboardPage extends Component<Props, State> {
     const {dashboardLinks} = this.state
 
     return (
-      <Page className="dashboard-page">
+      <Page>
         <DashboardHeader
           dashboard={dashboard}
           timeRange={timeRange}

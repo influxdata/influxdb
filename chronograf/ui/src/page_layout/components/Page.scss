@@ -20,7 +20,6 @@
 
 .page-header {
   height: $page-header-size;
-  padding: 0 $page-gutter;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -28,11 +27,12 @@
 
 .page-header--container {
   display: flex;
+  padding: 0 $page-gutter;
   align-items: center;
   justify-content: space-between;
   flex-wrap: nowrap;
   width: 100%;
-  max-width: ($page-max-width - ($page-gutter * 2));
+  max-width: $page-max-width;
 }
 
 .page-header.full-width .page-header--container {
