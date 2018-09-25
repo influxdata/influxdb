@@ -23,6 +23,7 @@ class PageHeader extends Component<Props> {
   }
 
   public static Left = PageHeaderLeft
+  public static Center = PageHeaderCenter
   public static Right = PageHeaderRight
 
   public render() {
