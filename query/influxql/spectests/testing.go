@@ -91,7 +91,9 @@ func (f *fixture) Run(t *testing.T) {
 		transpiler := influxql.NewTranspilerWithConfig(
 			dbrpMappingSvc,
 			influxql.Config{
-				NowFn: Now,
+				DefaultDatabase: "db0",
+				Cluster:         "cluster",
+				NowFn:           Now,
 			},
 		)
 		spec, err := transpiler.Transpile(context.Background(), f.stmt)
