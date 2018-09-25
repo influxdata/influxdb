@@ -1,13 +1,28 @@
 package testing
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
 )
+
+var mappingCmpOptions = cmp.Options{
+	cmp.Comparer(func(x, y []byte) bool {
+		return bytes.Equal(x, y)
+	}),
+	cmp.Transformer("Sort", func(in []*platform.UserResourceMapping) []*platform.UserResourceMapping {
+		out := append([]*platform.UserResourceMapping(nil), in...) // Copy input to avoid mutating it
+		sort.Slice(out, func(i, j int) bool {
+			return out[i].ResourceID.String() > out[j].ResourceID.String()
+		})
+		return out
+	}),
+}
 
 // UserResourceFields includes prepopulated data for mapping tests
 type UserResourceFields struct {
@@ -151,7 +166,7 @@ func CreateUserResourceMapping(
 			if err != nil {
 				t.Fatalf("failed to retrieve mappings: %v", err)
 			}
-			if diff := cmp.Diff(mappings, tt.wants.mappings, bucketCmpOptions...); diff != "" {
+			if diff := cmp.Diff(mappings, tt.wants.mappings, mappingCmpOptions...); diff != "" {
 				t.Errorf("mappings are different -got/+want\ndiff %s", diff)
 			}
 		})
@@ -232,7 +247,7 @@ func DeleteUserResourceMapping(
 			if err != nil {
 				t.Fatalf("failed to retrieve mappings: %v", err)
 			}
-			if diff := cmp.Diff(mappings, tt.wants.mappings, bucketCmpOptions...); diff != "" {
+			if diff := cmp.Diff(mappings, tt.wants.mappings, mappingCmpOptions...); diff != "" {
 				t.Errorf("mappings are different -got/+want\ndiff %s", diff)
 			}
 		})
@@ -402,7 +417,7 @@ func FindUserResourceMappings(
 				}
 			}
 
-			if diff := cmp.Diff(mappings, tt.wants.mappings, bucketCmpOptions...); diff != "" {
+			if diff := cmp.Diff(mappings, tt.wants.mappings, mappingCmpOptions...); diff != "" {
 				t.Errorf("mappings are different -got/+want\ndiff %s", diff)
 			}
 		})
