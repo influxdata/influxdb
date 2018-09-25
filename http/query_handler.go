@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
@@ -166,6 +167,9 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 	if err != nil {
 		return nil, err
 	}
+	params := url.Values{}
+	params.Set(OrgID, r.OrganizationID.String())
+	u.RawQuery = params.Encode()
 
 	preq := &query.ProxyRequest{
 		Request: *r,
