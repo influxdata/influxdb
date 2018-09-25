@@ -720,17 +720,6 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	fields, err := tsdb.NewMeasurementFieldSet(filepath.Join(e.path, "fields.idx"))
-	if err != nil {
-		e.logger.Warn(fmt.Sprintf("error opening fields.idx: %v.  Rebuilding.", err))
-	}
-
-	e.mu.Lock()
-	e.fieldset = fields
-	e.mu.Unlock()
-
-	e.index.SetFieldSet(fields)
-
 	if e.WALEnabled {
 		if err := e.WAL.Open(); err != nil {
 			return err
@@ -793,87 +782,8 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 // Note, it not safe to call LoadMetadataIndex concurrently. LoadMetadataIndex
 // should only be called when initialising a new Engine.
 func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
-	now := time.Now()
-
-	// Save reference to index for iterator creation.
+	// Save reference to index for iterator creation. maybe not necessary.
 	e.index = index
-
-	// If we have the cached fields index on disk and we're using TSI, we
-	// can skip scanning all the TSM files.
-	if e.index.Type() != inmem.IndexName && !e.fieldset.IsEmpty() {
-		return nil
-	}
-
-	keys := make([][]byte, 0, 10000)
-	fieldTypes := make([]influxql.DataType, 0, 10000)
-
-	if err := e.FileStore.WalkKeys(nil, func(key []byte, typ byte) error {
-		fieldType := BlockTypeToInfluxQLDataType(typ)
-		if fieldType == influxql.Unknown {
-			return fmt.Errorf("unknown block type: %v", typ)
-		}
-
-		keys = append(keys, key)
-		fieldTypes = append(fieldTypes, fieldType)
-		if len(keys) == cap(keys) {
-			// Send batch of keys to the index.
-			if err := e.addToIndexFromKey(keys, fieldTypes); err != nil {
-				return err
-			}
-
-			// Reset buffers.
-			keys, fieldTypes = keys[:0], fieldTypes[:0]
-		}
-
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	if len(keys) > 0 {
-		// Add remaining partial batch from FileStore.
-		if err := e.addToIndexFromKey(keys, fieldTypes); err != nil {
-			return err
-		}
-		keys, fieldTypes = keys[:0], fieldTypes[:0]
-	}
-
-	// load metadata from the Cache
-	if err := e.Cache.ApplyEntryFn(func(key []byte, entry *entry) error {
-		fieldType, err := entry.values.InfluxQLType()
-		if err != nil {
-			e.logger.Info("Error getting the data type of values for key", zap.ByteString("key", key), zap.Error(err))
-		}
-
-		keys = append(keys, key)
-		fieldTypes = append(fieldTypes, fieldType)
-		if len(keys) == cap(keys) {
-			// Send batch of keys to the index.
-			if err := e.addToIndexFromKey(keys, fieldTypes); err != nil {
-				return err
-			}
-
-			// Reset buffers.
-			keys, fieldTypes = keys[:0], fieldTypes[:0]
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	if len(keys) > 0 {
-		// Add remaining partial batch from FileStore.
-		if err := e.addToIndexFromKey(keys, fieldTypes); err != nil {
-			return err
-		}
-	}
-
-	// Save the field set index so we don't have to rebuild it next time
-	if err := e.fieldset.Save(); err != nil {
-		return err
-	}
-
-	e.traceLogger.Info("Meta data index for shard loaded", zap.Uint64("id", shardID), zap.Duration("duration", time.Since(now)))
 	return nil
 }
 
@@ -1221,7 +1131,6 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 // names from composite keys, and add them to the database index and measurement
 // fields.
 func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType) error {
-	var field []byte
 	collection := &tsdb.SeriesCollection{
 		Keys:  keys,
 		Names: make([][]byte, 0, len(keys)),
@@ -1231,13 +1140,8 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 
 	for i := 0; i < len(keys); i++ {
 		// Replace tsm key format with index key format.
-		collection.Keys[i], field = SeriesAndFieldFromCompositeKey(collection.Keys[i])
+		collection.Keys[i], _ = SeriesAndFieldFromCompositeKey(collection.Keys[i])
 		name := models.ParseName(collection.Keys[i])
-		mf := e.fieldset.CreateFieldsIfNotExists(name)
-		if err := mf.CreateFieldIfNotExists(field, fieldTypes[i]); err != nil {
-			return err
-		}
-
 		collection.Names = append(collection.Names, name)
 		collection.Tags = append(collection.Tags, models.ParseTags(keys[i]))
 		collection.Types = append(collection.Types, fieldTypeFromDataType(fieldTypes[i]))
@@ -1730,40 +1634,7 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 	if err := e.deleteMeasurement(name); err != nil {
 		return err
 	}
-
-	// A sentinel error message to cause DeleteWithLock to not delete the measurement
-	abortErr := fmt.Errorf("measurements still exist")
-
-	// Under write lock, delete the measurement if we no longer have any data stored for
-	// the measurement.  If data exists, we can't delete the field set yet as there
-	// were writes to the measurement while we are deleting it.
-	if err := e.fieldset.DeleteWithLock(string(name), func() error {
-		encodedName := models.EscapeMeasurement(name)
-
-		// First scan the cache to see if any series exists for this measurement.
-		if err := e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-			if bytes.HasPrefix(k, encodedName) {
-				return abortErr
-			}
-			return nil
-		}); err != nil {
-			return err
-		}
-
-		// Check the filestore.
-		return e.FileStore.WalkKeys(name, func(k []byte, typ byte) error {
-			if bytes.HasPrefix(k, encodedName) {
-				return abortErr
-			}
-			return nil
-		})
-
-	}); err != nil && err != abortErr {
-		// Something else failed, return it
-		return err
-	}
-
-	return e.fieldset.Save()
+	return nil
 }
 
 // DeleteMeasurement deletes a measurement and all related series.

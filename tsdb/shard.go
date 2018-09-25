@@ -527,20 +527,16 @@ func (s *Shard) WritePoints(points []models.Point) error {
 		return err
 	}
 
-	atomic.AddInt64(&s.stats.WriteReq, 1)
-
-	fieldsToCreate, err := s.validateSeriesAndFields(engine, collection)
-	if err != nil {
-		return err
-	}
-
-	// Add any new fields and keep track of what needs to be saved.
-	atomic.AddInt64(&s.stats.FieldsCreated, int64(len(fieldsToCreate)))
-	if err := s.createFieldsAndMeasurements(engine, fieldsToCreate); err != nil {
-		return err
+	// Create any new series
+	if err := engine.CreateSeriesListIfNotExists(collection); err != nil {
+		// ignore PartialWriteErrors. The collection captures it.
+		if _, ok := err.(PartialWriteError); !ok {
+			return err
+		}
 	}
 
 	// Write to the engine.
+	atomic.AddInt64(&s.stats.WriteReq, 1)
 	if err := engine.WritePoints(collection.Points); err != nil {
 		atomic.AddInt64(&s.stats.WritePointsErr, int64(collection.Length()))
 		atomic.AddInt64(&s.stats.WriteReqErr, 1)
@@ -550,127 +546,6 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	atomic.AddInt64(&s.stats.WriteReqOK, 1)
 
 	return collection.PartialWriteError()
-}
-
-// validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed.
-func (s *Shard) validateSeriesAndFields(engine Engine, collection *SeriesCollection) ([]*FieldCreate, error) {
-	var fieldsToCreate []*FieldCreate
-
-	// Add new series. Check for partial writes.
-	if err := engine.CreateSeriesListIfNotExists(collection); err != nil {
-		// ignore PartialWriteErrors. The collection captures it.
-		if _, ok := err.(PartialWriteError); !ok {
-			return nil, err
-		}
-	}
-
-	// Create a MeasurementFields cache.
-	mfCache := make(map[string]*MeasurementFields, 16)
-	j := 0
-	for iter := collection.Iterator(); iter.Next(); {
-		// Skip any points with only invalid fields.
-		point := iter.Point()
-
-		fieldIter := point.FieldIterator()
-		validField := false
-		for fieldIter.Next() {
-			if bytes.Equal(fieldIter.FieldKey(), timeBytes) {
-				continue
-			}
-			validField = true
-			break
-		}
-
-		if !validField {
-			if collection.Reason == "" {
-				collection.Reason = fmt.Sprintf(
-					"invalid field name: input field %q on measurement %q is invalid",
-					timeBytes, iter.Name())
-			}
-			collection.Dropped++
-			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
-			continue
-		}
-
-		// Grab the MeasurementFields checking the local cache to avoid lock contention.
-		name := iter.Name()
-		mf := mfCache[string(name)]
-		if mf == nil {
-			mf = engine.MeasurementFields(name).Clone()
-			mfCache[string(name)] = mf
-		}
-
-		// Check with the field validator.
-		if err := s.options.FieldValidator.Validate(mf, point); err != nil {
-			switch err := err.(type) { // combine in any partial write error
-			case PartialWriteError:
-				if collection.Reason == "" {
-					collection.Reason = err.Reason
-				}
-				collection.Dropped += uint64(err.Dropped)
-				collection.DroppedKeys = append(collection.DroppedKeys, err.DroppedKeys...)
-			default:
-				return nil, err
-			}
-			continue
-		}
-
-		collection.Copy(j, iter.Index())
-		j++
-
-		// Create any fields that are missing.
-		fieldIter.Reset()
-		for fieldIter.Next() {
-			fieldKey := fieldIter.FieldKey()
-
-			// Skip fields named "time". They are illegal.
-			if bytes.Equal(fieldKey, timeBytes) {
-				continue
-			}
-
-			if mf.FieldBytes(fieldKey) != nil {
-				continue
-			}
-
-			dataType := dataTypeFromModelsFieldType(fieldIter.Type())
-			if dataType == influxql.Unknown {
-				continue
-			}
-
-			fieldsToCreate = append(fieldsToCreate, &FieldCreate{
-				Measurement: name,
-				Field: &Field{
-					Name: string(fieldKey),
-					Type: dataType,
-				},
-			})
-		}
-	}
-
-	collection.Truncate(j)
-	return fieldsToCreate, nil
-}
-
-func (s *Shard) createFieldsAndMeasurements(engine Engine, fieldsToCreate []*FieldCreate) error {
-	if len(fieldsToCreate) == 0 {
-		return nil
-	}
-
-	// add fields
-	for _, f := range fieldsToCreate {
-		mf := engine.MeasurementFields(f.Measurement)
-		if err := mf.CreateFieldIfNotExists([]byte(f.Field.Name), f.Field.Type); err != nil {
-			return err
-		}
-
-		s.index.SetFieldName(f.Measurement, f.Field.Name)
-	}
-
-	if len(fieldsToCreate) > 0 {
-		return engine.MeasurementFieldSet().Save()
-	}
-
-	return nil
 }
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
