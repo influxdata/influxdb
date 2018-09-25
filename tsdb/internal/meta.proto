@@ -1,6 +1,7 @@
 syntax = "proto3";
 
-package tsdb;
+package platform.tsdb;
+option go_package = "internal";
 
 //========================================================================
 //

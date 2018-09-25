@@ -26,7 +26,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
-	internal "github.com/influxdata/platform/tsdb/internal"
+	"github.com/influxdata/platform/tsdb/internal"
 	"go.uber.org/zap"
 )
 
