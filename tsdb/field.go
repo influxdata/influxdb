@@ -2,18 +2,13 @@ package tsdb
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 	"unsafe"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/tsdb/internal"
 )
 
 //
@@ -403,106 +398,10 @@ func (fs *MeasurementFieldSet) Save() error {
 }
 
 func (fs *MeasurementFieldSet) saveNoLock() error {
-	// No fields left, remove the fields index file
-	if len(fs.fields) == 0 {
-		return os.RemoveAll(fs.path)
-	}
-
-	// Write the new index to a temp file and rename when it's sync'd
-	path := fs.path + ".tmp"
-	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(path)
-
-	if _, err := fd.Write(fieldsIndexMagicNumber); err != nil {
-		return err
-	}
-
-	pb := internal.MeasurementFieldSet{
-		Measurements: make([]*internal.MeasurementFields, 0, len(fs.fields)),
-	}
-	for name, mf := range fs.fields {
-		fs := &internal.MeasurementFields{
-			Name:   name,
-			Fields: make([]*internal.Field, 0, mf.FieldN()),
-		}
-
-		mf.ForEachField(func(field string, typ influxql.DataType) bool {
-			fs.Fields = append(fs.Fields, &internal.Field{Name: field, Type: int32(typ)})
-			return true
-		})
-
-		pb.Measurements = append(pb.Measurements, fs)
-	}
-
-	b, err := proto.Marshal(&pb)
-	if err != nil {
-		return err
-	}
-
-	if _, err := fd.Write(b); err != nil {
-		return err
-	}
-
-	if err = fd.Sync(); err != nil {
-		return err
-	}
-
-	//close file handle before renaming to support Windows
-	if err = fd.Close(); err != nil {
-		return err
-	}
-
-	if err := file.RenameFile(path, fs.path); err != nil {
-		return err
-	}
-
-	return file.SyncDir(filepath.Dir(fs.path))
+	return errors.New("save removed")
 }
 
 func (fs *MeasurementFieldSet) load() error {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-
-	fd, err := os.Open(fs.path)
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	defer fd.Close()
-
-	var magic [4]byte
-	if _, err := fd.Read(magic[:]); err != nil {
-		return err
-	}
-
-	if !bytes.Equal(magic[:], fieldsIndexMagicNumber) {
-		return ErrUnknownFieldsFormat
-	}
-
-	var pb internal.MeasurementFieldSet
-	b, err := ioutil.ReadAll(fd)
-	if err != nil {
-		return err
-	}
-
-	if err := proto.Unmarshal(b, &pb); err != nil {
-		return err
-	}
-
-	fs.fields = make(map[string]*MeasurementFields, len(pb.GetMeasurements()))
-	for _, measurement := range pb.GetMeasurements() {
-		set := &MeasurementFields{
-			fields: make(map[string]*Field, len(measurement.GetFields())),
-		}
-		for _, field := range measurement.GetFields() {
-			set.fields[field.GetName()] = &Field{Name: field.GetName(), Type: influxql.DataType(field.GetType())}
-		}
-		fs.fields[measurement.GetName()] = set
-	}
 	return nil
 }
 

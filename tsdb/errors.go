@@ -37,9 +37,6 @@ var (
 	// ErrShardNotIdle is returned when an operation requring the shard to be idle/cold is
 	// attempted on a hot shard.
 	ErrShardNotIdle = errors.New("shard not idle")
-
-	// fieldsIndexMagicNumber is the file magic number for the fields index file.
-	fieldsIndexMagicNumber = []byte{0, 6, 1, 3}
 )
 
 // A ShardError implements the error interface, and contains extra

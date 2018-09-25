@@ -25,64 +25,54 @@ const (
 )
 
 type Index interface {
-	Open() error
-	Close() error
-	WithLogger(*zap.Logger)
+	Open() error            // used by this package
+	Close() error           // used by this package
+	WithLogger(*zap.Logger) // used by this package
 
-	Database() string
-	MeasurementExists(name []byte) (bool, error)
-	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
-	DropMeasurement(name []byte) error
-	ForEachMeasurementName(fn func(name []byte) error) error
+	Database() string                                            // used by this package
+	MeasurementExists(name []byte) (bool, error)                 // used by engine
+	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) // used by engine
+	ForEachMeasurementName(fn func(name []byte) error) error     // used by engine
 
-	InitializeSeries(*SeriesCollection) error
-	CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ models.FieldType) error
-	CreateSeriesListIfNotExists(*SeriesCollection) error
-	DropSeries(seriesID SeriesID, key []byte, cascade bool) error
-	DropMeasurementIfSeriesNotExist(name []byte) error
+	InitializeSeries(*SeriesCollection) error                                               // used by engine
+	CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ models.FieldType) error // used by engine
+	CreateSeriesListIfNotExists(*SeriesCollection) error                                    // used by engine
+	DropSeries(seriesID SeriesID, key []byte, cascade bool) error                           // used by engine
+	DropMeasurementIfSeriesNotExist(name []byte) error                                      // used by engine
 
-	// Used to clean up series in inmem index that were dropped with a shard.
-	DropSeriesGlobal(key []byte) error
+	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) // used by engine
+	SeriesN() int64                                                    // used by engine
+	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)       // used by engine
+	SeriesIDSet() *SeriesIDSet                                         // used by idpe
 
-	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
-	SeriesN() int64
-	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
-	SeriesIDSet() *SeriesIDSet
+	HasTagKey(name, key []byte) (bool, error)          // used by this package
+	HasTagValue(name, key, value []byte) (bool, error) // used by this package
 
-	HasTagKey(name, key []byte) (bool, error)
-	HasTagValue(name, key, value []byte) (bool, error)
+	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) // used by this package
 
-	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
-
-	TagKeyCardinality(name, key []byte) int
+	TagKeyCardinality(name, key []byte) int // used by engine
 
 	// InfluxQL system iterators
-	MeasurementIterator() (MeasurementIterator, error)
-	TagKeyIterator(name []byte) (TagKeyIterator, error)
-	TagValueIterator(name, key []byte) (TagValueIterator, error)
-	MeasurementSeriesIDIterator(name []byte) (SeriesIDIterator, error)
-	TagKeySeriesIDIterator(name, key []byte) (SeriesIDIterator, error)
-	TagValueSeriesIDIterator(name, key, value []byte) (SeriesIDIterator, error)
+	MeasurementIterator() (MeasurementIterator, error)                          // used by this package
+	TagKeyIterator(name []byte) (TagKeyIterator, error)                         // used by this package
+	TagValueIterator(name, key []byte) (TagValueIterator, error)                // used by this package
+	MeasurementSeriesIDIterator(name []byte) (SeriesIDIterator, error)          // used by this package
+	TagKeySeriesIDIterator(name, key []byte) (SeriesIDIterator, error)          // used by this package
+	TagValueSeriesIDIterator(name, key, value []byte) (SeriesIDIterator, error) // used by this package
 
-	// Sets a shared fieldset from the engine.
-	FieldSet() *MeasurementFieldSet
-	SetFieldSet(fs *MeasurementFieldSet)
-
-	// Size of the index on disk, if applicable.
-	DiskSizeBytes() int64
-
-	// Bytes estimates the memory footprint of this Index, in bytes.
-	Bytes() int
+	// // Sets a shared fieldset from the engine.
+	FieldSet() *MeasurementFieldSet      // used by this package
+	SetFieldSet(fs *MeasurementFieldSet) // used by engine
 
 	// To be removed w/ tsi1.
-	SetFieldName(measurement []byte, name string)
+	SetFieldName(measurement []byte, name string) // used by this package
 
-	Type() string
+	Type() string // used by this package
 	// Returns a unique reference ID to the index instance.
 	// For inmem, returns a reference to the backing Index, not ShardIndex.
-	UniqueReferenceID() uintptr
+	UniqueReferenceID() uintptr // used by this package
 
-	Rebuild()
+	Rebuild() // used by engine
 }
 
 // SeriesElem represents a generic series element.

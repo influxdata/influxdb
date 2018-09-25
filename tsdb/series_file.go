@@ -17,6 +17,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const SeriesFileDirectory = "_series"
+
 var (
 	ErrSeriesFileClosed         = errors.New("tsdb: series file closed")
 	ErrInvalidSeriesPartitionID = errors.New("tsdb: invalid series partition id")
