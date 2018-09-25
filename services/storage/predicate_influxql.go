@@ -139,7 +139,7 @@ func (v *nodeToExprVisitor) Visit(n *Node) NodeVisitor {
 			}
 		}
 
-		v.exprs = append(v.exprs, &influxql.VarRef{Val: ref})
+		v.exprs = append(v.exprs, &influxql.VarRef{Val: ref, Type: influxql.Tag})
 		return nil
 
 	case NodeTypeFieldRef:
