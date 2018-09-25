@@ -107,6 +107,7 @@ class SourcePage extends PureComponent<Props, State> {
     if (!isCreated && isNewSource) {
       return this.setState(this.normalizeSource, this.createSource)
     }
+
     this.setState(this.normalizeSource, this.updateSource)
   }
 
@@ -115,6 +116,7 @@ class SourcePage extends PureComponent<Props, State> {
     if (source.url.startsWith('http')) {
       return {source: {...source, url}}
     }
+
     return {source: {...source, url: `http://${url}`}}
   }
 
@@ -170,13 +172,14 @@ class SourcePage extends PureComponent<Props, State> {
 
   private redirect = source => {
     const {isInitialSource} = this.state
-    const {router} = this.props
+    const {router, location} = this.props
+    const sourceID = location.query.sourceID
 
     if (isInitialSource) {
       return this.redirectToApp(source)
     }
 
-    router.push(`/manage-sources`)
+    router.push(`/manage-sources?sourceID=${sourceID}`)
   }
 
   private parseError = (error): string => {

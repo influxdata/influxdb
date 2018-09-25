@@ -56,7 +56,7 @@ UTILS := \
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
 all: GO_ARGS=-tags 'assets $(GO_TAGS)'
-all: node_modules $(UTILS) subdirs $(CMDS)
+all: node_modules $(UTILS) subdirs generate $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
@@ -67,7 +67,7 @@ subdirs: $(SUBDIRS)
 # Define targets for commands
 #
 $(CMDS): $(SOURCES)
-	$(GO_BUILD) -i -o $@ ./cmd/$(shell basename "$@")
+	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
 #
 # Define targets for utilities

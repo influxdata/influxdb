@@ -1,0 +1,106 @@
+/*
+  Markdown Cell Styles
+  ------------------------------------------------------------------------------
+*/
+
+.markdown-cell {
+  position: absolute !important;
+  height: calc(
+    100% - 20px
+  ) !important; // Prevent it from covering the cell resizer
+}
+
+.markdown-cell--contents {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.markdown-cell > .fancy-scroll--track-v,
+.markdown-cell > .fancy-scroll--track-h {
+  z-index: 2;
+}
+
+.markdown-cell:after {
+  pointer-events: none;
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 20px;
+  width: 100%;
+  @include gradient-v(rgba($g3-castle, 0), $g3-castle);
+  z-index: 1;
+}
+
+/*
+  General Markdown Formatting
+  ------------------------------------------------------------------------------
+  Despite being in this stylesheet, these styles are intended for use anytime
+  the react-markdown component is used
+*/
+
+.markdown-format {
+  color: $g13-mist;
+
+  p {
+    font-size: 1em;
+    line-height: 1.25em;
+    font-weight: 500;
+  }
+
+  h3,
+  h4 {
+    border-bottom: 2px solid $g4-onyx;
+    padding-bottom: 0.25em;
+  }
+
+  strong {
+    font-weight: 900;
+    color: $g16-pearl;
+  }
+
+  table {
+    border-collapse: collapse;
+  }
+
+  td,
+  th {
+    padding: 4px 8px;
+    border: $ix-border solid $g5-pepper;
+  }
+
+  th {
+    background-color: $g5-pepper;
+  }
+
+  code {
+    border-radius: 3px;
+    margin: 0;
+    padding: 2px 6px;
+    color: $c-potassium;
+    letter-spacing: 0;
+    font-weight: 500;
+  }
+
+  pre {
+    border-radius: 3px;
+    padding: 6px;
+
+    code {
+      padding: 0;
+    }
+  }
+
+  img {
+    border-radius: $ix-radius;
+    max-width: 100%;
+  }
+
+  > *:first-child {
+    margin-top: 0;
+  }
+
+  > *:last-child {
+    margin-bottom: 0;
+  }
+}

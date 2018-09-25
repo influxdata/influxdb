@@ -29,10 +29,12 @@ import {
   importDashboardAsync,
   deleteDashboardAsync,
 } from 'src/dashboards/actions/v2'
+import {setDefaultDashboard} from 'src/shared/actions/links'
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/v2/ranges'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import {
+  dashboardSetDefaultFailed,
   dashboardExported,
   dashboardExportFailed,
   dashboardCreateFailed,
@@ -49,6 +51,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   router: InjectedRouter
   links: Links
+  handleSetDefaultDashboard: typeof setDefaultDashboard
   handleGetDashboards: typeof getDashboardsAsync
   handleDeleteDashboard: typeof deleteDashboardAsync
   handleImportDashboard: typeof importDashboardAsync
@@ -81,7 +84,7 @@ class DashboardsPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {dashboards, notify} = this.props
+    const {dashboards, notify, links} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -114,6 +117,8 @@ class DashboardsPage extends PureComponent<Props, State> {
           <PageContents fullWidth={false} scrollable={true}>
             <DashboardsContents
               dashboards={dashboards}
+              onSetDefaultDashboard={this.handleSetDefaultDashboard}
+              defaultDashboardLink={links.defaultDashboard}
               onDeleteDashboard={this.handleDeleteDashboard}
               onCreateDashboard={this.handleCreateDashboard}
               onCloneDashboard={this.handleCloneDashboard}
@@ -126,6 +131,20 @@ class DashboardsPage extends PureComponent<Props, State> {
         {this.renderImportOverlay}
       </>
     )
+  }
+
+  private handleSetDefaultDashboard = async (
+    defaultDashboardLink: string
+  ): Promise<void> => {
+    const {dashboards, notify, handleSetDefaultDashboard} = this.props
+    const {name} = dashboards.find(d => d.links.self === defaultDashboardLink)
+
+    try {
+      await handleSetDefaultDashboard(defaultDashboardLink)
+    } catch (error) {
+      console.error(error)
+      notify(dashboardSetDefaultFailed(name))
+    }
   }
 
   private handleCreateDashboard = async (): Promise<void> => {
@@ -246,6 +265,7 @@ const mstp = state => {
 
 const mdtp = {
   notify: notifyAction,
+  handleSetDefaultDashboard: setDefaultDashboard,
   handleGetDashboards: getDashboardsAsync,
   handleDeleteDashboard: deleteDashboardAsync,
   handleImportDashboard: importDashboardAsync,

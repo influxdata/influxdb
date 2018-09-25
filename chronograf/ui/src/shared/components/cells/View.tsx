@@ -3,10 +3,12 @@ import React, {Component} from 'react'
 
 // Components
 import RefreshingGraph from 'src/shared/components/RefreshingGraph'
+import Markdown from 'src/shared/components/views/Markdown'
 
 // Types
 import {TimeRange, Template} from 'src/types'
-import {View} from 'src/types/v2'
+import {View, ViewType} from 'src/types/v2'
+import {text} from 'src/shared/components/views/gettingsStarted'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -34,6 +36,10 @@ class ViewComponent extends Component<Props> {
       manualRefresh,
       templates,
     } = this.props
+
+    if (view.properties.type === ViewType.Markdown) {
+      return <Markdown text={text} />
+    }
 
     return (
       <RefreshingGraph

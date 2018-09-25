@@ -245,3 +245,266 @@ func init() {
 
 	organizationCmd.AddCommand(organizationDeleteCmd)
 }
+
+// Member management
+var organizationMembersCmd = &cobra.Command{
+	Use:   "members",
+	Short: "organization membership commands",
+	Run:   organizationF,
+}
+
+func init() {
+	organizationCmd.AddCommand(organizationMembersCmd)
+}
+
+// List Members
+type OrganizationMembersListFlags struct {
+	name string
+	id   string
+}
+
+var organizationMembersListFlags OrganizationMembersListFlags
+
+func organizationMembersListF(cmd *cobra.Command, args []string) {
+	orgS := &http.OrganizationService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	mappingS := &http.UserResourceMappingService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	if organizationMembersListFlags.id == "" && organizationMembersListFlags.name == "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	filter := platform.OrganizationFilter{}
+	if organizationMembersListFlags.name != "" {
+		filter.Name = &organizationMembersListFlags.name
+	}
+
+	if organizationMembersListFlags.id != "" {
+		filter.ID = &platform.ID{}
+		err := filter.ID.DecodeFromString(organizationMembersListFlags.id)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+
+	organization, err := orgS.FindOrganization(context.Background(), filter)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	mappingFilter := platform.UserResourceMappingFilter{
+		ResourceID: organization.ID,
+		UserType:   platform.Member,
+	}
+
+	mappings, _, err := mappingS.FindUserResourceMappings(context.Background(), mappingFilter)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	// TODO: look up each user and output their name
+	w := internal.NewTabWriter(os.Stdout)
+	w.WriteHeaders(
+		"ID",
+	)
+	for _, m := range mappings {
+		w.Write(map[string]interface{}{
+			"ID": m.UserID.String(),
+		})
+	}
+	w.Flush()
+}
+
+func init() {
+	organizationMembersListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List organization members",
+		Run:   organizationMembersListF,
+	}
+
+	organizationMembersListCmd.Flags().StringVarP(&organizationMembersListFlags.id, "id", "i", "", "organization id")
+	organizationMembersListCmd.Flags().StringVarP(&organizationMembersListFlags.name, "name", "n", "", "organization name")
+
+	organizationMembersCmd.AddCommand(organizationMembersListCmd)
+}
+
+// Add Member
+type OrganizationMembersAddFlags struct {
+	name     string
+	id       string
+	memberId string
+}
+
+var organizationMembersAddFlags OrganizationMembersAddFlags
+
+func organizationMembersAddF(cmd *cobra.Command, args []string) {
+	if organizationMembersAddFlags.id == "" && organizationMembersAddFlags.name == "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	if organizationMembersAddFlags.id != "" && organizationMembersAddFlags.name != "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	orgS := &http.OrganizationService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	mappingS := &http.UserResourceMappingService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	filter := platform.OrganizationFilter{}
+	if organizationMembersAddFlags.name != "" {
+		filter.Name = &organizationMembersListFlags.name
+	}
+
+	if organizationMembersAddFlags.id != "" {
+		filter.ID = &platform.ID{}
+		err := filter.ID.DecodeFromString(organizationMembersAddFlags.id)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+
+	organization, err := orgS.FindOrganization(context.Background(), filter)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	memberID := &platform.ID{}
+	err = memberID.DecodeFromString(organizationMembersAddFlags.memberId)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	mapping := &platform.UserResourceMapping{
+		ResourceID: organization.ID,
+		UserID:     *memberID,
+		UserType:   platform.Member,
+	}
+
+	if err = mappingS.CreateUserResourceMapping(context.Background(), mapping); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Member added")
+}
+
+func init() {
+	organizationMembersAddCmd := &cobra.Command{
+		Use:   "add",
+		Short: "Add organization member",
+		Run:   organizationMembersAddF,
+	}
+
+	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "organization id")
+	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "organization name")
+	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.memberId, "member", "o", "", "member id")
+	organizationMembersAddCmd.MarkFlagRequired("member")
+
+	organizationMembersCmd.AddCommand(organizationMembersAddCmd)
+}
+
+// Remove Member
+type OrganizationMembersRemoveFlags struct {
+	name     string
+	id       string
+	memberId string
+}
+
+var organizationMembersRemoveFlags OrganizationMembersRemoveFlags
+
+func organizationMembersRemoveF(cmd *cobra.Command, args []string) {
+	if organizationMembersRemoveFlags.id == "" && organizationMembersRemoveFlags.name == "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	if organizationMembersRemoveFlags.id != "" && organizationMembersRemoveFlags.name != "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	orgS := &http.OrganizationService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	mappingS := &http.UserResourceMappingService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	filter := platform.OrganizationFilter{}
+	if organizationMembersRemoveFlags.name != "" {
+		filter.Name = &organizationMembersRemoveFlags.name
+	}
+
+	if organizationMembersRemoveFlags.id != "" {
+		filter.ID = &platform.ID{}
+		err := filter.ID.DecodeFromString(organizationMembersRemoveFlags.id)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+
+	organization, err := orgS.FindOrganization(context.Background(), filter)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	memberID := &platform.ID{}
+	err = memberID.DecodeFromString(organizationMembersRemoveFlags.memberId)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if err = mappingS.DeleteUserResourceMapping(context.Background(), organization.ID, *memberID); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Member removed")
+}
+
+func init() {
+	organizationMembersRemoveCmd := &cobra.Command{
+		Use:   "remove",
+		Short: "Remove organization member",
+		Run:   organizationMembersRemoveF,
+	}
+
+	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "organization id")
+	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "organization name")
+	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberId, "member", "o", "", "member id")
+	organizationMembersRemoveCmd.MarkFlagRequired("member")
+
+	organizationMembersCmd.AddCommand(organizationMembersRemoveCmd)
+}

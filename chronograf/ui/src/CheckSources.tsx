@@ -17,6 +17,7 @@ import * as copy from 'src/shared/copy/notifications'
 import {Source} from 'src/types/v2'
 import {Location} from 'history'
 import {Notification, NotificationFunc, RemoteDataState} from 'src/types'
+import {Links} from 'src/types/v2/links'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -29,6 +30,7 @@ interface Params {
 }
 
 interface Props {
+  links: Links
   getSources: typeof getSourcesAsync
   sources: Source[]
   children: ReactElement<any>
@@ -64,6 +66,10 @@ export class CheckSources extends PureComponent<Props, State> {
     const defaultSource = sources.find(s => s.default === true)
 
     const isDoneLoading = loading === RemoteDataState.Done
+
+    if (this.isRoot) {
+      return router.push(`${this.rootPath}`)
+    }
 
     if (isDoneLoading && !source) {
       if (defaultSource) {
@@ -104,10 +110,21 @@ export class CheckSources extends PureComponent<Props, State> {
     const {location} = this.props
 
     if (this.isRoot) {
-      return `/status`
+      return this.rootPath
     }
 
     return `${location.pathname}`
+  }
+
+  private get rootPath(): string {
+    const {links, location} = this.props
+    if (links.defaultDashboard) {
+      const split = links.defaultDashboard.split('/')
+      const id = split[split.length - 1]
+      return `/dashboards/${id}${location.search}`
+    }
+
+    return `/dashboards`
   }
 
   private get isRoot(): boolean {
@@ -132,7 +149,8 @@ export class CheckSources extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({sources}) => ({
+const mstp = ({sources, links}) => ({
+  links,
   sources,
 })
 

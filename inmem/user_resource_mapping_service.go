@@ -60,7 +60,7 @@ func (s *Service) filterUserResourceMappings(ctx context.Context, fn func(m *pla
 	return mappings, nil
 }
 
-func (s *Service) FindManyUserResourceMappings(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.UserResourceMapping, int, error) {
+func (s *Service) FindUserResourceMappings(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.UserResourceMapping, int, error) {
 	if filter.ResourceID != nil && filter.UserID != nil {
 		m, err := s.FindUserResourceBy(ctx, filter.ResourceID, filter.UserID)
 		if err != nil {
@@ -71,7 +71,8 @@ func (s *Service) FindManyUserResourceMappings(ctx context.Context, filter platf
 
 	filterFunc := func(mapping *platform.UserResourceMapping) bool {
 		return (filter.UserID == nil || (filter.UserID.String()) == mapping.UserID.String()) &&
-			(filter.ResourceID == nil || (filter.ResourceID.String()) == mapping.ResourceID.String())
+			(filter.ResourceID == nil || (filter.ResourceID.String()) == mapping.ResourceID.String()) &&
+			(filter.UserType == "" || (filter.UserType == mapping.UserType))
 	}
 
 	mappings, err := s.filterUserResourceMappings(ctx, filterFunc)
@@ -82,12 +83,32 @@ func (s *Service) FindManyUserResourceMappings(ctx context.Context, filter platf
 	return mappings, len(mappings), nil
 }
 
+// TODO(jm): remove this once etcd is no longer using it
+func (s *Service) FindManyUserResourceMappings(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.UserResourceMapping, int, error) {
+	return s.FindUserResourceMappings(ctx, filter)
+}
+
+func (s *Service) CreateUserResourceMapping(ctx context.Context, m *platform.UserResourceMapping) error {
+	mapping, _ := s.FindUserResourceBy(ctx, m.ResourceID, m.UserID)
+	if mapping != nil {
+		return fmt.Errorf("mapping for user %s already exists", m.UserID)
+	}
+
+	s.userResourceMappingKV.Store(encodeUserResourceMappingKey(m.ResourceID, m.UserID), *m)
+	return nil
+}
+
 func (s *Service) PutUserResourceMapping(ctx context.Context, m *platform.UserResourceMapping) error {
 	s.userResourceMappingKV.Store(encodeUserResourceMappingKey(m.ResourceID, m.UserID), *m)
 	return nil
 }
 
 func (s *Service) DeleteUserResourceMapping(ctx context.Context, resourceID, userID platform.ID) error {
+	mapping, err := s.FindUserResourceBy(ctx, resourceID, userID)
+	if mapping == nil && err != nil {
+		return err
+	}
+
 	s.userResourceMappingKV.Delete(encodeUserResourceMappingKey(resourceID, userID))
 	return nil
 }

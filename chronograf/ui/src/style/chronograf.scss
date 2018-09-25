@@ -17,30 +17,31 @@
 @import 'fonts/icon-font';
 
 // Clockface UI Kit
-@import '../clockface/styles';
+@import 'src/clockface/styles';
 
 // Components
 // TODO: Import these styles into their respective components instead of this stylesheet
-@import '../page_layout/PageLayout';
-@import '../shared/components/fancy_scrollbar/FancyScrollbar';
-@import '../shared/components/notifications/Notifications';
-@import '../shared/components/threesizer/Threesizer';
-@import '../shared/components/crosshair/Crosshair';
-@import '../shared/components/graph_tips/GraphTips';
-@import '../shared/components/page_spinner/PageSpinner';
-@import '../shared/components/cells/Cells';
-@import '../shared/components/cells/react-grid-layout';
-@import '../shared/components/cells/Dashboards';
-@import '../shared/components/dygraph/Dygraph';
-@import '../shared/components/splash_page/SplashPage';
-@import '../shared/components/code_mirror/CodeMirror';
-@import '../shared/components/code_mirror/CodeMirrorTheme';
-@import '../dashboards/components/rename_dashboard/RenameDashboard';
-@import '../dashboards/components/dashboard_empty/DashboardEmpty';
-@import '../flux/components/time_machine/TimeMachine';
-@import '../flux/components/time_machine/flux-overlay';
-@import '../flux/components/time_machine/flux-editor';
-@import '../flux/components/time_machine/flux-builder';
-@import '../flux/components/time_machine/flux-explorer';
-@import '../flux/components/time_machine/visualization';
-@import '../flux/components/time_machine/add-func-button';
+@import 'src/page_layout/PageLayout';
+@import 'src/shared/components/fancy_scrollbar/FancyScrollbar';
+@import 'src/shared/components/notifications/Notifications';
+@import 'src/shared/components/threesizer/Threesizer';
+@import 'src/shared/components/crosshair/Crosshair';
+@import 'src/shared/components/graph_tips/GraphTips';
+@import 'src/shared/components/page_spinner/PageSpinner';
+@import 'src/shared/components/cells/Cells';
+@import 'src/shared/components/cells/react-grid-layout';
+@import 'src/shared/components/cells/Dashboards';
+@import 'src/shared/components/dygraph/Dygraph';
+@import 'src/shared/components/splash_page/SplashPage';
+@import 'src/shared/components/code_mirror/CodeMirror';
+@import 'src/shared/components/code_mirror/CodeMirrorTheme';
+@import 'src/dashboards/components/rename_dashboard/RenameDashboard';
+@import 'src/dashboards/components/dashboard_empty/DashboardEmpty';
+@import 'src/flux/components/time_machine/TimeMachine';
+@import 'src/flux/components/time_machine/flux-overlay';
+@import 'src/flux/components/time_machine/flux-editor';
+@import 'src/flux/components/time_machine/flux-builder';
+@import 'src/flux/components/time_machine/flux-explorer';
+@import 'src/flux/components/time_machine/visualization';
+@import 'src/flux/components/time_machine/add-func-button';
+@import 'src/shared/components/views/Markdown';

@@ -23,7 +23,7 @@ import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 
 // Types
 import {TimeRange, Template, CellQuery} from 'src/types'
-import {V1View, ViewType} from 'src/types/v2/dashboards'
+import {V1View, V1ViewTypes} from 'src/types/v2/dashboards'
 
 interface Props {
   link: string
@@ -73,11 +73,11 @@ class RefreshingGraph extends PureComponent<Props & WithRouterProps> {
       >
         {({timeSeries, loading}) => {
           switch (type) {
-            case ViewType.SingleStat:
+            case V1ViewTypes.SingleStat:
               return this.singleStat(timeSeries)
-            case ViewType.Table:
+            case V1ViewTypes.Table:
               return this.table(timeSeries)
-            case ViewType.Gauge:
+            case V1ViewTypes.Gauge:
               return this.gauge(timeSeries)
             default:
               return this.lineGraph(timeSeries, loading)
@@ -186,11 +186,11 @@ class RefreshingGraph extends PureComponent<Props & WithRouterProps> {
     const {type} = options
     const queries = buildQueries(options.queries, timeRange)
 
-    if (type === ViewType.SingleStat) {
+    if (type === V1ViewTypes.SingleStat) {
       return [queries[0]]
     }
 
-    if (type === ViewType.Gauge) {
+    if (type === V1ViewTypes.Gauge) {
       return [queries[0]]
     }
 
