@@ -9,9 +9,9 @@
     "url": "github:influxdata/chronograf"
   },
   "scripts": {
-    "start": "parcel watch -d build src/index.html",
+    "start": "yarn install && parcel watch -d build src/index.html",
     "build": "parcel build -d build --no-source-maps src/index.html",
-    "clean": "rm -rf ./build && rm -rf ./.cache",
+    "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch",

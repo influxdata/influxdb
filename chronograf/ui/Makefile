@@ -31,5 +31,7 @@ else
 	yarn run clean
 endif
 
+run:
+	yarn run start
 
-.PHONY: all clean test
+.PHONY: all clean test run
