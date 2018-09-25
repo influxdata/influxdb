@@ -11,8 +11,11 @@ import (
 	"time"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/snowflake"
 	"github.com/influxdata/platform/task/backend"
 )
+
+var idGen = snowflake.NewIDGenerator()
 
 type CreateStoreFunc func(*testing.T) backend.Store
 type DestroyStoreFunc func(*testing.T, backend.Store)
@@ -626,7 +629,8 @@ from(bucket:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
+		org, user := idGen.ID(), idGen.ID()
+		id, err := s.CreateTask(context.Background(), org, user, script, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -655,6 +659,20 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 		if task != nil {
 			t.Fatalf("expected nil task when finding nonexistent ID, got %#v", task)
+		}
+
+		// It's safe to reuse the same name, for the same org with a new user, after deleting the original.
+		id, err = s.CreateTask(context.Background(), org, idGen.ID(), script, 0)
+		if err != nil {
+			t.Fatalf("Error when reusing task name that was previously deleted: %v", err)
+		}
+		if _, err := s.DeleteTask(context.Background(), id); err != nil {
+			t.Fatal(err)
+		}
+
+		// Reuse the same name, for the original user but a new org.
+		if _, err = s.CreateTask(context.Background(), idGen.ID(), user, script, 0); err != nil {
+			t.Fatalf("Error when reusing task name that was previously deleted: %v", err)
 		}
 	})
 }

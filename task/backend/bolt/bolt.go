@@ -3,13 +3,13 @@
 // The data stored in bolt is structured as follows:
 //
 //    bucket(/tasks/v1/tasks) key(:task_id) -> Content of submitted task (i.e. flux code).
-//    bucket(/tasks/v1/task_meta) Key(:task_id) -> Protocol Buffer encoded backend.StoreTaskMeta,
+//    bucket(/tasks/v1/task_meta) key(:task_id) -> Protocol Buffer encoded backend.StoreTaskMeta,
 //                                    so we have a consistent view of runs in progress and max concurrency.
 //    bucket(/tasks/v1/org_by_task_id) key(task_id) -> The organization ID (stored as encoded string) associated with given task.
 //    bucket(/tasks/v1/user_by_task_id) key(:task_id) -> The user ID (stored as encoded string) associated with given task.
 //    buket(/tasks/v1/name_by_task_id) key(:task_id) -> The user-supplied name of the script.
-//    bucket(/tasks/v1/name_by_org) key(:org_id) -> Task ID. This allows us to make task names unique for org
-//    bucket(/tasks/v1/name_by_user) key(:user_id)  -> Task ID. This allows us to make task names unique for user
+//    bucket(/tasks/v1/name_by_org).bucket(:org_id) key(:task_name) -> Task ID. This allows us to make task names unique for org.
+//    bucket(/tasks/v1/name_by_user).bucket(:user_id) key(:task_name)  -> Task ID. This allows us to make task names unique for user.
 //    bucket(/tasks/v1/run_ids) -> Counter for run IDs
 //    bucket(/tasks/v1/orgs).bucket(:org_id) key(:task_id) -> Empty content; presence of :task_id allows for lookup from org to tasks.
 //    bucket(/tasks/v1/users).bucket(:user_id) key(:task_id) -> Empty content; presence of :task_id allows for lookup from user to tasks.
@@ -522,7 +522,7 @@ func (s *Store) DisableTask(ctx context.Context, id platform.ID) error {
 	})
 }
 
-// DeleteTask deletes the task
+// DeleteTask deletes the task.
 func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, err error) {
 	paddedID := padID(id)
 	err = s.db.Batch(func(tx *bolt.Tx) error {
@@ -530,6 +530,8 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 		if check := b.Bucket(tasksPath).Get(paddedID); check == nil {
 			return ErrNotFound
 		}
+		name := b.Bucket(nameByTaskID).Get(paddedID)
+
 		if err := b.Bucket(taskMetaPath).Delete(paddedID); err != nil {
 			return err
 		}
@@ -539,6 +541,9 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 		user := b.Bucket(userByTaskID).Get(paddedID)
 		if len(user) > 0 {
 			if err := b.Bucket(usersPath).Bucket(user).Delete(paddedID); err != nil {
+				return err
+			}
+			if err := b.Bucket(nameByUser).Bucket(user).Delete(name); err != nil {
 				return err
 			}
 		}
@@ -552,6 +557,9 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 		org := b.Bucket(orgByTaskID).Get(paddedID)
 		if len(org) > 0 {
 			if err := b.Bucket(orgsPath).Bucket(org).Delete(paddedID); err != nil {
+				return err
+			}
+			if err := b.Bucket(nameByOrg).Bucket(org).Delete(name); err != nil {
 				return err
 			}
 		}
