@@ -35,7 +35,7 @@ require (
 	github.com/google/go-github v0.0.0-20180723152927-e1be32f26e66
 	github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20180825215210-0210a2f0f73c // indirect
-	github.com/goreleaser/goreleaser v0.0.0-20180917235036-c23174192b3a
+	github.com/goreleaser/goreleaser v0.87.0
 	github.com/goreleaser/nfpm v0.9.3 // indirect
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-immutable-radix v0.0.0-20180129170900-7f3cd4390caa // indirect
@@ -116,4 +116,4 @@ require (
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
 )
 
-replace github.com/goreleaser/goreleaser => github.com/influxdata/goreleaser v0.86.2-0.20180917143456-065bab60a4e8
+replace github.com/goreleaser/goreleaser => github.com/influxdata/goreleaser v0.86.2-0.20180917235036-c23174192b3a

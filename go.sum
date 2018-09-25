@@ -99,7 +99,6 @@ github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135 h1:zLTLjkaOF
 github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135/go.mod h1:odCYkC5MyYFN7vkCjXpyrEuKhc/BUO6wN/zVPAxq5ck=
 github.com/gopherjs/gopherjs v0.0.0-20180825215210-0210a2f0f73c h1:16eHWuMGvCjSfgRJKqIzapE78onvvTbdi1rMkU00lZw=
 github.com/gopherjs/gopherjs v0.0.0-20180825215210-0210a2f0f73c/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
-github.com/goreleaser/goreleaser v0.0.0-20180917235036-c23174192b3a/go.mod h1:r02//RU0qOOAsbJvZ6Igcu34zJeqR2RTNqABERY20GM=
 github.com/goreleaser/nfpm v0.9.3 h1:clQAayuzBos480VGbNjqIedNdmo2Stlnug4B8Gi6C8E=
 github.com/goreleaser/nfpm v0.9.3/go.mod h1:kn0Dps10Osi7V2icEXFTBRZhmiuGPUizzZVw/WQtQ/k=
 github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645 h1:MJG/KsmcqMwFAkh8mTnAwhyKoB+sTAnY4CACC110tbU=
@@ -124,8 +123,8 @@ github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/flux v0.0.0-20180919192308-1335e4da35f6 h1:p2puINFb2Hy6YfMZOd+BHhPFsbWDD/5uapXF9iEJfqE=
 github.com/influxdata/flux v0.0.0-20180919192308-1335e4da35f6/go.mod h1:INqOzJeMwzRrdqUu9bjMov4brs4ctB/d8Ev8XhPxHYg=
-github.com/influxdata/goreleaser v0.86.2-0.20180917143456-065bab60a4e8 h1:iNJbUfDKlfp30tP8D/Xo1oT99v72eGolQ5repbQ808I=
-github.com/influxdata/goreleaser v0.86.2-0.20180917143456-065bab60a4e8/go.mod h1:aVuBpDAT5VtjtUxzvBt8HOd0buzvvk7OX3H2iaviixg=
+github.com/influxdata/goreleaser v0.86.2-0.20180917235036-c23174192b3a h1:+nfKZu1x23ciW8vrOP8Zx4KO+t6UzDglE2H7Y3tYCSc=
+github.com/influxdata/goreleaser v0.86.2-0.20180917235036-c23174192b3a/go.mod h1:aVuBpDAT5VtjtUxzvBt8HOd0buzvvk7OX3H2iaviixg=
 github.com/influxdata/influxdb v0.0.0-20180904211643-ab81104697f6 h1:4lXKZjCh1+rd5MIauBsJ4FcwrqZFaErnkVWyrxoJpvQ=
 github.com/influxdata/influxdb v0.0.0-20180904211643-ab81104697f6/go.mod h1:qZna6X/4elxqT3yI9iZYdZrWWdeFOOprn86kgg4+IzY=
 github.com/influxdata/influxql v0.0.0-20180823200743-a7267bff5327 h1:2BI2JbxV11hx8W8gtFleWN7nLmU0WBpuj298yaDVYws=
