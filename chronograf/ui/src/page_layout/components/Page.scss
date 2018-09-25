@@ -89,3 +89,10 @@
     max-width: 100%;
   }
 }
+
+/* Presentation Mode */
+.page-contents.presentation-mode {
+  height: 100% !important;
+
+  .container-fluid {padding: 8px}
+}

@@ -5,7 +5,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import * as sourcesActions from 'src/shared/actions/sources'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-import {Page, PageHeader, PageContents} from 'src/page_layout'
+import {Page} from 'src/page_layout'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
 import {sourceDeleted, sourceDeleteFailed} from 'src/shared/copy/notifications'
@@ -30,20 +30,20 @@ class ManageSources extends PureComponent<Props> {
 
     return (
       <Page>
-        <PageHeader fullWidth={false}>
-          <PageHeader.Left>
-            <h1 className="page--title">Configuration</h1>
-          </PageHeader.Left>
-          <PageHeader.Right />
-        </PageHeader>
-        <PageContents fullWidth={false} scrollable={true}>
+        <Page.Header fullWidth={false}>
+          <Page.Header.Left>
+            <Page.Title title="Configuration" />
+          </Page.Header.Left>
+          <Page.Header.Right />
+        </Page.Header>
+        <Page.Contents fullWidth={false} scrollable={true}>
           <InfluxTable
             source={source}
             sources={sources}
             onDeleteSource={this.handleDeleteSource}
           />
           <p className="version-number">Chronograf Version: {VERSION}</p>
-        </PageContents>
+        </Page.Contents>
       </Page>
     )
   }

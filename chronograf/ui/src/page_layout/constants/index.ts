@@ -1,0 +1,4 @@
+export const DEFAULT_PAGE_HEADER_CENTER_WIDTH = 200
+export const DEFAULT_OFFSET = 0
+export const CENTER_MIN_CHILD_COUNT = 1
+export const LEFT_MIN_CHILD_COUNT = 1

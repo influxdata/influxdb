@@ -7,7 +7,7 @@ import _ from 'lodash'
 
 // Components
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
-import {Page, PageHeader, PageContents} from 'src/page_layout'
+import {Page} from 'src/page_layout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {
   OverlayTechnology,
@@ -90,11 +90,11 @@ class DashboardsPage extends PureComponent<Props, State> {
     return (
       <>
         <Page>
-          <PageHeader fullWidth={false}>
-            <PageHeader.Left>
-              <h1 className="page--title">Dashboards</h1>
-            </PageHeader.Left>
-            <PageHeader.Right>
+          <Page.Header fullWidth={false}>
+            <Page.Header.Left>
+              <Page.Title title="Dashboards" />
+            </Page.Header.Left>
+            <Page.Header.Right>
               <SearchWidget
                 placeholderText="Filter dashboards by name..."
                 onSearch={this.filterDashboards}
@@ -112,9 +112,9 @@ class DashboardsPage extends PureComponent<Props, State> {
                 text="Create Dashboard"
                 titleText="Create a new dashboard"
               />
-            </PageHeader.Right>
-          </PageHeader>
-          <PageContents fullWidth={false} scrollable={true}>
+            </Page.Header.Right>
+          </Page.Header>
+          <Page.Contents fullWidth={false} scrollable={true}>
             <DashboardsContents
               dashboards={dashboards}
               onSetDefaultDashboard={this.handleSetDefaultDashboard}
@@ -126,7 +126,7 @@ class DashboardsPage extends PureComponent<Props, State> {
               notify={notify}
               searchTerm={searchTerm}
             />
-          </PageContents>
+          </Page.Contents>
         </Page>
         {this.renderImportOverlay}
       </>

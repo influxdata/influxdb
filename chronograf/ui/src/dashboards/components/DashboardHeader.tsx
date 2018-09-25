@@ -2,7 +2,7 @@
 import React, {Component} from 'react'
 
 // Components
-import {PageHeader} from 'src/page_layout'
+import {Page} from 'src/page_layout'
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
@@ -47,12 +47,13 @@ class DashboardHeader extends Component<Props> {
       handleChooseTimeRange,
       timeRange: {upper, lower},
       zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
+      isHidden,
     } = this.props
 
     return (
-      <PageHeader fullWidth={true}>
-        <PageHeader.Left>{this.dashboardTitle}</PageHeader.Left>
-        <PageHeader.Right>
+      <Page.Header fullWidth={true} inPresentationMode={isHidden}>
+        <Page.Header.Left>{this.dashboardTitle}</Page.Header.Left>
+        <Page.Header.Right>
           <GraphTips />
           {this.addCellButton}
           <AutoRefreshDropdown
@@ -74,8 +75,8 @@ class DashboardHeader extends Component<Props> {
             shape={ButtonShape.Square}
             onClick={this.handleClickPresentationButton}
           />
-        </PageHeader.Right>
-      </PageHeader>
+        </Page.Header.Right>
+      </Page.Header>
     )
   }
 
@@ -108,7 +109,7 @@ class DashboardHeader extends Component<Props> {
       )
     }
 
-    return <h1 className="page--title">{activeDashboard}</h1>
+    return <Page.Title title={activeDashboard} />
   }
 }
 

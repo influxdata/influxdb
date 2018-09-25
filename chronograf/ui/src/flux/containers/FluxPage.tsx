@@ -6,7 +6,7 @@ import _ from 'lodash'
 /// Components
 import TimeMachine from 'src/flux/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
-import {Page, PageHeader} from 'src/page_layout'
+import {Page} from 'src/page_layout'
 
 // APIs
 import {getSuggestions, getAST, getTimeSeries} from 'src/flux/apis'
@@ -117,12 +117,12 @@ export class FluxPage extends PureComponent<Props, State> {
       <FluxContext.Provider value={this.getContext}>
         <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
           <Page>
-            <PageHeader fullWidth={true}>
-              <PageHeader.Left>
-                <h1 className="page--title">Flux Editor</h1>
-              </PageHeader.Left>
-              <PageHeader.Right />
-            </PageHeader>
+            <Page.Header fullWidth={true}>
+              <Page.Header.Left>
+                <Page.Title title="Flux Editor" />
+              </Page.Header.Left>
+              <Page.Header.Right />
+            </Page.Header>
             <TimeMachine
               body={body}
               script={script}

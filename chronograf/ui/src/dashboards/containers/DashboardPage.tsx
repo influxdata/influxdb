@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
 
 // Components
+import {Page} from 'src/page_layout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'
@@ -161,7 +162,7 @@ class DashboardPage extends Component<Props, State> {
     const {dashboardLinks} = this.state
 
     return (
-      <div className="page dashboard-page">
+      <Page className="dashboard-page">
         <DashboardHeader
           dashboard={dashboard}
           timeRange={timeRange}
@@ -194,7 +195,7 @@ class DashboardPage extends Component<Props, State> {
             onDeleteCell={this.handleDeleteDashboardCell}
           />
         )}
-      </div>
+      </Page>
     )
   }
 
