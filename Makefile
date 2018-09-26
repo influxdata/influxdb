@@ -134,7 +134,7 @@ bench:
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
 nightly: bin/$(GOOS)/goreleaser all
-	PATH=./bin/$(GOOS):${PATH} goreleaser --snapshot --rm-dist --publish-snapshots
+	GO_TEST=env GO111MODULE=on PATH=./bin/$(GOOS):${PATH} goreleaser --snapshot --rm-dist --publish-snapshots
 
 # Recursively clean all subdirs
 clean: $(SUBDIRS)
