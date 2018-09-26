@@ -22,7 +22,7 @@ class CompletionStep extends PureComponent<Props> {
   public render() {
     return (
       <>
-        <div className="auth-logo" />
+        <div className="completion-logo" />
         <h3 className="wizard-step-title">Setup Complete! </h3>
         <p>"Start using the InfluxData platform in a few easy steps"</p>
         <p>This is Init Step </p>

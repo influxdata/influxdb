@@ -18,8 +18,8 @@
 }
 
 .wizard--progress-icon {
-  height: 24px;
-  width: 24px;
+  height: 22px;
+  width: 22px;
   border-radius: 12px;
   background-color: $g7-graphite;
   display: inline-flex;
@@ -71,6 +71,7 @@
 
 .wizard--progress-connector {
   width: 100px;
+  margin: 0 10px;
   height: 2px;
   background-color: $g7-graphite;
   position: relative;

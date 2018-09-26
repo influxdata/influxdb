@@ -22,3 +22,21 @@
   width: 812px;
   height: 170px;
 }
+
+.completion-logo {
+  background-image: url('../../assets/images/cubo_doodle_green.svg');
+  background-size: 100% 100%;
+  background-position: center center;
+  background-repeat: no-repeat;
+  width: 812px;
+  height: 170px;
+}
+
+.wizard--credits {
+  display: inline-flex;
+  align-items: center;
+
+  span {
+    margin: 0 5px;
+  }
+}

@@ -20,7 +20,7 @@ class InitStep extends PureComponent<Props> {
   public render() {
     return (
       <>
-        <h3 className="wizard-step-title">Setup Admin User</h3>
+        <h3 className="wizard-step-title">Select data source</h3>
         <p>You can create additional Buckets and Organizations later</p>
         <div className="wizard-button-bar">
           <Button

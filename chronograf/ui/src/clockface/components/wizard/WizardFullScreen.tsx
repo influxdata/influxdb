@@ -11,7 +11,7 @@ const WizardFullScreen: SFC<Props> = (props: Props) => {
       <div className="wizard--full-screen">
         {props.children}
         <div className="wizard--credits">
-          Made by <span className="icon cubo-uniform" />InfluxData
+          Made by <span className="icon cubo-uniform" /> InfluxData
         </div>
       </div>
       <div className="auth-image" />
