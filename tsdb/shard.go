@@ -11,6 +11,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// SeriesFileDirectory is the name of the directory containing series files for
+// a database.
+const SeriesFileDirectory = "_series"
+
 var (
 	// Static objects to prevent small allocs.
 	timeBytes = []byte("time")
@@ -109,7 +113,7 @@ func (s *Shard) Open() error {
 
 		// Initialize underlying index.
 		ipath := filepath.Join(s.path, "index")
-		idx, err := NewIndex(s.id, ipath, seriesIDSet, s.sfile, s.options)
+		idx, err := NewIndex(s.id, "remove-me", ipath, seriesIDSet, s.sfile, s.options)
 		if err != nil {
 			return err
 		}

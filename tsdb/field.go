@@ -2,7 +2,6 @@ package tsdb
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -362,7 +361,8 @@ func (fs *MeasurementFieldSet) Save() error {
 }
 
 func (fs *MeasurementFieldSet) saveNoLock() error {
-	return errors.New("save removed")
+	// TODO(edd): this needs to go.
+	return nil
 }
 
 func (fs *MeasurementFieldSet) load() error {

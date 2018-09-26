@@ -150,9 +150,7 @@ func NewEngine(id uint64, i Index, path string, sfile *SeriesFile, options Engin
 // EngineOptions represents the options used to initialize the engine.
 type EngineOptions struct {
 	EngineVersion string
-	IndexVersion  string
 	ShardID       uint64
-	InmemIndex    interface{} // shared in-memory index
 
 	// Limits the concurrent number of TSM files that can be loaded at once.
 	OpenLimiter limiter.Fixed
@@ -191,7 +189,6 @@ type EngineOptions struct {
 func NewEngineOptions() EngineOptions {
 	return EngineOptions{
 		EngineVersion: DefaultEngine,
-		IndexVersion:  DefaultIndex,
 		Config:        NewConfig(),
 		OpenLimiter:   limiter.NewFixed(runtime.GOMAXPROCS(0)),
 	}

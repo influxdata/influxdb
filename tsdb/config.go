@@ -47,6 +47,10 @@ const (
 	// will be set to equal the normal throughput
 	DefaultCompactThroughputBurst = 48 * 1024 * 1024
 
+	// DefaultMaxPointsPerBlock is the maximum number of points in an encoded
+	// block in a TSM file
+	DefaultMaxPointsPerBlock = 1000
+
 	// DefaultMaxConcurrentCompactions is the maximum number of concurrent full and level compactions
 	// that can run at one time.  A value of 0 results in 50% of runtime.GOMAXPROCS(0) used at runtime.
 	DefaultMaxConcurrentCompactions = 0
