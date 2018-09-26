@@ -210,6 +210,7 @@ func platformF(cmd *cobra.Command, args []string) {
 
 		// TODO(lh): Replace NopLogWriter with real log writer
 		scheduler := taskbackend.NewScheduler(boltStore, executor, taskbackend.NopLogWriter{}, time.Now().UTC().Unix())
+		scheduler.Start(context.Background())
 
 		// TODO(lh): Replace NopLogReader with real log reader
 		taskSvc = task.PlatformAdapter(coordinator.New(scheduler, boltStore), taskbackend.NopLogReader{})
