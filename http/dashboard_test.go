@@ -1042,6 +1042,6 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 }
 
 func TestDashboardService(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 	platformtesting.DashboardService(initDashboardService, t)
 }

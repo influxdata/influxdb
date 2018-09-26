@@ -208,10 +208,20 @@ func AddDashboardCell(
 						Name: "dashboard1",
 					},
 				},
+				Views: []*platform.View{
+					{
+						ViewContents: platform.ViewContents{
+							ID: MustIDFromString(dashTwoID),
+						},
+					},
+				},
 			},
 			args: args{
 				dashboardID: MustIDFromString(dashOneID),
-				cell:        &platform.Cell{},
+				cell: &platform.Cell{
+					ID:     MustIDFromString(dashTwoID),
+					ViewID: MustIDFromString(dashTwoID),
+				},
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
@@ -759,10 +769,7 @@ func UpdateDashboardCell(
 	type args struct {
 		dashboardID platform.ID
 		cellID      platform.ID
-		x           int32
-		y           int32
-		w           int32
-		h           int32
+		cellUpdate  platform.CellUpdate
 	}
 	type wants struct {
 		err        error
@@ -803,7 +810,10 @@ func UpdateDashboardCell(
 			args: args{
 				dashboardID: MustIDFromString(dashOneID),
 				cellID:      MustIDFromString(dashTwoID),
-				x:           10,
+				cellUpdate: platform.CellUpdate{
+					X:      func(i int32) *int32 { return &i }(int32(10)),
+					ViewID: MustIDFromString(dashTwoID),
+				},
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
@@ -832,20 +842,7 @@ func UpdateDashboardCell(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			upd := platform.CellUpdate{}
-			if tt.args.x != 0 {
-				upd.X = &tt.args.x
-			}
-			if tt.args.y != 0 {
-				upd.Y = &tt.args.y
-			}
-			if tt.args.w != 0 {
-				upd.W = &tt.args.w
-			}
-			if tt.args.h != 0 {
-				upd.H = &tt.args.h
-			}
-			_, err := s.UpdateDashboardCell(ctx, tt.args.dashboardID, tt.args.cellID, upd)
+			_, err := s.UpdateDashboardCell(ctx, tt.args.dashboardID, tt.args.cellID, tt.args.cellUpdate)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
