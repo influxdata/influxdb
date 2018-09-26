@@ -41,8 +41,7 @@ PRECANNED := $(shell find chronograf/canned -name '*.json')
 # List of binary cmds to build
 CMDS := \
 	bin/$(GOOS)/influx \
-	bin/$(GOOS)/influxd \
-	bin/$(GOOS)/fluxd
+	bin/$(GOOS)/influxd
 
 # List of utilities to build as part of the build process
 UTILS := \
