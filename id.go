@@ -98,7 +98,12 @@ func (i ID) String() string {
 
 // UnmarshalJSON implements JSON unmarshaller for IDs.
 func (i *ID) UnmarshalJSON(b []byte) error {
-	b = b[1 : len(b)-1]
+	if b[0] == 34 {
+		b = b[1:]
+	}
+	if b[len(b)-1] == 34 {
+		b = b[:len(b)-1]
+	}
 	return i.Decode(b)
 }
 
