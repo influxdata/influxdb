@@ -56,7 +56,7 @@ UTILS := \
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
 all: GO_ARGS=-tags 'assets $(GO_TAGS)'
-all: node_modules $(UTILS) subdirs generate $(CMDS)
+all: node_modules $(UTILS) subdirs chronograf/ui generate $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
@@ -134,7 +134,7 @@ bench:
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
 nightly: bin/$(GOOS)/goreleaser all
-	GO_TEST=env GO111MODULE=on PATH=./bin/$(GOOS):${PATH} goreleaser --snapshot --rm-dist --publish-snapshots
+	PATH=./bin/$(GOOS):${PATH} goreleaser --snapshot --rm-dist --publish-snapshots
 
 # Recursively clean all subdirs
 clean: $(SUBDIRS)
@@ -162,4 +162,4 @@ run: chronogiraffe
 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) run fmt test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe
+.PHONY: all subdirs $(SUBDIRS) chronograf/ui run fmt test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe

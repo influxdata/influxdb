@@ -20,6 +20,10 @@ builds:
     main: ./cmd/fluxd/
     ldflags: -s -w -X main.commit={{.Commit}}
     binary: fluxd
+    flags:
+      - -tags=assets
+    env:
+      - GO111MODULE=on
   - goos:
     - linux
     - darwin
@@ -38,6 +42,8 @@ builds:
       - goos: windows
         goarch: 386
     main: ./cmd/influx/
+    env:
+      - GO111MODULE=on
     ldflags: -s -w -X main.commit={{.Commit}}
     binary: influx
   - goos:
@@ -58,6 +64,10 @@ builds:
       - goos: windows
         goarch: 386
     main: ./cmd/influxd/
+    flags:
+      - -tags=assets
+    env:
+      - GO111MODULE=on
     ldflags: -s -w -X main.commit={{.Commit}}
     binary: influxd
 
