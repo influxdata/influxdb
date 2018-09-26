@@ -21,6 +21,8 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5, backend.WithLogger(zaptest.NewLogger(t)))
+	o.Start(context.Background())
+	defer o.Stop()
 
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
@@ -93,6 +95,8 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
+	o.Start(context.Background())
+	defer o.Stop()
 
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
@@ -161,6 +165,8 @@ func TestScheduler_Release(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
+	o.Start(context.Background())
+	defer o.Stop()
 
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
@@ -195,6 +201,8 @@ func TestScheduler_Queue(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 3059, backend.WithLogger(zaptest.NewLogger(t)))
+	o.Start(context.Background())
+	defer o.Stop()
 
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
@@ -313,6 +321,8 @@ func TestScheduler_RunLog(t *testing.T) {
 	e := mock.NewExecutor()
 	rl := backend.NewInMemRunReaderWriter()
 	s := backend.NewScheduler(d, e, rl, 5, backend.WithLogger(zaptest.NewLogger(t)))
+	s.Start(context.Background())
+	defer s.Stop()
 
 	// Claim a task that starts later.
 	task := &backend.StoreTask{
@@ -398,6 +408,8 @@ func TestScheduler_Metrics(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	s := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
+	s.Start(context.Background())
+	defer s.Stop()
 
 	reg := prom.NewRegistry()
 	// PrometheusCollector isn't part of the Scheduler interface. Yet.
