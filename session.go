@@ -7,6 +7,7 @@ import (
 
 // Session is a user session.
 type Session struct {
+	// ID is only required for auditing purposes.
 	ID          ID           `json:"id"`
 	Key         string       `json:"key"`
 	CreatedAt   time.Time    `json:"createdAt"`

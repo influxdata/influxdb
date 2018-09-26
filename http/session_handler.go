@@ -10,8 +10,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// BasicAuthHandler represents an HTTP API handler for authorizations.
-type BasicAuthHandler struct {
+// SessionHandler represents an HTTP API handler for authorizations.
+type SessionHandler struct {
 	*httprouter.Router
 	Logger *zap.Logger
 
@@ -19,9 +19,9 @@ type BasicAuthHandler struct {
 	SessionService   platform.SessionService
 }
 
-// NewBasicAuthHandler returns a new instance of BasicAuthHandler.
-func NewBasicAuthHandler() *BasicAuthHandler {
-	h := &BasicAuthHandler{
+// NewSessionHandler returns a new instance of SessionHandler.
+func NewSessionHandler() *SessionHandler {
+	h := &SessionHandler{
 		Router: httprouter.New(),
 	}
 
@@ -31,7 +31,7 @@ func NewBasicAuthHandler() *BasicAuthHandler {
 }
 
 // handleSignin is the HTTP handler for the POST /signin route.
-func (h *BasicAuthHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
+func (h *SessionHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	req, err := decodeSigninRequest(ctx, r)
@@ -75,7 +75,7 @@ func decodeSigninRequest(ctx context.Context, r *http.Request) (*signinRequest, 
 }
 
 // handleSignout is the HTTP handler for the POST /signout route.
-func (h *BasicAuthHandler) handleSignout(w http.ResponseWriter, r *http.Request) {
+func (h *SessionHandler) handleSignout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	req, err := decodeSignoutRequest(ctx, r)
