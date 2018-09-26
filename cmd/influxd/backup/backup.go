@@ -619,7 +619,7 @@ Usage: influxd backup [options] PATH
             Create an incremental backup of all points after the timestamp (RFC3339 format). Optional. 
             Recommend using '-start <timestamp>' instead.
     -skip-errors 
-            optional flag to continue backing up the remaining shards when the current shard fails to backup. 
+            Optional flag to continue backing up the remaining shards when the current shard fails to backup. 
 `)
 
 }

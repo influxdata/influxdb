@@ -3,7 +3,7 @@ influxd-backup(1)
 
 NAME
 ----
-influxd-backup - Creates a backup copy of specified InfluxDB OSS database(s) and saves to disk. Use this newer `-portable` option 
+influxd-backup - Creates a backup copy of specified InfluxDB OSS database(s) and saves to disk. Use this newer `-portable` option
   unless legacy support is required. Complete documentation on backing up and restoring, including the deprecated
   legacy format, see:
     https://docs.influxdata.com/influxdb/latest/administration/backup_and_restore/
@@ -16,7 +16,7 @@ SYNOPSIS
 DESCRIPTION
 -----------
 Creates a backup copy of specified InfluxDB OSS database(s) and saves the files in an Enterprise-compatible
-format to PATH (directory where backups are saved).  
+format to PATH (directory where backups are saved).
 
 OPTIONS
 -------
@@ -43,6 +43,9 @@ OPTIONS
 
 -since <timestamp>::
   Create an incremental backup of all points after the timestamp (RFC3339 format). Optional. Recommend using '-start <timestamp>' instead.
+
+-skip-errors::
+  Optional flag to continue backing up the remaining shards when the current shard fails to backup.
 
 SEE ALSO
 --------
