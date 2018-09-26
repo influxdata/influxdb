@@ -7,15 +7,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // constants
 import {StepStatus, ConnectorState} from 'src/clockface/constants/wizard'
-import {Button} from '../..'
-import {ComponentColor, ComponentSize} from '../../types'
 
 interface Props {
   currentStepIndex: number
   handleSetCurrentStep: (stepNumber: number) => void
   stepStatuses: StepStatus[]
   stepTitles: string[]
-  onSkip: () => void
 }
 
 @ErrorHandling
@@ -41,19 +38,28 @@ class ProgressBar extends PureComponent<Props, null> {
       }
 
       let currentStep = ''
+
       // STEP STATUS
       if (i === currentStepIndex && stepStatus !== StepStatus.Error) {
-        currentStep = 'circle-thick current'
+        currentStep = 'current'
       }
 
       const stepEle = (
         <div
           key={`stepEle${i}`}
-          className="wizard-progress-button"
+          className="wizard--progress-button"
           onClick={this.handleSetCurrentStep(i)}
         >
-          <div className="wizard-progress-title">{stepTitles[i]}</div>
-          <span className={`icon ${currentStep || stepStatus}`} />
+          <span
+            className={`wizard--progress-icon ${currentStep || stepStatus}`}
+          >
+            <span className={`icon ${stepStatus}`} />
+          </span>
+          <div
+            className={`wizard--progress-title ${currentStep || stepStatus}`}
+          >
+            {stepTitles[i]}
+          </div>
         </div>
       )
 
@@ -73,25 +79,13 @@ class ProgressBar extends PureComponent<Props, null> {
       const connectorEle = (
         <span
           key={i}
-          className={`wizard-progress-connector wizard-progress-connector--${connectorStatus ||
+          className={`wizard--progress-connector wizard--progress-connector--${connectorStatus ||
             ConnectorState.None}`}
         />
       )
       return [...acc, stepEle, connectorEle]
     }, [])
-    return (
-      <div className="wizard--progress-header">
-        <span className="wizard--progress-bar">{progressBar}</span>
-        <span className="wizard--progress-skip">
-          <Button
-            color={ComponentColor.Default}
-            text="Skip"
-            size={ComponentSize.Small}
-            onClick={this.props.onSkip}
-          />
-        </span>
-      </div>
-    )
+    return <span className="wizard--progress-bar">{progressBar}</span>
   }
 }
 

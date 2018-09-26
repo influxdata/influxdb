@@ -5,10 +5,13 @@ import InitStep from 'src/onboarding/components/InitStep'
 import AdminStep from 'src/onboarding/components/AdminStep'
 import CompletionStep from 'src/onboarding/components/CompletionStep'
 import OtherStep from 'src/onboarding/components/OtherStep'
-import WizardFullScreen from 'src/clockface/components/wizard/WizardFullScreen'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import ProgressBar from 'src/clockface/components/wizard/ProgressBar'
 import {StepStatus} from 'src/clockface/constants/wizard'
+import {
+  WizardFullScreen,
+  WizardProgressHeader,
+  ProgressBar,
+} from 'src/clockface'
 
 interface Props {
   startStep?: number
@@ -32,7 +35,12 @@ class OnboardingWizard extends PureComponent<Props, State> {
     ],
   }
 
-  public stepTitles = ['init', 'admin', 'other', 'complete']
+  public stepTitles = [
+    'Welcome',
+    'Setup admin',
+    'Select data source',
+    'Complete',
+  ]
   public steps = [InitStep, AdminStep, OtherStep, CompletionStep]
 
   constructor(props) {
@@ -48,12 +56,14 @@ class OnboardingWizard extends PureComponent<Props, State> {
     const {currentStepIndex} = this.state
     return (
       <WizardFullScreen>
-        <ProgressBar
-          currentStepIndex={currentStepIndex}
-          handleSetCurrentStep={this.onSetCurrentStep}
-          stepStatuses={stepStatuses}
-          stepTitles={this.stepTitles}
-        />
+        <WizardProgressHeader>
+          <ProgressBar
+            currentStepIndex={currentStepIndex}
+            handleSetCurrentStep={this.onSetCurrentStep}
+            stepStatuses={stepStatuses}
+            stepTitles={this.stepTitles}
+          />
+        </WizardProgressHeader>
         <div className="wizard-step--container">
           <div className="wizard-step--child">{this.currentStep}</div>
         </div>

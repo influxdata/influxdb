@@ -11,6 +11,9 @@ import OverlayBody from './components/overlays/OverlayBody'
 import Panel, {PanelType} from './components/panel/Panel'
 import Radio from './components/radio_buttons/RadioButtons'
 import SlideToggle from './components/slide_toggle/SlideToggle'
+import WizardFullScreen from './components/wizard/WizardFullScreen'
+import WizardProgressHeader from './components/wizard/WizardProgressHeader'
+import ProgressBar from './components/wizard/ProgressBar'
 
 // Import Types
 import {
@@ -51,4 +54,7 @@ export {
   Greys,
   IconFont,
   Columns,
+  WizardFullScreen,
+  WizardProgressHeader,
+  ProgressBar,
 }

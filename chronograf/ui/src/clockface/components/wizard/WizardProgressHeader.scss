@@ -1,0 +1,20 @@
+/*
+  Wizard Progress Header Styles
+  ------------------------------------------------------------------------------
+*/
+
+.wizard--progress-header {
+  position: relative;
+  background-color: $g3-castle;
+  min-width: 100%;
+  padding: $ix-marg-b $ix-marg-c;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: $radius;
+}
+
+.wizard--progress-skip {
+  position: absolute;
+  right: $ix-marg-c;
+}
