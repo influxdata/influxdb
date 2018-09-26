@@ -382,6 +382,7 @@ func (cmd *Command) backupResponsePaths(response *snapshotter.Response) error {
 		err = cmd.backupShard(db, rp, id)
 
 		if err != nil && !cmd.continueOnError {
+			cmd.StderrLogger.Printf("error (%s) when backing up db: %s, rp %s, shard %s. continuing backup on remaining shards", err, db, rp, id )
 			return err
 		}
 	}
