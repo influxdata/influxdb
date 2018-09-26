@@ -49,7 +49,7 @@ func (t *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanOp
 			break
 		}
 	}
-	if len(ctx.traceID) == 0 {
+	if !ctx.traceID.Valid() {
 		ctx.traceID = t.IDGenerator.ID()
 	}
 	return &Span{
@@ -115,10 +115,10 @@ func (t *Tracer) Extract(format interface{}, carrier interface{}) (opentracing.S
 	default:
 		return nil, fmt.Errorf("unsupported format %v", format)
 	}
-	if len(ctx.traceID) == 0 {
+	if !ctx.traceID.Valid() {
 		ctx.traceID = t.IDGenerator.ID()
 	}
-	if len(ctx.spanID) == 0 {
+	if !ctx.spanID.Valid() {
 		return nil, errors.New("no span ID found in carrier")
 	}
 	return ctx, err
