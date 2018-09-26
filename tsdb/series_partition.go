@@ -311,6 +311,13 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 	return nil
 }
 
+// Compacting returns if the SeriesPartition is currently compacting.
+func (p *SeriesPartition) Compacting() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.compacting
+}
+
 // DeleteSeriesID flags a series as permanently deleted.
 // If the series is reintroduced later then it must create a new id.
 func (p *SeriesPartition) DeleteSeriesID(id SeriesID) error {
@@ -365,6 +372,15 @@ func (p *SeriesPartition) SeriesKey(id SeriesID) []byte {
 	return key
 }
 
+// Series returns the parsed series name and tags for an offset.
+func (p *SeriesPartition) Series(id SeriesID) ([]byte, models.Tags) {
+	key := p.SeriesKey(id)
+	if key == nil {
+		return nil, nil
+	}
+	return ParseSeriesKey(key)
+}
+
 // FindIDBySeriesKey return the series id for the series key.
 func (p *SeriesPartition) FindIDBySeriesKey(key []byte) SeriesID {
 	p.mu.RLock()
@@ -375,6 +391,18 @@ func (p *SeriesPartition) FindIDBySeriesKey(key []byte) SeriesID {
 	id := p.index.FindIDBySeriesKey(p.segments, key)
 	p.mu.RUnlock()
 	return id.SeriesID()
+}
+
+// SeriesCount returns the number of series.
+func (p *SeriesPartition) SeriesCount() uint64 {
+	p.mu.RLock()
+	if p.closed {
+		p.mu.RUnlock()
+		return 0
+	}
+	n := p.index.Count()
+	p.mu.RUnlock()
+	return n
 }
 
 func (p *SeriesPartition) DisableCompactions() {
@@ -395,6 +423,14 @@ func (p *SeriesPartition) EnableCompactions() {
 
 func (p *SeriesPartition) compactionsEnabled() bool {
 	return p.compactionsDisabled == 0
+}
+
+// AppendSeriesIDs returns a list of all series ids.
+func (p *SeriesPartition) AppendSeriesIDs(a []SeriesID) []SeriesID {
+	for _, segment := range p.segments {
+		a = segment.AppendSeriesIDs(a)
+	}
+	return a
 }
 
 // activeSegment returns the last segment.

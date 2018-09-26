@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 
 	"github.com/influxdata/platform/pkg/mmap"
@@ -167,8 +168,15 @@ func (s *SeriesSegment) CloseForWrite() (err error) {
 	return err
 }
 
+// Data returns the raw data.
+func (s *SeriesSegment) Data() []byte { return s.data }
+
 // ID returns the id the segment was initialized with.
 func (s *SeriesSegment) ID() uint16 { return s.id }
+
+// Size returns the size of the data in the segment.
+// This is only populated once InitForWrite() is called.
+func (s *SeriesSegment) Size() int64 { return int64(s.size) }
 
 // Slice returns a byte slice starting at pos.
 func (s *SeriesSegment) Slice(pos uint32) []byte { return s.data[pos:] }
@@ -200,6 +208,17 @@ func (s *SeriesSegment) Flush() error {
 		return nil
 	}
 	return s.w.Flush()
+}
+
+// AppendSeriesIDs appends all the segments ids to a slice. Returns the new slice.
+func (s *SeriesSegment) AppendSeriesIDs(a []SeriesID) []SeriesID {
+	s.ForEachEntry(func(flag uint8, id SeriesIDTyped, _ int64, _ []byte) error {
+		if flag == SeriesEntryInsertFlag {
+			a = append(a, id.SeriesID())
+		}
+		return nil
+	})
+	return a
 }
 
 // MaxSeriesID returns the highest series id in the segment.
@@ -283,11 +302,18 @@ func SplitSeriesOffset(offset int64) (segmentID uint16, pos uint32) {
 	return uint16((offset >> 32) & 0xFFFF), uint32(offset & 0xFFFFFFFF)
 }
 
+// IsValidSeriesSegmentFilename returns true if filename is a 4-character lowercase hexidecimal number.
+func IsValidSeriesSegmentFilename(filename string) bool {
+	return seriesSegmentFilenameRegex.MatchString(filename)
+}
+
 // ParseSeriesSegmentFilename returns the id represented by the hexidecimal filename.
 func ParseSeriesSegmentFilename(filename string) (uint16, error) {
 	i, err := strconv.ParseUint(filename, 16, 32)
 	return uint16(i), err
 }
+
+var seriesSegmentFilenameRegex = regexp.MustCompile(`^[0-9a-f]{4}$`)
 
 // SeriesSegmentSize returns the maximum size of the segment.
 // The size goes up by powers of 2 starting from 4MB and reaching 256MB.

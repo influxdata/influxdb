@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"github.com/cespare/xxhash"
@@ -16,11 +17,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const SeriesFileDirectory = "_series"
-
 var (
+	ErrSeriesFileClosed         = errors.New("tsdb: series file closed")
 	ErrInvalidSeriesPartitionID = errors.New("tsdb: invalid series partition id")
 )
+
+// SeriesIDSize is the size in bytes of a series key ID.
+const SeriesIDSize = 8
 
 const (
 	// SeriesFilePartitionN is the number of partitions a series file is split into.
@@ -93,6 +96,9 @@ func (f *SeriesFile) Path() string { return f.path }
 func (f *SeriesFile) SeriesPartitionPath(i int) string {
 	return filepath.Join(f.path, fmt.Sprintf("%02x", i))
 }
+
+// Partitions returns all partitions.
+func (f *SeriesFile) Partitions() []*SeriesPartition { return f.partitions }
 
 // Retain adds a reference count to the file.  It returns a release func.
 func (f *SeriesFile) Retain() func() {
@@ -180,6 +186,15 @@ func (f *SeriesFile) SeriesKey(id SeriesID) []byte {
 	return p.SeriesKey(id)
 }
 
+// SeriesKeys returns a list of series keys from a list of ids.
+func (f *SeriesFile) SeriesKeys(ids []SeriesID) [][]byte {
+	keys := make([][]byte, len(ids))
+	for i := range ids {
+		keys[i] = f.SeriesKey(ids[i])
+	}
+	return keys
+}
+
 // Series returns the parsed series name and tags for an offset.
 func (f *SeriesFile) Series(id SeriesID) ([]byte, models.Tags) {
 	key := f.SeriesKey(id)
@@ -202,6 +217,25 @@ func (f *SeriesFile) SeriesID(name []byte, tags models.Tags, buf []byte) SeriesI
 // HasSeries return true if the series exists.
 func (f *SeriesFile) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
 	return !f.SeriesID(name, tags, buf).IsZero()
+}
+
+// SeriesCount returns the number of series.
+func (f *SeriesFile) SeriesCount() uint64 {
+	var n uint64
+	for _, p := range f.partitions {
+		n += p.SeriesCount()
+	}
+	return n
+}
+
+// SeriesIterator returns an iterator over all the series.
+func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
+	var ids []SeriesID
+	for _, p := range f.partitions {
+		ids = p.AppendSeriesIDs(ids)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i].Less(ids[j]) })
+	return NewSeriesIDSliceIterator(ids)
 }
 
 func (f *SeriesFile) SeriesIDPartitionID(id SeriesID) int {
