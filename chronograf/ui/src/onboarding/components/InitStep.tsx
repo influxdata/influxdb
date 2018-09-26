@@ -19,8 +19,8 @@ interface Props {
 class InitStep extends PureComponent<Props> {
   public render() {
     return (
-      <>
-        <div className="welcome-logo" />
+      <div className="onboarding-step">
+        <div className="splash-logo primary" />
         <h3 className="wizard-step-title">Welcome to InfluxData </h3>
         <p>"Start using the InfluxData platform in a few easy steps"</p>
         <p>This is Init Step </p>
@@ -28,11 +28,11 @@ class InitStep extends PureComponent<Props> {
           <Button
             color={ComponentColor.Primary}
             text="Get Started"
-            size={ComponentSize.Medium}
+            size={ComponentSize.Large}
             onClick={this.handleNext}
           />
         </div>
-      </>
+      </div>
     )
   }
 

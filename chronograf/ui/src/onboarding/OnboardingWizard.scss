@@ -1,0 +1,52 @@
+/*
+  Onboarding Styles
+  ------------------------------------------------------------------------------
+*/
+
+.wizard-step--container {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  margin: $ix-marg-d;
+  flex-grow: 1;
+  width: 100%;
+  background-color: $g3-castle;
+  border-radius: $radius;
+}
+
+.wizard-button-bar {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin: $ix-marg-b auto $ix-marg-c auto;
+  position: relative;
+  min-width: 100%;
+  justify-content: center;
+  align-items: center;
+  height: auto;
+  flex-wrap: nowrap;
+
+  .button {
+    position: relative;
+    white-space: nowrap;
+    margin: 0 $ix-marg-a;
+  }
+}
+
+.splash-logo {
+  background-size: 100% 100%;
+  background-position: center center;
+  background-repeat: no-repeat;
+  width: 812px;
+  height: 170px;
+}
+
+.splash-logo.primary {
+  background-image: url('../../assets/images/cubo_doodle.svg');
+}
+.splash-logo.secondary {
+  background-image: url('../../assets/images/cubo_doodle_green.svg');
+}

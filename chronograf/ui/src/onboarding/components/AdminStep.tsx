@@ -19,7 +19,7 @@ interface Props {
 class InitStep extends PureComponent<Props> {
   public render() {
     return (
-      <>
+      <div className="onboarding-step">
         <h3 className="wizard-step-title">Setup Admin User</h3>
         <p>You can create additional Buckets and Organizations later</p>
         <div className="wizard-button-bar">
@@ -36,7 +36,7 @@ class InitStep extends PureComponent<Props> {
             onClick={this.handleNext}
           />
         </div>
-      </>
+      </div>
     )
   }
 

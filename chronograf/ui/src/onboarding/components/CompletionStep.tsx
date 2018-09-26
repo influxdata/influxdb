@@ -21,32 +21,21 @@ interface Props extends WithRouterProps {
 class CompletionStep extends PureComponent<Props> {
   public render() {
     return (
-      <>
-        <div className="completion-logo" />
+      <div className="onboarding-step">
+        <div className="splash-logo secondary" />
         <h3 className="wizard-step-title">Setup Complete! </h3>
         <p>"Start using the InfluxData platform in a few easy steps"</p>
         <p>This is Init Step </p>
         <div className="wizard-button-bar">
           <Button
-            color={ComponentColor.Default}
-            text="Back"
-            size={ComponentSize.Medium}
-            onClick={this.handleDecrement}
-          />
-          <Button
-            color={ComponentColor.Primary}
-            text="Next"
-            size={ComponentSize.Medium}
+            color={ComponentColor.Success}
+            text="Go to status dashboard"
+            size={ComponentSize.Large}
             onClick={this.handleComplete}
           />
         </div>
-      </>
+      </div>
     )
-  }
-
-  private handleDecrement = () => {
-    const {handleSetCurrentStep, currentStepIndex} = this.props
-    handleSetCurrentStep(currentStepIndex - 1)
   }
 
   private handleComplete = () => {

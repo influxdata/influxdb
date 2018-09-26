@@ -20,8 +20,8 @@ class InitStep extends PureComponent<Props> {
   public render() {
     return (
       <>
-        <h3 className="wizard-step-title">Select data source</h3>
-        <p>You can create additional Buckets and Organizations later</p>
+        <h3 className="wizard-step-title">Other step</h3>
+        <p>This is a dummy step</p>
         <div className="wizard-button-bar">
           <Button
             color={ComponentColor.Default}

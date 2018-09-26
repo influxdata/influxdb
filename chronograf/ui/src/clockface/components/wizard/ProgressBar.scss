@@ -11,12 +11,6 @@
   width: 100%;
 }
 
-.wizard--progress-button {
-  display: inline-flex;
-  align-items: center;
-  padding: 10px;
-}
-
 .wizard--progress-icon {
   height: 22px;
   width: 22px;
@@ -67,6 +61,19 @@
 
 .wizard--progress-title.remove {
   color: $c-curacao;
+}
+
+.wizard--progress-button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0 10px;
+}
+
+.wizard--progress-button:hover {
+  .wizard--progress-title {
+    color: $g18-cloud;
+  }
 }
 
 .wizard--progress-connector {

@@ -32,6 +32,7 @@ class OnboardingWizard extends PureComponent<Props, State> {
       StepStatus.Incomplete,
       StepStatus.Incomplete,
       StepStatus.Incomplete,
+      StepStatus.Incomplete,
     ],
   }
 
@@ -39,9 +40,10 @@ class OnboardingWizard extends PureComponent<Props, State> {
     'Welcome',
     'Setup admin',
     'Select data source',
+    'Configure data source',
     'Complete',
   ]
-  public steps = [InitStep, AdminStep, OtherStep, CompletionStep]
+  public steps = [InitStep, AdminStep, OtherStep, OtherStep, CompletionStep]
 
   constructor(props) {
     super(props)
@@ -64,9 +66,7 @@ class OnboardingWizard extends PureComponent<Props, State> {
             stepTitles={this.stepTitles}
           />
         </WizardProgressHeader>
-        <div className="wizard-step--container">
-          <div className="wizard-step--child">{this.currentStep}</div>
-        </div>
+        <div className="wizard-step--container">{this.currentStep}</div>
       </WizardFullScreen>
     )
   }
