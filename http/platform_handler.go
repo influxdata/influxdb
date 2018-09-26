@@ -38,19 +38,19 @@ func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
 
 var platformLinks = map[string]interface{}{
 	"setup":      "/setup",
-	"sources":    "/v2/sources",
-	"dashboards": "/v2/dashboards",
-	"query":      "/v2/query",
-	"write":      "/v2/write",
-	"orgs":       "/v2/orgs",
-	"auths":      "/v2/authorizations",
-	"buckets":    "/v2/buckets",
-	"users":      "/v2/users",
-	"tasks":      "/v2/tasks",
+	"sources":    "/api/v2/sources",
+	"dashboards": "/api/v2/dashboards",
+	"query":      "/api/v2/query",
+	"write":      "/api/v2/write",
+	"orgs":       "/api/v2/orgs",
+	"auths":      "/api/v2/authorizations",
+	"buckets":    "/api/v2/buckets",
+	"users":      "/api/v2/users",
+	"tasks":      "/api/v2/tasks",
 	"flux": map[string]string{
-		"self":        "/v2/flux",
-		"ast":         "/v2/flux/ast",
-		"suggestions": "/v2/flux/suggestions",
+		"self":        "/api/v2/flux",
+		"ast":         "/api/v2/flux/ast",
+		"suggestions": "/api/v2/flux/suggestions",
 	},
 	"external": map[string]string{
 		"statusFeed": "https://www.influxdata.com/feed/json",
@@ -80,7 +80,7 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	// Server the chronograf assets for any basepath that does not start with addressable parts
 	// of the platform API.
 	if !strings.HasPrefix(r.URL.Path, "/v1") &&
-		!strings.HasPrefix(r.URL.Path, "/v2") &&
+		!strings.HasPrefix(r.URL.Path, "/api/v2") &&
 		!strings.HasPrefix(r.URL.Path, "/chronograf/") &&
 		!strings.HasPrefix(r.URL.Path, "/setup") {
 		h.AssetHandler.ServeHTTP(w, r)
@@ -88,7 +88,7 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	}
 
 	// Serve the links base links for the API.
-	if r.URL.Path == "/v2/" || r.URL.Path == "/v2" {
+	if r.URL.Path == "/api/v2/" || r.URL.Path == "/api/v2" {
 		h.serveLinks(w, r)
 		return
 	}
@@ -106,62 +106,62 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	}
 	r = r.WithContext(ctx)
 
-	if strings.HasPrefix(r.URL.Path, "/v2/write") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/write") {
 		h.WriteHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/query") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/query") {
 		h.QueryHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/buckets") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/buckets") {
 		h.BucketHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/users") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/users") {
 		h.UserHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/orgs") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/orgs") {
 		h.OrgHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/authorizations") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/authorizations") {
 		h.AuthorizationHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/dashboards") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/dashboards") {
 		h.DashboardHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/sources") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/sources") {
 		h.SourceHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/tasks") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/tasks") {
 		h.TaskHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/views") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/views") {
 		h.ViewHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/macros") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/macros") {
 		h.MacroHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v2/flux") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/flux") {
 		h.FluxLangHandler.ServeHTTP(w, r)
 		return
 	}

@@ -33,7 +33,7 @@ func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *q
 }
 
 func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
-	u, err := newURL(s.URL, "/v2/query")
+	u, err := newURL(s.URL, "/api/v2/query")
 	if err != nil {
 		return 0, err
 	}

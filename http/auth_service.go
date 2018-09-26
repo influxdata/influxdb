@@ -31,11 +31,11 @@ func NewAuthorizationHandler() *AuthorizationHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v2/authorizations", h.handlePostAuthorization)
-	h.HandlerFunc("GET", "/v2/authorizations", h.handleGetAuthorizations)
-	h.HandlerFunc("GET", "/v2/authorizations/:id", h.handleGetAuthorization)
-	h.HandlerFunc("PATCH", "/v2/authorizations/:id", h.handleSetAuthorizationStatus)
-	h.HandlerFunc("DELETE", "/v2/authorizations/:id", h.handleDeleteAuthorization)
+	h.HandlerFunc("POST", "/api/v2/authorizations", h.handlePostAuthorization)
+	h.HandlerFunc("GET", "/api/v2/authorizations", h.handleGetAuthorizations)
+	h.HandlerFunc("GET", "/api/v2/authorizations/:id", h.handleGetAuthorization)
+	h.HandlerFunc("PATCH", "/api/v2/authorizations/:id", h.handleSetAuthorizationStatus)
+	h.HandlerFunc("DELETE", "/api/v2/authorizations/:id", h.handleDeleteAuthorization)
 	return h
 }
 
@@ -47,8 +47,8 @@ type authResponse struct {
 func newAuthResponse(a *platform.Authorization) *authResponse {
 	return &authResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/v2/authorizations/%s", a.ID),
-			"user": fmt.Sprintf("/v2/users/%s", a.UserID),
+			"self": fmt.Sprintf("/api/v2/authorizations/%s", a.ID),
+			"user": fmt.Sprintf("/api/v2/users/%s", a.UserID),
 		},
 		Authorization: *a,
 	}
@@ -67,13 +67,13 @@ func newAuthsResponse(opts platform.FindOptions, f platform.AuthorizationFilter,
 	return &authsResponse{
 		// TODO(desa): update links to include paging and filter information
 		Links: map[string]string{
-			"self": "/v2/authorizations",
+			"self": "/api/v2/authorizations",
 		},
 		Auths: rs,
 	}
 }
 
-// handlePostAuthorization is the HTTP handler for the POST /v2/authorizations route.
+// handlePostAuthorization is the HTTP handler for the POST /api/v2/authorizations route.
 func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -114,7 +114,7 @@ func decodePostAuthorizationRequest(ctx context.Context, r *http.Request) (*post
 	}, nil
 }
 
-// handleGetAuthorizations is the HTTP handler for the GET /v2/authorizations route.
+// handleGetAuthorizations is the HTTP handler for the GET /api/v2/authorizations route.
 func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -177,7 +177,7 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 	return req, nil
 }
 
-// handleGetAuthorization is the HTTP handler for the GET /v2/authorizations/:id route.
+// handleGetAuthorization is the HTTP handler for the GET /api/v2/authorizations/:id route.
 func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -227,7 +227,7 @@ func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAu
 	}, nil
 }
 
-// handleSetAuthorizationStatus is the HTTP handler for the PATCH /v2/authorizations/:id route that updates the authorization's status.
+// handleSetAuthorizationStatus is the HTTP handler for the PATCH /api/v2/authorizations/:id route that updates the authorization's status.
 func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -297,7 +297,7 @@ func decodeSetAuthorizationStatusRequest(ctx context.Context, r *http.Request) (
 	}, nil
 }
 
-// handleDeleteAuthorization is the HTTP handler for the DELETE /v2/authorizations/:id route.
+// handleDeleteAuthorization is the HTTP handler for the DELETE /api/v2/authorizations/:id route.
 func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -443,7 +443,7 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 }
 
 const (
-	authorizationPath = "/v2/authorizations"
+	authorizationPath = "/api/v2/authorizations"
 )
 
 // CreateAuthorization creates a new authorization and sets b.ID with the new identifier.

@@ -67,14 +67,14 @@ func TestService_handleGetViews(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v2/views"
+    "self": "/api/v2/views"
   },
   "views": [
     {
       "id": "30",
       "name": "hello",
       "links": {
-        "self": "/v2/views/30"
+        "self": "/api/v2/views/30"
       },
       "properties": {
         "shape": "chronograf-v1",
@@ -105,7 +105,7 @@ func TestService_handleGetViews(t *testing.T) {
       "id": "32",
       "name": "example",
       "links": {
-        "self": "/v2/views/32"
+        "self": "/api/v2/views/32"
       },
       "properties": {
         "shape": "empty"
@@ -131,7 +131,7 @@ func TestService_handleGetViews(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v2/views"
+    "self": "/api/v2/views"
   },
   "views": []
 }`,
@@ -220,7 +220,7 @@ func TestService_handleGetView(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "example",
   "links": {
-    "self": "/v2/views/020f755c3c082000"
+    "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {
     "shape": "empty"
@@ -332,7 +332,7 @@ func TestService_handlePostViews(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "hello",
   "links": {
-    "self": "/v2/views/020f755c3c082000"
+    "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {
     "shape": "chronograf-v1",
@@ -545,7 +545,7 @@ func TestService_handlePatchView(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "example",
   "links": {
-    "self": "/v2/views/020f755c3c082000"
+    "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {
     "shape": "chronograf-v1",

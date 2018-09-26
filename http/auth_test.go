@@ -64,13 +64,13 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v2/authorizations"
+    "self": "/api/v2/authorizations"
   },
   "auths": [
     {
       "links": {
-        "user": "/v2/users/3130",
-        "self": "/v2/authorizations/30"
+        "user": "/api/v2/users/3130",
+        "self": "/api/v2/authorizations/30"
       },
       "id": "30",
       "userID": "3130",
@@ -79,8 +79,8 @@ func TestService_handleGetAuthorizations(t *testing.T) {
     },
     {
       "links": {
-        "user": "/v2/users/3230",
-        "self": "/v2/authorizations/32"
+        "user": "/api/v2/users/3230",
+        "self": "/api/v2/authorizations/32"
       },
       "id": "32",
       "userID": "3230",
@@ -108,7 +108,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v2/authorizations"
+    "self": "/api/v2/authorizations"
   },
   "auths": []
 }`,
@@ -198,8 +198,8 @@ func TestService_handleGetAuthorization(t *testing.T) {
 				body: `
 {
   "links": {
-    "user": "/v2/users/020f755c3c082000",
-    "self": "/v2/authorizations/020f755c3c082000"
+    "user": "/api/v2/users/020f755c3c082000",
+    "self": "/api/v2/authorizations/020f755c3c082000"
   },
   "id": "020f755c3c082000",
   "userID": "020f755c3c082000",
@@ -307,8 +307,8 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				body: `
 {
   "links": {
-    "user": "/v2/users/30",
-    "self": "/v2/authorizations/020f755c3c082000"
+    "user": "/api/v2/users/30",
+    "self": "/api/v2/authorizations/020f755c3c082000"
   },
   "id": "020f755c3c082000",
   "userID": "30",

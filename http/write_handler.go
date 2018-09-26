@@ -27,7 +27,7 @@ type WriteHandler struct {
 	Publish func(io.Reader) error
 }
 
-// NewWriteHandler creates a new handler at /v2/write to receive line protocol.
+// NewWriteHandler creates a new handler at /api/v2/write to receive line protocol.
 func NewWriteHandler(publishFn func(io.Reader) error) *WriteHandler {
 	h := &WriteHandler{
 		Router:  httprouter.New(),
@@ -35,7 +35,7 @@ func NewWriteHandler(publishFn func(io.Reader) error) *WriteHandler {
 		Publish: publishFn,
 	}
 
-	h.HandlerFunc("POST", "/v2/write", h.handleWrite)
+	h.HandlerFunc("POST", "/api/v2/write", h.handleWrite)
 	return h
 }
 

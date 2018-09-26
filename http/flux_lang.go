@@ -30,11 +30,11 @@ func NewFluxLangHandler() *FluxLangHandler {
 		Now:    time.Now,
 	}
 
-	h.HandlerFunc("GET", "/v2/flux", h.getFlux)
-	h.HandlerFunc("POST", "/v2/flux/ast", h.postFluxAST)
-	h.HandlerFunc("POST", "/v2/flux/spec", h.postFluxSpec)
-	h.HandlerFunc("GET", "/v2/flux/suggestions", h.getFluxSuggestions)
-	h.HandlerFunc("GET", "/v2/flux/suggestions/:name", h.getFluxSuggestion)
+	h.HandlerFunc("GET", "/api/v2/flux", h.getFlux)
+	h.HandlerFunc("POST", "/api/v2/flux/ast", h.postFluxAST)
+	h.HandlerFunc("POST", "/api/v2/flux/spec", h.postFluxSpec)
+	h.HandlerFunc("GET", "/api/v2/flux/suggestions", h.getFluxSuggestions)
+	h.HandlerFunc("GET", "/api/v2/flux/suggestions/:name", h.getFluxSuggestion)
 	return h
 }
 
@@ -64,9 +64,9 @@ type fluxResponse struct {
 
 var getFluxResponse = fluxResponse{
 	Links: fluxLinks{
-		Self:        "/v2/flux",
-		AST:         "/v2/flux/ast",
-		Suggestions: "/v2/flux/suggestions",
+		Self:        "/api/v2/flux",
+		AST:         "/api/v2/flux/ast",
+		Suggestions: "/api/v2/flux/suggestions",
 	},
 }
 

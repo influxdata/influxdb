@@ -22,10 +22,10 @@ type DashboardHandler struct {
 }
 
 const (
-	dashboardsPath          = "/v2/dashboards"
-	dashboardsIDPath        = "/v2/dashboards/:id"
-	dashboardsIDCellsPath   = "/v2/dashboards/:id/cells"
-	dashboardsIDCellsIDPath = "/v2/dashboards/:id/cells/:cellID"
+	dashboardsPath          = "/api/v2/dashboards"
+	dashboardsIDPath        = "/api/v2/dashboards/:id"
+	dashboardsIDCellsPath   = "/api/v2/dashboards/:id/cells"
+	dashboardsIDCellsIDPath = "/api/v2/dashboards/:id/cells/:cellID"
 )
 
 // NewDashboardHandler returns a new instance of DashboardHandler.
@@ -80,8 +80,8 @@ func (d dashboardResponse) toPlatform() *platform.Dashboard {
 func newDashboardResponse(d *platform.Dashboard) dashboardResponse {
 	res := dashboardResponse{
 		Links: dashboardLinks{
-			Self:  fmt.Sprintf("/v2/dashboards/%s", d.ID),
-			Cells: fmt.Sprintf("/v2/dashboards/%s/cells", d.ID),
+			Self:  fmt.Sprintf("/api/v2/dashboards/%s", d.ID),
+			Cells: fmt.Sprintf("/api/v2/dashboards/%s/cells", d.ID),
 		},
 		Dashboard: *d,
 		Cells:     []dashboardCellResponse{},
@@ -107,8 +107,8 @@ func newDashboardCellResponse(dashboardID platform.ID, c *platform.Cell) dashboa
 	return dashboardCellResponse{
 		Cell: *c,
 		Links: map[string]string{
-			"self": fmt.Sprintf("/v2/dashboards/%s/cells/%s", dashboardID, c.ID),
-			"view": fmt.Sprintf("/v2/views/%s", c.ViewID),
+			"self": fmt.Sprintf("/api/v2/dashboards/%s/cells/%s", dashboardID, c.ID),
+			"view": fmt.Sprintf("/api/v2/views/%s", c.ViewID),
 		},
 	}
 }
@@ -122,7 +122,7 @@ func newDashboardCellsResponse(dashboardID platform.ID, cs []*platform.Cell) das
 	res := dashboardCellsResponse{
 		Cells: []dashboardCellResponse{},
 		Links: map[string]string{
-			"self": fmt.Sprintf("/v2/dashboards/%s/cells", dashboardID),
+			"self": fmt.Sprintf("/api/v2/dashboards/%s/cells", dashboardID),
 		},
 	}
 
@@ -191,7 +191,7 @@ func (d getDashboardsResponse) toPlatform() []*platform.Dashboard {
 func newGetDashboardsResponse(dashboards []*platform.Dashboard) getDashboardsResponse {
 	res := getDashboardsResponse{
 		Links: getDashboardsLinks{
-			Self: "/v2/dashboards",
+			Self: "/api/v2/dashboards",
 		},
 		Dashboards: make([]dashboardResponse, 0, len(dashboards)),
 	}

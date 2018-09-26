@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	macroPath = "/v2/macros"
+	macroPath = "/api/v2/macros"
 )
 
 // MacroHandler is the handler for the macro service
@@ -30,12 +30,12 @@ func NewMacroHandler() *MacroHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("GET", "/v2/macros", h.handleGetMacros)
-	h.HandlerFunc("POST", "/v2/macros", h.handlePostMacro)
-	h.HandlerFunc("GET", "/v2/macros/:id", h.handleGetMacro)
-	h.HandlerFunc("PATCH", "/v2/macros/:id", h.handlePatchMacro)
-	h.HandlerFunc("PUT", "/v2/macros/:id", h.handlePutMacro)
-	h.HandlerFunc("DELETE", "/v2/macros/:id", h.handleDeleteMacro)
+	h.HandlerFunc("GET", "/api/v2/macros", h.handleGetMacros)
+	h.HandlerFunc("POST", "/api/v2/macros", h.handlePostMacro)
+	h.HandlerFunc("GET", "/api/v2/macros/:id", h.handleGetMacro)
+	h.HandlerFunc("PATCH", "/api/v2/macros/:id", h.handlePatchMacro)
+	h.HandlerFunc("PUT", "/api/v2/macros/:id", h.handlePutMacro)
+	h.HandlerFunc("DELETE", "/api/v2/macros/:id", h.handleDeleteMacro)
 
 	return h
 }
@@ -61,7 +61,7 @@ func newGetMacrosResponse(macros []*platform.Macro) getMacrosResponse {
 	resp := getMacrosResponse{
 		Macros: make([]macroResponse, 0, len(macros)),
 		Links: macrosLinks{
-			Self: "/v2/macros",
+			Self: "/api/v2/macros",
 		},
 	}
 
@@ -134,7 +134,7 @@ func newMacroResponse(m *platform.Macro) macroResponse {
 	return macroResponse{
 		Macro: m,
 		Links: macroLinks{
-			Self: fmt.Sprintf("/v2/macros/%s", m.ID),
+			Self: fmt.Sprintf("/api/v2/macros/%s", m.ID),
 		},
 	}
 }
