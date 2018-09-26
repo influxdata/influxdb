@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -14,6 +15,14 @@ type Session struct {
 	ExpiresAt   time.Time    `json:"expiresAt"`
 	UserID      ID           `json:"userID,omitempty"`
 	Permissions []Permission `json:"permissions,omitempty"`
+}
+
+func (s *Session) Expired() error {
+	if time.Now().After(s.ExpiresAt) {
+		return fmt.Errorf("session has expired")
+	}
+
+	return nil
 }
 
 // SessionService represents a service for managing user sessions.
