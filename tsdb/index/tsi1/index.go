@@ -24,7 +24,7 @@ import (
 )
 
 // IndexName is the name of the index.
-const IndexName = tsdb.TSI1IndexName
+const IndexName = "tsi1"
 
 // ErrCompactionInterrupted is returned if compactions are disabled or
 // an index is closed while a compaction is occurring.

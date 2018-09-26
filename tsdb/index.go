@@ -15,10 +15,7 @@ import (
 )
 
 // Available index types.
-const (
-	InmemIndexName = "inmem"
-	TSI1IndexName  = "tsi1"
-)
+const TSI1IndexName = "tsi1"
 
 type Index interface {
 	Open() error            // used by this package
