@@ -11,11 +11,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/estimator"
-	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/pkg/estimator"
+	"github.com/influxdata/platform/pkg/limiter"
 	"go.uber.org/zap"
 )
 

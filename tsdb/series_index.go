@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/influxdata/influxdb/pkg/mmap"
-	"github.com/influxdata/influxdb/pkg/rhh"
+	"github.com/influxdata/platform/pkg/mmap"
+	"github.com/influxdata/platform/pkg/rhh"
 )
 
 const (

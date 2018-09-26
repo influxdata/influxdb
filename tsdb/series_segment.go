@@ -10,7 +10,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/influxdata/influxdb/pkg/mmap"
+	"github.com/influxdata/platform/pkg/mmap"
 )
 
 const (

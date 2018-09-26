@@ -21,6 +21,7 @@ require (
 	github.com/campoy/unique v0.0.0-20180121183637-88950e537e7e // indirect
 	github.com/cespare/xxhash v1.1.0
 	github.com/coreos/bbolt v1.3.0
+	github.com/davecgh/go-spew v1.1.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8 // indirect
 	github.com/elazarl/go-bindata-assetfs v1.0.0
@@ -104,7 +105,7 @@ require (
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
 	golang.org/x/sys v0.0.0-20180920110915-d641721ec2de // indirect
 	golang.org/x/text v0.3.0
-	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2 // indirect
+	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
 	golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e // indirect
 	google.golang.org/api v0.0.0-20180723152133-cd7aead8ef37
 	google.golang.org/appengine v1.0.0 // indirect
