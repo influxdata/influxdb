@@ -564,8 +564,12 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 		return err
 	}
 
-	b, err = br.toPlatform()
-	return err
+	pb, err := br.toPlatform()
+	if err != nil {
+		return err
+	}
+	*b = *pb
+	return nil
 }
 
 // UpdateBucket updates a single bucket with changeset.
