@@ -1504,10 +1504,7 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 	// TagSet are then grouped together, because for the purpose of GROUP BY
 	// they are part of the same composite series.
 	tagSets := make(map[string]*query.TagSet, 64)
-	var (
-		seriesN, maxSeriesN int
-		db                  = is.Database()
-	)
+	var seriesN, maxSeriesN int
 
 	if opt.MaxSeriesN > 0 {
 		maxSeriesN = opt.MaxSeriesN
@@ -1549,10 +1546,6 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 
 		// NOTE - must not escape this loop iteration.
 		_, tagsBuf = ParseSeriesKeyInto(key, tagsBuf)
-		if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(db, name, tagsBuf) {
-			continue
-		}
-
 		var tagsAsKey []byte
 		if len(dims) > 0 {
 			tagsAsKey = MakeTagsKey(dims, tagsBuf)

@@ -97,11 +97,6 @@ func (cur *seriesCursor) Next() (*SeriesCursorRow, error) {
 
 		cur.row.Name, cur.row.Tags = ParseSeriesKey(cur.keys[cur.ofs])
 		cur.ofs++
-
-		//if itr.opt.Authorizer != nil && !itr.opt.Authorizer.AuthorizeSeriesRead(itr.indexSet.Database(), name, tags) {
-		//	continue
-		//}
-
 		return &cur.row, nil
 	}
 }
