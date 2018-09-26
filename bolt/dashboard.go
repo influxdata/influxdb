@@ -225,7 +225,7 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 				return fmt.Errorf("cannot replace cells that were not already present")
 			}
 
-			if cl.ViewID == cell.ViewID {
+			if cl.ViewID != cell.ViewID {
 				return fmt.Errorf("cannot update view id in replace")
 			}
 		}

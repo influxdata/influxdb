@@ -164,6 +164,7 @@ func (c *Client) CreateSource(ctx context.Context, s *platform.Source) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		s.ID = c.IDGenerator.ID()
 		// fixme > what if s does not contain a valid OrganizationID ? or contains an empty, thus invaid, OrganizationID ?
+		// throw an error? generate one?
 		if !s.OrganizationID.Valid() {
 			s.OrganizationID = c.IDGenerator.ID()
 		}

@@ -688,7 +688,8 @@ func RemoveDashboardCell(
 								ViewID: MustIDFromString(dashTwoID),
 							},
 							{
-								ID: MustIDFromString(dashOneID),
+								ID:     MustIDFromString(dashOneID),
+								ViewID: MustIDFromString(dashOneID),
 							},
 						},
 					},
@@ -712,7 +713,8 @@ func RemoveDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID: MustIDFromString(dashOneID),
+								ID:     MustIDFromString(dashOneID),
+								ViewID: MustIDFromString(dashOneID),
 							},
 						},
 					},
@@ -787,10 +789,12 @@ func UpdateDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID: MustIDFromString(dashTwoID),
+								ID:     MustIDFromString(dashTwoID),
+								ViewID: MustIDFromString(dashTwoID),
 							},
 							{
-								ID: MustIDFromString(dashOneID),
+								ID:     MustIDFromString(dashOneID),
+								ViewID: MustIDFromString(dashOneID),
 							},
 						},
 					},
@@ -808,11 +812,13 @@ func UpdateDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID: MustIDFromString(dashTwoID),
-								X:  10,
+								ID:     MustIDFromString(dashTwoID),
+								ViewID: MustIDFromString(dashTwoID),
+								X:      10,
 							},
 							{
-								ID: MustIDFromString(dashOneID),
+								ID:     MustIDFromString(dashOneID),
+								ViewID: MustIDFromString(dashOneID),
 							},
 						},
 					},

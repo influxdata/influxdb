@@ -351,7 +351,12 @@ func (c *Client) setPassword(ctx context.Context, tx *bolt.Tx, name string, pass
 		return err
 	}
 
-	return tx.Bucket(userpasswordBucket).Put(u.ID, hash)
+	encodedID, err := u.ID.Encode()
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket(userpasswordBucket).Put(encodedID, hash)
 }
 
 // ComparePassword compares a provided password with the stored password hash.
@@ -365,7 +370,13 @@ func (c *Client) comparePassword(ctx context.Context, tx *bolt.Tx, name string, 
 	if err != nil {
 		return err
 	}
-	hash := tx.Bucket(userpasswordBucket).Get(u.ID)
+
+	encodedID, err := u.ID.Encode()
+	if err != nil {
+		return err
+	}
+
+	hash := tx.Bucket(userpasswordBucket).Get(encodedID)
 
 	return bcrypt.CompareHashAndPassword(hash, []byte(password))
 }
