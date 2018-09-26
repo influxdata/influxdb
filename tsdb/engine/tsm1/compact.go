@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1027,6 +1028,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 
 		// New TSM files are written to a temp file and renamed when fully completed.
 		fileName := filepath.Join(c.Dir, c.formatFileName(generation, sequence)+"."+TSMFileExtension+"."+TmpTSMFileExtension)
+		statsFileName := filepath.Join(c.Dir, c.formatFileName(generation, sequence)+".tss")
 
 		// Write as much as possible to this file
 		err := c.write(fileName, iter, throttle)
@@ -1041,6 +1043,8 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 			// file that we can drop.
 			if err := os.RemoveAll(fileName); err != nil {
 				return nil, err
+			} else if err := os.RemoveAll(statsFileName); err != nil && !os.IsNotExist(err) {
+				return nil, err
 			}
 			break
 		} else if _, ok := err.(errCompactionInProgress); ok {
@@ -1052,10 +1056,14 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 			for _, f := range files {
 				if err := os.RemoveAll(f); err != nil {
 					return nil, err
+				} else if err := os.RemoveAll(strings.TrimSuffix(f, "."+TSMFileExtension+"."+TmpTSMFileExtension) + ".tss"); err != nil && !os.IsNotExist(err) {
+					return nil, err
 				}
 			}
 			// We hit an error and didn't finish the compaction.  Remove the temp file and abort.
 			if err := os.RemoveAll(fileName); err != nil {
+				return nil, err
+			} else if err := os.RemoveAll(statsFileName); err != nil && !os.IsNotExist(err) {
 				return nil, err
 			}
 			return nil, err

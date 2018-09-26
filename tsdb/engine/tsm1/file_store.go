@@ -145,6 +145,9 @@ type TSMFile interface {
 
 	// Free releases any resources held by the FileStore to free up system resources.
 	Free() error
+
+	// Stats returns the statistics for the file.
+	MeasurementStats() (MeasurementStats, error)
 }
 
 // Statistics gathered by the FileStore.
@@ -665,7 +668,7 @@ func (f *FileStore) KeyCursor(ctx context.Context, key []byte, t int64, ascendin
 	return newKeyCursor(ctx, f, key, t, ascending)
 }
 
-// Stats returns the stats of the underlying files, preferring the cached version if it is still valid.
+// FileStats returns the stats of the underlying files, preferring the cached version if it is still valid.
 func (f *FileStore) Stats() []FileStat {
 	f.mu.RLock()
 	if len(f.lastFileStats) > 0 {
@@ -1065,6 +1068,22 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	}
 
 	return tmpPath, nil
+}
+
+// MeasurementStats returns the sum of all measurement stats within the store.
+func (f *FileStore) MeasurementStats() (MeasurementStats, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	stats := NewMeasurementStats()
+	for _, file := range f.files {
+		s, err := file.MeasurementStats()
+		if err != nil {
+			return nil, err
+		}
+		stats.Add(s)
+	}
+	return stats, nil
 }
 
 // FormatFileNameFunc is executed when generating a new TSM filename.
