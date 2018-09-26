@@ -6,15 +6,20 @@
 .wizard-step--container {
   position: relative;
   overflow: hidden;
-  margin: $ix-marg-b 0 0 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  margin: $ix-marg-d 0;
+  flex-grow: 1;
   width: 100%;
+  background-color: $g3-castle;
+  border-radius: $radius;
 }
 
 .wizard-step--child {
   padding: 0 $ix-marg-d $ix-marg-d $ix-marg-d;
   overflow-y: scroll;
-  max-height: 30vh;
-  min-height: 10vh;
+  min-height: 100%;
   position: relative;
   z-index: 10;
 }

@@ -1,4 +1,4 @@
-import {StepStatus} from 'src/reusable_ui/constants/wizard'
+import {StepStatus} from 'src/clockface/constants/wizard'
 import {Source} from 'src/types'
 
 export interface Step {

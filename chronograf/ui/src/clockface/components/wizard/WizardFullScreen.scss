@@ -3,15 +3,22 @@
   ------------------------------------------------------------------------------
 */
 
-.wizard-container {
-  padding: 30px;
+.wizard--full-screen {
+  min-width: 100%;
+  min-height: 100%;
+  padding: $ix-marg-d $ix-marg-e;
+  z-index: 50;
   display: inline-flex;
-  border-radius: $radius;
-  min-width: 800px;
-  max-width: 1200px;
-  background-color: $g1-raven;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.wizard-title {
-  margin-top: $ix-marg-c;
+.welcome-logo {
+  background-image: url('../../assets/images/cubo_doodle.svg');
+  background-size: 100% 100%;
+  background-position: center center;
+  background-repeat: no-repeat;
+  width: 812px;
+  height: 170px;
 }

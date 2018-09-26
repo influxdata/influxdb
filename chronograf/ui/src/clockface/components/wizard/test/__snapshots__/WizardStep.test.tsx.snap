@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`WizardStep matches snapshot 1`] = `
-<React.Fragment>
+<Fragment>
   <div
     className="wizard-step--container"
   >
@@ -17,5 +17,5 @@ exports[`WizardStep matches snapshot 1`] = `
     onClickPrevious={[Function]}
     previousLabel="Previous"
   />
-</React.Fragment>
+</Fragment>
 `;
