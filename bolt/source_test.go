@@ -33,6 +33,7 @@ func initSourceService(f platformtesting.SourceFields, t *testing.T) (platform.S
 func TestSourceService_CreateSource(t *testing.T) {
 	platformtesting.CreateSource(initSourceService, t)
 }
+
 func TestSourceService_FindSourceByID(t *testing.T) {
 	platformtesting.FindSourceByID(initSourceService, t)
 }

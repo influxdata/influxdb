@@ -20,13 +20,20 @@ var DefaultSource = platform.Source{
 	Type:    platform.SelfSourceType,
 }
 
+const (
+	// DefaultSourceID it the default source identifier
+	DefaultSourceID = "020f755c3c082000"
+	// DefaultSourceOrganizationID is the default source's organization identifier
+	DefaultSourceOrganizationID = "50616e67652c206c"
+)
+
 func init() {
 	// TODO(desa): This ID is temporary. It should be updated to be 0 when we switch to integer ids.
-	if err := DefaultSource.ID.DecodeFromString("020f755c3c082000"); err != nil {
+	if err := DefaultSource.ID.DecodeFromString(DefaultSourceID); err != nil {
 		panic(fmt.Sprintf("failed to decode default source id: %v", err))
 	}
 
-	if err := DefaultSource.OrganizationID.DecodeFromString("50616e67652c206c"); err != nil {
+	if err := DefaultSource.OrganizationID.DecodeFromString(DefaultSourceOrganizationID); err != nil {
 		panic(fmt.Sprintf("failed to decode default source organization id: %v", err))
 	}
 }
@@ -156,6 +163,10 @@ func (c *Client) findSources(ctx context.Context, tx *bolt.Tx, opt platform.Find
 func (c *Client) CreateSource(ctx context.Context, s *platform.Source) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		s.ID = c.IDGenerator.ID()
+		// fixme > what if s does not contain a valid OrganizationID ? or contains an empty, thus invaid, OrganizationID ?
+		if !s.OrganizationID.Valid() {
+			s.OrganizationID = c.IDGenerator.ID()
+		}
 
 		return c.putSource(ctx, tx, s)
 	})

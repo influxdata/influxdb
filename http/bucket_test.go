@@ -181,9 +181,10 @@ func TestService_handleGetBucket(t *testing.T) {
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
 						if id == platformtesting.MustIDFromString("020f755c3c082000") {
 							return &platform.Bucket{
-								ID:             platformtesting.MustIDFromString("020f755c3c082000"),
-								OrganizationID: platformtesting.MustIDFromString("020f755c3c082000"),
-								Name:           "hello",
+								ID:              platformtesting.MustIDFromString("020f755c3c082000"),
+								OrganizationID:  platformtesting.MustIDFromString("020f755c3c082000"),
+								Name:            "hello",
+								RetentionPeriod: 30 * time.Second,
 							}, nil
 						}
 

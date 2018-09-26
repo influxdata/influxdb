@@ -827,6 +827,7 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, id platform.ID,
 		return err
 	}
 
+	// fixme > in case c does not contain a valid ID this errors out
 	b, err := json.Marshal(c)
 	if err != nil {
 		return err
@@ -882,6 +883,7 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID,
 		return nil, err
 	}
 
+	// fixme > in case upd does not containa a valid ViewID this errors out
 	b, err := json.Marshal(upd)
 	if err != nil {
 		return nil, err
