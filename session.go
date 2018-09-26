@@ -17,6 +17,7 @@ type Session struct {
 	Permissions []Permission `json:"permissions,omitempty"`
 }
 
+// Expired returns an error if the session is expired.
 func (s *Session) Expired() error {
 	if time.Now().After(s.ExpiresAt) {
 		return fmt.Errorf("session has expired")

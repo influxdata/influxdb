@@ -59,12 +59,19 @@ func (c *Client) findSession(ctx context.Context, tx *bolt.Tx, key string) (*pla
 	return s, nil
 }
 
-func (c *Client) putSession(ctx context.Context, tx *bolt.Tx, key string, s *platform.Session) error {
+// PutSession puts the session at key.
+func (c *Client) PutSession(ctx context.Context, s *platform.Session) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		return c.putSession(ctx, tx, s)
+	})
+}
+
+func (c *Client) putSession(ctx context.Context, tx *bolt.Tx, s *platform.Session) error {
 	v, err := json.Marshal(s)
 	if err != nil {
 		return err
 	}
-	if err := tx.Bucket(sessionBucket).Put([]byte(key), v); err != nil {
+	if err := tx.Bucket(sessionBucket).Put([]byte(s.Key), v); err != nil {
 		return err
 	}
 	return nil
@@ -80,7 +87,7 @@ func (c *Client) ExpireSession(ctx context.Context, key string) error {
 
 		s.ExpiresAt = time.Now()
 
-		return c.putSession(ctx, tx, key, s)
+		return c.putSession(ctx, tx, s)
 	})
 }
 
@@ -125,7 +132,7 @@ func (c *Client) createSession(ctx context.Context, tx *bolt.Tx, user string) (*
 	// TODO(desa): not totally sure what to do here. Possibly we should have a maximal privilege permission.
 	s.Permissions = []platform.Permission{}
 
-	if err := c.putSession(ctx, tx, s.Key, s); err != nil {
+	if err := c.putSession(ctx, tx, s); err != nil {
 		return nil, err
 	}
 
