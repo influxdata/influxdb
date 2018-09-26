@@ -106,7 +106,7 @@ class Root extends PureComponent<{}, State> {
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />
               <Route path="delorean" component={FluxPage} />
-              <Route path="user" component={UserPage} />
+              <Route path="user/:tab" component={UserPage} />
             </Route>
           </Route>
           <Route path="*" component={NotFound} />
