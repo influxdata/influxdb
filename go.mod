@@ -23,7 +23,7 @@ require (
 	github.com/coreos/bbolt v1.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8 // indirect
+	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
 	github.com/elazarl/go-bindata-assetfs v1.0.0
 	github.com/fatih/color v1.5.0 // indirect
 	github.com/glycerine/go-unsnap-stream v0.0.0-20180323001048-9f0cb55181dd // indirect
@@ -32,6 +32,7 @@ require (
 	github.com/go-sql-driver/mysql v1.4.0 // indirect
 	github.com/gogo/protobuf v1.1.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
+	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
 	github.com/google/go-cmp v0.2.0
 	github.com/google/go-github v0.0.0-20180723152927-e1be32f26e66
 	github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135 // indirect
@@ -56,7 +57,7 @@ require (
 	github.com/jsternberg/zap-logfmt v1.1.0 // indirect
 	github.com/jtolds/gls v4.2.1+incompatible // indirect
 	github.com/julienschmidt/httprouter v0.0.0-20180222160526-d18983907793
-	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef // indirect
+	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
 	github.com/lib/pq v1.0.0 // indirect
 	github.com/magiconair/properties v1.7.6 // indirect
@@ -103,7 +104,7 @@ require (
 	golang.org/x/net v0.0.0-20180911220305-26e67e76b6c3
 	golang.org/x/oauth2 v0.0.0-20180521191639-dd5f5d8e78ce
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
-	golang.org/x/sys v0.0.0-20180920110915-d641721ec2de // indirect
+	golang.org/x/sys v0.0.0-20180920110915-d641721ec2de
 	golang.org/x/text v0.3.0
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
 	golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e // indirect

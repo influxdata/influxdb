@@ -163,7 +163,6 @@ type EngineOptions struct {
 	CompactionPlannerCreator    CompactionPlannerCreator
 	CompactionLimiter           limiter.Fixed
 	CompactionThroughputLimiter limiter.Rate
-	WALEnabled                  bool
 	MonitorDisabled             bool
 
 	// DatabaseFilter is a predicate controlling which databases may be opened.
@@ -194,7 +193,6 @@ func NewEngineOptions() EngineOptions {
 		EngineVersion: DefaultEngine,
 		IndexVersion:  DefaultIndex,
 		Config:        NewConfig(),
-		WALEnabled:    true,
 		OpenLimiter:   limiter.NewFixed(runtime.GOMAXPROCS(0)),
 	}
 }
