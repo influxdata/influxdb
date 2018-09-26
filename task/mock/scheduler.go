@@ -56,10 +56,6 @@ func (s *Scheduler) Tick(now int64) {
 
 func (s *Scheduler) WithLogger(l *zap.Logger) {}
 
-func (s *Scheduler) Start(context.Context) {}
-
-func (s *Scheduler) Stop() {}
-
 func (s *Scheduler) ClaimTask(task *backend.StoreTask, meta *backend.StoreTaskMeta) error {
 	if s.claimError != nil {
 		return s.claimError
