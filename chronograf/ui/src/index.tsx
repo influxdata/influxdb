@@ -19,6 +19,7 @@ import CheckSources from 'src/CheckSources'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import {SourcePage, ManageSources} from 'src/sources'
 import {FluxPage} from 'src/flux'
+import {UserPage} from 'src/user'
 import NotFound from 'src/shared/components/NotFound'
 
 import {getLinksAsync} from 'src/shared/actions/links'
@@ -107,6 +108,7 @@ class Root extends PureComponent<{}, State> {
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />
               <Route path="delorean" component={FluxPage} />
+              <Route path="user/:tab" component={UserPage} />
             </Route>
           </Route>
           <Route path="*" component={NotFound} />

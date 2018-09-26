@@ -9,6 +9,10 @@ import NavMenu from 'src/page_layout/components/NavMenu'
 
 // Types
 import {Source} from 'src/types/v2'
+import {IconFont} from 'src/clockface'
+
+// MOCK DATA
+import {LeroyJenkins} from 'src/user/mockUserData'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -17,10 +21,17 @@ interface Props extends WithRouterProps {
   isHidden: boolean
 }
 
-interface NavItem {
+export enum NavItemType {
+  Icon = 'icon',
+  Avatar = 'avatar',
+}
+
+export interface NavItem {
   title: string
   link: string
-  icon: string
+  type: NavItemType
+  icon?: IconFont
+  image?: string
   location: string
   highlightWhen: string[]
 }
@@ -46,32 +57,44 @@ class SideNav extends PureComponent<Props> {
 
     return [
       {
+        type: NavItemType.Icon,
         title: 'Status',
         link: `/${this.sourceParam}`,
-        icon: 'cubo-uniform',
+        icon: IconFont.Cubouniform,
         location: location.pathname,
         highlightWhen: ['status'],
       },
       {
+        type: NavItemType.Icon,
         title: 'Flux Builder',
         link: `/delorean/${this.sourceParam}`,
-        icon: 'capacitor2',
+        icon: IconFont.Capacitor,
         location: location.pathname,
         highlightWhen: ['delorean'],
       },
       {
+        type: NavItemType.Icon,
         title: 'Dashboards',
         link: `/dashboards/${this.sourceParam}`,
-        icon: 'dash-j',
+        icon: IconFont.DashJ,
         location: location.pathname,
         highlightWhen: ['dashboards'],
       },
       {
+        type: NavItemType.Icon,
         title: 'Configuration',
         link: `/manage-sources/${this.sourceParam}`,
-        icon: 'wrench',
+        icon: IconFont.Wrench,
         location: location.pathname,
         highlightWhen: ['manage-sources'],
+      },
+      {
+        type: NavItemType.Avatar,
+        title: 'My Profile',
+        link: `/user/settings/${this.sourceParam}`,
+        image: LeroyJenkins.avatar,
+        location: location.pathname,
+        highlightWhen: ['user'],
       },
     ]
   }

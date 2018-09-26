@@ -47,6 +47,15 @@ $nav--bg-accent: $c-comet;
   }
 }
 
+.nav--avatar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  transition:
+    box-shadow 0.4s ease;
+}
+
 .nav--item:first-child .nav--item-icon {
   border-bottom-left-radius: $radius;
 }
@@ -96,6 +105,12 @@ $nav--bg-accent: $c-comet;
 
 // Active State
 .nav--item.active {
+  .nav--avatar {
+    box-shadow:
+      0 0 9px $c-laser,
+      0 0 15px $c-ocean,
+      0 0 20px $c-amethyst;
+  }
   .nav--item-icon {
     color: $g20-white;
     background-color: $g6-smoke;
@@ -108,6 +123,12 @@ $nav--bg-accent: $c-comet;
 
 // Active Hover State
 .nav--item.active:hover {
+  .nav--avatar {
+    box-shadow:
+      0 0 9px $c-yeti,
+      0 0 15px $c-hydrogen,
+      0 0 20px $c-laser;
+  }
   .nav--item-icon {
     background-color: $nav--bg;
     text-shadow:
