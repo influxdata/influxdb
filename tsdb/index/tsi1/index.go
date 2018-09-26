@@ -604,7 +604,10 @@ func (i *Index) DropMeasurement(name []byte) error {
 		}
 	}
 
-	// Update sketches.
+	// Update sketches under lock.
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	i.mTSketch.Add(name)
 	if err := i.updateSeriesSketches(); err != nil {
 		return err
@@ -658,7 +661,10 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 		}
 	}
 
-	// Update sketches.
+	// Update sketches under lock.
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	for _, key := range keys {
 		i.sSketch.Add(key)
 	}
@@ -674,8 +680,11 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	if err := i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags}); err != nil {
 		return err
 	}
+
+	i.mu.Lock()
 	i.sSketch.Add(key)
 	i.mSketch.Add(name)
+	i.mu.Unlock()
 	return nil
 }
 
@@ -693,7 +702,9 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	}
 
 	// Add sketch tombstone.
+	i.mu.Lock()
 	i.sTSketch.Add(key)
+	i.mu.Unlock()
 
 	if !cascade {
 		return nil
@@ -735,12 +746,16 @@ func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
 
 // MeasurementsSketches returns the two measurement sketches for the index.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return i.mSketch, i.mTSketch, nil
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.mSketch.Clone(), i.mTSketch.Clone(), nil
 }
 
 // SeriesSketches returns the two series sketches for the index.
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return i.sSketch, i.sTSketch, nil
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.sSketch.Clone(), i.sTSketch.Clone(), nil
 }
 
 // Since indexes are not shared across shards, the count returned by SeriesN
