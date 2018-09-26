@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/models"
 )
 
 // FieldValidator should return a PartialWriteError if the point should not be written.

@@ -3,7 +3,7 @@ package tsdb
 //go:generate protoc --gogo_out=. internal/meta.proto
 
 import (
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/platform/models"
 )
 
 // MakeTagsKey converts a tag set to bytes for use as a lookup key.

@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/cespare/xxhash"
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/binaryutil"
+	"github.com/influxdata/platform/models"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )

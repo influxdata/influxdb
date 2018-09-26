@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/rhh"
+	"github.com/influxdata/platform/models"
 	"go.uber.org/zap"
 )
 

@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/models"
 	"go.uber.org/zap"
 )
 

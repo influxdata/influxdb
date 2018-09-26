@@ -3,7 +3,7 @@ package tsdb
 import (
 	"unsafe"
 
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/platform/models"
 )
 
 const (

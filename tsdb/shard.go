@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/models"
 	"go.uber.org/zap"
 )
 
