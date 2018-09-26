@@ -3,15 +3,22 @@
   ------------------------------------------------------------------------------
 */
 
-.wizard-container {
-  padding: 30px;
+.wizard--full-screen {
+  min-width: 100%;
+  min-height: 100%;
+  padding: $ix-marg-d $ix-marg-e;
+  z-index: 50;
   display: inline-flex;
-  border-radius: $radius;
-  min-width: 800px;
-  max-width: 1200px;
-  background-color: $g1-raven;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.wizard-title {
-  margin-top: $ix-marg-c;
+.wizard--credits {
+  display: inline-flex;
+  align-items: center;
+
+  span {
+    margin: 0 5px;
+  }
 }
