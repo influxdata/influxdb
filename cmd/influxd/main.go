@@ -14,8 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
 	influxlogger "github.com/influxdata/influxdb/logger"
@@ -35,9 +33,13 @@ import (
 	taskbolt "github.com/influxdata/platform/task/backend/bolt"
 	"github.com/influxdata/platform/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/platform/task/backend/executor"
+	"github.com/influxdata/platform/tsdb"
+	_ "github.com/influxdata/platform/tsdb/index/tsi1"
+	_ "github.com/influxdata/platform/tsdb/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -57,6 +59,7 @@ var (
 	boltPath          string
 	walPath           string
 	developerMode     bool
+	enginePath        string
 )
 
 func influxDir() (string, error) {
@@ -116,6 +119,12 @@ func init() {
 	viper.BindEnv("WAL_PATH")
 	if h := viper.GetString("WAL_PATH"); h != "" {
 		walPath = h
+	}
+
+	platformCmd.Flags().StringVar(&enginePath, "engine-path", filepath.Join(dir, "engine"), "path to persistent engine files")
+	viper.BindEnv("ENGINE_PATH")
+	if h := viper.GetString("ENGINE_PATH"); h != "" {
+		enginePath = h
 	}
 }
 
@@ -200,6 +209,36 @@ func platformF(cmd *cobra.Command, args []string) {
 
 	var onboardingSvc platform.OnboardingService = c
 
+	// TODO(jeff): this block is hacky support for a storage engine. it is not intended to
+	// be a long term solution.
+	var natsHandler nats.Handler
+	{
+		sfile := tsdb.NewSeriesFile(filepath.Join(enginePath, tsdb.SeriesFileDirectory))
+		if err := sfile.Open(); err != nil {
+			logger.Error("failed to open series file", zap.Error(err))
+			os.Exit(1)
+		}
+
+		// TODO(jeff): These options should not exist for very long. It's to work around
+		// ack issues in the nats engine handler (see there for discussion) and causes it
+		// to snapshot the cache at every write.
+		opts := tsdb.NewEngineOptions()
+		opts.Config.CacheSnapshotMemorySize = 0
+
+		shard := tsdb.NewShard(0, enginePath, sfile, opts)
+		shard.WithLogger(logger)
+		if err := shard.Open(); err != nil {
+			logger.Error("failed to open engine", zap.Error(err))
+			os.Exit(1)
+		}
+
+		engineHandler := nats.NewEngineHandler()
+		engineHandler.Logger = logger.With(zap.String("handler", "engine"))
+		engineHandler.Engine = shard
+
+		natsHandler = engineHandler
+	}
+
 	var queryService query.QueryService
 	{
 		// TODO(lh): this is temporary until query endpoint is added here.
@@ -267,7 +306,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if err := subscriber.Subscribe(IngressSubject, IngressGroup, &nats.LogHandler{Logger: logger}); err != nil {
+	if err := subscriber.Subscribe(IngressSubject, IngressGroup, natsHandler); err != nil {
 		logger.Error("failed to create nats subscriber", zap.Error(err))
 		os.Exit(1)
 	}
