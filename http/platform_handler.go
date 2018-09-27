@@ -25,6 +25,7 @@ type PlatformHandler struct {
 	FluxLangHandler      *FluxLangHandler
 	QueryHandler         *FluxHandler
 	WriteHandler         *WriteHandler
+	SetupHandler         *SetupHandler
 }
 
 func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -36,6 +37,7 @@ func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 var platformLinks = map[string]interface{}{
+	"setup":      "/setup",
 	"sources":    "/v2/sources",
 	"dashboards": "/v2/dashboards",
 	"query":      "/v2/query",
@@ -79,7 +81,8 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	// of the platform API.
 	if !strings.HasPrefix(r.URL.Path, "/v1") &&
 		!strings.HasPrefix(r.URL.Path, "/v2") &&
-		!strings.HasPrefix(r.URL.Path, "/chronograf/") {
+		!strings.HasPrefix(r.URL.Path, "/chronograf/") &&
+		!strings.HasPrefix(r.URL.Path, "/setup") {
 		h.AssetHandler.ServeHTTP(w, r)
 		return
 	}
@@ -87,6 +90,11 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	// Serve the links base links for the API.
 	if r.URL.Path == "/v2/" || r.URL.Path == "/v2" {
 		h.serveLinks(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/setup") {
+		h.SetupHandler.ServeHTTP(w, r)
 		return
 	}
 

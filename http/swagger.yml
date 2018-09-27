@@ -15,6 +15,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Routes"
+  /setup:
+    get:
+      tags:
+        - Setup
+      summary: check if database has default user, org, bucket created, returns true if not.
+      response: 
+        '200':
+          content:
+            application/json:
+              type: object
+              properties: 
+                allowed: 
+                  type: boolean
+    post:
+      tags:
+        - Setup
+      summary: post onboarding request, to setup initial user, org and bucket
+      requestBody:
+        description: source to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingRequest"
+      responses:
+        '201':
+          description: Created default user, bucket, org
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingResponse"
+        
   /macros:
     get:
       tags:
@@ -3230,6 +3262,28 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Source"
+    OnboardingRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        org:
+          type: string
+        bucket:
+          type: string
+    OnboardingResponse:
+      type: object
+      properties:
+        user: 
+          $ref: "#/components/schemas/User"
+        org:
+          $ref: "#/components/schemas/Organization"
+        bucket:
+          $ref: "#/components/schemas/Bucket"
+        auth:
+          $ref: "#/components/schemas/Authorization"
     Health:
       type: object
       properties:

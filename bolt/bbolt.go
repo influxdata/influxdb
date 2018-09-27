@@ -98,6 +98,11 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
+		// Always create Onboarding bucket.
+		if err := c.initializeOnboarding(ctx, tx); err != nil {
+			return err
+		}
+
 		// Always create Source bucket.
 		if err := c.initializeSources(ctx, tx); err != nil {
 			return err
