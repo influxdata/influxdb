@@ -335,7 +335,7 @@ func CreateBucket(
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
-			if tt.wants.err == nil && len(tt.args.bucket.ID) == 0 {
+			if tt.wants.err == nil && !tt.args.bucket.ID.Valid() {
 				t.Fatalf("bucket ID not set from CreateBucket")
 			}
 
