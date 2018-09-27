@@ -46,7 +46,7 @@ class IndexList extends Component<Props> {
     if (rows.length) {
       return (
         <tbody className="index-list--body">
-          {rows.map((row, i) => this.listRow(row.columns, i))}
+          {rows.map((row, i) => this.listRow(row.columns, i, row.disabled))}
         </tbody>
       )
     }
@@ -65,6 +65,7 @@ class IndexList extends Component<Props> {
   private listRow = (
     rowColumns: IndexListRowColumn[],
     rowIndex: number
+    disabled: boolean,
   ): JSX.Element => {
     return (
       <Row
@@ -72,11 +73,12 @@ class IndexList extends Component<Props> {
         rowColumns={rowColumns}
         getColumnWidthPercent={this.getColumnWidthPercent}
         getRowColumnClassName={this.getRowColumnClassName}
+        disabled={disabled}
       />
     )
   }
 
-  private getRowColumnClassName = (columnKey: string): string => {
+  private getRowColumnClassName = (columnKey: string, disabled: boolean): string => {
     const {columns} = this.props
     const {showOnHover, align} = _.find(columns, col => col.key === columnKey)
 
@@ -85,6 +87,7 @@ class IndexList extends Component<Props> {
       'index-list--align-left': align === Alignment.Left,
       'index-list--align-center': align === Alignment.Center,
       'index-list--align-right': align === Alignment.Right,
+      'index-list--row-disabled': disabled,
     })
   }
 

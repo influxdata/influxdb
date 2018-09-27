@@ -12,7 +12,8 @@ interface Props {
   rowIndex: number
   rowColumns: IndexListRowColumn[]
   getColumnWidthPercent: (columnKey: string) => CSSProperties
-  getRowColumnClassName: (columnKey: string) => string
+  getRowColumnClassName: (columnKey: string, disabled: boolean) => string
+  disabled: boolean
 }
 
 @ErrorHandling
@@ -23,6 +24,7 @@ class IndexListRow extends Component<Props> {
       rowIndex,
       getColumnWidthPercent,
       getRowColumnClassName,
+      disabled,
     } = this.props
 
     return (
@@ -30,7 +32,7 @@ class IndexListRow extends Component<Props> {
         {rowColumns.map(rowColumn => (
           <td
             key={`index-list--row-${rowIndex}-col-${rowColumn.key}`}
-            className={getRowColumnClassName(rowColumn.key)}
+            className={getRowColumnClassName(rowColumn.key, disabled)}
             style={getColumnWidthPercent(rowColumn.key)}
           >
             <div className="index-list--cell">{rowColumn.contents}</div>

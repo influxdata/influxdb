@@ -82,6 +82,19 @@
   opacity: 1;
 }
 
+// Row Disabled State 
+.index-list--row-cell.index-list--row-disabled .index-list--cell {
+  background-color: rgba($g3-castle, 0.5);
+  color: $g9-mountain;
+  font-style: italic;
+}
+
+// Row Disabled Hover State 
+.index-list--row:hover .index-list--row-cell.index-list--row-disabled .index-list--cell {
+  background-color: rgba($g3-castle, 0.7);
+  color: $g15-platinum;
+}
+
 // Empty state
 .index-list--empty-cell {
   background-color: rgba($g3-castle, 0.5);

@@ -97,6 +97,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
     } = this.props
 
     return this.props.dashboards.map(d => ({
+      disabled: false,
       columns: [
         {
           key: 'dashboards--name',
@@ -148,7 +149,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
           ),
         },
       ],
-      disabled: false,
     }))
   }
 
