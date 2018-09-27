@@ -1,8 +1,14 @@
+// Libraries
 import React, {Component, MouseEvent} from 'react'
+import _ from 'lodash'
 
+// Components
 import DashboardsTable from 'src/dashboards/components/DashboardsTable'
+
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+// Types
 import {Dashboard} from 'src/types/v2'
 import {Notification} from 'src/types/notifications'
 
@@ -30,23 +36,21 @@ class DashboardsPageContents extends Component<Props> {
       onCreateDashboard,
       defaultDashboardLink,
       onSetDefaultDashboard,
+      searchTerm,
     } = this.props
 
     return (
       <div className="col-md-12">
-        <div className="panel">
-          <div className="panel-body">
-            <DashboardsTable
-              dashboards={this.filteredDashboards}
-              onDeleteDashboard={onDeleteDashboard}
-              onCreateDashboard={onCreateDashboard}
-              onCloneDashboard={onCloneDashboard}
-              onExportDashboard={onExportDashboard}
-              defaultDashboardLink={defaultDashboardLink}
-              onSetDefaultDashboard={onSetDefaultDashboard}
-            />
-          </div>
-        </div>
+        <DashboardsTable
+          searchTerm={searchTerm}
+          dashboards={this.filteredDashboards}
+          onDeleteDashboard={onDeleteDashboard}
+          onCreateDashboard={onCreateDashboard}
+          onCloneDashboard={onCloneDashboard}
+          onExportDashboard={onExportDashboard}
+          defaultDashboardLink={defaultDashboardLink}
+          onSetDefaultDashboard={onSetDefaultDashboard}
+        />
       </div>
     )
   }
@@ -54,9 +58,11 @@ class DashboardsPageContents extends Component<Props> {
   private get filteredDashboards(): Dashboard[] {
     const {dashboards, searchTerm} = this.props
 
-    return dashboards.filter(d =>
+    const matchingDashboards = dashboards.filter(d =>
       d.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
+
+    return _.sortBy(matchingDashboards, d => d.name.toLowerCase())
   }
 }
 

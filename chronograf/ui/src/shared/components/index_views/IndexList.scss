@@ -1,0 +1,106 @@
+/*
+  Index List Styles
+  ------------------------------------------------------------------------------
+*/
+
+.index-list {
+  border: 0;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.index-list--header-cell {
+  @include no-user-select();
+  padding: 0 13px;
+  font-size: 14px;
+  font-weight: 600;
+  color: $g11-sidewalk;
+  white-space: nowrap;
+  height: 52px;
+}
+
+.index-list--cell {
+  height: calc(100% - #{$ix-border});
+  padding: 0 13px;
+  background-color: $g3-castle;
+  font-size: 14px;
+  font-weight: 500;
+  color: $g13-mist;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+// Alignment modifiers
+.index-list--align-left {
+  text-align: left;
+}
+.index-list--align-left .index-list--cell {
+ justify-content: flex-start;
+}
+
+.index-list--align-right {
+  text-align: right;
+}
+.index-list--align-right .index-list--cell {
+ justify-content: flex-end;
+}
+
+.index-list--align-center {
+  text-align: center;
+}
+.index-list--align-center .index-list--cell {
+ justify-content: center;
+}
+
+// TD Style
+.index-list--row-cell {
+  position: relative;
+  height: 52px;
+  
+  &:first-child .index-list--cell {
+    border-radius: $radius 0 0 $radius;
+  }
+
+  &:last-child .index-list--cell {
+    border-radius: 0 $radius $radius 0;
+  }
+}
+
+// Row hover State
+.index-list--row:hover .index-list--cell {
+  background-color: $g4-onyx;
+  color: $g18-cloud;
+}
+
+// Show cell contents on row hover
+.index-list--show-hover .index-list--cell > * {
+  transition: opacity 0.25s ease;
+  opacity: 0;
+}
+.index-list--row:hover .index-list--show-hover .index-list--cell > * {
+  opacity: 1;
+}
+
+// Row Disabled State 
+.index-list--row-cell.index-list--row-disabled .index-list--cell {
+  background-color: rgba($g3-castle, 0.5);
+  color: $g9-mountain;
+  font-style: italic;
+}
+
+// Row Disabled Hover State 
+.index-list--row:hover .index-list--row-cell.index-list--row-disabled .index-list--cell {
+  background-color: rgba($g3-castle, 0.7);
+  color: $g15-platinum;
+}
+
+// Empty state
+.index-list--empty-cell {
+  background-color: rgba($g3-castle, 0.5);
+  border-radius: $radius;
+  display: flex;
+  align-content: center;
+  justify-content: center;
+  color: $empty-state-text;
+}

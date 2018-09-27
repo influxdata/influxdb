@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {SlideToggle} from 'src/clockface'
+import {SlideToggle, ComponentSize} from 'src/clockface'
 
 interface Props {
   dashboardLink: string
@@ -9,7 +9,13 @@ interface Props {
 
 class DefaultToggle extends PureComponent<Props> {
   public render() {
-    return <SlideToggle active={this.isActive} onChange={this.handleChange} />
+    return (
+      <SlideToggle
+        active={this.isActive}
+        onChange={this.handleChange}
+        size={ComponentSize.ExtraSmall}
+      />
+    )
   }
 
   private handleChange = () => {

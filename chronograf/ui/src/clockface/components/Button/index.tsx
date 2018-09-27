@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {Component, MouseEvent} from 'react'
 import classnames from 'classnames'
 
 // Types
@@ -15,7 +15,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   text?: string
-  onClick?: () => void
+  onClick?: (e?: MouseEvent<HTMLButtonElement>) => void
   color?: ComponentColor
   size?: ComponentSize
   shape?: ButtonShape

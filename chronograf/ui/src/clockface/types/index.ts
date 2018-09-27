@@ -154,3 +154,9 @@ export enum Columns {
   Eleven = 11,
   Twelve = 12,
 }
+
+export enum Alignment {
+  Left = 'left',
+  Center = 'center',
+  Right = 'right',
+}
