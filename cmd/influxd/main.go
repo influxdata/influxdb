@@ -164,6 +164,11 @@ func platformF(cmd *cobra.Command, args []string) {
 		userSvc = c
 	}
 
+	var userResourceSvc platform.UserResourceMappingService
+	{
+		userResourceSvc = c
+	}
+
 	var dashboardSvc platform.DashboardService
 	{
 		dashboardSvc = c
@@ -277,6 +282,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		orgHandler := http.NewOrgHandler()
 		orgHandler.OrganizationService = orgSvc
 		orgHandler.BucketService = bucketSvc
+		orgHandler.UserResourceMappingService = userResourceSvc
 
 		userHandler := http.NewUserHandler()
 		userHandler.UserService = userSvc

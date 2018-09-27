@@ -118,6 +118,11 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
+		// Always create UserResourceMapping bucket.
+		if err := c.initializeUserResourceMappings(ctx, tx); err != nil {
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		return err
