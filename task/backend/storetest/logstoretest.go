@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
 )
@@ -86,7 +87,7 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	}
 
 	if !reflect.DeepEqual(run, *returnedRun) {
-		t.Fatalf("expected: %+v, got: %+v", run, returnedRun)
+		t.Fatalf("expected: %+v, got: %+v, \n diff: %+v", run, *returnedRun, cmp.Diff(run, *returnedRun))
 	}
 }
 
@@ -144,7 +145,7 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 	}
 
 	if !reflect.DeepEqual(run, *returnedRun) {
-		t.Fatalf("expected: %+v, got: %+v", run, returnedRun)
+		t.Fatalf("expected: %+v, got: %+v,\n\ndiff: %+v", run, *returnedRun, cmp.Diff(run, *returnedRun))
 	}
 }
 

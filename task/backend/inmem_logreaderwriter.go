@@ -41,7 +41,15 @@ func (r *runReaderWriter) UpdateRunState(ctx context.Context, rlb RunLogBase, wh
 	if !ok {
 		tid := append([]byte(nil), rlb.Task.ID...)
 		sf := time.Unix(rlb.RunScheduledFor, 0).UTC()
-		run := &platform.Run{ID: rlb.RunID, TaskID: tid, Status: status.String(), ScheduledFor: sf.Format(time.RFC3339)}
+		run := &platform.Run{
+			ID:           rlb.RunID,
+			TaskID:       tid,
+			Status:       status.String(),
+			ScheduledFor: sf.Format(time.RFC3339),
+		}
+		if rlb.RequestedAt != 0 {
+			run.RequestedAt = time.Unix(rlb.RequestedAt, 0).UTC().Format(time.RFC3339)
+		}
 		timeSetter(run)
 		r.byRunID[ridStr] = run
 		tidStr := rlb.Task.ID.String()
@@ -57,7 +65,6 @@ func (r *runReaderWriter) UpdateRunState(ctx context.Context, rlb RunLogBase, wh
 func (r *runReaderWriter) AddRunLog(ctx context.Context, rlb RunLogBase, when time.Time, log string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
 	log = fmt.Sprintf("%s: %s", when.Format(time.RFC3339), log)
 	ridStr := rlb.RunID.String()
 	existingRun, ok := r.byRunID[ridStr]
