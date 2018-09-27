@@ -14,6 +14,7 @@ import SlideToggle from './components/slide_toggle/SlideToggle'
 import WizardFullScreen from './components/wizard/WizardFullScreen'
 import WizardProgressHeader from './components/wizard/WizardProgressHeader'
 import ProgressBar from './components/wizard/ProgressBar'
+import ComponentSpacer from './components/component_spacer/ComponentSpacer'
 
 // Import Types
 import {
@@ -26,11 +27,14 @@ import {
   Greys,
   IconFont,
   Columns,
+  Alignment,
 } from './types'
 
 // Fire de lazer
 export {
+  Alignment,
   Button,
+  ComponentSpacer,
   Dropdown,
   DropdownMode,
   MultiSelectDropdown,
