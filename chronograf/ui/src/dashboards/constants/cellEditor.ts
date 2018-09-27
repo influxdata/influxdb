@@ -1,7 +1,7 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/dashboards/constants'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 import {CellType, Axis} from 'src/types/dashboards'
-import {ColorString, ColorNumber} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 
 export const initializeOptions = (cellType: CellType) => {
   switch (cellType) {
@@ -32,11 +32,11 @@ export const DEFAULT_AXIS: DefaultAxis = {
 export const TOOLTIP_Y_VALUE_FORMAT =
   '<p><strong>K/M/B</strong> = Thousand / Million / Billion<br/><strong>K/M/G</strong> = Kilo / Mega / Giga </p>'
 
-interface Color {
+interface ColorArgs {
   cellType: CellType
-  thresholdsListColors: ColorNumber[]
-  gaugeColors: ColorNumber[]
-  lineColors: ColorString[]
+  thresholdsListColors: Color[]
+  gaugeColors: Color[]
+  lineColors: Color[]
 }
 
 export const getCellTypeColors = ({
@@ -44,8 +44,8 @@ export const getCellTypeColors = ({
   gaugeColors,
   thresholdsListColors,
   lineColors,
-}: Color): ColorString[] => {
-  let colors: ColorString[] = []
+}: ColorArgs): Color[] => {
+  let colors: Color[] = []
 
   switch (cellType) {
     case CellType.Gauge: {

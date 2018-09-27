@@ -2,34 +2,46 @@ import {shallow} from 'enzyme'
 import React from 'react'
 import Gauge from 'src/shared/components/Gauge'
 import GaugeChart from 'src/shared/components/GaugeChart'
+import {ViewType, ViewShape, GaugeView} from 'src/types/v2/dashboards'
 
-const data = [
+const tables = [
   {
-    response: {
-      results: [
-        {
-          series: [
-            {
-              values: [[1, 2]],
-              columns: ['time', 'value'],
-            },
-          ],
-        },
-      ],
+    id: '54797afd-734d-4ca3-94b6-3a7870c53b27',
+    data: [
+      ['', 'result', 'table', '_time', 'mean', '_measurement'],
+      ['', '', '0', '2018-09-27T16:50:10Z', '2', 'cpu'],
+    ],
+    name: '_measurement=cpu',
+    groupKey: {
+      _measurement: 'cpu',
+    },
+    dataTypes: {
+      '': '#datatype',
+      result: 'string',
+      table: 'long',
+      _time: 'dateTime:RFC3339',
+      mean: 'double',
+      _measurement: 'string',
     },
   },
 ]
 
-const defaultProps = {
-  data: [],
-  isFetchingInitially: false,
-  cellID: '',
+const properties: GaugeView = {
+  queries: [],
+  colors: [],
+  shape: ViewShape.ChronografV2,
+  type: ViewType.Gauge,
   prefix: '',
   suffix: '',
   decimalPlaces: {
     digits: 10,
     isEnforced: false,
   },
+}
+
+const defaultProps = {
+  tables: [],
+  properties,
 }
 
 const setup = (overrides = {}) => {
@@ -54,10 +66,10 @@ describe('GaugeChart', () => {
 
     describe('when data has a value', () => {
       it('renders the correct number', () => {
-        const wrapper = setup({data})
+        const wrapper = setup({tables})
 
         expect(wrapper.find(Gauge).exists()).toBe(true)
-        expect(wrapper.find(Gauge).props().gaugePosition).toBe(2)
+        expect(wrapper.find(Gauge).props().gaugePosition).toBe('2')
       })
     })
   })

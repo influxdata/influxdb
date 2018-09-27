@@ -91,6 +91,9 @@ bin/$(GOOS)/go-bindata: go.mod go.sum
 
 node_modules: chronograf/ui/node_modules
 
+chronograf_lint:
+	make -C chronograf/ui lint
+
 chronograf/ui/node_modules:
 	make -C chronograf/ui node_modules
 

@@ -1,5 +1,5 @@
 import {Template, TimeRange, QueryConfig} from 'src/types'
-import {ColorString} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 
 export interface Axis {
   label: string
@@ -68,7 +68,7 @@ export interface Cell {
   queries: CellQuery[]
   type: CellType
   axes: Axes
-  colors: ColorString[]
+  colors: Color[]
   tableOptions: TableOptions
   fieldOptions: FieldOption[]
   timeFormat: string

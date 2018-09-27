@@ -173,9 +173,6 @@ describe('influxql astToString', () => {
     const expected = `SELECT derivative("field1", 1h) / derivative("field2", 1h) FROM "myseries"`
     const actual = ast.toString()
 
-    // console.log('actual', actual)
-    // console.log('expected', expected)
-
     expect(actual).toBe(expected)
   })
 

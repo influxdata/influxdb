@@ -2,6 +2,7 @@ module.exports = {
   projects: [
     {
       displayName: 'test',
+      testURL: 'http://localhost',
       testPathIgnorePatterns: [
         'build',
         '<rootDir>/node_modules/(?!(jest-test))',
@@ -25,12 +26,6 @@ module.exports = {
       runner: 'jest-runner-eslint',
       displayName: 'eslint',
       testMatch: ['<rootDir>/**/*.test.js'],
-    },
-    {
-      runner: 'jest-runner-tslint',
-      displayName: 'tslint',
-      moduleFileExtensions: ['ts', 'tsx'],
-      testMatch: ['<rootDir>/**/*.test.ts', '<rootDir>/**/*.test.tsx'],
     },
   ],
 }

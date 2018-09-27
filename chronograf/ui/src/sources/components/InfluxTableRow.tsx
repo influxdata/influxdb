@@ -1,4 +1,4 @@
-import React, {PureComponent, ReactElement} from 'react'
+import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 
 import ConfirmButton from 'src/shared/components/ConfirmButton'
@@ -42,7 +42,7 @@ class InfluxTableRow extends PureComponent<Props> {
     this.props.onDeleteSource(this.props.source)
   }
 
-  private get connectButton(): ReactElement<HTMLDivElement> {
+  private get connectButton(): JSX.Element {
     const {source} = this.props
     if (this.isCurrentSource) {
       return (

@@ -5,12 +5,12 @@ import {bindActionCreators} from 'redux'
 import ColorScaleDropdown from 'src/shared/components/ColorScaleDropdown'
 
 import {updateLineColors} from 'src/dashboards/actions/cellEditorOverlay'
-import {ColorNumber} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  lineColors: ColorNumber[]
-  handleUpdateLineColors: (colors: ColorNumber[]) => void
+  lineColors: Color[]
+  handleUpdateLineColors: (colors: Color[]) => void
 }
 
 @ErrorHandling

@@ -9,7 +9,7 @@ import Threshold from 'src/dashboards/components/Threshold'
 import ColorDropdown from 'src/shared/components/ColorDropdown'
 
 import {updateThresholdsListColors} from 'src/dashboards/actions/cellEditorOverlay'
-import {ColorNumber} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 
 import {
   THRESHOLD_COLORS,
@@ -24,8 +24,8 @@ interface Props {
   onResetFocus: () => void
   showListHeading: boolean
   thresholdsListType: string
-  thresholdsListColors: ColorNumber[]
-  handleUpdateThresholdsListColors: (c: ColorNumber[]) => void
+  thresholdsListColors: Color[]
+  handleUpdateThresholdsListColors: (c: Color[]) => void
 }
 
 @ErrorHandling
@@ -99,8 +99,8 @@ class ThresholdsList extends PureComponent<Props> {
 
     const randomColor = _.random(0, THRESHOLD_COLORS.length - 1)
 
-    const maxValue = DEFAULT_VALUE_MIN
-    const minValue = DEFAULT_VALUE_MAX
+    const maxValue = +DEFAULT_VALUE_MIN
+    const minValue = +DEFAULT_VALUE_MAX
 
     let randomValue = _.round(_.random(minValue, maxValue, true), 2)
 
@@ -108,7 +108,7 @@ class ThresholdsList extends PureComponent<Props> {
       const colorsValues = _.mapValues(thresholdsListColors, 'value')
       do {
         randomValue = _.round(_.random(minValue, maxValue, true), 2)
-      } while (_.includes(colorsValues, randomValue))
+      } while (_.includes(colorsValues, `${randomValue}`))
     }
 
     const newThreshold = {
@@ -122,7 +122,7 @@ class ThresholdsList extends PureComponent<Props> {
     const updatedColors = _.sortBy(
       [...thresholdsListColors, newThreshold],
       color => color.value
-    )
+    ) as Color[]
 
     handleUpdateThresholdsListColors(updatedColors)
     onResetFocus()

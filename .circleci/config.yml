@@ -22,6 +22,7 @@ jobs:
             - ~/.cache/yarn
 
       - run: make test-js
+      - run: make chronograf_lint
 
   gotest:
     docker:

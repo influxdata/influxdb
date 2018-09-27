@@ -6,13 +6,14 @@ import classnames from 'classnames'
 import uuid from 'uuid'
 
 import * as actions from 'src/dashboards/actions/v2/views'
-import {SeriesLegendData} from 'src/types/dygraphs'
 import DygraphLegendSort from 'src/shared/components/DygraphLegendSort'
 
 import {makeLegendStyles} from 'src/shared/graphs/helpers'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {NO_CELL} from 'src/shared/constants'
-import {DygraphClass} from 'src/types'
+
+// Types
+import DygraphClass, {SeriesLegendData} from 'src/external/dygraph'
 
 interface Props {
   hoverTime: number

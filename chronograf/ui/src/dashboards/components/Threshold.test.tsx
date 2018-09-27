@@ -12,7 +12,7 @@ describe('Threshold', () => {
         hex: '#444444',
         id: 'id',
         name: 'name',
-        value: 2,
+        value: '2',
       },
       disableMaxColor: true,
       onChooseColor: () => {},

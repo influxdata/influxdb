@@ -10,13 +10,13 @@ import InvalidData from 'src/shared/components/InvalidData'
 
 // Types
 import {Options} from 'src/external/dygraph'
-import {LineView} from 'src/types/v2/dashboards'
+import {StackedView} from 'src/types/v2/dashboards'
 import {TimeRange} from 'src/types/v2'
 import {FluxTable, RemoteDataState} from 'src/types'
 
 interface Props {
   loading: RemoteDataState
-  properties: LineView
+  properties: StackedView
   timeRange: TimeRange
   tables: FluxTable[]
   viewID: string
@@ -26,7 +26,7 @@ interface Props {
 }
 
 @ErrorHandlingWith(InvalidData)
-class LineGraph extends PureComponent<Props> {
+class Stacked extends PureComponent<Props> {
   public static defaultProps: Partial<Props> = {
     staticLegend: false,
   }
@@ -81,8 +81,9 @@ class LineGraph extends PureComponent<Props> {
       axisLineColor: '#383846',
       gridLineColor: '#383846',
       connectSeparatedPoints: true,
+      stackedGraph: true,
     }
   }
 }
 
-export default LineGraph
+export default Stacked

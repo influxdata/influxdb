@@ -32,26 +32,17 @@ import {
   SourceLinks,
   SourceAuthenticationMethod,
 } from './sources'
-import {DropdownAction, DropdownItem, Constructable} from './shared'
+import {DropdownAction, DropdownItem} from './shared'
 import {
   Notification,
   NotificationFunc,
   NotificationAction,
 } from './notifications'
 import {FluxTable, ScriptStatus, SchemaFilter, RemoteDataState} from './flux'
-import {
-  DygraphSeries,
-  DygraphValue,
-  DygraphAxis,
-  DygraphClass,
-  DygraphData,
-} from './dygraphs'
-import {JSONFeedData} from './status'
 import {AnnotationInterface} from './annotations'
 import {WriteDataMode} from './dataExplorer'
 
 export {
-  Constructable,
   Template,
   TemplateQuery,
   TemplateValue,
@@ -79,11 +70,6 @@ export {
   DropdownAction,
   DropdownItem,
   TimeRange,
-  DygraphData,
-  DygraphSeries,
-  DygraphValue,
-  DygraphAxis,
-  DygraphClass,
   Notification,
   NotificationFunc,
   NotificationAction,
@@ -97,7 +83,6 @@ export {
   ScriptStatus,
   SchemaFilter,
   RemoteDataState,
-  JSONFeedData,
   AnnotationInterface,
   TemplateType,
   TemplateValueType,

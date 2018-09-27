@@ -1,6 +1,6 @@
-import React, {SFC, ReactElement} from 'react'
+import React, {SFC} from 'react'
 
-const InfluxTableHead: SFC = (): ReactElement<HTMLTableHeaderCellElement> => {
+const InfluxTableHead: SFC = (): JSX.Element => {
   return (
     <thead>
       <tr>

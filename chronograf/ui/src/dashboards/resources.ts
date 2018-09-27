@@ -19,11 +19,12 @@ import {
   DecimalPlaces,
   CellType,
 } from 'src/types/dashboards'
-import {LineColor, ColorNumber} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 
 export const dashboard = {
   id: '1',
   name: 'd1',
+  default: false,
   cells: [
     {
       x: 1,
@@ -42,6 +43,7 @@ export const dashboard = {
   links: {
     self: '/v2/dashboards/1',
     cells: '/v2/dashboards/cells',
+    copy: '/v2/dashboards/1/cells/1/copy',
   },
 }
 
@@ -175,7 +177,7 @@ export const tableOptions: TableOptions = {
   wrapping: 'truncate',
   fixFirstColumn: true,
 }
-export const lineColors: LineColor[] = [
+export const lineColors: Color[] = [
   {
     id: '574fb0a3-0a26-44d7-8d71-d4981756acb1',
     type: 'scale',
@@ -398,29 +400,29 @@ export const predefinedTemplateVariables: Template[] = [
   {...interval},
 ]
 
-export const thresholdsListColors: ColorNumber[] = [
+export const thresholdsListColors: Color[] = [
   {
     type: 'text',
     hex: '#00C9FF',
     id: 'base',
     name: 'laser',
-    value: -1000000000000000000,
+    value: '-1000000000000000000',
   },
 ]
 
-export const gaugeColors: ColorNumber[] = [
+export const gaugeColors: Color[] = [
   {
     type: 'min',
     hex: '#00C9FF',
     id: '0',
     name: 'laser',
-    value: 0,
+    value: '0',
   },
   {
     type: 'max',
     hex: '#9394FF',
     id: '1',
     name: 'comet',
-    value: 100,
+    value: '100',
   },
 ]

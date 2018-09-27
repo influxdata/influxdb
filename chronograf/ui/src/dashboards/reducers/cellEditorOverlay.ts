@@ -17,14 +17,14 @@ import {initializeOptions} from 'src/dashboards/constants/cellEditor'
 import {Action, ActionType} from 'src/dashboards/actions/cellEditorOverlay'
 import {CellType, Cell} from 'src/types'
 import {ThresholdType, TableOptions} from 'src/types/dashboards'
-import {ThresholdColor, GaugeColor, LineColor} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 
 interface CEOInitialState {
   cell: Cell | null
   thresholdsListType: ThresholdType
-  thresholdsListColors: ThresholdColor[]
-  gaugeColors: GaugeColor[]
-  lineColors: LineColor[]
+  thresholdsListColors: Color[]
+  gaugeColors: Color[]
+  lineColors: Color[]
 }
 
 export const initialState = {

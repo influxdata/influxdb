@@ -17,6 +17,14 @@ else
 	yarn run build
 endif
 
+lint: node_modules $(UISOURCES)
+ifndef YARN
+	$(error Please install yarn 0.19.1+)
+else
+	yarn run tsc
+endif
+
+
 test:
 ifndef YARN
 	$(error Please install yarn 0.19.1+)
@@ -34,4 +42,4 @@ endif
 run:
 	yarn run start
 
-.PHONY: all clean test run
+.PHONY: all clean test run lint

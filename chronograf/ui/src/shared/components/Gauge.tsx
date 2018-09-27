@@ -6,20 +6,22 @@ import {GAUGE_SPECS} from 'src/shared/constants/gaugeSpecs'
 import {
   COLOR_TYPE_MIN,
   COLOR_TYPE_MAX,
+  DEFAULT_VALUE_MAX,
+  DEFAULT_VALUE_MIN,
   MIN_THRESHOLDS,
 } from 'src/shared/constants/thresholds'
-import {MAX_TOLOCALESTRING_VAL} from 'src/dashboards/constants'
+import {MAX_TO_LOCALE_STRING_VAL} from 'src/dashboards/constants'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {ColorString} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 import {DecimalPlaces} from 'src/types/dashboards'
 
 interface Props {
   width: string
   height: string
   gaugePosition: number
-  colors?: ColorString[]
+  colors?: Color[]
   prefix: string
   suffix: string
   decimalPlaces: DecimalPlaces
@@ -78,12 +80,21 @@ class Gauge extends Component<Props> {
     if (!colors || colors.length === 0) {
       return
     }
+
     // Distill out max and min values
     const minValue = Number(
-      colors.find(color => color.type === COLOR_TYPE_MIN).value
+      _.get(
+        colors.find(color => color.type === COLOR_TYPE_MIN),
+        'value',
+        DEFAULT_VALUE_MIN
+      )
     )
     const maxValue = Number(
-      colors.find(color => color.type === COLOR_TYPE_MAX).value
+      _.get(
+        colors.find(color => color.type === COLOR_TYPE_MAX),
+        'value',
+        DEFAULT_VALUE_MAX
+      )
     )
 
     // The following functions must be called in the specified order
@@ -206,7 +217,7 @@ class Gauge extends Component<Props> {
 
     // Draw Large ticks
     for (let lt = 0; lt <= lineCount; lt++) {
-      // Rototion before drawing line
+      // Rotation before drawing line
       ctx.rotate(startDegree)
       ctx.rotate(lt * arcLargeIncrement)
       // Draw line
@@ -225,7 +236,7 @@ class Gauge extends Component<Props> {
 
     // Draw Small ticks
     for (let lt = 0; lt <= totalSmallLineCount; lt++) {
-      // Rototion before drawing line
+      // Rotation before drawing line
       ctx.rotate(startDegree)
       ctx.rotate(lt * arcSmallIncrement)
       // Draw line
@@ -322,7 +333,7 @@ class Gauge extends Component<Props> {
     let valueString
 
     if (decimalPlaces.isEnforced) {
-      const digits = Math.min(decimalPlaces.digits, MAX_TOLOCALESTRING_VAL)
+      const digits = Math.min(decimalPlaces.digits, MAX_TO_LOCALE_STRING_VAL)
       valueString = value.toLocaleString(undefined, {
         minimumFractionDigits: 0,
         maximumFractionDigits: digits,
@@ -330,7 +341,7 @@ class Gauge extends Component<Props> {
     } else {
       valueString = value.toLocaleString(undefined, {
         minimumFractionDigits: 0,
-        maximumFractionDigits: MAX_TOLOCALESTRING_VAL,
+        maximumFractionDigits: MAX_TO_LOCALE_STRING_VAL,
       })
     }
 
@@ -343,7 +354,7 @@ class Gauge extends Component<Props> {
     let valueString
 
     if (decimalPlaces.isEnforced) {
-      const digits = Math.min(decimalPlaces.digits, MAX_TOLOCALESTRING_VAL)
+      const digits = Math.min(decimalPlaces.digits, MAX_TO_LOCALE_STRING_VAL)
       valueString = value.toLocaleString(undefined, {
         minimumFractionDigits: digits,
         maximumFractionDigits: digits,
@@ -351,7 +362,7 @@ class Gauge extends Component<Props> {
     } else {
       valueString = value.toLocaleString(undefined, {
         minimumFractionDigits: 0,
-        maximumFractionDigits: MAX_TOLOCALESTRING_VAL,
+        maximumFractionDigits: MAX_TO_LOCALE_STRING_VAL,
       })
     }
 

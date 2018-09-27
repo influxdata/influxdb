@@ -23,16 +23,16 @@ import {
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Axes} from 'src/types'
 import {DecimalPlaces} from 'src/types/dashboards'
-import {ColorNumber} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 
 interface Props {
   axes: Axes
-  gaugeColors: ColorNumber[]
+  gaugeColors: Color[]
   decimalPlaces: DecimalPlaces
   onResetFocus: () => void
   handleUpdateAxes: (a: Axes) => void
   onUpdateDecimalPlaces: (d: DecimalPlaces) => void
-  handleUpdateGaugeColors: (d: ColorNumber[]) => void
+  handleUpdateGaugeColors: (d: Color[]) => void
 }
 
 @ErrorHandling
@@ -125,8 +125,8 @@ class GaugeOptions extends PureComponent<Props> {
     if (sortedColors.length <= MAX_THRESHOLDS) {
       const randomColor = _.random(0, THRESHOLD_COLORS.length - 1)
 
-      const maxValue = sortedColors[sortedColors.length - 1].value
-      const minValue = sortedColors[0].value
+      const maxValue = +sortedColors[sortedColors.length - 1].value
+      const minValue = +sortedColors[0].value
 
       const colorsValues = _.mapValues(gaugeColors, 'value')
       let randomValue
@@ -143,7 +143,7 @@ class GaugeOptions extends PureComponent<Props> {
         name: THRESHOLD_COLORS[randomColor].name,
       }
 
-      const updatedColors: ColorNumber[] = _.sortBy<ColorNumber>(
+      const updatedColors: Color[] = _.sortBy<Color>(
         [...gaugeColors, newThreshold],
         color => color.value
       )

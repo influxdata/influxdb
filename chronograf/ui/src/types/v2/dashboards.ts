@@ -1,5 +1,5 @@
 import {QueryConfig} from 'src/types'
-import {ColorString} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 
 export interface Axis {
   label: string
@@ -66,15 +66,117 @@ export interface MarkDownProperties {
 export interface View {
   id: string
   name: string
-  properties: MarkDownProperties | V1View
+  properties: ViewProperties
+}
+
+export type RefreshingViewProperties =
+  | LineView
+  | StepPlotView
+  | StackedView
+  | BarChartView
+  | LinePlusSingleStatView
+  | SingleStatView
+  | TableView
+  | GaugeView
+
+export type ViewProperties = RefreshingViewProperties | MarkdownView | EmptyView
+
+export interface EmptyView {
+  type: ViewShape.Empty
+  shape: ViewShape.Empty
+}
+
+export interface LineView {
+  type: ViewType.Line
+  queries: CellQuery[]
+  shape: ViewShape.ChronografV2
+  axes: Axes
+  colors: Color[]
+  legend: Legend
+}
+
+export interface StackedView {
+  type: ViewType.Stacked
+  queries: CellQuery[]
+  shape: ViewShape.ChronografV2
+  axes: Axes
+  colors: Color[]
+  legend: Legend
+}
+
+export interface StepPlotView {
+  type: ViewType.StepPlot
+  queries: CellQuery[]
+  shape: ViewShape.ChronografV2
+  axes: Axes
+  colors: Color[]
+  legend: Legend
+}
+
+export interface BarChartView {
+  type: ViewType.Bar
+  queries: CellQuery[]
+  shape: ViewShape.ChronografV2
+  axes: Axes
+  colors: Color[]
+  legend: Legend
+}
+
+export interface LinePlusSingleStatView {
+  type: ViewType.LinePlusSingleStat
+  queries: CellQuery[]
+  shape: ViewShape.ChronografV2
+  axes: Axes
+  colors: Color[]
+  legend: Legend
+  prefix: string
+  suffix: string
+  decimalPlaces: DecimalPlaces
+}
+
+export interface SingleStatView {
+  type: ViewType.SingleStat
+  queries: CellQuery[]
+  shape: ViewShape.ChronografV2
+  colors: Color[]
+  prefix: string
+  suffix: string
+  decimalPlaces: DecimalPlaces
+}
+
+export interface GaugeView {
+  type: ViewType.Gauge
+  queries: CellQuery[]
+  shape: ViewShape.ChronografV2
+  colors: Color[]
+  prefix: string
+  suffix: string
+  decimalPlaces: DecimalPlaces
+}
+
+export interface TableView {
+  type: ViewType.Table
+  queries: CellQuery[]
+  shape: ViewShape.ChronografV2
+  colors: Color[]
+  tableOptions: TableOptions
+  fieldOptions: FieldOption[]
+  decimalPlaces: DecimalPlaces
+  timeFormat: string
+}
+
+export interface MarkdownView {
+  type: ViewType.Markdown
+  shape: ViewShape.ChronografV2
+  text: string
 }
 
 export interface V1View {
-  type: V1ViewTypes
+  type: ViewType
   queries: CellQuery[]
   shape: ViewShape
   axes: Axes
-  colors: ColorString[]
+  colors: Color[]
   tableOptions: TableOptions
   fieldOptions: FieldOption[]
   timeFormat: string
@@ -85,31 +187,27 @@ export interface V1View {
 }
 
 export enum ViewShape {
+  ChronografV2 = 'chronografV2',
   ChronografV1 = 'chronografV1',
   Empty = 'empty',
 }
 
 export enum ViewType {
-  Markdown = 'markdown',
-}
-
-export enum V1ViewTypes {
-  Line = 'line',
-  Stacked = 'line-stacked',
-  StepPlot = 'line-stepplot',
   Bar = 'bar',
+  Line = 'line',
+  Stacked = 'stacked',
+  StepPlot = 'step-plot',
   LinePlusSingleStat = 'line-plus-single-stat',
   SingleStat = 'single-stat',
   Gauge = 'gauge',
   Table = 'table',
-  Alerts = 'alerts',
-  News = 'news',
-  Guide = 'guide',
+  Markdown = 'markdown',
 }
 
 interface DashboardLinks {
   self: string
   cells: string
+  copy: string
 }
 
 export interface Dashboard {

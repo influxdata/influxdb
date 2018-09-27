@@ -1,10 +1,10 @@
-import React, {PureComponent, ReactElement} from 'react'
+import React, {PureComponent} from 'react'
 import classnames from 'classnames'
 
 interface Props {
   fileTypesToAccept?: string
   containerClass?: string
-  handleSubmit: (uploadContent: string, fileName: string) => void
+  handleSubmit: (uploadContent: string | ArrayBuffer, fileName: string) => void
   submitText?: string
   submitOnDrop?: boolean
   submitOnUpload?: boolean
@@ -13,7 +13,7 @@ interface Props {
 
 interface State {
   inputContent: string | null
-  uploadContent: string
+  uploadContent: string | ArrayBuffer
   fileName: string
   dragClass: string
 }
@@ -106,7 +106,7 @@ class DragAndDrop extends PureComponent<Props, State> {
     return classnames('drag-and-drop--form', {active: !uploadContent})
   }
 
-  private get dragAreaHeader(): ReactElement<HTMLHeadElement> {
+  private get dragAreaHeader(): JSX.Element {
     const {uploadContent, fileName} = this.state
 
     if (uploadContent) {
@@ -120,7 +120,7 @@ class DragAndDrop extends PureComponent<Props, State> {
     )
   }
 
-  private get buttons(): ReactElement<HTMLSpanElement> | null {
+  private get buttons(): JSX.Element | null {
     const {uploadContent} = this.state
     const {submitText, submitOnDrop} = this.props
 
@@ -175,10 +175,10 @@ class DragAndDrop extends PureComponent<Props, State> {
 
     const reader = new FileReader()
     reader.readAsText(file)
-    reader.onload = loadEvent => {
+    reader.onload = () => {
       this.setState(
         {
-          uploadContent: loadEvent.target.result,
+          uploadContent: reader.result,
           fileName: file.name,
         },
         this.submitOnUpload
@@ -201,10 +201,10 @@ class DragAndDrop extends PureComponent<Props, State> {
 
     const reader = new FileReader()
     reader.readAsText(file)
-    reader.onload = loadEvent => {
+    reader.onload = () => {
       this.setState(
         {
-          uploadContent: loadEvent.target.result,
+          uploadContent: reader.result,
           fileName: file.name,
         },
         this.submitOnDrop

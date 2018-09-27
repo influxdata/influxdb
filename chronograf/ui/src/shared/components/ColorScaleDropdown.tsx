@@ -5,16 +5,16 @@ import classnames from 'classnames'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
-import {ColorNumber} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 import {LINE_COLOR_SCALES} from 'src/shared/constants/graphColorPalettes'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  onChoose: (colors: ColorNumber[]) => void
+  onChoose: (colors: Color[]) => void
   stretchToFit?: boolean
   disabled?: boolean
-  selected: ColorNumber[]
+  selected: Color[]
 }
 
 interface State {

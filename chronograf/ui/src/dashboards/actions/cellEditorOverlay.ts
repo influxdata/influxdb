@@ -1,4 +1,4 @@
-import {ColorNumber, ColorString} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 import {
   DecimalPlaces,
   FieldOption,
@@ -68,7 +68,7 @@ export interface RenameCellAction {
 export interface UpdateThresholdsListColorsAction {
   type: ActionType.UpdateThresholdsListColors
   payload: {
-    thresholdsListColors: ColorNumber[]
+    thresholdsListColors: Color[]
   }
 }
 
@@ -82,7 +82,7 @@ export interface UpdateThresholdsListTypeAction {
 export interface UpdateGaugeColorsAction {
   type: ActionType.UpdateGaugeColors
   payload: {
-    gaugeColors: ColorNumber[]
+    gaugeColors: Color[]
   }
 }
 
@@ -103,7 +103,7 @@ export interface UpdateTableOptionsAction {
 export interface UpdateLineColorsAction {
   type: ActionType.UpdateLineColors
   payload: {
-    lineColors: ColorString[]
+    lineColors: Color[]
   }
 }
 
@@ -156,7 +156,7 @@ export const renameCell = (cellName: string): RenameCellAction => ({
 })
 
 export const updateThresholdsListColors = (
-  thresholdsListColors: ColorNumber[]
+  thresholdsListColors: Color[]
 ): UpdateThresholdsListColorsAction => ({
   type: ActionType.UpdateThresholdsListColors,
   payload: {
@@ -174,7 +174,7 @@ export const updateThresholdsListType = (
 })
 
 export const updateGaugeColors = (
-  gaugeColors: ColorNumber[]
+  gaugeColors: Color[]
 ): UpdateGaugeColorsAction => ({
   type: ActionType.UpdateGaugeColors,
   payload: {
@@ -199,7 +199,7 @@ export const updateTableOptions = (
 })
 
 export const updateLineColors = (
-  lineColors: ColorString[]
+  lineColors: Color[]
 ): UpdateLineColorsAction => ({
   type: ActionType.UpdateLineColors,
   payload: {

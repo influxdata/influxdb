@@ -5,7 +5,7 @@ import NanoDate from 'nano-date'
 import ReactResizeDetector from 'react-resize-detector'
 
 // Components
-import D from 'src/external/dygraph'
+import Dygraphs from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import StaticLegend from 'src/shared/components/StaticLegend'
 import Crosshair from 'src/shared/components/crosshair/Crosshair'
@@ -35,38 +35,29 @@ const {LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {
-  Axes,
-  TimeRange,
-  DygraphData,
-  DygraphClass,
-  DygraphSeries,
-  Constructable,
-} from 'src/types'
-import {LineColor} from 'src/types/colors'
+import {Color} from 'src/types/colors'
+import {Axes, TimeRange} from 'src/types'
 import {CellQuery, ViewType} from 'src/types/v2/dashboards'
-
-const Dygraphs = D as Constructable<DygraphClass>
+import {DygraphData, DygraphSeries, Options} from 'src/external/dygraph'
 
 interface Props {
   type: ViewType
-  viewID?: string
-  queries?: CellQuery[]
   timeSeries: DygraphData
   labels: string[]
-  options: dygraphs.Options
-  containerStyle: object // TODO
-  dygraphSeries: DygraphSeries
-  timeRange?: TimeRange
-  colors: LineColor[]
+  options: Partial<Options>
+  colors: Color[]
   handleSetHoverTime: (t: string) => void
+  viewID?: string
   axes?: Axes
-  isGraphFilled?: boolean
-  staticLegend?: boolean
+  mode?: string
+  queries?: CellQuery[]
+  timeRange?: TimeRange
+  dygraphSeries?: DygraphSeries
+  underlayCallback?: () => void
   setResolution?: (w: number) => void
   onZoom?: (timeRange: TimeRange) => void
-  mode?: string
-  underlayCallback?: () => void
+  isGraphFilled?: boolean
+  staticLegend?: boolean
 }
 
 interface State {
@@ -92,17 +83,17 @@ class Dygraph extends Component<Props, State> {
         ...DEFAULT_AXIS,
       },
     },
-    containerStyle: {},
     isGraphFilled: true,
     onZoom: () => {},
     staticLegend: false,
     setResolution: () => {},
     handleSetHoverTime: () => {},
     underlayCallback: () => {},
+    dygraphSeries: {},
   }
 
   private graphRef: React.RefObject<HTMLDivElement>
-  private dygraph: DygraphClass
+  private dygraph: Dygraphs
 
   constructor(props: Props) {
     super(props)
@@ -127,7 +118,7 @@ class Dygraph extends Component<Props, State> {
 
     const timeSeries = this.timeSeries
 
-    let defaultOptions = {
+    let defaultOptions: Partial<Options> = {
       ...options,
       labels,
       fillGraph,
@@ -311,21 +302,30 @@ class Dygraph extends Component<Props, State> {
     return null
   }
 
+  private get containerStyle(): CSSProperties {
+    return {
+      width: 'calc(100% - 32px)',
+      height: 'calc(100% - 16px)',
+      position: 'absolute',
+      top: '8px',
+    }
+  }
+
   private get dygraphStyle(): CSSProperties {
-    const {containerStyle, staticLegend} = this.props
+    const {staticLegend} = this.props
     const {staticLegendHeight} = this.state
 
     if (staticLegend) {
       const cellVerticalPadding = 16
 
       return {
-        ...containerStyle,
+        ...this.containerStyle,
         zIndex: 2,
         height: `calc(100% - ${staticLegendHeight + cellVerticalPadding}px)`,
       }
     }
 
-    return {...containerStyle, zIndex: 2}
+    return {...this.containerStyle, zIndex: 2}
   }
 
   private getYRange = (timeSeries: DygraphData): [number, number] => {

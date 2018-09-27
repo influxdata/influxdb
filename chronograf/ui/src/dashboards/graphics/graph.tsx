@@ -1,8 +1,8 @@
-import React, {ReactElement} from 'react'
+import React from 'react'
 
 import {CellType} from 'src/types/dashboards'
 
-type Graphic = ReactElement<HTMLDivElement>
+type Graphic = JSX.Element
 
 interface GraphSVGs {
   [CellType.Line]: Graphic
@@ -14,6 +14,7 @@ interface GraphSVGs {
   [CellType.Gauge]: Graphic
   [CellType.Table]: Graphic
 }
+
 const GRAPH_SVGS: GraphSVGs = {
   line: (
     <div className="viz-type-selector--graphic">

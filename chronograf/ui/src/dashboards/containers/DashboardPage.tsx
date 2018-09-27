@@ -79,9 +79,9 @@ interface Props extends ManualRefreshProps, WithRouterProps {
   notify: NotificationsActions.PublishNotificationActionCreator
   selectedCell: Cell
   thresholdsListType: string
-  thresholdsListColors: ColorsModels.ColorNumber[]
-  gaugeColors: ColorsModels.ColorNumber[]
-  lineColors: ColorsModels.ColorString[]
+  thresholdsListColors: ColorsModels.Color[]
+  gaugeColors: ColorsModels.Color[]
+  lineColors: ColorsModels.Color[]
   addCell: typeof dashboardActions.addCellAsync
   deleteCell: typeof dashboardActions.deleteCellAsync
   copyCell: typeof dashboardActions.copyDashboardCellAsync

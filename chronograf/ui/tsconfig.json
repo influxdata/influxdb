@@ -23,6 +23,7 @@
     "allowJs": true,
     "checkJs": false,
     "sourceMap": true,
+    "esModuleInterop": true,
     "baseUrl": "./"
   },
   "exclude": ["assets", "build", "node_modules"]

@@ -91,6 +91,7 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 
 	var t struct {
 		Shape string `json:"shape"`
+		Type  string `json:"type"`
 	}
 
 	if err := json.Unmarshal(v.B, &t); err != nil {
@@ -99,6 +100,39 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 
 	var vis ViewProperties
 	switch t.Shape {
+	case "chronograf-v2":
+		switch t.Type {
+		case "line":
+			var lv LineViewProperties
+			if err := json.Unmarshal(v.B, &lv); err != nil {
+				return nil, err
+			}
+			vis = lv
+		case "single-stat":
+			var ssv SingleStatViewProperties
+			if err := json.Unmarshal(v.B, &ssv); err != nil {
+				return nil, err
+			}
+			vis = ssv
+		case "gauge":
+			var gv GaugeViewProperties
+			if err := json.Unmarshal(v.B, &gv); err != nil {
+				return nil, err
+			}
+			vis = gv
+		case "step-plot":
+			var spv StepPlotViewProperties
+			if err := json.Unmarshal(v.B, &spv); err != nil {
+				return nil, err
+			}
+			vis = spv
+		case "stacked":
+			var sv StackedViewProperties
+			if err := json.Unmarshal(v.B, &sv); err != nil {
+				return nil, err
+			}
+			vis = sv
+		}
 	case "chronograf-v1":
 		var qv V1ViewProperties
 		if err := json.Unmarshal(v.B, &qv); err != nil {
@@ -121,6 +155,46 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 	var s interface{}
 	switch vis := v.(type) {
+	case SingleStatViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			SingleStatViewProperties
+		}{
+			Shape:                    "chronograf-v2",
+			SingleStatViewProperties: vis,
+		}
+	case GaugeViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			GaugeViewProperties
+		}{
+			Shape:               "chronograf-v2",
+			GaugeViewProperties: vis,
+		}
+	case LineViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			LineViewProperties
+		}{
+			Shape:              "chronograf-v2",
+			LineViewProperties: vis,
+		}
+	case StepPlotViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			StepPlotViewProperties
+		}{
+			Shape:                  "chronograf-v2",
+			StepPlotViewProperties: vis,
+		}
+	case StackedViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			StackedViewProperties
+		}{
+			Shape:                 "chronograf-v2",
+			StackedViewProperties: vis,
+		}
 	case V1ViewProperties:
 		s = struct {
 			Shape string `json:"shape"`
@@ -196,6 +270,54 @@ func (u ViewUpdate) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// LineViewProperties represents options for line view in Chronograf
+type LineViewProperties struct {
+	Queries    []DashboardQuery `json:"queries"`
+	Axes       map[string]Axis  `json:"axes"`
+	Type       string           `json:"type"`
+	Legend     Legend           `json:"legend"`
+	ViewColors []ViewColor      `json:"colors"`
+}
+
+// StepPlotViewProperties represents options for step plot view in Chronograf
+type StepPlotViewProperties struct {
+	Queries    []DashboardQuery `json:"queries"`
+	Axes       map[string]Axis  `json:"axes"`
+	Type       string           `json:"type"`
+	Legend     Legend           `json:"legend"`
+	ViewColors []ViewColor      `json:"colors"`
+}
+
+// StackedViewProperties represents options for stacked view in Chronograf
+type StackedViewProperties struct {
+	Queries    []DashboardQuery `json:"queries"`
+	Axes       map[string]Axis  `json:"axes"`
+	Type       string           `json:"type"`
+	Legend     Legend           `json:"legend"`
+	ViewColors []ViewColor      `json:"colors"`
+}
+
+// SingleStatViewProperties represents options for single stat view in Chronograf
+type SingleStatViewProperties struct {
+	Type          string           `json:"type"`
+	Queries       []DashboardQuery `json:"queries"`
+	Prefix        string           `json:"prefix"`
+	Suffix        string           `json:"suffix"`
+	ViewColors    []ViewColor      `json:"colors"`
+	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
+}
+
+// GaugeViewProperties represents options for gauge view in Chronograf
+type GaugeViewProperties struct {
+	Type          string           `json:"type"`
+	Queries       []DashboardQuery `json:"queries"`
+	Prefix        string           `json:"prefix"`
+	Suffix        string           `json:"suffix"`
+	ViewColors    []ViewColor      `json:"colors"`
+	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
+}
+
+// V1ViewProperties represents V1 Chronograf view shapes
 type V1ViewProperties struct {
 	Queries       []DashboardQuery `json:"queries"`
 	Axes          map[string]Axis  `json:"axes"`
@@ -208,7 +330,12 @@ type V1ViewProperties struct {
 	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
 }
 
-func (V1ViewProperties) ViewProperties() {}
+func (V1ViewProperties) ViewProperties()         {}
+func (LineViewProperties) ViewProperties()       {}
+func (StepPlotViewProperties) ViewProperties()   {}
+func (SingleStatViewProperties) ViewProperties() {}
+func (StackedViewProperties) ViewProperties()    {}
+func (GaugeViewProperties) ViewProperties()      {}
 
 /////////////////////////////
 // Old Chronograf Types

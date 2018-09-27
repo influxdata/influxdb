@@ -4,11 +4,11 @@ import classnames from 'classnames'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {ColorNumber, ThresholdColor} from 'src/types/colors'
+import {Color, ThresholdColor} from 'src/types/colors'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
 
 interface Props {
-  selected: ColorNumber
+  selected: Color
   disabled?: boolean
   stretchToFit?: boolean
   colors: ThresholdColor[]

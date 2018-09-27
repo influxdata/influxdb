@@ -3,16 +3,16 @@ import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 import ColorDropdown from 'src/shared/components/ColorDropdown'
 import {THRESHOLD_COLORS} from 'src/shared/constants/thresholds'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {ColorNumber, ThresholdColor} from 'src/types/colors'
+import {Color, ThresholdColor} from 'src/types/colors'
 
 interface Props {
   visualizationType: string
-  threshold: ColorNumber
+  threshold: Color
   disableMaxColor: boolean
-  onChooseColor: (threshold: ColorNumber) => void
-  onValidateColorValue: (threshold: ColorNumber, targetValue: number) => boolean
-  onUpdateColorValue: (threshold: ColorNumber, targetValue: number) => void
-  onDeleteThreshold: (threshold: ColorNumber) => void
+  onChooseColor: (threshold: Color) => void
+  onValidateColorValue: (threshold: Color, targetValue: number) => boolean
+  onUpdateColorValue: (threshold: Color, targetValue: number) => void
+  onDeleteThreshold: (threshold: Color) => void
   isMin: boolean
   isMax: boolean
 }
@@ -76,7 +76,7 @@ class Threshold extends PureComponent<Props, State> {
     onChooseColor({...threshold, hex, name})
   }
 
-  private get selectedColor(): ColorNumber {
+  private get selectedColor(): Color {
     const {
       threshold: {hex, name, type, value, id},
     } = this.props

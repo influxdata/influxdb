@@ -1,4 +1,4 @@
-import React, {PureComponent, ReactElement, MouseEvent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 import FuncArg from 'src/flux/components/FuncArg'
 import {OnChangeArg} from 'src/types/flux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -126,7 +126,7 @@ export default class FuncArgs extends PureComponent<Props> {
     )
   }
 
-  get build(): ReactElement<HTMLDivElement> {
+  get build(): JSX.Element {
     const {func, onGenerateScript} = this.props
     if (func.name === funcNames.FILTER) {
       return (
