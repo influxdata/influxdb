@@ -21,15 +21,17 @@ class IndexListHeader extends Component<Props> {
     const {columns, getColumnWidthPercent} = this.props
     return (
       <thead className="index-list--header">
-        {columns.map(column => (
-          <th
-            key={column.key}
-            style={getColumnWidthPercent(column.key)}
-            className={this.className(column.key)}
-          >
-            {column.title}
-          </th>
-        ))}
+        <tr>
+          {columns.map(column => (
+            <th
+              key={column.key}
+              style={getColumnWidthPercent(column.key)}
+              className={this.className(column.key)}
+            >
+              {column.title}
+            </th>
+          ))}
+        </tr>
       </thead>
     )
   }

@@ -11,7 +11,6 @@ import Row from 'src/shared/components/index_views/IndexListRow'
 import {Alignment} from 'src/clockface'
 import {
   IndexListColumn,
-  IndexListRowColumn,
   IndexListRow,
 } from 'src/shared/components/index_views/IndexListTypes'
 
@@ -46,7 +45,16 @@ class IndexList extends Component<Props> {
     if (rows.length) {
       return (
         <tbody className="index-list--body">
-          {rows.map((row, i) => this.listRow(row.columns, i, row.disabled))}
+          {rows.map((row, i) => (
+            <Row
+              key={`index-list--row-${i}`}
+              rowIndex={i}
+              rowColumns={row.columns}
+              getColumnWidthPercent={this.getColumnWidthPercent}
+              getRowColumnClassName={this.getRowColumnClassName}
+              disabled={row.disabled}
+            />
+          ))}
         </tbody>
       )
     }
@@ -55,26 +63,12 @@ class IndexList extends Component<Props> {
       <tbody className="index-list--empty">
         <tr className="index-list--empty-row">
           <td colSpan={columns.length}>
-            <div className="index-list--empty-cell">{emptyState}</div>
+            <div className="index-list--empty-cell" data-test="empty-state">
+              {emptyState}
+            </div>
           </td>
         </tr>
       </tbody>
-    )
-  }
-
-  private listRow = (
-    rowColumns: IndexListRowColumn[],
-    rowIndex: number,
-    disabled: boolean
-  ): JSX.Element => {
-    return (
-      <Row
-        rowIndex={rowIndex}
-        rowColumns={rowColumns}
-        getColumnWidthPercent={this.getColumnWidthPercent}
-        getRowColumnClassName={this.getRowColumnClassName}
-        disabled={disabled}
-      />
     )
   }
 
