@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
+	platformtesting "github.com/influxdata/platform/testing"
 )
 
 type CreateRunStoreFunc func(*testing.T) (backend.LogWriter, backend.LogReader)
@@ -42,12 +43,12 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
-		Org: platform.ID([]byte("ab01ab01ab01ab05")),
+		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
+		Org: platformtesting.MustIDFromString("ab01ab01ab01ab05"),
 	}
 	scheduledFor := time.Unix(1, 0).UTC()
 	run := platform.Run{
-		ID:           platform.ID([]byte("run")),
+		ID:           platformtesting.MustIDFromString("2c20766972747573"),
 		TaskID:       task.ID,
 		Status:       "started",
 		ScheduledFor: scheduledFor.Format(time.RFC3339),
@@ -96,14 +97,14 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
-		Org: platform.ID([]byte("ab01ab01ab01ab05")),
+		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
+		Org: platformtesting.MustIDFromString("ab01ab01ab01ab05"),
 	}
 
 	sf := time.Now().UTC()
 	sa := sf.Add(time.Second)
 	run := platform.Run{
-		ID:           platform.ID([]byte("run")),
+		ID:           platformtesting.MustIDFromString("2c20766972747573"),
 		TaskID:       task.ID,
 		Status:       "started",
 		ScheduledFor: sf.Format(time.RFC3339),
@@ -154,8 +155,8 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
-		Org: platform.ID([]byte("ab01ab01ab01ab05")),
+		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
+		Org: platformtesting.MustIDFromString("ab01ab01ab01ab05"),
 	}
 
 	if _, err := reader.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID}); err == nil {
@@ -165,8 +166,9 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	runs := make([]platform.Run, 200)
 	for i := 0; i < len(runs); i++ {
 		scheduledFor := time.Unix(int64(i), 0).UTC()
+		id := platform.ID(i + 1)
 		runs[i] = platform.Run{
-			ID:           platform.ID([]byte(fmt.Sprintf("run%d", i))),
+			ID:           id,
 			Status:       "started",
 			ScheduledFor: scheduledFor.Format(time.RFC3339),
 		}
@@ -253,19 +255,19 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	if _, err := reader.FindRunByID(context.Background(), platform.ID([]byte("fat")), platform.ID([]byte("bad"))); err == nil {
+	if _, err := reader.FindRunByID(context.Background(), platform.InvalidID(), platform.InvalidID()); err == nil {
 		t.Fatal("failed to error with bad id")
 	}
 
 	task := &backend.StoreTask{
-		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
-		Org: platform.ID([]byte("ab01ab01ab01ab05")),
+		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
+		Org: platformtesting.MustIDFromString("ab01ab01ab01ab05"),
 	}
 	sf := time.Now().UTC()
 	sa := sf.Add(time.Second)
 
 	run := platform.Run{
-		ID:           platform.ID([]byte("run")),
+		ID:           platformtesting.MustIDFromString("2c20766972747573"),
 		TaskID:       task.ID,
 		Status:       "started",
 		ScheduledFor: sf.Format(time.RFC3339),
@@ -307,8 +309,8 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
-		Org: platform.ID([]byte("ab01ab01ab01ab05")),
+		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
+		Org: platformtesting.MustIDFromString("ab01ab01ab01ab05"),
 	}
 
 	if _, err := reader.ListLogs(context.Background(), platform.LogFilter{}); err == nil {
@@ -321,8 +323,9 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	runs := make([]platform.Run, 20)
 	for i := 0; i < len(runs); i++ {
 		sf := time.Unix(int64(i), 0)
+		id := platform.ID(i + 1)
 		runs[i] = platform.Run{
-			ID:           platform.ID([]byte(fmt.Sprintf("run%d", i))),
+			ID:           id,
 			Status:       "started",
 			ScheduledFor: sf.UTC().Format(time.RFC3339),
 		}
