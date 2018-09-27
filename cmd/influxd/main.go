@@ -211,7 +211,10 @@ func platformF(cmd *cobra.Command, args []string) {
 
 	// TODO(jeff): this block is hacky support for a storage engine. it is not intended to
 	// be a long term solution.
-	var natsHandler nats.Handler
+	var (
+		natsHandler         nats.Handler
+		storageQueryService query.QueryService
+	)
 	{
 		sfile := tsdb.NewSeriesFile(filepath.Join(enginePath, tsdb.SeriesFileDirectory))
 		if err := sfile.Open(); err != nil {
@@ -237,6 +240,15 @@ func platformF(cmd *cobra.Command, args []string) {
 		engineHandler.Engine = shard
 
 		natsHandler = engineHandler
+
+		storageQueryService = query.QueryServiceBridge{
+			AsyncQueryService: &queryAdapter{
+				Controller: NewController(
+					&store{shard: shard},
+					logger.With(zap.String("service", "storage")),
+				),
+			},
+		}
 	}
 
 	var queryService query.QueryService
@@ -343,7 +355,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		MacroService:               macroSvc,
 		BasicAuthService:           basicAuthSvc,
 		OnboardingService:          onboardingSvc,
-		QueryService:               queryService,
+		QueryService:               storageQueryService,
 		TaskService:                taskSvc,
 		ScraperTargetStoreService:  scraperTargetSvc,
 		ChronografService:          chronografSvc,
