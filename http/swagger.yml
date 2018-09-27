@@ -5,6 +5,36 @@ info:
 servers:
   - url: /api/v2
 paths:
+  /signin:
+    servers:
+      - url: /
+    post:
+      summary: Exchange basic auth credentials for session
+      security:
+        - basicAuth: []
+      responses:
+        '204':
+          description: succesfully authenticated
+        default:
+          description: unsuccessful authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /signout:
+    servers:
+      - url: /
+    post:
+      summary: Expire the current session
+      responses:
+        '204':
+          description: session successfully expired
+        default:
+          description: unsuccessful session exipry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /:
     get:
       summary: Map of all top level routes available
