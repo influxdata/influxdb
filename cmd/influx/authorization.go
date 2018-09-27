@@ -300,7 +300,7 @@ func authorizationActiveF(cmd *cobra.Command, args []string) {
 		Token: flags.token,
 	}
 
-	id := platform.ID{}
+	var id platform.ID
 	if err := id.DecodeFromString(authorizationActiveFlags.id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -370,7 +370,7 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) {
 		Token: flags.token,
 	}
 
-	id := platform.ID{}
+	var id platform.ID
 	if err := id.DecodeFromString(authorizationInactiveFlags.id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
