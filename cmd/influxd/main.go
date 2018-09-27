@@ -36,10 +36,6 @@ import (
 	"github.com/influxdata/platform/tsdb"
 	_ "github.com/influxdata/platform/tsdb/index/tsi1"
 	_ "github.com/influxdata/platform/tsdb/tsm1"
-<<<<<<< HEAD
-=======
-	pzap "github.com/influxdata/platform/zap"
->>>>>>> Add very basic write support
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
