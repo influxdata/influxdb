@@ -225,6 +225,11 @@ func (s *Shard) Index() (Index, error) {
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard.
 func (s *Shard) WritePoints(points []models.Point) error {
+	points, err := explodePoints([]byte("insert-org-bucket"), points)
+	if err != nil {
+		return err
+	}
+
 	collection := NewSeriesCollection(points)
 
 	j := 0
