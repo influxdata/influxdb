@@ -148,6 +148,9 @@ type RunLogBase struct {
 
 	// The Unix timestamp indicating the run's scheduled time.
 	RunScheduledFor int64
+
+	// When the log is requested, should be ignored when it is zero.
+	RequestedAt int64
 }
 
 // LogWriter writes task logs and task state changes to a store.

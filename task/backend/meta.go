@@ -149,8 +149,9 @@ func (stm *StoreTaskMeta) createNextRunFromQueue(now, nextDue int64, sch cron.Sc
 
 	return RunCreation{
 		Created: QueuedRun{
-			RunID: id,
-			Now:   runNow,
+			RunID:       id,
+			Now:         runNow,
+			RequestedAt: q.RequestedAt,
 		},
 		NextDue:  nextDue,
 		HasQueue: len(stm.ManualRuns) > 0,

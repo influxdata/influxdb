@@ -46,6 +46,9 @@ type Executor interface {
 type QueuedRun struct {
 	TaskID, RunID platform.ID
 
+	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set when a run a manually requested
+	RequestedAt int64
+
 	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set
 	// as the "now" option when executing the task.
 	Now int64
@@ -602,6 +605,7 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger
 		Task:            r.task,
 		RunID:           qr.RunID,
 		RunScheduledFor: qr.Now,
+		RequestedAt:     qr.RequestedAt,
 	}
 
 	// Arbitrarily chosen short time limit for how fast the log write must complete.
