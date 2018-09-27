@@ -3,7 +3,6 @@ package mock
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
@@ -176,9 +175,8 @@ func (d *DesiredState) CreateNextRun(_ context.Context, taskID platform.ID, now 
 
 	makeID := func() (platform.ID, error) {
 		d.runIDs[tid]++
-		runID := make([]byte, 4)
-		binary.BigEndian.PutUint32(runID, d.runIDs[tid])
-		return platform.ID(runID), nil
+		runID := platform.ID(d.runIDs[tid])
+		return runID, nil
 	}
 
 	rc, err := meta.CreateNextRun(now, makeID)
@@ -186,7 +184,7 @@ func (d *DesiredState) CreateNextRun(_ context.Context, taskID platform.ID, now 
 		return backend.RunCreation{}, err
 	}
 	d.meta[tid] = meta
-	rc.Created.TaskID = append([]byte(nil), taskID...)
+	rc.Created.TaskID = taskID
 	d.created[tid+rc.Created.RunID.String()] = rc.Created
 	return rc, nil
 }
