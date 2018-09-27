@@ -81,7 +81,7 @@ func decodeGetUsageRequest(ctx context.Context, r *http.Request) (*getUsageReque
 	if start == "" && stop != "" {
 		return nil, errors.New("start query param required")
 	}
-	if start == "" && stop != "" {
+	if stop == "" && start != "" {
 		return nil, errors.New("stop query param required")
 	}
 
