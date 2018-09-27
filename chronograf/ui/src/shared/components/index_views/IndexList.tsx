@@ -64,8 +64,8 @@ class IndexList extends Component<Props> {
 
   private listRow = (
     rowColumns: IndexListRowColumn[],
-    rowIndex: number
-    disabled: boolean,
+    rowIndex: number,
+    disabled: boolean
   ): JSX.Element => {
     return (
       <Row
@@ -78,7 +78,10 @@ class IndexList extends Component<Props> {
     )
   }
 
-  private getRowColumnClassName = (columnKey: string, disabled: boolean): string => {
+  private getRowColumnClassName = (
+    columnKey: string,
+    disabled: boolean
+  ): string => {
     const {columns} = this.props
     const {showOnHover, align} = _.find(columns, col => col.key === columnKey)
 
