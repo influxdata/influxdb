@@ -69,6 +69,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	h.BucketHandler = NewBucketHandler()
 	h.BucketHandler.BucketService = b.BucketService
+	h.BucketHandler.UserResourceMappingService = b.UserResourceMappingService
 
 	h.OrgHandler = NewOrgHandler()
 	h.OrgHandler.OrganizationService = b.OrganizationService
@@ -80,6 +81,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	h.DashboardHandler = NewDashboardHandler()
 	h.DashboardHandler.DashboardService = b.DashboardService
+	h.DashboardHandler.UserResourceMappingService = b.UserResourceMappingService
 
 	h.ViewHandler = NewViewHandler()
 	h.ViewHandler.ViewService = b.ViewService

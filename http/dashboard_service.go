@@ -18,14 +18,19 @@ import (
 type DashboardHandler struct {
 	*httprouter.Router
 
-	DashboardService platform.DashboardService
+	DashboardService           platform.DashboardService
+	UserResourceMappingService platform.UserResourceMappingService
 }
 
 const (
-	dashboardsPath          = "/api/v2/dashboards"
-	dashboardsIDPath        = "/api/v2/dashboards/:id"
-	dashboardsIDCellsPath   = "/api/v2/dashboards/:id/cells"
-	dashboardsIDCellsIDPath = "/api/v2/dashboards/:id/cells/:cellID"
+	dashboardsPath            = "/api/v2/dashboards"
+	dashboardsIDPath          = "/api/v2/dashboards/:id"
+	dashboardsIDCellsPath     = "/api/v2/dashboards/:id/cells"
+	dashboardsIDCellsIDPath   = "/api/v2/dashboards/:id/cells/:cellID"
+	dashboardsIDMembersPath   = "/api/v2/dashboards/:id/members"
+	dashboardsIDMembersIDPath = "/api/v2/dashboards/:id/members/:userID"
+	dashboardsIDOwnersPath    = "/api/v2/dashboards/:id/owners"
+	dashboardsIDOwnersIDPath  = "/api/v2/dashboards/:id/owners/:userID"
 )
 
 // NewDashboardHandler returns a new instance of DashboardHandler.
@@ -44,6 +49,10 @@ func NewDashboardHandler() *DashboardHandler {
 	h.HandlerFunc("POST", dashboardsIDCellsPath, h.handlePostDashboardCell)
 	h.HandlerFunc("DELETE", dashboardsIDCellsIDPath, h.handleDeleteDashboardCell)
 	h.HandlerFunc("PATCH", dashboardsIDCellsIDPath, h.handlePatchDashboardCell)
+
+	h.HandlerFunc("POST", dashboardsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Member))
+
+	h.HandlerFunc("POST", dashboardsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Owner))
 	return h
 }
 
