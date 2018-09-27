@@ -39,11 +39,10 @@ func (r *runReaderWriter) UpdateRunState(ctx context.Context, rlb RunLogBase, wh
 	ridStr := rlb.RunID.String()
 	existingRun, ok := r.byRunID[ridStr]
 	if !ok {
-		tid := append([]byte(nil), rlb.Task.ID...)
 		sf := time.Unix(rlb.RunScheduledFor, 0).UTC()
 		run := &platform.Run{
 			ID:           rlb.RunID,
-			TaskID:       tid,
+			TaskID:       rlb.Task.ID,
 			Status:       status.String(),
 			ScheduledFor: sf.Format(time.RFC3339),
 		}

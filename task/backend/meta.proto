@@ -37,7 +37,7 @@ message StoreTaskMetaRun {
   // now is the unix timestamp of the "now" value for the run.
   int64 now = 1;
   uint32 try = 2;
-  bytes run_id = 3 [(gogoproto.customname) = "RunID"];
+  uint64 run_id = 3 [(gogoproto.customname) = "RunID"];
 
   // range_start is the start of the manual run's time range.
   int64 range_start = 4;

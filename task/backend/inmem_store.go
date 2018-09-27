@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -39,7 +38,8 @@ func NewInMemStore() Store {
 func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
 	o, err := StoreValidator.CreateArgs(org, user, script)
 	if err != nil {
-		return nil, err
+		var id platform.ID
+		return id, err
 	}
 
 	id := s.idgen.ID()
@@ -119,22 +119,19 @@ func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTa
 
 	org := params.Org
 	user := params.User
-	after := params.After
+
+	var after platform.ID
+	if !params.After.Valid() {
+		after = platform.ID(1)
+	} else {
+		after = params.After
+	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	for _, t := range s.tasks {
-		taskIDBytes, err := t.ID.Encode()
-		if err != nil {
-			return nil, err
-		}
-		afterBytes, err := after.Encode()
-		if err != nil {
-			return nil, err
-		}
-
-		if bytes.Compare(afterBytes, taskIDBytes) >= 0 {
+		if after >= t.ID {
 			continue
 		}
 		if org.Valid() && org != t.Org {
@@ -324,7 +321,7 @@ func (s *inmem) delete(ctx context.Context, id platform.ID, f func(StoreTask) pl
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	newTasks := []StoreTask{}
-	deletingTasks := []platform.ID
+	deletingTasks := []platform.ID{}
 	for i := range s.tasks {
 		if f(s.tasks[i]) != id {
 			newTasks = append(newTasks, s.tasks[i])

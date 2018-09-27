@@ -53,7 +53,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 		CurrentlyRunning: []*backend.StoreTaskMetaRun{
 			&backend.StoreTaskMetaRun{
 				Now:   4,
-				RunID: platform.ID{10},
+				RunID: uint64(10),
 			},
 		},
 	}
@@ -326,7 +326,7 @@ func TestScheduler_RunLog(t *testing.T) {
 
 	// Claim a task that starts later.
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  99,
