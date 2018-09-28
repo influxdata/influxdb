@@ -66,13 +66,13 @@ func TestService_handleGetBuckets(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v1/buckets"
+    "self": "/api/v2/buckets"
   },
   "buckets": [
     {
       "links": {
-        "org": "/v1/orgs/3130",
-        "self": "/v1/buckets/30"
+        "org": "/api/v2/orgs/3130",
+        "self": "/api/v2/buckets/30"
       },
       "id": "30",
       "organizationID": "3130",
@@ -81,8 +81,8 @@ func TestService_handleGetBuckets(t *testing.T) {
     },
     {
       "links": {
-        "org": "/v1/orgs/3230",
-        "self": "/v1/buckets/32"
+        "org": "/api/v2/orgs/3230",
+        "self": "/api/v2/buckets/32"
       },
       "id": "32",
       "organizationID": "3230",
@@ -110,7 +110,7 @@ func TestService_handleGetBuckets(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v1/buckets"
+    "self": "/api/v2/buckets"
   },
   "buckets": []
 }`,
@@ -201,8 +201,8 @@ func TestService_handleGetBucket(t *testing.T) {
 				body: `
 {
   "links": {
-    "org": "/v1/orgs/020f755c3c082000",
-    "self": "/v1/buckets/020f755c3c082000"
+    "org": "/api/v2/orgs/020f755c3c082000",
+    "self": "/api/v2/buckets/020f755c3c082000"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
@@ -310,8 +310,8 @@ func TestService_handlePostBucket(t *testing.T) {
 				body: `
 {
   "links": {
-    "org": "/v1/orgs/30",
-    "self": "/v1/buckets/020f755c3c082000"
+    "org": "/api/v2/orgs/30",
+    "self": "/api/v2/buckets/020f755c3c082000"
   },
   "id": "020f755c3c082000",
   "organizationID": "30",
@@ -510,8 +510,8 @@ func TestService_handlePatchBucket(t *testing.T) {
 				body: `
 {
   "links": {
-    "org": "/v1/orgs/020f755c3c082000",
-    "self": "/v1/buckets/020f755c3c082000"
+    "org": "/api/v2/orgs/020f755c3c082000",
+    "self": "/api/v2/buckets/020f755c3c082000"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",

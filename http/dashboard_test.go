@@ -71,7 +71,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v2/dashboards"
+    "self": "/api/v2/dashboards"
   },
   "dashboards": [
     {
@@ -86,14 +86,14 @@ func TestService_handleGetDashboards(t *testing.T) {
           "h": 4,
           "viewID": "31",
           "links": {
-            "self": "/v2/dashboards/30/cells/30",
-            "view": "/v2/views/31"
+            "self": "/api/v2/dashboards/30/cells/30",
+            "view": "/api/v2/views/31"
           }
         }
       ],
       "links": {
-        "self": "/v2/dashboards/30",
-        "cells": "/v2/dashboards/30/cells"
+        "self": "/api/v2/dashboards/30",
+        "cells": "/api/v2/dashboards/30/cells"
       }
     },
     {
@@ -101,8 +101,8 @@ func TestService_handleGetDashboards(t *testing.T) {
       "name": "example",
       "cells": [],
       "links": {
-        "self": "/v2/dashboards/32",
-        "cells": "/v2/dashboards/32/cells"
+        "self": "/api/v2/dashboards/32",
+        "cells": "/api/v2/dashboards/32/cells"
       }
     }
   ]
@@ -126,7 +126,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v2/dashboards"
+    "self": "/api/v2/dashboards"
   },
   "dashboards": []
 }`,
@@ -235,14 +235,14 @@ func TestService_handleGetDashboard(t *testing.T) {
       "h": 4,
       "viewID": "31",
       "links": {
-        "self": "/v2/dashboards/020f755c3c082000/cells/30",
-        "view": "/v2/views/31"
+        "self": "/api/v2/dashboards/020f755c3c082000/cells/30",
+        "view": "/api/v2/views/31"
       }
     }
   ],
   "links": {
-    "self": "/v2/dashboards/020f755c3c082000",
-    "cells": "/v2/dashboards/020f755c3c082000/cells"
+    "self": "/api/v2/dashboards/020f755c3c082000",
+    "cells": "/api/v2/dashboards/020f755c3c082000/cells"
   }
 }
 `,
@@ -364,14 +364,14 @@ func TestService_handlePostDashboard(t *testing.T) {
       "h": 4,
       "viewID": "31",
       "links": {
-        "self": "/v2/dashboards/020f755c3c082000/cells/30",
-        "view": "/v2/views/31"
+        "self": "/api/v2/dashboards/020f755c3c082000/cells/30",
+        "view": "/api/v2/views/31"
       }
     }
   ],
   "links": {
-    "self": "/v2/dashboards/020f755c3c082000",
-    "cells": "/v2/dashboards/020f755c3c082000/cells"
+    "self": "/api/v2/dashboards/020f755c3c082000",
+    "cells": "/api/v2/dashboards/020f755c3c082000/cells"
   }
 }
 `,
@@ -579,14 +579,14 @@ func TestService_handlePatchDashboard(t *testing.T) {
       "h": 4,
       "viewID": "31",
       "links": {
-        "self": "/v2/dashboards/020f755c3c082000/cells/30",
-        "view": "/v2/views/31"
+        "self": "/api/v2/dashboards/020f755c3c082000/cells/30",
+        "view": "/api/v2/views/31"
       }
     }
   ],
   "links": {
-    "self": "/v2/dashboards/020f755c3c082000",
-    "cells": "/v2/dashboards/020f755c3c082000/cells"
+    "self": "/api/v2/dashboards/020f755c3c082000",
+    "cells": "/api/v2/dashboards/020f755c3c082000/cells"
   }
 }
 `,
@@ -725,8 +725,8 @@ func TestService_handlePostDashboardCell(t *testing.T) {
   "h": 0,
   "viewID": "30",
   "links": {
-    "self": "/v2/dashboards/020f755c3c082000/cells/020f755c3c082000",
-    "view": "/v2/views/30"
+    "self": "/api/v2/dashboards/020f755c3c082000/cells/020f755c3c082000",
+    "view": "/api/v2/views/30"
   }
 }
 `,
@@ -919,8 +919,8 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
   "h": 0,
   "viewID": "30",
   "links": {
-    "self": "/v2/dashboards/020f755c3c082000/cells/020f755c3c082000",
-    "view": "/v2/views/30"
+    "self": "/api/v2/dashboards/020f755c3c082000/cells/020f755c3c082000",
+    "view": "/api/v2/views/30"
   }
 }
 `,
@@ -1004,7 +1004,7 @@ func Test_dashboardCellIDPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := "/v2/dashboards/deadbeef/cells/cade9a7e"
+	want := "/api/v2/dashboards/deadbeef/cells/cade9a7e"
 	if got := dashboardCellIDPath(*dashboard, *cell); got != want {
 		t.Errorf("dashboardCellIDPath() = got: %s want: %s", got, want)
 	}

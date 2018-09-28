@@ -3,7 +3,7 @@ info:
   title: Influx API Service
   version: 0.1.0
 servers:
-  - url: /api/v2
+  - url: /api/api/v2
 paths:
   /signin:
     servers:
@@ -2234,8 +2234,8 @@ components:
           type: object
           readOnly: true
           example:
-            self: "/v2/authorizations/1"
-            user: "/v2/users/12"
+            self: "/api/v2/authorizations/1"
+            user: "/api/v2/users/12"
           properties:
             self:
               readOnly: true
@@ -2281,9 +2281,9 @@ components:
           type: object
           readOnly: true
           example:
-            self: "/v2/buckets/1"
-            org: "/v2/orgs/2"
-            write: "/v2/write?org=myorg"
+            self: "/api/v2/buckets/1"
+            org: "/api/v2/orgs/2"
+            write: "/api/v2/write?org=myorg"
           properties:
             self:
               readOnly: true
@@ -2379,11 +2379,11 @@ components:
           type: object
           readOnly: true
           example:
-            self: "/v2/orgs/1"
-            users: "/v2/orgs/1/users"
-            buckets: "/v2/buckets?org=myorg"
-            tasks: "/v2/tasks?org=myorg"
-            dashboards: "/v2/dashboards?org=myorg"
+            self: "/api/v2/orgs/1"
+            users: "/api/v2/orgs/1/users"
+            buckets: "/api/v2/buckets?org=myorg"
+            tasks: "/api/v2/tasks?org=myorg"
+            dashboards: "/api/v2/dashboards?org=myorg"
           properties:
             self:
               readOnly: true

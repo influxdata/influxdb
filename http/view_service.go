@@ -24,11 +24,11 @@ func NewViewHandler() *ViewHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v2/views", h.handlePostViews)
-	h.HandlerFunc("GET", "/v2/views", h.handleGetViews)
-	h.HandlerFunc("GET", "/v2/views/:id", h.handleGetView)
-	h.HandlerFunc("DELETE", "/v2/views/:id", h.handleDeleteView)
-	h.HandlerFunc("PATCH", "/v2/views/:id", h.handlePatchView)
+	h.HandlerFunc("POST", "/api/v2/views", h.handlePostViews)
+	h.HandlerFunc("GET", "/api/v2/views", h.handleGetViews)
+	h.HandlerFunc("GET", "/api/v2/views/:id", h.handleGetView)
+	h.HandlerFunc("DELETE", "/api/v2/views/:id", h.handleDeleteView)
+	h.HandlerFunc("PATCH", "/api/v2/views/:id", h.handlePatchView)
 	return h
 }
 
@@ -61,7 +61,7 @@ func (r viewResponse) MarshalJSON() ([]byte, error) {
 func newViewResponse(c *platform.View) viewResponse {
 	return viewResponse{
 		Links: viewLinks{
-			Self: fmt.Sprintf("/v2/views/%s", c.ID),
+			Self: fmt.Sprintf("/api/v2/views/%s", c.ID),
 		},
 		View: *c,
 	}
@@ -95,7 +95,7 @@ type getViewsResponse struct {
 func newGetViewsResponse(views []*platform.View) getViewsResponse {
 	res := getViewsResponse{
 		Links: getViewsLinks{
-			Self: "/v2/views",
+			Self: "/api/v2/views",
 		},
 		Views: make([]viewResponse, 0, len(views)),
 	}

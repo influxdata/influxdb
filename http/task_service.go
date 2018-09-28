@@ -26,19 +26,19 @@ func NewTaskHandler(logger *zap.Logger) *TaskHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("GET", "/v1/tasks", h.handleGetTasks)
-	h.HandlerFunc("POST", "/v1/tasks", h.handlePostTask)
+	h.HandlerFunc("GET", "/api/v2/tasks", h.handleGetTasks)
+	h.HandlerFunc("POST", "/api/v2/tasks", h.handlePostTask)
 
-	h.HandlerFunc("GET", "/v1/tasks/:tid", h.handleGetTask)
-	h.HandlerFunc("PATCH", "/v1/tasks/:tid", h.handleUpdateTask)
-	h.HandlerFunc("DELETE", "/v1/tasks/:tid", h.handleDeleteTask)
+	h.HandlerFunc("GET", "/api/v2/tasks/:tid", h.handleGetTask)
+	h.HandlerFunc("PATCH", "/api/v2/tasks/:tid", h.handleUpdateTask)
+	h.HandlerFunc("DELETE", "/api/v2/tasks/:tid", h.handleDeleteTask)
 
-	h.HandlerFunc("GET", "/v1/tasks/:tid/logs", h.handleGetLogs)
-	h.HandlerFunc("GET", "/v1/tasks/:tid/runs/:rid/logs", h.handleGetLogs)
+	h.HandlerFunc("GET", "/api/v2/tasks/:tid/logs", h.handleGetLogs)
+	h.HandlerFunc("GET", "/api/v2/tasks/:tid/runs/:rid/logs", h.handleGetLogs)
 
-	h.HandlerFunc("GET", "/v1/tasks/:tid/runs", h.handleGetRuns)
-	h.HandlerFunc("GET", "/v1/tasks/:tid/runs/:rid", h.handleGetRun)
-	h.HandlerFunc("POST", "/v1/tasks/:tid/runs/:rid/retry", h.handleRetryRun)
+	h.HandlerFunc("GET", "/api/v2/tasks/:tid/runs", h.handleGetRuns)
+	h.HandlerFunc("GET", "/api/v2/tasks/:tid/runs/:rid", h.handleGetRun)
+	h.HandlerFunc("POST", "/api/v2/tasks/:tid/runs/:rid/retry", h.handleRetryRun)
 
 	return h
 }

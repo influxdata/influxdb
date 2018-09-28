@@ -23,11 +23,11 @@ func NewUsageHandler() *UsageHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("GET", "/v1/usage", h.handleGetUsage)
+	h.HandlerFunc("GET", "/api/v2/usage", h.handleGetUsage)
 	return h
 }
 
-// handleGetUsage is the HTTP handler for the GET /v1/usage route.
+// handleGetUsage is the HTTP handler for the GET /api/v2/usage route.
 func (h *UsageHandler) handleGetUsage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

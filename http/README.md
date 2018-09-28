@@ -31,8 +31,8 @@ func NewThingHandler() *ThingHandler {
 		Logger: zap.Nop(),
 	}
 
-	h.HandlerFunc("POST", "/v1/things", h.handlePostThing)
-	h.HandlerFunc("GET", "/v1/things", h.handleGetThings)
+	h.HandlerFunc("POST", "/api/v2/things", h.handlePostThing)
+	h.HandlerFunc("GET", "/api/v2/things", h.handleGetThings)
 
 	return h
 }
@@ -63,7 +63,7 @@ func decodePostThingRequest(ctx context.Context, r *http.Request) (*postThingReq
 * Route `http.HandlerFuncs` should separate the decoding and encoding of HTTP requests/response from actual handler logic
 
 ```go
-// handlePostThing is the HTTP handler for the POST /v1/things route.
+// handlePostThing is the HTTP handler for the POST /api/v2/things route.
 func (h *ThingHandler) handlePostThing(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

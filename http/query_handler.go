@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	fluxPath = "/v2/query"
+	fluxPath = "/api/v2/query"
 )
 
 // FluxHandler implements handling flux queries.
@@ -35,7 +35,7 @@ type FluxHandler struct {
 	ProxyQueryService    query.ProxyQueryService
 }
 
-// NewFluxHandler returns a new handler at /v2/query for flux queries.
+// NewFluxHandler returns a new handler at /api/v2/query for flux queries.
 func NewFluxHandler() *FluxHandler {
 	h := &FluxHandler{
 		Router: httprouter.New(),
@@ -154,7 +154,7 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 
 var _ query.QueryService = (*FluxQueryService)(nil)
 
-// FluxQueryService implements query.QueryService by making HTTP requests to the /v2/query API endpoint.
+// FluxQueryService implements query.QueryService by making HTTP requests to the /api/v2/query API endpoint.
 type FluxQueryService struct {
 	URL                string
 	Token              string
