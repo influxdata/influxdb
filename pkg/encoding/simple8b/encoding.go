@@ -347,6 +347,31 @@ func Encode(src []uint64) (value uint64, n int, err error) {
 	}
 }
 
+const (
+	S8B_BIT_SIZE = 60
+)
+
+var (
+	numBits = [...][2]byte{
+		// { number of values, max bits per value }
+		{60, 1},
+		{30, 2},
+		{20, 3},
+		{15, 4},
+		{12, 5},
+		{10, 6},
+		{8, 7},
+		{7, 8},
+		{6, 10},
+		{5, 12},
+		{4, 15},
+		{3, 20},
+		{2, 30},
+		{1, 60},
+	}
+	ErrValueOutOfBounds = errors.New("value out of bounds")
+)
+
 // Encode returns a packed slice of the values from src.  If a value is over
 // 1 << 60, an error is returned.  The input src is modified to avoid extra
 // allocations.  If you need to re-use, use a copy.
@@ -357,64 +382,69 @@ func EncodeAll(src []uint64) ([]uint64, error) {
 	dst := src
 	j := 0
 
-	for {
-		if i >= len(src) {
-			break
-		}
+NEXTVALUE:
+	for i < len(src) {
 		remaining := src[i:]
 
-		if canPack(remaining, 240, 0) {
-			dst[j] = 0
-			i += 240
-		} else if canPack(remaining, 120, 0) {
-			dst[j] = 1 << 60
-			i += 120
-		} else if canPack(remaining, 60, 1) {
-			dst[j] = pack60(src[i : i+60])
-			i += 60
-		} else if canPack(remaining, 30, 2) {
-			dst[j] = pack30(src[i : i+30])
-			i += 30
-		} else if canPack(remaining, 20, 3) {
-			dst[j] = pack20(src[i : i+20])
-			i += 20
-		} else if canPack(remaining, 15, 4) {
-			dst[j] = pack15(src[i : i+15])
-			i += 15
-		} else if canPack(remaining, 12, 5) {
-			dst[j] = pack12(src[i : i+12])
-			i += 12
-		} else if canPack(remaining, 10, 6) {
-			dst[j] = pack10(src[i : i+10])
-			i += 10
-		} else if canPack(remaining, 8, 7) {
-			dst[j] = pack8(src[i : i+8])
-			i += 8
-		} else if canPack(remaining, 7, 8) {
-			dst[j] = pack7(src[i : i+7])
-			i += 7
-		} else if canPack(remaining, 6, 10) {
-			dst[j] = pack6(src[i : i+6])
-			i += 6
-		} else if canPack(remaining, 5, 12) {
-			dst[j] = pack5(src[i : i+5])
-			i += 5
-		} else if canPack(remaining, 4, 15) {
-			dst[j] = pack4(src[i : i+4])
-			i += 4
-		} else if canPack(remaining, 3, 20) {
-			dst[j] = pack3(src[i : i+3])
-			i += 3
-		} else if canPack(remaining, 2, 30) {
-			dst[j] = pack2(src[i : i+2])
-			i += 2
-		} else if canPack(remaining, 1, 60) {
-			dst[j] = pack1(src[i : i+1])
-			i += 1
-		} else {
-			return nil, fmt.Errorf("value out of bounds")
+		// try to pack run of 240 or 120 1s
+		if len(remaining) >= 120 {
+			var a []uint64
+			if len(remaining) >= 240 {
+				a = remaining[:240]
+			} else {
+				a = remaining[:120]
+			}
+
+			k := 0
+			for k = range a {
+				if a[k] != 1 {
+					break
+				}
+			}
+
+			v := uint64(0)
+			switch {
+			case k >= 239:
+				i += 240
+			case k >= 119:
+				v = 1 << 60
+				i += 120
+
+			default:
+				goto CODES
+			}
+			dst[j] = v
+			j++
+			continue
 		}
-		j += 1
+
+	CODES:
+		for code := range numBits {
+			intN := int(numBits[code][0])
+			bitN := numBits[code][1]
+			if intN > len(remaining) {
+				continue
+			}
+
+			maxVal := uint64(1 << (bitN & 0x3f))
+			val := uint64(code+2) << S8B_BIT_SIZE
+
+			for k, inV := range remaining {
+				if k < intN {
+					if inV >= maxVal {
+						continue CODES
+					}
+					val |= inV << ((byte(k) * bitN) & 0x3f)
+				} else {
+					break
+				}
+			}
+			dst[j] = val
+			j += 1
+			i += intN
+			continue NEXTVALUE
+		}
+		return nil, ErrValueOutOfBounds
 	}
 	return dst[:j], nil
 }
@@ -433,10 +463,7 @@ func Decode(dst *[240]uint64, v uint64) (n int, err error) {
 func DecodeAll(dst, src []uint64) (value int, err error) {
 	j := 0
 	for _, v := range src {
-		sel := v >> 60
-		if sel >= 16 {
-			return 0, fmt.Errorf("invalid selector value: %b", sel)
-		}
+		sel := (v >> 60) & 0xf
 		selector[sel].unpack(v, (*[240]uint64)(unsafe.Pointer(&dst[j])))
 		j += selector[sel].n
 	}
