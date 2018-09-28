@@ -4,7 +4,7 @@ import {Source} from 'src/types/v2'
 export const getSources = async (): Promise<Source[]> => {
   try {
     const {data} = await AJAX({
-      url: '/v2/sources',
+      url: '/api/v2/sources',
     })
 
     return data.sources

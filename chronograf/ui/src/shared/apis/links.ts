@@ -1,7 +1,7 @@
 import {getAJAX} from 'src/utils/ajax'
 import {Links} from 'src/types/v2/links'
 
-const linksURI = '/v2'
+const linksURI = '/api/v2'
 
 export const getLinks = async (): Promise<Links> => {
   try {
