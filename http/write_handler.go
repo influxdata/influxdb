@@ -1,15 +1,19 @@
 package http
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/influxdata/platform"
 	pcontext "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/kit/errors"
+	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/tsdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -128,6 +132,40 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	if !auth.Allowed(platform.WriteBucketPermission(bucket.ID)) {
 		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for write"), w)
 		return
+	}
+
+	// TODO(jeff): we should be publishing with the org and bucket instead of
+	// parsing, rewriting, and publishing, but the interface isn't quite there yet.
+	// be sure to remove this when it is there!
+	{
+		data, err := ioutil.ReadAll(in)
+		if err != nil {
+			logger.Info("Error reading body", zap.Error(err))
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		points, err := models.ParsePoints(data)
+		if err != nil {
+			logger.Info("Error parsing points", zap.Error(err))
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		exploded, err := tsdb.ExplodePoints([]byte(org.ID), []byte(bucket.ID), points)
+		if err != nil {
+			logger.Info("Error exploding points", zap.Error(err))
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		var buf []byte
+		for _, pt := range exploded {
+			buf = pt.AppendString(buf)
+			buf = append(buf, '\n')
+		}
+
+		in = ioutil.NopCloser(bytes.NewReader(buf))
 	}
 
 	if err := h.Publish(in); err != nil {

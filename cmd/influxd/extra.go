@@ -28,6 +28,7 @@ import (
 	influxquery "github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/tsdb"
@@ -52,7 +53,13 @@ type Store interface {
 	WithLogger(log *zap.Logger)
 }
 
-func NewController(s Store, logger *zap.Logger) *control.Controller {
+func NewController(
+	s Store,
+	bucketLookup fstorage.BucketLookup,
+	orgLookup fstorage.OrganizationLookup,
+	logger *zap.Logger,
+) *control.Controller {
+
 	// flux
 	var (
 		concurrencyQuota = 10
@@ -69,8 +76,8 @@ func NewController(s Store, logger *zap.Logger) *control.Controller {
 
 	err := functions.InjectFromDependencies(cc.ExecutorDependencies, fstorage.Dependencies{
 		Reader:             NewReader(s),
-		BucketLookup:       bucketLookup{},
-		OrganizationLookup: orgLookup{},
+		BucketLookup:       bucketLookup,
+		OrganizationLookup: orgLookup,
 	})
 	if err != nil {
 		panic(err)
@@ -78,16 +85,28 @@ func NewController(s Store, logger *zap.Logger) *control.Controller {
 	return control.New(cc)
 }
 
-type orgLookup struct{}
-
-func (l orgLookup) Lookup(ctx context.Context, name string) (platform.ID, bool) {
-	return platform.ID(name), true
+type bucketLookup struct {
+	bolt *bolt.Client
 }
 
-type bucketLookup struct{}
+func (b *bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
+	bucket, err := b.bolt.FindBucketByName(context.TODO(), orgID, name)
+	if err != nil {
+		return nil, false
+	}
+	return bucket.ID, true
+}
 
-func (l bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
-	return platform.ID(name), true
+type orgLookup struct {
+	bolt *bolt.Client
+}
+
+func (o *orgLookup) Lookup(ctx context.Context, name string) (platform.ID, bool) {
+	org, err := o.bolt.FindOrganizationByName(ctx, name)
+	if err != nil {
+		return nil, false
+	}
+	return org.ID, true
 }
 
 type store struct {
@@ -215,7 +234,8 @@ func newIndexSeriesCursor(ctx context.Context, src *ReadSource, req *ReadRequest
 	}
 	p := &indexSeriesCursor{row: SeriesRow{Query: tsdb.CursorIterators{queries}}}
 
-	mi := tsdb.NewMeasurementSliceIterator([][]byte{[]byte("insert-org-bucket")})
+	m := append(append([]byte(nil), src.RetentionPolicy...), src.Database...)
+	mi := tsdb.NewMeasurementSliceIterator([][]byte{m})
 
 	if root := req.Predicate.GetRoot(); root != nil {
 		if p.cond, err = NodeToExpr(root, nil); err != nil {
@@ -2528,7 +2548,12 @@ type tableIterator struct {
 }
 
 func (bi *tableIterator) Do(f func(flux.Table) error) error {
-	src := ReadSource{Database: string(bi.readSpec.BucketID)}
+	// TODO(jeff): THIS IS WAY WRONG! in the sense that i pulled in the wrong
+	// ReadSource, but I expect this to all go away before we need to fix it.
+	src := ReadSource{
+		RetentionPolicy: string(bi.readSpec.OrganizationID),
+		Database:        string(bi.readSpec.BucketID),
+	}
 	if i := strings.IndexByte(src.Database, '/'); i > -1 {
 		src.RetentionPolicy = src.Database[i+1:]
 		src.Database = src.Database[:i]

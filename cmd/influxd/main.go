@@ -245,6 +245,8 @@ func platformF(cmd *cobra.Command, args []string) {
 			AsyncQueryService: &queryAdapter{
 				Controller: NewController(
 					&store{shard: shard},
+					&bucketLookup{bolt: c},
+					&orgLookup{bolt: c},
 					logger.With(zap.String("service", "storage")),
 				),
 			},

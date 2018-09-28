@@ -1,25 +1,54 @@
 package tsdb
 
-import "github.com/influxdata/platform/models"
+import (
+	"errors"
 
-// explodePoints creates a list of points that only contains one field per point. It also
+	"github.com/influxdata/platform/models"
+)
+
+// ExplodePoints creates a list of points that only contains one field per point. It also
 // moves the measurement to a tag, and changes the measurement to be the provided argument.
-func explodePoints(measurement []byte, points []models.Point) ([]models.Point, error) {
+func ExplodePoints(org, bucket []byte, points []models.Point) ([]models.Point, error) {
+	if len(org) != 8 || len(bucket) != 8 {
+		return nil, errors.New("invalid org/bucket")
+	}
+
 	out := make([]models.Point, 0, len(points))
-	name := string(measurement)
+	name := string(org) + string(bucket)
 
+	var tags models.Tags
 	for _, pt := range points {
-		otags, t := pt.Tags().Clone(), pt.Time()
-		otags = append(otags, models.NewTag([]byte("_m"), pt.Name()))
+		t := pt.Time()
 
-		fields, err := pt.Fields()
-		if err != nil {
-			return nil, err
-		}
+		itr := pt.FieldIterator()
+		for itr.Next() {
+			tags = tags[:0]
+			tags = append(tags, models.NewTag([]byte("_f"), itr.FieldKey()))
+			tags = append(tags, models.NewTag([]byte("_m"), pt.Name()))
+			pt.ForEachTag(func(k, v []byte) bool {
+				tags = append(tags, models.NewTag(k, v))
+				return true
+			})
 
-		for key, val := range fields {
-			tags := append(otags, models.Tag{Key: []byte("_f"), Value: []byte(key)})
-			pt, err := models.NewPoint(name, tags, models.Fields{key: val}, t)
+			var err error
+			field := make(models.Fields, 1)
+			switch itr.Type() {
+			case models.Float:
+				field[string(itr.FieldKey())], err = itr.FloatValue()
+			case models.Integer:
+				field[string(itr.FieldKey())], err = itr.IntegerValue()
+			case models.Boolean:
+				field[string(itr.FieldKey())], err = itr.BooleanValue()
+			case models.String:
+				field[string(itr.FieldKey())] = itr.StringValue()
+			case models.Unsigned:
+				field[string(itr.FieldKey())], err = itr.UnsignedValue()
+			}
+			if err != nil {
+				return nil, err
+			}
+
+			pt, err := models.NewPoint(name, tags, field, t)
 			if err != nil {
 				return nil, err
 			}
