@@ -87,11 +87,8 @@ func NewIDGenerator(opts ...IDGeneratorOp) *IDGenerator {
 // ID returns the next platform.ID from an IDGenerator.
 func (g *IDGenerator) ID() platform.ID {
 	var id platform.ID
-	for {
+	for !id.Valid() {
 		id = platform.ID(g.Generator.Next())
-		if id.Valid() {
-			break
-		}
 	}
 	return id
 }

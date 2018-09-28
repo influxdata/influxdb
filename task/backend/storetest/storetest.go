@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/snowflake"
 	"github.com/influxdata/platform/task/backend"
@@ -208,15 +207,10 @@ from(bucket:"test") |> range(start:-1h)`
 		orgID := platform.ID(1)
 		userID := platform.ID(2)
 
-		spew.Dump(orgID)
-		spew.Dump(userID)
-
 		id, err := s.CreateTask(context.Background(), orgID, userID, fmt.Sprintf(scriptFmt, 0), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		spew.Dump(id)
 
 		ts, err := s.ListTasks(context.Background(), backend.TaskSearchParams{Org: orgID})
 		if err != nil {

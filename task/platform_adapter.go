@@ -79,7 +79,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 	if err != nil {
 		return err
 	}
-	t.ID = *id
+	t.ID = id
 	t.Every = opts.Every.String()
 	t.Cron = opts.Cron
 

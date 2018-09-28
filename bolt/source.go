@@ -28,7 +28,6 @@ const (
 )
 
 func init() {
-	// TODO(desa): This ID is temporary. It should be updated to be 0 when we switch to integer ids.
 	if err := DefaultSource.ID.DecodeFromString(DefaultSourceID); err != nil {
 		panic(fmt.Sprintf("failed to decode default source id: %v", err))
 	}
@@ -163,8 +162,8 @@ func (c *Client) findSources(ctx context.Context, tx *bolt.Tx, opt platform.Find
 func (c *Client) CreateSource(ctx context.Context, s *platform.Source) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		s.ID = c.IDGenerator.ID()
-		// fixme > what if s does not contain a valid OrganizationID ? or contains an empty, thus invaid, OrganizationID ?
-		// throw an error? generate one?
+
+		// Generating an organization id if it missing or invalid
 		if !s.OrganizationID.Valid() {
 			s.OrganizationID = c.IDGenerator.ID()
 		}
