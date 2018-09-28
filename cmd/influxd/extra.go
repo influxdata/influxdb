@@ -300,8 +300,10 @@ func (c *indexSeriesCursor) Next() *SeriesRow {
 	c.row.Name = sr.Name
 	//TODO(edd): check this.
 	c.row.SeriesTags = copyTags(c.row.SeriesTags, sr.Tags)
-	c.row.Tags = c.row.SeriesTags
+	c.row.Tags = copyTags(c.row.Tags, sr.Tags)
 	c.row.Field = string(c.row.Tags.Get(fieldKeyBytes))
+
+	normalizeTags(c.row.Tags)
 
 	if c.cond != nil && c.hasValueExpr {
 		// TODO(sgc): lazily evaluate valueCond
@@ -2608,6 +2610,19 @@ func (bi *tableIterator) Do(f func(flux.Table) error) error {
 			return bi.handleReadNoPoints(f, rs)
 		}
 		return bi.handleRead(f, rs)
+	}
+}
+
+func normalizeTags(tags models.Tags) {
+	for i, tag := range tags {
+		if len(tag.Key) == 2 && tag.Key[0] == '_' {
+			switch tag.Key[1] {
+			case 'f':
+				tags[i].Key = []byte("_field")
+			case 'm':
+				tags[i].Key = []byte("_measurement")
+			}
+		}
 	}
 }
 
