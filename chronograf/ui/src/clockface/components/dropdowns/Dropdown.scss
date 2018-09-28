@@ -4,6 +4,8 @@
 */
 
 .dropdown {
+  position: relative;
+
   &.dropdown-xs {
     height: $form-xs-height;
   }
