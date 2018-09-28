@@ -2,7 +2,6 @@ package platform
 
 import (
 	"context"
-	"fmt"
 )
 
 // Authorization is a authorization. 🎉
@@ -15,24 +14,19 @@ type Authorization struct {
 	Permissions []Permission `json:"permissions,omitempty"`
 }
 
-// Allowed returns true if the authorization is active and requested permission level
+// Allowed returns true if the authorization is active and request permission
 // exists in the authorization's list of permissions.
-func Allowed(req Permission, auth *Authorization) bool {
-	if !IsActive(auth) {
+func (a *Authorization) Allowed(p Permission) bool {
+	if !a.IsActive() {
 		return false
 	}
 
-	for _, p := range auth.Permissions {
-		if p.Action == req.Action && p.Resource == req.Resource {
-			return true
-		}
-	}
-	return false
+	return allowed(p, a.Permissions)
 }
 
 // IsActive returns true if the authorization active.
-func IsActive(auth *Authorization) bool {
-	return auth.Status == Active
+func (a *Authorization) IsActive() bool {
+	return a.Status == Active
 }
 
 // AuthorizationService represents a service for managing authorization data.
@@ -65,75 +59,4 @@ type AuthorizationFilter struct {
 
 	UserID *ID
 	User   *string
-}
-
-type action string
-
-const (
-	// ReadAction is the action for reading.
-	ReadAction action = "read"
-	// WriteAction is the action for writing.
-	WriteAction action = "write"
-	// CreateAction is the action for creating new resources.
-	CreateAction action = "create"
-	// DeleteAction is the action for deleting an existing resource.
-	DeleteAction action = "delete"
-)
-
-type resource string
-
-const (
-	// UserResource represents the user resource actions can apply to.
-	UserResource = resource("user")
-	// OrganizationResource represents the org resource actions can apply to.
-	OrganizationResource = resource("org")
-)
-
-// TaskResource represents the task resource scoped to an organization.
-func TaskResource(orgID ID) resource {
-	return resource(fmt.Sprintf("org/%s/task", orgID))
-}
-
-// BucketResource constructs a bucket resource.
-func BucketResource(id ID) resource {
-	return resource(fmt.Sprintf("bucket/%s", id))
-}
-
-// Permission defines an action and a resource.
-type Permission struct {
-	Action   action   `json:"action"`
-	Resource resource `json:"resource"`
-}
-
-func (p Permission) String() string {
-	return fmt.Sprintf("%s:%s", p.Action, p.Resource)
-}
-
-var (
-	// CreateUserPermission is a permission for creating users.
-	CreateUserPermission = Permission{
-		Action:   CreateAction,
-		Resource: UserResource,
-	}
-	// DeleteUserPermission is a permission for deleting users.
-	DeleteUserPermission = Permission{
-		Action:   DeleteAction,
-		Resource: UserResource,
-	}
-)
-
-// ReadBucketPermission constructs a permission for reading a bucket.
-func ReadBucketPermission(id ID) Permission {
-	return Permission{
-		Action:   ReadAction,
-		Resource: BucketResource(id),
-	}
-}
-
-// WriteBucketPermission constructs a permission for writing to a bucket.
-func WriteBucketPermission(id ID) Permission {
-	return Permission{
-		Action:   WriteAction,
-		Resource: BucketResource(id),
-	}
 }

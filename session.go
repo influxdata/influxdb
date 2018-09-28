@@ -26,6 +26,16 @@ func (s *Session) Expired() error {
 	return nil
 }
 
+// Allowed returns true if the authorization is unexpired and request permission
+// exists in the sessions list of permissions.
+func (s *Session) Allowed(p Permission) bool {
+	if err := s.Expired(); err != nil {
+		return false
+	}
+
+	return allowed(p, s.Permissions)
+}
+
 // SessionService represents a service for managing user sessions.
 type SessionService interface {
 	FindSession(ctx context.Context, key string) (*Session, error)

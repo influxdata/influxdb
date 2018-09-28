@@ -44,7 +44,7 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth 
 		}
 
 		reqPerm := platform.ReadBucketPermission(bucket.ID)
-		if !platform.Allowed(reqPerm, auth) {
+		if !auth.Allowed(reqPerm) {
 			return errors.New("No read permission for bucket: \"" + bucket.Name + "\"")
 		}
 	}
@@ -56,7 +56,7 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth 
 		}
 
 		reqPerm := platform.WriteBucketPermission(bucket.ID)
-		if !platform.Allowed(reqPerm, auth) {
+		if !auth.Allowed(reqPerm) {
 			return errors.New("No write permission for bucket: \"" + bucket.Name + "\"")
 		}
 	}

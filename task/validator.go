@@ -47,7 +47,7 @@ func validatePermission(ctx context.Context, perm platform.Permission) error {
 		return err
 	}
 
-	if !platform.Allowed(perm, auth) {
+	if !auth.Allowed(perm) {
 		return authError{error: ErrFailedPermission, perm: perm, auth: auth}
 	}
 
