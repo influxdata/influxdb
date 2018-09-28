@@ -27,8 +27,7 @@ func (b *BucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool
 	}
 	bucket, err := b.BucketService.FindBucket(context.Background(), filter)
 	if err != nil {
-		var id platform.ID
-		return id, false
+		return platform.InvalidID(), false
 	}
 	return bucket.ID, true
 }
@@ -51,8 +50,7 @@ func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (platform.
 	)
 
 	if err != nil {
-		var id platform.ID
-		return id, false
+		return platform.InvalidID(), false
 	}
 	return org.ID, true
 }

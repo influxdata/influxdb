@@ -96,8 +96,7 @@ func New(db *bolt.DB, rootBucket string) (*Store, error) {
 func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
 	o, err := backend.StoreValidator.CreateArgs(org, user, script)
 	if err != nil {
-		var id platform.ID
-		return id, err
+		return platform.InvalidID(), err
 	}
 
 	var id platform.ID
@@ -199,8 +198,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 	})
 
 	if err != nil {
-		var id platform.ID
-		return id, err
+		return platform.InvalidID(), err
 	}
 
 	return id, nil
@@ -636,8 +634,7 @@ func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 		makeID := func() (platform.ID, error) {
 			idi, err := b.Bucket(runIDs).NextSequence()
 			if err != nil {
-				var id platform.ID
-				return id, err
+				return platform.InvalidID(), err
 			}
 
 			return platform.ID(idi), nil

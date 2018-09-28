@@ -48,8 +48,7 @@ func TestMeta_CreateNextRun(t *testing.T) {
 	idErr := errors.New("error making ID")
 	*bad = good
 	if _, err := bad.CreateNextRun(120, func() (platform.ID, error) {
-		var id platform.ID
-		return id, idErr
+		return platform.InvalidID(), idErr
 	}); err != idErr {
 		t.Fatalf("expected id creation error, got %v", err)
 	}

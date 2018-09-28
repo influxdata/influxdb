@@ -38,8 +38,7 @@ func NewInMemStore() Store {
 func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
 	o, err := StoreValidator.CreateArgs(org, user, script)
 	if err != nil {
-		var id platform.ID
-		return id, err
+		return platform.InvalidID(), err
 	}
 
 	id := s.idgen.ID()

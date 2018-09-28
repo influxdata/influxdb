@@ -39,6 +39,11 @@ func IDFromString(str string) (*ID, error) {
 	return &id, nil
 }
 
+// InvalidID returns a zero ID.
+func InvalidID() ID {
+	return 0
+}
+
 // Decode parses b as a hex-encoded byte-slice-string.
 //
 // It errors if the input byte slice does not have the correct length

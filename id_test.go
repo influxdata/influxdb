@@ -187,4 +187,8 @@ func TestValid(t *testing.T) {
 	if id.Valid() {
 		t.Errorf("expecting initial ID to be invalid")
 	}
+
+	if platform.InvalidID() != 0 {
+		t.Errorf("expecting invalid ID to return a zero ID, thus invalid")
+	}
 }
