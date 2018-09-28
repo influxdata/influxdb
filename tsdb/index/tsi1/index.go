@@ -14,11 +14,11 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash"
-	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/pkg/estimator/hll"
+	"github.com/influxdata/platform/pkg/slices"
 	"github.com/influxdata/platform/tsdb"
 	"go.uber.org/zap"
 )

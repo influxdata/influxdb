@@ -11,10 +11,10 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/pkg/slices"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/index/tsi1"
 )

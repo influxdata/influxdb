@@ -15,8 +15,8 @@ import (
 	"unsafe"
 
 	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/pkg/bytesutil"
 	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/tsdb"
 	"go.uber.org/zap"

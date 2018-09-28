@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/influxdata/influxdb/pkg/encoding/simple8b"
+	"github.com/influxdata/platform/pkg/encoding/simple8b"
 )
 
 var (

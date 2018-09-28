@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/influxdata/influxdb/pkg/pool"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/limiter"
+	"github.com/influxdata/platform/pkg/pool"
 	"go.uber.org/zap"
 )
 

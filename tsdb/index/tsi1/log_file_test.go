@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/slices"
+	"github.com/influxdata/platform/pkg/slices"
 
 	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/platform/models"

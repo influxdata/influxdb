@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/golang/snappy"
-	"github.com/influxdata/influxdb/pkg/slices"
+	"github.com/influxdata/platform/pkg/slices"
 	"github.com/influxdata/platform/tsdb/tsm1"
 )
 

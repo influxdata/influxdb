@@ -15,10 +15,10 @@ import (
 	"unsafe"
 
 	"github.com/influxdata/influxdb/pkg/bloom"
-	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/pkg/estimator/hll"
+	"github.com/influxdata/platform/pkg/mmap"
 	"github.com/influxdata/platform/tsdb"
 )
 
