@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
+	_ "github.com/influxdata/platform/tsdb/tsm1"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
@@ -78,54 +79,6 @@ func TestShardWriteAndIndex(t *testing.T) {
 	err = sh.WritePoints([]models.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
-	}
-}
-
-func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(tmpDir)
-	tmpShard := filepath.Join(tmpDir, "shard")
-
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
-	opts := tsdb.NewEngineOptions()
-
-	sh := tsdb.NewShard(1, tmpShard, sfile.SeriesFile, opts)
-
-	// Calling WritePoints when the engine is not open will return
-	// ErrEngineClosed.
-	if got, exp := sh.WritePoints(nil), tsdb.ErrEngineClosed; got != exp {
-		t.Fatalf("got %v, expected %v", got, exp)
-	}
-
-	if err := sh.Open(); err != nil {
-		t.Fatalf("error opening shard: %s", err.Error())
-	}
-
-	pt := models.MustNewPoint(
-		"cpu",
-		models.Tags{{Key: []byte("host"), Value: []byte("server")}},
-		map[string]interface{}{"value": 1.0},
-		time.Unix(1, 2),
-	)
-
-	err := sh.WritePoints([]models.Point{pt})
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	if err := sh.Close(); err != nil {
-		t.Fatalf("close shard error: %v", err)
-	}
-
-	path := filepath.Join(tmpShard, "fields.idx")
-	if err := os.Truncate(path, 6); err != nil {
-		t.Fatalf("truncate shard error: %v", err)
-	}
-
-	if err := sh.Open(); err != nil {
-		t.Fatalf("error opening shard: %s", err.Error())
 	}
 }
 
@@ -282,81 +235,6 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 
 	if got, exp := sh.SeriesN(), int64(1); got != exp {
 		t.Fatalf("got %d series, exp %d series in index", got, exp)
-	}
-}
-
-func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
-
-	path := filepath.Join(dir, "fields.idx")
-	mf, err := tsdb.NewMeasurementFieldSet(path)
-	if err != nil {
-		t.Fatalf("NewMeasurementFieldSet error: %v", err)
-	}
-
-	fields := mf.CreateFieldsIfNotExists([]byte("cpu"))
-	if err := fields.CreateFieldIfNotExists([]byte("value"), influxql.Float); err != nil {
-		t.Fatalf("create field error: %v", err)
-	}
-
-	if err := mf.Save(); err != nil {
-		t.Fatalf("save error: %v", err)
-	}
-
-	mf, err = tsdb.NewMeasurementFieldSet(path)
-	if err != nil {
-		t.Fatalf("NewMeasurementFieldSet error: %v", err)
-	}
-
-	fields = mf.FieldsByString("cpu")
-	field := fields.Field("value")
-	if field == nil {
-		t.Fatalf("field is null")
-	}
-
-	if got, exp := field.Type, influxql.Float; got != exp {
-		t.Fatalf("field type mismatch: got %v, exp %v", got, exp)
-	}
-}
-
-func TestMeasurementFieldSet_Corrupt(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
-
-	path := filepath.Join(dir, "fields.idx")
-	mf, err := tsdb.NewMeasurementFieldSet(path)
-	if err != nil {
-		t.Fatalf("NewMeasurementFieldSet error: %v", err)
-	}
-
-	fields := mf.CreateFieldsIfNotExists([]byte("cpu"))
-	if err := fields.CreateFieldIfNotExists([]byte("value"), influxql.Float); err != nil {
-		t.Fatalf("create field error: %v", err)
-	}
-
-	if err := mf.Save(); err != nil {
-		t.Fatalf("save error: %v", err)
-	}
-
-	stat, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat error: %v", err)
-	}
-
-	// Truncate the file to simulate a a corrupted file
-	if err := os.Truncate(path, stat.Size()-3); err != nil {
-		t.Fatalf("truncate error: %v", err)
-	}
-
-	mf, err = tsdb.NewMeasurementFieldSet(path)
-	if err == nil {
-		t.Fatal("NewMeasurementFieldSet expected error")
-	}
-
-	fields = mf.FieldsByString("cpu")
-	if fields != nil {
-		t.Fatal("expecte fields to be nil")
 	}
 }
 
