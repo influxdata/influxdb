@@ -22,64 +22,56 @@ func IntegerArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 		return nil, nil // Nothing to do
 	}
 
-	// Zigzag encode deltas of all provided values.
-	var prev int64
-	var rle = true
-	var canpack = true
+	var max = uint64(0)
 
 	// To prevent an allocation of the entire block we're encoding reuse the
 	// src slice to store the encoded deltas.
 	deltas := reintepretInt64ToUint64Slice(src)
-
-	prev = src[0]
-	enc := ZigZagEncode(prev)
-	src[0] = int64(enc)
-	canpack = enc <= simple8b.MaxValue
-
-	if len(src) > 1 {
-		delta := src[1] - prev
-		prev = src[1]
-		enc = ZigZagEncode(delta)
-		d0 := enc
-		src[1] = int64(enc)
-		canpack = canpack && enc <= simple8b.MaxValue
-
-		for i := 2; i < len(src); i++ {
-			delta := src[i] - prev
-			prev = src[i]
-			enc = ZigZagEncode(delta)
-			src[i] = int64(enc)
-			rle = rle && d0 == enc
-			canpack = canpack && enc <= simple8b.MaxValue
+	for i := len(deltas) - 1; i > 0; i-- {
+		deltas[i] = deltas[i] - deltas[i-1]
+		deltas[i] = ZigZagEncode(int64(deltas[i]))
+		if deltas[i] > max {
+			max = deltas[i]
 		}
 	}
 
-	// Encode with RLE
-	if rle && len(deltas) > 2 {
-		// Large varints can take up to 10 bytes.  We're storing 3 + 1
-		// type byte.
-		if len(b) < 31 && cap(b) >= 31 {
-			b = b[:31]
-		} else if len(b) < 31 {
-			b = append(b, make([]byte, 31-len(b))...)
+	deltas[0] = ZigZagEncode(int64(deltas[0]))
+
+	if len(deltas) > 2 {
+		var rle = true
+		for i := 2; i < len(deltas); i++ {
+			if deltas[1] != deltas[i] {
+				rle = false
+				break
+			}
 		}
 
-		// 4 high bits used for the encoding type
-		b[0] = byte(intCompressedRLE) << 4
+		if rle {
+			// Large varints can take up to 10 bytes.  We're storing 3 + 1
+			// type byte.
+			if len(b) < 31 && cap(b) >= 31 {
+				b = b[:31]
+			} else if len(b) < 31 {
+				b = append(b, make([]byte, 31-len(b))...)
+			}
 
-		i := 1
-		// The first value
-		binary.BigEndian.PutUint64(b[i:], deltas[0])
-		i += 8
-		// The first delta
-		i += binary.PutUvarint(b[i:], deltas[1])
-		// The number of times the delta is repeated
-		i += binary.PutUvarint(b[i:], uint64(len(deltas)-1))
+			// 4 high bits used for the encoding type
+			b[0] = byte(intCompressedRLE) << 4
 
-		return b[:i], nil
+			i := 1
+			// The first value
+			binary.BigEndian.PutUint64(b[i:], deltas[0])
+			i += 8
+			// The first delta
+			i += binary.PutUvarint(b[i:], deltas[1])
+			// The number of times the delta is repeated
+			i += binary.PutUvarint(b[i:], uint64(len(deltas)-1))
+
+			return b[:i], nil
+		}
 	}
 
-	if !canpack { // There is an encoded value that's too big to simple8b encode.
+	if max > simple8b.MaxValue { // There is an encoded value that's too big to simple8b encode.
 		// Encode uncompressed.
 		sz := 1 + len(deltas)*8
 		if len(b) < sz && cap(b) >= sz {

@@ -116,7 +116,7 @@ func testIntegerArrayEncodeAll_Compare(t *testing.T, input []int64, encoding byt
 	}
 
 	if got := result; !reflect.DeepEqual(got, exp) {
-		t.Fatalf("got result %v, expected %v", got, exp)
+		t.Fatalf("-got/+exp\n%s", cmp.Diff(got, exp))
 	}
 
 	// Check that the encoders are byte for byte the same...
@@ -291,10 +291,9 @@ func TestIntegerArrayEncodeAll_Negative(t *testing.T) {
 }
 
 func TestIntegerArrayEncodeAll_Large_Range(t *testing.T) {
-	var v1, v2 int64 = math.MinInt64, math.MaxInt64
+	exp := []int64{math.MaxInt64, 0, math.MaxInt64}
 
-	src := []int64{v1, v2}
-	b, err := IntegerArrayEncodeAll(src, nil)
+	b, err := IntegerArrayEncodeAll(append([]int64{}, exp...), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -305,20 +304,14 @@ func TestIntegerArrayEncodeAll_Large_Range(t *testing.T) {
 
 	var dec IntegerDecoder
 	dec.SetBytes(b)
-	if !dec.Next() {
-		t.Fatalf("unexpected next value: got true, exp false")
+
+	var got []int64
+	for dec.Next() {
+		got = append(got, dec.Read())
 	}
 
-	if v1 != dec.Read() {
-		t.Fatalf("read value mismatch: got %v, exp %v", dec.Read(), v1)
-	}
-
-	if !dec.Next() {
-		t.Fatalf("unexpected next value: got true, exp false")
-	}
-
-	if v2 != dec.Read() {
-		t.Fatalf("read value mismatch: got %v, exp %v", dec.Read(), v2)
+	if !cmp.Equal(got, exp) {
+		t.Fatalf("unxpected result, -got/+exp\n%s", cmp.Diff(got, exp))
 	}
 }
 
@@ -621,7 +614,7 @@ func TestIntegerArrayEncodeAll_MinMax(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if b[0]>>4 != intUncompressed {
+	if b[0]>>4 != intCompressedSimple {
 		t.Fatalf("unexpected encoding format: expected simple, got %v", b[0]>>4)
 	}
 
