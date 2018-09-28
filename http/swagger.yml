@@ -50,14 +50,14 @@ paths:
       tags:
         - Setup
       summary: check if database has default user, org, bucket created, returns true if not.
-      response: 
+      responses: 
         '200':
+          description:
+            allowed true or false
           content:
             application/json:
-              type: object
-              properties: 
-                allowed: 
-                  type: boolean
+              schema:
+                $ref: "#/components/schemas/IsOnboarding"
     post:
       tags:
         - Setup
@@ -75,8 +75,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OnboardingResponse"
-        
+                $ref: "#/components/schemas/OnboardingResponse"    
   /macros:
     get:
       tags:
@@ -3292,6 +3291,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Source"
+    IsOnboarding:
+      type: object
+      properties:
+        allowed: 
+          type: boolean
     OnboardingRequest:
       type: object
       properties:
