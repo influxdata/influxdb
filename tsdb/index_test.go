@@ -10,14 +10,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
-	"github.com/influxdata/platform/tsdb/index/inmem"
 	"github.com/influxdata/platform/tsdb/index/tsi1"
 )
 
@@ -79,23 +77,12 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 		defer idx.Close()
 	}
 
-	authorizer := &internal.AuthorizerMock{
-		AuthorizeSeriesReadFn: func(database string, measurement []byte, tags models.Tags) bool {
-			if tags.GetString("secret") != "" {
-				t.Logf("Rejecting series db=%s, m=%s, tags=%v", database, measurement, tags)
-				return false
-			}
-			return true
-		},
-	}
-
 	type example struct {
 		name     string
 		expr     influxql.Expr
 		expected [][]byte
 	}
 
-	// These examples should be run without any auth.
 	examples := []example{
 		{name: "all", expected: slices.StringsToBytes("cpu", "disk", "gpu", "mem", "pci")},
 		{name: "EQ", expr: influxql.MustParseExpr(`region = 'west'`), expected: slices.StringsToBytes("cpu", "mem")},
@@ -104,94 +91,17 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 		{name: "NEQREGEX", expr: influxql.MustParseExpr(`region !~ /.*est/`), expected: slices.StringsToBytes("gpu", "pci")},
 	}
 
-	// These examples should be run with the authorizer.
-	authExamples := []example{
-		{name: "all", expected: slices.StringsToBytes("cpu", "gpu", "mem")},
-		{name: "EQ", expr: influxql.MustParseExpr(`region = 'west'`), expected: slices.StringsToBytes("mem")},
-		{name: "NEQ", expr: influxql.MustParseExpr(`region != 'west'`), expected: slices.StringsToBytes("gpu")},
-		{name: "EQREGEX", expr: influxql.MustParseExpr(`region =~ /.*st/`), expected: slices.StringsToBytes("cpu", "gpu", "mem")},
-		{name: "NEQREGEX", expr: influxql.MustParseExpr(`region !~ /.*est/`), expected: slices.StringsToBytes("gpu")},
-	}
-
 	for _, idx := range tsdb.RegisteredIndexes() {
 		t.Run(idx, func(t *testing.T) {
-			t.Run("no authorization", func(t *testing.T) {
-				for _, example := range examples {
-					t.Run(example.name, func(t *testing.T) {
-						names, err := indexes[idx].IndexSet().MeasurementNamesByExpr(nil, example.expr)
-						if err != nil {
-							t.Fatal(err)
-						} else if !reflect.DeepEqual(names, example.expected) {
-							t.Fatalf("got names: %v, expected %v", slices.BytesToStrings(names), slices.BytesToStrings(example.expected))
-						}
-					})
-				}
-			})
-
-			t.Run("with authorization", func(t *testing.T) {
-				for _, example := range authExamples {
-					t.Run(example.name, func(t *testing.T) {
-						names, err := indexes[idx].IndexSet().MeasurementNamesByExpr(authorizer, example.expr)
-						if err != nil {
-							t.Fatal(err)
-						} else if !reflect.DeepEqual(names, example.expected) {
-							t.Fatalf("got names: %v, expected %v", slices.BytesToStrings(names), slices.BytesToStrings(example.expected))
-						}
-					})
-				}
-			})
-		})
-	}
-}
-
-func TestIndexSet_DedupeInmemIndexes(t *testing.T) {
-	testCases := []struct {
-		tsiN    int // Quantity of TSI indexes
-		inmem1N int // Quantity of ShardIndexes proxying the first inmem Index
-		inmem2N int // Quantity of ShardIndexes proxying the second inmem Index
-		uniqueN int // Quantity of total, deduplicated indexes
-	}{
-		{tsiN: 1, inmem1N: 0, uniqueN: 1},
-		{tsiN: 2, inmem1N: 0, uniqueN: 2},
-		{tsiN: 0, inmem1N: 1, uniqueN: 1},
-		{tsiN: 0, inmem1N: 2, uniqueN: 1},
-		{tsiN: 0, inmem1N: 1, inmem2N: 1, uniqueN: 2},
-		{tsiN: 0, inmem1N: 2, inmem2N: 2, uniqueN: 2},
-		{tsiN: 2, inmem1N: 2, inmem2N: 2, uniqueN: 4},
-	}
-
-	for _, testCase := range testCases {
-		name := fmt.Sprintf("%d/%d/%d -> %d", testCase.tsiN, testCase.inmem1N, testCase.inmem2N, testCase.uniqueN)
-		t.Run(name, func(t *testing.T) {
-
-			var indexes []tsdb.Index
-			for i := 0; i < testCase.tsiN; i++ {
-				indexes = append(indexes, MustOpenNewIndex(tsi1.IndexName))
-			}
-			if testCase.inmem1N > 0 {
-				sfile := MustOpenSeriesFile()
-				opts := tsdb.NewEngineOptions()
-				opts.IndexVersion = inmem.IndexName
-				opts.InmemIndex = inmem.NewIndex("db", sfile.SeriesFile)
-
-				for i := 0; i < testCase.inmem1N; i++ {
-					indexes = append(indexes, inmem.NewShardIndex(uint64(i), tsdb.NewSeriesIDSet(), opts))
-				}
-			}
-			if testCase.inmem2N > 0 {
-				sfile := MustOpenSeriesFile()
-				opts := tsdb.NewEngineOptions()
-				opts.IndexVersion = inmem.IndexName
-				opts.InmemIndex = inmem.NewIndex("db", sfile.SeriesFile)
-
-				for i := 0; i < testCase.inmem2N; i++ {
-					indexes = append(indexes, inmem.NewShardIndex(uint64(i), tsdb.NewSeriesIDSet(), opts))
-				}
-			}
-
-			is := tsdb.IndexSet{Indexes: indexes}.DedupeInmemIndexes()
-			if len(is.Indexes) != testCase.uniqueN {
-				t.Errorf("expected %d indexes, got %d", testCase.uniqueN, len(is.Indexes))
+			for _, example := range examples {
+				t.Run(example.name, func(t *testing.T) {
+					names, err := indexes[idx].IndexSet().MeasurementNamesByExpr(nil, example.expr)
+					if err != nil {
+						t.Fatal(err)
+					} else if !reflect.DeepEqual(names, example.expected) {
+						t.Fatalf("got names: %v, expected %v", slices.BytesToStrings(names), slices.BytesToStrings(example.expected))
+					}
+				})
 			}
 		})
 	}
@@ -241,84 +151,58 @@ func TestIndex_Sketches(t *testing.T) {
 		}
 	}
 
-	test := func(t *testing.T, index string) error {
-		idx := MustNewIndex(index)
-		if index, ok := idx.Index.(*tsi1.Index); ok {
-			// Override the log file max size to force a log file compaction sooner.
-			// This way, we will test the sketches are correct when they have been
-			// compacted into IndexFiles, and also when they're loaded from
-			// IndexFiles after a re-open.
-			tsi1.WithMaximumLogFileSize(1 << 10)(index)
+	idx := MustNewIndex()
+	// Override the log file max size to force a log file compaction sooner.
+	// This way, we will test the sketches are correct when they have been
+	// compacted into IndexFiles, and also when they're loaded from
+	// IndexFiles after a re-open.
+	tsi1.WithMaximumLogFileSize(1 << 10)(idx.Index)
+
+	// Open the index
+	idx.MustOpen()
+	defer idx.Close()
+
+	series := genTestSeries(10, 5, 3)
+	// Add series to index.
+	for _, serie := range series {
+		if err := idx.AddSeries(serie.Measurement, serie.Tags.Map(), serie.Type); err != nil {
+			t.Fatal(err)
 		}
-
-		// Open the index
-		idx.MustOpen()
-		defer idx.Close()
-
-		series := genTestSeries(10, 5, 3)
-		// Add series to index.
-		for _, serie := range series {
-			if err := idx.AddSeries(serie.Measurement, serie.Tags.Map(), serie.Type); err != nil {
-				t.Fatal(err)
-			}
-		}
-
-		// Check cardinalities after adding series.
-		checkCardinalities(t, idx, "initial", 2430, 0, 10, 0)
-
-		// Re-open step only applies to the TSI index.
-		if _, ok := idx.Index.(*tsi1.Index); ok {
-			// Re-open the index.
-			if err := idx.Reopen(); err != nil {
-				panic(err)
-			}
-
-			// Check cardinalities after the reopen
-			checkCardinalities(t, idx, "initial|reopen", 2430, 0, 10, 0)
-		}
-
-		// Drop some series
-		if err := idx.DropMeasurement([]byte("measurement2")); err != nil {
-			return err
-		} else if err := idx.DropMeasurement([]byte("measurement5")); err != nil {
-			return err
-		}
-
-		// Check cardinalities after the delete
-		switch idx.Index.(type) {
-		case *tsi1.Index:
-			checkCardinalities(t, idx, "initial|reopen|delete", 2923, 0, 10, 2)
-		case *inmem.ShardIndex:
-			checkCardinalities(t, idx, "initial|reopen|delete", 2430, 486, 10, 2)
-		default:
-			panic("unreachable")
-		}
-
-		// Re-open step only applies to the TSI index.
-		if _, ok := idx.Index.(*tsi1.Index); ok {
-			// Re-open the index.
-			if err := idx.Reopen(); err != nil {
-				panic(err)
-			}
-
-			// Check cardinalities after the reopen
-			checkCardinalities(t, idx, "initial|reopen|delete|reopen", 2923, 0, 10, 2)
-		}
-		return nil
 	}
 
-	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) {
-			if err := test(t, index); err != nil {
-				t.Fatal(err)
-			}
-		})
+	// Check cardinalities after adding series.
+	checkCardinalities(t, idx, "initial", 2430, 0, 10, 0)
+
+	// Re-open the index.
+	if err := idx.Reopen(); err != nil {
+		panic(err)
 	}
+
+	// Check cardinalities after the reopen
+	checkCardinalities(t, idx, "initial|reopen", 2430, 0, 10, 0)
+
+	// Drop some series
+	if err := idx.DropMeasurement([]byte("measurement2")); err != nil {
+		t.Fatal(err)
+	} else if err := idx.DropMeasurement([]byte("measurement5")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check cardinalities after the delete
+	checkCardinalities(t, idx, "initial|reopen|delete", 2923, 0, 10, 2)
+
+	// Re-open the index.
+	if err := idx.Reopen(); err != nil {
+		panic(err)
+	}
+
+	// Check cardinalities after the reopen
+	checkCardinalities(t, idx, "initial|reopen|delete|reopen", 2923, 0, 10, 2)
 }
 
 // Index wraps a series file and index.
 type Index struct {
-	tsdb.Index
+	*tsi1.Index
 	rootPath  string
 	indexType string
 	sfile     *tsdb.SeriesFile
@@ -328,9 +212,8 @@ type Index struct {
 // everything under the same root directory so it can be cleanly removed on Close.
 //
 // The index will not be opened.
-func MustNewIndex(index string) *Index {
+func MustNewIndex() *Index {
 	opts := tsdb.NewEngineOptions()
-	opts.IndexVersion = index
 
 	rootPath, err := ioutil.TempDir("", "influxdb-tsdb")
 	if err != nil {
@@ -347,10 +230,6 @@ func MustNewIndex(index string) *Index {
 		panic(err)
 	}
 
-	if index == inmem.IndexName {
-		opts.InmemIndex = inmem.NewIndex("db0", sfile)
-	}
-
 	i, err := tsdb.NewIndex(0, "db0", filepath.Join(rootPath, "index"), tsdb.NewSeriesIDSet(), sfile, opts)
 	if err != nil {
 		panic(err)
@@ -361,10 +240,9 @@ func MustNewIndex(index string) *Index {
 	}
 
 	idx := &Index{
-		Index:     i,
-		indexType: index,
-		rootPath:  rootPath,
-		sfile:     sfile,
+		Index:    i.(*tsi1.Index),
+		rootPath: rootPath,
+		sfile:    sfile,
 	}
 	return idx
 }
@@ -372,7 +250,7 @@ func MustNewIndex(index string) *Index {
 // MustOpenNewIndex will initialize a new index using the provide type and opens
 // it.
 func MustOpenNewIndex(index string) *Index {
-	idx := MustNewIndex(index)
+	idx := MustNewIndex()
 	idx.MustOpen()
 	return idx
 }
@@ -410,16 +288,12 @@ func (i *Index) Reopen() error {
 	}
 
 	opts := tsdb.NewEngineOptions()
-	opts.IndexVersion = i.indexType
-	if i.indexType == inmem.IndexName {
-		opts.InmemIndex = inmem.NewIndex("db0", i.sfile)
-	}
 
 	idx, err := tsdb.NewIndex(0, "db0", filepath.Join(i.rootPath, "index"), tsdb.NewSeriesIDSet(), i.sfile, opts)
 	if err != nil {
 		return err
 	}
-	i.Index = idx
+	i.Index = idx.(*tsi1.Index)
 	return i.Index.Open()
 }
 
@@ -443,7 +317,6 @@ func (i *Index) Close() error {
 //
 // Typical results on an i7 laptop.
 //
-// BenchmarkIndexSet_TagSets/1M_series/inmem-8   	     100	  10430732 ns/op	 3556728 B/op	      51 allocs/op
 // BenchmarkIndexSet_TagSets/1M_series/tsi1-8    	     100	  18995530 ns/op	 5221180 B/op	   20379 allocs/op
 func BenchmarkIndexSet_TagSets(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
@@ -509,17 +382,8 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 			} // For TSI implementation
 
 			var ts func() ([]*query.TagSet, error)
-			// TODO(edd): this is somewhat awkward. We should unify this difference somewhere higher
-			// up than the engine. I don't want to open an engine do a benchmark on
-			// different index implementations.
-			if indexType == tsdb.InmemIndexName {
-				ts = func() ([]*query.TagSet, error) {
-					return idx.Index.(indexTagSets).TagSets(name, opt)
-				}
-			} else {
-				ts = func() ([]*query.TagSet, error) {
-					return indexSet.TagSets(idx.sfile, name, opt)
-				}
+			ts = func() ([]*query.TagSet, error) {
+				return indexSet.TagSets(idx.sfile, name, opt)
 			}
 
 			b.Run(indexType, func(b *testing.B) {

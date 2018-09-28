@@ -10,6 +10,14 @@ import (
 	"github.com/influxdata/platform/tsdb/index/tsi1"
 )
 
+func newSeriesIDSet(ids ...int) *tsdb.SeriesIDSet {
+	out := make([]tsdb.SeriesID, 0, len(ids))
+	for _, v := range ids {
+		out = append(out, tsdb.NewSeriesID(uint64(v)))
+	}
+	return tsdb.NewSeriesIDSet(out...)
+}
+
 // Ensure tag blocks can be written and opened.
 func TestTagBlockWriter(t *testing.T) {
 	// Write 3 series to writer.
@@ -18,19 +26,19 @@ func TestTagBlockWriter(t *testing.T) {
 
 	if err := enc.EncodeKey([]byte("host"), false); err != nil {
 		t.Fatal(err)
-	} else if err := enc.EncodeValue([]byte("server0"), false, tsdb.NewSeriesIDSet(1)); err != nil {
+	} else if err := enc.EncodeValue([]byte("server0"), false, newSeriesIDSet(1)); err != nil {
 		t.Fatal(err)
-	} else if err := enc.EncodeValue([]byte("server1"), false, tsdb.NewSeriesIDSet(2)); err != nil {
+	} else if err := enc.EncodeValue([]byte("server1"), false, newSeriesIDSet(2)); err != nil {
 		t.Fatal(err)
-	} else if err := enc.EncodeValue([]byte("server2"), false, tsdb.NewSeriesIDSet(3)); err != nil {
+	} else if err := enc.EncodeValue([]byte("server2"), false, newSeriesIDSet(3)); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := enc.EncodeKey([]byte("region"), false); err != nil {
 		t.Fatal(err)
-	} else if err := enc.EncodeValue([]byte("us-east"), false, tsdb.NewSeriesIDSet(1, 2)); err != nil {
+	} else if err := enc.EncodeValue([]byte("us-east"), false, newSeriesIDSet(1, 2)); err != nil {
 		t.Fatal(err)
-	} else if err := enc.EncodeValue([]byte("us-west"), false, tsdb.NewSeriesIDSet(3)); err != nil {
+	} else if err := enc.EncodeValue([]byte("us-west"), false, newSeriesIDSet(3)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -116,7 +124,7 @@ func benchmarkTagBlock_SeriesN(b *testing.B, tagN, valueN int, blk **tsi1.TagBlo
 			}
 
 			for j := 0; j < valueN; j++ {
-				if err := enc.EncodeValue([]byte(fmt.Sprintf("%08d", j)), false, tsdb.NewSeriesIDSet(1)); err != nil {
+				if err := enc.EncodeValue([]byte(fmt.Sprintf("%08d", j)), false, newSeriesIDSet(1)); err != nil {
 					b.Fatal(err)
 				}
 			}

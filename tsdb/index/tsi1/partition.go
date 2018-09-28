@@ -3,6 +3,7 @@ package tsi1
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -14,8 +15,8 @@ import (
 	"unsafe"
 
 	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/pkg/bytesutil"
 	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/tsdb"
 	"go.uber.org/zap"
@@ -636,29 +637,35 @@ func (p *Partition) DropMeasurement(name []byte) error {
 
 // createSeriesListIfNotExists creates a list of series if they doesn't exist in
 // bulk.
-func (p *Partition) createSeriesListIfNotExists(collection *tsdb.SeriesCollection) error {
+func (p *Partition) createSeriesListIfNotExists(collection *tsdb.SeriesCollection) ([]tsdb.SeriesID, error) {
 	// Is there anything to do? The partition may have been sent an empty batch.
 	if collection.Length() == 0 {
-		return nil
+		return nil, nil
+	} else if len(collection.Names) != len(collection.Tags) {
+		return nil, fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", p.id, len(collection.Names), len(collection.Tags))
 	}
 
 	// Maintain reference count on files in file set.
 	fs, err := p.RetainFileSet()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer fs.Release()
 
 	// Ensure fileset cannot change during insert.
 	p.mu.RLock()
 	// Insert series into log file.
-	if err := p.activeLogFile.AddSeriesList(p.seriesIDSet, collection); err != nil {
+	ids, err := p.activeLogFile.AddSeriesList(p.seriesIDSet, collection)
+	if err != nil {
 		p.mu.RUnlock()
-		return err
+		return nil, err
 	}
 	p.mu.RUnlock()
 
-	return p.CheckLogFile()
+	if err := p.CheckLogFile(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (p *Partition) DropSeries(seriesID tsdb.SeriesID) error {

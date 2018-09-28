@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/influxdata/platform/pkg/rhh"
+	"github.com/influxdata/influxdb/pkg/rhh"
 	"github.com/influxdata/platform/tsdb"
 )
 
