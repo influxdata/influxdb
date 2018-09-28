@@ -1,0 +1,17 @@
+/*
+  Auto Refresh Dropdown
+  ------------------------------------------------------------------------------
+*/
+
+.autorefresh-dropdown {
+  display: flex;
+  flex-wrap: nowrap;
+
+  &.paused .dropdown {
+    margin-right: $ix-marg-a;
+  }
+
+  &.paused .dropdown--selected {
+    opacity: 0;
+  }
+}
