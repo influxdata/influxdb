@@ -22,8 +22,8 @@ func (c *Client) initializeUserResourceMappings(ctx context.Context, tx *bolt.Tx
 
 func filterMappingsFn(filter platform.UserResourceMappingFilter) func(m *platform.UserResourceMapping) bool {
 	return func(mapping *platform.UserResourceMapping) bool {
-		return (filter.UserID == nil || (filter.UserID.String()) == mapping.UserID.String()) &&
-			(filter.ResourceID == nil || (filter.ResourceID.String()) == mapping.ResourceID.String()) &&
+		return (!filter.UserID.Valid() || (filter.UserID == mapping.UserID)) &&
+			(!filter.ResourceID.Valid() || (filter.ResourceID == mapping.ResourceID)) &&
 			(filter.UserType == "" || (filter.UserType == mapping.UserType)) &&
 			(filter.ResourceType == "" || (filter.ResourceType == mapping.ResourceType))
 	}
@@ -67,10 +67,13 @@ func (c *Client) findUserResourceMappings(ctx context.Context, tx *bolt.Tx, filt
 func (c *Client) findUserResourceMapping(ctx context.Context, tx *bolt.Tx, resourceID platform.ID, userID platform.ID) (*platform.UserResourceMapping, error) {
 	var m platform.UserResourceMapping
 
-	key := userResourceKey(&platform.UserResourceMapping{
+	key, err := userResourceKey(&platform.UserResourceMapping{
 		ResourceID: resourceID,
 		UserID:     userID,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	v := tx.Bucket(userResourceMappingBucket).Get(key)
 
@@ -98,7 +101,12 @@ func (c *Client) CreateUserResourceMapping(ctx context.Context, m *platform.User
 			return err
 		}
 
-		if err := tx.Bucket(userResourceMappingBucket).Put(userResourceKey(m), v); err != nil {
+		key, err := userResourceKey(m)
+		if err != nil {
+			return err
+		}
+
+		if err := tx.Bucket(userResourceMappingBucket).Put(key, v); err != nil {
 			return err
 		}
 
@@ -106,11 +114,22 @@ func (c *Client) CreateUserResourceMapping(ctx context.Context, m *platform.User
 	})
 }
 
-func userResourceKey(m *platform.UserResourceMapping) []byte {
-	k := make([]byte, len(m.ResourceID)+len(m.UserID))
-	copy(k, m.ResourceID)
-	copy(k[len(m.ResourceID):], []byte(m.UserID))
-	return k
+func userResourceKey(m *platform.UserResourceMapping) ([]byte, error) {
+	encodedResourceID, err := m.ResourceID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	encodedUserID, err := m.UserID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	key := make([]byte, len(encodedResourceID)+len(encodedUserID))
+	copy(key, encodedResourceID)
+	copy(key[len(encodedResourceID):], encodedUserID)
+
+	return key, nil
 }
 
 func (c *Client) forEachUserResourceMapping(ctx context.Context, tx *bolt.Tx, fn func(*platform.UserResourceMapping) bool) error {
@@ -129,7 +148,12 @@ func (c *Client) forEachUserResourceMapping(ctx context.Context, tx *bolt.Tx, fn
 }
 
 func (c *Client) uniqueUserResourceMapping(ctx context.Context, tx *bolt.Tx, m *platform.UserResourceMapping) bool {
-	v := tx.Bucket(userResourceMappingBucket).Get(userResourceKey(m))
+	key, err := userResourceKey(m)
+	if err != nil {
+		return false
+	}
+
+	v := tx.Bucket(userResourceMappingBucket).Get(key)
 	return len(v) == 0
 }
 
@@ -145,5 +169,10 @@ func (c *Client) deleteUserResourceMapping(ctx context.Context, tx *bolt.Tx, res
 		return err
 	}
 
-	return tx.Bucket(userResourceMappingBucket).Delete(userResourceKey(m))
+	key, err := userResourceKey(m)
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket(userResourceMappingBucket).Delete(key)
 }
