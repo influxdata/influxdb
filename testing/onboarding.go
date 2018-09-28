@@ -48,7 +48,6 @@ func Generate(
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{
 					s: []string{oneID, twoID, threeID, fourID},
-					t: t,
 				},
 				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
 				IsOnboarding:   false,
@@ -62,7 +61,6 @@ func Generate(
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{
 					s: []string{oneID, twoID, threeID, fourID},
-					t: t,
 				},
 				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
 				IsOnboarding:   true,
@@ -83,7 +81,6 @@ func Generate(
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{
 					s: []string{oneID, twoID, threeID, fourID},
-					t: t,
 				},
 				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
 				IsOnboarding:   true,
@@ -103,7 +100,6 @@ func Generate(
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{
 					s: []string{oneID, twoID, threeID, fourID},
-					t: t,
 				},
 				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
 				IsOnboarding:   true,
@@ -123,7 +119,6 @@ func Generate(
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{
 					s: []string{oneID, twoID, threeID, fourID},
-					t: t,
 				},
 				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
 				IsOnboarding:   true,
@@ -143,7 +138,6 @@ func Generate(
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{
 					s: []string{oneID, twoID, threeID, fourID},
-					t: t,
 				},
 				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
 				IsOnboarding:   true,
@@ -160,25 +154,25 @@ func Generate(
 				password: "pass1",
 				results: &platform.OnboardingResults{
 					User: &platform.User{
-						ID:   idFromString(t, oneID),
+						ID:   MustIDFromString(oneID),
 						Name: "admin",
 					},
 					Org: &platform.Organization{
-						ID:   idFromString(t, twoID),
+						ID:   MustIDFromString(twoID),
 						Name: "org1",
 					},
 					Bucket: &platform.Bucket{
-						ID:             idFromString(t, threeID),
+						ID:             MustIDFromString(threeID),
 						Name:           "bucket1",
 						Organization:   "org1",
-						OrganizationID: idFromString(t, twoID),
+						OrganizationID: MustIDFromString(twoID),
 					},
 					Auth: &platform.Authorization{
-						ID:     idFromString(t, fourID),
+						ID:     MustIDFromString(fourID),
 						Token:  oneToken,
 						Status: platform.Active,
 						User:   "admin",
-						UserID: idFromString(t, oneID),
+						UserID: MustIDFromString(oneID),
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 							platform.DeleteUserPermission,
@@ -186,7 +180,7 @@ func Generate(
 								Resource: platform.OrganizationResource,
 								Action:   platform.WriteAction,
 							},
-							platform.WriteBucketPermission(idFromString(t, threeID)),
+							platform.WriteBucketPermission(MustIDFromString(threeID)),
 						},
 					},
 				},
@@ -231,14 +225,13 @@ const (
 type loopIDGenerator struct {
 	s []string
 	p int
-	t *testing.T
 }
 
 func (g *loopIDGenerator) ID() platform.ID {
 	if g.p == len(g.s) {
 		g.p = 0
 	}
-	id := idFromString(g.t, g.s[g.p])
+	id := MustIDFromString(g.s[g.p])
 	g.p++
 	return id
 }
