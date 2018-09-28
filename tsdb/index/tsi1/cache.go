@@ -72,7 +72,7 @@ func (c *TagValueSeriesIDCache) exists(name, key, value []byte) bool {
 //
 // NB this does not count as an access on the set—therefore the set is not promoted
 // within the LRU cache.
-func (c *TagValueSeriesIDCache) addToSet(name, key, value []byte, x uint64) {
+func (c *TagValueSeriesIDCache) addToSet(name, key, value []byte, x tsdb.SeriesID) {
 	if mmap, ok := c.cache[string(name)]; ok {
 		if tkmap, ok := mmap[string(key)]; ok {
 			if ele, ok := tkmap[string(value)]; ok {
@@ -140,14 +140,14 @@ EVICT:
 
 // Delete removes x from the tuple {name, key, value} if it exists.
 // This method takes a lock on the underlying SeriesIDSet.
-func (c *TagValueSeriesIDCache) Delete(name, key, value []byte, x uint64) {
+func (c *TagValueSeriesIDCache) Delete(name, key, value []byte, x tsdb.SeriesID) {
 	c.Lock()
 	c.delete(name, key, value, x)
 	c.Unlock()
 }
 
 // delete removes x from the tuple {name, key, value} if it exists.
-func (c *TagValueSeriesIDCache) delete(name, key, value []byte, x uint64) {
+func (c *TagValueSeriesIDCache) delete(name, key, value []byte, x tsdb.SeriesID) {
 	if mmap, ok := c.cache[string(name)]; ok {
 		if tkmap, ok := mmap[string(key)]; ok {
 			if ele, ok := tkmap[string(value)]; ok {

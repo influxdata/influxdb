@@ -637,12 +637,12 @@ func (p *Partition) DropMeasurement(name []byte) error {
 
 // createSeriesListIfNotExists creates a list of series if they doesn't exist in
 // bulk.
-func (p *Partition) createSeriesListIfNotExists(collection *tsdb.SeriesCollection) ([]uint64, error) {
+func (p *Partition) createSeriesListIfNotExists(collection *tsdb.SeriesCollection) ([]tsdb.SeriesID, error) {
 	// Is there anything to do? The partition may have been sent an empty batch.
 	if collection.Length() == 0 {
 		return nil, nil
 	} else if len(collection.Names) != len(collection.Tags) {
-		return nil, fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", p.id, len(names), len(tagsSlice))
+		return nil, fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", p.id, len(collection.Names), len(collection.Tags))
 	}
 
 	// Maintain reference count on files in file set.

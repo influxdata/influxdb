@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime/pprof"
 	"sort"
@@ -41,6 +40,9 @@ func TestLogFile_AddSeriesList(t *testing.T) {
 		},
 	}
 
+	if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+		t.Fatal(err)
+	}
 	ids, err := f.AddSeriesList(seriesSet, collection)
 	if err != nil {
 		t.Fatal(err)
@@ -53,36 +55,49 @@ func TestLogFile_AddSeriesList(t *testing.T) {
 	}
 
 	// Add the same series again with a new one.
-	collection.Tags[0].Values()[0] = []byte("us-west")
-	ids, err = f.AddSeriesList(seriesSet, coll)
-
+	collection = &tsdb.SeriesCollection{
+		Names: slices.StringsToBytes("cpu", "mem"),
+		Types: []models.FieldType{models.Integer, models.Integer},
+		Tags: []models.Tags{
+			{{Key: []byte("region"), Value: []byte("us-west")}},
+			{{Key: []byte("host"), Value: []byte("serverA")}},
+		},
+	}
+	if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+		t.Fatal(err)
+	}
+	ids, err = f.AddSeriesList(seriesSet, collection)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if got, exp := len(ids), 2; got != exp {
 		t.Fatalf("got %d series ids, expected %d", got, exp)
-	} else if got := ids[0]; got == 0 {
+	} else if ids[0].IsZero() {
 		t.Error("series id was 0, expected it not to be")
-	} else if got := ids[1]; got != 0 {
-		t.Errorf("got series id %d, expected 0", got)
+	} else if !ids[1].IsZero() {
+		t.Errorf("got series id %d, expected 0", ids[1].RawID())
 	}
 
 	// Add only the same series IDs.
-	ids, err = f.AddSeriesList(seriesSet,
-		slices.StringsToBytes("cpu", "mem"),
-		[]models.Tags{
-			models.NewTags(map[string]string{"region": "us-west"}),
-			models.NewTags(map[string]string{"host": "serverA"}),
+	collection = &tsdb.SeriesCollection{
+		Names: slices.StringsToBytes("cpu", "mem"),
+		Types: []models.FieldType{models.Integer, models.Integer},
+		Tags: []models.Tags{
+			{{Key: []byte("region"), Value: []byte("us-west")}},
+			{{Key: []byte("host"), Value: []byte("serverA")}},
 		},
-	)
-
+	}
+	if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+		t.Fatal(err)
+	}
+	ids, err = f.AddSeriesList(seriesSet, collection)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if got, exp := ids, make([]uint64, 2); !reflect.DeepEqual(got, exp) {
-		t.Fatalf("got ids %v, expected %v", got, exp)
+	if len(ids) != 0 {
+		t.Fatalf("got %d ids, expected none", len(ids))
 	}
 
 	// Verify data.
@@ -133,6 +148,9 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 				{models.NewTag([]byte("host"), []byte(tv))},
 				{models.NewTag([]byte("host"), []byte(tv))},
 			},
+		}
+		if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+			t.Fatal(err)
 		}
 		if _, err := f.AddSeriesList(seriesSet, collection); err != nil {
 			t.Fatal(err)
@@ -189,6 +207,9 @@ func TestLogFile_DeleteMeasurement(t *testing.T) {
 		},
 	}
 
+	if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := f.AddSeriesList(seriesSet, collection); err != nil {
 		t.Fatal(err)
 	}
@@ -226,6 +247,9 @@ func TestLogFile_Open(t *testing.T) {
 			Types: []models.FieldType{models.Integer, models.Integer},
 		}
 
+		if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := f.AddSeriesList(seriesSet, collection); err != nil {
 			t.Fatal(err)
 		} else if err := f.LogFile.Close(); err != nil {
@@ -260,6 +284,9 @@ func TestLogFile_Open(t *testing.T) {
 			Types: []models.FieldType{models.Integer},
 		}
 
+		if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := f.AddSeriesList(seriesSet, collection); err != nil {
 			t.Fatal(err)
 		} else if err := f.Reopen(); err != nil {
@@ -296,6 +323,9 @@ func TestLogFile_Open(t *testing.T) {
 			Names: [][]byte{[]byte("cpu"), []byte("mem")},
 			Tags:  []models.Tags{{{}}, {{}}},
 			Types: []models.FieldType{models.Integer, models.Integer},
+		}
+		if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+			t.Fatal(err)
 		}
 		if _, err := f.AddSeriesList(seriesSet, collection); err != nil {
 			t.Fatal(err)
@@ -383,6 +413,9 @@ func CreateLogFile(sfile *tsdb.SeriesFile, series []Series) (*LogFile, error) {
 			Tags:  []models.Tags{serie.Tags},
 			Types: []models.FieldType{serie.Type},
 		}
+		if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+			return nil, err
+		}
 		if _, err := f.AddSeriesList(seriesSet, collection); err != nil {
 			return nil, err
 		}
@@ -415,6 +448,9 @@ func GenerateLogFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (*L
 			collection.Types = append(collection.Types, models.Integer)
 
 			if collection.Length() >= 10000 {
+				if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+					return nil, err
+				}
 				if _, err := f.AddSeriesList(seriesSet, collection); err != nil {
 					return nil, err
 				}
@@ -424,7 +460,10 @@ func GenerateLogFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (*L
 	}
 
 	if collection.Length() > 0 {
-		if err := f.AddSeriesList(seriesSet, collection); err != nil {
+		if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+			return nil, err
+		}
+		if _, err := f.AddSeriesList(seriesSet, collection); err != nil {
 			return nil, err
 		}
 	}
@@ -478,6 +517,9 @@ func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesVa
 				Tags:  []models.Tags{d.Tags},
 				Types: []models.FieldType{d.Type},
 			}
+			if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+				b.Fatal(err)
+			}
 			if _, err := f.AddSeriesList(seriesSet, collection); err != nil {
 				b.Fatal(err)
 			}
@@ -518,7 +560,9 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 					}},
 					Types: []models.FieldType{models.Integer},
 				}
-
+				if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+					b.Fatal(err)
+				}
 				if _, err := f.AddSeriesList(seriesSet, collection); err != nil {
 					b.Fatal(err)
 				}

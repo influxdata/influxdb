@@ -9,11 +9,19 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+func newSeriesIDSet(ids ...int) *tsdb.SeriesIDSet {
+	out := make([]tsdb.SeriesID, 0, len(ids))
+	for _, v := range ids {
+		out = append(out, tsdb.NewSeriesID(uint64(v)))
+	}
+	return tsdb.NewSeriesIDSet(out...)
+}
+
 func TestTagValueSeriesIDCache(t *testing.T) {
-	m0k0v0 := tsdb.NewSeriesIDSet(1, 2, 3, 4, 5)
-	m0k0v1 := tsdb.NewSeriesIDSet(10, 20, 30, 40, 50)
-	m0k1v2 := tsdb.NewSeriesIDSet()
-	m1k3v0 := tsdb.NewSeriesIDSet(900, 0, 929)
+	m0k0v0 := newSeriesIDSet(1, 2, 3, 4, 5)
+	m0k0v1 := newSeriesIDSet(10, 20, 30, 40, 50)
+	m0k1v2 := newSeriesIDSet()
+	m1k3v0 := newSeriesIDSet(900, 0, 929)
 
 	cache := TestCache{NewTagValueSeriesIDCache(10)}
 	cache.Has(t, "m0", "k0", "v0", nil)
@@ -23,7 +31,7 @@ func TestTagValueSeriesIDCache(t *testing.T) {
 	cache.Has(t, "m0", "k0", "v0", m0k0v0)
 
 	// Putting something else under the same key will not replace the original item.
-	cache.PutByString("m0", "k0", "v0", tsdb.NewSeriesIDSet(100, 200))
+	cache.PutByString("m0", "k0", "v0", newSeriesIDSet(100, 200))
 	cache.Has(t, "m0", "k0", "v0", m0k0v0)
 
 	// Add another item to the cache.
@@ -41,10 +49,10 @@ func TestTagValueSeriesIDCache(t *testing.T) {
 }
 
 func TestTagValueSeriesIDCache_eviction(t *testing.T) {
-	m0k0v0 := tsdb.NewSeriesIDSet(1, 2, 3, 4, 5)
-	m0k0v1 := tsdb.NewSeriesIDSet(10, 20, 30, 40, 50)
-	m0k1v2 := tsdb.NewSeriesIDSet()
-	m1k3v0 := tsdb.NewSeriesIDSet(900, 0, 929)
+	m0k0v0 := newSeriesIDSet(1, 2, 3, 4, 5)
+	m0k0v1 := newSeriesIDSet(10, 20, 30, 40, 50)
+	m0k1v2 := newSeriesIDSet()
+	m1k3v0 := newSeriesIDSet(900, 0, 929)
 
 	cache := TestCache{NewTagValueSeriesIDCache(4)}
 	cache.PutByString("m0", "k0", "v0", m0k0v0)
@@ -57,7 +65,7 @@ func TestTagValueSeriesIDCache_eviction(t *testing.T) {
 	cache.Has(t, "m1", "k3", "v0", m1k3v0)
 
 	// Putting another item in the cache will evict m0k0v0
-	m2k0v0 := tsdb.NewSeriesIDSet(8, 8, 8)
+	m2k0v0 := newSeriesIDSet(8, 8, 8)
 	cache.PutByString("m2", "k0", "v0", m2k0v0)
 	if got, exp := cache.evictor.Len(), 4; got != exp {
 		t.Fatalf("cache size was %d, expected %d", got, exp)
@@ -74,7 +82,7 @@ func TestTagValueSeriesIDCache_eviction(t *testing.T) {
 		t.Fatalf("Map missing for key %q", "k0")
 	}
 
-	m2k0v1 := tsdb.NewSeriesIDSet(8, 8, 8)
+	m2k0v1 := newSeriesIDSet(8, 8, 8)
 	cache.PutByString("m2", "k0", "v1", m2k0v1)
 	if got, exp := cache.evictor.Len(), 4; got != exp {
 		t.Fatalf("cache size was %d, expected %d", got, exp)
@@ -96,7 +104,7 @@ func TestTagValueSeriesIDCache_eviction(t *testing.T) {
 	if _, ok := cache.cache[string("m0")]; !ok {
 		t.Fatalf("Map missing for key %q", "k0")
 	}
-	m2k0v2 := tsdb.NewSeriesIDSet(8, 9, 9)
+	m2k0v2 := newSeriesIDSet(8, 9, 9)
 	cache.PutByString("m2", "k0", "v2", m2k0v2)
 	cache.HasNot(t, "m0", "k0", "v0")
 	cache.HasNot(t, "m0", "k0", "v1")
@@ -113,7 +121,7 @@ func TestTagValueSeriesIDCache_eviction(t *testing.T) {
 
 	// Putting another item in the cache will evict m2k0v0 if we first get m1k3v0
 	// because m2k0v0 will have been used less recently...
-	m3k0v0 := tsdb.NewSeriesIDSet(1000)
+	m3k0v0 := newSeriesIDSet(1000)
 	cache.Has(t, "m1", "k3", "v0", m1k3v0) // This makes it the most recently used rather than the least.
 	cache.PutByString("m3", "k0", "v0", m3k0v0)
 
@@ -131,17 +139,17 @@ func TestTagValueSeriesIDCache_eviction(t *testing.T) {
 func TestTagValueSeriesIDCache_addToSet(t *testing.T) {
 	cache := TestCache{NewTagValueSeriesIDCache(4)}
 	cache.PutByString("m0", "k0", "v0", nil) // Puts a nil set in the cache.
-	s2 := tsdb.NewSeriesIDSet(100)
+	s2 := newSeriesIDSet(100)
 	cache.PutByString("m0", "k0", "v1", s2)
 	cache.Has(t, "m0", "k0", "v0", nil)
 	cache.Has(t, "m0", "k0", "v1", s2)
 
-	cache.addToSet([]byte("m0"), []byte("k0"), []byte("v0"), 20)  // No non-nil set exists so one will be created
-	cache.addToSet([]byte("m0"), []byte("k0"), []byte("v1"), 101) // No non-nil set exists so one will be created
+	cache.addToSet([]byte("m0"), []byte("k0"), []byte("v0"), tsdb.NewSeriesID(20))  // No non-nil set exists so one will be created
+	cache.addToSet([]byte("m0"), []byte("k0"), []byte("v1"), tsdb.NewSeriesID(101)) // No non-nil set exists so one will be created
 	cache.Has(t, "m0", "k0", "v1", s2)
 
 	ss := cache.GetByString("m0", "k0", "v0")
-	if !tsdb.NewSeriesIDSet(20).Equals(ss) {
+	if !newSeriesIDSet(20).Equals(ss) {
 		t.Fatalf("series id set was %v", ss)
 	}
 
@@ -171,7 +179,7 @@ func TestTagValueSeriesIDCache_ConcurrentGetPut(t *testing.T) {
 					return
 				default:
 				}
-				cache.Put(rnd(), rnd(), rnd(), tsdb.NewSeriesIDSet())
+				cache.Put(rnd(), rnd(), rnd(), newSeriesIDSet())
 			}
 		}()
 	}

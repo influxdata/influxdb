@@ -509,14 +509,8 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
-func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, collection *tsdb.SeriesCollection) ([]uint64, error) {
-	if len(collection.SeriesIDs) == 0 {
-		seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(collection)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, collection *tsdb.SeriesCollection) ([]tsdb.SeriesID, error) {
+	var writeRequired bool
 	var entries []LogEntry
 
 	var i int // Track the index of the point in the batch
@@ -525,8 +519,6 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, collection *tsdb.Se
 		seriesID := iter.SeriesID()
 
 		if seriesSet.ContainsNoLock(seriesID) {
-			// We don't need to allocate anything for this series.
-			seriesIDs[i] = 0
 			i++
 			continue
 		}
@@ -550,7 +542,7 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, collection *tsdb.Se
 
 	// Exit if all series already exist.
 	if !writeRequired {
-		return seriesIDs, nil
+		return nil, nil
 	}
 
 	f.mu.Lock()
@@ -558,12 +550,11 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, collection *tsdb.Se
 
 	seriesSet.Lock()
 	defer seriesSet.Unlock()
-
+	var seriesIDs []tsdb.SeriesID
 	for i := range entries { // NB - this doesn't evaluate all series ids returned from series file.
 		entry := &entries[i]
 		if seriesSet.ContainsNoLock(entry.SeriesID) {
 			// We don't need to allocate anything for this series.
-			seriesIDs[entry.batchidx] = 0
 			continue
 		}
 		if err := f.appendEntry(entry); err != nil {
@@ -571,6 +562,11 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, collection *tsdb.Se
 		}
 		f.execEntry(entry)
 		seriesSet.AddNoLock(entry.SeriesID)
+
+		if seriesIDs == nil {
+			seriesIDs = make([]tsdb.SeriesID, collection.Length())
+		}
+		seriesIDs[entry.batchidx] = entry.SeriesID
 	}
 
 	// Flush buffer and sync to disk.
@@ -1060,13 +1056,13 @@ func (f *LogFile) SeriesSketches() (sketch, tSketch estimator.Sketch, err error)
 
 func (f *LogFile) seriesSketches() (sketch, tSketch estimator.Sketch, err error) {
 	sketch = hll.NewDefaultPlus()
-	f.seriesIDSet.ForEach(func(id uint64) {
+	f.seriesIDSet.ForEach(func(id tsdb.SeriesID) {
 		name, keys := f.sfile.Series(id)
 		sketch.Add(models.MakeKey(name, keys))
 	})
 
 	tSketch = hll.NewDefaultPlus()
-	f.tombstoneSeriesIDSet.ForEach(func(id uint64) {
+	f.tombstoneSeriesIDSet.ForEach(func(id tsdb.SeriesID) {
 		name, keys := f.sfile.Series(id)
 		sketch.Add(models.MakeKey(name, keys))
 	})

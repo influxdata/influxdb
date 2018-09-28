@@ -176,8 +176,7 @@ func (p *SeriesPartition) IndexPath() string { return filepath.Join(p.path, "ind
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The ids parameter is modified to contain series IDs for all keys belonging to this partition.
 // If the type does not match the existing type for the key, a zero id is stored.
-func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollection,
-	keyPartitionIDs []int) error {
+func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollection, keyPartitionIDs []int) error {
 
 	p.mu.RLock()
 	if p.closed {

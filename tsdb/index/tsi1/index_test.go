@@ -337,20 +337,19 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 		{"disk,region=north,server=c", "disk", map[string]string{"region": "north", "server": "c"}},
 	}
 
-	var batchKeys [][]byte
-	var batchNames [][]byte
-	var batchTags []models.Tags
+	collection := new(tsdb.SeriesCollection)
 	for _, pt := range data {
-		if err := idx1.CreateSeriesIfNotExists([]byte(pt.Key), []byte(pt.Name), models.NewTags(pt.Tags)); err != nil {
+		if err := idx1.CreateSeriesIfNotExists([]byte(pt.Key), []byte(pt.Name), models.NewTags(pt.Tags), models.Float); err != nil {
 			t.Fatal(err)
 		}
 
-		batchKeys = append(batchKeys, []byte(pt.Key))
-		batchNames = append(batchNames, []byte(pt.Name))
-		batchTags = append(batchTags, models.NewTags(pt.Tags))
+		collection.Keys = append(collection.Keys, []byte(pt.Key))
+		collection.Names = append(collection.Names, []byte(pt.Name))
+		collection.Tags = append(collection.Tags, models.NewTags(pt.Tags))
+		collection.Types = append(collection.Types, models.Float)
 	}
 
-	if err := idx2.CreateSeriesListIfNotExists(batchKeys, batchNames, batchTags); err != nil {
+	if err := idx2.CreateSeriesListIfNotExists(collection); err != nil {
 		t.Fatal(err)
 	}
 
@@ -415,15 +414,17 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 		[]byte("mem,region=west,root=x,server=c"),
 		[]byte("mem"),
 		models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"}),
+		models.Float,
 	); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := idx2.CreateSeriesListIfNotExists(
-		[][]byte{[]byte("mem,region=west,root=x,server=c")},
-		[][]byte{[]byte("mem")},
-		[]models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})},
-	); err != nil {
+	if err := idx2.CreateSeriesListIfNotExists(&tsdb.SeriesCollection{
+		Keys:  [][]byte{[]byte("mem,region=west,root=x,server=c")},
+		Names: [][]byte{[]byte("mem")},
+		Tags:  []models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})},
+		Types: []models.FieldType{models.Float},
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -440,15 +441,17 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 		[]byte("mem,region=west,root=x,server=c"),
 		[]byte("mem"),
 		models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"}),
+		models.Float,
 	); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := idx2.CreateSeriesListIfNotExists(
-		[][]byte{[]byte("mem,region=west,root=x,server=c")},
-		[][]byte{[]byte("mem")},
-		[]models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})},
-	); err != nil {
+	if err := idx2.CreateSeriesListIfNotExists(&tsdb.SeriesCollection{
+		Keys:  [][]byte{[]byte("mem,region=west,root=x,server=c")},
+		Names: [][]byte{[]byte("mem")},
+		Tags:  []models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})},
+		Types: []models.FieldType{models.Float},
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -656,9 +659,12 @@ var errResult error
 // BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_16-8      	       1	1663610452 ns/op	2131177160 B/op	21806209 allocs/op
 func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
-	keys := make([][]byte, 0, 1e6)
-	names := make([][]byte, 0, 1e6)
-	tags := make([]models.Tags, 0, 1e6)
+	collection := &tsdb.SeriesCollection{
+		Keys:  make([][]byte, 0, 1e6),
+		Names: make([][]byte, 0, 1e6),
+		Tags:  make([]models.Tags, 0, 1e6),
+		Types: make([]models.FieldType, 0, 1e6),
+	}
 
 	// 1M series generated with:
 	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
@@ -688,9 +694,12 @@ func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 	}
 
 	for _, pt := range points {
-		keys = append(keys, pt.Key())
-		names = append(names, pt.Name())
-		tags = append(tags, pt.Tags())
+		iter := pt.FieldIterator()
+		iter.Next()
+		collection.Keys = append(collection.Keys, pt.Key())
+		collection.Names = append(collection.Names, pt.Name())
+		collection.Tags = append(collection.Tags, pt.Tags())
+		collection.Types = append(collection.Types, iter.Type())
 	}
 
 	batchSizes := []int{1000, 10000, 100000}
@@ -701,11 +710,14 @@ func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 				b.Run(fmt.Sprintf("partition %d", partition), func(b *testing.B) {
 					idx := MustOpenIndex(partition)
 					for j := 0; j < b.N; j++ {
-						for i := 0; i < len(keys); i += sz {
-							k := keys[i : i+sz]
-							n := names[i : i+sz]
-							t := tags[i : i+sz]
-							if errResult = idx.CreateSeriesListIfNotExists(k, n, t); errResult != nil {
+						for i := 0; i < collection.Length(); i += sz {
+							batch := &tsdb.SeriesCollection{
+								Keys:  collection.Keys[i : i+sz],
+								Names: collection.Names[i : i+sz],
+								Tags:  collection.Tags[i : i+sz],
+								Types: collection.Types[i : i+sz],
+							}
+							if errResult = idx.CreateSeriesListIfNotExists(batch); errResult != nil {
 								b.Fatal(err)
 							}
 						}
@@ -737,9 +749,12 @@ func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 // BenchmarkIndex_ConcurrentWriteQuery/partition_16/queries_100000/no_cache-8        	1	24817283922 ns/op	34613960984 B/op	150356327 allocs/op
 func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
-	keys := make([][]byte, 0, 1e6)
-	names := make([][]byte, 0, 1e6)
-	tags := make([]models.Tags, 0, 1e6)
+	collection := &tsdb.SeriesCollection{
+		Keys:  make([][]byte, 0, 1e6),
+		Names: make([][]byte, 0, 1e6),
+		Tags:  make([]models.Tags, 0, 1e6),
+		Types: make([]models.FieldType, 0, 1e6),
+	}
 
 	// 1M series generated with:
 	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
@@ -769,9 +784,12 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	}
 
 	for _, pt := range points {
-		keys = append(keys, pt.Key())
-		names = append(names, pt.Name())
-		tags = append(tags, pt.Tags())
+		iter := pt.FieldIterator()
+		iter.Next()
+		collection.Keys = append(collection.Keys, pt.Key())
+		collection.Names = append(collection.Names, pt.Name())
+		collection.Tags = append(collection.Tags, pt.Tags())
+		collection.Types = append(collection.Types, iter.Type())
 	}
 
 	runBenchmark := func(b *testing.B, queryN int, partitions uint64) {
@@ -807,11 +825,14 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		go func() { defer wg.Done(); runIter() }()
 		batchSize := 10000
 		for j := 0; j < 1; j++ {
-			for i := 0; i < len(keys); i += batchSize {
-				k := keys[i : i+batchSize]
-				n := names[i : i+batchSize]
-				t := tags[i : i+batchSize]
-				if errResult = idx.CreateSeriesListIfNotExists(k, n, t); errResult != nil {
+			for i := 0; i < collection.Length(); i += batchSize {
+				batch := &tsdb.SeriesCollection{
+					Keys:  collection.Keys[i : i+batchSize],
+					Names: collection.Names[i : i+batchSize],
+					Tags:  collection.Tags[i : i+batchSize],
+					Types: collection.Types[i : i+batchSize],
+				}
+				if errResult = idx.CreateSeriesListIfNotExists(batch); errResult != nil {
 					b.Fatal(err)
 				}
 			}

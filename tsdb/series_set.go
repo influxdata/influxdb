@@ -15,12 +15,12 @@ type SeriesIDSet struct {
 }
 
 // NewSeriesIDSet returns a new instance of SeriesIDSet.
-func NewSeriesIDSet(a ...uint64) *SeriesIDSet {
+func NewSeriesIDSet(a ...SeriesID) *SeriesIDSet {
 	ss := &SeriesIDSet{bitmap: roaring.NewBitmap()}
 	if len(a) > 0 {
 		a32 := make([]uint32, len(a))
 		for i := range a {
-			a32[i] = uint32(a[i])
+			a32[i] = uint32(a[i].RawID())
 		}
 		ss.bitmap.AddMany(a32)
 	}
@@ -52,14 +52,14 @@ func (s *SeriesIDSet) AddNoLock(id SeriesID) {
 
 // AddMany adds multiple ids to the SeriesIDSet. AddMany takes a lock, so may not be
 // optimal to call many times with few ids.
-func (s *SeriesIDSet) AddMany(ids ...uint64) {
+func (s *SeriesIDSet) AddMany(ids ...SeriesID) {
 	if len(ids) == 0 {
 		return
 	}
 
 	a32 := make([]uint32, len(ids))
 	for i := range ids {
-		a32[i] = uint32(ids[i])
+		a32[i] = uint32(ids[i].RawID())
 	}
 
 	s.Lock()

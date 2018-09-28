@@ -667,16 +667,7 @@ func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) e
 				}
 
 				ids, err := i.partitions[idx].createSeriesListIfNotExists(&pCollections[idx])
-
-				var updateCache bool
-				for _, id := range ids {
-					if id != 0 {
-						updateCache = true
-						break
-					}
-				}
-
-				if !updateCache {
+				if len(ids) == 0 {
 					errC <- err
 					continue
 				}
@@ -684,12 +675,12 @@ func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) e
 				// Some cached bitset results may need to be updated.
 				i.tagValueCache.RLock()
 				for j, id := range ids {
-					if id == 0 {
+					if id.IsZero() {
 						continue
 					}
 
-					name := pNames[idx][j]
-					tags := pTags[idx][j]
+					name := pCollections[idx].Names[j]
+					tags := pCollections[idx].Tags[j]
 					if i.tagValueCache.measurementContainsSets(name) {
 						for _, pair := range tags {
 							// TODO(edd): It's not clear to me yet whether it will be better to take a lock
@@ -725,10 +716,10 @@ func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) e
 	}
 
 	// Update sketches.
-	for _, key := range keys {
+	for _, key := range collection.Keys {
 		i.sSketch.Add(key)
 	}
-	for _, name := range names {
+	for _, name := range collection.Names {
 		i.mSketch.Add(name)
 	}
 
@@ -736,7 +727,8 @@ func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) e
 }
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
-func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
+// TODO(edd): This should go.
+func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ models.FieldType) error {
 	collection := &tsdb.SeriesCollection{
 		Keys:  [][]byte{key},
 		Names: [][]byte{name},
@@ -754,7 +746,7 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	i.sSketch.Add(key)
 	i.mSketch.Add(name)
 
-	if ids[0] == 0 {
+	if len(ids) == 0 || ids[0].IsZero() {
 		return nil // No new series, nothing further to update.
 	}
 
