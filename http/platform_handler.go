@@ -37,7 +37,7 @@ func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 var platformLinks = map[string]interface{}{
-	"setup":      "/setup",
+	"setup":      "/api/v2/setup",
 	"sources":    "/api/v2/sources",
 	"dashboards": "/api/v2/dashboards",
 	"query":      "/api/v2/query",
@@ -81,8 +81,7 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	// of the platform API.
 	if !strings.HasPrefix(r.URL.Path, "/v1") &&
 		!strings.HasPrefix(r.URL.Path, "/api/v2") &&
-		!strings.HasPrefix(r.URL.Path, "/chronograf/") &&
-		!strings.HasPrefix(r.URL.Path, "/setup") {
+		!strings.HasPrefix(r.URL.Path, "/chronograf/") {
 		h.AssetHandler.ServeHTTP(w, r)
 		return
 	}
@@ -93,7 +92,7 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/setup") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/setup") {
 		h.SetupHandler.ServeHTTP(w, r)
 		return
 	}

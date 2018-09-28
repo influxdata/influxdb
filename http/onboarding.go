@@ -22,8 +22,8 @@ func NewSetupHandler() *SetupHandler {
 	h := &SetupHandler{
 		Router: httprouter.New(),
 	}
-	h.HandlerFunc("POST", "/setup", h.handlePostSetup)
-	h.HandlerFunc("GET", "/setup", h.isOnboarding)
+	h.HandlerFunc("POST", "/api/v2/setup", h.handlePostSetup)
+	h.HandlerFunc("GET", "/api/v2/setup", h.isOnboarding)
 	return h
 }
 
