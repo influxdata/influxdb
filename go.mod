@@ -5,7 +5,7 @@ require (
 	github.com/BurntSushi/toml v0.3.0 // indirect
 	github.com/Masterminds/semver v1.4.2 // indirect
 	github.com/NYTimes/gziphandler v1.0.1
-	github.com/RoaringBitmap/roaring v0.4.15 // indirect
+	github.com/RoaringBitmap/roaring v0.4.16
 	github.com/alecthomas/kingpin v2.2.6+incompatible // indirect
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
@@ -52,7 +52,6 @@ require (
 	github.com/influxdata/influxdb v0.0.0-20180904211643-ab81104697f6
 	github.com/influxdata/influxql v0.0.0-20180823200743-a7267bff5327
 	github.com/influxdata/line-protocol v0.0.0-20180522152040-32c6aa80de5e
-	github.com/influxdata/roaring v0.4.12
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jsternberg/zap-logfmt v1.1.0 // indirect
