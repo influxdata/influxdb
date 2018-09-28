@@ -27,7 +27,7 @@ export const getDashboards = async (url: string): Promise<Dashboard[]> => {
 export const getDashboard = async (id: string): Promise<Dashboard> => {
   try {
     const {data} = await AJAX({
-      url: `/v2/dashboards/${id}`,
+      url: `/api/v2/dashboards/${id}`,
     })
 
     return data
