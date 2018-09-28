@@ -100,6 +100,11 @@ func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 	w.WriteHeader(code)
 }
 
+// ForbiddenError encodes error with a forbidden status code.
+func ForbiddenError(ctx context.Context, err error, w http.ResponseWriter) {
+	EncodeError(ctx, kerrors.Forbiddenf(err.Error()), w)
+}
+
 // statusCode returns the http status code for an error.
 func statusCode(e kerrors.Error) int {
 	if e.Code > 0 {

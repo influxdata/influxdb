@@ -4,7 +4,14 @@ import "fmt"
 
 // Authorizer will authorize a permission.
 type Authorizer interface {
+	// Allowed returns true is the associated permission is allowed by the authorizer
 	Allowed(p Permission) bool
+
+	// ID returns an identifier used for auditing.
+	Identifier() ID
+
+	// Kind metadata for auditing.
+	Kind() string
 }
 
 func allowed(p Permission, ps []Permission) bool {

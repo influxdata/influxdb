@@ -29,6 +29,12 @@ func (a *Authorization) IsActive() bool {
 	return a.Status == Active
 }
 
+// Kind returns session and is used for auditing.
+func (a *Authorization) Kind() string { return "authorization" }
+
+// ID returns the authorizations ID and is used for auditing.
+func (a *Authorization) Identifier() ID { return a.ID }
+
 // AuthorizationService represents a service for managing authorization data.
 type AuthorizationService interface {
 	// Returns a single authorization by ID.
