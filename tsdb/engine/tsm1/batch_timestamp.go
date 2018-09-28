@@ -27,55 +27,66 @@ func TimeArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 		return nil, nil // Nothing to do
 	}
 
-	var rle = true
 	var max, div = uint64(0), uint64(1e12)
 
 	// To prevent an allocation of the entire block we're encoding reuse the
 	// src slice to store the encoded deltas.
 	deltas := reintepretInt64ToUint64Slice(src)
 
-	for i := len(deltas) - 1; i > 0; i-- {
-		deltas[i] = deltas[i] - deltas[i-1]
-
-		v := deltas[i]
-		if v > max {
-			max = v
+	if len(deltas) > 1 {
+		for i := len(deltas) - 1; i > 0; i-- {
+			deltas[i] = deltas[i] - deltas[i-1]
+			if deltas[i] > max {
+				max = deltas[i]
+			}
 		}
 
-		// If our value is divisible by 10, break.  Otherwise, try the next smallest divisor.
-		for div > 1 && v%div != 0 {
-			div /= 10
+		var rle = true
+		for i := 2; i < len(deltas); i++ {
+			if deltas[1] != deltas[i] {
+				rle = false
+				break
+			}
 		}
 
-		// Skip the first value || see if prev = curr.  The deltas can be RLE if the are all equal.
-		rle = i == len(deltas)-1 || rle && (deltas[i+1] == deltas[i])
-	}
+		// Deltas are the same - encode with RLE
+		if rle {
+			// Large varints can take up to 10 bytes.  We're storing 3 + 1
+			// type byte.
+			if len(b) < 31 && cap(b) >= 31 {
+				b = b[:31]
+			} else if len(b) < 31 {
+				b = append(b, make([]byte, 31-len(b))...)
+			}
 
-	// Deltas are the same - encode with RLE
-	if rle && len(deltas) > 1 {
-		// Large varints can take up to 10 bytes.  We're storing 3 + 1
-		// type byte.
-		if len(b) < 31 && cap(b) >= 31 {
-			b = b[:31]
-		} else if len(b) < 31 {
-			b = append(b, make([]byte, 31-len(b))...)
+			// 4 high bits used for the encoding type
+			b[0] = byte(timeCompressedRLE) << 4
+
+			i := 1
+			// The first value
+			binary.BigEndian.PutUint64(b[i:], deltas[0])
+			i += 8
+
+			// The first delta, checking the divisor
+			// given all deltas are the same, we can do a single check for the divisor
+			v := deltas[1]
+			for div > 1 && v%div != 0 {
+				div /= 10
+			}
+
+			if div > 1 {
+				// 4 low bits are the log10 divisor
+				b[0] |= byte(math.Log10(float64(div)))
+				i += binary.PutUvarint(b[i:], deltas[1]/div)
+			} else {
+				i += binary.PutUvarint(b[i:], deltas[1])
+			}
+
+			// The number of times the delta is repeated
+			i += binary.PutUvarint(b[i:], uint64(len(deltas)))
+
+			return b[:i], nil
 		}
-
-		// 4 high bits used for the encoding type
-		b[0] = byte(timeCompressedRLE) << 4
-		// 4 low bits are the log10 divisor
-		b[0] |= byte(math.Log10(float64(div)))
-
-		i := 1
-		// The first value
-		binary.BigEndian.PutUint64(b[i:], deltas[0])
-		i += 8
-		// The first delta
-		i += binary.PutUvarint(b[i:], deltas[1]/div)
-		// The number of times the delta is repeated
-		i += binary.PutUvarint(b[i:], uint64(len(deltas)))
-
-		return b[:i], nil
 	}
 
 	// We can't compress this time-range, the deltas exceed 1 << 60
@@ -94,6 +105,15 @@ func TimeArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 			binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], v)
 		}
 		return b[:sz], nil
+	}
+
+	// find divisor only if we're compressing with simple8b
+	for i := 1; i < len(deltas) && div > 1; i++ {
+		// If our value is divisible by 10, break.  Otherwise, try the next smallest divisor.
+		v := deltas[i]
+		for div > 1 && v%div != 0 {
+			div /= 10
+		}
 	}
 
 	// Only apply the divisor if it's greater than 1 since division is expensive.

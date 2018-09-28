@@ -106,7 +106,7 @@ func testTimeArrayEncodeAll_Compare(t *testing.T, input []int64, encoding byte) 
 	}
 
 	if got := result; !reflect.DeepEqual(got, exp) {
-		t.Fatalf("got result %v, expected %v", got, exp)
+		t.Fatalf("-got/+exp\n%s", cmp.Diff(got, exp))
 	}
 
 	// Check that the encoders are byte for byte the same...
