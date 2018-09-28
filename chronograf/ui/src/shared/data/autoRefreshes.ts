@@ -13,7 +13,7 @@ export interface AutoRefreshOption {
 const autoRefreshOptions: AutoRefreshOption[] = [
   {
     id: 'auto-refresh-header',
-    milliseconds: 9999,
+    milliseconds: 0,
     label: 'Refresh',
     type: AutoRefreshOptionType.Header,
   },

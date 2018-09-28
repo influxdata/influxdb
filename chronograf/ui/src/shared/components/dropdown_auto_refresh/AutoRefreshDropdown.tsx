@@ -9,7 +9,7 @@ import {Dropdown, Button, ButtonShape, IconFont} from 'src/clockface'
 import autoRefreshOptions, {
   AutoRefreshOption,
   AutoRefreshOptionType,
-} from 'src/shared/components/dropdown_auto_refresh/autoRefreshOptions'
+} from 'src/shared/data/autoRefreshes'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

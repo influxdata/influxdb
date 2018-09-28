@@ -3,7 +3,7 @@ import React, {Component} from 'react'
 
 // Components
 import {Page} from 'src/page_layout'
-import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
+import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenameDashboard from 'src/dashboards/components/rename_dashboard/RenameDashboard'
@@ -60,7 +60,6 @@ class DashboardHeader extends Component<Props> {
             onChoose={handleChooseAutoRefresh}
             onManualRefresh={onManualRefresh}
             selected={autoRefresh}
-            iconName="refresh"
           />
           <TimeRangeDropdown
             onChooseTimeRange={handleChooseTimeRange}
