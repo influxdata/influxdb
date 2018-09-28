@@ -25,24 +25,32 @@ func IntegerArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 	// Zigzag encode deltas of all provided values.
 	var prev int64
 	var rle = true
-	var nopack bool
+	var canpack = true
 
 	// To prevent an allocation of the entire block we're encoding reuse the
 	// src slice to store the encoded deltas.
 	deltas := reintepretInt64ToUint64Slice(src)
 
-	for i, v := range src {
-		delta := v - prev
-		prev = v
-		enc := ZigZagEncode(delta)
-		if i > 1 {
-			rle = rle && deltas[i-1] == enc
-		}
-		deltas[i] = enc
+	prev = src[0]
+	enc := ZigZagEncode(prev)
+	src[0] = int64(enc)
+	canpack = enc <= simple8b.MaxValue
 
-		// Check if the encoded value is too big to be simple8b encoded.
-		if enc > simple8b.MaxValue {
-			nopack = true
+	if len(src) > 1 {
+		delta := src[1] - prev
+		prev = src[1]
+		enc = ZigZagEncode(delta)
+		d0 := enc
+		src[1] = int64(enc)
+		canpack = canpack && enc <= simple8b.MaxValue
+
+		for i := 2; i < len(src); i++ {
+			delta := src[i] - prev
+			prev = src[i]
+			enc = ZigZagEncode(delta)
+			src[i] = int64(enc)
+			rle = rle && d0 == enc
+			canpack = canpack && enc <= simple8b.MaxValue
 		}
 	}
 
@@ -71,7 +79,7 @@ func IntegerArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 		return b[:i], nil
 	}
 
-	if nopack { // There is an encoded value that's too big to simple8b encode.
+	if !canpack { // There is an encoded value that's too big to simple8b encode.
 		// Encode uncompressed.
 		sz := 1 + len(deltas)*8
 		if len(b) < sz && cap(b) >= sz {
@@ -111,7 +119,7 @@ func IntegerArrayEncodeAll(src []int64, b []byte) ([]byte, error) {
 	for i, v := range encoded {
 		binary.BigEndian.PutUint64(b[9+i*8:9+i*8+8], v)
 	}
-	return b[:sz], nil
+	return b, nil
 }
 
 // UnsignedArrayEncodeAll encodes src into b, returning b and any error encountered.
