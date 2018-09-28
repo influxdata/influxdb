@@ -316,6 +316,7 @@ func (i *SeriesCollectionIterator) Next() bool {
 // Helpers that return the current state of the iterator.
 
 func (i SeriesCollectionIterator) Index() int             { return i.index }
+func (i SeriesCollectionIterator) Length() int            { return i.length }
 func (i SeriesCollectionIterator) Point() models.Point    { return i.s.Points[i.index] }
 func (i SeriesCollectionIterator) Key() []byte            { return i.s.Keys[i.index] }
 func (i SeriesCollectionIterator) SeriesKey() []byte      { return i.s.SeriesKeys[i.index] }

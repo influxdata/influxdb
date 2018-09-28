@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/mmap"
 	"github.com/influxdata/platform/pkg/rhh"
 )
@@ -212,6 +213,27 @@ func (idx *SeriesIndex) FindIDBySeriesKey(segments []*SeriesSegment, key []byte)
 			return id
 		}
 	}
+}
+
+func (idx *SeriesIndex) FindIDByNameTags(segments []*SeriesSegment, name []byte, tags models.Tags, buf []byte) SeriesIDTyped {
+	id := idx.FindIDBySeriesKey(segments, AppendSeriesKey(buf[:0], name, tags))
+	if _, ok := idx.tombstones[id.SeriesID()]; ok {
+		return SeriesIDTyped{}
+	}
+	return id
+}
+
+func (idx *SeriesIndex) FindIDListByNameTags(segments []*SeriesSegment, names [][]byte, tagsSlice []models.Tags, buf []byte) (ids []SeriesIDTyped, ok bool) {
+	ids, ok = make([]SeriesIDTyped, len(names)), true
+	for i := range names {
+		id := idx.FindIDByNameTags(segments, names[i], tagsSlice[i], buf)
+		if id.IsZero() {
+			ok = false
+			continue
+		}
+		ids[i] = id
+	}
+	return ids, ok
 }
 
 func (idx *SeriesIndex) FindOffsetByID(id SeriesID) int64 {

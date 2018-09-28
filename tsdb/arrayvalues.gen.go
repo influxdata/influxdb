@@ -34,7 +34,7 @@ func (a *FloatArray) Len() int {
 	return len(a.Timestamps)
 }
 
-// Exclude removes the subset of values not in [min, max].  The values must
+// Exclude removes the subset of values in [min, max]. The values must
 // be deduplicated and sorted before calling Exclude or the results are undefined.
 func (a *FloatArray) Exclude(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
@@ -58,11 +58,12 @@ func (a *FloatArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+			return
 		}
-	} else {
-		a.Timestamps = a.Timestamps[:rmin]
-		a.Values = a.Values[:rmin]
 	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
 }
 
 // Include returns the subset values between min and max inclusive. The values must
@@ -234,7 +235,7 @@ func (a *IntegerArray) Len() int {
 	return len(a.Timestamps)
 }
 
-// Exclude removes the subset of values not in [min, max].  The values must
+// Exclude removes the subset of values in [min, max]. The values must
 // be deduplicated and sorted before calling Exclude or the results are undefined.
 func (a *IntegerArray) Exclude(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
@@ -258,11 +259,12 @@ func (a *IntegerArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+			return
 		}
-	} else {
-		a.Timestamps = a.Timestamps[:rmin]
-		a.Values = a.Values[:rmin]
 	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
 }
 
 // Include returns the subset values between min and max inclusive. The values must
@@ -434,7 +436,7 @@ func (a *UnsignedArray) Len() int {
 	return len(a.Timestamps)
 }
 
-// Exclude removes the subset of values not in [min, max].  The values must
+// Exclude removes the subset of values in [min, max]. The values must
 // be deduplicated and sorted before calling Exclude or the results are undefined.
 func (a *UnsignedArray) Exclude(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
@@ -458,11 +460,12 @@ func (a *UnsignedArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+			return
 		}
-	} else {
-		a.Timestamps = a.Timestamps[:rmin]
-		a.Values = a.Values[:rmin]
 	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
 }
 
 // Include returns the subset values between min and max inclusive. The values must
@@ -634,7 +637,7 @@ func (a *StringArray) Len() int {
 	return len(a.Timestamps)
 }
 
-// Exclude removes the subset of values not in [min, max].  The values must
+// Exclude removes the subset of values in [min, max]. The values must
 // be deduplicated and sorted before calling Exclude or the results are undefined.
 func (a *StringArray) Exclude(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
@@ -658,11 +661,12 @@ func (a *StringArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+			return
 		}
-	} else {
-		a.Timestamps = a.Timestamps[:rmin]
-		a.Values = a.Values[:rmin]
 	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
 }
 
 // Include returns the subset values between min and max inclusive. The values must
@@ -834,7 +838,7 @@ func (a *BooleanArray) Len() int {
 	return len(a.Timestamps)
 }
 
-// Exclude removes the subset of values not in [min, max].  The values must
+// Exclude removes the subset of values in [min, max]. The values must
 // be deduplicated and sorted before calling Exclude or the results are undefined.
 func (a *BooleanArray) Exclude(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
@@ -858,11 +862,12 @@ func (a *BooleanArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+			return
 		}
-	} else {
-		a.Timestamps = a.Timestamps[:rmin]
-		a.Values = a.Values[:rmin]
 	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
 }
 
 // Include returns the subset values between min and max inclusive. The values must

@@ -26,7 +26,6 @@ import (
 	intar "github.com/influxdata/influxdb/pkg/tar"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/bytesutil"
@@ -752,9 +751,8 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	// Save reference to index for iterator creation.
 	e.index = index
 
-	// If we have the cached fields index on disk and we're using TSI, we
-	// can skip scanning all the TSM files.
-	if e.index.Type() != inmem.IndexName && !e.fieldset.IsEmpty() {
+	// If we have the cached fields index on disk and can skip scanning all the TSM files.
+	if !e.fieldset.IsEmpty() {
 		return nil
 	}
 
@@ -1197,15 +1195,8 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 		collection.Types = append(collection.Types, fieldTypeFromDataType(fieldTypes[i]))
 	}
 
-	// Build in-memory index, if necessary.
-	if e.index.Type() == inmem.IndexName {
-		if err := e.index.InitializeSeries(collection); err != nil {
-			return err
-		}
-	} else {
-		if err := e.index.CreateSeriesListIfNotExists(collection); err != nil {
-			return err
-		}
+	if err := e.index.CreateSeriesListIfNotExists(collection); err != nil {
+		return err
 	}
 
 	return nil
