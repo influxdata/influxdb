@@ -7,6 +7,7 @@ export const notify: NotificationsActions.PublishNotificationActionCreator = (
   type: 'PUBLISH_NOTIFICATION',
   payload: {notification},
 })
+
 export const dismissNotification = (
   id: string
 ): NotificationsActions.DismissNotificationAction => ({

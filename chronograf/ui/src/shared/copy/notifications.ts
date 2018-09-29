@@ -94,6 +94,22 @@ export const csvUploadFailed = (): Notification => ({
   message: 'Please upload a .csv file',
 })
 
+// Onboarding wizard notifications
+export const SetupSuccess: Notification = {
+  ...defaultSuccessNotification,
+  message: 'Admin User details have been successfully set',
+}
+
+export const SetupError: Notification = {
+  ...defaultErrorNotification,
+  message: `Could not Setup Admin User at this time.`,
+}
+
+export const SetupNotAllowed: Notification = {
+  ...defaultErrorNotification,
+  message: `Defaults have already been set on this account.`,
+}
+
 //  Hosts Page Notifications
 //  ----------------------------------------------------------------------------
 export const unableToGetHosts = (): Notification => ({

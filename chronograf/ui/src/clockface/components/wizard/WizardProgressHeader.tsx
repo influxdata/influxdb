@@ -6,17 +6,18 @@ import {Button, ComponentColor, ComponentSize} from 'src/clockface'
 
 interface Props {
   children: any
+  currentStepIndex: number
+  stepSkippable: boolean[]
   skipText?: string
   onSkip?: () => void
 }
 
 const WizardProgressHeader: SFC<Props> = (props: Props) => {
-  const {children, skipText, onSkip} = props
-
+  const {children, skipText, onSkip, stepSkippable, currentStepIndex} = props
   return (
     <div className="wizard--progress-header">
       {children}
-      {!!onSkip && (
+      {stepSkippable[currentStepIndex] && (
         <span className="wizard--progress-skip">
           <Button
             color={ComponentColor.Default}
