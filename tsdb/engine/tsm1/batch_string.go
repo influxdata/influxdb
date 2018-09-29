@@ -19,13 +19,24 @@ var (
 //
 // Currently only the string compression scheme used snappy.
 func StringArrayEncodeAll(src []string, b []byte) ([]byte, error) {
-	// As a heuristic assume 2 bytes per string (upto 127 byte length).
-	sz := 2 + (len(src) * 2) // First 2 bytes is assuming empty input (snappy expects 1 byte of data).
-	if len(b) < sz && cap(b) < sz {
-		// Not enough capacity, need to grow buffer.
-		b = append(b[:0], make([]byte, sz-len(b))...)
+	srcSz := 2 + len(src)*binary.MaxVarintLen32 // strings should't be longer than 64kb
+	for i := range src {
+		srcSz += len(src[i])
 	}
-	b = b[:sz]
+
+	// determine the maximum possible length needed for the buffer, which
+	// includes the compressed size
+	var compressedSz = 0
+	if len(src) > 0 {
+		compressedSz = snappy.MaxEncodedLen(srcSz) + 1 /* header */
+	}
+	totSz := srcSz + compressedSz
+
+	if cap(b) < totSz {
+		b = make([]byte, totSz)
+	} else {
+		b = b[:totSz]
+	}
 
 	// Shortcut to snappy encoding nothing.
 	if len(src) == 0 {
@@ -33,40 +44,21 @@ func StringArrayEncodeAll(src []string, b []byte) ([]byte, error) {
 		return b[:2], nil
 	}
 
-	n := 0 // Number of bytes written to buffer.
-	for _, v := range src {
-		sz := 10          // Maximum needed size for this string.
-		rem := len(b) - n // Bytes available in b.
-		if rem < sz && cap(b) >= n+sz {
-			b = b[:n+sz] // Enough capacity in b to expand.
-		} else if rem < sz {
-			b = append(b, make([]byte, sz-rem)...) // Need to grow b.
-		}
-		n += binary.PutUvarint(b[n:], uint64(len(v)))
-		b = append(b[:n], v...)
-		n += len(v)
+	// write the data to be compressed *after* the space needed for snappy
+	// compression. The compressed data is at the start of the allocated buffer,
+	// ensuring the entire capacity is returned and available for subsequent use.
+	dta := b[compressedSz:]
+	n := 0
+	for i := range src {
+		n += binary.PutUvarint(dta[n:], uint64(len(src[i])))
+		n += copy(dta[n:], src[i])
 	}
+	dta = dta[:n]
 
-	// Ensure there is room to add the header byte.
-	if n == len(b) {
-		b = append(b, byte(stringCompressedSnappy<<4))
-	} else {
-		b[n] = byte(stringCompressedSnappy << 4)
-	}
-	n++
-
-	// Grow b to include the compressed data. That way we don't need to allocate
-	// a slice only to throw it away.
-	sz = snappy.MaxEncodedLen(n - 1) // Don't need to consider header
-	rem := len(b) - n                // Bytes available in b.
-	if rem < sz && cap(b) >= n+sz {
-		b = b[:n+sz] // Enough capacity in b to just expand.
-	} else if rem < sz {
-		b = append(b, make([]byte, sz-rem)...) // Need to grow b.
-	}
-	res := snappy.Encode(b[n:], b[:n-1]) // Don't encode header byte.
-
-	return b[n-1 : n+len(res)], nil // Include header byte in returned data.
+	dst := b[:compressedSz]
+	dst[0] = stringCompressedSnappy << 4
+	res := snappy.Encode(dst[1:], dta)
+	return dst[:len(res)+1], nil
 }
 
 func StringArrayDecodeAll(b []byte, dst []string) ([]string, error) {
