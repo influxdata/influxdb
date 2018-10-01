@@ -296,6 +296,7 @@ func platformF(cmd *cobra.Command, args []string) {
 	go func() {
 		bucketHandler := http.NewBucketHandler()
 		bucketHandler.BucketService = bucketSvc
+		bucketHandler.UserResourceMappingService = userResourceSvc
 
 		orgHandler := http.NewOrgHandler()
 		orgHandler.OrganizationService = orgSvc

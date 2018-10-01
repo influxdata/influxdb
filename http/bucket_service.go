@@ -18,8 +18,18 @@ import (
 type BucketHandler struct {
 	*httprouter.Router
 
-	BucketService platform.BucketService
+	BucketService              platform.BucketService
+	UserResourceMappingService platform.UserResourceMappingService
 }
+
+const (
+	bucketsPath            = "/api/v2/buckets"
+	bucketsIDPath          = "/api/v2/buckets/:id"
+	bucketsIDMembersPath   = "/api/v2/buckets/:id/members"
+	bucketsIDMembersIDPath = "/api/v2/buckets/:id/members/:userID"
+	bucketsIDOwnersPath    = "/api/v2/buckets/:id/owners"
+	bucketsIDOwnersIDPath  = "/api/v2/buckets/:id/owners/:userID"
+)
 
 // NewBucketHandler returns a new instance of BucketHandler.
 func NewBucketHandler() *BucketHandler {
@@ -27,11 +37,20 @@ func NewBucketHandler() *BucketHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/api/v2/buckets", h.handlePostBucket)
-	h.HandlerFunc("GET", "/api/v2/buckets", h.handleGetBuckets)
-	h.HandlerFunc("GET", "/api/v2/buckets/:id", h.handleGetBucket)
-	h.HandlerFunc("PATCH", "/api/v2/buckets/:id", h.handlePatchBucket)
-	h.HandlerFunc("DELETE", "/api/v2/buckets/:id", h.handleDeleteBucket)
+	h.HandlerFunc("POST", bucketsPath, h.handlePostBucket)
+	h.HandlerFunc("GET", bucketsPath, h.handleGetBuckets)
+	h.HandlerFunc("GET", bucketsIDPath, h.handleGetBucket)
+	h.HandlerFunc("PATCH", bucketsIDPath, h.handlePatchBucket)
+	h.HandlerFunc("DELETE", bucketsIDPath, h.handleDeleteBucket)
+
+	h.HandlerFunc("POST", bucketsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("GET", bucketsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("DELETE", bucketsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
+
+	h.HandlerFunc("POST", bucketsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("GET", bucketsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("DELETE", bucketsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+
 	return h
 }
 
