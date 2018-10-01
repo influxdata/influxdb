@@ -3,7 +3,6 @@ package backend
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -94,11 +93,6 @@ type Scheduler interface {
 	// Stop a scheduler from ticking.
 	Stop()
 
-	// Tick updates the time of the scheduler.
-	// Any owned tasks who are due to execute and who have a free concurrency slot,
-	// will begin a new execution.
-	Tick(now int64)
-
 	// ClaimTask begins control of task execution in this scheduler.
 	ClaimTask(task *StoreTask, meta *StoreTaskMeta) error
 
@@ -107,11 +101,11 @@ type Scheduler interface {
 	ReleaseTask(taskID platform.ID) error
 }
 
-// SchedulerOption is a option you can use to modify the schedulers behavior.
-type SchedulerOption func(Scheduler)
+// TickSchedulerOption is a option you can use to modify the schedulers behavior.
+type TickSchedulerOption func(*TickScheduler)
 
-func WithTicker(ctx context.Context, d time.Duration) SchedulerOption {
-	return func(s Scheduler) {
+func WithTicker(ctx context.Context, d time.Duration) TickSchedulerOption {
+	return func(s *TickScheduler) {
 		ticker := time.NewTicker(d)
 
 		go func() {
@@ -130,20 +124,15 @@ func WithTicker(ctx context.Context, d time.Duration) SchedulerOption {
 
 // WithLogger sets the logger for the scheduler.
 // If not set, the scheduler will use a no-op logger.
-func WithLogger(logger *zap.Logger) SchedulerOption {
-	return func(s Scheduler) {
-		switch sched := s.(type) {
-		case *outerScheduler:
-			sched.logger = logger.With(zap.String("svc", "taskd/scheduler"))
-		default:
-			panic(fmt.Sprintf("cannot apply WithLogger to Scheduler of type %T", s))
-		}
+func WithLogger(logger *zap.Logger) TickSchedulerOption {
+	return func(s *TickScheduler) {
+		s.logger = logger.With(zap.String("svc", "taskd/scheduler"))
 	}
 }
 
 // NewScheduler returns a new scheduler with the given desired state and the given now UTC timestamp.
-func NewScheduler(desiredState DesiredState, executor Executor, lw LogWriter, now int64, opts ...SchedulerOption) Scheduler {
-	o := &outerScheduler{
+func NewScheduler(desiredState DesiredState, executor Executor, lw LogWriter, now int64, opts ...TickSchedulerOption) *TickScheduler {
+	o := &TickScheduler{
 		desiredState:   desiredState,
 		executor:       executor,
 		logWriter:      lw,
@@ -161,7 +150,7 @@ func NewScheduler(desiredState DesiredState, executor Executor, lw LogWriter, no
 	return o
 }
 
-type outerScheduler struct {
+type TickScheduler struct {
 	desiredState DesiredState
 	executor     Executor
 	logWriter    LogWriter
@@ -179,7 +168,10 @@ type outerScheduler struct {
 	taskSchedulers map[string]*taskScheduler // Stringified task ID -> task scheduler.
 }
 
-func (s *outerScheduler) Tick(now int64) {
+// Tick updates the time of the scheduler.
+// Any owned tasks who are due to execute and who have a free concurrency slot,
+// will begin a new execution.
+func (s *TickScheduler) Tick(now int64) {
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
 
@@ -206,14 +198,14 @@ func (s *outerScheduler) Tick(now int64) {
 	s.logger.Info("Ticked", zap.Int64("now", now), zap.Int("tasks_affected", affected))
 }
 
-func (s *outerScheduler) Start(ctx context.Context) {
+func (s *TickScheduler) Start(ctx context.Context) {
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
 
 	s.ctx, s.cancel = context.WithCancel(ctx)
 }
 
-func (s *outerScheduler) Stop() {
+func (s *TickScheduler) Stop() {
 	defer s.wg.Wait()
 
 	s.schedulerMu.Lock()
@@ -233,7 +225,7 @@ func (s *outerScheduler) Stop() {
 	}
 }
 
-func (s *outerScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err error) {
+func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err error) {
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
 	if s.ctx == nil {
@@ -275,7 +267,7 @@ func (s *outerScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err er
 	return nil
 }
 
-func (s *outerScheduler) ReleaseTask(taskID platform.ID) error {
+func (s *TickScheduler) ReleaseTask(taskID platform.ID) error {
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
 
@@ -293,7 +285,7 @@ func (s *outerScheduler) ReleaseTask(taskID platform.ID) error {
 	return nil
 }
 
-func (s *outerScheduler) PrometheusCollectors() []prometheus.Collector {
+func (s *TickScheduler) PrometheusCollectors() []prometheus.Collector {
 	return s.metrics.PrometheusCollectors()
 }
 
@@ -325,7 +317,7 @@ type taskScheduler struct {
 func newTaskScheduler(
 	ctx context.Context,
 	wg *sync.WaitGroup,
-	s *outerScheduler,
+	s *TickScheduler,
 	task *StoreTask,
 	meta *StoreTaskMeta,
 	metrics *schedulerMetrics,
