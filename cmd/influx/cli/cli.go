@@ -801,6 +801,8 @@ func (c *CommandLine) ExecuteQuery(query string) error {
 			err = ctx.Err()
 			if err == context.Canceled {
 				err = errors.New("aborted by user")
+			} else if err == nil {
+				err = errors.New("no data received")
 			}
 		}
 		fmt.Printf("ERR: %s\n", err)
