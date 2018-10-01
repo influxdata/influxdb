@@ -196,9 +196,22 @@ func (s *store) GroupRead(ctx context.Context, req *ReadRequest) (GroupResultSet
 	return NewGroupResultSet(ctx, req, newCursor), nil
 }
 
-const valueKey = "_value"
+const (
+	fieldTagKey       = "_f"
+	measurementTagKey = "_m"
 
-var fieldKeyBytes = []byte("_f")
+	fieldKey       = "_field"
+	measurementKey = "_measurement"
+	valueKey       = "_value"
+)
+
+var (
+	fieldTagKeyBytes       = []byte(fieldTagKey)
+	measurementTagKeyBytes = []byte(measurementTagKey)
+
+	fieldKeyBytes       = []byte(fieldKey)
+	measurementKeyBytes = []byte(measurementKey)
+)
 
 type indexSeriesCursor struct {
 	sqry         tsdb.SeriesCursor
@@ -301,7 +314,7 @@ func (c *indexSeriesCursor) Next() *SeriesRow {
 	//TODO(edd): check this.
 	c.row.SeriesTags = copyTags(c.row.SeriesTags, sr.Tags)
 	c.row.Tags = copyTags(c.row.Tags, sr.Tags)
-	c.row.Field = string(c.row.Tags.Get(fieldKeyBytes))
+	c.row.Field = string(c.row.Tags.Get(fieldTagKeyBytes))
 
 	normalizeTags(c.row.Tags)
 
@@ -2618,9 +2631,9 @@ func normalizeTags(tags models.Tags) {
 		if len(tag.Key) == 2 && tag.Key[0] == '_' {
 			switch tag.Key[1] {
 			case 'f':
-				tags[i].Key = []byte("_field")
+				tags[i].Key = fieldKeyBytes
 			case 'm':
-				tags[i].Key = []byte("_measurement")
+				tags[i].Key = measurementKeyBytes
 			}
 		}
 	}
@@ -10059,7 +10072,7 @@ var fileDescriptorPredicate = []byte{
 	0x06, 0x00, 0x00,
 }
 
-var measurementRemap = map[string]string{"_measurement": "_name"}
+var measurementRemap = map[string]string{measurementKey: "_name"}
 
 // NodeToExpr transforms a predicate node to an influxql.Expr.
 func NodeToExpr(node *Node, remap map[string]string) (influxql.Expr, error) {
@@ -10262,15 +10275,6 @@ func (v *nodeToExprVisitor) pop2() (influxql.Expr, influxql.Expr) {
 	return lhs, rhs
 }
 
-const (
-	measurementKey = "_measurement"
-	fieldKey       = "_field"
-)
-
-var (
-	measurementKeyBytes = []byte(measurementKey)
-)
-
 // HasSingleMeasurementNoOR determines if an index optimisation is available.
 //
 // Typically the read service will use the query engine to retrieve all field
@@ -10331,7 +10335,7 @@ func RewriteExprRemoveFieldKeyAndValue(expr influxql.Expr) influxql.Expr {
 	return influxql.RewriteExpr(expr, func(expr influxql.Expr) influxql.Expr {
 		if be, ok := expr.(*influxql.BinaryExpr); ok {
 			if ref, ok := be.LHS.(*influxql.VarRef); ok {
-				if ref.Val == "_field" || ref.Val == "$" {
+				if ref.Val == fieldKey || ref.Val == "$" {
 					return &influxql.BooleanLiteral{Val: true}
 				}
 			}
@@ -10457,13 +10461,29 @@ func toStoragePredicate(n semantic.Expression, objectName string) (*Node, error)
 		if ident, ok := n.Object.(*semantic.IdentifierExpression); !ok || ident.Name != objectName {
 			return nil, fmt.Errorf("unknown object %q", n.Object)
 		}
-		if n.Property == "_value" {
+		switch n.Property {
+		case fieldKey:
+			return &Node{
+				NodeType: NodeTypeTagRef,
+				Value: &Node_TagRefValue{
+					TagRefValue: fieldTagKey,
+				},
+			}, nil
+		case measurementKey:
+			return &Node{
+				NodeType: NodeTypeTagRef,
+				Value: &Node_TagRefValue{
+					TagRefValue: measurementTagKey,
+				},
+			}, nil
+		case valueKey:
 			return &Node{
 				NodeType: NodeTypeFieldRef,
 				Value: &Node_FieldRefValue{
-					FieldRefValue: "_value",
+					FieldRefValue: valueKey,
 				},
 			}, nil
+
 		}
 		return &Node{
 			NodeType: NodeTypeTagRef,
