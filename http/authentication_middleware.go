@@ -26,7 +26,7 @@ type AuthenticationHandler struct {
 }
 
 // NewAuthenticationHandler creates an authentication handler.
-func NewAuthenicationHandler() *AuthenticationHandler {
+func NewAuthenticationHandler() *AuthenticationHandler {
 	return &AuthenticationHandler{
 		Logger:       zap.NewNop(),
 		Handler:      http.DefaultServeMux,
