@@ -817,8 +817,14 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+	statusCode := r.URL.Query().Get("status")
 	atomic.AddInt64(&h.stats.PingRequests, 1)
-	h.writeHeader(w, http.StatusNoContent)
+
+	if statusCode == "200" {
+		h.writeHeader(w, http.StatusOK)
+	} else {
+		h.writeHeader(w, http.StatusNoContent)
+	}
 }
 
 // serveStatus has been deprecated.
