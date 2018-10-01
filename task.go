@@ -75,8 +75,6 @@ type TaskFilter struct {
 
 // RunFilter represents a set of filters that restrict the returned results
 type RunFilter struct {
-	// TODO(lh): Org is temporary here.
-	// We will be removing it when the token in context contains org information.
 	Org        *ID
 	Task       *ID
 	After      *ID
@@ -87,8 +85,6 @@ type RunFilter struct {
 
 // LogFilter represents a set of filters that restrict the returned results
 type LogFilter struct {
-	// TODO(lh): Org is temporary here.
-	// We will be removing it when the token in context contains org information.
 	Org  *ID
 	Task *ID
 	Run  *ID
