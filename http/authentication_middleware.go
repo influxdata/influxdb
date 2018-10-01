@@ -28,7 +28,13 @@ func NewAuthenicationHandler() *AuthenticationHandler {
 	}
 }
 
-func probeAuthScheme(r *http.Request) (string, error) {
+const (
+	tokenAuthScheme   = "token"
+	sessionAuthScheme = "session"
+)
+
+// ProbeAuthScheme probes the http request for the requests for token or cookie session.
+func ProbeAuthScheme(r *http.Request) (string, error) {
 	_, tokenErr := GetToken(r)
 	_, sessErr := decodeCookieSession(r.Context(), r)
 
@@ -36,24 +42,24 @@ func probeAuthScheme(r *http.Request) (string, error) {
 		return "", fmt.Errorf("unknown authenitcation scheme")
 	}
 
-	if tokenErr != nil {
-		return "token", nil
+	if tokenErr == nil {
+		return tokenAuthScheme, nil
 	}
 
-	return "session", nil
+	return sessionAuthScheme, nil
 }
 
 // ServeHTTP extracts the session or token from the http request and places the resulting authorizer on the request context.
 func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	scheme, err := probeAuthScheme(r)
+	scheme, err := ProbeAuthScheme(r)
 	if err != nil {
 		ForbiddenError(ctx, err, w)
 		return
 	}
 
 	switch scheme {
-	case "token":
+	case tokenAuthScheme:
 		ctx, err = h.extractAuthorization(ctx, r)
 		if err != nil {
 			break
@@ -61,7 +67,7 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		r = r.WithContext(ctx)
 		h.Handler.ServeHTTP(w, r)
 		return
-	case "session":
+	case sessionAuthScheme:
 		ctx, err = h.extractSession(ctx, r)
 		if err != nil {
 			break

@@ -125,3 +125,13 @@ func decodeCookieSession(ctx context.Context, r *http.Request) (string, error) {
 	}
 	return c.Value, nil
 }
+
+// SetCookieSession adds a cookie for the session to an http request
+func SetCookieSession(key string, r *http.Request) {
+	c := &http.Cookie{
+		Name:  cookieSessionName,
+		Value: key,
+	}
+
+	r.AddCookie(c)
+}
