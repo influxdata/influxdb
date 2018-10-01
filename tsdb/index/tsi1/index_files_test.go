@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb/index/tsi1"
 )
 

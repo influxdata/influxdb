@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/pkg/bytesutil"
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
+	"github.com/influxdata/platform/pkg/estimator/hll"
 	"github.com/influxdata/platform/tsdb"
 )
 

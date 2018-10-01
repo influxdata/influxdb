@@ -7,9 +7,9 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/influxdata/influxdb/pkg/estimator"
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/pkg/estimator"
+	"github.com/influxdata/platform/pkg/estimator/hll"
 	"github.com/influxdata/platform/tsdb"
 )
 

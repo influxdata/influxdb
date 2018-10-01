@@ -8,9 +8,9 @@ import (
 	"sort"
 	"unsafe"
 
-	"github.com/influxdata/influxdb/pkg/estimator"
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/rhh"
+	"github.com/influxdata/platform/pkg/estimator"
+	"github.com/influxdata/platform/pkg/estimator/hll"
 	"github.com/influxdata/platform/tsdb"
 )
 
