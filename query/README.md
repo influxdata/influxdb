@@ -7,7 +7,7 @@ servers.
 
 ## Specification
 
-A complete specification can be found in [SPEC.md](./docs/SPEC.md).
+A complete specification can be found in [SPEC.md](https://github.com/influxdata/flux/blob/master/docs/SPEC.md).
 
 ## Installation
 
