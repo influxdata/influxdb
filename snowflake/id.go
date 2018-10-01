@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/snowflake"
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/pkg/snowflake"
 )
 
 func init() {
