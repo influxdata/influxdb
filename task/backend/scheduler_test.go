@@ -414,7 +414,7 @@ func TestScheduler_Metrics(t *testing.T) {
 	reg := prom.NewRegistry()
 	// PrometheusCollector isn't part of the Scheduler interface. Yet.
 	// Still thinking about whether it should be.
-	reg.MustRegister(s.(prom.PrometheusCollector).PrometheusCollectors()...)
+	reg.MustRegister(s.PrometheusCollectors()...)
 
 	// Claim a task that starts later.
 	task := &backend.StoreTask{
