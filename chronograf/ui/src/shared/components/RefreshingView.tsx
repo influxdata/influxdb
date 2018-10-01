@@ -9,10 +9,10 @@ import LineGraph from 'src/shared/components/LineGraph'
 import StepPlot from 'src/shared/components/StepPlot'
 import Stacked from 'src/shared/components/Stacked'
 import GaugeChart from 'src/shared/components/GaugeChart'
-// import TableGraph from 'src/shared/components/TableGraph'
 import SingleStat from 'src/shared/components/SingleStat'
 import TimeSeries from 'src/shared/components/time_series/TimeSeries'
 import SingleStatTransform from 'src/shared/components/SingleStatTransform'
+import TimeMachineTables from 'src/shared/components/tables/TimeMachineTables'
 
 // Constants
 import {emptyGraphCopy} from 'src/shared/copy/cell'
@@ -91,7 +91,9 @@ class RefreshingView extends PureComponent<Props & WithRouterProps> {
                 </SingleStatTransform>
               )
             case ViewType.Table:
-              return <div>YO! Imma table</div>
+              return (
+                <TimeMachineTables tables={tables} properties={properties} />
+              )
             case ViewType.Gauge:
               return (
                 <GaugeChart

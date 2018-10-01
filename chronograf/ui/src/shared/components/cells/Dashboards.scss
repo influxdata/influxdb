@@ -99,7 +99,7 @@ $dash-graph-options-arrow: 8px;
   -moz-user-select: none !important;
   -webkit-user-select: none !important;
   background-color: transparent;
-  position: absolute;
+  position: relative;
   width: 100%;
   height: calc(100% - #{$dash-graph-heading});
   top: $dash-graph-heading;

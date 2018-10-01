@@ -21,7 +21,7 @@ export interface TimeField {
   visible: boolean
 }
 export const DEFAULT_TIME_FIELD: TimeField = {
-  internalName: 'time',
+  internalName: '_time',
   displayName: '',
   visible: true,
 }

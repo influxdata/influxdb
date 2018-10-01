@@ -1,0 +1,102 @@
+.time-machine-tables {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: none;
+  width: 100%;
+  height: 100%;
+  background-color: $g3-castle;
+  padding: 16px;
+}
+
+.time-machine-sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  width: 25%;
+  min-width: 180px;
+  max-width: 180px;
+  background-color: $g2-kevlar;
+  overflow: hidden;
+  border-radius: $radius 0 0 $radius;
+}
+
+.time-machine-sidebar--heading {
+  padding: 10px;
+  background: $g4-onyx;
+}
+
+.time-machines-sidebar--filter.form-control.input-xs {
+  font-size: 12px;
+}
+
+.time-machine-sidebar--items {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+
+  // Shadow
+  &:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 10px;
+    height: 100%;
+    @include gradient-h(fade-out($g2-kevlar, 1), fade-out($g2-kevlar, 0.4));
+    pointer-events: none;
+  }
+}
+
+.time-machine-sidebar-item {
+  @include no-user-select();
+  color: $g11-sidewalk;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 10px;
+  transition: color 0.25s ease, background-color 0.25s ease;
+  white-space: nowrap;
+  overflow-x: hidden;
+
+  &:hover {
+    background-color: $g4-onyx;
+    color: $g15-platinum;
+    cursor: pointer;
+  }
+
+  &.active {
+    background-color: $g5-pepper;
+    color: $g18-cloud;
+  }
+
+  > span {
+    padding-right: 1px;
+    padding-left: 1px;
+  }
+
+  > span.key {
+    color: $g9-mountain;
+  }
+
+  > span.value {
+    padding-right: 5px;
+    color: $g11-sidewalk;
+  }
+}
+
+.time-machine-table {
+  width: calc(100% - 32px);
+  border: 2px solid $g5-pepper;
+  border-radius: 3px;
+  overflow: hidden;
+
+  &:only-child {
+    height: calc(100% - 16px);
+    top: 8px;
+    left: 16px;
+    border: 1;
+  }
+}

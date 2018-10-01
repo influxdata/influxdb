@@ -132,6 +132,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = sv
+		case "table":
+			var tv TableViewProperties
+			if err := json.Unmarshal(v.B, &tv); err != nil {
+				return nil, err
+			}
+			vis = tv
 		}
 	case "chronograf-v1":
 		var qv V1ViewProperties
@@ -162,6 +168,14 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 		}{
 			Shape:                    "chronograf-v2",
 			SingleStatViewProperties: vis,
+		}
+	case TableViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			TableViewProperties
+		}{
+			Shape:               "chronograf-v2",
+			TableViewProperties: vis,
 		}
 	case GaugeViewProperties:
 		s = struct {
@@ -317,6 +331,17 @@ type GaugeViewProperties struct {
 	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
 }
 
+// TableViewProperties represents options for table view in Chronograf
+type TableViewProperties struct {
+	Type          string           `json:"type"`
+	Queries       []DashboardQuery `json:"queries"`
+	ViewColors    []ViewColor      `json:"colors"`
+	TableOptions  TableOptions     `json:"tableOptions"`
+	FieldOptions  []RenamableField `json:"fieldOptions"`
+	TimeFormat    string           `json:"timeFormat"`
+	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
+}
+
 // V1ViewProperties represents V1 Chronograf view shapes
 type V1ViewProperties struct {
 	Queries       []DashboardQuery `json:"queries"`
@@ -336,6 +361,7 @@ func (StepPlotViewProperties) ViewProperties()   {}
 func (SingleStatViewProperties) ViewProperties() {}
 func (StackedViewProperties) ViewProperties()    {}
 func (GaugeViewProperties) ViewProperties()      {}
+func (TableViewProperties) ViewProperties()      {}
 
 /////////////////////////////
 // Old Chronograf Types
