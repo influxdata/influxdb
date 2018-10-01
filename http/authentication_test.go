@@ -209,3 +209,85 @@ func TestProbeAuthScheme(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthenticationHandler_NoAuthRoutes(t *testing.T) {
+	type route struct {
+		method string
+		path   string
+	}
+	type fields struct {
+		excludedRoutes []route
+	}
+	type args struct {
+		method string
+		path   string
+	}
+	type wants struct {
+		code int
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "route is no auth route",
+			fields: fields{
+				excludedRoutes: []route{
+					{
+						method: "GET",
+						path:   "/debug/pprof",
+					},
+				},
+			},
+			args: args{
+				method: "GET",
+				path:   "/debug/pprof",
+			},
+			wants: wants{
+				code: http.StatusOK,
+			},
+		},
+		{
+			name: "route is an auth route",
+			fields: fields{
+				excludedRoutes: []route{},
+			},
+			args: args{
+				method: "POST",
+				path:   "/api/v2/write",
+			},
+			wants: wants{
+				code: http.StatusForbidden,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+
+			h := platformhttp.NewAuthenicationHandler()
+			h.AuthorizationService = mock.NewAuthorizationService()
+			h.SessionService = mock.NewSessionService()
+			h.Handler = handler
+
+			for _, rte := range tt.fields.excludedRoutes {
+				h.RegisterNoAuthRoute(rte.method, rte.path)
+			}
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(tt.args.method, tt.args.path, nil)
+
+			h.ServeHTTP(w, r)
+
+			if got, want := w.Code, tt.wants.code; got != want {
+				t.Errorf("expected status code to be %d got %d", want, got)
+			}
+		})
+	}
+}

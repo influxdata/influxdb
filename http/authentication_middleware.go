@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/platform"
 	platcontext "github.com/influxdata/platform/context"
+	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
@@ -17,15 +18,26 @@ type AuthenticationHandler struct {
 	AuthorizationService platform.AuthorizationService
 	SessionService       platform.SessionService
 
+	// This is only really used for it's lookup method the specific http
+	// hanlder used to register routes does not matter.
+	noAuthRouter *httprouter.Router
+
 	Handler http.Handler
 }
 
 // NewAuthenticationHandler creates an authentication handler.
 func NewAuthenicationHandler() *AuthenticationHandler {
 	return &AuthenticationHandler{
-		Logger:  zap.NewNop(),
-		Handler: http.DefaultServeMux,
+		Logger:       zap.NewNop(),
+		Handler:      http.DefaultServeMux,
+		noAuthRouter: httprouter.New(),
 	}
+}
+
+// RegisterNoAuthRoute excludes routes from needing authentication.
+func (h *AuthenticationHandler) RegisterNoAuthRoute(method, path string) {
+	// the handler specified here does not matter.
+	h.noAuthRouter.HandlerFunc(method, path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 }
 
 const (
@@ -51,6 +63,11 @@ func ProbeAuthScheme(r *http.Request) (string, error) {
 
 // ServeHTTP extracts the session or token from the http request and places the resulting authorizer on the request context.
 func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if handler, _, _ := h.noAuthRouter.Lookup(r.Method, r.URL.Path); handler != nil {
+		h.Handler.ServeHTTP(w, r)
+		return
+	}
+
 	ctx := r.Context()
 	scheme, err := ProbeAuthScheme(r)
 	if err != nil {
