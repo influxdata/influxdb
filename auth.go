@@ -24,6 +24,11 @@ func (a *Authorization) Allowed(p Permission) bool {
 	return allowed(p, a.Permissions)
 }
 
+// IsActive is a stub for idpe.
+func IsActive(a *Authorization) bool {
+	return a.IsActive()
+}
+
 // IsActive returns true if the authorization active.
 func (a *Authorization) IsActive() bool {
 	return a.Status == Active
