@@ -1,49 +1,218 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
+import {getDeep} from 'src/utils/wrappers'
+
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {
+  Button,
+  ComponentColor,
+  ComponentSize,
+  Input,
+  Form,
+  Columns,
+  IconFont,
+  ComponentStatus,
+} from 'src/clockface'
+
+// APIS
+import {setSetupParams, SetupParams} from 'src/onboarding/apis'
+
+// Constants
+import * as copy from 'src/shared/copy/notifications'
 
 // Types
 import {StepStatus} from 'src/clockface/constants/wizard'
-import {Button, ComponentColor, ComponentSize} from 'src/clockface'
+import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
-interface Props {
-  currentStepIndex: number
-  handleSetCurrentStep: (stepNumber: number) => void
-  handleSetStepStatus: (index: number, status: StepStatus) => void
-  stepStatuses: StepStatus[]
-  stepTitles: string[]
+interface State extends SetupParams {
+  isAlreadySet: boolean
 }
 
 @ErrorHandling
-class InitStep extends PureComponent<Props> {
+class AdminStep extends PureComponent<OnboardingStepProps, State> {
+  constructor(props) {
+    super(props)
+    const {setupParams} = props
+    this.state = {
+      username: getDeep(setupParams, 'username', ''),
+      password: getDeep(setupParams, 'password', ''),
+      org: getDeep(setupParams, 'org', 'default'),
+      bucket: getDeep(setupParams, 'bucket', 'default'),
+      isAlreadySet: !!setupParams,
+    }
+  }
   public render() {
+    const {username, password, org, bucket, isAlreadySet} = this.state
+    let icon = null
+    let status = ComponentStatus.Default
+    if (isAlreadySet) {
+      icon = IconFont.Checkmark
+      status = ComponentStatus.Disabled
+    }
     return (
       <div className="onboarding-step">
         <h3 className="wizard-step-title">Setup Admin User</h3>
-        <p>You can create additional Buckets and Organizations later</p>
+        <p>
+          You will be able to create additional Buckets and Organizations later
+        </p>
+        <Form>
+          <Form.Element
+            label="Admin Username"
+            colsXS={Columns.Six}
+            offsetXS={Columns.Three}
+            errorMessage={''}
+          >
+            <Input
+              value={username}
+              onChange={this.handleUsername}
+              titleText={'Admin Username'}
+              size={ComponentSize.Medium}
+              icon={icon}
+              placeholder={username}
+              status={status}
+              disabledTitleText={'Admin username has been set'}
+            />
+          </Form.Element>
+          <Form.Element
+            label="Admin Password"
+            colsXS={Columns.Six}
+            offsetXS={Columns.Three}
+          >
+            <Input
+              value={password}
+              onChange={this.handlePassword}
+              titleText={'Admin Password'}
+              size={ComponentSize.Medium}
+              icon={icon}
+              placeholder={password}
+              status={status}
+              disabledTitleText={'Admin password has been set'}
+            />
+          </Form.Element>
+          <Form.Element
+            label="Default Organization Name"
+            colsXS={Columns.Six}
+            offsetXS={Columns.Three}
+          >
+            <Input
+              value={org}
+              onChange={this.handleOrg}
+              titleText={'Default Organization Name'}
+              size={ComponentSize.Medium}
+              icon={icon}
+              placeholder={org}
+              status={status}
+              disabledTitleText={'Default organization name has been set'}
+            />
+          </Form.Element>
+          <Form.Element
+            label="Default Bucket Name"
+            colsXS={Columns.Six}
+            offsetXS={Columns.Three}
+          >
+            <Input
+              value={bucket}
+              onChange={this.handleBucket}
+              titleText={'Default Bucket Name'}
+              size={ComponentSize.Medium}
+              icon={icon}
+              placeholder={bucket}
+              status={status}
+              disabledTitleText={'Default bucket name has been set'}
+            />
+          </Form.Element>
+        </Form>
         <div className="wizard-button-bar">
           <Button
             color={ComponentColor.Default}
             text="Back"
             size={ComponentSize.Medium}
-            onClick={this.handleDecrement}
+            onClick={this.handlePrevious}
           />
           <Button
             color={ComponentColor.Primary}
             text="Next"
             size={ComponentSize.Medium}
             onClick={this.handleNext}
+            status={this.nextButtonStatus}
+            titleText={this.nextButtonTitle}
           />
         </div>
       </div>
     )
   }
 
-  private handleNext = () => {
-    const {handleSetStepStatus, currentStepIndex} = this.props
-    handleSetStepStatus(currentStepIndex, StepStatus.Complete)
-    this.handleIncrement()
+  private handleUsername = (e: ChangeEvent<HTMLInputElement>): void => {
+    const username = e.target.value
+    this.setState({username})
+  }
+  private handlePassword = (e: ChangeEvent<HTMLInputElement>): void => {
+    const password = e.target.value
+    this.setState({password})
+  }
+  private handleOrg = (e: ChangeEvent<HTMLInputElement>): void => {
+    const org = e.target.value
+    this.setState({org})
+  }
+  private handleBucket = (e: ChangeEvent<HTMLInputElement>): void => {
+    const bucket = e.target.value
+    this.setState({bucket})
+  }
+
+  private get nextButtonStatus(): ComponentStatus {
+    const {username, password, org, bucket} = this.state
+    if (username && password && org && bucket) {
+      return ComponentStatus.Default
+    }
+    return ComponentStatus.Disabled
+  }
+
+  private get nextButtonTitle(): string {
+    const {username, password, org, bucket} = this.state
+    if (username && password && org && bucket) {
+      return 'Next'
+    }
+    return 'All fields are required to continue'
+  }
+
+  private handleNext = async () => {
+    const {
+      links,
+      handleSetStepStatus,
+      currentStepIndex,
+      handleSetSetupParams,
+      notify,
+    } = this.props
+
+    const {username, password, org, bucket, isAlreadySet} = this.state
+
+    if (isAlreadySet) {
+      handleSetStepStatus(currentStepIndex, StepStatus.Complete)
+      this.handleIncrement()
+      return
+    }
+
+    const setupParams = {
+      username,
+      password,
+      org,
+      bucket,
+    }
+
+    try {
+      await setSetupParams(links.setup, setupParams)
+      notify(copy.SetupSuccess)
+      handleSetSetupParams(setupParams)
+      handleSetStepStatus(currentStepIndex, StepStatus.Complete)
+      this.handleIncrement()
+    } catch (error) {
+      notify(copy.SetupError)
+    }
+  }
+
+  private handlePrevious = () => {
+    this.handleDecrement()
   }
 
   private handleIncrement = () => {
@@ -57,4 +226,4 @@ class InitStep extends PureComponent<Props> {
   }
 }
 
-export default InitStep
+export default AdminStep

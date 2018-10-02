@@ -6,24 +6,16 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {StepStatus} from 'src/clockface/constants/wizard'
 import {Button, ComponentColor, ComponentSize} from 'src/clockface'
-
-interface Props {
-  currentStepIndex: number
-  handleSetCurrentStep: (stepNumber: number) => void
-  handleSetStepStatus: (index: number, status: StepStatus) => void
-  stepStatuses: StepStatus[]
-  stepTitles: string[]
-}
+import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 @ErrorHandling
-class InitStep extends PureComponent<Props> {
+class InitStep extends PureComponent<OnboardingStepProps> {
   public render() {
     return (
       <div className="onboarding-step">
         <div className="splash-logo primary" />
         <h3 className="wizard-step-title">Welcome to InfluxData </h3>
         <p>"Start using the InfluxData platform in a few easy steps"</p>
-        <p>This is Init Step </p>
         <div className="wizard-button-bar">
           <Button
             color={ComponentColor.Primary}
@@ -49,4 +41,3 @@ class InitStep extends PureComponent<Props> {
 }
 
 export default InitStep
-// className="btn btn-md btn-primary"

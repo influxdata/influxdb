@@ -6,27 +6,26 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {StepStatus} from 'src/clockface/constants/wizard'
 import {Button, ComponentColor, ComponentSize} from 'src/clockface'
-
-interface Props extends WithRouterProps {
-  currentStepIndex: number
-  handleSetCurrentStep: (stepNumber: number) => void
-  handleSetStepStatus: (index: number, status: StepStatus) => void
-  stepStatuses: StepStatus[]
-  stepTitles: string[]
-}
+import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 @ErrorHandling
-class CompletionStep extends PureComponent<Props> {
+class CompletionStep extends PureComponent<
+  OnboardingStepProps & WithRouterProps
+> {
   public render() {
     return (
       <div className="onboarding-step">
         <div className="splash-logo secondary" />
         <h3 className="wizard-step-title">Setup Complete! </h3>
-        <p>"Start using the InfluxData platform in a few easy steps"</p>
-        <p>This is Init Step </p>
+        <p>This is completion step</p>
         <div className="wizard-button-bar">
+          <Button
+            color={ComponentColor.Default}
+            text="Back"
+            size={ComponentSize.Medium}
+            onClick={this.handleDecrement}
+          />
           <Button
             color={ComponentColor.Success}
             text="Go to status dashboard"
@@ -39,8 +38,13 @@ class CompletionStep extends PureComponent<Props> {
   }
 
   private handleComplete = () => {
-    const {router} = this.props
+    const {router, completeSetup} = this.props
+    completeSetup()
     router.push(`/manage-sources`)
+  }
+  private handleDecrement = () => {
+    const {handleSetCurrentStep, currentStepIndex} = this.props
+    handleSetCurrentStep(currentStepIndex - 1)
   }
 }
 

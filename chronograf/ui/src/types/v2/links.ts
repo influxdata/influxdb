@@ -1,9 +1,7 @@
 export interface Links {
-  query: string
+  auths: string
+  buckets: string
   dashboards: string
-  sources: string
-  organization: string
-  defaultDashboard: string
   external: {
     statusFeed: string
   }
@@ -12,4 +10,13 @@ export interface Links {
     self: string
     suggestions: string
   }
+  orgs: string
+  query: string
+  setup: string
+  sources: string
+  system: {debug: string; health: string; metrics: string}
+  tasks: string
+  users: string
+  write: string
+  defaultDashboard: string
 }
