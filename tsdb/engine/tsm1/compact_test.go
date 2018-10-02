@@ -1,14 +1,17 @@
 package tsm1_test
 
 import (
+	"bufio"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
@@ -142,6 +145,17 @@ func TestCompactor_CompactFull(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
+	stats := tsm1.NewMeasurementStats()
+	if f, err := os.Open(strings.TrimSuffix(files[0], ".tsm.tmp") + ".tss"); err != nil {
+		t.Fatal(err)
+	} else if _, err := stats.ReadFrom(bufio.NewReader(f)); err != nil {
+		t.Fatal(err)
+	} else if err := f.Close(); err != nil {
+		t.Fatal(err)
+	} else if diff := cmp.Diff(stats, tsm1.MeasurementStats{"cpu": 112}); diff != "" {
+		t.Fatal(diff)
+	}
+
 	expGen, expSeq, err := tsm1.DefaultParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
@@ -234,6 +248,17 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
+	stats := tsm1.NewMeasurementStats()
+	if f, err := os.Open(strings.TrimSuffix(files[0], ".tsm.tmp") + ".tss"); err != nil {
+		t.Fatal(err)
+	} else if _, err := stats.ReadFrom(bufio.NewReader(f)); err != nil {
+		t.Fatal(err)
+	} else if err := f.Close(); err != nil {
+		t.Fatal(err)
+	} else if diff := cmp.Diff(stats, tsm1.MeasurementStats{"cpu": 116}); diff != "" {
+		t.Fatal(diff)
+	}
+
 	r := MustOpenTSMReader(files[0])
 
 	if got, exp := r.KeyCount(), 1; got != exp {
@@ -312,6 +337,17 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 
 	if got, exp := len(files), 1; got != exp {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
+	}
+
+	stats := tsm1.NewMeasurementStats()
+	if f, err := os.Open(strings.TrimSuffix(files[0], ".tsm.tmp") + ".tss"); err != nil {
+		t.Fatal(err)
+	} else if _, err := stats.ReadFrom(bufio.NewReader(f)); err != nil {
+		t.Fatal(err)
+	} else if err := f.Close(); err != nil {
+		t.Fatal(err)
+	} else if diff := cmp.Diff(stats, tsm1.MeasurementStats{"cpu": 202}); diff != "" {
+		t.Fatal(diff)
 	}
 
 	r := MustOpenTSMReader(files[0])
@@ -629,6 +665,17 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
+	stats := tsm1.NewMeasurementStats()
+	if f, err := os.Open(strings.TrimSuffix(files[0], ".tsm.tmp") + ".tss"); err != nil {
+		t.Fatal(err)
+	} else if _, err := stats.ReadFrom(bufio.NewReader(f)); err != nil {
+		t.Fatal(err)
+	} else if err := f.Close(); err != nil {
+		t.Fatal(err)
+	} else if diff := cmp.Diff(stats, tsm1.MeasurementStats{"cpu": 44}); diff != "" {
+		t.Fatal(diff)
+	}
+
 	expGen, expSeq, err := tsm1.DefaultParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
@@ -730,6 +777,17 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 
 	if got, exp := len(files), 1; got != exp {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
+	}
+
+	stats := tsm1.NewMeasurementStats()
+	if f, err := os.Open(strings.TrimSuffix(files[0], ".tsm.tmp") + ".tss"); err != nil {
+		t.Fatal(err)
+	} else if _, err := stats.ReadFrom(bufio.NewReader(f)); err != nil {
+		t.Fatal(err)
+	} else if err := f.Close(); err != nil {
+		t.Fatal(err)
+	} else if diff := cmp.Diff(stats, tsm1.MeasurementStats{"cpu": 78}); diff != "" {
+		t.Fatal(diff)
 	}
 
 	expGen, expSeq, err := tsm1.DefaultParseFileName(f3)

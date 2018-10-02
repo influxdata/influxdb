@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -359,6 +360,23 @@ func (t *TSMReader) Type(key []byte) (byte, error) {
 	return t.index.Type(key)
 }
 
+// MeasurementStats returns the on-disk measurement stats for this file, if available.
+func (t *TSMReader) MeasurementStats() (MeasurementStats, error) {
+	f, err := os.Open(StatsFilename(t.Path()))
+	if os.IsNotExist(err) {
+		return make(MeasurementStats), nil
+	} else if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	stats := make(MeasurementStats)
+	if _, err := stats.ReadFrom(f); err != nil {
+		return nil, err
+	}
+	return stats, err
+}
+
 // Close closes the TSMReader.
 func (t *TSMReader) Close() error {
 	t.refsWG.Wait()
@@ -418,8 +436,9 @@ func (t *TSMReader) remove() error {
 	}
 
 	if path != "" {
-		err := os.RemoveAll(path)
-		if err != nil {
+		if err := os.RemoveAll(path); err != nil {
+			return err
+		} else if err := os.RemoveAll(strings.TrimSuffix(path, ".tsm") + ".tss"); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
@@ -556,7 +575,7 @@ func (t *TSMReader) TombstoneRange(key []byte) []TimeRange {
 	return tr
 }
 
-// Stats returns the FileStat for the TSMReader's underlying file.
+// FileStats returns the FileStat for the TSMReader's underlying file.
 func (t *TSMReader) Stats() FileStat {
 	minTime, maxTime := t.index.TimeRange()
 	minKey, maxKey := t.index.KeyRange()
