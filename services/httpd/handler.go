@@ -817,8 +817,16 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+	verbose := r.URL.Query().Get("verbose")
 	atomic.AddInt64(&h.stats.PingRequests, 1)
-	h.writeHeader(w, http.StatusNoContent)
+
+	if verbose != "" && verbose != "0" && verbose != "false" {
+		h.writeHeader(w, http.StatusOK)
+		b, _ := json.Marshal(map[string]string{"version": h.Version})
+		w.Write(b)
+	} else {
+		h.writeHeader(w, http.StatusNoContent)
+	}
 }
 
 // serveStatus has been deprecated.
