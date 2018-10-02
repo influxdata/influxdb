@@ -614,6 +614,11 @@ func (e *Engine) LastModified() time.Time {
 	return fsTime
 }
 
+// MeasurementStats returns the current measurement stats for the engine.
+func (e *Engine) MeasurementStats() (MeasurementStats, error) {
+	return e.FileStore.MeasurementStats()
+}
+
 // EngineStatistics maintains statistics for the engine.
 type EngineStatistics struct {
 	CacheCompactions        int64 // Counter of cache compactions that have ever run.

@@ -1,6 +1,7 @@
 package tsm1_test
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/tsdb/tsm1"
 )
 
@@ -581,6 +583,35 @@ func TestTSMWriter_Write_MaxKey(t *testing.T) {
 	}
 	if err := w.Write([]byte(key), []tsm1.Value{tsm1.NewValue(0, 1.0)}); err != tsm1.ErrMaxKeyLengthExceeded {
 		t.Fatalf("expected max key length error writing key: %v", err)
+	}
+}
+
+// Ensures that a writer will properly compute stats for multiple measurements.
+func TestTSMWriter_Write_MultipleMeasurements(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// Write file with multiple measurements.
+	f1 := MustWriteTSM(dir, 1, map[string][]tsm1.Value{
+		"cpu,host=A#!~#value":  {tsm1.NewValue(1, 1.1), tsm1.NewValue(2, 1.2)},
+		"cpu,host=B#!~#value":  {tsm1.NewValue(1, 1.1)},
+		"mem,host=A#!~#value":  {tsm1.NewValue(1, 1.1), tsm1.NewValue(2, 1.2)},
+		"disk,host=A#!~#value": {tsm1.NewValue(1, 1.1)},
+	})
+
+	stats := tsm1.NewMeasurementStats()
+	if f, err := os.Open(tsm1.StatsFilename(f1)); err != nil {
+		t.Fatal(err)
+	} else if _, err := stats.ReadFrom(bufio.NewReader(f)); err != nil {
+		t.Fatal(err)
+	} else if err := f.Close(); err != nil {
+		t.Fatal(err)
+	} else if diff := cmp.Diff(stats, tsm1.MeasurementStats{
+		"cpu":  78,
+		"mem":  44,
+		"disk": 34,
+	}); diff != "" {
+		t.Fatal(diff)
 	}
 }
 
