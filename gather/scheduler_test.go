@@ -1,10 +1,7 @@
-// +build !race
-
 package gather
 
 import (
 	"context"
-	"io/ioutil"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -13,13 +10,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/nats"
-	"go.uber.org/zap"
+	"github.com/influxdata/platform/mock"
 )
 
 func TestScheduler(t *testing.T) {
-	t.Skip("https://github.com/influxdata/platform/issues/851")
-	_, publisher, subscriber := newTestingNats(t)
+	publisher, subscriber := mock.NewNats()
+	totalGatherJobs := 3
 
 	// Create top level logger
 	logger := influxlogger.New(os.Stdout)
@@ -28,6 +24,8 @@ func TestScheduler(t *testing.T) {
 			"/metrics": sampleRespSmall,
 		},
 	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	storage := &mockStorage{
 		Metrics: make(map[int64]Metrics),
@@ -37,24 +35,38 @@ func TestScheduler(t *testing.T) {
 				URL:  ts.URL + "/metrics",
 			},
 		},
+		TotalGatherJobs: make(chan struct{}, totalGatherJobs),
 	}
+
 	subscriber.Subscribe(MetricsSubject, "", &StorageHandler{
 		Logger:  logger,
 		Storage: storage,
 	})
 
 	scheduler, err := NewScheduler(10, logger,
-		storage, publisher, subscriber, time.Millisecond*25, time.Microsecond*15)
+		storage, publisher, subscriber, time.Millisecond, time.Microsecond)
 
 	go func() {
-		err = scheduler.Run(context.TODO())
+		err = scheduler.run(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}()
 
-	// let scheduler run for 80 miliseconds.
-	<-time.After(time.Millisecond * 80)
+	go func(scheduler *Scheduler) {
+		// let scheduler gather #{totalGatherJobs} metrics.
+		for i := 0; i < totalGatherJobs; i++ {
+			// make sure timestamp don't overwrite each other
+			time.Sleep(time.Millisecond * 10)
+			scheduler.gather <- struct{}{}
+		}
+	}(scheduler)
+
+	// make sure all jobs are done
+	for i := 0; i < totalGatherJobs; i++ {
+		<-storage.TotalGatherJobs
+	}
+
 	want := Metrics{
 		Name: "go_goroutines",
 		Type: MetricTypeGauge,
@@ -64,8 +76,8 @@ func TestScheduler(t *testing.T) {
 		},
 	}
 
-	if len(storage.Metrics) < 3 {
-		t.Fatalf("non metrics stored, len %d", len(storage.Metrics))
+	if len(storage.Metrics) < totalGatherJobs {
+		t.Fatalf("metrics stored less than expected, got len %d", len(storage.Metrics))
 	}
 
 	for _, v := range storage.Metrics {
@@ -81,30 +93,3 @@ const sampleRespSmall = `
 # TYPE go_goroutines gauge
 go_goroutines 36
 `
-
-func newTestingNats(t *testing.T) (
-	server *nats.Server,
-	publisher *nats.AsyncPublisher,
-	subscriber *nats.QueueSubscriber,
-) {
-	dir, err := ioutil.TempDir("", "influxdata-platform-nats-")
-	if err != nil {
-		t.Fatal("unable to open temporary nats folder")
-	}
-	// NATS streaming server
-	server = nats.NewServer(nats.Config{FilestoreDir: dir})
-	if err := server.Open(); err != nil {
-		t.Fatal("failed to start nats streaming server ", dir, zap.Error(err))
-	}
-	publisher = nats.NewAsyncPublisher("nats-testing-publisher")
-	if err = publisher.Open(); err != nil {
-		t.Fatal("failed to connect to streaming server", zap.Error(err))
-	}
-
-	subscriber = nats.NewQueueSubscriber("nats-testing-subscriber")
-	if err := subscriber.Open(); err != nil {
-		t.Fatal("failed to connect to streaming server", zap.Error(err))
-	}
-
-	return server, publisher, subscriber
-}
