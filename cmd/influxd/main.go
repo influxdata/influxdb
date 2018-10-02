@@ -35,7 +35,6 @@ import (
 	taskbolt "github.com/influxdata/platform/task/backend/bolt"
 	"github.com/influxdata/platform/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/platform/task/backend/executor"
-	pzap "github.com/influxdata/platform/zap"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -174,9 +173,9 @@ func platformF(cmd *cobra.Command, args []string) {
 		dashboardSvc = c
 	}
 
-	var cellSvc platform.ViewService
+	var viewSvc platform.ViewService
 	{
-		cellSvc = c
+		viewSvc = c
 	}
 
 	var sourceSvc platform.SourceService
@@ -187,6 +186,16 @@ func platformF(cmd *cobra.Command, args []string) {
 	var macroSvc platform.MacroService
 	{
 		macroSvc = c
+	}
+
+	var basicAuthSvc platform.BasicAuthService
+	{
+		basicAuthSvc = c
+	}
+
+	var sessionSvc platform.SessionService
+	{
+		sessionSvc = c
 	}
 
 	var onboardingSvc platform.OnboardingService = c
@@ -276,83 +285,34 @@ func platformF(cmd *cobra.Command, args []string) {
 		Addr: httpBindAddress,
 	}
 
+	handlerConfig := &http.APIBackend{
+		Logger:           logger,
+		NewBucketService: source.NewBucketService,
+		NewQueryService:  source.NewQueryService,
+		PublisherFn: func(r io.Reader) error {
+			return publisher.Publish(IngressSubject, r)
+		},
+		AuthorizationService:       authSvc,
+		BucketService:              bucketSvc,
+		SessionService:             sessionSvc,
+		UserService:                userSvc,
+		OrganizationService:        orgSvc,
+		UserResourceMappingService: userResourceSvc,
+		DashboardService:           dashboardSvc,
+		ViewService:                viewSvc,
+		SourceService:              sourceSvc,
+		MacroService:               macroSvc,
+		BasicAuthService:           basicAuthSvc,
+		OnboardingService:          onboardingSvc,
+		QueryService:               queryService,
+		TaskService:                taskSvc,
+		ScraperTargetStoreService:  scraperTargetSvc,
+		ChronografService:          chronografSvc,
+	}
+
 	// HTTP server
 	go func() {
-		bucketHandler := http.NewBucketHandler()
-		bucketHandler.BucketService = bucketSvc
-
-		orgHandler := http.NewOrgHandler()
-		orgHandler.OrganizationService = orgSvc
-		orgHandler.BucketService = bucketSvc
-		orgHandler.UserResourceMappingService = userResourceSvc
-
-		userHandler := http.NewUserHandler()
-		userHandler.UserService = userSvc
-
-		dashboardHandler := http.NewDashboardHandler()
-		dashboardHandler.DashboardService = dashboardSvc
-
-		cellHandler := http.NewViewHandler()
-		cellHandler.ViewService = cellSvc
-
-		macroHandler := http.NewMacroHandler()
-		macroHandler.MacroService = macroSvc
-
-		authHandler := http.NewAuthorizationHandler()
-		authHandler.AuthorizationService = authSvc
-		authHandler.Logger = logger.With(zap.String("handler", "auth"))
-
-		assetHandler := http.NewAssetHandler()
-		assetHandler.Develop = developerMode
-		fluxLangHandler := http.NewFluxLangHandler()
-
-		sourceHandler := http.NewSourceHandler()
-		sourceHandler.SourceService = sourceSvc
-		sourceHandler.NewBucketService = source.NewBucketService
-		sourceHandler.NewQueryService = source.NewQueryService
-
-		setupHandler := http.NewSetupHandler()
-		setupHandler.OnboardingService = onboardingSvc
-
-		taskHandler := http.NewTaskHandler(logger)
-		taskHandler.TaskService = taskSvc
-
-		publishFn := func(r io.Reader) error {
-			return publisher.Publish(IngressSubject, r)
-		}
-
-		writeHandler := http.NewWriteHandler(publishFn)
-		writeHandler.AuthorizationService = authSvc
-		writeHandler.OrganizationService = orgSvc
-		writeHandler.BucketService = bucketSvc
-		writeHandler.Logger = logger.With(zap.String("handler", "write"))
-
-		queryHandler := http.NewFluxHandler()
-		queryHandler.AuthorizationService = authSvc
-		queryHandler.OrganizationService = orgSvc
-		queryHandler.Logger = logger.With(zap.String("handler", "query"))
-		queryHandler.ProxyQueryService = pzap.NewProxyQueryService(queryHandler.Logger)
-
-		// TODO(desa): what to do about idpe.
-		chronografHandler := http.NewChronografHandler(chronografSvc)
-
-		platformHandler := &http.PlatformHandler{
-			BucketHandler:        bucketHandler,
-			OrgHandler:           orgHandler,
-			UserHandler:          userHandler,
-			AuthorizationHandler: authHandler,
-			DashboardHandler:     dashboardHandler,
-			AssetHandler:         assetHandler,
-			FluxLangHandler:      fluxLangHandler,
-			ChronografHandler:    chronografHandler,
-			SourceHandler:        sourceHandler,
-			TaskHandler:          taskHandler,
-			ViewHandler:          cellHandler,
-			MacroHandler:         macroHandler,
-			QueryHandler:         queryHandler,
-			WriteHandler:         writeHandler,
-			SetupHandler:         setupHandler,
-		}
+		platformHandler := http.NewPlatformHandler(handlerConfig)
 		reg.MustRegister(platformHandler.PrometheusCollectors()...)
 
 		h := http.NewHandlerFromRegistry("platform", reg)

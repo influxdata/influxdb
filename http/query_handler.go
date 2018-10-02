@@ -60,8 +60,8 @@ func (h *FluxHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !platform.IsActive(auth) {
-		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for write"), w)
+	if !auth.IsActive() {
+		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for query"), w)
 		return
 	}
 

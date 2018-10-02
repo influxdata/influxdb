@@ -71,7 +71,7 @@ func TestBasicAuthHandler_handleSignin(t *testing.T) {
 			h.SessionService = tt.fields.SessionService
 
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest("POST", "http://localhost:9999/signin", nil)
+			r := httptest.NewRequest("POST", "http://localhost:9999/api/v2/signin", nil)
 			r.SetBasicAuth(tt.args.user, tt.args.password)
 			h.ServeHTTP(w, r)
 

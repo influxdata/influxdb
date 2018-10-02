@@ -12,11 +12,11 @@ import (
 type authError struct {
 	error
 	perm platform.Permission
-	auth *platform.Authorization
+	auth platform.Authorizer
 }
 
 func (ae *authError) AuthzError() error {
-	return fmt.Errorf("permission failed for auth (%s): %s", ae.auth.ID.String(), ae.perm.String())
+	return fmt.Errorf("permission failed for auth (%s): %s", ae.auth.Identifier().String(), ae.perm.String())
 }
 
 var ErrFailedPermission = errors.New("unauthorized")
@@ -42,12 +42,12 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t *platform.Task
 // TODO(lh): add permission checking for the all the platform.TaskService functions.
 
 func validatePermission(ctx context.Context, perm platform.Permission) error {
-	auth, err := platcontext.GetAuthorization(ctx)
+	auth, err := platcontext.GetAuthorizer(ctx)
 	if err != nil {
 		return err
 	}
 
-	if !platform.Allowed(perm, auth) {
+	if !auth.Allowed(perm) {
 		return authError{error: ErrFailedPermission, perm: perm, auth: auth}
 	}
 

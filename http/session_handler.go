@@ -25,8 +25,8 @@ func NewSessionHandler() *SessionHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/signin", h.handleSignin)
-	h.HandlerFunc("POST", "/signout", h.handleSignout)
+	h.HandlerFunc("POST", "/api/v2/signin", h.handleSignin)
+	h.HandlerFunc("POST", "/api/v2/signout", h.handleSignout)
 	return h
 }
 
@@ -124,4 +124,14 @@ func decodeCookieSession(ctx context.Context, r *http.Request) (string, error) {
 		return "", err
 	}
 	return c.Value, nil
+}
+
+// SetCookieSession adds a cookie for the session to an http request
+func SetCookieSession(key string, r *http.Request) {
+	c := &http.Cookie{
+		Name:  cookieSessionName,
+		Value: key,
+	}
+
+	r.AddCookie(c)
 }
