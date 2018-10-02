@@ -1,3 +1,10 @@
+v1.6.4 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#10320](https://github.com/influxdata/influxdb/pull/10320): Fix tsi1 sketch locking.
+
 v1.6.3 [2018-09-14]
 -------------------
 
