@@ -49,6 +49,7 @@ v1.6.0 [2018-07-05]
 -	[#9939](https://github.com/influxdata/influxdb/pull/9939): Add configuration parameter to expose rate limit for TSM compaction.
 -	[#10190](https://github.com/influxdata/influxdb/pull/10190): Reduce allocations in TSI TagSets implementation.
 -	[#10215](https://github.com/influxdata/influxdb/pull/10215): Switch digests to use snappy compression.
+-	[#10321](https://github.com/influxdata/influxdb/pull/10321): Changes /ping route to return status code 200 instead of 204 when verbose is set.
 
 ### Bugfixes
 
