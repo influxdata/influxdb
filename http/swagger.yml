@@ -1626,6 +1626,178 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/buckets/{bucketID}/members':
+    get:
+      tags:
+        - Users
+        - Buckets
+      summary: List all users with member privileges for a bucket
+      parameters:
+        - in: path
+          name: bucketID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      responses:
+        '200':
+          description: a list of bucket members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Users"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+        - Buckets
+      summary: Add bucket member
+      parameters:
+        - in: path
+          name: bucketID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      requestBody:
+        description: user to add as member
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        '201':
+          description: member added to bucket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/buckets/{bucketID}/members/{userID}':
+    delete:
+      tags:
+        - Users
+        - Buckets
+      summary: removes a member from an bucket
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of member to remove
+        - in: path
+          name: bucketID
+          schema:
+            type: string
+          required: true
+          description: ID of the bucket
+      responses:
+        '204':
+          description: member removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/buckets/{bucketID}/owners':
+    get:
+      tags:
+        - Users
+        - Buckets
+      summary: List all owners of an bucket
+      parameters:
+        - in: path
+          name: bucketID
+          schema:
+            type: string
+          required: true
+          description: ID of the bucket
+      responses:
+        '200':
+          description: a list of bucket owners
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Users"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+        - Buckets
+      summary: Add bucket owner
+      parameters:
+        - in: path
+          name: bucketID
+          schema:
+            type: string
+          required: true
+          description: ID of the bucket
+      requestBody:
+        description: user to add as owner
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        '201':
+          description: bucket owner added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/buckets/{bucketID}/owners/{userID}':
+    delete:
+      tags:
+        - Users
+        - Buckets
+      summary: removes an owner from an organization
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of owner to remove
+        - in: path
+          name: bucketID
+          schema:
+            type: string
+          required: true
+          description: ID of the bucket
+      responses:
+        '204':
+          description: owner removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /orgs:
     get:
       tags:
@@ -1739,7 +1911,7 @@ paths:
           description: ID of the organization
       responses:
         '200':
-          description: a list of users the belong to an organization
+          description: a list of organization members
           content:
             application/json:
               schema:
@@ -1761,7 +1933,7 @@ paths:
           schema:
             type: string
           required: true
-          description: ID of the orgnaization
+          description: ID of the organization
       requestBody:
         description: user to add as member
         required: true
@@ -1800,10 +1972,96 @@ paths:
           schema:
             type: string
           required: true
-          description: ID of the orgnaization
+          description: ID of the organization
       responses:
         '204':
           description: member removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/owners':
+    get:
+      tags:
+        - Users
+        - Organizations
+      summary: List all owners of an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      responses:
+        '200':
+          description: a list of organization owners
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Users"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+        - Organizations
+      summary: Add organization owner
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      requestBody:
+        description: user to add as owner
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        '201':
+          description: organization owner added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/owners/{userID}':
+    delete:
+      tags:
+        - Users
+        - Organizations
+      summary: removes an owner from an organization
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of owner to remove
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      responses:
+        '204':
+          description: owner removed
         default:
           description: unexpected error
           content:
