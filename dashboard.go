@@ -63,7 +63,8 @@ type Cell struct {
 // DashboardFilter is a filter for dashboards.
 type DashboardFilter struct {
 	// TODO(desa): change to be a slice of IDs
-	ID *ID
+	ID      *ID
+	OwnerID *ID
 }
 
 // DashboardUpdate is the patch structure for a dashboard.

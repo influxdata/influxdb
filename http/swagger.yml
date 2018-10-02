@@ -726,6 +726,11 @@ paths:
             required: true
             schema:
               type: string
+          - in: query
+            name: owner
+            description: specifies the owner to return resources for
+            schema:
+              type: string
       responses:
         '200':
           description: all dashboards

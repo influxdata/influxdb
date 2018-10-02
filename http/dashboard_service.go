@@ -181,6 +181,14 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 			return nil, err
 		}
 	}
+
+	if owner := qp.Get("owner"); owner != "" {
+		req.filter.OwnerID = &platform.ID{}
+		if err := req.filter.OwnerID.DecodeFromString(owner); err != nil {
+			return nil, err
+		}
+	}
+
 	return req, nil
 }
 
