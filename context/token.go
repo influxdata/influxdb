@@ -10,8 +10,9 @@ import (
 type contextKey string
 
 const (
-	authorizerCtxKey = contextKey("influx/authorizer/v1")
-	tokenCtxKey      = contextKey("influx/token/v1")
+	authorizationCtxKey = contextKey("influx/authorization/v1")
+	authorizerCtxKey    = contextKey("influx/authorizer/v1")
+	tokenCtxKey         = contextKey("influx/token/v1")
 )
 
 // SetAuthorizer sets an authorizer on context.
@@ -42,4 +43,19 @@ func GetToken(ctx context.Context) (string, error) {
 	}
 
 	return t, nil
+}
+
+// SetAuthorization sets an authorization on context.
+func SetAuthorization(ctx context.Context, a *platform.Authorization) context.Context {
+	return context.WithValue(ctx, authorizationCtxKey, a)
+}
+
+// GetAuthorization retrieves an authorization from context.
+func GetAuthorization(ctx context.Context) (*platform.Authorization, error) {
+	a, ok := ctx.Value(authorizationCtxKey).(*platform.Authorization)
+	if !ok {
+		return nil, errors.InternalErrorf("authorization not found on context")
+	}
+
+	return a, nil
 }
