@@ -26,6 +26,10 @@ func NewPlatformHandler(b *APIBackend) *PlatformHandler {
 	h := NewAuthenticationHandler()
 	h.Handler = NewAPIHandler(b)
 	h.RegisterNoAuthRoute("GET", "/api/v2")
+	h.RegisterNoAuthRoute("POST", "/api/v2/signin")
+	h.RegisterNoAuthRoute("POST", "/api/v2/signout")
+	h.RegisterNoAuthRoute("POST", "/api/v2/setup")
+	h.RegisterNoAuthRoute("GET", "/api/v2/setup")
 
 	return &PlatformHandler{
 		AssetHandler: NewAssetHandler(),
