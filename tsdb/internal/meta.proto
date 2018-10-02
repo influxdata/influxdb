@@ -19,7 +19,7 @@ message Tag {
 }
 
 message MeasurementFields {
-  string Name = 1;
+  bytes Name = 1;
   repeated Field Fields = 2;
 }
 

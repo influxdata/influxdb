@@ -1698,7 +1698,7 @@ func (fs *MeasurementFieldSet) saveNoLock() error {
 	}
 	for name, mf := range fs.fields {
 		fs := &internal.MeasurementFields{
-			Name:   name,
+			Name:   []byte(name),
 			Fields: make([]*internal.Field, 0, mf.FieldN()),
 		}
 
@@ -1774,7 +1774,7 @@ func (fs *MeasurementFieldSet) load() error {
 		for _, field := range measurement.GetFields() {
 			set.fields[field.GetName()] = &Field{Name: field.GetName(), Type: influxql.DataType(field.GetType())}
 		}
-		fs.fields[measurement.GetName()] = set
+		fs.fields[string(measurement.GetName())] = set
 	}
 	return nil
 }
