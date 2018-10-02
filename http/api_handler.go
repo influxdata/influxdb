@@ -123,7 +123,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 var apiLinks = map[string]interface{}{
 	"signin":     "/api/v2/signin",
-	"signout":    "/api/v2/singout",
+	"signout":    "/api/v2/signout",
 	"setup":      "/api/v2/setup",
 	"sources":    "/api/v2/sources",
 	"dashboards": "/api/v2/dashboards",
