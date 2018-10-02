@@ -189,6 +189,16 @@ func platformF(cmd *cobra.Command, args []string) {
 		macroSvc = c
 	}
 
+	var basicAuthSvc platform.BasicAuthService
+	{
+		basicAuthSvc = c
+	}
+
+	var sessionSvc platform.SessionService
+	{
+		sessionSvc = c
+	}
+
 	var onboardingSvc platform.OnboardingService = c
 
 	var queryService query.QueryService
@@ -278,6 +288,10 @@ func platformF(cmd *cobra.Command, args []string) {
 
 	// HTTP server
 	go func() {
+		sessionHandler := http.NewSessionHandler()
+		sessionHandler.BasicAuthService = basicAuthSvc
+		sessionHandler.SessionService = sessionSvc
+
 		bucketHandler := http.NewBucketHandler()
 		bucketHandler.BucketService = bucketSvc
 

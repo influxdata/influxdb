@@ -26,6 +26,7 @@ type PlatformHandler struct {
 	QueryHandler         *FluxHandler
 	WriteHandler         *WriteHandler
 	SetupHandler         *SetupHandler
+	SessionHandler       *SessionHandler
 }
 
 func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -37,6 +38,8 @@ func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 var platformLinks = map[string]interface{}{
+	"signin":     "/api/v2/signin",
+	"signout":    "/api/v2/singout",
 	"setup":      "/api/v2/setup",
 	"sources":    "/api/v2/sources",
 	"dashboards": "/api/v2/dashboards",
@@ -77,7 +80,7 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 		return
 	}
 
-	// Server the chronograf assets for any basepath that does not start with addressable parts
+	// Serve the chronograf assets for any basepath that does not start with addressable parts
 	// of the platform API.
 	if !strings.HasPrefix(r.URL.Path, "/v1") &&
 		!strings.HasPrefix(r.URL.Path, "/api/v2") &&
@@ -92,6 +95,11 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 		return
 	}
 
+	if r.URL.Path == "/api/v2/signin" || r.URL.Path == "/api/v2/signout" {
+		h.SessionHandler.ServeHTTP(w, r)
+		return
+	}
+
 	if strings.HasPrefix(r.URL.Path, "/api/v2/setup") {
 		h.SetupHandler.ServeHTTP(w, r)
 		return
@@ -100,8 +108,7 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	ctx := r.Context()
 	var err error
 	if ctx, err = extractAuthorization(ctx, r); err != nil {
-		// TODO(desa): add back eventually when things have settled. See https://github.com/influxdata/platform/issues/593
-		//nethttp.Error(w, err.Error(), nethttp.StatusBadRequest)
+		// TODO(desa): remove this when the authentication middleware is added.
 	}
 	r = r.WithContext(ctx)
 
