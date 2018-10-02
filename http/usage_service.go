@@ -101,7 +101,7 @@ func decodeGetUsageRequest(ctx context.Context, r *http.Request) (*getUsageReque
 			return nil, err
 		}
 
-		stopTime, err := time.Parse(time.RFC3339, start)
+		stopTime, err := time.Parse(time.RFC3339, stop)
 		if err != nil {
 			return nil, err
 		}
