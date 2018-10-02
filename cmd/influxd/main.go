@@ -285,58 +285,11 @@ func platformF(cmd *cobra.Command, args []string) {
 		Addr: httpBindAddress,
 	}
 
-<<<<<<< HEAD
 	handlerConfig := &http.APIBackend{
 		Logger:           logger,
 		NewBucketService: source.NewBucketService,
 		NewQueryService:  source.NewQueryService,
 		PublisherFn: func(r io.Reader) error {
-=======
-	// HTTP server
-	go func() {
-		bucketHandler := http.NewBucketHandler()
-		bucketHandler.BucketService = bucketSvc
-		bucketHandler.UserResourceMappingService = userResourceSvc
-
-		orgHandler := http.NewOrgHandler()
-		orgHandler.OrganizationService = orgSvc
-		orgHandler.BucketService = bucketSvc
-		orgHandler.UserResourceMappingService = userResourceSvc
-
-		userHandler := http.NewUserHandler()
-		userHandler.UserService = userSvc
-
-		dashboardHandler := http.NewDashboardHandler()
-		dashboardHandler.DashboardService = dashboardSvc
-		dashboardHandler.UserResourceMappingService = userResourceSvc
-
-		cellHandler := http.NewViewHandler()
-		cellHandler.ViewService = cellSvc
-
-		macroHandler := http.NewMacroHandler()
-		macroHandler.MacroService = macroSvc
-
-		authHandler := http.NewAuthorizationHandler()
-		authHandler.AuthorizationService = authSvc
-		authHandler.Logger = logger.With(zap.String("handler", "auth"))
-
-		assetHandler := http.NewAssetHandler()
-		assetHandler.Develop = developerMode
-		fluxLangHandler := http.NewFluxLangHandler()
-
-		sourceHandler := http.NewSourceHandler()
-		sourceHandler.SourceService = sourceSvc
-		sourceHandler.NewBucketService = source.NewBucketService
-		sourceHandler.NewQueryService = source.NewQueryService
-
-		setupHandler := http.NewSetupHandler()
-		setupHandler.OnboardingService = onboardingSvc
-
-		taskHandler := http.NewTaskHandler(logger)
-		taskHandler.TaskService = taskSvc
-
-		publishFn := func(r io.Reader) error {
->>>>>>> add POST owner/member paths to dashboard handler
 			return publisher.Publish(IngressSubject, r)
 		},
 		AuthorizationService:       authSvc,
