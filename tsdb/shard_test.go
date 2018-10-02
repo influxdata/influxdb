@@ -16,6 +16,7 @@ import (
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
+	t.Skip("Move to the new engine")
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := filepath.Join(tmpDir, "shard")
@@ -83,6 +84,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 }
 
 func TestWriteTimeTag(t *testing.T) {
+	t.Skip("Move to the new engine")
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := filepath.Join(tmpDir, "shard")
@@ -123,6 +125,7 @@ func TestWriteTimeTag(t *testing.T) {
 }
 
 func TestWriteTimeField(t *testing.T) {
+	t.Skip("Move to the new engine")
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := filepath.Join(tmpDir, "shard")
@@ -152,6 +155,7 @@ func TestWriteTimeField(t *testing.T) {
 }
 
 func TestShardWriteAddNewField(t *testing.T) {
+	t.Skip("Move to the new engine")
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := filepath.Join(tmpDir, "shard")
@@ -199,6 +203,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 // Ensures that when a shard is closed, it removes any series meta-data
 // from the index.
 func TestShard_Close_RemoveIndex(t *testing.T) {
+	t.Skip("Move to the new engine")
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := filepath.Join(tmpDir, "shard")

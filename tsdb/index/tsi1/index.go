@@ -51,10 +51,10 @@ func init() {
 		}
 	}
 
-	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
-		idx := NewIndex(sfile, db, WithPath(path), WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)))
-		return idx
-	})
+	// tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, ) tsdb.Index {
+	// 	idx := NewIndex(sfile, db, WithPath(path), WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)))
+	// 	return idx
+	// })
 }
 
 // DefaultPartitionN determines how many shards the index will be partitioned into.
@@ -82,21 +82,6 @@ var WithPath = func(path string) IndexOption {
 var DisableCompactions = func() IndexOption {
 	return func(i *Index) {
 		i.disableCompactions = true
-	}
-}
-
-// WithLogger sets the logger for the Index.
-var WithLogger = func(l zap.Logger) IndexOption {
-	return func(i *Index) {
-		i.logger = l.With(zap.String("index", "tsi"))
-	}
-}
-
-// WithMaximumLogFileSize sets the maximum size of LogFiles before they're
-// compacted into IndexFiles.
-var WithMaximumLogFileSize = func(size int64) IndexOption {
-	return func(i *Index) {
-		i.maxLogFileSize = size
 	}
 }
 
@@ -160,10 +145,10 @@ func (i *Index) UniqueReferenceID() uintptr {
 }
 
 // NewIndex returns a new instance of Index.
-func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
+func NewIndex(sfile *tsdb.SeriesFile, database string, c Config, options ...IndexOption) *Index {
 	idx := &Index{
 		tagValueCache:  NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
-		maxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
+		maxLogFileSize: int64(c.MaxIndexLogFileSize),
 		logger:         zap.NewNop(),
 		version:        Version,
 		sfile:          sfile,
@@ -219,8 +204,6 @@ func (i *Index) Database() string {
 // It's not safe to call WithLogger after the index has been opened, or before
 // it has been closed.
 func (i *Index) WithLogger(l *zap.Logger) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	i.logger = l.With(zap.String("index", "tsi"))
 }
 

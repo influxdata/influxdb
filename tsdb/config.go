@@ -54,10 +54,6 @@ const (
 	// DefaultMaxConcurrentCompactions is the maximum number of concurrent full and level compactions
 	// that can run at one time.  A value of 0 results in 50% of runtime.GOMAXPROCS(0) used at runtime.
 	DefaultMaxConcurrentCompactions = 0
-
-	// DefaultMaxIndexLogFileSize is the default threshold, in bytes, when an index
-	// write-ahead log file will compact into an index file.
-	DefaultMaxIndexLogFileSize = 1 * 1024 * 1024 // 1MB
 )
 
 // Config holds the configuration for the tsbd package.
@@ -88,12 +84,6 @@ type Config struct {
 	// not affected by this limit.  A value of 0 limits compactions to runtime.GOMAXPROCS(0).
 	MaxConcurrentCompactions int `toml:"max-concurrent-compactions"`
 
-	// MaxIndexLogFileSize is the threshold, in bytes, when an index write-ahead log file will
-	// compact into an index file. Lower sizes will cause log files to be compacted more quickly
-	// and result in lower heap usage at the expense of write throughput. Higher sizes will
-	// be compacted less frequently, store more series in-memory, and provide higher write throughput.
-	MaxIndexLogFileSize toml.Size `toml:"max-index-log-file-size"`
-
 	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
 
 	// TSMWillNeed controls whether we hint to the kernel that we intend to
@@ -118,8 +108,6 @@ func NewConfig() Config {
 		CompactThroughput:              toml.Size(DefaultCompactThroughput),
 		CompactThroughputBurst:         toml.Size(DefaultCompactThroughputBurst),
 		MaxConcurrentCompactions:       DefaultMaxConcurrentCompactions,
-
-		MaxIndexLogFileSize: toml.Size(DefaultMaxIndexLogFileSize),
 
 		TraceLoggingEnabled: false,
 		TSMWillNeed:         false,
