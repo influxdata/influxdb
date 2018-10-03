@@ -54,15 +54,15 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		defer in.Close()
 	}
 
-	tok, err := pcontext.GetToken(ctx)
+	a, err := pcontext.GetAuthorizer(ctx)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	auth, err := h.AuthorizationService.FindAuthorizationByToken(ctx, tok)
+	auth, err := h.AuthorizationService.FindAuthorizationByID(ctx, a.Identifier())
 	if err != nil {
-		EncodeError(ctx, errors.Wrap(err, "invalid token", errors.InvalidData), w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
