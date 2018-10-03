@@ -11,6 +11,7 @@ func ExampleNewCommand() {
 	var number int
 	var sleep bool
 	var duration time.Duration
+	var stringSlice []string
 	cmd := NewCommand(&Program{
 		Run: func() error {
 			fmt.Println(monitorHost)
@@ -19,6 +20,7 @@ func ExampleNewCommand() {
 			}
 			fmt.Println(sleep)
 			fmt.Println(duration)
+			fmt.Println(stringSlice)
 			return nil
 		},
 		Name: "myprogram",
@@ -47,6 +49,12 @@ func ExampleNewCommand() {
 				Default: time.Minute,
 				Desc:    "how long to sleep",
 			},
+			{
+				DestP:   &stringSlice,
+				Flag:    "string-slice",
+				Default: []string{"foo", "bar"},
+				Desc:    "things come in lists",
+			},
 		},
 	})
 
@@ -59,4 +67,5 @@ func ExampleNewCommand() {
 	// 1
 	// true
 	// 1m0s
+	// [foo bar]
 }

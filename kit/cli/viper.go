@@ -87,6 +87,13 @@ func NewCommand(p *Program) *cobra.Command {
 			cmd.Flags().DurationVar(o.DestP.(*time.Duration), o.Flag, o.Default.(time.Duration), o.Desc)
 			viper.BindPFlag(o.Flag, cmd.Flags().Lookup(o.Flag))
 			*o.DestP.(*time.Duration) = viper.GetDuration(o.Flag)
+		case *[]string:
+			if o.Default == nil {
+				o.Default = []string{}
+			}
+			cmd.Flags().StringSliceVar(o.DestP.(*[]string), o.Flag, o.Default.([]string), o.Desc)
+			viper.BindPFlag(o.Flag, cmd.Flags().Lookup(o.Flag))
+			*o.DestP.(*[]string) = viper.GetStringSlice(o.Flag)
 		default:
 			// if you get a panic here, sorry about that!
 			// anyway, go ahead and make a PR and add another type.
