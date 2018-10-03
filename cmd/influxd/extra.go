@@ -31,6 +31,7 @@ import (
 	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/tsdb"
 	opentracing "github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
@@ -110,7 +111,7 @@ func (o *orgLookup) Lookup(ctx context.Context, name string) (platform.ID, bool)
 }
 
 type store struct {
-	shard *tsdb.Shard
+	engine *storage.Engine
 }
 
 func (s *store) WithLogger(*zap.Logger) {}
@@ -144,7 +145,7 @@ func (s *store) Read(ctx context.Context, req *ReadRequest) (ResultSet, error) {
 	}
 
 	var cur SeriesCursor
-	if ic, err := newIndexSeriesCursor(ctx, source, req, s.shard); err != nil {
+	if ic, err := newIndexSeriesCursor(ctx, source, req, s.engine); err != nil {
 		return nil, err
 	} else if ic == nil {
 		return nil, nil
@@ -186,7 +187,7 @@ func (s *store) GroupRead(ctx context.Context, req *ReadRequest) (GroupResultSet
 	}
 
 	newCursor := func() (SeriesCursor, error) {
-		cur, err := newIndexSeriesCursor(ctx, source, req, s.shard)
+		cur, err := newIndexSeriesCursor(ctx, source, req, s.engine)
 		if cur == nil || err != nil {
 			return nil, err
 		}
@@ -214,7 +215,7 @@ var (
 )
 
 type indexSeriesCursor struct {
-	sqry         tsdb.SeriesCursor
+	sqry         storage.SeriesCursor
 	err          error
 	tags         models.Tags
 	cond         influxql.Expr
@@ -223,8 +224,8 @@ type indexSeriesCursor struct {
 	hasValueExpr bool
 }
 
-func newIndexSeriesCursor(ctx context.Context, src *ReadSource, req *ReadRequest, shard *tsdb.Shard) (*indexSeriesCursor, error) {
-	queries, err := shard.CreateCursorIterator(ctx)
+func newIndexSeriesCursor(ctx context.Context, src *ReadSource, req *ReadRequest, engine *storage.Engine) (*indexSeriesCursor, error) {
+	queries, err := engine.CreateCursorIterator(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +267,7 @@ func newIndexSeriesCursor(ctx context.Context, src *ReadSource, req *ReadRequest
 		}
 	}
 
-	p.sqry, err = shard.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mi}, opt.Condition)
+	p.sqry, err = engine.CreateSeriesCursor(ctx, storage.SeriesCursorRequest{Measurements: mi}, opt.Condition)
 	if err != nil {
 		p.Close()
 		return nil, err

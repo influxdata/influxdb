@@ -12,4 +12,14 @@ const ()
 type Config struct {
 	EngineOptions tsdb.EngineOptions `toml:"-"`
 	Index         tsi1.Config        `toml:"index"`
+	tsdb.Config
+}
+
+// NewConfig initialises a new config for an Engine.
+func NewConfig() Config {
+	return Config{
+		EngineOptions: tsdb.NewEngineOptions(),
+		Index:         tsi1.NewConfig(),
+		Config:        tsdb.NewConfig(),
+	}
 }
