@@ -4,7 +4,6 @@ import {
   Template,
   Dashboard,
   Cell,
-  CellType,
   SourceLinks,
   TemplateType,
   TemplateValueType,
@@ -181,11 +180,15 @@ export const template: Template = {
 }
 
 export const dashboard: Dashboard = {
-  id: 1,
+  id: '1',
   cells: [],
   name: 'd1',
-  templates: [],
-  organization: 'thebestorg',
+  default: false,
+  links: {
+    self: 'self/link',
+    copy: 'copy/link',
+    cells: 'cells/link',
+  },
 }
 
 export const cell: Cell = {
@@ -193,48 +196,11 @@ export const cell: Cell = {
   y: 0,
   w: 4,
   h: 4,
-  i: '0246e457-916b-43e3-be99-211c4cbc03e8',
-  name: 'Apache Bytes/Second',
-  queries: [],
-  axes: {
-    x: {
-      bounds: ['', ''],
-      label: '',
-      prefix: '',
-      suffix: '',
-      base: '',
-      scale: '',
-    },
-    y: {
-      bounds: ['', ''],
-      label: '',
-      prefix: '',
-      suffix: '',
-      base: '',
-      scale: '',
-    },
-  },
-  type: CellType.Line,
-  colors: [],
-  tableOptions: {
-    verticalTimeAxis: true,
-    sortBy: {
-      internalName: '',
-      displayName: '',
-      visible: true,
-    },
-    fixFirstColumn: true,
-  },
-  fieldOptions: [],
-  timeFormat: '',
-  decimalPlaces: {
-    isEnforced: false,
-    digits: 1,
-  },
+  viewID: 'view-1',
+  id: '0246e457-916b-43e3-be99-211c4cbc03e8',
   links: {
-    self:
-      '/chronograf/v1/dashboards/10/cells/8b3b7897-49b1-422c-9443-e9b778bcbf12',
+    self: 'self/link',
+    copy: 'copy/link',
+    view: 'view/link',
   },
-  legend: {},
-  inView: true,
 }

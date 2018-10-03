@@ -1,5 +1,5 @@
 import {Dashboard} from 'src/types/v2/dashboards'
-import {DashboardSwitcherLinks} from 'src/types/dashboards'
+import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
 
 export const EMPTY_LINKS = {
   links: [],

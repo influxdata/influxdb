@@ -15,7 +15,7 @@ import {MAX_TO_LOCALE_STRING_VAL} from 'src/dashboards/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {Color} from 'src/types/colors'
-import {DecimalPlaces} from 'src/types/dashboards'
+import {DecimalPlaces} from 'src/types/v2/dashboards'
 
 interface Props {
   width: string

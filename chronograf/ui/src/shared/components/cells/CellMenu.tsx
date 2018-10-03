@@ -8,7 +8,7 @@ import MenuTooltipButton, {
 } from 'src/shared/components/MenuTooltipButton'
 
 // Types
-import {Cell, CellQuery} from 'src/types/v2/dashboards'
+import {Cell, DashboardQuery} from 'src/types/v2/dashboards'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -20,7 +20,7 @@ interface Props {
   onClone: (cell: Cell) => void
   onDelete: (cell: Cell) => void
   onCSVDownload: () => void
-  queries: CellQuery[]
+  queries: DashboardQuery[]
 }
 
 interface State {

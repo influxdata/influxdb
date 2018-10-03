@@ -7,7 +7,7 @@ import {
   View,
   ViewType,
   ViewShape,
-  CellQuery,
+  DashboardQuery,
 } from 'src/types/v2/dashboards'
 import {Links} from 'src/types/v2/links'
 import {TimeRange} from 'src/types/queries'
@@ -18,7 +18,7 @@ export {
   Dashboard,
   Links,
   Cell,
-  CellQuery,
+  DashboardQuery,
   View,
   ViewType,
   ViewShape,

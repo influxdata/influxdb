@@ -365,20 +365,12 @@ const mstp = (state, {params: {dashboardID}}) => {
     },
     sources,
     ranges,
-    cellEditorOverlay: {
-      cell,
-      thresholdsListType,
-      thresholdsListColors,
-      gaugeColors,
-      lineColors,
-    },
     dashboards,
   } = state
 
   const timeRange =
     ranges.find(r => r.dashboardID === dashboardID) || defaultTimeRange
 
-  const selectedCell = cell
   const dashboard = dashboards.find(d => d.id === dashboardID)
 
   return {
@@ -390,11 +382,6 @@ const mstp = (state, {params: {dashboardID}}) => {
     autoRefresh,
     inPresentationMode,
     showTemplateControlBar,
-    selectedCell,
-    thresholdsListType,
-    thresholdsListColors,
-    gaugeColors,
-    lineColors,
   }
 }
 

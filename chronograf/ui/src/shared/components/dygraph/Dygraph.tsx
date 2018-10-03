@@ -12,9 +12,7 @@ import Crosshair from 'src/shared/components/crosshair/Crosshair'
 
 // Utils
 import getRange, {getStackedRange} from 'src/shared/parsing/getRangeForDygraph'
-import {getDeep} from 'src/utils/wrappers'
 import {numberValueFormatter} from 'src/utils/formatting'
-import {buildDefaultYLabel} from 'src/shared/utils/defaultYLabel'
 
 // Constants
 import {
@@ -37,7 +35,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {Color} from 'src/types/colors'
 import {Axes, TimeRange} from 'src/types'
-import {CellQuery, ViewType} from 'src/types/v2/dashboards'
+import {DashboardQuery, ViewType} from 'src/types/v2/dashboards'
 import {DygraphData, DygraphSeries, Options} from 'src/external/dygraph'
 
 interface Props {
@@ -50,7 +48,7 @@ interface Props {
   viewID?: string
   axes?: Axes
   mode?: string
-  queries?: CellQuery[]
+  queries?: DashboardQuery[]
   timeRange?: TimeRange
   dygraphSeries?: DygraphSeries
   underlayCallback?: () => void
@@ -123,7 +121,6 @@ class Dygraph extends Component<Props, State> {
       labels,
       fillGraph,
       file: this.timeSeries,
-      ylabel: this.getLabel('y'),
       logscale: y.scale === LOG,
       colors: LINE_COLORS,
       series: this.colorDygraphSeries,
@@ -208,7 +205,6 @@ class Dygraph extends Component<Props, State> {
       labels,
       file: timeSeries,
       logscale: y.scale === LOG,
-      ylabel: this.getLabel('y'),
       axes: {
         y: {
           valueRange: this.getYRange(timeSeries),
@@ -438,18 +434,6 @@ class Dygraph extends Component<Props, State> {
       }
     }
     return coloredDygraphSeries
-  }
-
-  private getLabel = (axis: string): string => {
-    const {axes, queries} = this.props
-    const label = getDeep<string>(axes, `${axis}.label`, '')
-    const queryConfig = _.get(queries, ['0', 'queryConfig'], false)
-
-    if (label || !queryConfig) {
-      return label
-    }
-
-    return buildDefaultYLabel(queryConfig)
   }
 
   private resize = () => {

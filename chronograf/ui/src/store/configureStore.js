@@ -6,7 +6,6 @@ import thunkMiddleware from 'redux-thunk'
 import {resizeLayout} from 'src/shared/middleware/resizeLayout'
 import {queryStringConfig} from 'src/shared/middleware/queryStringConfig'
 import sharedReducers from 'src/shared/reducers'
-import cellEditorOverlay from 'src/dashboards/reducers/cellEditorOverlay'
 import persistStateEnhancer from './persistStateEnhancer'
 import scriptReducer from 'src/flux/reducers/script'
 import sourceReducer from 'src/sources/reducers/sources'
@@ -20,7 +19,6 @@ import activeViewReducer from 'src/dashboards/reducers/v2/views'
 
 const rootReducer = combineReducers({
   ...sharedReducers,
-  cellEditorOverlay,
   ranges: rangesReducer,
   hoverTime: hoverTimeReducer,
   dashboards: dashboardsReducer,

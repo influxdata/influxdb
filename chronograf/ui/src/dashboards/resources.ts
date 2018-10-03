@@ -3,7 +3,6 @@ import {
   Service,
   Source,
   SourceAuthenticationMethod,
-  CellQuery,
   SourceLinks,
   Cell,
   TimeRange,
@@ -17,8 +16,9 @@ import {
   TableOptions,
   FieldOption,
   DecimalPlaces,
-  CellType,
-} from 'src/types/dashboards'
+  DashboardQuery,
+  InfluxLanguages,
+} from 'src/types/v2/dashboards'
 import {Color} from 'src/types/colors'
 
 export const dashboard = {
@@ -133,10 +133,10 @@ export const queryConfig: QueryConfig = {
   shifts: null,
 }
 
-export const query: CellQuery = {
-  query:
+export const query: DashboardQuery = {
+  text:
     'SELECT mean("usage_idle") AS "mean_usage_idle", mean("usage_user") AS "mean_usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)',
-  queryConfig,
+  type: InfluxLanguages.InfluxQL,
   source: '',
 }
 
@@ -207,26 +207,17 @@ export const decimalPlaces: DecimalPlaces = {
 }
 
 export const cell: Cell = {
-  i: '67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
+  id: '67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
   x: 0,
   y: 0,
   w: 8,
   h: 4,
-  name: 'Untitled Graph',
-  queries: [query],
-  axes,
-  type: CellType.Line,
-  colors: lineColors,
-  legend: {},
-  tableOptions,
-  fieldOptions,
-  timeFormat: 'MM/DD/YYYY HH:mm:ss',
-  decimalPlaces,
+  viewID: '1',
   links: {
-    self:
-      '/chronograf/v1/dashboards/9/cells/67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
+    self: '/chronograf/v1/dashboards/9/cells/67435',
+    view: '1',
+    copy: '12',
   },
-  inView: true,
 }
 
 export const fullTimeRange = {

@@ -13,7 +13,7 @@ import {
   FieldOption,
   TableOptions,
   DecimalPlaces,
-} from 'src/types/dashboards'
+} from 'src/types/v2/dashboards'
 import {TimeSeriesValue} from 'src/types/series'
 
 interface ColumnWidths {

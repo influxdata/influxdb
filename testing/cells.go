@@ -78,7 +78,8 @@ func CreateView(
 					ViewContents: platform.ViewContents{
 						Name: "view2",
 					},
-					Properties: platform.V1ViewProperties{
+					Properties: platform.TableViewProperties{
+						Type:       "table",
 						TimeFormat: "rfc3339",
 					},
 				},
@@ -97,7 +98,8 @@ func CreateView(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -169,7 +171,8 @@ func FindViewByID(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -184,7 +187,8 @@ func FindViewByID(
 						ID:   idFromString(t, viewTwoID),
 						Name: "view2",
 					},
-					Properties: platform.V1ViewProperties{
+					Properties: platform.TableViewProperties{
+						Type:       "table",
 						TimeFormat: "rfc3339",
 					},
 				},
@@ -252,7 +256,8 @@ func FindViews(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -273,7 +278,8 @@ func FindViews(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -296,7 +302,8 @@ func FindViews(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -312,7 +319,8 @@ func FindViews(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -385,7 +393,8 @@ func DeleteView(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -401,7 +410,8 @@ func DeleteView(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -424,7 +434,8 @@ func DeleteView(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -448,7 +459,8 @@ func DeleteView(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -522,7 +534,8 @@ func UpdateView(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -558,7 +571,8 @@ func UpdateView(
 							ID:   idFromString(t, viewTwoID),
 							Name: "view2",
 						},
-						Properties: platform.V1ViewProperties{
+						Properties: platform.TableViewProperties{
+							Type:       "table",
 							TimeFormat: "rfc3339",
 						},
 					},
@@ -566,7 +580,8 @@ func UpdateView(
 			},
 			args: args{
 				id: idFromString(t, viewOneID),
-				properties: platform.V1ViewProperties{
+				properties: platform.TableViewProperties{
+					Type:       "table",
 					TimeFormat: "rfc3339",
 				},
 			},
@@ -576,7 +591,8 @@ func UpdateView(
 						ID:   idFromString(t, viewOneID),
 						Name: "view1",
 					},
-					Properties: platform.V1ViewProperties{
+					Properties: platform.TableViewProperties{
+						Type:       "table",
 						TimeFormat: "rfc3339",
 					},
 				},

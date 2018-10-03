@@ -7,7 +7,7 @@ import {
   THRESHOLD_TYPE_TEXT,
 } from 'src/shared/constants/thresholds'
 
-import {CellType} from 'src/types/dashboards'
+import {ViewType} from 'src/types/v2/dashboards'
 
 const getLegibleTextColor = bgColorHex => {
   const darkText = '#292933'
@@ -41,7 +41,7 @@ export const generateThresholdsListHexs = ({
   const defaultColoring = {
     bgColor: null,
     textColor:
-      cellType === CellType.Table ? '#BEC2CC' : THRESHOLD_COLORS[11].hex,
+      cellType === ViewType.Table ? '#BEC2CC' : THRESHOLD_COLORS[11].hex,
   }
   const lastValueNumber = Number(lastValue) || 0
   let bgColor
@@ -61,7 +61,7 @@ export const generateThresholdsListHexs = ({
   }
 
   // If the single stat is above a line graph never have a background color
-  if (cellType === CellType.LinePlusSingleStat) {
+  if (cellType === ViewType.LinePlusSingleStat) {
     return baseColor
       ? {bgColor: null, textColor: baseColor.hex}
       : defaultColoring

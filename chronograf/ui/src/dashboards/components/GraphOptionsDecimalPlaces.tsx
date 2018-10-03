@@ -3,7 +3,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import OptIn from 'src/shared/components/OptIn'
 import {MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
 
-import {DecimalPlaces} from 'src/types/dashboards'
+import {DecimalPlaces} from 'src/types/v2/dashboards'
 
 interface Props extends DecimalPlaces {
   onDecimalPlacesChange: (decimalPlaces: DecimalPlaces) => void

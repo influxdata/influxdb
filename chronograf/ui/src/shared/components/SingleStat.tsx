@@ -6,7 +6,7 @@ import _ from 'lodash'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 
 // Types
-import {CellType} from 'src/types/dashboards'
+import {ViewType} from 'src/types/v2/dashboards'
 import {SingleStatView} from 'src/types/v2/dashboards'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -68,11 +68,10 @@ class SingleStat extends PureComponent<Props> {
   private get coloration(): CSSProperties {
     const {colors} = this.props.properties
 
-
     const {bgColor, textColor} = generateThresholdsListHexs({
       colors,
       lastValue: this.props.stat,
-      cellType: CellType.SingleStat,
+      cellType: ViewType.SingleStat,
     })
 
     return {

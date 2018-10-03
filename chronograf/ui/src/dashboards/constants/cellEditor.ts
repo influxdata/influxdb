@@ -1,10 +1,10 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/dashboards/constants'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
-import {CellType, Axis} from 'src/types/dashboards'
+import {ViewType, Axis} from 'src/types/v2/dashboards'
 import {Color} from 'src/types/colors'
 
-export const initializeOptions = (cellType: CellType) => {
-  switch (cellType) {
+export const initializeOptions = (type: ViewType) => {
+  switch (type) {
     case 'table':
       return DEFAULT_TABLE_OPTIONS
     default:
@@ -33,7 +33,7 @@ export const TOOLTIP_Y_VALUE_FORMAT =
   '<p><strong>K/M/B</strong> = Thousand / Million / Billion<br/><strong>K/M/G</strong> = Kilo / Mega / Giga </p>'
 
 interface ColorArgs {
-  cellType: CellType
+  cellType: ViewType
   thresholdsListColors: Color[]
   gaugeColors: Color[]
   lineColors: Color[]
@@ -48,20 +48,20 @@ export const getCellTypeColors = ({
   let colors: Color[] = []
 
   switch (cellType) {
-    case CellType.Gauge: {
+    case ViewType.Gauge: {
       colors = stringifyColorValues(gaugeColors)
       break
     }
-    case CellType.SingleStat:
-    case CellType.Table: {
+    case ViewType.SingleStat:
+    case ViewType.Table: {
       colors = stringifyColorValues(thresholdsListColors)
       break
     }
-    case CellType.Bar:
-    case CellType.Line:
-    case CellType.LinePlusSingleStat:
-    case CellType.Stacked:
-    case CellType.StepPlot: {
+    case ViewType.Bar:
+    case ViewType.Line:
+    case ViewType.LinePlusSingleStat:
+    case ViewType.Stacked:
+    case ViewType.StepPlot: {
       colors = stringifyColorValues(lineColors)
     }
   }

@@ -11,7 +11,7 @@ import ViewComponent from 'src/shared/components/cells/View'
 import {getView} from 'src/dashboards/apis/v2/view'
 
 // Types
-import {CellQuery, RemoteDataState, Template, TimeRange} from 'src/types'
+import {DashboardQuery, RemoteDataState, Template, TimeRange} from 'src/types'
 import {Cell, View} from 'src/types/v2'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -70,7 +70,7 @@ export default class CellComponent extends Component<Props, State> {
     )
   }
 
-  private get queries(): CellQuery[] {
+  private get queries(): DashboardQuery[] {
     const {view} = this.state
     return _.get(view, ['properties.queries'], [])
   }

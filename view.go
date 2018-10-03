@@ -147,13 +147,13 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = lv
+		case "line-plus-single-stat":
+			var lv LinePlusSingleStatProperties
+			if err := json.Unmarshal(v.B, &lv); err != nil {
+				return nil, err
+			}
+			vis = lv
 		}
-	case "chronograf-v1":
-		var qv V1ViewProperties
-		if err := json.Unmarshal(v.B, &qv); err != nil {
-			return nil, err
-		}
-		vis = qv
 	case "empty":
 		var ev EmptyViewProperties
 		if err := json.Unmarshal(v.B, &ev); err != nil {
@@ -203,6 +203,14 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape:              "chronograf-v2",
 			LineViewProperties: vis,
 		}
+	case LinePlusSingleStatProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			LinePlusSingleStatProperties
+		}{
+			Shape: "chronograf-v2",
+			LinePlusSingleStatProperties: vis,
+		}
 	case StepPlotViewProperties:
 		s = struct {
 			Shape string `json:"shape"`
@@ -226,14 +234,6 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 		}{
 			Shape:             "chronograf-v2",
 			LogViewProperties: vis,
-		}
-	case V1ViewProperties:
-		s = struct {
-			Shape string `json:"shape"`
-			V1ViewProperties
-		}{
-			Shape:            "chronograf-v1",
-			V1ViewProperties: vis,
 		}
 	default:
 		s = struct {
@@ -305,6 +305,18 @@ func (u ViewUpdate) MarshalJSON() ([]byte, error) {
 		ViewContentsUpdate: u.ViewContentsUpdate,
 		ViewProperties:     vis,
 	})
+}
+
+// LinePlusSingleStatProperties represents options for line plus single stat view in Chronograf
+type LinePlusSingleStatProperties struct {
+	Queries       []DashboardQuery `json:"queries"`
+	Axes          map[string]Axis  `json:"axes"`
+	Type          string           `json:"type"`
+	Legend        Legend           `json:"legend"`
+	ViewColors    []ViewColor      `json:"colors"`
+	Prefix        string           `json:"prefix"`
+	Suffix        string           `json:"suffix"`
+	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
 }
 
 // LineViewProperties represents options for line view in Chronograf
@@ -385,27 +397,14 @@ type LogColumnSetting struct {
 	Name  string `json:"name,omitempty"`
 }
 
-// V1ViewProperties represents V1 Chronograf view shapes
-type V1ViewProperties struct {
-	Queries       []DashboardQuery `json:"queries"`
-	Axes          map[string]Axis  `json:"axes"`
-	Type          string           `json:"type"`
-	ViewColors    []ViewColor      `json:"colors"`
-	Legend        Legend           `json:"legend"`
-	TableOptions  TableOptions     `json:"tableOptions,omitempty"`
-	FieldOptions  []RenamableField `json:"fieldOptions"`
-	TimeFormat    string           `json:"timeFormat"`
-	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
-}
-
-func (V1ViewProperties) viewProperties()         {}
-func (LineViewProperties) viewProperties()       {}
-func (StepPlotViewProperties) viewProperties()   {}
-func (SingleStatViewProperties) viewProperties() {}
-func (StackedViewProperties) viewProperties()    {}
-func (GaugeViewProperties) viewProperties()      {}
-func (TableViewProperties) viewProperties()      {}
-func (LogViewProperties) viewProperties()        {}
+func (LineViewProperties) viewProperties()           {}
+func (LinePlusSingleStatProperties) viewProperties() {}
+func (StepPlotViewProperties) viewProperties()       {}
+func (SingleStatViewProperties) viewProperties()     {}
+func (StackedViewProperties) viewProperties()        {}
+func (GaugeViewProperties) viewProperties()          {}
+func (TableViewProperties) viewProperties()          {}
+func (LogViewProperties) viewProperties()            {}
 
 /////////////////////////////
 // Old Chronograf Types
@@ -413,36 +412,19 @@ func (LogViewProperties) viewProperties()        {}
 
 // DashboardQuery includes state for the query builder.  This is a transition
 // struct while we move to the full InfluxQL AST
+// TODO(desa): this should be platform.ID
 type DashboardQuery struct {
-	Command     string      `json:"query"`                 // Command is the query itself
-	Label       string      `json:"label,omitempty"`       // Label is the Y-Axis label for the data
-	Range       *Range      `json:"range,omitempty"`       // Range is the default Y-Axis range for the data
-	QueryConfig QueryConfig `json:"queryConfig,omitempty"` // QueryConfig represents the query state that is understood by the data explorer
-	// TODO(desa): this should be platform.ID
-	Source string      `json:"source"` // Source is the optional URI to the data source for this queryConfig
-	Shifts []TimeShift `json:"-"`      // Shifts represents shifts to apply to an influxql query's time range.  Clients expect the shift to be in the generated QueryConfig
+	Label  string `json:"label,omitempty"` // Label is the Y-Axis label for the data
+	Range  *Range `json:"range,omitempty"` // Range is the default Y-Axis range for the data
+	Text   string `json:"text"`
+	Type   string `json:"type"`
+	Source string `json:"source"` // Source is the optional URI to the data source for this queryConfig
 }
 
 // Range represents an upper and lower bound for data
 type Range struct {
 	Upper int64 `json:"upper"` // Upper is the upper bound
 	Lower int64 `json:"lower"` // Lower is the lower bound
-}
-
-// QueryConfig represents UI query from the data explorer
-type QueryConfig struct {
-	ID              string              `json:"id,omitempty"`
-	Database        string              `json:"database"`
-	Measurement     string              `json:"measurement"`
-	RetentionPolicy string              `json:"retentionPolicy"`
-	Fields          []Field             `json:"fields"`
-	Tags            map[string][]string `json:"tags"`
-	GroupBy         GroupBy             `json:"groupBy"`
-	AreTagsAccepted bool                `json:"areTagsAccepted"`
-	Fill            string              `json:"fill,omitempty"`
-	RawText         *string             `json:"rawText"`
-	Range           *DurationRange      `json:"range"`
-	Shifts          []TimeShift         `json:"shifts"`
 }
 
 // TimeShift represents a shift to apply to an influxql query's time range

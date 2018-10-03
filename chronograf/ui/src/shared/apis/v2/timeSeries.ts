@@ -12,16 +12,17 @@ import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Types
 import {Template, FluxTable} from 'src/types'
+import {DashboardQuery} from 'src/types/v2/dashboards'
 
 export const fetchTimeSeries = async (
   link: string,
-  queries: string[],
+  queries: DashboardQuery[],
   resolution: number,
   templates: Template[]
 ): Promise<FluxTable[]> => {
-  const timeSeriesPromises = queries.map(async q => {
+  const timeSeriesPromises = queries.map(async ({type, text}) => {
     try {
-      const query = await replace(q, link, templates, resolution)
+      const query = await replace(text, link, templates, resolution)
       const dialect = {
         header: true,
         annotations: ['datatype', 'group', 'default'],
@@ -32,7 +33,7 @@ export const fetchTimeSeries = async (
         method: 'POST',
         url: link,
         data: {
-          type: 'influxql',
+          type,
           query,
           dialect,
         },

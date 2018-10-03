@@ -12,7 +12,7 @@ import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 
 // Types
-import {Sort} from 'src/types/dashboards'
+import {Sort} from 'src/types/v2/dashboards'
 import {TableView} from 'src/types/v2/dashboards'
 import {TimeSeriesValue} from 'src/types/series'
 import {CellRendererProps} from 'src/shared/components/tables/TableGraph'

@@ -15,14 +15,15 @@ import {TimeRange} from 'src/types/v2'
 import {FluxTable, RemoteDataState} from 'src/types'
 
 interface Props {
-  loading: RemoteDataState
-  properties: LineView
-  timeRange: TimeRange
-  tables: FluxTable[]
   viewID: string
   staticLegend: boolean
   onZoom: () => void
   handleSetHoverTime: () => void
+  tables: FluxTable[]
+  properties: LineView
+  timeRange: TimeRange
+  loading: RemoteDataState
+  children: JSX.Element
 }
 
 @ErrorHandlingWith(InvalidData)
@@ -37,6 +38,7 @@ class LineGraph extends PureComponent<Props> {
       viewID,
       onZoom,
       loading,
+      children,
       timeRange,
       properties,
       staticLegend,
@@ -62,7 +64,9 @@ class LineGraph extends PureComponent<Props> {
               timeSeries={dygraphsData}
               staticLegend={staticLegend}
               handleSetHoverTime={handleSetHoverTime}
-            />
+            >
+              {children}
+            </Dygraph>
           </DygraphCell>
         )}
       </DygraphTransformation>

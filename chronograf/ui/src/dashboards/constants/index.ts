@@ -2,8 +2,8 @@ import {
   DEFAULT_VERTICAL_TIME_AXIS,
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
-import {Cell, QueryConfig} from 'src/types'
-import {CellType, Dashboard, DecimalPlaces} from 'src/types/dashboards'
+import {Cell} from 'src/types'
+import {Dashboard, DecimalPlaces} from 'src/types/v2/dashboards'
 
 export const UNTITLED_GRAPH: string = 'Untitled Graph'
 
@@ -49,46 +49,33 @@ export const FORMAT_OPTIONS: Array<{text: string}> = [
 
 export type NewDefaultCell = Pick<
   Cell,
-  Exclude<keyof Cell, 'i' | 'axes' | 'colors' | 'links' | 'legend'>
+  Exclude<keyof Cell, 'id' | 'links' | 'viewID'>
 >
+
 export const NEW_DEFAULT_DASHBOARD_CELL: NewDefaultCell = {
   x: 0,
   y: 0,
   w: 4,
   h: 4,
-  name: UNTITLED_GRAPH,
-  type: CellType.Line,
-  queries: [],
-  tableOptions: DEFAULT_TABLE_OPTIONS,
-  timeFormat: DEFAULT_TIME_FORMAT,
-  decimalPlaces: DEFAULT_DECIMAL_PLACES,
-  fieldOptions: [DEFAULT_TIME_FIELD],
-  inView: true,
 }
 
-interface EmptyDefaultDashboardCell {
-  x: number
-  y: number
-  queries: QueryConfig[]
-  name: string
-  type: CellType
-}
 type EmptyDefaultDashboard = Pick<
   Dashboard,
   Exclude<keyof Dashboard, 'templates' | 'links' | 'organization' | 'cells'>
 > & {
-  cells: EmptyDefaultDashboardCell[]
+  cells: NewDefaultCell[]
 }
+
 export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
-  id: 0,
+  id: '0',
   name: '',
+  default: false,
   cells: [
     {
       x: 0,
       y: 0,
-      queries: [],
-      name: 'Loading...',
-      type: CellType.Line,
+      w: 4,
+      h: 4,
     },
   ],
 }

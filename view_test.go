@@ -27,7 +27,7 @@ func TestView_MarshalJSON(t *testing.T) {
 						ID:   platform.ID("0"),
 						Name: "hello",
 					},
-					Properties: platform.V1ViewProperties{
+					Properties: platform.LineViewProperties{
 						Type: "line",
 					},
 				},
@@ -38,28 +38,12 @@ func TestView_MarshalJSON(t *testing.T) {
   "id": "30",
   "name": "hello",
   "properties": {
-    "shape": "chronograf-v1",
+    "shape": "chronograf-v2",
     "queries": null,
     "axes": null,
     "type": "line",
     "colors": null,
-    "legend": {},
-    "tableOptions": {
-      "verticalTimeAxis": false,
-      "sortBy": {
-        "internalName": "",
-        "displayName": "",
-        "visible": false
-      },
-      "wrapping": "",
-      "fixFirstColumn": false
-    },
-    "fieldOptions": null,
-    "timeFormat": "",
-    "decimalPlaces": {
-      "isEnforced": false,
-      "digits": 0
-    }
+    "legend": {}
   }
 }
 `,
@@ -76,7 +60,7 @@ func TestView_MarshalJSON(t *testing.T) {
 
 			eq, err := jsonEqual(string(b), tt.wants.json)
 			if err != nil {
-				t.Fatalf("error marshalling json")
+				t.Fatalf("error marshalling json %v", err)
 			}
 			if !eq {
 				t.Errorf("JSON did not match\nexpected:%s\ngot:\n%s\n", tt.wants.json, string(b))

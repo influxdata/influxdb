@@ -6,7 +6,8 @@ import _ from 'lodash'
 import {fetchTimeSeries} from 'src/shared/apis/v2/timeSeries'
 
 // Types
-import {Template, CellQuery, RemoteDataState, FluxTable} from 'src/types'
+import {Template, RemoteDataState, FluxTable} from 'src/types'
+import {DashboardQuery} from 'src/types/v2/dashboards'
 
 // Utils
 import AutoRefresh from 'src/utils/AutoRefresh'
@@ -20,7 +21,7 @@ interface RenderProps {
 
 interface Props {
   link: string
-  queries: CellQuery[]
+  queries: DashboardQuery[]
   inView?: boolean
   templates?: Template[]
   children: (r: RenderProps) => JSX.Element
@@ -81,12 +82,7 @@ class TimeSeries extends Component<Props, State> {
     const TEMP_RES = 300
 
     try {
-      const tables = await fetchTimeSeries(
-        link,
-        this.queries,
-        TEMP_RES,
-        templates
-      )
+      const tables = await fetchTimeSeries(link, queries, TEMP_RES, templates)
 
       this.setState({
         tables,
@@ -122,10 +118,6 @@ class TimeSeries extends Component<Props, State> {
     }
 
     return this.props.children({tables, loading})
-  }
-
-  private get queries(): string[] {
-    return this.props.queries.map(q => q.text)
   }
 
   private isPropsDifferent(nextProps: Props) {

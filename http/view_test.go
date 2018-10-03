@@ -46,7 +46,7 @@ func TestService_handleGetViews(t *testing.T) {
 									ID:   platform.ID("0"),
 									Name: "hello",
 								},
-								Properties: platform.V1ViewProperties{
+								Properties: platform.LineViewProperties{
 									Type: "line",
 								},
 							},
@@ -77,28 +77,12 @@ func TestService_handleGetViews(t *testing.T) {
         "self": "/api/v2/views/30"
       },
       "properties": {
-        "shape": "chronograf-v1",
+        "shape": "chronograf-v2",
         "queries": null,
         "axes": null,
         "type": "line",
         "colors": null,
-        "legend": {},
-        "tableOptions": {
-          "verticalTimeAxis": false,
-          "sortBy": {
-            "internalName": "",
-            "displayName": "",
-            "visible": false
-          },
-          "wrapping": "",
-          "fixFirstColumn": false
-        },
-        "fieldOptions": null,
-        "timeFormat": "",
-        "decimalPlaces": {
-          "isEnforced": false,
-          "digits": 0
-        }
+        "legend": {}
       }
     },
     {
@@ -319,7 +303,7 @@ func TestService_handlePostViews(t *testing.T) {
 					ViewContents: platform.ViewContents{
 						Name: "hello",
 					},
-					Properties: platform.V1ViewProperties{
+					Properties: platform.LineViewProperties{
 						Type: "line",
 					},
 				},
@@ -335,28 +319,12 @@ func TestService_handlePostViews(t *testing.T) {
     "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {
-    "shape": "chronograf-v1",
+    "shape": "chronograf-v2",
     "queries": null,
     "axes": null,
     "type": "line",
     "colors": null,
-    "legend": {},
-    "tableOptions": {
-      "verticalTimeAxis": false,
-      "sortBy": {
-        "internalName": "",
-        "displayName": "",
-        "visible": false
-      },
-      "wrapping": "",
-      "fixFirstColumn": false
-    },
-    "fieldOptions": null,
-    "timeFormat": "",
-    "decimalPlaces": {
-      "isEnforced": false,
-      "digits": 0
-    }
+    "legend": {}
   }
 }
 `,
@@ -523,7 +491,7 @@ func TestService_handlePatchView(t *testing.T) {
 									ID:   mustParseID("020f755c3c082000"),
 									Name: "example",
 								},
-								Properties: platform.V1ViewProperties{
+								Properties: platform.LineViewProperties{
 									Type: "line",
 								},
 							}, nil
@@ -548,28 +516,12 @@ func TestService_handlePatchView(t *testing.T) {
     "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {
-    "shape": "chronograf-v1",
+    "shape": "chronograf-v2",
     "queries": null,
     "axes": null,
     "type": "line",
     "colors": null,
-    "legend": {},
-    "tableOptions": {
-      "verticalTimeAxis": false,
-      "sortBy": {
-        "internalName": "",
-        "displayName": "",
-        "visible": false
-      },
-      "wrapping": "",
-      "fixFirstColumn": false
-    },
-    "fieldOptions": null,
-    "timeFormat": "",
-    "decimalPlaces": {
-      "isEnforced": false,
-      "digits": 0
-    }
+    "legend": {}
   }
 }
 `,
@@ -586,7 +538,7 @@ func TestService_handlePatchView(t *testing.T) {
 									ID:   mustParseID("020f755c3c082000"),
 									Name: "example",
 								},
-								Properties: platform.V1ViewProperties{
+								Properties: platform.LineViewProperties{
 									Type: "line",
 								},
 							}, nil

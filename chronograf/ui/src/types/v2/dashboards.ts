@@ -1,4 +1,3 @@
-import {QueryConfig} from 'src/types'
 import {Color} from 'src/types/colors'
 
 export interface Axis {
@@ -36,16 +35,15 @@ export interface Axes {
   y2?: Axis
 }
 
-interface CellLinks {
-  self: string
+export enum InfluxLanguages {
+  InfluxQL = 'influxql',
+  Flux = 'flux',
 }
 
-// corresponds to DashboardQuery on the backend
-export interface CellQuery {
-  query: string
-  queryConfig: QueryConfig
+export interface DashboardQuery {
+  text: string
+  type: InfluxLanguages
   source: string
-  text?: string // doesn't come from server
 }
 
 export interface Legend {
@@ -88,7 +86,7 @@ export interface EmptyView {
 
 export interface LineView {
   type: ViewType.Line
-  queries: CellQuery[]
+  queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   axes: Axes
   colors: Color[]
@@ -97,7 +95,7 @@ export interface LineView {
 
 export interface StackedView {
   type: ViewType.Stacked
-  queries: CellQuery[]
+  queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   axes: Axes
   colors: Color[]
@@ -106,7 +104,7 @@ export interface StackedView {
 
 export interface StepPlotView {
   type: ViewType.StepPlot
-  queries: CellQuery[]
+  queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   axes: Axes
   colors: Color[]
@@ -115,7 +113,7 @@ export interface StepPlotView {
 
 export interface BarChartView {
   type: ViewType.Bar
-  queries: CellQuery[]
+  queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   axes: Axes
   colors: Color[]
@@ -124,7 +122,7 @@ export interface BarChartView {
 
 export interface LinePlusSingleStatView {
   type: ViewType.LinePlusSingleStat
-  queries: CellQuery[]
+  queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   axes: Axes
   colors: Color[]
@@ -136,7 +134,7 @@ export interface LinePlusSingleStatView {
 
 export interface SingleStatView {
   type: ViewType.SingleStat
-  queries: CellQuery[]
+  queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   colors: Color[]
   prefix: string
@@ -146,7 +144,7 @@ export interface SingleStatView {
 
 export interface GaugeView {
   type: ViewType.Gauge
-  queries: CellQuery[]
+  queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   colors: Color[]
   prefix: string
@@ -156,7 +154,7 @@ export interface GaugeView {
 
 export interface TableView {
   type: ViewType.Table
-  queries: CellQuery[]
+  queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   colors: Color[]
   tableOptions: TableOptions
@@ -171,24 +169,8 @@ export interface MarkdownView {
   text: string
 }
 
-export interface V1View {
-  type: ViewType
-  queries: CellQuery[]
-  shape: ViewShape
-  axes: Axes
-  colors: Color[]
-  tableOptions: TableOptions
-  fieldOptions: FieldOption[]
-  timeFormat: string
-  decimalPlaces: DecimalPlaces
-  links: CellLinks
-  legend: Legend
-  inView: boolean
-}
-
 export enum ViewShape {
   ChronografV2 = 'chronografV2',
-  ChronografV1 = 'chronografV1',
   Empty = 'empty',
 }
 

@@ -1,15 +1,6 @@
 import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
-import {Cell, CellQuery, Legend, Axes, Dashboard, CellType} from './dashboards'
-import {
-  Template,
-  TemplateQuery,
-  TemplateValue,
-  TemplateType,
-  TemplateValueType,
-  TemplateUpdate,
-  TemplateBuilderProps,
-} from './tempVars'
+import {Cell, DashboardQuery, Legend, Axes, Dashboard} from './v2/dashboards'
 import {
   GroupBy,
   Query,
@@ -38,17 +29,23 @@ import {
   NotificationFunc,
   NotificationAction,
 } from './notifications'
+import {
+  Template,
+  TemplateValue,
+  TemplateType,
+  TemplateValueType,
+} from 'src/types/tempVars'
 import {FluxTable, ScriptStatus, SchemaFilter, RemoteDataState} from './flux'
 import {AnnotationInterface} from './annotations'
 import {WriteDataMode} from './dataExplorer'
 
 export {
-  Template,
-  TemplateQuery,
+  TemplateType,
   TemplateValue,
+  TemplateValueType,
+  Template,
   Cell,
-  CellQuery,
-  CellType,
+  DashboardQuery,
   Legend,
   Status,
   Query,
@@ -84,9 +81,5 @@ export {
   SchemaFilter,
   RemoteDataState,
   AnnotationInterface,
-  TemplateType,
-  TemplateValueType,
-  TemplateUpdate,
-  TemplateBuilderProps,
   WriteDataMode,
 }

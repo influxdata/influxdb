@@ -18,15 +18,18 @@ import TimeMachineTables from 'src/shared/components/tables/TimeMachineTables'
 import {emptyGraphCopy} from 'src/shared/copy/cell'
 // import {DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
 
-// Utils
-import {buildQueries} from 'src/utils/buildQueriesForLayouts'
-
 // Actions
 import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 
 // Types
-import {TimeRange, Template, CellQuery} from 'src/types'
-import {RefreshingViewProperties, ViewType} from 'src/types/v2/dashboards'
+import {TimeRange, Template} from 'src/types'
+import {DashboardQuery} from 'src/types/v2/dashboards'
+import {
+  RefreshingViewProperties,
+  ViewType,
+  LineView,
+  SingleStatView,
+} from 'src/types/v2/dashboards'
 
 interface Props {
   link: string
@@ -81,6 +84,7 @@ class RefreshingView extends PureComponent<Props & WithRouterProps> {
         inView={inView}
         queries={this.queries}
         templates={templates}
+        key={manualRefresh}
       >
         {({tables, loading}) => {
           switch (properties.type) {
@@ -109,12 +113,43 @@ class RefreshingView extends PureComponent<Props & WithRouterProps> {
                   viewID={viewID}
                   onZoom={onZoom}
                   loading={loading}
-                  key={manualRefresh}
                   timeRange={timeRange}
                   properties={properties}
                   staticLegend={staticLegend}
                   handleSetHoverTime={handleSetHoverTime}
                 />
+              )
+            case ViewType.LinePlusSingleStat:
+              const lineProperties = {
+                ...properties,
+                type: ViewType.Line,
+              } as LineView
+
+              const singleStatProperties = {
+                ...properties,
+                type: ViewType.SingleStat,
+              } as SingleStatView
+
+              return (
+                <LineGraph
+                  tables={tables}
+                  viewID={viewID}
+                  onZoom={onZoom}
+                  loading={loading}
+                  timeRange={timeRange}
+                  properties={lineProperties}
+                  staticLegend={staticLegend}
+                  handleSetHoverTime={handleSetHoverTime}
+                >
+                  <SingleStatTransform tables={tables}>
+                    {stat => (
+                      <SingleStat
+                        stat={stat}
+                        properties={singleStatProperties}
+                      />
+                    )}
+                  </SingleStatTransform>
+                </LineGraph>
               )
             case ViewType.StepPlot:
               return (
@@ -123,7 +158,6 @@ class RefreshingView extends PureComponent<Props & WithRouterProps> {
                   viewID={viewID}
                   onZoom={onZoom}
                   loading={loading}
-                  key={manualRefresh}
                   timeRange={timeRange}
                   properties={properties}
                   staticLegend={staticLegend}
@@ -137,7 +171,6 @@ class RefreshingView extends PureComponent<Props & WithRouterProps> {
                   viewID={viewID}
                   onZoom={onZoom}
                   loading={loading}
-                  key={manualRefresh}
                   timeRange={timeRange}
                   properties={properties}
                   staticLegend={staticLegend}
@@ -152,10 +185,9 @@ class RefreshingView extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private get queries(): CellQuery[] {
-    const {timeRange, properties} = this.props
-    const {type} = properties
-    const queries = buildQueries(properties.queries, timeRange)
+  private get queries(): DashboardQuery[] {
+    const {properties} = this.props
+    const {type, queries} = properties
 
     if (type === ViewType.SingleStat) {
       return [queries[0]]

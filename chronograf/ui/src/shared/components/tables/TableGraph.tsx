@@ -33,7 +33,7 @@ const ROW_HEIGHT = 30
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Sort} from 'src/types/dashboards'
+import {Sort} from 'src/types/v2/dashboards'
 import {TableView} from 'src/types/v2/dashboards'
 import {TimeSeriesValue} from 'src/types/series'
 
