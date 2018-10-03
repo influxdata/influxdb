@@ -61,20 +61,23 @@ type View struct {
 	Properties ViewProperties
 }
 
+// ViewContents is the id and name of a specific view.
 type ViewContents struct {
 	ID   ID     `json:"id"`
 	Name string `json:"name"`
 }
 
+// ViewProperties is used to mark other structures as conforming to a View.
 type ViewProperties interface {
-	ViewProperties()
+	viewProperties()
 }
 
 // EmptyViewProperties is visualization that has no values
 type EmptyViewProperties struct{}
 
-func (v EmptyViewProperties) ViewProperties() {}
+func (v EmptyViewProperties) viewProperties() {}
 
+// UnmarshalViewPropertiesJSON unmarshals JSON bytes into a ViewProperties.
 func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 	var v struct {
 		B json.RawMessage `json:"properties"`
@@ -138,6 +141,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = tv
+		case "log-viewer": // happens in log viewer stays in log viewer.
+			var lv LogViewProperties
+			if err := json.Unmarshal(v.B, &lv); err != nil {
+				return nil, err
+			}
+			vis = lv
 		}
 	case "chronograf-v1":
 		var qv V1ViewProperties
@@ -158,6 +167,7 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 	return vis, nil
 }
 
+// MarshalViewPropertiesJSON encodes a view into JSON bytes.
 func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 	var s interface{}
 	switch vis := v.(type) {
@@ -166,7 +176,7 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape string `json:"shape"`
 			SingleStatViewProperties
 		}{
-			Shape:                    "chronograf-v2",
+			Shape: "chronograf-v2",
 			SingleStatViewProperties: vis,
 		}
 	case TableViewProperties:
@@ -198,7 +208,7 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape string `json:"shape"`
 			StepPlotViewProperties
 		}{
-			Shape:                  "chronograf-v2",
+			Shape: "chronograf-v2",
 			StepPlotViewProperties: vis,
 		}
 	case StackedViewProperties:
@@ -206,8 +216,16 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape string `json:"shape"`
 			StackedViewProperties
 		}{
-			Shape:                 "chronograf-v2",
+			Shape: "chronograf-v2",
 			StackedViewProperties: vis,
+		}
+	case LogViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			LogViewProperties
+		}{
+			Shape:             "chronograf-v2",
+			LogViewProperties: vis,
 		}
 	case V1ViewProperties:
 		s = struct {
@@ -229,6 +247,7 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 	return json.Marshal(s)
 }
 
+// MarshalJSON encodes a view to JSON bytes.
 func (c View) MarshalJSON() ([]byte, error) {
 	vis, err := MarshalViewPropertiesJSON(c.Properties)
 	if err != nil {
@@ -244,6 +263,7 @@ func (c View) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON decodes JSON bytes into the corresponding view type (those that implement ViewProperties).
 func (c *View) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &c.ViewContents); err != nil {
 		return err
@@ -257,6 +277,7 @@ func (c *View) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// UnmarshalJSON decodes JSON bytes into the corresponding view update type (those that implement ViewProperties).
 func (u *ViewUpdate) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &u.ViewContentsUpdate); err != nil {
 		return err
@@ -269,6 +290,8 @@ func (u *ViewUpdate) UnmarshalJSON(b []byte) error {
 	u.Properties = v
 	return nil
 }
+
+// MarshalJSON encodes a view to JSON bytes.
 func (u ViewUpdate) MarshalJSON() ([]byte, error) {
 	vis, err := MarshalViewPropertiesJSON(u.Properties)
 	if err != nil {
@@ -342,6 +365,26 @@ type TableViewProperties struct {
 	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
 }
 
+// LogViewProperties represents options for log viewer in Chronograf.
+type LogViewProperties struct {
+	Type    string            `json:"type"`
+	Columns []LogViewerColumn `json:"columns"`
+}
+
+// LogViewerColumn represents a specific column in a Log Viewer.
+type LogViewerColumn struct {
+	Name     string             `json:"name"`
+	Position int32              `json:"position"`
+	Settings []LogColumnSetting `json:"settings"`
+}
+
+// LogColumnSetting represent the settings for a specific column of a Log Viewer.
+type LogColumnSetting struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+	Name  string `json:"name,omitempty"`
+}
+
 // V1ViewProperties represents V1 Chronograf view shapes
 type V1ViewProperties struct {
 	Queries       []DashboardQuery `json:"queries"`
@@ -355,13 +398,14 @@ type V1ViewProperties struct {
 	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
 }
 
-func (V1ViewProperties) ViewProperties()         {}
-func (LineViewProperties) ViewProperties()       {}
-func (StepPlotViewProperties) ViewProperties()   {}
-func (SingleStatViewProperties) ViewProperties() {}
-func (StackedViewProperties) ViewProperties()    {}
-func (GaugeViewProperties) ViewProperties()      {}
-func (TableViewProperties) ViewProperties()      {}
+func (V1ViewProperties) viewProperties()         {}
+func (LineViewProperties) viewProperties()       {}
+func (StepPlotViewProperties) viewProperties()   {}
+func (SingleStatViewProperties) viewProperties() {}
+func (StackedViewProperties) viewProperties()    {}
+func (GaugeViewProperties) viewProperties()      {}
+func (TableViewProperties) viewProperties()      {}
+func (LogViewProperties) viewProperties()        {}
 
 /////////////////////////////
 // Old Chronograf Types
