@@ -3355,6 +3355,98 @@ components:
         visible:
           description: Indicates whether this field should be visible on the table
           type: boolean
+    LogViewProperties:
+      description: Contains the configuration for the log viewer
+      type: object
+      required:
+      - columns
+      - shape
+      - type
+      properties:
+        shape:
+            type: string
+            enum: ["chronograf-v2"]
+        type:
+            type: string
+            enum: ["log-viewer"]
+        columns:
+          description: Defines the order, names, and visibility of columns in the log
+            viewer table
+          type: array
+          items:
+            "$ref": "#/components/schemas/LogViewerColumn"
+      example:
+        columns:
+        - name: severity
+          position: 0
+          settings:
+          - type: label
+            value: icon
+          - type: label
+            value: text
+          - type: visibility
+            value: visible
+          - type: color
+            name: ruby
+            value: emergency
+          - type: color
+            name: rainforest
+            value: info
+          - type: displayName
+            value: Log Severity!
+        - name: messages
+          position: 1
+          settings:
+          - type: visibility
+            value: hidden
+    LogViewerColumn:
+      description: Contains a specific column's settings.
+      type: object
+      required:
+      - name
+      - position
+      - settings
+      properties:
+        name:
+          description: Unique identifier name of the column
+          type: string
+        position:
+          type: integer
+          format: int32
+        settings:
+          description: Composable settings options for the column
+          type: array
+          items:
+            description: Type and value and optional name of a setting.
+            type: object
+            required:
+            - type
+            - value
+            properties:
+              type:
+                type: string
+              value:
+                type: string
+              name:
+                type: string
+      example:
+        name: severity
+        position: 0
+        settings:
+        - type: label
+          value: icon
+        - type: label
+          value: text
+        - type: visibility
+          value: visible
+        - type: color
+          name: ruby
+          value: emergency
+        - type: color
+          name: rainforest
+          value: info
+        - type: displayName
+          value: Log Severity!
     V1ViewProperties:
       properties:
         type:
@@ -3564,6 +3656,7 @@ components:
           oneOf:
             - $ref: "#/components/schemas/V1ViewProperties"
             - $ref: "#/components/schemas/EmptyViewProperties"
+            - $ref: "#/components/schemas/LogViewProperties"
     Views:
       type: object
       properties:
