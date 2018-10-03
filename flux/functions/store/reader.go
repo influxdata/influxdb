@@ -270,7 +270,8 @@ READ:
 	for gc != nil {
 		key := groupKeyForGroup(gc.PartitionKeyVals(), &bi.readSpec, bi.bounds)
 		cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
-		table := newGroupTableNoPoints(gc, bi.bounds, key, cols, gc.Tags(), defs)
+		table := newGroupTableNoPoints(bi.bounds, key, cols, defs)
+		gc.Close()
 
 		if err := f(table); err != nil {
 			table.Close()

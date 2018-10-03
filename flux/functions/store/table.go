@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -207,40 +206,29 @@ func (t *tableNoPoints) Close() {
 }
 
 func (t *tableNoPoints) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
-
-	f(t)
-
+	t.err = f(t)
+	t.Close()
 	return t.err
 }
 
 type groupTableNoPoints struct {
 	table
-	gc storage.GroupCursor
 }
 
 func newGroupTableNoPoints(
-	gc storage.GroupCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
-	tags models.Tags,
 	defs [][]byte,
 ) *groupTableNoPoints {
 	t := &groupTableNoPoints{
 		table: newTable(bounds, key, cols, defs),
-		gc:    gc,
 	}
-	t.readTags(tags)
 
 	return t
 }
 
 func (t *groupTableNoPoints) Close() {
-	if t.gc != nil {
-		t.gc.Close()
-		t.gc = nil
-	}
 	if t.done != nil {
 		close(t.done)
 		t.done = nil
@@ -248,23 +236,7 @@ func (t *groupTableNoPoints) Close() {
 }
 
 func (t *groupTableNoPoints) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
-
-	for t.advanceCursor() {
-		if err := f(t); err != nil {
-			return err
-		}
-	}
-
+	t.err = f(t)
+	t.Close()
 	return t.err
-}
-
-func (t *groupTableNoPoints) advanceCursor() bool {
-	for t.gc.Next() {
-		if hasPoints(t.gc.Cursor()) {
-			t.readTags(t.gc.Tags())
-			return true
-		}
-	}
-	return false
 }
