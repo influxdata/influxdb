@@ -1,6 +1,10 @@
 // Libraries
 import React, {Component} from 'react'
 
+// Components
+import {ComponentSpacer, Alignment} from 'src/clockface'
+
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -16,7 +20,9 @@ class PanelHeader extends Component<Props> {
     return (
       <div className="panel-header">
         <div className="panel-title">{title}</div>
-        <div className="panel-controls">{children}</div>
+        <div className="panel-controls">
+          <ComponentSpacer align={Alignment.Right}>{children}</ComponentSpacer>
+        </div>
       </div>
     )
   }

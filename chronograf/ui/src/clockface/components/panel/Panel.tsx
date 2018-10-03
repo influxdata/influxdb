@@ -1,6 +1,5 @@
 // Libraries
 import React, {Component, ComponentClass} from 'react'
-import classnames from 'classnames'
 import _ from 'lodash'
 
 // Components
@@ -10,22 +9,12 @@ import PanelFooter from 'src/clockface/components/panel/PanelFooter'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-export enum PanelType {
-  Default = '',
-  Solid = 'solid',
-}
-
 interface Props {
-  children: JSX.Element[]
-  type?: PanelType
+  children: JSX.Element[] | JSX.Element
 }
 
 @ErrorHandling
 class Panel extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
-    type: PanelType.Default,
-  }
-
   public static Header = PanelHeader
   public static Body = PanelBody
   public static Footer = PanelFooter
@@ -50,13 +39,7 @@ class Panel extends Component<Props> {
 
     this.validateChildren()
 
-    return <div className={this.className}>{children}</div>
-  }
-
-  private get className(): string {
-    const {type} = this.props
-
-    return classnames('panel', {'panel-solid': type === PanelType.Solid})
+    return <div className="panel">{children}</div>
   }
 
   private validateChildren = (): void => {

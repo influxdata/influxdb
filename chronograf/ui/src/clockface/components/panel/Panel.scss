@@ -3,7 +3,7 @@
    -----------------------------------------------------------------------------
 */
 
-$panel-gutter: 30px;
+$panel-gutter: $ix-marg-b * 2;
 $panel-background: $g3-castle;
 
 .panel {
@@ -11,18 +11,22 @@ $panel-background: $g3-castle;
   flex-direction: column;
   align-items: stretch;
   margin-bottom: $panel-gutter;
+  background-color: $panel-background;
+  border-radius: $radius;
+  margin-bottom: $ix-marg-a;
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: $panel-gutter 0;
+  padding: $panel-gutter;
+  padding-bottom: 0;
 }
 
 .panel-title {
-  font-weight: 400;
-  font-size: 19px;
+  font-weight: 500;
+  font-size: 17px;
   color: $g12-forge;
   letter-spacing: 0.015em;
   margin: 0;
@@ -33,83 +37,17 @@ $panel-background: $g3-castle;
 .panel-controls {
   display: flex;
   align-items: center;
-
-  &:nth-child(1) {
-    justify-content: flex-start;
-    > * {
-      margin-right: $ix-marg-b;
-    }
-  }
-
-  &:nth-child(2) {
-    justify-content: flex-end;
-    > * {
-      margin-left: $ix-marg-b;
-    }
-  }
 }
 
 .panel-body {
-  background-color: $panel-background;
   padding: $panel-gutter;
-
-  .panel-header + &,
-  &:first-child {
-    border-top-left-radius: $ix-radius;
-    border-top-right-radius: $ix-radius;
-  }
-  &:last-child {
-    border-bottom-left-radius: $ix-radius;
-    border-bottom-right-radius: $ix-radius;
-  }
-
-  > *:first-child {
-    margin-top: 0;
-  }
-  > *:last-child {
-    margin-bottom: 0;
-  }
 }
 
 .panel-footer {
-  padding: $ix-marg-c $panel-gutter;
+  padding: $ix-marg-b $panel-gutter;
   border-radius: 0 0 $ix-radius $ix-radius;
-  @include gradient-v($g2-kevlar, $panel-background);
+  background-color: mix($panel-background, $g2-kevlar, 50%);
   color: $g9-mountain;
-}
-
-//  Tables directly inside Panels
-//  ----------------------------------------------------------------------------
-.panel > .table {
-  border-top: $ix-border;
-  * {
-    border-color: $g19-ghost;
-  }
-}
-.panel-header + .table {
-  border: none;
-}
-.panel > .table td:first-child,
-.panel > .table th:first-child {
-  padding-left: $panel-gutter;
-}
-.panel > .table td:last-child,
-.panel > .table th:last-child {
-  padding-right: $panel-gutter;
-}
-
-//  Solid Panels
-//  ----------------------------------------------------------------------------
-.panel.panel-solid {
-  background-color: $panel-background;
-  border-radius: $ix-radius;
-
-  .panel-header {
-    padding: $panel-gutter;
-  }
-  .panel-body {
-    background-color: transparent;
-  }
 }
 
 //  Horizontal Rules directly inside Panels

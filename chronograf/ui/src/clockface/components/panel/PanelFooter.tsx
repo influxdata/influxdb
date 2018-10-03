@@ -4,7 +4,7 @@ import React, {Component} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  children: JSX.Element[]
+  children: JSX.Element[] | JSX.Element | string | number
 }
 
 @ErrorHandling
