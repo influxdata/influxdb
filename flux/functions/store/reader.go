@@ -100,6 +100,10 @@ func (bi *tableIterator) Do(f func(flux.Table) error) error {
 			return err
 		}
 
+		if rs == nil {
+			return nil
+		}
+
 		if req.Hints.NoPoints() {
 			return bi.handleGroupReadNoPoints(f, rs)
 		}
@@ -109,6 +113,10 @@ func (bi *tableIterator) Do(f func(flux.Table) error) error {
 		rs, err := bi.s.Read(bi.ctx, &req)
 		if err != nil {
 			return err
+		}
+
+		if rs == nil {
+			return nil
 		}
 
 		if req.Hints.NoPoints() {
