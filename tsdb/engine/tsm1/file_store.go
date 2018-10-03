@@ -729,17 +729,25 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			return err
 		}
 
-		var newName = file
-		if strings.HasSuffix(file, tsmTmpExt) {
+		var oldName, newName = file, file
+		if strings.HasSuffix(oldName, tsmTmpExt) {
 			// The new TSM files have a tmp extension.  First rename them.
 			newName = file[:len(file)-4]
-			if err := os.Rename(file, newName); err != nil {
+			if err := os.Rename(oldName, newName); err != nil {
 				return err
 			}
 		}
 
+		// Any error after this point should result in the file being bein named
+		// back to the original name. The caller then has the opportunity to
+		// remove it.
 		fd, err := os.Open(newName)
 		if err != nil {
+			if newName != oldName {
+				if err1 := os.Rename(newName, oldName); err1 != nil {
+					return err1
+				}
+			}
 			return err
 		}
 
@@ -752,6 +760,11 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 		tsm, err := NewTSMReader(fd, WithMadviseWillNeed(f.tsmMMAPWillNeed))
 		if err != nil {
+			if newName != oldName {
+				if err1 := os.Rename(newName, oldName); err1 != nil {
+					return err1
+				}
+			}
 			return err
 		}
 		tsm.WithObserver(f.obs)
