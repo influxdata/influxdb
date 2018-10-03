@@ -16,7 +16,7 @@ import {
 } from 'src/clockface'
 
 // APIS
-import {setSetupParams, SetupParams} from 'src/onboarding/apis'
+import {setSetupParams, SetupParams, signin} from 'src/onboarding/apis'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -202,6 +202,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
 
     try {
       await setSetupParams(links.setup, setupParams)
+      await signin(links.signin, {username, password})
       notify(copy.SetupSuccess)
       handleSetSetupParams(setupParams)
       handleSetStepStatus(currentStepIndex, StepStatus.Complete)

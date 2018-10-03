@@ -4,6 +4,8 @@ import {Links} from 'src/types/v2/links'
 const initialState: Links = {
   auths: '',
   buckets: '',
+  signin: '',
+  signout: '',
   dashboards: '',
   external: {
     statusFeed: '',
