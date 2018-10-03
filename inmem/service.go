@@ -22,6 +22,8 @@ type Service struct {
 	userResourceMappingKV sync.Map
 	scraperTargetKV       sync.Map
 	telegrafConfigKV      sync.Map
+	onboardingKV          sync.Map
+	basicAuthKV           sync.Map
 
 	TokenGenerator platform.TokenGenerator
 	IDGenerator    platform.IDGenerator

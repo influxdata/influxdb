@@ -52,7 +52,8 @@ func CheckErrorStatus(code int, res *http.Response) error {
 // be determined in that way, it will create a generic error message.
 //
 // If there is no error, then this returns nil.
-func CheckError(resp *http.Response) error {
+// Add an optional isPlatformError, to do decode with platform.Error
+func CheckError(resp *http.Response, isPlatformError ...bool) (err error) {
 	switch resp.StatusCode / 100 {
 	case 4, 5:
 		// We will attempt to parse this error outside of this block.
@@ -62,7 +63,15 @@ func CheckError(resp *http.Response) error {
 		// TODO(jsternberg): Figure out what to do here?
 		return kerrors.InternalErrorf("unexpected status code: %d %s", resp.StatusCode, resp.Status)
 	}
-
+	if len(isPlatformError) > 0 && isPlatformError[0] {
+		pe := new(platform.Error)
+		parseErr := json.NewDecoder(resp.Body).Decode(pe)
+		if parseErr != nil {
+			return parseErr
+		}
+		err = pe
+		return err
+	}
 	// Attempt to read the X-Influx-Error header with the message.
 	if errMsg := resp.Header.Get(ErrorHeader); errMsg != "" {
 		// Parse the reference number as an integer. If we cannot parse it,

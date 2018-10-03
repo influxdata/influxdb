@@ -29,6 +29,7 @@ func filterMappingsFn(filter platform.UserResourceMappingFilter) func(m *platfor
 	}
 }
 
+// FindUserResourceMappings returns a list of UserResourceMappings that match filter and the total count of matching mappings.
 func (c *Client) FindUserResourceMappings(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.UserResourceMapping, int, error) {
 	ms := []*platform.UserResourceMapping{}
 	err := c.db.View(func(tx *bolt.Tx) error {
@@ -137,6 +138,7 @@ func (c *Client) uniqueUserResourceMapping(ctx context.Context, tx *bolt.Tx, m *
 	return len(v) == 0
 }
 
+// DeleteUserResourceMapping deletes a user resource mapping.
 func (c *Client) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		return c.deleteUserResourceMapping(ctx, tx, platform.UserResourceMappingFilter{

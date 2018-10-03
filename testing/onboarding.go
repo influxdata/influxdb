@@ -18,16 +18,9 @@ type OnboardingFields struct {
 	IsOnboarding   bool
 }
 
-// OnBoardingNBasicAuthService includes onboarding service
-// and basic auth service.
-type OnBoardingNBasicAuthService interface {
-	platform.OnboardingService
-	platform.BasicAuthService
-}
-
 // Generate testing
 func Generate(
-	init func(OnboardingFields, *testing.T) (OnBoardingNBasicAuthService, func()),
+	init func(OnboardingFields, *testing.T) (platform.OnboardingService, func()),
 	t *testing.T,
 ) {
 	type args struct {

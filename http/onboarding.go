@@ -148,8 +148,9 @@ func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequ
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -158,13 +159,14 @@ func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequ
 		return nil, err
 	}
 
+	bkt, err := oResp.Bucket.toPlatform()
+	if err != nil {
+		return nil, err
+	}
 	return &platform.OnboardingResults{
-		User: &oResp.User.User,
-		Auth: &oResp.Auth.Authorization,
-		Org:  &oResp.Organization.Organization,
-		Bucket: &platform.Bucket{
-			ID:   oResp.Bucket.ID,
-			Name: oResp.Bucket.Name,
-		},
+		User:   &oResp.User.User,
+		Auth:   &oResp.Auth.Authorization,
+		Org:    &oResp.Organization.Organization,
+		Bucket: bkt,
 	}, nil
 }

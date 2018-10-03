@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/influxdata/platform"
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (platformtesting.OnBoardingNBasicAuthService, func()) {
+func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (platform.OnboardingService, func()) {
 	c, closeFn, err := NewTestClient()
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
