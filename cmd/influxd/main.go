@@ -213,7 +213,7 @@ func platformF(cmd *cobra.Command, args []string) {
 	// be a long term solution.
 	var (
 		natsHandler         nats.Handler
-		storageQueryService query.QueryService
+		storageQueryService query.ProxyQueryService
 	)
 	{
 		sfile := tsdb.NewSeriesFile(filepath.Join(enginePath, tsdb.SeriesFileDirectory))
@@ -241,14 +241,16 @@ func platformF(cmd *cobra.Command, args []string) {
 
 		natsHandler = engineHandler
 
-		storageQueryService = query.QueryServiceBridge{
-			AsyncQueryService: &queryAdapter{
-				Controller: NewController(
-					&store{shard: shard},
-					&bucketLookup{bolt: c},
-					&orgLookup{bolt: c},
-					logger.With(zap.String("service", "storage")),
-				),
+		storageQueryService = query.ProxyQueryServiceBridge{
+			QueryService: query.QueryServiceBridge{
+				AsyncQueryService: &queryAdapter{
+					Controller: NewController(
+						&store{shard: shard},
+						&bucketLookup{bolt: c},
+						&orgLookup{bolt: c},
+						logger.With(zap.String("service", "storage")),
+					),
+				},
 			},
 		}
 	}
@@ -357,7 +359,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		MacroService:               macroSvc,
 		BasicAuthService:           basicAuthSvc,
 		OnboardingService:          onboardingSvc,
-		QueryService:               storageQueryService,
+		ProxyQueryService:          storageQueryService,
 		TaskService:                taskSvc,
 		ScraperTargetStoreService:  scraperTargetSvc,
 		ChronografService:          chronografSvc,

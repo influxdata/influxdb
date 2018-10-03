@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/chronograf/server"
 	"github.com/influxdata/platform/query"
-	pzap "github.com/influxdata/platform/zap"
 	"go.uber.org/zap"
 )
 
@@ -54,7 +53,7 @@ type APIBackend struct {
 	MacroService               platform.MacroService
 	BasicAuthService           platform.BasicAuthService
 	OnboardingService          platform.OnboardingService
-	QueryService               query.QueryService
+	ProxyQueryService          query.ProxyQueryService
 	TaskService                platform.TaskService
 	ScraperTargetStoreService  platform.ScraperTargetStoreService
 	ChronografService          *server.Service
@@ -116,7 +115,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.QueryHandler.AuthorizationService = b.AuthorizationService
 	h.QueryHandler.OrganizationService = b.OrganizationService
 	h.QueryHandler.Logger = b.Logger.With(zap.String("handler", "query"))
-	h.QueryHandler.ProxyQueryService = pzap.NewProxyQueryService(h.QueryHandler.Logger)
+	h.QueryHandler.ProxyQueryService = b.ProxyQueryService
 
 	h.ChronografHandler = NewChronografHandler(b.ChronografService)
 
