@@ -188,9 +188,10 @@ type EngineOptions struct {
 // This should only be used in tests; production environments should read from a config file.
 func NewEngineOptions() EngineOptions {
 	return EngineOptions{
-		EngineVersion: DefaultEngine,
-		Config:        NewConfig(),
-		OpenLimiter:   limiter.NewFixed(runtime.GOMAXPROCS(0)),
+		EngineVersion:     DefaultEngine,
+		Config:            NewConfig(),
+		OpenLimiter:       limiter.NewFixed(runtime.GOMAXPROCS(0)),
+		CompactionLimiter: limiter.NewFixed(1),
 	}
 }
 
