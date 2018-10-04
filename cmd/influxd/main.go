@@ -378,9 +378,9 @@ func platformF(cmd *cobra.Command, args []string) {
 		logger.Fatal("unable to start platform", zap.Error(err))
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	cctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	httpServer.Shutdown(ctx)
+	httpServer.Shutdown(cctx)
 }
 
 // Execute executes the idped command
