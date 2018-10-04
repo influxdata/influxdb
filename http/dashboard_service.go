@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
@@ -161,6 +162,22 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// if req.filter.OwnerID != nil {
+	// 	filter := platform.UserResourceMappingFilter{
+	// 		UserID:   req.filter.OwnerID,
+	// 		UserType: platform.Owner,
+	// 	}
+	//
+	// 	mappings, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
+	// 	if err != nil {
+	// 		EncodeError(ctx, errors.InternalErrorf("Error loading dashboard owners: %v", err), w)
+	// 		return
+	// 	}
+	//
+	// 	// filter out dashboards by mapping; O(m*n)
+	// 	// can also make a hash to compare to
+	// }
+
 	if err := encodeResponse(ctx, w, http.StatusOK, newGetDashboardsResponse(dashboards)); err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -168,23 +185,28 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 }
 
 type getDashboardsRequest struct {
-	filter platform.DashboardFilter
+	filter  platform.DashboardFilter
+	ownerID *platform.ID
 }
 
 func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashboardsRequest, error) {
 	qp := r.URL.Query()
 	req := &getDashboardsRequest{}
 
-	if id := qp.Get("id"); id != "" {
-		req.filter.ID = &platform.ID{}
-		if err := req.filter.ID.DecodeFromString(id); err != nil {
-			return nil, err
+	if idsStr := qp.Get("ids"); idsStr != "" {
+		ids := strings.Split(idsStr, ",")
+		for _, id := range ids {
+			i := &platform.ID{}
+			if err := i.DecodeFromString(id); err != nil {
+				return nil, err
+			}
+			req.filter.IDs = append(req.filter.IDs, i)
 		}
 	}
 
 	if owner := qp.Get("owner"); owner != "" {
-		req.filter.OwnerID = &platform.ID{}
-		if err := req.filter.OwnerID.DecodeFromString(owner); err != nil {
+		req.ownerID = &platform.ID{}
+		if err := req.ownerID.DecodeFromString(owner); err != nil {
 			return nil, err
 		}
 	}
@@ -670,8 +692,12 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 	}
 
 	qp := url.Query()
-	if filter.ID != nil {
-		qp.Add("id", filter.ID.String())
+	if len(filter.IDs) > 0 {
+		var ids string
+		for _, id := range filter.IDs {
+			ids = ids + id.String()
+		}
+		qp.Add("id", ids)
 	}
 	url.RawQuery = qp.Encode()
 

@@ -731,6 +731,12 @@ paths:
             description: specifies the owner to return resources for
             schema:
               type: string
+          - in: query
+            name: ids
+            description: a comma separated list of ids to return
+            schema:
+              type: string
+            example: 273de20b5b,667d679f84
       responses:
         '200':
           description: all dashboards
