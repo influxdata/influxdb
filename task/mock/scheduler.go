@@ -154,6 +154,10 @@ func (s *Scheduler) ReleaseError(err error) {
 	s.releaseError = err
 }
 
+func (s *Scheduler) CancelRun(_ context.Context, taskID, runID platform.ID) error {
+	return nil
+}
+
 // DesiredState is a mock implementation of DesiredState (used by NewScheduler).
 type DesiredState struct {
 	mu sync.Mutex
@@ -268,7 +272,8 @@ func (d *DesiredState) PollForNumberCreated(taskID platform.ID, count int) ([]sc
 }
 
 type Executor struct {
-	mu sync.Mutex
+	mu         sync.Mutex
+	hangingFor time.Duration
 
 	// Map of stringified, concatenated task and run ID, to runs that have begun execution but have not finished.
 	running map[string]*RunPromise
@@ -286,9 +291,9 @@ func NewExecutor() *Executor {
 	}
 }
 
-func (e *Executor) Execute(_ context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
+func (e *Executor) Execute(ctx context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
 	rp := NewRunPromise(run)
-
+	rp.WithHanging(ctx, e.hangingFor)
 	id := run.TaskID.String() + run.RunID.String()
 	e.mu.Lock()
 	e.running[id] = rp
@@ -304,6 +309,10 @@ func (e *Executor) Execute(_ context.Context, run backend.QueuedRun) (backend.Ru
 }
 
 func (e *Executor) WithLogger(l *zap.Logger) {}
+
+func (e *Executor) WithHanging(dt time.Duration) {
+	e.hangingFor = dt
+}
 
 // RunningFor returns the run promises for the given task.
 func (e *Executor) RunningFor(taskID platform.ID) []*RunPromise {
@@ -344,10 +353,12 @@ type RunPromise struct {
 	qr backend.QueuedRun
 
 	setResultOnce sync.Once
-
-	mu  sync.Mutex
-	res backend.RunResult
-	err error
+	hangingFor    time.Duration
+	cancelFunc    context.CancelFunc
+	ctx           context.Context
+	mu            sync.Mutex
+	res           backend.RunResult
+	err           error
 }
 
 var _ backend.RunPromise = (*RunPromise)(nil)
@@ -360,17 +371,32 @@ func NewRunPromise(qr backend.QueuedRun) *RunPromise {
 	return p
 }
 
+func (p *RunPromise) WithHanging(ctx context.Context, hangingFor time.Duration) {
+	p.ctx, p.cancelFunc = context.WithCancel(ctx)
+	p.hangingFor = hangingFor
+}
+
 func (p *RunPromise) Run() backend.QueuedRun {
 	return p.qr
 }
 
 func (p *RunPromise) Wait() (backend.RunResult, error) {
 	p.mu.Lock()
+	// can't cancel if we haven't set it to hang.
+	if p.ctx != nil {
+		select {
+		case <-p.ctx.Done():
+		case <-time.After(p.hangingFor):
+		}
+		p.cancelFunc()
+	}
+
 	defer p.mu.Unlock()
 	return p.res, p.err
 }
 
 func (p *RunPromise) Cancel() {
+	p.cancelFunc()
 	p.Finish(nil, backend.ErrRunCanceled)
 }
 

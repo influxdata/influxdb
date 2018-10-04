@@ -26,7 +26,7 @@ func init() {
 	options.EnableScriptCacheForTest()
 }
 
-// BackendComponentFactory is supplied by consumers of the adaptertestpackage,
+// BackendComponentFactory is supplied by consumers of the adaptertest package,
 // to provide the values required to constitute a PlatformAdapter.
 // The provided context.CancelFunc is called after the test,
 // and it is the implementer's responsibility to clean up after that is called.
@@ -41,7 +41,7 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 	sys, cancel := fn(t)
 	defer cancel()
 	if sys.TaskServiceFunc == nil {
-		sys.ts = task.PlatformAdapter(sys.S, sys.LR)
+		sys.ts = task.PlatformAdapter(sys.S, sys.LR, sys.Sch)
 	} else {
 		sys.ts = sys.TaskServiceFunc()
 	}
@@ -73,9 +73,10 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 // System, as in "system under test", encapsulates the required parts of a platform.TaskAdapter
 // (the underlying Store, LogReader, and LogWriter) for low-level operations.
 type System struct {
-	S  backend.Store
-	LR backend.LogReader
-	LW backend.LogWriter
+	S   backend.Store
+	LR  backend.LogReader
+	LW  backend.LogWriter
+	Sch backend.Scheduler
 
 	// Set this context, to be used in tests, so that any spawned goroutines watching Ctx.Done()
 	// will clean up after themselves.
