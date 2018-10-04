@@ -1228,7 +1228,7 @@ func NewManifest(path string) *Manifest {
 		Version: Version,
 		path:    path,
 	}
-	copy(m.Levels, DefaultCompactionLevels[:])
+	copy(m.Levels, DefaultCompactionLevels)
 	return m
 }
 

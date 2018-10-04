@@ -977,7 +977,7 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 
 		if len(keys) > 0 && bytes.Equal(keys[0], indexKey) {
 			keys = keys[1:]
-			copy(d.offsets[i:i+4], nilOffset[:])
+			copy(d.offsets[i:i+4], nilOffset)
 		}
 	}
 	d.offsets = bytesutil.Pack(d.offsets, 4, 255)

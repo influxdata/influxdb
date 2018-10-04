@@ -2997,7 +2997,7 @@ func SeriesFieldKey(seriesKey, field string) string {
 
 func SeriesFieldKeyBytes(seriesKey, field string) []byte {
 	b := make([]byte, len(seriesKey)+len(keyFieldSeparator)+len(field))
-	i := copy(b[:], seriesKey)
+	i := copy(b, seriesKey)
 	i += copy(b[i:], keyFieldSeparatorBytes)
 	copy(b[i:], field)
 	return b
