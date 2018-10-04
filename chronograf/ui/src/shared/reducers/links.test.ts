@@ -2,11 +2,14 @@ import _ from 'lodash'
 
 import linksReducer from 'src/shared/reducers/links'
 import {linksGetCompleted, setDefaultDashboard} from 'src/shared/actions/links'
+import {Links} from 'src/types/v2/links'
 
-const links = {
+const links: Links = {
   auths: '/api/v2/authorizations',
   buckets: '/api/v2/buckets',
   dashboards: '/api/v2/dashboards',
+  signin: '/api/v2/signin',
+  signout: '/api/v2/signout',
   external: {
     statusFeed: 'https://www.influxdata.com/feed/json',
   },

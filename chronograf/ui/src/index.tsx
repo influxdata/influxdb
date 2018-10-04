@@ -18,6 +18,7 @@ import {getBasepath} from 'src/utils/basepath'
 import App from 'src/App'
 import CheckSources from 'src/CheckSources'
 import Setup from 'src/Setup'
+import Signin from 'src/Signin'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import {SourcePage, ManageSources} from 'src/sources'
 import {FluxPage} from 'src/flux'
@@ -100,19 +101,24 @@ class Root extends PureComponent<{}, State> {
       <Provider store={store}>
         <Router history={history}>
           <Route component={Setup}>
-            <Route component={App}>
-              <Route path="/" component={CheckSources}>
-                <Route
-                  path="dashboards/:dashboardID"
-                  component={DashboardPage}
-                />
-                <Route path="sources/new" component={SourcePage} />
-                <Route path="dashboards" component={DashboardsPage} />
-                <Route path="manage-sources" component={ManageSources} />
-                <Route path="manage-sources/new" component={SourcePage} />
-                <Route path="manage-sources/:id/edit" component={SourcePage} />
-                <Route path="delorean" component={FluxPage} />
-                <Route path="user/:tab" component={UserPage} />
+            <Route component={Signin}>
+              <Route component={App}>
+                <Route path="/" component={CheckSources}>
+                  <Route
+                    path="dashboards/:dashboardID"
+                    component={DashboardPage}
+                  />
+                  <Route path="sources/new" component={SourcePage} />
+                  <Route path="dashboards" component={DashboardsPage} />
+                  <Route path="manage-sources" component={ManageSources} />
+                  <Route path="manage-sources/new" component={SourcePage} />
+                  <Route
+                    path="manage-sources/:id/edit"
+                    component={SourcePage}
+                  />
+                  <Route path="delorean" component={FluxPage} />
+                  <Route path="user/:tab" component={UserPage} />
+                </Route>
               </Route>
             </Route>
           </Route>

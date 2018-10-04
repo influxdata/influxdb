@@ -15,10 +15,18 @@ interface RequestParams {
   data?: object | string
   params?: object
   headers?: object
+  auth?: {username: string; password: string}
 }
 
 async function AJAX<T = any>(
-  {url, method = 'GET', data = {}, params = {}, headers = {}}: RequestParams,
+  {
+    url,
+    method = 'GET',
+    data = {},
+    params = {},
+    headers = {},
+    auth = null,
+  }: RequestParams,
   excludeBasepath = false
 ): Promise<(T) | AxiosResponse<T>> {
   try {
@@ -30,6 +38,7 @@ async function AJAX<T = any>(
       data,
       params,
       headers,
+      auth,
     })
 
     return response

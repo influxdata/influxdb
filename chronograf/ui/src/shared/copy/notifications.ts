@@ -93,7 +93,7 @@ export const csvUploadFailed = (): Notification => ({
   message: 'Please upload a .csv file',
 })
 
-// Onboarding wizard notifications
+// Onboarding notifications
 export const SetupSuccess: Notification = {
   ...defaultSuccessNotification,
   message: 'Admin User details have been successfully set',
@@ -107,6 +107,15 @@ export const SetupError: Notification = {
 export const SetupNotAllowed: Notification = {
   ...defaultErrorNotification,
   message: `Defaults have already been set on this account.`,
+}
+
+export const SigninSuccessful: Notification = {
+  ...defaultSuccessNotification,
+  message: `YAY! You're good to go, RELOAD to continue`,
+}
+export const SigninError: Notification = {
+  ...defaultErrorNotification,
+  message: `OH Noes! Sign In did not work. :(`,
 }
 
 //  Hosts Page Notifications

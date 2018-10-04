@@ -3,60 +3,55 @@ import React, {ReactElement, PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // APIs
-import {getSetupStatus} from 'src/onboarding/apis'
-
-// Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {trySources} from 'src/onboarding/apis'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import OnboardingWizard from 'src/onboarding/containers/OnboardingWizard'
+import SigninPage from 'src/onboarding/containers/SigninPage'
 import Notifications from 'src/shared/components/notifications/Notifications'
 
 // Types
-import {Notification, NotificationFunc, RemoteDataState} from 'src/types'
+import {RemoteDataState} from 'src/types'
 import {Links} from 'src/types/v2/links'
 
 interface State {
   loading: RemoteDataState
-  isSetupAllowed: boolean
+  isSourcesAllowed: boolean
 }
 
 interface Props {
   links: Links
-  isSetupComplete: boolean
   children: ReactElement<any>
-  notify: (message: Notification | NotificationFunc) => void
 }
 
 @ErrorHandling
-export class Setup extends PureComponent<Props, State> {
+export class Signin extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
     this.state = {
       loading: RemoteDataState.NotStarted,
-      isSetupAllowed: false,
+      isSourcesAllowed: false,
     }
   }
 
   public async componentDidMount() {
     const {links} = this.props
-    const isSetupAllowed = await getSetupStatus(links.setup)
-    this.setState({loading: RemoteDataState.Done, isSetupAllowed})
+    const isSourcesAllowed = await trySources(links.sources)
+    this.setState({loading: RemoteDataState.Done, isSourcesAllowed})
   }
 
   public render() {
-    const {isSetupComplete} = this.props
-    const {isSetupAllowed} = this.state
+    const {isSourcesAllowed} = this.state
+
     if (this.isLoading) {
       return <div className="page-spinner" />
     }
-    if (isSetupAllowed && !isSetupComplete) {
+    if (!isSourcesAllowed) {
       return (
         <div className="chronograf-root">
           <Notifications inPresentationMode={true} />
-          <OnboardingWizard />
+          <SigninPage />
         </div>
       )
     } else {
@@ -73,13 +68,8 @@ export class Setup extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({links, isSetupComplete}) => ({
+const mstp = ({links}) => ({
   links,
-  isSetupComplete,
 })
 
-const mdtp = {
-  notify: notifyAction,
-}
-
-export default connect(mstp, mdtp)(Setup)
+export default connect(mstp)(Signin)
