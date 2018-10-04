@@ -46,6 +46,9 @@ func (m UserResourceMapping) Validate() error {
 	if m.UserType != Owner && m.UserType != Member {
 		return errors.New("A valid user type is required")
 	}
+	if m.ResourceType != DashboardResourceType && m.ResourceType != BucketResourceType {
+		return errors.New("A valid resource type is required")
+	}
 	return nil
 }
 
