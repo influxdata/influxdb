@@ -36,14 +36,7 @@ func setupF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	or := new(platform.OnboardingRequest)
-
-	fmt.Println("Welcome to influxdata platform!")
-	or.User = getInput("Please type your primary username.\r\nOr ENTER to use \"admin\":", "admin", false)
-	or.Password = getInput("Please type your password:", "", true)
-	or.Org = getInput("Please type your primary organization name.\r\nOr ENTER to use \"default\":", "default", false)
-	or.Bucket = getInput("Please type your primary bucket name.\r\nOr ENTER to use \"default\":", "default", false)
-	fmt.Println(or)
+	or := getOnboardingRequest()
 
 	result, err := s.Generate(context.Background(), or)
 	if err != nil {
@@ -68,30 +61,48 @@ func setupF(cmd *cobra.Command, args []string) {
 	w.Flush()
 }
 
-func getInput(prompt, defaultValue string, isPassword bool) string {
+func getOnboardingRequest() *platform.OnboardingRequest {
+	term := terminal.NewTerminal(struct {
+		io.Reader
+		io.Writer
+	}{os.Stdin, os.Stdout}, " ")
+
+	or := new(platform.OnboardingRequest)
+	fmt.Println(string(term.Escape.Yellow) + "Welcome to influxdata platform! Type cancel anytime to terminate setup" + " " + string(term.Escape.Reset))
+	or.User = getInput(term, "Please type your primary username.\r\nOr ENTER to use \"admin\":", "admin", false)
+	or.Password = getInput(term, "Please type your password:", "", true)
+	or.Org = getInput(term, "Please type your primary organization name.\r\nOr ENTER to use \"default\":", "default", false)
+	or.Bucket = getInput(term, "Please type your primary bucket name.\r\nOr ENTER to use \"default\":", "default", false)
+
+	return or
+}
+
+func getInput(term *terminal.Terminal, prompt, defaultValue string, isPassword bool) string {
 	var line string
 	oldState, err := terminal.MakeRaw(0)
 	if err != nil {
 		return ""
 	}
 	defer terminal.Restore(0, oldState)
-	term := terminal.NewTerminal(struct {
-		io.Reader
-		io.Writer
-	}{os.Stdin, os.Stdout}, "")
-	prompt = string(term.Escape.Cyan) + prompt + " " + string(term.Escape.Reset)
+
+	prompt = string(term.Escape.Cyan) + prompt + string(term.Escape.Reset)
 	if isPassword {
 		for {
 			line, _ = term.ReadPassword(prompt)
 			if line == "" {
 				continue
 			}
-			return line
+			goto handleCancel
 		}
 	}
 	term.SetPrompt(prompt)
 	if line, _ = term.ReadLine(); line == "" {
 		line = defaultValue
+	}
+handleCancel:
+	if line == "cancel" {
+		terminal.Restore(0, oldState)
+		os.Exit(0)
 	}
 	return line
 }
