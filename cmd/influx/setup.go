@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/cmd/influx/internal"
@@ -69,7 +70,7 @@ func getOnboardingRequest() *platform.OnboardingRequest {
 
 	or := new(platform.OnboardingRequest)
 	fmt.Println(string(term.Escape.Yellow) + "Welcome to influxdata platform! Type cancel anytime to terminate setup" + " " + string(term.Escape.Reset))
-	or.User = getInput(term, "Please type your primary username.\r\nOr ENTER to use \"admin\":", "admin", false)
+	or.User = getInput(term, "Please type your primary username:", "", false)
 	or.Password = getInput(term, "Please type your password:", "", true)
 	or.Org = getInput(term, "Please type your primary organization name.\r\nOr ENTER to use \"default\":", "default", false)
 	or.Bucket = getInput(term, "Please type your primary bucket name.\r\nOr ENTER to use \"default\":", "default", false)
@@ -89,16 +90,24 @@ func getInput(term *terminal.Terminal, prompt, defaultValue string, isPassword b
 	if isPassword {
 		for {
 			line, _ = term.ReadPassword(prompt)
-			if line == "" {
+			if strings.TrimSpace(line) == "" {
 				continue
 			}
 			goto handleCancel
 		}
 	}
-	term.SetPrompt(prompt)
-	if line, _ = term.ReadLine(); line == "" {
-		line = defaultValue
+	for {
+		term.SetPrompt(prompt)
+		line, _ = term.ReadLine()
+		line = strings.TrimSpace(line)
+		if defaultValue != "" && line == "" {
+			line = defaultValue
+		} else if defaultValue == "" && line == "" {
+			continue
+		}
+		goto handleCancel
 	}
+
 handleCancel:
 	if line == "cancel" {
 		terminal.Restore(0, oldState)
