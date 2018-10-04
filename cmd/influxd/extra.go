@@ -198,18 +198,12 @@ func (s *store) GroupRead(ctx context.Context, req *ReadRequest) (GroupResultSet
 }
 
 const (
-	fieldTagKey       = "_f"
-	measurementTagKey = "_m"
-
 	fieldKey       = "_field"
 	measurementKey = "_measurement"
 	valueKey       = "_value"
 )
 
 var (
-	fieldTagKeyBytes       = []byte(fieldTagKey)
-	measurementTagKeyBytes = []byte(measurementTagKey)
-
 	fieldKeyBytes       = []byte(fieldKey)
 	measurementKeyBytes = []byte(measurementKey)
 )
@@ -315,7 +309,7 @@ func (c *indexSeriesCursor) Next() *SeriesRow {
 	//TODO(edd): check this.
 	c.row.SeriesTags = copyTags(c.row.SeriesTags, sr.Tags)
 	c.row.Tags = copyTags(c.row.Tags, sr.Tags)
-	c.row.Field = string(c.row.Tags.Get(fieldTagKeyBytes))
+	c.row.Field = string(c.row.Tags.Get(tsdb.FieldKeyTagKeyBytes))
 
 	normalizeTags(c.row.Tags)
 
@@ -10467,14 +10461,14 @@ func toStoragePredicate(n semantic.Expression, objectName string) (*Node, error)
 			return &Node{
 				NodeType: NodeTypeTagRef,
 				Value: &Node_TagRefValue{
-					TagRefValue: fieldTagKey,
+					TagRefValue: tsdb.FieldKeyTagKey,
 				},
 			}, nil
 		case measurementKey:
 			return &Node{
 				NodeType: NodeTypeTagRef,
 				Value: &Node_TagRefValue{
-					TagRefValue: measurementTagKey,
+					TagRefValue: tsdb.MeasurementTagKey,
 				},
 			}, nil
 		case valueKey:
