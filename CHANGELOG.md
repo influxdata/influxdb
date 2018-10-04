@@ -14,6 +14,7 @@ v1.7.0 [unreleased]
 
 -	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation.
 -	[#10246](https://github.com/influxdata/influxdb/pull/10246): Fix the inherited interval for derivative and others.
+- [#10333](https://github.com/influxdata/influxdb/pull/10333): Fix subquery functionality when a function references a tag from the subquery.
 
 v1.6.0 [2018-07-05]
 -------------------
