@@ -4,6 +4,7 @@ v1.6.4 [unreleased]
 ### Bugfixes
 
 -	[#10320](https://github.com/influxdata/influxdb/pull/10320): Fix tsi1 sketch locking.
+-	[#10334](https://github.com/influxdata/influxdb/pull/10334): Fix subquery functionality when a function references a tag from the subquery.
 
 v1.6.3 [2018-09-14]
 -------------------

@@ -158,6 +158,41 @@ func TestSubquery(t *testing.T) {
 				{Time: 0 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{int64(3)}},
 			},
 		},
+		{
+			Name:      "CountTag",
+			Statement: `SELECT count(host) FROM (SELECT value, host FROM cpu) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:15Z'`,
+			Fields: map[string]influxql.DataType{
+				"value": influxql.Float,
+				"host":  influxql.Tag,
+			},
+			MapShardsFn: func(t *testing.T, tr influxql.TimeRange) CreateIteratorFn {
+				if got, want := tr.MinTimeNano(), 0*Second; got != want {
+					t.Errorf("unexpected min time: got=%d want=%d", got, want)
+				}
+				if got, want := tr.MaxTimeNano(), 15*Second-1; got != want {
+					t.Errorf("unexpected max time: got=%d want=%d", got, want)
+				}
+				return func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) query.Iterator {
+					if got, want := m.Name, "cpu"; got != want {
+						t.Errorf("unexpected source: got=%s want=%s", got, want)
+					}
+					if got, want := opt.Aux, []influxql.VarRef{
+						{Val: "host", Type: influxql.Tag},
+						{Val: "value", Type: influxql.Float},
+					}; !cmp.Equal(got, want) {
+						t.Errorf("unexpected auxiliary fields:\n%s", cmp.Diff(want, got))
+					}
+					return &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Aux: []interface{}{"server01", 5.0}},
+						{Name: "cpu", Aux: []interface{}{"server02", 3.0}},
+						{Name: "cpu", Aux: []interface{}{"server03", 8.0}},
+					}}
+				}
+			},
+			Rows: []query.Row{
+				{Time: 0 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{int64(3)}},
+			},
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			shardMapper := ShardMapper{
