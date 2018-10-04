@@ -77,7 +77,11 @@ export type RefreshingViewProperties =
   | TableView
   | GaugeView
 
-export type ViewProperties = RefreshingViewProperties | MarkdownView | EmptyView
+export type ViewProperties =
+  | RefreshingViewProperties
+  | MarkdownView
+  | LogViewerView
+  | EmptyView
 
 export interface EmptyView {
   type: ViewShape.Empty
@@ -169,6 +173,24 @@ export interface MarkdownView {
   text: string
 }
 
+export interface LogViewerView {
+  type: ViewType.LogViewer
+  shape: ViewShape.ChronografV2
+  columns: LogViewerColumn[]
+}
+
+export interface LogViewerColumn {
+  name: string
+  position: number
+  settings: LogViewerColumnSetting[]
+}
+
+export interface LogViewerColumnSetting {
+  type: string
+  value: string
+  name?: string
+}
+
 export enum ViewShape {
   ChronografV2 = 'chronografV2',
   Empty = 'empty',
@@ -184,6 +206,7 @@ export enum ViewType {
   Gauge = 'gauge',
   Table = 'table',
   Markdown = 'markdown',
+  LogViewer = 'log-viewer',
 }
 
 interface DashboardLinks {
