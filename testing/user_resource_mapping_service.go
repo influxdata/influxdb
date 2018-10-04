@@ -369,7 +369,7 @@ func FindUserResourceMappings(
 			},
 		},
 		{
-			name: "find mappings filtered by type",
+			name: "find mappings filtered by user type",
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
@@ -395,6 +395,40 @@ func FindUserResourceMappings(
 						ResourceID: idFromString(t, bucketTwoID),
 						UserID:     idFromString(t, userTwoID),
 						UserType:   platform.Owner,
+					},
+				},
+			},
+		},
+		{
+			name: "find mappings filtered by resource type",
+			fields: UserResourceFields{
+				UserResourceMappings: []*platform.UserResourceMapping{
+					{
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.DashboardResourceType,
+					},
+					{
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
+					},
+				},
+			},
+			args: args{
+				filter: platform.UserResourceMappingFilter{
+					ResourceType: platform.BucketResourceType,
+				},
+			},
+			wants: wants{
+				mappings: []*platform.UserResourceMapping{
+					{
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Owner,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},

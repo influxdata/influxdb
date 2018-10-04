@@ -6,10 +6,13 @@ import (
 )
 
 type UserType string
+type ResourceType string
 
 const (
-	Owner  UserType = "owner"
-	Member UserType = "member"
+	Owner                 UserType     = "owner"
+	Member                UserType     = "member"
+	DashboardResourceType ResourceType = "dashboard"
+	BucketResourceType    ResourceType = "bucket"
 )
 
 // UserResourceMappingService maps the relationships between users and resources
@@ -26,9 +29,10 @@ type UserResourceMappingService interface {
 
 // UserResourceMapping represents a mapping of a resource to its user
 type UserResourceMapping struct {
-	ResourceID ID       `json:"resource_id"`
-	UserID     ID       `json:"user_id"`
-	UserType   UserType `json:"user_type"`
+	ResourceID   ID           `json:"resource_id"`
+	ResourceType ResourceType `json:"resource_type"`
+	UserID       ID           `json:"user_id"`
+	UserType     UserType     `json:"user_type"`
 }
 
 // Validate reports any validation errors for the mapping.
@@ -47,7 +51,8 @@ func (m UserResourceMapping) Validate() error {
 
 // UserResourceMapping represents a set of filters that restrict the returned results.
 type UserResourceMappingFilter struct {
-	ResourceID ID
-	UserID     ID
-	UserType   UserType
+	ResourceID   ID
+	ResourceType ResourceType
+	UserID       ID
+	UserType     UserType
 }
