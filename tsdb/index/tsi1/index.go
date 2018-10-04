@@ -50,11 +50,6 @@ func init() {
 			panic(err)
 		}
 	}
-
-	// tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, ) tsdb.Index {
-	// 	idx := NewIndex(sfile, db, WithPath(path), WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)))
-	// 	return idx
-	// })
 }
 
 // DefaultPartitionN determines how many shards the index will be partitioned into.
