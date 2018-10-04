@@ -22,7 +22,7 @@ func NewQueryService(s *platform.Source) (query.ProxyQueryService, error) {
 		// it basically is the same as Self but on an external influxd.
 		return &http.SourceProxyQueryService{
 			InsecureSkipVerify: s.InsecureSkipVerify,
-			URL:                s.URL,
+			Addr:               s.URL,
 			SourceFields:       s.SourceFields,
 		}, nil
 	case platform.V1SourceType:

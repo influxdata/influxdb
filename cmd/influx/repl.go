@@ -50,7 +50,7 @@ func replF(cmd *cobra.Command, args []string) {
 
 func getFluxREPL(addr, token string, orgID platform.ID) (*repl.REPL, error) {
 	qs := &http.FluxQueryService{
-		URL:   addr,
+		Addr:  addr,
 		Token: token,
 	}
 	q := &query.REPLQuerier{

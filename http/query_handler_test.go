@@ -66,7 +66,7 @@ func TestFluxService_Query(t *testing.T) {
 			}))
 			defer ts.Close()
 			s := &FluxService{
-				URL:   ts.URL,
+				Addr:  ts.URL,
 				Token: tt.token,
 			}
 
@@ -137,7 +137,7 @@ func TestFluxQueryService_Query(t *testing.T) {
 				fmt.Fprintln(w, tt.csv)
 			}))
 			s := &FluxQueryService{
-				URL:   ts.URL,
+				Addr:  ts.URL,
 				Token: tt.token,
 			}
 			res, err := s.Query(tt.ctx, tt.r)

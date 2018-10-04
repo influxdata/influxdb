@@ -17,8 +17,8 @@ import (
 )
 
 type SourceProxyQueryService struct {
+	Addr                string
 	InsecureSkipVerify bool
-	URL                string
 	platform.SourceFields
 }
 
@@ -33,7 +33,7 @@ func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *q
 }
 
 func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
-	u, err := newURL(s.URL, "/api/v2/query")
+	u, err := newURL(s.Addr, "/api/v2/query")
 	if err != nil {
 		return 0, err
 	}
@@ -69,7 +69,7 @@ func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer
 		return 0, fmt.Errorf("compiler is not of type 'influxql'")
 	}
 
-	u, err := newURL(s.URL, "/query")
+	u, err := newURL(s.Addr, "/query")
 	if err != nil {
 		return 0, err
 	}

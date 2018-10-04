@@ -102,7 +102,7 @@ var _ query.ProxyQueryService = (*FluxService)(nil)
 
 // FluxService connects to Influx via HTTP using tokens to run queries.
 type FluxService struct {
-	URL                string
+	Addr               string
 	Token              string
 	InsecureSkipVerify bool
 }
@@ -110,7 +110,7 @@ type FluxService struct {
 // Query runs a flux query against a influx server and sends the results to the io.Writer.
 // Will use the token from the context over the token within the service struct.
 func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequest) (int64, error) {
-	u, err := newURL(s.URL, fluxPath)
+	u, err := newURL(s.Addr, fluxPath)
 	if err != nil {
 		return 0, err
 	}
@@ -156,14 +156,14 @@ var _ query.QueryService = (*FluxQueryService)(nil)
 
 // FluxQueryService implements query.QueryService by making HTTP requests to the /api/v2/query API endpoint.
 type FluxQueryService struct {
-	URL                string
+	Addr               string
 	Token              string
 	InsecureSkipVerify bool
 }
 
 // Query runs a flux query against a influx server and decodes the result
 func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.ResultIterator, error) {
-	u, err := newURL(s.URL, fluxPath)
+	u, err := newURL(s.Addr, fluxPath)
 	if err != nil {
 		return nil, err
 	}
