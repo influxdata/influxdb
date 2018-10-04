@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"go.uber.org/zap"
 )
@@ -302,15 +301,6 @@ func (s *Shard) SeriesN() int64 {
 		return 0
 	}
 	return engine.SeriesN()
-}
-
-// CreateSeriesCursor creates a SeriesCursor for the shard.
-func (s *Shard) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest, cond influxql.Expr) (SeriesCursor, error) {
-	index, err := s.Index()
-	if err != nil {
-		return nil, err
-	}
-	return newSeriesCursor(req, IndexSet{Indexes: []Index{index}, SeriesFile: s.sfile}, cond)
 }
 
 // CreateCursorIterator creates a CursorIterator for the shard.

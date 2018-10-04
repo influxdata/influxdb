@@ -28,12 +28,12 @@ import (
 	_ "github.com/influxdata/platform/query/builtin"
 	pcontrol "github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/source"
+	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/task"
 	taskbackend "github.com/influxdata/platform/task/backend"
 	taskbolt "github.com/influxdata/platform/task/backend/bolt"
 	"github.com/influxdata/platform/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/platform/task/backend/executor"
-	"github.com/influxdata/platform/tsdb"
 	_ "github.com/influxdata/platform/tsdb/index/tsi1"
 	_ "github.com/influxdata/platform/tsdb/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
@@ -216,28 +216,22 @@ func platformF(cmd *cobra.Command, args []string) {
 		storageQueryService query.ProxyQueryService
 	)
 	{
-		sfile := tsdb.NewSeriesFile(filepath.Join(enginePath, tsdb.SeriesFileDirectory))
-		if err := sfile.Open(); err != nil {
-			logger.Error("failed to open series file", zap.Error(err))
-			os.Exit(1)
-		}
+		config := storage.NewConfig()
+		config.CacheSnapshotMemorySize = 0
+		config.TraceLoggingEnabled = true
+		config.EngineOptions.Config = config.Config
 
-		// TODO(jeff): These options should not exist for very long. It's to work around
-		// ack issues in the nats engine handler (see there for discussion) and causes it
-		// to snapshot the cache at every write.
-		opts := tsdb.NewEngineOptions()
-		opts.Config.CacheSnapshotMemorySize = 0
+		engine := storage.NewEngine(enginePath, config)
+		engine.WithLogger(logger)
 
-		shard := tsdb.NewShard(0, enginePath, sfile, opts)
-		shard.WithLogger(logger)
-		if err := shard.Open(); err != nil {
+		if err := engine.Open(); err != nil {
 			logger.Error("failed to open engine", zap.Error(err))
 			os.Exit(1)
 		}
 
 		engineHandler := nats.NewEngineHandler()
 		engineHandler.Logger = logger.With(zap.String("handler", "engine"))
-		engineHandler.Engine = shard
+		engineHandler.Engine = engine
 
 		natsHandler = engineHandler
 
@@ -245,7 +239,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			QueryService: query.QueryServiceBridge{
 				AsyncQueryService: &queryAdapter{
 					Controller: NewController(
-						&store{shard: shard},
+						&store{engine: engine},
 						&bucketLookup{bolt: c},
 						&orgLookup{bolt: c},
 						logger.With(zap.String("service", "storage")),

@@ -19,7 +19,7 @@ const M, K = 4096, 6
 
 // Ensure index can iterate over all measurement names.
 func TestIndex_ForEachMeasurementName(t *testing.T) {
-	idx := MustOpenIndex(1)
+	idx := MustOpenIndex(1, tsi1.NewConfig())
 	defer idx.Close()
 
 	// Add series to index.
@@ -72,7 +72,7 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 
 // Ensure index can return whether a measurement exists.
 func TestIndex_MeasurementExists(t *testing.T) {
-	idx := MustOpenIndex(1)
+	idx := MustOpenIndex(1, tsi1.NewConfig())
 	defer idx.Close()
 
 	// Add series to index.
@@ -134,7 +134,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 
 // Ensure index can return a list of matching measurements.
 func TestIndex_MeasurementNamesByRegex(t *testing.T) {
-	idx := MustOpenIndex(1)
+	idx := MustOpenIndex(1, tsi1.NewConfig())
 	defer idx.Close()
 
 	// Add series to index.
@@ -159,7 +159,7 @@ func TestIndex_MeasurementNamesByRegex(t *testing.T) {
 
 // Ensure index can delete a measurement and all related keys, values, & series.
 func TestIndex_DropMeasurement(t *testing.T) {
-	idx := MustOpenIndex(1)
+	idx := MustOpenIndex(1, tsi1.NewConfig())
 	defer idx.Close()
 
 	// Add series to index.
@@ -206,7 +206,7 @@ func TestIndex_DropMeasurement(t *testing.T) {
 
 func TestIndex_Open(t *testing.T) {
 	// Opening a fresh index should set the MANIFEST version to current version.
-	idx := NewIndex(tsi1.DefaultPartitionN)
+	idx := NewIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
 	t.Run("open new index", func(t *testing.T) {
 		if err := idx.Open(); err != nil {
 			t.Fatal(err)
@@ -235,7 +235,7 @@ func TestIndex_Open(t *testing.T) {
 	incompatibleVersions := []int{-1, 0, 2}
 	for _, v := range incompatibleVersions {
 		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
-			idx = NewIndex(tsi1.DefaultPartitionN)
+			idx = NewIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
 			// Manually create a MANIFEST file for an incompatible index version.
 			// under one of the partitions.
 			partitionPath := filepath.Join(idx.Path(), "2")
@@ -269,7 +269,7 @@ func TestIndex_Open(t *testing.T) {
 
 func TestIndex_Manifest(t *testing.T) {
 	t.Run("current MANIFEST", func(t *testing.T) {
-		idx := MustOpenIndex(tsi1.DefaultPartitionN)
+		idx := MustOpenIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
 
 		// Check version set appropriately.
 		for i := 0; uint64(i) < tsi1.DefaultPartitionN; i++ {
@@ -282,7 +282,7 @@ func TestIndex_Manifest(t *testing.T) {
 }
 
 func TestIndex_DiskSizeBytes(t *testing.T) {
-	idx := MustOpenIndex(tsi1.DefaultPartitionN)
+	idx := MustOpenIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
 	defer idx.Close()
 
 	// Add series to index.
@@ -312,20 +312,24 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 // Index is a test wrapper for tsi1.Index.
 type Index struct {
 	*tsi1.Index
+	Config     tsi1.Config
 	SeriesFile *SeriesFile
 }
 
 // NewIndex returns a new instance of Index at a temporary path.
-func NewIndex(partitionN uint64) *Index {
-	idx := &Index{SeriesFile: NewSeriesFile()}
-	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(MustTempDir()))
+func NewIndex(partitionN uint64, c tsi1.Config) *Index {
+	idx := &Index{
+		Config:     tsi1.NewConfig(),
+		SeriesFile: NewSeriesFile(),
+	}
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", idx.Config, tsi1.WithPath(MustTempDir()))
 	idx.Index.PartitionN = partitionN
 	return idx
 }
 
 // MustOpenIndex returns a new, open index. Panic on error.
-func MustOpenIndex(partitionN uint64) *Index {
-	idx := NewIndex(partitionN)
+func MustOpenIndex(partitionN uint64, c tsi1.Config) *Index {
+	idx := NewIndex(partitionN, c)
 	if err := idx.Open(); err != nil {
 		panic(err)
 	}
@@ -362,7 +366,7 @@ func (idx *Index) Reopen() error {
 	}
 
 	partitionN := idx.Index.PartitionN // Remember how many partitions to use.
-	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(idx.Index.Path()))
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", idx.Config, tsi1.WithPath(idx.Index.Path()))
 	idx.Index.PartitionN = partitionN
 	return idx.Open()
 }

@@ -1,4 +1,4 @@
-package tsdb
+package storage
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/tsdb"
 )
 
 type SeriesCursor interface {
@@ -15,14 +16,14 @@ type SeriesCursor interface {
 }
 
 type SeriesCursorRequest struct {
-	Measurements MeasurementIterator
+	Measurements tsdb.MeasurementIterator
 }
 
 // seriesCursor is an implementation of SeriesCursor over an IndexSet.
 type seriesCursor struct {
 	once     sync.Once
-	indexSet IndexSet
-	mitr     MeasurementIterator
+	indexSet tsdb.IndexSet
+	mitr     tsdb.MeasurementIterator
 	keys     [][]byte
 	ofs      int
 	row      SeriesCursorRow
@@ -35,7 +36,7 @@ type SeriesCursorRow struct {
 }
 
 // newSeriesCursor returns a new instance of SeriesCursor.
-func newSeriesCursor(req SeriesCursorRequest, indexSet IndexSet, cond influxql.Expr) (_ SeriesCursor, err error) {
+func newSeriesCursor(req SeriesCursorRequest, indexSet tsdb.IndexSet, cond influxql.Expr) (_ SeriesCursor, err error) {
 	// Only equality operators are allowed.
 	influxql.WalkFunc(cond, func(node influxql.Node) {
 		switch n := node.(type) {
@@ -95,7 +96,7 @@ func (cur *seriesCursor) Next() (*SeriesCursorRow, error) {
 			continue
 		}
 
-		cur.row.Name, cur.row.Tags = ParseSeriesKey(cur.keys[cur.ofs])
+		cur.row.Name, cur.row.Tags = tsdb.ParseSeriesKey(cur.keys[cur.ofs])
 		cur.ofs++
 		return &cur.row, nil
 	}
@@ -131,4 +132,12 @@ func (cur *seriesCursor) readSeriesKeys(name []byte) error {
 	// Sort keys.
 	sort.Sort(seriesKeys(cur.keys))
 	return nil
+}
+
+type seriesKeys [][]byte
+
+func (a seriesKeys) Len() int      { return len(a) }
+func (a seriesKeys) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a seriesKeys) Less(i, j int) bool {
+	return tsdb.CompareSeriesKeys(a[i], a[j]) == -1
 }

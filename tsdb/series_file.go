@@ -48,6 +48,11 @@ func NewSeriesFile(path string) *SeriesFile {
 	}
 }
 
+// WithLogger sets the logger on the SeriesFile and all underlying partitions. It must be called before Open.
+func (f *SeriesFile) WithLogger(log *zap.Logger) {
+	f.Logger = log.With(zap.String("service", "series-file"))
+}
+
 // Open memory maps the data file at the file's path.
 func (f *SeriesFile) Open() error {
 	// Wait for all references to be released and prevent new ones from being acquired.
@@ -62,6 +67,7 @@ func (f *SeriesFile) Open() error {
 	// Open partitions.
 	f.partitions = make([]*SeriesPartition, 0, SeriesFilePartitionN)
 	for i := 0; i < SeriesFilePartitionN; i++ {
+		// TODO(edd): These partition initialisation should be moved up to NewSeriesFile.
 		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
 		if err := p.Open(); err != nil {

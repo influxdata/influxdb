@@ -92,7 +92,7 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 		sfile:       sfile,
 		seriesIDSet: tsdb.NewSeriesIDSet(),
 
-		MaxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
+		MaxLogFileSize: DefaultMaxIndexLogFileSize,
 
 		// compactionEnabled: true,
 		compactionInterrupt: make(chan struct{}),

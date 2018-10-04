@@ -66,7 +66,7 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 	// Setup indexes
 	indexes := map[string]*Index{}
 	for _, name := range tsdb.RegisteredIndexes() {
-		idx := MustOpenNewIndex(name)
+		idx := MustOpenNewIndex(tsi1.NewConfig())
 		idx.AddSeries("cpu", map[string]string{"region": "east"}, models.Integer)
 		idx.AddSeries("cpu", map[string]string{"region": "west", "secret": "foo"}, models.Integer)
 		idx.AddSeries("disk", map[string]string{"secret": "foo"}, models.Integer)
@@ -107,114 +107,20 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 	}
 }
 
-func TestIndex_Sketches(t *testing.T) {
-	checkCardinalities := func(t *testing.T, index *Index, state string, series, tseries, measurements, tmeasurements int) {
-		t.Helper()
-
-		// Get sketches and check cardinality...
-		sketch, tsketch, err := index.SeriesSketches()
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// delta calculates a rough 10% delta. If i is small then a minimum value
-		// of 2 is used.
-		delta := func(i int) int {
-			v := i / 10
-			if v == 0 {
-				v = 2
-			}
-			return v
-		}
-
-		// series cardinality should be well within 10%.
-		if got, exp := int(sketch.Count()), series; got-exp < -delta(series) || got-exp > delta(series) {
-			t.Errorf("[%s] got series cardinality %d, expected ~%d", state, got, exp)
-		}
-
-		// check series tombstones
-		if got, exp := int(tsketch.Count()), tseries; got-exp < -delta(tseries) || got-exp > delta(tseries) {
-			t.Errorf("[%s] got series tombstone cardinality %d, expected ~%d", state, got, exp)
-		}
-
-		// Check measurement cardinality.
-		if sketch, tsketch, err = index.MeasurementsSketches(); err != nil {
-			t.Fatal(err)
-		}
-
-		if got, exp := int(sketch.Count()), measurements; got != exp { //got-exp < -delta(measurements) || got-exp > delta(measurements) {
-			t.Errorf("[%s] got measurement cardinality %d, expected ~%d", state, got, exp)
-		}
-
-		if got, exp := int(tsketch.Count()), tmeasurements; got != exp { //got-exp < -delta(tmeasurements) || got-exp > delta(tmeasurements) {
-			t.Errorf("[%s] got measurement tombstone cardinality %d, expected ~%d", state, got, exp)
-		}
-	}
-
-	idx := MustNewIndex()
-	// Override the log file max size to force a log file compaction sooner.
-	// This way, we will test the sketches are correct when they have been
-	// compacted into IndexFiles, and also when they're loaded from
-	// IndexFiles after a re-open.
-	tsi1.WithMaximumLogFileSize(1 << 10)(idx.Index)
-
-	// Open the index
-	idx.MustOpen()
-	defer idx.Close()
-
-	series := genTestSeries(10, 5, 3)
-	// Add series to index.
-	for _, serie := range series {
-		if err := idx.AddSeries(serie.Measurement, serie.Tags.Map(), serie.Type); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	// Check cardinalities after adding series.
-	checkCardinalities(t, idx, "initial", 2430, 0, 10, 0)
-
-	// Re-open the index.
-	if err := idx.Reopen(); err != nil {
-		panic(err)
-	}
-
-	// Check cardinalities after the reopen
-	checkCardinalities(t, idx, "initial|reopen", 2430, 0, 10, 0)
-
-	// Drop some series
-	if err := idx.DropMeasurement([]byte("measurement2")); err != nil {
-		t.Fatal(err)
-	} else if err := idx.DropMeasurement([]byte("measurement5")); err != nil {
-		t.Fatal(err)
-	}
-
-	// Check cardinalities after the delete
-	checkCardinalities(t, idx, "initial|reopen|delete", 2923, 0, 10, 2)
-
-	// Re-open the index.
-	if err := idx.Reopen(); err != nil {
-		panic(err)
-	}
-
-	// Check cardinalities after the reopen
-	checkCardinalities(t, idx, "initial|reopen|delete|reopen", 2923, 0, 10, 2)
-}
-
 // Index wraps a series file and index.
 type Index struct {
+	rootPath string
+
+	config tsi1.Config
 	*tsi1.Index
-	rootPath  string
-	indexType string
-	sfile     *tsdb.SeriesFile
+	sfile *tsdb.SeriesFile
 }
 
 // MustNewIndex will initialize a new index using the provide type. It creates
 // everything under the same root directory so it can be cleanly removed on Close.
 //
 // The index will not be opened.
-func MustNewIndex() *Index {
-	opts := tsdb.NewEngineOptions()
-
+func MustNewIndex(c tsi1.Config) *Index {
 	rootPath, err := ioutil.TempDir("", "influxdb-tsdb")
 	if err != nil {
 		panic(err)
@@ -230,17 +136,15 @@ func MustNewIndex() *Index {
 		panic(err)
 	}
 
-	i, err := tsdb.NewIndex(0, "db0", filepath.Join(rootPath, "index"), tsdb.NewSeriesIDSet(), sfile, opts)
-	if err != nil {
-		panic(err)
-	}
+	i := tsi1.NewIndex(sfile, "remove-me", c, tsi1.WithPath(filepath.Join(rootPath, "index")))
 
 	if testing.Verbose() {
 		i.WithLogger(logger.New(os.Stderr))
 	}
 
 	idx := &Index{
-		Index:    i.(*tsi1.Index),
+		config:   c,
+		Index:    i,
 		rootPath: rootPath,
 		sfile:    sfile,
 	}
@@ -249,8 +153,8 @@ func MustNewIndex() *Index {
 
 // MustOpenNewIndex will initialize a new index using the provide type and opens
 // it.
-func MustOpenNewIndex(index string) *Index {
-	idx := MustNewIndex()
+func MustOpenNewIndex(c tsi1.Config) *Index {
+	idx := MustNewIndex(c)
 	idx.MustOpen()
 	return idx
 }
@@ -287,13 +191,7 @@ func (i *Index) Reopen() error {
 		return err
 	}
 
-	opts := tsdb.NewEngineOptions()
-
-	idx, err := tsdb.NewIndex(0, "db0", filepath.Join(i.rootPath, "index"), tsdb.NewSeriesIDSet(), i.sfile, opts)
-	if err != nil {
-		return err
-	}
-	i.Index = idx.(*tsi1.Index)
+	i.Index = tsi1.NewIndex(i.SeriesFile(), "remove-me", i.config, tsi1.WithPath(filepath.Join(i.rootPath, "index")))
 	return i.Index.Open()
 }
 
@@ -371,7 +269,7 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 	b.Run("1M series", func(b *testing.B) {
 		b.ReportAllocs()
 		for _, indexType := range tsdb.RegisteredIndexes() {
-			idx := MustOpenNewIndex(indexType)
+			idx := MustOpenNewIndex(tsi1.NewConfig())
 			setup(idx)
 
 			name := []byte("m4")
@@ -442,7 +340,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	}
 
 	runBenchmark := func(b *testing.B, index string, queryN int) {
-		idx := MustOpenNewIndex(index)
+		idx := MustOpenNewIndex(tsi1.NewConfig())
 		var wg sync.WaitGroup
 		begin := make(chan struct{})
 
@@ -498,7 +396,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 			}
 
 			// Re-open everything
-			idx = MustOpenNewIndex(index)
+			idx = MustOpenNewIndex(tsi1.NewConfig())
 			wg.Add(1)
 			begin = make(chan struct{})
 			once = sync.Once{}

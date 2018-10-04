@@ -6,6 +6,17 @@ import (
 	"github.com/influxdata/platform/models"
 )
 
+// Values used to store the field key and measurement name as tags.
+const (
+	FieldKeyTagKey    = "_f"
+	MeasurementTagKey = "_m"
+)
+
+var (
+	FieldKeyTagKeyBytes    = []byte(FieldKeyTagKey)
+	MeasurementTagKeyBytes = []byte(MeasurementTagKey)
+)
+
 // ExplodePoints creates a list of points that only contains one field per point. It also
 // moves the measurement to a tag, and changes the measurement to be the provided argument.
 func ExplodePoints(org, bucket []byte, points []models.Point) ([]models.Point, error) {
@@ -23,8 +34,8 @@ func ExplodePoints(org, bucket []byte, points []models.Point) ([]models.Point, e
 		itr := pt.FieldIterator()
 		for itr.Next() {
 			tags = tags[:0]
-			tags = append(tags, models.NewTag([]byte("_f"), itr.FieldKey()))
-			tags = append(tags, models.NewTag([]byte("_m"), pt.Name()))
+			tags = append(tags, models.NewTag(FieldKeyTagKeyBytes, itr.FieldKey()))
+			tags = append(tags, models.NewTag(MeasurementTagKeyBytes, pt.Name()))
 			pt.ForEachTag(func(k, v []byte) bool {
 				tags = append(tags, models.NewTag(k, v))
 				return true

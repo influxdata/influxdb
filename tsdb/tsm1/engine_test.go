@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/deep"
 	"github.com/influxdata/platform/tsdb"
+	"github.com/influxdata/platform/tsdb/index/tsi1"
 	"github.com/influxdata/platform/tsdb/tsm1"
 )
 
@@ -199,7 +200,7 @@ func TestEngine_Backup(t *testing.T) {
 	db := path.Base(f.Name())
 	opt := tsdb.NewEngineOptions()
 
-	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
+	idx := MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
 	e := tsm1.NewEngine(1, idx, f.Name(), walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
@@ -306,7 +307,7 @@ func TestEngine_Export(t *testing.T) {
 	db := path.Base(f.Name())
 	opt := tsdb.NewEngineOptions()
 
-	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
+	idx := MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
 	e := tsm1.NewEngine(1, idx, f.Name(), walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
@@ -1649,7 +1650,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	db := path.Base(dir)
 	opt := tsdb.NewEngineOptions()
 
-	idx := tsdb.MustOpenIndex(1, db, filepath.Join(dir, "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
+	idx := MustOpenIndex(1, db, filepath.Join(dir, "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
 	e := tsm1.NewEngine(1, idx, dir, walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
@@ -2321,7 +2322,7 @@ func NewEngine() (*Engine, error) {
 	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
 
 	idxPath := filepath.Join(dbPath, "index")
-	idx := tsdb.MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)
+	idx := MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)
 
 	tsm1Engine := tsm1.NewEngine(1, idx, filepath.Join(root, "data"), filepath.Join(root, "wal"), sfile, opt).(*tsm1.Engine)
 
@@ -2390,7 +2391,7 @@ func (e *Engine) Reopen() error {
 	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDSet})
 
 	// Re-open index.
-	e.index = tsdb.MustOpenIndex(1, db, e.indexPath, seriesIDSet, e.sfile, opt)
+	e.index = MustOpenIndex(1, db, e.indexPath, seriesIDSet, e.sfile, opt)
 
 	// Re-initialize engine.
 	e.Engine = tsm1.NewEngine(1, e.index, filepath.Join(e.root, "data"), filepath.Join(e.root, "wal"), e.sfile, opt).(*tsm1.Engine)
@@ -2458,6 +2459,14 @@ func (e *Engine) MustWriteSnapshot() {
 	if err := e.WriteSnapshot(); err != nil {
 		panic(err)
 	}
+}
+
+func MustOpenIndex(id uint64, database, path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, options tsdb.EngineOptions) tsdb.Index {
+	idx := tsi1.NewIndex(sfile, database, tsi1.NewConfig(), tsi1.WithPath(path))
+	if err := idx.Open(); err != nil {
+		panic(err)
+	}
+	return idx
 }
 
 // SeriesFile is a test wrapper for tsdb.SeriesFile.
