@@ -13,14 +13,16 @@ const links: Links = {
   external: {
     statusFeed: 'https://www.influxdata.com/feed/json',
   },
-  flux: {
-    ast: '/api/v2/flux/ast',
-    self: '/api/v2/flux',
-    suggestions: '/api/v2/flux/suggestions',
+  query: {
+    self: '/api/v2/query',
+    ast: '/api/v2/query/ast',
+    spec: '/api/v2/query/spec',
+    suggestions: '/api/v2/query/suggestions',
   },
   orgs: '/api/v2/orgs',
-  query: '/api/v2/query',
   setup: '/api/v2/setup',
+  signin: '/api/v2/signin',
+  signout: '/api/v2/signout',
   sources: '/api/v2/sources',
   system: {
     debug: '/debug/pprof',
@@ -30,6 +32,7 @@ const links: Links = {
   tasks: '/api/v2/tasks',
   users: '/api/v2/users',
   write: '/api/v2/write',
+  macros: '/api/v2/macros',
   defaultDashboard: '/v2/dashboards/029d13fda9c5b000',
 }
 

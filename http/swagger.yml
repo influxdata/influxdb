@@ -7,7 +7,6 @@ servers:
 paths:
   /signin:
     servers:
-      - url: /
     post:
       summary: Exchange basic auth credentials for session
       security:
@@ -23,7 +22,6 @@ paths:
                 $ref: "#/components/schemas/Error"
   /signout:
     servers:
-      - url: /
     post:
       summary: Expire the current session
       responses:

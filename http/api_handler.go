@@ -24,7 +24,6 @@ type APIHandler struct {
 	SourceHandler        *SourceHandler
 	MacroHandler         *MacroHandler
 	TaskHandler          *TaskHandler
-	FluxLangHandler      *FluxLangHandler
 	QueryHandler         *FluxHandler
 	WriteHandler         *WriteHandler
 	SetupHandler         *SetupHandler
@@ -92,8 +91,6 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.AuthorizationHandler.AuthorizationService = b.AuthorizationService
 	h.AuthorizationHandler.Logger = b.Logger.With(zap.String("handler", "auth"))
 
-	h.FluxLangHandler = NewFluxLangHandler()
-
 	h.SourceHandler = NewSourceHandler()
 	h.SourceHandler.SourceService = b.SourceService
 	h.SourceHandler.NewBucketService = b.NewBucketService
@@ -128,17 +125,19 @@ var apiLinks = map[string]interface{}{
 	"setup":      "/api/v2/setup",
 	"sources":    "/api/v2/sources",
 	"dashboards": "/api/v2/dashboards",
-	"query":      "/api/v2/query",
+	"views":      "/api/v2/views",
 	"write":      "/api/v2/write",
 	"orgs":       "/api/v2/orgs",
 	"auths":      "/api/v2/authorizations",
 	"buckets":    "/api/v2/buckets",
 	"users":      "/api/v2/users",
 	"tasks":      "/api/v2/tasks",
-	"flux": map[string]string{
-		"self":        "/api/v2/flux",
-		"ast":         "/api/v2/flux/ast",
-		"suggestions": "/api/v2/flux/suggestions",
+	"macros":     "/api/v2/macros",
+	"query": map[string]string{
+		"self":        "/api/v2/query",
+		"ast":         "/api/v2/query/ast",
+		"spec":        "/api/v2/query/spec",
+		"suggestions": "/api/v2/query/suggestions",
 	},
 	"external": map[string]string{
 		"statusFeed": "https://www.influxdata.com/feed/json",
@@ -146,7 +145,7 @@ var apiLinks = map[string]interface{}{
 	"system": map[string]string{
 		"metrics": "/metrics",
 		"debug":   "/debug/pprof",
-		"health":  "/healthz",
+		"health":  "/health",
 	},
 }
 
@@ -233,11 +232,6 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/macros") {
 		h.MacroHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/flux") {
-		h.FluxLangHandler.ServeHTTP(w, r)
 		return
 	}
 

@@ -10,19 +10,22 @@ const initialState: Links = {
   external: {
     statusFeed: '',
   },
-  flux: {
-    ast: '',
+  query: {
     self: '',
+    ast: '',
+    spec: '',
     suggestions: '',
   },
   orgs: '',
-  query: '',
   setup: '',
+  signin: '',
+  signout: '',
   sources: '',
   system: {debug: '', health: '', metrics: ''},
   tasks: '',
   users: '',
   write: '',
+  macros: '',
   defaultDashboard: '',
 }
 
