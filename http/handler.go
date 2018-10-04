@@ -127,16 +127,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"status":  statusClass,
 		}).Observe(duration.Seconds())
 		if h.Logger != nil {
-			err := errors.New(w.Header().Get(ErrorHeader))
-			errReference := w.Header().Get(ReferenceHeader)
-			h.Logger.Info("served http request",
+			errField := zap.Skip()
+			if errStr := w.Header().Get(ErrorHeader); errStr != "" {
+				errField = zap.Error(errors.New(errStr))
+			}
+			errReferenceField := zap.Skip()
+			if errReference := w.Header().Get(ReferenceHeader); errReference != "" {
+				errReferenceField = zap.String("reference", errReference)
+			}
+
+			h.Logger.Info("Served http request",
 				zap.String("handler", h.name),
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
 				zap.Int("status", statusCode),
 				zap.Int("duration_ns", int(duration)),
-				zap.Error(err),
-				zap.String("reference", errReference),
+				errField,
+				errReferenceField,
 			)
 		}
 	}(time.Now())
