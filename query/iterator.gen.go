@@ -2495,6 +2495,49 @@ func (itr *floatFilterIterator) Next() (*FloatPoint, error) {
 	}
 }
 
+type floatTagSubsetIterator struct {
+	input      FloatIterator
+	point      FloatPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newFloatTagSubsetIterator(input FloatIterator, opt IteratorOptions) *floatTagSubsetIterator {
+	return &floatTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *floatTagSubsetIterator) Next() (*FloatPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *floatTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *floatTagSubsetIterator) Close() error {
+	return itr.input.Close()
+}
+
 // newFloatDedupeIterator returns a new instance of floatDedupeIterator.
 func newFloatDedupeIterator(input FloatIterator) *floatDedupeIterator {
 	return &floatDedupeIterator{
@@ -5049,6 +5092,49 @@ func (itr *integerFilterIterator) Next() (*IntegerPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type integerTagSubsetIterator struct {
+	input      IntegerIterator
+	point      IntegerPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newIntegerTagSubsetIterator(input IntegerIterator, opt IteratorOptions) *integerTagSubsetIterator {
+	return &integerTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *integerTagSubsetIterator) Next() (*IntegerPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *integerTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *integerTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newIntegerDedupeIterator returns a new instance of integerDedupeIterator.
@@ -7607,6 +7693,49 @@ func (itr *unsignedFilterIterator) Next() (*UnsignedPoint, error) {
 	}
 }
 
+type unsignedTagSubsetIterator struct {
+	input      UnsignedIterator
+	point      UnsignedPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newUnsignedTagSubsetIterator(input UnsignedIterator, opt IteratorOptions) *unsignedTagSubsetIterator {
+	return &unsignedTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *unsignedTagSubsetIterator) Next() (*UnsignedPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *unsignedTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *unsignedTagSubsetIterator) Close() error {
+	return itr.input.Close()
+}
+
 // newUnsignedDedupeIterator returns a new instance of unsignedDedupeIterator.
 func newUnsignedDedupeIterator(input UnsignedIterator) *unsignedDedupeIterator {
 	return &unsignedDedupeIterator{
@@ -10149,6 +10278,49 @@ func (itr *stringFilterIterator) Next() (*StringPoint, error) {
 	}
 }
 
+type stringTagSubsetIterator struct {
+	input      StringIterator
+	point      StringPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newStringTagSubsetIterator(input StringIterator, opt IteratorOptions) *stringTagSubsetIterator {
+	return &stringTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *stringTagSubsetIterator) Next() (*StringPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *stringTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *stringTagSubsetIterator) Close() error {
+	return itr.input.Close()
+}
+
 // newStringDedupeIterator returns a new instance of stringDedupeIterator.
 func newStringDedupeIterator(input StringIterator) *stringDedupeIterator {
 	return &stringDedupeIterator{
@@ -12689,6 +12861,49 @@ func (itr *booleanFilterIterator) Next() (*BooleanPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type booleanTagSubsetIterator struct {
+	input      BooleanIterator
+	point      BooleanPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newBooleanTagSubsetIterator(input BooleanIterator, opt IteratorOptions) *booleanTagSubsetIterator {
+	return &booleanTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *booleanTagSubsetIterator) Next() (*BooleanPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *booleanTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *booleanTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newBooleanDedupeIterator returns a new instance of booleanDedupeIterator.
