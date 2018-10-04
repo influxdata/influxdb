@@ -621,15 +621,21 @@ export const validateSuccess = (): Notification => ({
   message: 'No errors found. Happy Happy Joy Joy!',
 })
 
-export const copyToClipboardSuccess = (text: string): Notification => ({
+export const copyToClipboardSuccess = (
+  text: string,
+  title: string = ''
+): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
-  message: `'${text}' has been copied to clipboard.`,
+  message: `${title}'${text}' has been copied to clipboard.`,
 })
 
-export const copyToClipboardFailed = (text: string): Notification => ({
+export const copyToClipboardFailed = (
+  text: string,
+  title: string = ''
+): Notification => ({
   ...defaultErrorNotification,
-  message: `'${text}' was not copied to clipboard.`,
+  message: `${title}'${text}' was not copied to clipboard.`,
 })
 
 export const fluxNameAlreadyTaken = (fluxName: string): Notification => ({

@@ -1,0 +1,101 @@
+import React, {PureComponent} from 'react'
+
+import {SearchStatus} from 'src/types/logs'
+import {formatTime} from 'src/logs/utils'
+
+interface Props {
+  status: SearchStatus
+  lower: number
+  upper: number
+}
+
+class LoadingStatus extends PureComponent<Props> {
+  public render() {
+    return (
+      <div className="logs-viewer--table-container generic-empty-state">
+        {this.loadingSpinner}
+        <h4>
+          {this.loadingMessage} {this.description}
+        </h4>
+      </div>
+    )
+  }
+
+  private get description(): JSX.Element {
+    switch (this.props.status) {
+      case SearchStatus.SourceError:
+        return (
+          <>
+            Try changing your <strong>Source</strong> or{' '}
+            <strong>Namespace</strong>.
+          </>
+        )
+      case SearchStatus.NoResults:
+        return (
+          <>
+            Try changing the <strong>Time Range</strong> or{' '}
+            <strong>Removing Filters</strong>
+          </>
+        )
+      default:
+        return <>{this.timeBounds}</>
+    }
+  }
+
+  private get loadingSpinner(): JSX.Element {
+    switch (this.props.status) {
+      case SearchStatus.NoResults:
+        return (
+          <div className="logs-viewer--search-graphic">
+            <div className="logs-viewer--graphic-empty" />
+          </div>
+        )
+      case SearchStatus.UpdatingFilters:
+      case SearchStatus.UpdatingTimeBounds:
+      case SearchStatus.UpdatingSource:
+      case SearchStatus.UpdatingNamespace:
+      case SearchStatus.Loading:
+        return (
+          <div className="logs-viewer--search-graphic">
+            <div className="logs-viewer--graphic-log" />
+            <div className="logs-viewer--graphic-magnifier-a">
+              <div className="logs-viewer--graphic-magnifier-b" />
+            </div>
+          </div>
+        )
+      default:
+        return null
+    }
+  }
+
+  private get timeBounds(): JSX.Element {
+    return (
+      <div className="logs-viewer--searching-time">
+        from <strong>{formatTime(this.props.upper)}</strong> to{' '}
+        <strong>{formatTime(this.props.lower)}</strong>
+      </div>
+    )
+  }
+
+  private get loadingMessage(): string {
+    switch (this.props.status) {
+      case SearchStatus.UpdatingFilters:
+        return 'Updating search filters...'
+      case SearchStatus.NoResults:
+        return 'No logs found'
+      case SearchStatus.UpdatingTimeBounds:
+        return 'Searching time bounds...'
+      case SearchStatus.UpdatingSource:
+        return 'Searching updated source...'
+      case SearchStatus.UpdatingNamespace:
+        return 'Searching updated namespace...'
+      case SearchStatus.SourceError:
+        return 'Could not find logs for source.'
+      case SearchStatus.Loading:
+      default:
+        return 'Searching...'
+    }
+  }
+}
+
+export default LoadingStatus

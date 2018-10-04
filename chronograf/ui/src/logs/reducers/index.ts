@@ -1,0 +1,100 @@
+import _ from 'lodash'
+
+import {
+  ActionTypes,
+  Action,
+  RemoveFilterAction,
+  AddFilterAction,
+  ChangeFilterAction,
+  SetConfigAction,
+} from 'src/logs/actions'
+
+import {DEFAULT_TRUNCATION} from 'src/logs/constants'
+import {LogsState, SearchStatus} from 'src/types/logs'
+
+export const defaultState: LogsState = {
+  currentSource: null,
+  currentNamespaces: [],
+  currentNamespace: null,
+  tableQueryConfig: null,
+  filters: [],
+  queryCount: 0,
+  logConfig: {
+    isTruncated: DEFAULT_TRUNCATION,
+  },
+  searchStatus: SearchStatus.None,
+}
+
+const removeFilter = (
+  state: LogsState,
+  action: RemoveFilterAction
+): LogsState => {
+  const {id} = action.payload
+  const filters = _.filter(
+    _.get(state, 'filters', []),
+    filter => filter.id !== id
+  )
+
+  return {...state, filters}
+}
+
+const addFilter = (state: LogsState, action: AddFilterAction): LogsState => {
+  const {filter} = action.payload
+
+  return {...state, filters: [filter, ..._.get(state, 'filters', [])]}
+}
+
+const clearFilters = (state: LogsState): LogsState => {
+  return {...state, filters: []}
+}
+
+const changeFilter = (
+  state: LogsState,
+  action: ChangeFilterAction
+): LogsState => {
+  const {id, operator, value} = action.payload
+
+  const mappedFilters = _.map(_.get(state, 'filters', []), f => {
+    if (f.id === id) {
+      return {...f, operator, value}
+    }
+    return f
+  })
+
+  return {...state, filters: mappedFilters}
+}
+
+export const setConfigs = (state: LogsState, action: SetConfigAction) => {
+  const {
+    logConfig: {isTruncated},
+  } = action.payload
+  const updatedLogConfig = {
+    isTruncated,
+  }
+  return {...state, logConfig: updatedLogConfig}
+}
+
+export default (state: LogsState = defaultState, action: Action) => {
+  switch (action.type) {
+    case ActionTypes.SetSource:
+      return {...state, currentSource: action.payload.source}
+    case ActionTypes.SetNamespaces:
+      return {...state, currentNamespaces: action.payload.namespaces}
+    case ActionTypes.SetNamespace:
+      return {...state, currentNamespace: action.payload.namespace}
+    case ActionTypes.SetSearchStatus:
+      return {...state, searchStatus: action.payload.searchStatus}
+    case ActionTypes.AddFilter:
+      return addFilter(state, action)
+    case ActionTypes.RemoveFilter:
+      return removeFilter(state, action)
+    case ActionTypes.ChangeFilter:
+      return changeFilter(state, action)
+    case ActionTypes.ClearFilters:
+      return clearFilters(state)
+    case ActionTypes.SetConfig:
+      return setConfigs(state, action)
+    default:
+      return state
+  }
+}

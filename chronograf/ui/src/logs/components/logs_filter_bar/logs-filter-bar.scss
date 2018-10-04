@@ -1,0 +1,164 @@
+
+$logs-viewer-filter-height: 40px;
+
+// Filters Bar
+.logs-viewer--filter-bar {
+    display: flex;
+    align-items: center;
+    @include no-user-select();
+    padding: 0 $logs-viewer-gutter 0 ($logs-viewer-gutter);
+    height: $logs-viewer-filter-height;
+    background-color: $g3-castle;
+  }
+  
+  .logs-viewer--filters {
+    overflow: hidden;
+    position: relative;
+  
+    &:after {
+      content: '';
+      top: 0;
+      right: 0;
+      height: 100%;
+      width: 44px;
+      pointer-events: none;
+      position: absolute;
+      @include gradient-h(rgba($g3-castle, 0), $g3-castle);
+    }
+  }
+  
+  .logs-viewer--clear-filters {
+    padding: 0 $ix-marg-b;
+  }
+
+// Filters Bar
+.logs-viewer--filter-bar {
+    display: flex;
+    align-items: center;
+    @include no-user-select();
+    padding: 0 $logs-viewer-gutter 0 ($logs-viewer-gutter);
+    height: $logs-viewer-filter-height;
+    background-color: $g3-castle;
+  }
+  
+  .logs-viewer--filters {
+    overflow: hidden;
+    position: relative;
+  
+    &:after {
+      content: '';
+      top: 0;
+      right: 0;
+      height: 100%;
+      width: 44px;
+      pointer-events: none;
+      position: absolute;
+      @include gradient-h(rgba($g3-castle, 0), $g3-castle);
+    }
+  }
+  
+  .logs-viewer--clear-filters {
+    padding: 0 $ix-marg-b;
+  }
+  
+.logs-viewer--filters {
+    flex: 1 0 0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .logs-viewer--filter {
+    position: relative;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    padding: 0 2px 0 8px;
+    height: 26px;
+    border-radius: 4px;
+    background-color: $g5-pepper;
+    color: $g13-mist;
+    font-weight: 500;
+    font-family: $code-font;
+    margin: 1px;
+    max-width: 289px;
+  
+    &.active,
+    &:hover {
+      background-color: $g6-smoke;
+      color: $g17-whisper;
+    }
+    &:hover {
+      cursor: pointer;
+    }
+  
+    > span {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 250px;
+    }
+  }
+  
+  .logs-viewer--filter-remove {
+    outline: none;
+    width: 24px;
+    height: 24px;
+    background-color: transparent;
+    border: 0;
+    position: relative;
+  
+    &:before,
+    &:after {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 12px;
+      height: 2px;
+      border-radius: 1px;
+      background-color: $g8-storm;
+      transition: background-color 0.25s ease;
+      content: '';
+    }
+  
+    &:before {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+  
+    &:after {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+  
+    &:hover {
+      cursor: pointer;
+  
+      &:before,
+      &:after {
+        background-color: $c-dreamsicle;
+      }
+    }
+  }
+  
+  .logs-viewer--operator,
+  .logs-viewer--value,
+  .logs-viewer--filter-label {
+    margin-right: 2px;
+  
+    &.form-control.input-xs {
+      padding: 0 5px;
+      font-weight: 500;
+      height: 24px;
+      border-radius: 3px;
+      border-color: $g6-smoke;
+  
+      &:focus {
+        border-color: $c-pool;
+      }
+    }
+  }
+  
+  .logs-viewer--operator {
+    width: 30px;
+  }
+  .logs-viewer--value {
+    width: 170px;
+  }

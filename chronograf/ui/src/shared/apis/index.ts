@@ -127,3 +127,17 @@ export const deleteService = async (service: Service): Promise<void> => {
     throw error
   }
 }
+
+export const getSource = async (id: string): Promise<Source> => {
+  try {
+    const {data: source} = await AJAX({
+      url: null,
+      resource: 'sources',
+      id,
+    })
+
+    return source
+  } catch (error) {
+    throw error
+  }
+}

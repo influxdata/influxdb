@@ -23,6 +23,7 @@ import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import {SourcePage, ManageSources} from 'src/sources'
 import {FluxPage} from 'src/flux'
 import {UserPage} from 'src/user'
+import {LogsPage} from 'src/logs'
 import NotFound from 'src/shared/components/NotFound'
 
 // Actions
@@ -118,6 +119,7 @@ class Root extends PureComponent<{}, State> {
                   />
                   <Route path="delorean" component={FluxPage} />
                   <Route path="user/:tab" component={UserPage} />
+                  <Route path="logs" component={LogsPage} />
                 </Route>
               </Route>
             </Route>

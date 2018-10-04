@@ -51,3 +51,7 @@
 @import 'src/flux/components/time_machine/add-func-button';
 @import 'src/shared/components/views/Markdown';
 @import 'src/onboarding/OnboardingWizard.scss';
+
+@import 'src/logs/containers/logs_page/logs-viewer';
+@import 'src/logs/components/loading_status/loading-status';
+@import 'src/logs/components/logs_filter_bar/logs-filter-bar';
