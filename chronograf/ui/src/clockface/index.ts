@@ -8,7 +8,7 @@ import OverlayTechnology from './components/overlays/OverlayTechnology'
 import OverlayContainer from './components/overlays/OverlayContainer'
 import OverlayHeading from './components/overlays/OverlayHeading'
 import OverlayBody from './components/overlays/OverlayBody'
-import Panel, {PanelType} from './components/panel/Panel'
+import Panel from './components/panel/Panel'
 import Radio from './components/radio_buttons/RadioButtons'
 import SlideToggle from './components/slide_toggle/SlideToggle'
 import WizardFullScreen from './components/wizard/WizardFullScreen'
@@ -46,7 +46,6 @@ export {
   OverlayHeading,
   OverlayBody,
   Panel,
-  PanelType,
   Radio,
   SlideToggle,
   ComponentColor,
