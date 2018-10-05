@@ -1036,11 +1036,11 @@ func (p *Partition) Rebuild() {}
 
 func (p *Partition) CheckLogFile() error {
 	// Check log file size under read lock.
-	if size := func() int64 {
-		p.mu.RLock()
-		defer p.mu.RUnlock()
-		return p.activeLogFile.Size()
-	}(); size < p.MaxLogFileSize {
+	p.mu.RLock()
+	size := p.activeLogFile.Size()
+	p.mu.RUnlock()
+
+	if size < p.MaxLogFileSize {
 		return nil
 	}
 

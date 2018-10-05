@@ -120,6 +120,7 @@ func (e *Engine) Close() error {
 		return nil // no-op
 	}
 	e.open = false
+
 	if err := e.sfile.Close(); err != nil {
 		return err
 	}

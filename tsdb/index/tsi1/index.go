@@ -638,9 +638,13 @@ func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) e
 	var pidx uint32 // Index of maximum Partition being worked on.
 	for k := 0; k < n; k++ {
 		go func() {
+			i.mu.RLock()
+			partitionN := len(i.partitions)
+			i.mu.RUnlock()
+
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= len(i.partitions) {
+				if idx >= partitionN {
 					return // No more work.
 				}
 
