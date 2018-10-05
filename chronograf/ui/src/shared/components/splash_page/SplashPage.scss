@@ -13,6 +13,7 @@
   @include gradient-v($g3-castle, $g0-obsidian);
   padding: $sidebar--width;
 }
+
 .auth-image {
   background-image: url('../../assets/images/auth-bg.svg');
   background-size: cover;
@@ -25,6 +26,7 @@
   left: 0;
   z-index: 2;
 }
+
 .auth-box {
   z-index: 90;
   position: absolute;
@@ -65,6 +67,7 @@
     }
   }
 }
+
 .auth-logo {
   background-image: url('../../assets/images/auth-logo.svg');
   background-size: 100% 100%;
@@ -72,7 +75,9 @@
   background-repeat: no-repeat;
   width: 100px;
   height: 100px;
+  display: inline-block;
 }
+
 .auth-credits {
   @include no-user-select();
   font-weight: 600;
@@ -169,6 +174,21 @@
   color: $g9-mountain;
   @include no-user-select();
 }
+
 .btn.auth--logout {
   margin-top: 30px;
+}
+
+
+.auth-panel {
+  border-radius: $radius;
+  background-color: $g3-castle;
+  padding: 32px;
+  text-align: center;
+}
+
+.auth-heading {
+  font-size: 32px;
+  font-weight: 300;
+  margin-bottom: 32px;
 }
