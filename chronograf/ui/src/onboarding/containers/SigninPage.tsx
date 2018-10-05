@@ -5,15 +5,16 @@ import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import SplashPage from 'src/shared/components/splash_page/SplashPage'
+
 import {
   Button,
   ComponentColor,
   ComponentSize,
   Input,
+  InputType,
   Form,
   Columns,
-  WizardFullScreen,
-  InputType,
 } from 'src/clockface'
 
 // APIs
@@ -53,46 +54,45 @@ class SigninPage extends PureComponent<Props, State> {
   public render() {
     const {username, password} = this.state
     return (
-      <WizardFullScreen>
-        <div className="wizard-step--container">
-          <div className="onboarding-step">
-            <h3 className="wizard-step-title">Please sign in</h3>
-            <Form>
-              <Form.Element
-                label="Username"
-                colsXS={Columns.Six}
-                offsetXS={Columns.Three}
-                errorMessage={''}
-              >
-                <Input
-                  value={username}
-                  onChange={this.handleUsername}
-                  size={ComponentSize.Medium}
-                />
-              </Form.Element>
-              <Form.Element
-                label="Password"
-                colsXS={Columns.Six}
-                offsetXS={Columns.Three}
-                errorMessage={''}
-              >
-                <Input
-                  value={password}
-                  type={InputType.Password}
-                  onChange={this.handlePassword}
-                  size={ComponentSize.Medium}
-                />
-              </Form.Element>
-            </Form>
-            <Button
-              color={ComponentColor.Primary}
-              text="Sign In"
-              size={ComponentSize.Medium}
-              onClick={this.handleSignIn}
-            />
-          </div>
-        </div>
-      </WizardFullScreen>
+      <SplashPage panelWidthPixels={300}>
+        <SplashPage.Panel>
+          <SplashPage.Logo />
+          <SplashPage.Header title="InfluxData" />
+          <Form>
+            <Form.Element
+              label="Username"
+              colsXS={Columns.Twelve}
+              errorMessage={''}
+            >
+              <Input
+                value={username}
+                onChange={this.handleUsername}
+                size={ComponentSize.Medium}
+              />
+            </Form.Element>
+            <Form.Element
+              label="Password"
+              colsXS={Columns.Twelve}
+              errorMessage={''}
+            >
+              <Input
+                value={password}
+                onChange={this.handlePassword}
+                size={ComponentSize.Medium}
+                type={InputType.Password}
+              />
+            </Form.Element>
+            <Form.Footer>
+              <Button
+                color={ComponentColor.Primary}
+                text="Sign In"
+                size={ComponentSize.Medium}
+                onClick={this.handleSignIn}
+              />
+            </Form.Footer>
+          </Form>
+        </SplashPage.Panel>
+      </SplashPage>
     )
   }
 
