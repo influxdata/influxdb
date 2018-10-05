@@ -27,7 +27,7 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
           <Button
             color={ComponentColor.Success}
             text="Go to status dashboard"
-            size={ComponentSize.Large}
+            size={ComponentSize.Medium}
             onClick={onExit}
           />
         </div>

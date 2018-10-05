@@ -68,7 +68,7 @@ class OnboardingWizard extends PureComponent<Props, State> {
     ],
   }
 
-  public stepTitles = ['Welcome', 'Setup admin', 'Other', 'Complete']
+  public stepTitles = ['Welcome', 'Admin Setup', 'Next Step', 'Complete']
   public steps = [InitStep, AdminStep, OtherStep, CompletionStep]
   public stepSkippable = [false, false, true, false]
 
@@ -82,24 +82,38 @@ class OnboardingWizard extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {stepStatuses} = this.props
-    const {currentStepIndex} = this.state
     return (
       <WizardFullScreen>
-        <WizardProgressHeader
-          currentStepIndex={currentStepIndex}
-          stepSkippable={this.stepSkippable}
-          onSkip={this.handleExit}
-        >
-          <ProgressBar
-            currentStepIndex={currentStepIndex}
-            handleSetCurrentStep={this.onSetCurrentStep}
-            stepStatuses={stepStatuses}
-            stepTitles={this.stepTitles}
-          />
-        </WizardProgressHeader>
+        {this.progressHeader}
         <div className="wizard-step--container">{this.currentStep}</div>
       </WizardFullScreen>
+    )
+  }
+
+  private get progressHeader(): JSX.Element {
+    const {stepStatuses} = this.props
+    const {currentStepIndex} = this.state
+
+    if (
+      currentStepIndex === 0 ||
+      currentStepIndex === stepStatuses.length - 1
+    ) {
+      return <div className="wizard--progress-header hidden" />
+    }
+
+    return (
+      <WizardProgressHeader
+        currentStepIndex={currentStepIndex}
+        stepSkippable={this.stepSkippable}
+        onSkip={this.handleExit}
+      >
+        <ProgressBar
+          currentStepIndex={currentStepIndex}
+          handleSetCurrentStep={this.onSetCurrentStep}
+          stepStatuses={stepStatuses}
+          stepTitles={this.stepTitles}
+        />
+      </WizardProgressHeader>
     )
   }
 

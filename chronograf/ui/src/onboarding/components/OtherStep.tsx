@@ -18,7 +18,7 @@ class OtherStep extends PureComponent<OnboardingStepProps, null> {
     return (
       <div className="onboarding-step">
         <h3 className="wizard-step--title">This is Another Step</h3>
-        <h5 className="wizard-step--sub-title">You can do anything here!</h5>
+        <h5 className="wizard-step--sub-title">Import data here</h5>
         <div className="wizard-button-bar">
           <Button
             color={ComponentColor.Default}

@@ -12,38 +12,45 @@
 }
 
 .wizard--progress-icon {
-  height: 22px;
-  width: 22px;
-  border-radius: 12px;
-  background-color: $g7-graphite;
+  position: relative;
+  font-size: 13px;
+  height: 26px;
+  width: 26px;
+  border-radius: 50%;
+  background-color: $g2-kevlar;
   display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  margin-right: 10px;
-  color: $g3-castle;
+  margin-right: $ix-marg-b;
+  color: $g7-graphite;
   transition: background-color .4s;
-}
 
-.wizard--progress-icon.checkmark {
-  background-color: $c-rainforest;
+  > .icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+  }
 }
 
 .wizard--progress-icon.circle-thick {
-  background-color: $g7-graphite;
+  color: $g7-graphite;
+}
+
+.wizard--progress-icon.checkmark {
+  color: $c-rainforest;
 }
 
 .wizard--progress-icon.current {
-  background-color: $c-pool;
+  color: $c-pool;
 }
 
 .wizard--progress-icon.remove {
-  background-color: $c-curacao;
+  color: $c-curacao;
 }
 
 .wizard--progress-title {
   font-weight: 700;
   color: $g7-graphite;
-  font-size: $ix-text-base-2;
+  font-size: 15px;
   transition: color .4s;
 }
 
@@ -67,7 +74,7 @@
   display: inline-flex;
   align-items: center;
   cursor: pointer;
-  margin: 0 10px;
+  margin: 0 $ix-marg-a;
 }
 
 .wizard--progress-button:hover {
@@ -77,8 +84,8 @@
 }
 
 .wizard--progress-connector {
-  width: 100px;
-  margin: 0 10px;
+  width: 70px;
+  margin: 0 $ix-marg-a;
   height: 2px;
   background-color: $g7-graphite;
   position: relative;

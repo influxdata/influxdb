@@ -9,6 +9,7 @@ import {
   ComponentColor,
   ComponentSize,
   Input,
+  InputType,
   Form,
   Columns,
   IconFont,
@@ -56,7 +57,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
         <h5 className="wizard-step--sub-title">
           You will be able to create additional Buckets and Organizations later
         </h5>
-        <Form>
+        <Form className="onboarding--admin-user-form">
           <Form.Element
             label="Admin Username"
             colsXS={Columns.Six}
@@ -80,6 +81,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
             offsetXS={Columns.Three}
           >
             <Input
+              type={InputType.Password}
               value={password}
               onChange={this.handlePassword}
               titleText={'Admin Password'}
