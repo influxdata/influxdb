@@ -156,27 +156,29 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	if req.ownerID != nil {
+		filter := platform.UserResourceMappingFilter{
+			UserID:       *req.ownerID,
+			UserType:     platform.Owner,
+			ResourceType: platform.DashboardResourceType,
+		}
+
+		mappings, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
+		if err != nil {
+			EncodeError(ctx, errors.InternalErrorf("Error loading dashboard owners: %v", err), w)
+			return
+		}
+
+		for _, mapping := range mappings {
+			req.filter.IDs = append(req.filter.IDs, &mapping.ResourceID)
+		}
+	}
+
 	dashboards, _, err := h.DashboardService.FindDashboards(ctx, req.filter)
 	if err != nil {
 		EncodeError(ctx, errors.InternalErrorf("Error loading dashboards: %v", err), w)
 		return
 	}
-
-	// if req.filter.OwnerID != nil {
-	// 	filter := platform.UserResourceMappingFilter{
-	// 		UserID:   req.filter.OwnerID,
-	// 		UserType: platform.Owner,
-	// 	}
-	//
-	// 	mappings, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
-	// 	if err != nil {
-	// 		EncodeError(ctx, errors.InternalErrorf("Error loading dashboard owners: %v", err), w)
-	// 		return
-	// 	}
-	//
-	// 	// filter out dashboards by mapping; O(m*n)
-	// 	// can also make a hash to compare to
-	// }
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newGetDashboardsResponse(dashboards)); err != nil {
 		EncodeError(ctx, err, w)
@@ -202,9 +204,7 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 			}
 			req.filter.IDs = append(req.filter.IDs, i)
 		}
-	}
-
-	if owner := qp.Get("owner"); owner != "" {
+	} else if owner := qp.Get("owner"); owner != "" {
 		req.ownerID = &platform.ID{}
 		if err := req.ownerID.DecodeFromString(owner); err != nil {
 			return nil, err
