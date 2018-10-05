@@ -1,11 +1,9 @@
 package http
 
 import (
-	"bytes"
 	"compress/gzip"
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 
@@ -13,6 +11,7 @@ import (
 	pcontext "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
@@ -28,15 +27,15 @@ type WriteHandler struct {
 	BucketService        platform.BucketService
 	OrganizationService  platform.OrganizationService
 
-	Publish func(io.Reader) error
+	PointsWriter storage.PointsWriter
 }
 
 // NewWriteHandler creates a new handler at /api/v2/write to receive line protocol.
-func NewWriteHandler(publishFn func(io.Reader) error) *WriteHandler {
+func NewWriteHandler(writer storage.PointsWriter) *WriteHandler {
 	h := &WriteHandler{
-		Router:  httprouter.New(),
-		Logger:  zap.NewNop(),
-		Publish: publishFn,
+		Router: httprouter.New(),
+		Logger: zap.NewNop(),
+		PointsWriter: writer,
 	}
 
 	h.HandlerFunc("POST", "/api/v2/write", h.handleWrite)
@@ -137,7 +136,6 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	// TODO(jeff): we should be publishing with the org and bucket instead of
 	// parsing, rewriting, and publishing, but the interface isn't quite there yet.
 	// be sure to remove this when it is there!
-	{
 		data, err := ioutil.ReadAll(in)
 		if err != nil {
 			logger.Info("Error reading body", zap.Error(err))
@@ -159,19 +157,11 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		var buf []byte
-		for _, pt := range exploded {
-			buf = pt.AppendString(buf)
-			buf = append(buf, '\n')
+		if err := h.PointsWriter.WritePoints(exploded); err != nil {
+			EncodeError(ctx, errors.BadRequestError(err.Error()), w)
+			return
 		}
 
-		in = ioutil.NopCloser(bytes.NewReader(buf))
-	}
-
-	if err := h.Publish(in); err != nil {
-		EncodeError(ctx, errors.BadRequestError(err.Error()), w)
-		return
-	}
 
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -24,6 +24,23 @@ import (
 	"go.uber.org/zap"
 )
 
+// Log describes an interface for a durable disk-based log.
+type Log interface {
+	Open() error
+	Close() error
+	Path() string
+
+	LastWriteTime() time.Time
+	DiskSizeBytes() int64
+
+	WriteMulti(values map[string][]Value) (int, error)
+	DeleteRange(keys [][]byte, min, max int64) (int, error)
+
+	CloseSegment() error
+	ClosedSegments() ([]string, error)
+	Remove(files []string) error
+}
+
 const (
 	// DefaultSegmentSize of 10MB is the size at which segment files will be rolled over.
 	DefaultSegmentSize = 10 * 1024 * 1024
@@ -1236,3 +1253,20 @@ func idFromFileName(name string) (int, error) {
 
 	return int(id), err
 }
+
+// NopWAL implements the Log interface and provides a no-op WAL implementation.
+type NopWAL struct{}
+
+func (w NopWAL) Open() error  { return nil }
+func (w NopWAL) Close() error { return nil }
+func (w NopWAL) Path() string { return "" }
+
+func (w NopWAL) LastWriteTime() time.Time { return time.Time{} }
+func (w NopWAL) DiskSizeBytes() int64     { return 0 }
+
+func (w NopWAL) WriteMulti(values map[string][]Value) (int, error)      { return 0, nil }
+func (w NopWAL) DeleteRange(keys [][]byte, min, max int64) (int, error) { return 0, nil }
+
+func (w NopWAL) CloseSegment() error               { return nil }
+func (w NopWAL) ClosedSegments() ([]string, error) { return nil, nil }
+func (w NopWAL) Remove(files []string) error       { return nil }

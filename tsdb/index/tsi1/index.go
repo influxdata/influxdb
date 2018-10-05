@@ -638,13 +638,21 @@ func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) e
 	var pidx uint32 // Index of maximum Partition being worked on.
 	for k := 0; k < n; k++ {
 		go func() {
+			i.mu.RLock()
+			partitionN := len(i.partitions)
+			i.mu.RUnlock()
+
 			for {
 				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= len(i.partitions) {
+				if idx >= partitionN {
 					return // No more work.
 				}
 
-				ids, err := i.partitions[idx].createSeriesListIfNotExists(&pCollections[idx])
+				i.mu.RLock()
+				partition := i.partitions[idx]
+				i.mu.RUnlock()
+
+				ids, err := partition.createSeriesListIfNotExists(&pCollections[idx])
 				if len(ids) == 0 {
 					errC <- err
 					continue
@@ -825,12 +833,14 @@ func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 	return i.sSketch, i.sTSketch, nil
 }
 
-// Since indexes are not shared across shards, the count returned by SeriesN
-// cannot be combined with other shard's results. If you need to count series
-// across indexes then use either the database-wide series file, or merge the
-// index-level bitsets or sketches.
+// SeriesN returns the series cardinality in the index. It is the sum of all
+// partition cardinalities.
 func (i *Index) SeriesN() int64 {
-	return int64(i.SeriesIDSet().Cardinality())
+	var total int64
+	for _, p := range i.partitions {
+		total += int64(p.seriesIDSet.Cardinality())
+	}
+	return total
 }
 
 // HasTagKey returns true if tag key exists. It returns the first error

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/toml"
 )
 
@@ -61,6 +62,14 @@ type Config struct {
 	Dir    string `toml:"dir"`
 	Engine string `toml:"-"`
 	Index  string `toml:"index-version"`
+
+	// General WAL configuration options
+	WALDir string `toml:"wal-dir"`
+
+	// WALFsyncDelay is the amount of time that a write will wait before fsyncing.  A duration
+	// greater than 0 can be used to batch up multiple fsync calls.  This is useful for slower
+	// disks or when WAL write contention is seen.  A value of 0 fsyncs every write to the WAL.
+	WALFsyncDelay toml.Duration `toml:"wal-fsync-delay"`
 
 	// Enables unicode validation on series keys on write.
 	ValidateKeys bool `toml:"validate-keys"`
@@ -147,4 +156,18 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// Diagnostics returns a diagnostics representation of a subset of the Config.
+func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
+	return diagnostics.RowFromMap(map[string]interface{}{
+		"dir":                                c.Dir,
+		"wal-dir":                            c.WALDir,
+		"wal-fsync-delay":                    c.WALFsyncDelay,
+		"cache-max-memory-size":              c.CacheMaxMemorySize,
+		"cache-snapshot-memory-size":         c.CacheSnapshotMemorySize,
+		"cache-snapshot-write-cold-duration": c.CacheSnapshotWriteColdDuration,
+		"compact-full-write-cold-duration":   c.CompactFullWriteColdDuration,
+		"max-concurrent-compactions":         c.MaxConcurrentCompactions,
+	}), nil
 }
