@@ -648,7 +648,11 @@ func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) e
 					return // No more work.
 				}
 
-				ids, err := i.partitions[idx].createSeriesListIfNotExists(&pCollections[idx])
+				i.mu.RLock()
+				partition := i.partitions[idx]
+				i.mu.RUnlock()
+
+				ids, err := partition.createSeriesListIfNotExists(&pCollections[idx])
 				if len(ids) == 0 {
 					errC <- err
 					continue

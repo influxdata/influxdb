@@ -17,7 +17,7 @@ func TestEngine_WriteAndIndex(t *testing.T) {
 
 	// Calling WritePoints when the engine is not open will return
 	// ErrEngineClosed.
-	if got, exp := engine.WritePoints(nil), storage.ErrEngineClosed; got != exp {
+	if got, exp := engine.Write1xPoints(nil), storage.ErrEngineClosed; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
@@ -30,12 +30,12 @@ func TestEngine_WriteAndIndex(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := engine.WritePoints([]models.Point{pt}); err != nil {
+	if err := engine.Write1xPoints([]models.Point{pt}); err != nil {
 		t.Fatal(err)
 	}
 
 	pt.SetTime(time.Unix(2, 3))
-	if err := engine.WritePoints([]models.Point{pt}); err != nil {
+	if err := engine.Write1xPoints([]models.Point{pt}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -53,7 +53,7 @@ func TestEngine_WriteAndIndex(t *testing.T) {
 
 	// and ensure that we can still write data
 	pt.SetTime(time.Unix(2, 6))
-	if err := engine.WritePoints([]models.Point{pt}); err != nil {
+	if err := engine.Write1xPoints([]models.Point{pt}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -70,7 +70,7 @@ func TestEngine_TimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := engine.WritePoints([]models.Point{pt}); err == nil {
+	if err := engine.Write1xPoints([]models.Point{pt}); err == nil {
 		t.Fatal("expected error: got nil")
 	}
 
@@ -81,7 +81,7 @@ func TestEngine_TimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := engine.WritePoints([]models.Point{pt}); err == nil {
+	if err := engine.Write1xPoints([]models.Point{pt}); err == nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -98,7 +98,7 @@ func TestWrite_TimeField(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := engine.WritePoints([]models.Point{pt}); err == nil {
+	if err := engine.Write1xPoints([]models.Point{pt}); err == nil {
 		t.Fatal("expected error: got nil")
 	}
 
@@ -109,7 +109,7 @@ func TestWrite_TimeField(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := engine.WritePoints([]models.Point{pt}); err == nil {
+	if err := engine.Write1xPoints([]models.Point{pt}); err == nil {
 		t.Fatal("expected error: got nil")
 	}
 }
@@ -126,7 +126,7 @@ func TestEngine_WriteAddNewField(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err := engine.WritePoints([]models.Point{pt})
+	err := engine.Write1xPoints([]models.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -138,7 +138,7 @@ func TestEngine_WriteAddNewField(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err = engine.WritePoints([]models.Point{pt})
+	err = engine.Write1xPoints([]models.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -162,7 +162,7 @@ func TestEngineClose_RemoveIndex(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err := engine.WritePoints([]models.Point{pt})
+	err := engine.Write1xPoints([]models.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -211,8 +211,10 @@ func (e *Engine) MustOpen() {
 	}
 }
 
-// WritePoints converts old style points into the new 2.0 engine format.
-func (e *Engine) WritePoints(pts []models.Point) error {
+// Write1xPoints converts old style points into the new 2.0 engine format.
+// This allows us to use the old `models` package helper functions and still write
+// the points in the correct format.
+func (e *Engine) Write1xPoints(pts []models.Point) error {
 	points, err := tsdb.ExplodePoints([]byte("11111111"), []byte("22222222"), pts)
 	if err != nil {
 		return err
