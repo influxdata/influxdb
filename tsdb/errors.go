@@ -9,10 +9,6 @@ var (
 	// ErrFieldTypeConflict is returned when a new field already exists with a different type.
 	ErrFieldTypeConflict = errors.New("field type conflict")
 
-	// ErrEngineClosed is returned when a caller attempts indirectly to
-	// access the shard's underlying engine.
-	ErrEngineClosed = errors.New("engine is closed")
-
 	// ErrShardDisabled is returned when a the shard is not available for
 	// queries or writes.
 	ErrShardDisabled = errors.New("shard is disabled")

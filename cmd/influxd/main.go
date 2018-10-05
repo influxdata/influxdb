@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	nethttp "net/http"
 	_ "net/http/pprof"
 	"os"
@@ -57,7 +56,7 @@ var (
 	httpBindAddress   string
 	authorizationPath string
 	boltPath          string
-	walPath           string
+	natsPath           string
 	developerMode     bool
 	enginePath        string
 )
@@ -115,10 +114,11 @@ func init() {
 		os.Exit(1)
 	}
 
-	platformCmd.Flags().StringVar(&walPath, "wal-path", filepath.Join(dir, "wal"), "path to persistent WAL files")
-	viper.BindEnv("WAL_PATH")
-	if h := viper.GetString("WAL_PATH"); h != "" {
-		walPath = h
+	// TODO(edd): do we need NATS for anything?
+	platformCmd.Flags().StringVar(&natsPath, "nats-path", filepath.Join(dir, "nats"), "path to persistent NATS files")
+	viper.BindEnv("NATS_PATH")
+	if h := viper.GetString("NATS_PATH"); h != "" {
+		natsPath = h
 	}
 
 	platformCmd.Flags().StringVar(&enginePath, "engine-path", filepath.Join(dir, "engine"), "path to persistent engine files")
@@ -211,14 +211,11 @@ func platformF(cmd *cobra.Command, args []string) {
 
 	// TODO(jeff): this block is hacky support for a storage engine. it is not intended to
 	// be a long term solution.
-	var (
-		natsHandler         nats.Handler
-		storageQueryService query.ProxyQueryService
-	)
+	var	storageQueryService query.ProxyQueryService
+	var pointsWriter storage.PointsWriter
 	{
 		config := storage.NewConfig()
-		config.CacheSnapshotMemorySize = 0
-		config.TraceLoggingEnabled = true
+		config.EngineOptions.WALEnabled = true // Enable a disk-based WAL.
 		config.EngineOptions.Config = config.Config
 
 		engine := storage.NewEngine(enginePath, config)
@@ -229,12 +226,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 
-		engineHandler := nats.NewEngineHandler()
-		engineHandler.Logger = logger.With(zap.String("handler", "engine"))
-		engineHandler.Engine = engine
-
-		natsHandler = engineHandler
-
+		pointsWriter = engine
 		storageQueryService = query.ProxyQueryServiceBridge{
 			QueryService: query.QueryServiceBridge{
 				AsyncQueryService: &queryAdapter{
@@ -297,7 +289,7 @@ func platformF(cmd *cobra.Command, args []string) {
 	signal.Notify(sigs, syscall.SIGTERM, os.Interrupt)
 
 	// NATS streaming server
-	natsServer := nats.NewServer(nats.Config{FilestoreDir: walPath})
+	natsServer := nats.NewServer(nats.Config{FilestoreDir: natsPath})
 	if err := natsServer.Open(); err != nil {
 		logger.Error("failed to start nats streaming server", zap.Error(err))
 		os.Exit(1)
@@ -313,11 +305,6 @@ func platformF(cmd *cobra.Command, args []string) {
 	subscriber := nats.NewQueueSubscriber("nats-subscriber")
 	if err := subscriber.Open(); err != nil {
 		logger.Error("failed to connect to streaming server", zap.Error(err))
-		os.Exit(1)
-	}
-
-	if err := subscriber.Subscribe(IngressSubject, IngressGroup, natsHandler); err != nil {
-		logger.Error("failed to create nats subscriber", zap.Error(err))
 		os.Exit(1)
 	}
 
@@ -338,9 +325,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		Logger:           logger,
 		NewBucketService: source.NewBucketService,
 		NewQueryService:  source.NewQueryService,
-		PublisherFn: func(r io.Reader) error {
-			return publisher.Publish(IngressSubject, r)
-		},
+		PointsWriter: pointsWriter,
 		AuthorizationService:       authSvc,
 		BucketService:              bucketSvc,
 		SessionService:             sessionSvc,

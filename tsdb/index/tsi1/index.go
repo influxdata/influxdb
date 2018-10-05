@@ -825,12 +825,14 @@ func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 	return i.sSketch, i.sTSketch, nil
 }
 
-// Since indexes are not shared across shards, the count returned by SeriesN
-// cannot be combined with other shard's results. If you need to count series
-// across indexes then use either the database-wide series file, or merge the
-// index-level bitsets or sketches.
+// SeriesN returns the series cardinality in the index. It is the sum of all
+// partition cardinalities.
 func (i *Index) SeriesN() int64 {
-	return int64(i.SeriesIDSet().Cardinality())
+	var total int64
+	for _, p := range i.partitions {
+		total += int64(p.seriesIDSet.Cardinality())
+	}
+	return total
 }
 
 // HasTagKey returns true if tag key exists. It returns the first error

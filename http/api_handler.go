@@ -1,13 +1,13 @@
 package http
 
 import (
-	"io"
 	http "net/http"
 	"strings"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/chronograf/server"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/storage"
 	"go.uber.org/zap"
 )
 
@@ -39,8 +39,8 @@ type APIBackend struct {
 	NewBucketService func(*platform.Source) (platform.BucketService, error)
 	NewQueryService  func(*platform.Source) (query.ProxyQueryService, error)
 
-	PublisherFn func(r io.Reader) error
-
+	
+	PointsWriter storage.PointsWriter
 	AuthorizationService       platform.AuthorizationService
 	BucketService              platform.BucketService
 	SessionService             platform.SessionService
@@ -105,7 +105,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.TaskHandler = NewTaskHandler(b.Logger)
 	h.TaskHandler.TaskService = b.TaskService
 
-	h.WriteHandler = NewWriteHandler(b.PublisherFn)
+	h.WriteHandler = NewWriteHandler(b.PointsWriter)
 	h.WriteHandler.AuthorizationService = b.AuthorizationService
 	h.WriteHandler.OrganizationService = b.OrganizationService
 	h.WriteHandler.BucketService = b.BucketService

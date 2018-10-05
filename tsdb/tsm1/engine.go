@@ -225,7 +225,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		traceLogger:  logger,
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
-		WAL: NopWAL{},
+		WAL:   NopWAL{},
 		Cache: cache,
 
 		FileStore:      fs,
@@ -243,7 +243,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 	}
 
 	if opt.WALEnabled {
-		wal  := NewWAL(walPath)
+		wal := NewWAL(walPath)
 		wal.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
 		e.WAL = wal
 	}
@@ -749,7 +749,7 @@ func (e *Engine) Close() error {
 	if err := e.FileStore.Close(); err != nil {
 		return err
 	}
- 	return e.WAL.Close()
+	return e.WAL.Close()
 }
 
 // WithLogger sets the logger for the engine.
@@ -1260,11 +1260,6 @@ func (e *Engine) WritePoints(points []models.Point) error {
 		iter := p.FieldIterator()
 		t := p.Time().UnixNano()
 		for iter.Next() {
-			// Skip fields name "time", they are illegal
-			if bytes.Equal(iter.FieldKey(), timeBytes) {
-				continue
-			}
-
 			keyBuf = append(keyBuf[:baseLen], iter.FieldKey()...)
 
 			if e.seriesTypeMap != nil {
@@ -1553,9 +1548,9 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	e.Cache.DeleteRange(deleteKeys, min, max)
 
 	// delete from the WAL
-		if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
-			return err
-		}
+	if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
+		return err
+	}
 
 	// The series are deleted on disk, but the index may still say they exist.
 	// Depending on the the min,max time passed in, the series may or not actually
@@ -2203,7 +2198,7 @@ func (e *Engine) reloadCache() error {
 		return err
 	}
 
-	e.traceLogger.Info("Reloaded WAL cache",zap.String("path", e.WAL.Path()), zap.Duration("duration", time.Since(now)))
+	e.traceLogger.Info("Reloaded WAL cache", zap.String("path", e.WAL.Path()), zap.Duration("duration", time.Since(now)))
 	return nil
 }
 

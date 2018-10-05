@@ -186,13 +186,14 @@ func (s *Shard) close() error {
 // ready determines if the Shard is ready for queries or writes.
 // It returns nil if ready, otherwise ErrShardClosed or ErrShardDisabled
 func (s *Shard) ready() error {
-	var err error
-	if s._engine == nil {
-		err = ErrEngineClosed
-	} else if !s.enabled {
-		err = ErrShardDisabled
-	}
-	return err
+	return nil // TODO(edd)remove
+	// var err error
+	// if s._engine == nil {
+	// 	err = ErrEngineClosed
+	// } else if !s.enabled {
+	// 	err = ErrShardDisabled
+	// }
+	// return err
 }
 
 // Engine returns a reference to the currently loaded engine.

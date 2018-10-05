@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -17,11 +19,16 @@ import (
 // Static objects to prevent small allocs.
 var timeBytes = []byte("time")
 
+// ErrEngineClosed is returned when a caller attempts to use the engine while
+// it's closed.
+var ErrEngineClosed = errors.New("engine is closed")
+
 type Engine struct {
 	config Config
 	path   string
 
 	mu     sync.RWMutex
+	open   bool
 	index  *tsi1.Index
 	sfile  *tsdb.SeriesFile
 	engine *tsm1.Engine
@@ -56,7 +63,9 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e.index = index
 
 	// Initialise Engine
-	engine := tsm1.NewEngine(0, tsdb.Index(e.index), filepath.Join(path, "data"), "remove-me-wal", e.sfile, c.EngineOptions)
+	// TODO(edd): should just be able to use the config values for data/wal.
+	engine := tsm1.NewEngine(0, tsdb.Index(e.index), filepath.Join(path, "data"), filepath.Join(path, "wal"), e.sfile, c.EngineOptions)
+
 	// TODO(edd): Once the tsdb.Engine abstraction is gone, this won't be needed.
 	e.engine = engine.(*tsm1.Engine)
 
@@ -81,6 +90,10 @@ func (e *Engine) Open() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	if e.open {
+		return nil // no-op
+	}
+
 	if err := e.sfile.Open(); err != nil {
 		return err
 	}
@@ -93,6 +106,7 @@ func (e *Engine) Open() error {
 		return err
 	}
 	e.engine.SetCompactionsEnabled(true) // TODO(edd):is this needed?
+	e.open = true
 	return nil
 }
 
@@ -102,6 +116,10 @@ func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	if !e.open {
+		return nil // no-op
+	}
+	e.open = false
 	if err := e.sfile.Close(); err != nil {
 		return err
 	}
@@ -116,6 +134,9 @@ func (e *Engine) Close() error {
 func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest, cond influxql.Expr) (SeriesCursor, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
+	if !e.open {
+		return nil, ErrEngineClosed
+	}
 	// TODO(edd): remove IndexSet
 	return newSeriesCursor(req, tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}, cond)
 }
@@ -123,6 +144,9 @@ func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest
 func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
+	if !e.open {
+		return nil, ErrEngineClosed
+	}
 	return e.engine.CreateCursorIterator(ctx)
 }
 
@@ -138,12 +162,19 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	for iter := collection.Iterator(); iter.Next(); {
 		tags := iter.Tags()
 
+		if tags.Len() > 0 && bytes.Equal(tags[0].Key, tsdb.FieldKeyTagKeyBytes) && bytes.Equal(tags[0].Value, timeBytes) {
+			// Field key "time" is invalid
+			if collection.Reason == "" {
+				collection.Reason = fmt.Sprintf("invalid field key: input field %q is invalid", timeBytes)
+			}
+			collection.Dropped++
+			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
+		}
+
 		// Filter out any tags with key equal to "time": they are invalid.
 		if tags.Get(timeBytes) != nil {
 			if collection.Reason == "" {
-				collection.Reason = fmt.Sprintf(
-					"invalid tag key: input tag %q on measurement %q is invalid",
-					timeBytes, iter.Name())
+				collection.Reason = fmt.Sprintf("invalid tag key: input tag %q on measurement %q is invalid", timeBytes, iter.Name())
 			}
 			collection.Dropped++
 			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
@@ -168,6 +199,10 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
+	if !e.open {
+		return ErrEngineClosed
+	}
+
 	// Add new series to the index and series file. Check for partial writes.
 	if err := e.index.CreateSeriesListIfNotExists(collection); err != nil {
 		// ignore PartialWriteErrors. The collection captures it.
@@ -189,6 +224,9 @@ func (e *Engine) WritePoints(points []models.Point) error {
 func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, fn func([]byte, models.Tags) (int64, int64, bool)) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
+	if !e.open {
+		return ErrEngineClosed
+	}
 	return e.engine.DeleteSeriesRangeWithPredicate(itr, fn)
 }
 
@@ -196,6 +234,9 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, fn func
 func (e *Engine) SeriesCardinality() int64 {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
+	if !e.open {
+		return 0
+	}
 	return e.index.SeriesN()
 }
 
@@ -209,5 +250,8 @@ func (e *Engine) Path() string {
 func (e *Engine) ApplyFnToSeriesIDSet(fn func(*tsdb.SeriesIDSet)) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
+	if !e.open {
+		return
+	}
 	fn(e.index.SeriesIDSet())
 }
