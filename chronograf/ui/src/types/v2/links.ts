@@ -4,8 +4,6 @@
 export interface Links {
   auths: string
   buckets: string
-  signin: string
-  signout: string
   dashboards: string
   external: {
     statusFeed: string

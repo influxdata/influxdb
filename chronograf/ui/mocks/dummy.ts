@@ -14,8 +14,6 @@ export const links: Links = {
   auths: '/api/v2/authorizations',
   buckets: '/api/v2/buckets',
   dashboards: '/api/v2/dashboards',
-  signin: '/api/v2/signin',
-  signout: '/api/v2/signout',
   external: {
     statusFeed: 'https://www.influxdata.com/feed/json',
   },
