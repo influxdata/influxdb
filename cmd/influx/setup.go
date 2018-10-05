@@ -34,7 +34,7 @@ func setupF(cmd *cobra.Command, args []string) {
 	}
 	if !allowed {
 		fmt.Println("Initialization has been already completed")
-		os.Exit(1)
+		os.Exit(0)
 	}
 
 	or := getOnboardingRequest()
@@ -62,20 +62,62 @@ func setupF(cmd *cobra.Command, args []string) {
 	w.Flush()
 }
 
-func getOnboardingRequest() *platform.OnboardingRequest {
+func getOnboardingRequest() (or *platform.OnboardingRequest) {
 	term := terminal.NewTerminal(struct {
 		io.Reader
 		io.Writer
 	}{os.Stdin, os.Stdout}, " ")
+	var confirmed bool
+	for !confirmed {
+		or = new(platform.OnboardingRequest)
+		term.Write([]byte(promptWithColor(`Welcome to the influxdata platform!
 
-	or := new(platform.OnboardingRequest)
-	fmt.Println(string(term.Escape.Yellow) + "Welcome to influxdata platform! Type cancel anytime to terminate setup" + " " + string(term.Escape.Reset))
-	or.User = getInput(term, "Please type your primary username:", "", false)
-	or.Password = getInput(term, "Please type your password:", "", true)
-	or.Org = getInput(term, "Please type your primary organization name.\r\nOr ENTER to use \"default\":", "default", false)
-	or.Bucket = getInput(term, "Please type your primary bucket name.\r\nOr ENTER to use \"default\":", "default", false)
+Type cancel at anytime to terminate setup
+`, term.Escape.Yellow, term)))
+		or.User = getInput(term, "Please type your primary username:", "", false)
+		or.Password = getInput(term, "Please type your password:", "", true)
+		or.Org = getInput(term, "Please type your primary organization name.\r\nOr ENTER to use \"default\":", "default", false)
+		or.Bucket = getInput(term, "Please type your primary bucket name.\r\nOr ENTER to use \"default\":", "default", false)
+
+		confirmed = getConfirm(term, or)
+	}
 
 	return or
+}
+
+func promptWithColor(s string, color []byte, term *terminal.Terminal) string {
+	return string(color) + s + string(term.Escape.Reset)
+}
+
+func getConfirm(term *terminal.Terminal, or *platform.OnboardingRequest) bool {
+	oldState, err := terminal.MakeRaw(0)
+	if err != nil {
+		return false
+	}
+	defer terminal.Restore(0, oldState)
+	term.Write([]byte(promptWithColor(fmt.Sprintf(`
+You have entered:
+    username:      %s
+    organization:  %s
+    bucket:        %s
+`, or.User, or.Org, or.Bucket), term.Escape.Cyan, term)))
+	prompt := promptWithColor("Confirm? (y/n): ", term.Escape.Red, term)
+	term.SetPrompt(prompt)
+	for {
+		line, _ := term.ReadLine()
+		line = strings.TrimSpace(line)
+		switch line {
+		case "y":
+			return true
+		case "n":
+			return false
+		case "cancel":
+			terminal.Restore(0, oldState)
+			os.Exit(0)
+		default:
+			continue
+		}
+	}
 }
 
 func getInput(term *terminal.Terminal, prompt, defaultValue string, isPassword bool) string {
@@ -86,7 +128,7 @@ func getInput(term *terminal.Terminal, prompt, defaultValue string, isPassword b
 	}
 	defer terminal.Restore(0, oldState)
 
-	prompt = string(term.Escape.Cyan) + prompt + string(term.Escape.Reset)
+	prompt = promptWithColor(prompt, term.Escape.Cyan, term)
 	if isPassword {
 		for {
 			line, _ = term.ReadPassword(prompt)
