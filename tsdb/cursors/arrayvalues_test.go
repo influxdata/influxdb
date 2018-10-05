@@ -1,18 +1,18 @@
-package tsdb_test
+package cursors_test
 
 import (
 	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/tsdb"
+	"github.com/influxdata/platform/tsdb/cursors"
 )
 
-func makeBooleanArray(v ...interface{}) *tsdb.BooleanArray {
+func makeBooleanArray(v ...interface{}) *cursors.BooleanArray {
 	if len(v)&1 == 1 {
 		panic("invalid array length")
 	}
-	a := tsdb.NewBooleanArrayLen(len(v) / 2)
+	a := cursors.NewBooleanArrayLen(len(v) / 2)
 	for i := 0; i < len(v); i += 2 {
 		a.Timestamps[i/2] = int64(v[i].(int))
 		a.Values[i/2] = v[i+1].(bool)
@@ -20,11 +20,11 @@ func makeBooleanArray(v ...interface{}) *tsdb.BooleanArray {
 	return a
 }
 
-func makeFloatArray(v ...interface{}) *tsdb.FloatArray {
+func makeFloatArray(v ...interface{}) *cursors.FloatArray {
 	if len(v)&1 == 1 {
 		panic("invalid array length")
 	}
-	a := tsdb.NewFloatArrayLen(len(v) / 2)
+	a := cursors.NewFloatArrayLen(len(v) / 2)
 	for i := 0; i < len(v); i += 2 {
 		a.Timestamps[i/2] = int64(v[i].(int))
 		a.Values[i/2] = v[i+1].(float64)
@@ -32,11 +32,11 @@ func makeFloatArray(v ...interface{}) *tsdb.FloatArray {
 	return a
 }
 
-func makeIntegerArray(v ...interface{}) *tsdb.IntegerArray {
+func makeIntegerArray(v ...interface{}) *cursors.IntegerArray {
 	if len(v)&1 == 1 {
 		panic("invalid array length")
 	}
-	a := tsdb.NewIntegerArrayLen(len(v) / 2)
+	a := cursors.NewIntegerArrayLen(len(v) / 2)
 	for i := 0; i < len(v); i += 2 {
 		a.Timestamps[i/2] = int64(v[i].(int))
 		a.Values[i/2] = int64(v[i+1].(int))
@@ -44,11 +44,11 @@ func makeIntegerArray(v ...interface{}) *tsdb.IntegerArray {
 	return a
 }
 
-func makeUnsignedArray(v ...interface{}) *tsdb.UnsignedArray {
+func makeUnsignedArray(v ...interface{}) *cursors.UnsignedArray {
 	if len(v)&1 == 1 {
 		panic("invalid array length")
 	}
-	a := tsdb.NewUnsignedArrayLen(len(v) / 2)
+	a := cursors.NewUnsignedArrayLen(len(v) / 2)
 	for i := 0; i < len(v); i += 2 {
 		a.Timestamps[i/2] = int64(v[i].(int))
 		a.Values[i/2] = uint64(v[i+1].(int))
@@ -56,11 +56,11 @@ func makeUnsignedArray(v ...interface{}) *tsdb.UnsignedArray {
 	return a
 }
 
-func makeStringArray(v ...interface{}) *tsdb.StringArray {
+func makeStringArray(v ...interface{}) *cursors.StringArray {
 	if len(v)&1 == 1 {
 		panic("invalid array length")
 	}
-	a := tsdb.NewStringArrayLen(len(v) / 2)
+	a := cursors.NewStringArrayLen(len(v) / 2)
 	for i := 0; i < len(v); i += 2 {
 		a.Timestamps[i/2] = int64(v[i].(int))
 		a.Values[i/2] = strconv.Itoa(v[i+1].(int))
@@ -71,7 +71,7 @@ func makeStringArray(v ...interface{}) *tsdb.StringArray {
 func TestBooleanArray_Merge(t *testing.T) {
 	tests := []struct {
 		name      string
-		a, b, exp *tsdb.BooleanArray
+		a, b, exp *cursors.BooleanArray
 	}{
 		{
 			name: "empty a",
@@ -149,7 +149,7 @@ func TestBooleanArray_Merge(t *testing.T) {
 func TestFloatArray_Merge(t *testing.T) {
 	tests := []struct {
 		name      string
-		a, b, exp *tsdb.FloatArray
+		a, b, exp *cursors.FloatArray
 	}{
 		{
 			name: "empty a",
@@ -227,7 +227,7 @@ func TestFloatArray_Merge(t *testing.T) {
 func TestIntegerArray_Merge(t *testing.T) {
 	tests := []struct {
 		name      string
-		a, b, exp *tsdb.IntegerArray
+		a, b, exp *cursors.IntegerArray
 	}{
 		{
 			name: "empty a",
@@ -305,7 +305,7 @@ func TestIntegerArray_Merge(t *testing.T) {
 func TestUnsignedArray_Merge(t *testing.T) {
 	tests := []struct {
 		name      string
-		a, b, exp *tsdb.UnsignedArray
+		a, b, exp *cursors.UnsignedArray
 	}{
 		{
 			name: "empty a",
@@ -383,7 +383,7 @@ func TestUnsignedArray_Merge(t *testing.T) {
 func TestStringArray_Merge(t *testing.T) {
 	tests := []struct {
 		name      string
-		a, b, exp *tsdb.StringArray
+		a, b, exp *cursors.StringArray
 	}{
 		{
 			name: "empty a",

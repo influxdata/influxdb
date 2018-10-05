@@ -28,6 +28,7 @@ import (
 	pcontrol "github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/source"
 	"github.com/influxdata/platform/storage"
+	"github.com/influxdata/platform/storage/readservice"
 	"github.com/influxdata/platform/task"
 	taskbackend "github.com/influxdata/platform/task/backend"
 	taskbolt "github.com/influxdata/platform/task/backend/bolt"
@@ -209,8 +210,6 @@ func platformF(cmd *cobra.Command, args []string) {
 
 	var onboardingSvc platform.OnboardingService = c
 
-	// TODO(jeff): this block is hacky support for a storage engine. it is not intended to
-	// be a long term solution.
 	var storageQueryService query.ProxyQueryService
 	var pointsWriter storage.PointsWriter
 	{
@@ -227,18 +226,15 @@ func platformF(cmd *cobra.Command, args []string) {
 		}
 
 		pointsWriter = engine
-		storageQueryService = query.ProxyQueryServiceBridge{
-			QueryService: query.QueryServiceBridge{
-				AsyncQueryService: &queryAdapter{
-					Controller: NewController(
-						&store{engine: engine},
-						query.FromBucketService(c),
-						query.FromOrganizationService(c),
-						logger.With(zap.String("service", "storage")),
-					),
-				},
-			},
+
+		service, err := readservice.NewProxyQueryService(
+			engine, bucketSvc, orgSvc, logger.With(zap.String("service", "storage-reads")))
+		if err != nil {
+			logger.Error("failed to create query service", zap.Error(err))
+			os.Exit(1)
 		}
+
+		storageQueryService = service
 	}
 
 	var queryService query.QueryService

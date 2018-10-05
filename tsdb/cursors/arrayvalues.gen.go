@@ -4,7 +4,7 @@
 // DO NOT EDIT!
 // Source: arrayvalues.gen.go.tmpl
 
-package tsdb
+package cursors
 
 type FloatArray struct {
 	Timestamps []int64
