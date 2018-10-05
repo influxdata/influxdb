@@ -3,6 +3,8 @@ package storage
 import (
 	"net"
 
+	"github.com/influxdata/platform/storage/reads"
+	"github.com/influxdata/platform/storage/reads/datatypes"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -11,7 +13,7 @@ type grpcServer struct {
 	addr           string
 	loggingEnabled bool
 	rpc            *grpc.Server
-	store          Store
+	store          reads.Store
 	logger         *zap.Logger
 }
 
@@ -22,7 +24,11 @@ func (s *grpcServer) Open() error {
 	}
 
 	s.rpc = grpc.NewServer()
-	RegisterStorageServer(s.rpc, &rpcService{loggingEnabled: s.loggingEnabled, Store: s.store, Logger: s.logger})
+	datatypes.RegisterStorageServer(s.rpc, &rpcService{
+		loggingEnabled: s.loggingEnabled,
+		Store:          s.store,
+		Logger:         s.logger,
+	})
 
 	go s.serve(listener)
 	return nil

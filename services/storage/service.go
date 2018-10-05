@@ -20,7 +20,7 @@ type Service struct {
 	loggingEnabled bool
 	logger         *zap.Logger
 
-	Store      *localStore
+	Store      *Store
 	TSDBStore  *tsdb.Store
 	MetaClient MetaClient
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/influxdata/influxdb/services/precreator"
 	"github.com/influxdata/influxdb/services/retention"
 	"github.com/influxdata/influxdb/services/snapshotter"
+	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
 	"github.com/influxdata/influxdb/tcp"
@@ -35,7 +36,6 @@ import (
 	client "github.com/influxdata/usage-client/v1"
 	"go.uber.org/zap"
 
-	"github.com/influxdata/influxdb/services/storage"
 	// Initialize the engine package
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 	// Initialize the index package
