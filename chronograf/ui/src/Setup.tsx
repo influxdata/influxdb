@@ -19,12 +19,11 @@ import {Links} from 'src/types/v2/links'
 
 interface State {
   loading: RemoteDataState
-  isSetupAllowed: boolean
+  isSetupComplete: boolean
 }
 
 interface Props {
   links: Links
-  isSetupComplete: boolean
   children: ReactElement<any>
   notify: (message: Notification | NotificationFunc) => void
 }
@@ -36,32 +35,38 @@ export class Setup extends PureComponent<Props, State> {
 
     this.state = {
       loading: RemoteDataState.NotStarted,
-      isSetupAllowed: false,
+      isSetupComplete: false,
     }
   }
 
   public async componentDidMount() {
     const {links} = this.props
     const isSetupAllowed = await getSetupStatus(links.setup)
-    this.setState({loading: RemoteDataState.Done, isSetupAllowed})
+    this.setState({
+      loading: RemoteDataState.Done,
+      isSetupComplete: !isSetupAllowed,
+    })
   }
 
   public render() {
-    const {isSetupComplete} = this.props
-    const {isSetupAllowed} = this.state
+    const {isSetupComplete} = this.state
     if (this.isLoading) {
       return <div className="page-spinner" />
     }
-    if (isSetupAllowed && !isSetupComplete) {
+    if (!isSetupComplete) {
       return (
         <div className="chronograf-root">
           <Notifications inPresentationMode={true} />
-          <OnboardingWizard />
+          <OnboardingWizard onCompleteSetup={this.handleCompleteSetup} />
         </div>
       )
     } else {
       return this.props.children && React.cloneElement(this.props.children)
     }
+  }
+
+  public handleCompleteSetup = () => {
+    this.setState({isSetupComplete: true})
   }
 
   private get isLoading(): boolean {
@@ -73,10 +78,7 @@ export class Setup extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({links, isSetupComplete}) => ({
-  links,
-  isSetupComplete,
-})
+const mstp = ({links}) => ({links})
 
 const mdtp = {
   notify: notifyAction,

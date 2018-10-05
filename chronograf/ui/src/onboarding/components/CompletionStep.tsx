@@ -38,8 +38,8 @@ class CompletionStep extends PureComponent<
   }
 
   private handleComplete = () => {
-    const {router, completeSetup} = this.props
-    completeSetup()
+    const {router, onCompleteSetup} = this.props
+    onCompleteSetup()
     router.push(`/manage-sources`)
   }
   private handleDecrement = () => {

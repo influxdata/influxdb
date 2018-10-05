@@ -16,10 +16,6 @@ import {
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {
-  completeSetup as completeSetupAction,
-  CompleteSetup,
-} from 'src/onboarding/actions'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
@@ -39,7 +35,7 @@ export interface OnboardingStepProps {
   setupParams: SetupParams
   handleSetSetupParams: (setupParams: SetupParams) => void
   notify: (message: Notification | NotificationFunc) => void
-  completeSetup: CompleteSetup
+  onCompleteSetup: () => void
 }
 
 interface Props {
@@ -47,7 +43,7 @@ interface Props {
   startStep?: number
   stepStatuses?: StepStatus[]
   notify: (message: Notification | NotificationFunc) => void
-  completeSetup: CompleteSetup
+  onCompleteSetup: () => void
 }
 
 interface State {
@@ -103,7 +99,7 @@ class OnboardingWizard extends PureComponent<Props, State> {
 
   private get currentStep(): React.ReactElement<OnboardingStepProps> {
     const {currentStepIndex, setupParams} = this.state
-    const {stepStatuses, links, notify, completeSetup} = this.props
+    const {stepStatuses, links, notify, onCompleteSetup} = this.props
 
     return React.createElement(this.steps[currentStepIndex], {
       stepStatuses,
@@ -115,7 +111,7 @@ class OnboardingWizard extends PureComponent<Props, State> {
       setupParams,
       handleSetSetupParams: this.onSetSetupParams,
       notify,
-      completeSetup,
+      onCompleteSetup,
     })
   }
 
@@ -140,7 +136,6 @@ const mstp = ({links}) => ({
 
 const mdtp = {
   notify: notifyAction,
-  completeSetup: completeSetupAction,
 }
 
 export default connect(mstp, mdtp)(OnboardingWizard)

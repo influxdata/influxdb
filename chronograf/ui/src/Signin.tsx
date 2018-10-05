@@ -16,7 +16,7 @@ import {Links} from 'src/types/v2/links'
 
 interface State {
   loading: RemoteDataState
-  isSourcesAllowed: boolean
+  isUserSignedIn: boolean
 }
 
 interface Props {
@@ -31,27 +31,28 @@ export class Signin extends PureComponent<Props, State> {
 
     this.state = {
       loading: RemoteDataState.NotStarted,
-      isSourcesAllowed: false,
+      isUserSignedIn: false,
     }
   }
 
   public async componentDidMount() {
     const {links} = this.props
     const isSourcesAllowed = await trySources(links.sources)
-    this.setState({loading: RemoteDataState.Done, isSourcesAllowed})
+    const isUserSignedIn = isSourcesAllowed
+    this.setState({loading: RemoteDataState.Done, isUserSignedIn})
   }
 
   public render() {
-    const {isSourcesAllowed} = this.state
+    const {isUserSignedIn} = this.state
 
     if (this.isLoading) {
       return <div className="page-spinner" />
     }
-    if (!isSourcesAllowed) {
+    if (!isUserSignedIn) {
       return (
         <div className="chronograf-root">
           <Notifications inPresentationMode={true} />
-          <SigninPage />
+          <SigninPage onSignInUser={this.handleSignInUser} />
         </div>
       )
     } else {
@@ -65,6 +66,9 @@ export class Signin extends PureComponent<Props, State> {
       loading === RemoteDataState.Loading ||
       loading === RemoteDataState.NotStarted
     )
+  }
+  private handleSignInUser = () => {
+    this.setState({isUserSignedIn: true})
   }
 }
 

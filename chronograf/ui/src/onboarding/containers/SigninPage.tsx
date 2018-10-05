@@ -32,6 +32,7 @@ import {Notification, NotificationFunc} from 'src/types'
 export interface Props {
   links: Links
   notify: (message: Notification | NotificationFunc) => void
+  onSignInUser: () => void
 }
 
 interface State {
@@ -56,7 +57,6 @@ class SigninPage extends PureComponent<Props, State> {
         <div className="wizard-step--container">
           <div className="onboarding-step">
             <h3 className="wizard-step-title">Please sign in</h3>
-            <p>(and remember that you are awesome)</p>
             <Form>
               <Form.Element
                 label="Username"
@@ -106,12 +106,11 @@ class SigninPage extends PureComponent<Props, State> {
   }
 
   private handleSignIn = async (): Promise<void> => {
-    const {links, notify} = this.props
+    const {links, notify, onSignInUser} = this.props
     const {username, password} = this.state
     try {
       await signin(links.signin, {username, password})
-
-      window.location.reload(true)
+      onSignInUser()
     } catch (error) {
       notify(copy.SigninError)
     }
