@@ -24,8 +24,10 @@ var timeBytes = []byte("time")
 var ErrEngineClosed = errors.New("engine is closed")
 
 type Engine struct {
-	config Config
-	path   string
+	config   Config
+	path     string
+	engineID *int // Not used by default.
+	nodeID   *int // Not used by default.
 
 	mu     sync.RWMutex
 	open   bool
@@ -44,6 +46,22 @@ type Option func(*Engine)
 var WithTSMFilenameFormatter = func(fn tsm1.FormatFileNameFunc) Option {
 	return func(e *Engine) {
 		e.engine.WithFormatFileNameFunc(fn)
+	}
+}
+
+// WithEngineID sets an engine id, which can be useful for logging when multiple
+// engines are in use.
+var WithEngineID = func(id int) Option {
+	return func(e *Engine) {
+		*e.engineID = id
+	}
+}
+
+// WithNodeID sets a node id on the engine, which can be useful for logging
+// when a system has engines running on multiple nodes.
+var WithNodeID = func(id int) Option {
+	return func(e *Engine) {
+		*e.nodeID = id
 	}
 }
 
@@ -78,7 +96,17 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 // WithLogger sets the logger on the Store. It must be called before Open.
 func (e *Engine) WithLogger(log *zap.Logger) {
-	e.logger = log.With(zap.String("service", "storage-engine"))
+	fields := []zap.Field{}
+	if e.nodeID != nil {
+		fields = append(fields, zap.Int("node_id", *e.nodeID))
+	}
+
+	if e.engineID != nil {
+		fields = append(fields, zap.Int("engine_id", *e.nodeID))
+	}
+	fields = append(fields, zap.String("service", "storage-engine"))
+
+	e.logger = log.With(fields...)
 	e.sfile.WithLogger(e.logger)
 	e.index.WithLogger(e.logger)
 	e.engine.WithLogger(e.logger)
