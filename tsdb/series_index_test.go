@@ -2,6 +2,9 @@ package tsdb_test
 
 import (
 	"bytes"
+	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -12,6 +15,14 @@ import (
 
 func toTypedSeriesID(id uint64) tsdb.SeriesIDTyped {
 	return tsdb.NewSeriesID(id).WithType(models.Empty)
+}
+
+func MustTempDir() (string, func()) {
+	dir, err := ioutil.TempDir("", "shard-test")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp dir: %v", err))
+	}
+	return dir, func() { os.RemoveAll(dir) }
 }
 
 func TestSeriesIndex_Count(t *testing.T) {
