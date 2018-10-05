@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/influxdata/platform"
 )
@@ -27,9 +28,14 @@ func (s *Service) FindDashboardByID(ctx context.Context, id platform.ID) (*platf
 }
 
 func filterDashboardFn(filter platform.DashboardFilter) func(d *platform.Dashboard) bool {
-	if filter.ID != nil {
+	if len(filter.IDs) > 0 {
+		var sm sync.Map
+		for _, id := range filter.IDs {
+			sm.Store(id, true)
+		}
 		return func(d *platform.Dashboard) bool {
-			return bytes.Equal(d.ID, *filter.ID)
+			_, ok := sm.Load(d.ID)
+			return ok
 		}
 	}
 
@@ -38,8 +44,8 @@ func filterDashboardFn(filter platform.DashboardFilter) func(d *platform.Dashboa
 
 // FindDashboards implements platform.DashboardService interface.
 func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
-	if filter.ID != nil {
-		d, err := s.FindDashboardByID(ctx, *filter.ID)
+	if len(filter.IDs) != 1 {
+		d, err := s.FindDashboardByID(ctx, *filter.IDs[0])
 		if err != nil {
 			return nil, 0, err
 		}
