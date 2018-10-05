@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/services/storage"
+	"github.com/influxdata/platform/storage/reads/datatypes"
 )
 
 const (
@@ -76,7 +77,7 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 
 // ReadRequestToInfluxStorageRequest converts a Prometheus remote read request into one using the
 // new storage API that IFQL uses.
-func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (*storage.ReadRequest, error) {
+func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (*datatypes.ReadRequest, error) {
 	if len(req.Queries) != 1 {
 		return nil, errors.New("Prometheus read endpoint currently only supports one query at a time")
 	}
@@ -87,9 +88,9 @@ func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (
 		return nil, err
 	}
 
-	sreq := &storage.ReadRequest{
+	sreq := &datatypes.ReadRequest{
 		ReadSource: src,
-		TimestampRange: storage.TimestampRange{
+		TimestampRange: datatypes.TimestampRange{
 			Start: time.Unix(0, q.StartTimestampMs*int64(time.Millisecond)).UnixNano(),
 			End:   time.Unix(0, q.EndTimestampMs*int64(time.Millisecond)).UnixNano(),
 		},
@@ -121,48 +122,48 @@ func RemoveInfluxSystemTags(tags models.Tags) models.Tags {
 // predicateFromMatchers takes Prometheus label matchers and converts them to a storage
 // predicate that works with the schema that is written in, which assumes a single field
 // named value
-func predicateFromMatchers(matchers []*remote.LabelMatcher) (*storage.Predicate, error) {
+func predicateFromMatchers(matchers []*remote.LabelMatcher) (*datatypes.Predicate, error) {
 	left, err := nodeFromMatchers(matchers)
 	if err != nil {
 		return nil, err
 	}
 	right := fieldNode()
 
-	return &storage.Predicate{
-		Root: &storage.Node{
-			NodeType: storage.NodeTypeLogicalExpression,
-			Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
-			Children: []*storage.Node{left, right},
+	return &datatypes.Predicate{
+		Root: &datatypes.Node{
+			NodeType: datatypes.NodeTypeLogicalExpression,
+			Value:    &datatypes.Node_Logical_{Logical: datatypes.LogicalAnd},
+			Children: []*datatypes.Node{left, right},
 		},
 	}, nil
 }
 
-// fieldNode returns a storage.Node that will match that the fieldTagKey == fieldName
+// fieldNode returns a datatypes.Node that will match that the fieldTagKey == fieldName
 // which matches how Prometheus data is fed into the system
-func fieldNode() *storage.Node {
-	children := []*storage.Node{
-		&storage.Node{
-			NodeType: storage.NodeTypeTagRef,
-			Value: &storage.Node_TagRefValue{
+func fieldNode() *datatypes.Node {
+	children := []*datatypes.Node{
+		&datatypes.Node{
+			NodeType: datatypes.NodeTypeTagRef,
+			Value: &datatypes.Node_TagRefValue{
 				TagRefValue: fieldTagKey,
 			},
 		},
-		&storage.Node{
-			NodeType: storage.NodeTypeLiteral,
-			Value: &storage.Node_StringValue{
+		&datatypes.Node{
+			NodeType: datatypes.NodeTypeLiteral,
+			Value: &datatypes.Node_StringValue{
 				StringValue: fieldName,
 			},
 		},
 	}
 
-	return &storage.Node{
-		NodeType: storage.NodeTypeComparisonExpression,
-		Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
+	return &datatypes.Node{
+		NodeType: datatypes.NodeTypeComparisonExpression,
+		Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
 		Children: children,
 	}
 }
 
-func nodeFromMatchers(matchers []*remote.LabelMatcher) (*storage.Node, error) {
+func nodeFromMatchers(matchers []*remote.LabelMatcher) (*datatypes.Node, error) {
 	if len(matchers) == 0 {
 		return nil, errors.New("expected matcher")
 	} else if len(matchers) == 1 {
@@ -179,25 +180,25 @@ func nodeFromMatchers(matchers []*remote.LabelMatcher) (*storage.Node, error) {
 		return nil, err
 	}
 
-	children := []*storage.Node{left, right}
-	return &storage.Node{
-		NodeType: storage.NodeTypeLogicalExpression,
-		Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
+	children := []*datatypes.Node{left, right}
+	return &datatypes.Node{
+		NodeType: datatypes.NodeTypeLogicalExpression,
+		Value:    &datatypes.Node_Logical_{Logical: datatypes.LogicalAnd},
 		Children: children,
 	}, nil
 }
 
-func nodeFromMatcher(m *remote.LabelMatcher) (*storage.Node, error) {
-	var op storage.Node_Comparison
+func nodeFromMatcher(m *remote.LabelMatcher) (*datatypes.Node, error) {
+	var op datatypes.Node_Comparison
 	switch m.Type {
 	case remote.MatchType_EQUAL:
-		op = storage.ComparisonEqual
+		op = datatypes.ComparisonEqual
 	case remote.MatchType_NOT_EQUAL:
-		op = storage.ComparisonNotEqual
+		op = datatypes.ComparisonNotEqual
 	case remote.MatchType_REGEX_MATCH:
-		op = storage.ComparisonRegex
+		op = datatypes.ComparisonRegex
 	case remote.MatchType_REGEX_NO_MATCH:
-		op = storage.ComparisonNotRegex
+		op = datatypes.ComparisonNotRegex
 	default:
 		return nil, fmt.Errorf("unknown match type %v", m.Type)
 	}
@@ -207,35 +208,35 @@ func nodeFromMatcher(m *remote.LabelMatcher) (*storage.Node, error) {
 		name = measurementTagKey
 	}
 
-	left := &storage.Node{
-		NodeType: storage.NodeTypeTagRef,
-		Value: &storage.Node_TagRefValue{
+	left := &datatypes.Node{
+		NodeType: datatypes.NodeTypeTagRef,
+		Value: &datatypes.Node_TagRefValue{
 			TagRefValue: name,
 		},
 	}
 
-	var right *storage.Node
+	var right *datatypes.Node
 
-	if op == storage.ComparisonRegex || op == storage.ComparisonNotRegex {
-		right = &storage.Node{
-			NodeType: storage.NodeTypeLiteral,
-			Value: &storage.Node_RegexValue{
+	if op == datatypes.ComparisonRegex || op == datatypes.ComparisonNotRegex {
+		right = &datatypes.Node{
+			NodeType: datatypes.NodeTypeLiteral,
+			Value: &datatypes.Node_RegexValue{
 				RegexValue: m.Value,
 			},
 		}
 	} else {
-		right = &storage.Node{
-			NodeType: storage.NodeTypeLiteral,
-			Value: &storage.Node_StringValue{
+		right = &datatypes.Node{
+			NodeType: datatypes.NodeTypeLiteral,
+			Value: &datatypes.Node_StringValue{
 				StringValue: m.Value,
 			},
 		}
 	}
 
-	children := []*storage.Node{left, right}
-	return &storage.Node{
-		NodeType: storage.NodeTypeComparisonExpression,
-		Value:    &storage.Node_Comparison_{Comparison: op},
+	children := []*datatypes.Node{left, right}
+	return &datatypes.Node{
+		NodeType: datatypes.NodeTypeComparisonExpression,
+		Value:    &datatypes.Node_Comparison_{Comparison: op},
 		Children: children,
 	}, nil
 }

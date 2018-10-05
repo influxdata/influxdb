@@ -6,15 +6,14 @@ import (
 	_ "github.com/influxdata/flux/builtin"
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions"
-	fstorage "github.com/influxdata/flux/functions/storage"
-	"github.com/influxdata/influxdb/flux/functions/store"
-	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/query/functions/inputs"
+	fstorage "github.com/influxdata/platform/query/functions/inputs/storage"
+	"github.com/influxdata/platform/storage/reads"
 	"go.uber.org/zap"
 )
 
-func NewController(s storage.Store, logger *zap.Logger) *control.Controller {
+func NewController(s reads.Store, logger *zap.Logger) *control.Controller {
 	// flux
 	var (
 		concurrencyQuota = 10
@@ -29,8 +28,8 @@ func NewController(s storage.Store, logger *zap.Logger) *control.Controller {
 		Verbose:              false,
 	}
 
-	err := functions.InjectFromDependencies(cc.ExecutorDependencies, fstorage.Dependencies{
-		Reader:             store.NewReader(s),
+	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, fstorage.Dependencies{
+		Reader:             reads.NewReader(s),
 		BucketLookup:       bucketLookup{},
 		OrganizationLookup: orgLookup{},
 	})
