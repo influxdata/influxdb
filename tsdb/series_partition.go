@@ -310,6 +310,13 @@ func (p *SeriesPartition) DeleteSeriesID(id uint64) error {
 		return err
 	}
 
+	// Flush active segment write.
+	if segment := p.activeSegment(); segment != nil {
+		if err := segment.Flush(); err != nil {
+			return err
+		}
+	}
+
 	// Mark tombstone in memory.
 	p.index.Delete(id)
 
@@ -550,8 +557,9 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 		errDone := errors.New("done")
 
 		if err := segment.ForEachEntry(func(flag uint8, id uint64, offset int64, key []byte) error {
+
 			// Make sure we don't go past the offset where the compaction began.
-			if offset >= index.maxOffset {
+			if offset > index.maxOffset {
 				return errDone
 			}
 
@@ -573,13 +581,13 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 				return fmt.Errorf("unexpected series partition log entry flag: %d", flag)
 			}
 
+			// Save max series identifier processed.
+			hdr.MaxSeriesID, hdr.MaxOffset = id, offset
+
 			// Ignore entry if tombstoned.
 			if index.IsDeleted(id) {
 				return nil
 			}
-
-			// Save max series identifier processed.
-			hdr.MaxSeriesID, hdr.MaxOffset = id, offset
 
 			// Insert into maps.
 			c.insertIDOffsetMap(idOffsetMap, hdr.Capacity, id, offset)
