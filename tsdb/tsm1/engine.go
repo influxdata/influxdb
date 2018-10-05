@@ -58,7 +58,7 @@ var (
 )
 
 var (
-	tsmGroup                   = metrics.MustRegisterGroup("tsm1")
+	tsmGroup                   = metrics.MustRegisterGroup("platform-tsm1")
 	numberOfRefCursorsCounter  = metrics.MustRegisterCounter("cursors_ref", metrics.WithGroup(tsmGroup))
 	numberOfAuxCursorsCounter  = metrics.MustRegisterCounter("cursors_aux", metrics.WithGroup(tsmGroup))
 	numberOfCondCursorsCounter = metrics.MustRegisterCounter("cursors_cond", metrics.WithGroup(tsmGroup))

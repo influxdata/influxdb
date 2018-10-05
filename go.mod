@@ -58,7 +58,6 @@ require (
 	github.com/julienschmidt/httprouter v0.0.0-20180222160526-d18983907793
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
-	github.com/kr/pty v1.1.3 // indirect
 	github.com/magiconair/properties v1.7.6 // indirect
 	github.com/masterminds/semver v1.4.2 // indirect
 	github.com/mattn/go-tty v0.0.0-20180907095812-13ff1204f104 // indirect
