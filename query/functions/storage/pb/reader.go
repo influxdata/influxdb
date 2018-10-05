@@ -11,7 +11,7 @@ import (
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/storage"
+	"github.com/influxdata/flux/functions/inputs/storage"
 	"github.com/influxdata/flux/values"
 	ostorage "github.com/influxdata/influxdb/services/storage"
 	opentracing "github.com/opentracing/opentracing-go"

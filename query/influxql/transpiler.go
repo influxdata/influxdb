@@ -11,7 +11,8 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/functions/transformations"
+	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform"
@@ -82,7 +83,7 @@ func (t *transpilerState) Transpile(ctx context.Context, id int, s influxql.Stat
 	if err != nil {
 		return err
 	}
-	t.op("yield", &functions.YieldOpSpec{Name: strconv.Itoa(id)}, op)
+	t.op("yield", &transformations.YieldOpSpec{Name: strconv.Itoa(id)}, op)
 	return nil
 }
 
@@ -116,7 +117,7 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 
 	// TODO(jsternberg): Read the range from the condition expression. 1.x doesn't actually do this so it isn't
 	// urgent to implement this functionality so we can use the default range.
-	op = t.op("range", &functions.RangeOpSpec{
+	op = t.op("range", &transformations.RangeOpSpec{
 		Start: flux.Time{
 			Relative:   -time.Hour,
 			IsRelative: true,
@@ -153,7 +154,7 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 				Right: expr,
 			}
 		}
-		op = t.op("filter", &functions.FilterOpSpec{
+		op = t.op("filter", &transformations.FilterOpSpec{
 			Fn: &semantic.FunctionExpression{
 				Params: []*semantic.FunctionParam{
 					{Key: &semantic.Identifier{Name: "r"}},
@@ -166,7 +167,7 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 	// TODO(jsternberg): Add the condition filter for the where clause.
 
 	// Create the key values op spec from the
-	var keyValues functions.KeyValuesOpSpec
+	var keyValues transformations.KeyValuesOpSpec
 	switch expr := stmt.TagKeyExpr.(type) {
 	case *influxql.ListLiteral:
 		keyValues.KeyCols = expr.Vals
@@ -186,16 +187,16 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 
 	// Group by the measurement and key, find distinct values, then group by the measurement
 	// to join all of the different keys together. Finish by renaming the columns. This is static.
-	return t.op("rename", &functions.RenameOpSpec{
+	return t.op("rename", &transformations.RenameOpSpec{
 		Cols: map[string]string{
 			"_key":   "key",
 			"_value": "value",
 		},
-	}, t.op("group", &functions.GroupOpSpec{
+	}, t.op("group", &transformations.GroupOpSpec{
 		By: []string{"_measurement"},
-	}, t.op("distinct", &functions.DistinctOpSpec{
+	}, t.op("distinct", &transformations.DistinctOpSpec{
 		Column: execute.DefaultValueColLabel,
-	}, t.op("group", &functions.GroupOpSpec{
+	}, t.op("group", &transformations.GroupOpSpec{
 		By: []string{"_measurement", "_key"},
 	}, op)))), nil
 }
@@ -267,7 +268,7 @@ func (t *transpilerState) from(m *influxql.Measurement) (flux.OperationID, error
 		return "", err
 	}
 
-	spec := &functions.FromOpSpec{
+	spec := &inputs.FromOpSpec{
 		BucketID: mapping.BucketID,
 	}
 	return t.op("from", spec), nil

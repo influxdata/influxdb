@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/influxql"
 )
 
@@ -43,7 +43,7 @@ func Join(t *transpilerState, cursors []cursor, on []string) cursor {
 	for _, cur := range cursors {
 		parents = append(parents, cur.ID())
 	}
-	id := t.op("join", &functions.JoinOpSpec{
+	id := t.op("join", &transformations.JoinOpSpec{
 		TableNames: tables,
 		On:         on,
 	}, parents...)

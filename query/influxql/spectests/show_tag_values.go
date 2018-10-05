@@ -1,11 +1,13 @@
 package spectests
 
 import (
+	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/functions/transformations"
 	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions"
+
 )
 
 func init() {
@@ -16,13 +18,13 @@ func init() {
 				Operations: []*flux.Operation{
 					{
 						ID: "from0",
-						Spec: &functions.FromOpSpec{
+						Spec: &inputs.FromOpSpec{
 							BucketID: bucketID,
 						},
 					},
 					{
 						ID: "range0",
-						Spec: &functions.RangeOpSpec{
+						Spec: &transformations.RangeOpSpec{
 							Start: flux.Time{
 								Relative:   -time.Hour,
 								IsRelative: true,
@@ -31,31 +33,31 @@ func init() {
 					},
 					{
 						ID: "keyValues0",
-						Spec: &functions.KeyValuesOpSpec{
+						Spec: &transformations.KeyValuesOpSpec{
 							KeyCols: []string{"host"},
 						},
 					},
 					{
 						ID: "group0",
-						Spec: &functions.GroupOpSpec{
+						Spec: &transformations.GroupOpSpec{
 							By: []string{"_measurement", "_key"},
 						},
 					},
 					{
 						ID: "distinct0",
-						Spec: &functions.DistinctOpSpec{
+						Spec: &transformations.DistinctOpSpec{
 							Column: execute.DefaultValueColLabel,
 						},
 					},
 					{
 						ID: "group1",
-						Spec: &functions.GroupOpSpec{
+						Spec: &transformations.GroupOpSpec{
 							By: []string{"_measurement"},
 						},
 					},
 					{
 						ID: "rename0",
-						Spec: &functions.RenameOpSpec{
+						Spec: &transformations.RenameOpSpec{
 							Cols: map[string]string{
 								"_key":   "key",
 								"_value": "value",
@@ -64,7 +66,7 @@ func init() {
 					},
 					{
 						ID: "yield0",
-						Spec: &functions.YieldOpSpec{
+						Spec: &transformations.YieldOpSpec{
 							Name: "0",
 						},
 					},

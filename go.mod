@@ -29,7 +29,6 @@ require (
 	github.com/glycerine/go-unsnap-stream v0.0.0-20180323001048-9f0cb55181dd // indirect
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect
 	github.com/go-ini/ini v1.38.1 // indirect
-	github.com/go-sql-driver/mysql v1.4.0 // indirect
 	github.com/gogo/protobuf v1.1.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
@@ -48,9 +47,9 @@ require (
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.5 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/influxdata/flux v0.0.0-20180919192308-1335e4da35f6
+	github.com/influxdata/flux v0.0.0-20181004191346-fe166147b764
 	github.com/influxdata/influxdb v0.0.0-20180904211643-ab81104697f6
-	github.com/influxdata/influxql v0.0.0-20180823200743-a7267bff5327
+	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/line-protocol v0.0.0-20180522152040-32c6aa80de5e
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jessevdk/go-flags v1.4.0
@@ -59,7 +58,7 @@ require (
 	github.com/julienschmidt/httprouter v0.0.0-20180222160526-d18983907793
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
-	github.com/lib/pq v1.0.0 // indirect
+	github.com/kr/pty v1.1.3 // indirect
 	github.com/magiconair/properties v1.7.6 // indirect
 	github.com/masterminds/semver v1.4.2 // indirect
 	github.com/mattn/go-tty v0.0.0-20180907095812-13ff1204f104 // indirect
@@ -83,7 +82,7 @@ require (
 	github.com/prometheus/client_golang v0.0.0-20171201122222-661e31bf844d
 	github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910
 	github.com/prometheus/common v0.0.0-20180801064454-c7de2306084e
-	github.com/prometheus/procfs v0.0.0-20180920065004-418d78d0b9a7 // indirect
+	github.com/prometheus/procfs v0.0.0-20181004131639-6bfc2c70c4ee // indirect
 	github.com/satori/go.uuid v1.2.0
 	github.com/segmentio/kafka-go v0.1.0
 	github.com/sirupsen/logrus v1.0.6
@@ -101,13 +100,13 @@ require (
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6 // indirect
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20180723164146-c126467f60eb
-	golang.org/x/net v0.0.0-20180911220305-26e67e76b6c3
+	golang.org/x/net v0.0.0-20181003013248-f5e5bdd77824
 	golang.org/x/oauth2 v0.0.0-20180521191639-dd5f5d8e78ce
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
-	golang.org/x/sys v0.0.0-20180920110915-d641721ec2de
+	golang.org/x/sys v0.0.0-20181004145325-8469e314837c
 	golang.org/x/text v0.3.0
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
-	golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e // indirect
+	golang.org/x/tools v0.0.0-20181004163742-59602fdee893 // indirect
 	google.golang.org/api v0.0.0-20180723152133-cd7aead8ef37
 	google.golang.org/appengine v1.0.0 // indirect
 	google.golang.org/genproto v0.0.0-20180831171423-11092d34479b // indirect

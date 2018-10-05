@@ -8,7 +8,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/functions/transformations"
+	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/semantic"
 )
 
@@ -145,7 +146,7 @@ func (s *Selector) QuerySpec() (*flux.Spec, error) {
 	ops := []*flux.Operation{
 		{
 			ID: "from", // TODO: Change this to a UUID
-			Spec: &functions.FromOpSpec{
+			Spec: &inputs.FromOpSpec{
 				Bucket: "prometheus",
 			},
 		},
@@ -192,7 +193,7 @@ func NewRangeOp(rng, offset time.Duration) (*flux.Operation, error) {
 	}
 	return &flux.Operation{
 		ID: "range", // TODO: Change this to a UUID
-		Spec: &functions.RangeOpSpec{
+		Spec: &transformations.RangeOpSpec{
 			Start: flux.Time{
 				Relative: -rng - offset,
 			},
@@ -255,7 +256,7 @@ func NewWhereOperation(metricName string, labels []*LabelMatcher) (*flux.Operati
 
 	return &flux.Operation{
 		ID: "where", // TODO: Change this to a UUID
-		Spec: &functions.FilterOpSpec{
+		Spec: &transformations.FilterOpSpec{
 			Fn: &semantic.FunctionExpression{
 				Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
 				Body:   node,
@@ -308,7 +309,7 @@ func (a *Aggregate) QuerySpec() (*flux.Operation, error) {
 	}
 	return &flux.Operation{
 		ID: "merge",
-		Spec: &functions.GroupOpSpec{
+		Spec: &transformations.GroupOpSpec{
 			By: keys,
 		},
 	}, nil
@@ -373,37 +374,37 @@ func (o *Operator) QuerySpec() (*flux.Operation, error) {
 	case CountKind:
 		return &flux.Operation{
 			ID:   "count",
-			Spec: &functions.CountOpSpec{},
+			Spec: &transformations.CountOpSpec{},
 		}, nil
 	//case TopKind:
 	//	return &flux.Operation{
 	//		ID:   "top",
-	//		Spec: &functions.TopOpSpec{}, // TODO: Top doesn't have arg yet
+	//		Spec: &transformations.TopOpSpec{}, // TODO: Top doesn't have arg yet
 	//	}, nil
 	case SumKind:
 		return &flux.Operation{
 			ID:   "sum",
-			Spec: &functions.SumOpSpec{},
+			Spec: &transformations.SumOpSpec{},
 		}, nil
 	//case MinKind:
 	//	return &flux.Operation{
 	//		ID:   "min",
-	//		Spec: &functions.MinOpSpec{},
+	//		Spec: &transformations.MinOpSpec{},
 	//	}, nil
 	//case MaxKind:
 	//	return &flux.Operation{
 	//		ID:   "max",
-	//		Spec: &functions.MaxOpSpec{},
+	//		Spec: &transformations.MaxOpSpec{},
 	//	}, nil
 	//case AvgKind:
 	//	return &flux.Operation{
 	//		ID:   "mean",
-	//		Spec: &functions.MeanOpSpec{},
+	//		Spec: &transformations.MeanOpSpec{},
 	//	}, nil
 	//case StdevKind:
 	//	return &flux.Operation{
 	//		ID:   "stddev",
-	//		Spec: &functions.StddevOpSpec{},
+	//		Spec: &transformations.StddevOpSpec{},
 	//	}, nil
 	default:
 		return nil, fmt.Errorf("Unknown Op kind %d", o.Kind)

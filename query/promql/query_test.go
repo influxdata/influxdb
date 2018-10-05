@@ -8,7 +8,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/semantic/semantictest"
 )
@@ -363,11 +364,11 @@ func TestBuild(t *testing.T) {
 				Operations: []*flux.Operation{
 					{
 						ID:   flux.OperationID("from"),
-						Spec: &functions.FromOpSpec{Bucket: "prometheus"},
+						Spec: &inputs.FromOpSpec{Bucket: "prometheus"},
 					},
 					{
 						ID: "where",
-						Spec: &functions.FilterOpSpec{
+						Spec: &transformations.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
 								Body: &semantic.LogicalExpression{
@@ -416,7 +417,7 @@ func TestBuild(t *testing.T) {
 						},
 					},
 					{
-						ID: flux.OperationID("count"), Spec: &functions.CountOpSpec{},
+						ID: flux.OperationID("count"), Spec: &transformations.CountOpSpec{},
 					},
 				},
 				Edges: []flux.Edge{
@@ -438,17 +439,17 @@ func TestBuild(t *testing.T) {
 				Operations: []*flux.Operation{
 					{
 						ID:   flux.OperationID("from"),
-						Spec: &functions.FromOpSpec{Bucket: "prometheus"},
+						Spec: &inputs.FromOpSpec{Bucket: "prometheus"},
 					},
 					{
 						ID: flux.OperationID("range"),
-						Spec: &functions.RangeOpSpec{
+						Spec: &transformations.RangeOpSpec{
 							Start: flux.Time{Relative: -time.Minute * 7},
 						},
 					},
 					{
 						ID: "where",
-						Spec: &functions.FilterOpSpec{
+						Spec: &transformations.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
 								Body: &semantic.LogicalExpression{
@@ -502,17 +503,17 @@ func TestBuild(t *testing.T) {
 				Operations: []*flux.Operation{
 					{
 						ID:   flux.OperationID("from"),
-						Spec: &functions.FromOpSpec{Bucket: "prometheus"},
+						Spec: &inputs.FromOpSpec{Bucket: "prometheus"},
 					},
 					{
 						ID: flux.OperationID("range"),
-						Spec: &functions.RangeOpSpec{
+						Spec: &transformations.RangeOpSpec{
 							Start: flux.Time{Relative: -170 * time.Hour},
 						},
 					},
 					{
 						ID: "where",
-						Spec: &functions.FilterOpSpec{
+						Spec: &transformations.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
 								Body: &semantic.LogicalExpression{
@@ -546,7 +547,7 @@ func TestBuild(t *testing.T) {
 						},
 					},
 					{
-						ID: flux.OperationID("sum"), Spec: &functions.SumOpSpec{},
+						ID: flux.OperationID("sum"), Spec: &transformations.SumOpSpec{},
 					},
 				},
 				Edges: []flux.Edge{

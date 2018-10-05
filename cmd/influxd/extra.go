@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/flux/functions/inputs"
 	"io"
 	"math"
 	"regexp"
@@ -20,8 +21,7 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions"
-	fstorage "github.com/influxdata/flux/functions/storage"
+	fstorage "github.com/influxdata/flux/functions/inputs/storage"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/logger"
@@ -75,7 +75,7 @@ func NewController(
 		Verbose:              false,
 	}
 
-	err := functions.InjectFromDependencies(cc.ExecutorDependencies, fstorage.Dependencies{
+	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, fstorage.Dependencies{
 		Reader:             NewReader(s),
 		BucketLookup:       bucketLookup,
 		OrganizationLookup: orgLookup,

@@ -2,6 +2,8 @@ package spectests
 
 import (
 	"fmt"
+	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/functions/transformations"
 	"math"
 	"time"
 
@@ -9,7 +11,7 @@ import (
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions"
+
 	"github.com/influxdata/flux/semantic"
 )
 
@@ -21,13 +23,13 @@ func init() {
 					Operations: []*flux.Operation{
 						{
 							ID: "from0",
-							Spec: &functions.FromOpSpec{
+							Spec: &inputs.FromOpSpec{
 								BucketID: bucketID,
 							},
 						},
 						{
 							ID: "range0",
-							Spec: &functions.RangeOpSpec{
+							Spec: &transformations.RangeOpSpec{
 								Start:    flux.Time{Absolute: Now().Add(-10 * time.Minute)},
 								Stop:     flux.Time{Absolute: Now()},
 								TimeCol:  execute.DefaultTimeColLabel,
@@ -37,7 +39,7 @@ func init() {
 						},
 						{
 							ID: "filter0",
-							Spec: &functions.FilterOpSpec{
+							Spec: &transformations.FilterOpSpec{
 								Fn: &semantic.FunctionExpression{
 									Params: []*semantic.FunctionParam{
 										{Key: &semantic.Identifier{Name: "r"}},
@@ -74,13 +76,13 @@ func init() {
 						},
 						{
 							ID: "group0",
-							Spec: &functions.GroupOpSpec{
+							Spec: &transformations.GroupOpSpec{
 								By: []string{"_measurement", "_start"},
 							},
 						},
 						{
 							ID: "window0",
-							Spec: &functions.WindowOpSpec{
+							Spec: &transformations.WindowOpSpec{
 								Every:         flux.Duration(time.Minute),
 								Period:        flux.Duration(time.Minute),
 								TimeCol:       execute.DefaultTimeColLabel,
@@ -91,14 +93,14 @@ func init() {
 						&aggregate,
 						{
 							ID: "duplicate0",
-							Spec: &functions.DuplicateOpSpec{
+							Spec: &transformations.DuplicateOpSpec{
 								Col: execute.DefaultStartColLabel,
 								As:  execute.DefaultTimeColLabel,
 							},
 						},
 						{
 							ID: "window1",
-							Spec: &functions.WindowOpSpec{
+							Spec: &transformations.WindowOpSpec{
 								Every:         flux.Duration(math.MaxInt64),
 								Period:        flux.Duration(math.MaxInt64),
 								TimeCol:       execute.DefaultTimeColLabel,
@@ -108,7 +110,7 @@ func init() {
 						},
 						{
 							ID: "map0",
-							Spec: &functions.MapOpSpec{
+							Spec: &transformations.MapOpSpec{
 								Fn: &semantic.FunctionExpression{
 									Params: []*semantic.FunctionParam{{
 										Key: &semantic.Identifier{Name: "r"},
@@ -141,7 +143,7 @@ func init() {
 						},
 						{
 							ID: "yield0",
-							Spec: &functions.YieldOpSpec{
+							Spec: &transformations.YieldOpSpec{
 								Name: "0",
 							},
 						},

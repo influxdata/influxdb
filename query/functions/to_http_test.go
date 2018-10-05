@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
-	ffunctions "github.com/influxdata/flux/functions"
+	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/platform/query/functions"
 )
@@ -25,7 +25,7 @@ func TestToHTTP_NewQuery(t *testing.T) {
 				Operations: []*flux.Operation{
 					{
 						ID: "from0",
-						Spec: &ffunctions.FromOpSpec{
+						Spec: &inputs.FromOpSpec{
 							Bucket: "mybucket",
 						},
 					},

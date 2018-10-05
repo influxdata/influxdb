@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions"
-	"github.com/influxdata/flux/functions/storage"
+	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/functions/inputs/storage"
 	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
@@ -66,7 +66,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) {
 }
 
 func injectDeps(deps execute.Dependencies, hosts storage.Reader, buckets platform.BucketService, orgs platform.OrganizationService) error {
-	return functions.InjectFromDependencies(deps, storage.Dependencies{
+	return inputs.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:             hosts,
 		BucketLookup:       query.FromBucketService(buckets),
 		OrganizationLookup: query.FromOrganizationService(orgs),
