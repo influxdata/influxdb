@@ -67,6 +67,7 @@ export class Signin extends PureComponent<Props, State> {
       loading === RemoteDataState.NotStarted
     )
   }
+
   private handleSignInUser = () => {
     this.setState({isUserSignedIn: true})
   }

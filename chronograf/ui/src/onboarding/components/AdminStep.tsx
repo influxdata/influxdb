@@ -52,10 +52,10 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     }
     return (
       <div className="onboarding-step">
-        <h3 className="wizard-step-title">Setup Admin User</h3>
-        <p>
+        <h3 className="wizard-step--title">Setup Admin User</h3>
+        <h5 className="wizard-step--sub-title">
           You will be able to create additional Buckets and Organizations later
-        </p>
+        </h5>
         <Form>
           <Form.Element
             label="Admin Username"

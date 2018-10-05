@@ -50,3 +50,21 @@
 .splash-logo.secondary {
   background-image: url('../../assets/images/cubo_doodle_green.svg');
 }
+
+.wizard-step--title {
+  font-size: 32px;
+  font-weight: 300;
+  color: $g15-platinum;
+  margin-top: 32px;
+  margin-bottom: $ix-marg-b;
+  @include no-user-select();
+}
+
+.wizard-step--sub-title {
+  margin-top: $ix-marg-b;
+  margin-bottom: 32px;
+  font-size: 16px;
+  font-weight: 400;
+  color: $g11-sidewalk;
+  @include no-user-select();
+}

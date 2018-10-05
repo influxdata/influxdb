@@ -51,38 +51,34 @@ $grid--form-gutter: 6px;
   Form Group Addons
   ------------------------------------------------------------------------------
 */
-.form--label {
-  width: 100%;
+.form--label,
+.form--help-text,
+.form--element-error {
+  text-align: left;
   display: inline-block;
   font-size: 12px;
   font-weight: 600;
-  color: $g11-sidewalk;
-  margin: 0 0 $ix-marg-a 0;
   padding: 0 ($form-sm-padding + $ix-border);
   @extend %no-user-select;
+}
+
+.form--label {
+  width: 100%;
+  color: $g11-sidewalk;
+  margin: 0 0 $ix-marg-a 0;
 }
 
 .form--help-text {
-  display: inline-block;
-  font-size: 12px;
   font-style: italic;
   line-height: 16px;
-  font-weight: 600;
   color: $g11-sidewalk;
   margin: $ix-marg-a 0 0 0;
-  padding: 0 ($form-sm-padding + $ix-border);
-  @extend %no-user-select;
 }
 
 .form--element-error {
-  display: inline-block;
-  font-size: 12px;
   line-height: 16px;
-  font-weight: 600;
   color: $c-dreamsicle;
   margin: $ix-marg-a 0 0 0;
-  padding: 0 ($form-sm-padding + $ix-border);
-  @extend %no-user-select;
 }
 
 /*
