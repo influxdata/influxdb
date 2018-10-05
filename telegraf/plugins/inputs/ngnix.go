@@ -14,11 +14,12 @@ type Nginx struct {
 // TOML encodes to toml string
 func (n *Nginx) TOML() string {
 	s := make([]string, len(n.URLs))
-	for k, v := range s {
+	for k, v := range n.URLs {
 		s[k] = strconv.Quote(v)
 	}
-	return fmt.Sprintf(`[[inputs.nginx]]	
+	return fmt.Sprintf(`[[inputs.nginx]]
   # An array of Nginx stub_status URI to gather stats.
+  # exp http://localhost/server_status
   urls = [%s]
 `, strings.Join(s, ", "))
 }

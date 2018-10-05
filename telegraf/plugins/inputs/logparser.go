@@ -14,7 +14,7 @@ type LogParserPlugin struct {
 // TOML encodes to toml string
 func (l *LogParserPlugin) TOML() string {
 	s := make([]string, len(l.Files))
-	for k, v := range s {
+	for k, v := range l.Files {
 		s[k] = strconv.Quote(v)
 	}
 	return fmt.Sprintf(`[[inputs.logparser]]	

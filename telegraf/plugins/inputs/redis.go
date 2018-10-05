@@ -15,10 +15,14 @@ type Redis struct {
 // TOML encodes to toml string
 func (r *Redis) TOML() string {
 	s := make([]string, len(r.Servers))
-	for k, v := range s {
+	for k, v := range r.Servers {
 		s[k] = strconv.Quote(v)
 	}
-	return fmt.Sprintf(`[[inputs.redis]]	
+	password := `  # password = ""`
+	if r.Password != "" {
+		password = fmt.Sprintf(`  password = "%s"`, r.Password)
+	}
+	return fmt.Sprintf(`[[inputs.redis]]
   ## specify servers via a url matching:
   ##  [protocol://][:password]@address[:port]
   ##  e.g.
@@ -31,6 +35,6 @@ func (r *Redis) TOML() string {
   servers = [%s]
 
   ## specify server password
-  # password = "%s"
-`, strings.Join(s, ", "), r.Password)
+%s
+`, strings.Join(s, ", "), password)
 }

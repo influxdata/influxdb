@@ -33,7 +33,7 @@ func (i *InfluxDBV2) TOML() string {
 
   ## Organization is the name of the organization you wish to write to; must exist.
   organization = "%s"
-  
+
   ## Destination bucket to write into.
   bucket = "%s"
 `, strings.Join(s, ", "), i.Token, i.Organization, i.Bucket)

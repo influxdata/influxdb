@@ -11,6 +11,6 @@ type Procstat struct {
 func (p *Procstat) TOML() string {
 	return fmt.Sprintf(`[[inputs.procstat]]
   ## executable name (ie, pgrep <exe>)
-  # exe = "%s"
+  exe = "%s"
 `, p.Exe)
 }

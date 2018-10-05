@@ -16,6 +16,6 @@ func (s *Syslog) TOML() string {
   ## Protocol, address and port to host the syslog receiver.
   ## If no host is specified, then localhost is used.
   ## If no port is specified, 6514 is used (RFC5425#section-4.1).
-  server = "%s"	
+  server = "%s"
 `, s.Address)
 }

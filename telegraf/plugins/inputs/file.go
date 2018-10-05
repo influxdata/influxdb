@@ -14,7 +14,7 @@ type File struct {
 // TOML encodes to toml string
 func (f *File) TOML() string {
 	s := make([]string, len(f.Files))
-	for k, v := range s {
+	for k, v := range f.Files {
 		s[k] = strconv.Quote(v)
 	}
 	return fmt.Sprintf(`[[inputs.file]]	
@@ -25,5 +25,5 @@ func (f *File) TOML() string {
   ##   /var/log/*/*.log    -> find all .log files with a parent dir in /var/log
   ##   /var/log/apache.log -> only read the apache log file
   files = [%s]
-`, strings.Join(f.Files, ", "))
+`, strings.Join(s, ", "))
 }
