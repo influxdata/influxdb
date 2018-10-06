@@ -18,7 +18,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
-	"github.com/influxdata/platform/tsdb/index/tsi1"
+	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
 // Ensure log file can append series.

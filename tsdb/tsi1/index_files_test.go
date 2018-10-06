@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/tsdb/index/tsi1"
+	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
 // Ensure multiple index files can be compacted together.

@@ -26,7 +26,7 @@ import (
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/deep"
 	"github.com/influxdata/platform/tsdb"
-	"github.com/influxdata/platform/tsdb/index/tsi1"
+	"github.com/influxdata/platform/tsdb/tsi1"
 	"github.com/influxdata/platform/tsdb/tsm1"
 )
 

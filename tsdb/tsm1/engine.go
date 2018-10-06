@@ -33,7 +33,7 @@ import (
 	"github.com/influxdata/platform/pkg/file"
 	"github.com/influxdata/platform/pkg/limiter"
 	"github.com/influxdata/platform/tsdb"
-	"github.com/influxdata/platform/tsdb/index/tsi1"
+	"github.com/influxdata/platform/tsdb/tsi1"
 	"go.uber.org/zap"
 )
 

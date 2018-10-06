@@ -33,7 +33,7 @@ import (
 	taskbolt "github.com/influxdata/platform/task/backend/bolt"
 	"github.com/influxdata/platform/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/platform/task/backend/executor"
-	_ "github.com/influxdata/platform/tsdb/index/tsi1"
+	_ "github.com/influxdata/platform/tsdb/tsi1"
 	_ "github.com/influxdata/platform/tsdb/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
