@@ -52,7 +52,7 @@ export class FilterPreview extends PureComponent<Props, State> {
 }
 
 const mapStateToProps = ({links}) => {
-  return {links: links.flux}
+  return {links: links.query}
 }
 
 export default connect(mapStateToProps, null)(FilterPreview)

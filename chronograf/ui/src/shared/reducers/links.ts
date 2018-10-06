@@ -4,25 +4,26 @@ import {Links} from 'src/types/v2/links'
 const initialState: Links = {
   auths: '',
   buckets: '',
-  signin: '',
-  signout: '',
   dashboards: '',
   external: {
     statusFeed: '',
   },
-  flux: {
-    ast: '',
+  query: {
     self: '',
+    ast: '',
+    spec: '',
     suggestions: '',
   },
   orgs: '',
-  query: '',
   setup: '',
+  signin: '',
+  signout: '',
   sources: '',
   system: {debug: '', health: '', metrics: ''},
   tasks: '',
   users: '',
   write: '',
+  macros: '',
   defaultDashboard: '',
 }
 

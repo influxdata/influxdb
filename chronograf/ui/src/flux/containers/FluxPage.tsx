@@ -689,7 +689,7 @@ const mdtp = {
 
 const mstp = ({links, script}) => {
   return {
-    links: links.flux,
+    links: links.query,
     script,
   }
 }
