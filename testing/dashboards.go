@@ -18,6 +18,10 @@ const (
 	dashThreeID = "020f755c3c082002"
 )
 
+func idPtr(id platform.ID) *platform.ID {
+	return &id
+}
+
 var dashboardCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
@@ -386,11 +390,44 @@ func FindDashboards(
 			},
 			args: args{
 				IDs: []*platform.ID{
-					func() *platform.ID { a := idFromString(t, dashTwoID); return &a }(),
+					idPtr(idFromString(t, dashTwoID)),
 				},
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
+					{
+						ID:   idFromString(t, dashTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find multiple dashboards by id",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   idFromString(t, dashOneID),
+						Name: "abc",
+					},
+					{
+						ID:   idFromString(t, dashTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				IDs: []*platform.ID{
+					idPtr(idFromString(t, dashOneID)),
+					idPtr(idFromString(t, dashTwoID)),
+				},
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:   idFromString(t, dashOneID),
+						Name: "abc",
+					},
 					{
 						ID:   idFromString(t, dashTwoID),
 						Name: "xyz",

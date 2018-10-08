@@ -93,10 +93,10 @@ func filterDashboardsFn(filter platform.DashboardFilter) func(d *platform.Dashbo
 	if len(filter.IDs) > 0 {
 		var sm sync.Map
 		for _, id := range filter.IDs {
-			sm.Store(id, true)
+			sm.Store(id.String(), true)
 		}
 		return func(d *platform.Dashboard) bool {
-			_, ok := sm.Load(d.ID)
+			_, ok := sm.Load(d.ID.String())
 			return ok
 		}
 	}
