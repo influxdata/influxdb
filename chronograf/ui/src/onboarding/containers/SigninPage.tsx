@@ -13,6 +13,7 @@ import {
   Form,
   Columns,
   WizardFullScreen,
+  InputType,
 } from 'src/clockface'
 
 // APIs
@@ -77,6 +78,7 @@ class SigninPage extends PureComponent<Props, State> {
               >
                 <Input
                   value={password}
+                  type={InputType.Password}
                   onChange={this.handlePassword}
                   size={ComponentSize.Medium}
                 />
@@ -109,7 +111,7 @@ class SigninPage extends PureComponent<Props, State> {
     try {
       await signin(links.signin, {username, password})
 
-      notify(copy.SigninSuccessful)
+      window.location.reload(true)
     } catch (error) {
       notify(copy.SigninError)
     }
