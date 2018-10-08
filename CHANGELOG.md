@@ -6,6 +6,7 @@ v1.6.4 [unreleased]
 -	[#10320](https://github.com/influxdata/influxdb/pull/10320): Fix tsi1 sketch locking.
 -	[#10334](https://github.com/influxdata/influxdb/pull/10334): Fix subquery functionality when a function references a tag from the subquery.
 -	[#10334](https://github.com/influxdata/influxdb/pull/10334): Strip tags from a subquery when the outer query does not group by that tag.
+-	[#10316](https://github.com/influxdata/influxdb/pull/10316): Add -series-file flag to dumptsi command help.
 
 v1.6.3 [2018-09-14]
 -------------------
