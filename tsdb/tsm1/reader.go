@@ -12,9 +12,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/pkg/bytesutil"
 	"github.com/influxdata/platform/pkg/file"
+	"github.com/influxdata/platform/tsdb"
 )
 
 // ErrFileInUse is returned when attempting to remove or close a TSM file that is still being used.
@@ -359,6 +359,23 @@ func (t *TSMReader) Type(key []byte) (byte, error) {
 	return t.index.Type(key)
 }
 
+// MeasurementStats returns the on-disk measurement stats for this file, if available.
+func (t *TSMReader) MeasurementStats() (MeasurementStats, error) {
+	f, err := os.Open(StatsFilename(t.Path()))
+	if os.IsNotExist(err) {
+		return make(MeasurementStats), nil
+	} else if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	stats := make(MeasurementStats)
+	if _, err := stats.ReadFrom(f); err != nil {
+		return nil, err
+	}
+	return stats, err
+}
+
 // Close closes the TSMReader.
 func (t *TSMReader) Close() error {
 	t.refsWG.Wait()
@@ -418,8 +435,9 @@ func (t *TSMReader) remove() error {
 	}
 
 	if path != "" {
-		err := os.RemoveAll(path)
-		if err != nil {
+		if err := os.RemoveAll(path); err != nil {
+			return err
+		} else if err := os.RemoveAll(StatsFilename(path)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
