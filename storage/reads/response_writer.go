@@ -186,7 +186,10 @@ func (w *ResponseWriter) startSeries(next models.Tags) {
 	f := w.getSeriesFrame(next)
 	w.sf = f.Series
 	for i, t := range next {
-		w.sf.Tags[i] = datatypes.Tag(t)
+		w.sf.Tags[i] = datatypes.Tag{
+			Key:   t.Key,
+			Value: t.Value,
+		}
 	}
 	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: f})
 	w.sz += w.sf.Size()
