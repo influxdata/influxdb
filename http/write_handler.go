@@ -33,8 +33,8 @@ type WriteHandler struct {
 // NewWriteHandler creates a new handler at /api/v2/write to receive line protocol.
 func NewWriteHandler(writer storage.PointsWriter) *WriteHandler {
 	h := &WriteHandler{
-		Router: httprouter.New(),
-		Logger: zap.NewNop(),
+		Router:       httprouter.New(),
+		Logger:       zap.NewNop(),
 		PointsWriter: writer,
 	}
 
@@ -136,32 +136,31 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	// TODO(jeff): we should be publishing with the org and bucket instead of
 	// parsing, rewriting, and publishing, but the interface isn't quite there yet.
 	// be sure to remove this when it is there!
-		data, err := ioutil.ReadAll(in)
-		if err != nil {
-			logger.Info("Error reading body", zap.Error(err))
-			EncodeError(ctx, err, w)
-			return
-		}
+	data, err := ioutil.ReadAll(in)
+	if err != nil {
+		logger.Info("Error reading body", zap.Error(err))
+		EncodeError(ctx, err, w)
+		return
+	}
 
-		points, err := models.ParsePoints(data)
-		if err != nil {
-			logger.Info("Error parsing points", zap.Error(err))
-			EncodeError(ctx, err, w)
-			return
-		}
+	points, err := models.ParsePoints(data)
+	if err != nil {
+		logger.Info("Error parsing points", zap.Error(err))
+		EncodeError(ctx, err, w)
+		return
+	}
 
-		exploded, err := tsdb.ExplodePoints([]byte(org.ID), []byte(bucket.ID), points)
-		if err != nil {
-			logger.Info("Error exploding points", zap.Error(err))
-			EncodeError(ctx, err, w)
-			return
-		}
+	exploded, err := tsdb.ExplodePoints(org.ID, bucket.ID, points)
+	if err != nil {
+		logger.Info("Error exploding points", zap.Error(err))
+		EncodeError(ctx, err, w)
+		return
+	}
 
-		if err := h.PointsWriter.WritePoints(exploded); err != nil {
-			EncodeError(ctx, errors.BadRequestError(err.Error()), w)
-			return
-		}
-
+	if err := h.PointsWriter.WritePoints(exploded); err != nil {
+		EncodeError(ctx, errors.BadRequestError(err.Error()), w)
+		return
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }

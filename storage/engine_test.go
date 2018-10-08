@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/tsdb"
@@ -215,7 +216,9 @@ func (e *Engine) MustOpen() {
 // This allows us to use the old `models` package helper functions and still write
 // the points in the correct format.
 func (e *Engine) Write1xPoints(pts []models.Point) error {
-	points, err := tsdb.ExplodePoints([]byte("11111111"), []byte("22222222"), pts)
+	org, _ := platform.IDFromString("1111111111111111")
+	bucket, _ := platform.IDFromString("2222222222222222")
+	points, err := tsdb.ExplodePoints(*org, *bucket, pts)
 	if err != nil {
 		return err
 	}

@@ -1,8 +1,9 @@
 package tsdb
 
 import (
-	"errors"
+	"encoding/hex"
 
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/models"
 )
 
@@ -19,13 +20,22 @@ var (
 
 // ExplodePoints creates a list of points that only contains one field per point. It also
 // moves the measurement to a tag, and changes the measurement to be the provided argument.
-func ExplodePoints(org, bucket []byte, points []models.Point) ([]models.Point, error) {
-	if len(org) != 8 || len(bucket) != 8 {
-		return nil, errors.New("invalid org/bucket")
-	}
-
+func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Point, error) {
 	out := make([]models.Point, 0, len(points))
-	name := string(org) + string(bucket)
+
+	// TODO(jeff): We should add a RawEncode() method or something to the platform.ID type
+	// or we should use hex encoded measurement names. Either way, we shouldn't be doing a
+	// decode of the encode here, and we don't want to depend on details of how the ID type
+	// is represented.
+
+	var nameBytes [16]byte
+	if _, err := hex.Decode(nameBytes[0:8], org.Encode()); err != nil {
+		return nil, err
+	}
+	if _, err := hex.Decode(nameBytes[8:16], bucket.Encode()); err != nil {
+		return nil, err
+	}
+	name := string(nameBytes[:])
 
 	var tags models.Tags
 	for _, pt := range points {
