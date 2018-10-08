@@ -38,8 +38,7 @@ type APIBackend struct {
 	NewBucketService func(*platform.Source) (platform.BucketService, error)
 	NewQueryService  func(*platform.Source) (query.ProxyQueryService, error)
 
-	
-	PointsWriter storage.PointsWriter
+	PointsWriter               storage.PointsWriter
 	AuthorizationService       platform.AuthorizationService
 	BucketService              platform.BucketService
 	SessionService             platform.SessionService

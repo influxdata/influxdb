@@ -17,7 +17,7 @@ import (
 )
 
 type SourceProxyQueryService struct {
-	Addr                string
+	Addr               string
 	InsecureSkipVerify bool
 	platform.SourceFields
 }

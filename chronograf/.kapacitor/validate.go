@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/kapacitor/pipeline"
 	"github.com/influxdata/kapacitor/tick"
 	"github.com/influxdata/kapacitor/tick/ast"
 	"github.com/influxdata/kapacitor/tick/stateful"
+	"github.com/influxdata/platform/chronograf"
 )
 
 // ValidateAlert checks if the alert is a valid kapacitor alert service.

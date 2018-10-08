@@ -5131,7 +5131,7 @@ func (m *ReadRequest) MarshalTo(dAtA []byte) (int, error) {
 		i += n3
 	}
 	if len(m.Trace) > 0 {
-		for k, _ := range m.Trace {
+		for k := range m.Trace {
 			dAtA[i] = 0x52
 			i++
 			v := m.Trace[k]
@@ -5753,7 +5753,7 @@ func (m *CapabilitiesResponse) MarshalTo(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if len(m.Caps) > 0 {
-		for k, _ := range m.Caps {
+		for k := range m.Caps {
 			dAtA[i] = 0xa
 			i++
 			v := m.Caps[k]
