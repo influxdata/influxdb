@@ -156,8 +156,10 @@ func (idx *SeriesIndex) Delete(id SeriesID) {
 
 // IsDeleted returns true if series id has been deleted.
 func (idx *SeriesIndex) IsDeleted(id SeriesID) bool {
-	_, ok := idx.tombstones[id]
-	return ok
+	if _, ok := idx.tombstones[id]; ok {
+		return true
+	}
+	return idx.FindOffsetByID(id) == 0
 }
 
 func (idx *SeriesIndex) execEntry(flag uint8, id SeriesIDTyped, offset int64, key []byte) {
@@ -263,6 +265,11 @@ func (idx *SeriesIndex) Clone() *SeriesIndex {
 		tombstones[id] = struct{}{}
 	}
 
+	idOffsetMap := make(map[SeriesID]int64)
+	for k, v := range idx.idOffsetMap {
+		idOffsetMap[k] = v
+	}
+
 	return &SeriesIndex{
 		path:         idx.path,
 		count:        idx.count,
@@ -274,6 +281,7 @@ func (idx *SeriesIndex) Clone() *SeriesIndex {
 		keyIDData:    idx.keyIDData,
 		idOffsetData: idx.idOffsetData,
 		tombstones:   tombstones,
+		idOffsetMap:  idOffsetMap,
 	}
 }
 
