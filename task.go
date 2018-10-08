@@ -54,7 +54,7 @@ type TaskService interface {
 	FindRuns(ctx context.Context, filter RunFilter) ([]*Run, int, error)
 
 	// Returns a single run
-	FindRunByID(ctx context.Context, id ID) (*Run, error)
+	FindRunByID(ctx context.Context, orgID, runID ID) (*Run, error)
 
 	// Creates and returns a new run (which is a retry of another run)
 	RetryRun(ctx context.Context, id ID) (*Run, error)

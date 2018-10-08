@@ -414,13 +414,26 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, err := decodeGetRunRequest(ctx, r)
+	tok, err := GetToken(r)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	run, err := h.TaskService.FindRunByID(ctx, req.RunID)
+	auth, err := h.AuthorizationService.FindAuthorizationByToken(ctx, tok)
+	if err != nil {
+		EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
+		return
+	}
+	ctx = pcontext.SetAuthorization(ctx, auth)
+
+	req, err := decodeGetRunRequest(ctx, r, h.OrganizationService)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	run, err := h.TaskService.FindRunByID(ctx, req.OrgID, req.RunID)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -433,14 +446,26 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 }
 
 type getRunRequest struct {
+	OrgID platform.ID
 	RunID platform.ID
 }
 
-func decodeGetRunRequest(ctx context.Context, r *http.Request) (*getRunRequest, error) {
+func decodeGetRunRequest(ctx context.Context, r *http.Request, orgs platform.OrganizationService) (*getRunRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("rid")
 	if id == "" {
 		return nil, kerrors.InvalidDataf("you must provide a run ID")
+	}
+
+	qp := r.URL.Query()
+	var orgID platform.ID
+	if orgName := qp.Get("org"); orgName != "" {
+		o, err := orgs.FindOrganization(ctx, platform.OrganizationFilter{Name: &orgName})
+		if err != nil {
+			return nil, err
+		}
+
+		orgID = o.ID
 	}
 
 	var i platform.ID
@@ -450,6 +475,7 @@ func decodeGetRunRequest(ctx context.Context, r *http.Request) (*getRunRequest, 
 
 	return &getRunRequest{
 		RunID: i,
+		OrgID: orgID,
 	}, nil
 }
 

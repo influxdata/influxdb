@@ -135,7 +135,7 @@ func (r *runReaderWriter) ListRuns(ctx context.Context, runFilter platform.RunFi
 	return runs, nil
 }
 
-func (r *runReaderWriter) FindRunByID(ctx context.Context, orgID, taskID, runID platform.ID) (*platform.Run, error) {
+func (r *runReaderWriter) FindRunByID(ctx context.Context, orgID, runID platform.ID) (*platform.Run, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
