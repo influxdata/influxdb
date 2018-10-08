@@ -59,9 +59,6 @@ type Partition struct {
 	closing chan struct{} // closing is used to inform iterators the partition is closing.
 	wg      sync.WaitGroup
 
-	// Fieldset shared with engine.
-	fieldset *tsdb.MeasurementFieldSet
-
 	// Directory of the Partition's index files.
 	path string
 	id   string // id portion of path.
@@ -123,7 +120,6 @@ func (p *Partition) bytes() int {
 	b += 12 // once sync.Once is 12 bytes
 	b += int(unsafe.Sizeof(p.closing))
 	b += 16 // wg sync.WaitGroup is 16 bytes
-	b += int(unsafe.Sizeof(p.fieldset)) + p.fieldset.Bytes()
 	b += int(unsafe.Sizeof(p.path)) + len(p.path)
 	b += int(unsafe.Sizeof(p.id)) + len(p.id)
 	b += int(unsafe.Sizeof(p.MaxLogFileSize))
@@ -405,21 +401,6 @@ func (p *Partition) Manifest() *Manifest {
 // WithLogger sets the logger for the index.
 func (p *Partition) WithLogger(logger *zap.Logger) {
 	p.logger = logger.With(zap.String("index", "tsi"))
-}
-
-// SetFieldSet sets a shared field set from the engine.
-func (p *Partition) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
-	p.mu.Lock()
-	p.fieldset = fs
-	p.mu.Unlock()
-}
-
-// FieldSet returns the fieldset.
-func (p *Partition) FieldSet() *tsdb.MeasurementFieldSet {
-	p.mu.Lock()
-	fs := p.fieldset
-	p.mu.Unlock()
-	return fs
 }
 
 // RetainFileSet returns the current fileset and adds a reference count.

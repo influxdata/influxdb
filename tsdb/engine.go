@@ -11,7 +11,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/estimator"
@@ -36,8 +35,6 @@ type Engine interface {
 
 	WithLogger(*zap.Logger)
 
-	LoadMetadataIndex(shardID uint64, index Index) error
-
 	CreateSnapshot() (string, error)
 	Backup(w io.Writer, basePath string, since time.Time) error
 	Export(w io.Writer, basePath string, start time.Time, end time.Time) error
@@ -45,9 +42,7 @@ type Engine interface {
 	Import(r io.Reader, basePath string) error
 	Digest() (io.ReadCloser, int64, error)
 
-	CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error)
 	CreateCursorIterator(ctx context.Context) (CursorIterator, error)
-	IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error)
 	WritePoints(points []models.Point) error
 
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ models.FieldType) error
@@ -62,8 +57,6 @@ type Engine interface {
 	MeasurementExists(name []byte) (bool, error)
 
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
-	MeasurementFieldSet() *MeasurementFieldSet
-	MeasurementFields(measurement []byte) *MeasurementFields
 	ForEachMeasurementName(fn func(name []byte) error) error
 	DeleteMeasurement(name []byte) error
 
@@ -176,9 +169,8 @@ type EngineOptions struct {
 	// nil will allow all combinations to pass.
 	ShardFilter func(database, rp string, id uint64) bool
 
-	Config         Config
-	SeriesIDSets   SeriesIDSets
-	FieldValidator FieldValidator
+	Config       Config
+	SeriesIDSets SeriesIDSets
 
 	OnNewEngine func(Engine)
 

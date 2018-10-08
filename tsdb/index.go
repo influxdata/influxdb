@@ -56,10 +56,6 @@ type Index interface {
 	TagKeySeriesIDIterator(name, key []byte) (SeriesIDIterator, error)          // used by this package
 	TagValueSeriesIDIterator(name, key, value []byte) (SeriesIDIterator, error) // used by this package
 
-	// // Sets a shared fieldset from the engine.
-	FieldSet() *MeasurementFieldSet      // used by this package
-	SetFieldSet(fs *MeasurementFieldSet) // used by engine
-
 	// To be removed w/ tsi1.
 	SetFieldName(measurement []byte, name string) // used by this package
 
@@ -270,21 +266,19 @@ func (a SeriesIDIterators) Close() (err error) {
 
 // seriesQueryAdapterIterator adapts SeriesIDIterator to an influxql.Iterator.
 type seriesQueryAdapterIterator struct {
-	once     sync.Once
-	sfile    *SeriesFile
-	itr      SeriesIDIterator
-	fieldset *MeasurementFieldSet
-	opt      query.IteratorOptions
+	once  sync.Once
+	sfile *SeriesFile
+	itr   SeriesIDIterator
+	opt   query.IteratorOptions
 
 	point query.FloatPoint // reusable point
 }
 
 // NewSeriesQueryAdapterIterator returns a new instance of SeriesQueryAdapterIterator.
-func NewSeriesQueryAdapterIterator(sfile *SeriesFile, itr SeriesIDIterator, fieldset *MeasurementFieldSet, opt query.IteratorOptions) query.Iterator {
+func NewSeriesQueryAdapterIterator(sfile *SeriesFile, itr SeriesIDIterator, opt query.IteratorOptions) query.Iterator {
 	return &seriesQueryAdapterIterator{
-		sfile:    sfile,
-		itr:      itr,
-		fieldset: fieldset,
+		sfile: sfile,
+		itr:   itr,
 		point: query.FloatPoint{
 			Aux: make([]interface{}, len(opt.Aux)),
 		},
@@ -1187,9 +1181,8 @@ func (itr *tagValueMergeIterator) Next() (_ []byte, err error) {
 
 // IndexSet represents a list of indexes, all belonging to one database.
 type IndexSet struct {
-	Indexes    []Index                // The set of indexes comprising this IndexSet.
-	SeriesFile *SeriesFile            // The Series File associated with the db for this set.
-	fieldSets  []*MeasurementFieldSet // field sets for _all_ indexes in this set's DB.
+	Indexes    []Index     // The set of indexes comprising this IndexSet.
+	SeriesFile *SeriesFile // The Series File associated with the db for this set.
 }
 
 // HasInmemIndex returns true if any in-memory index is in use.
@@ -1206,36 +1199,12 @@ func (is IndexSet) Database() string {
 	return is.Indexes[0].Database()
 }
 
-// HasField determines if any of the field sets on the set of indexes in the
-// IndexSet have the provided field for the provided measurement.
-func (is IndexSet) HasField(measurement []byte, field string) bool {
-	if len(is.Indexes) == 0 {
-		return false
-	}
-
-	if len(is.fieldSets) == 0 {
-		// field sets may not have been initialised yet.
-		is.fieldSets = make([]*MeasurementFieldSet, 0, len(is.Indexes))
-		for _, idx := range is.Indexes {
-			is.fieldSets = append(is.fieldSets, idx.FieldSet())
-		}
-	}
-
-	for _, fs := range is.fieldSets {
-		if fs.Fields(measurement).HasField(field) {
-			return true
-		}
-	}
-	return false
-}
-
 // DedupeInmemIndexes returns an index set which removes duplicate indexes.
 // Useful because inmem indexes are shared by shards per database.
 func (is IndexSet) DedupeInmemIndexes() IndexSet {
 	other := IndexSet{
 		Indexes:    make([]Index, 0, len(is.Indexes)),
 		SeriesFile: is.SeriesFile,
-		fieldSets:  make([]*MeasurementFieldSet, 0, len(is.Indexes)),
 	}
 
 	uniqueIndexes := make(map[uintptr]Index)
@@ -1245,7 +1214,6 @@ func (is IndexSet) DedupeInmemIndexes() IndexSet {
 
 	for _, idx := range uniqueIndexes {
 		other.Indexes = append(other.Indexes, idx)
-		other.fieldSets = append(other.fieldSets, idx.FieldSet())
 	}
 
 	return other
@@ -1867,7 +1835,7 @@ func (is IndexSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 	}
 
 	// For fields, return all series from this measurement.
-	if key.Val != "_name" && ((key.Type == influxql.Unknown && is.HasField(name, key.Val)) || key.Type == influxql.AnyField || (key.Type != influxql.Tag && key.Type != influxql.Unknown)) {
+	if key.Val != "_name" && (key.Type == influxql.AnyField || (key.Type != influxql.Tag && key.Type != influxql.Unknown)) {
 		itr, err := is.measurementSeriesIDIterator(name)
 		if err != nil {
 			return nil, err
@@ -1875,7 +1843,7 @@ func (is IndexSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 		return newSeriesIDExprIterator(itr, n), nil
 	} else if value, ok := value.(*influxql.VarRef); ok {
 		// Check if the RHS is a variable and if it is a field.
-		if value.Val != "_name" && ((value.Type == influxql.Unknown && is.HasField(name, value.Val)) || key.Type == influxql.AnyField || (value.Type != influxql.Tag && value.Type != influxql.Unknown)) {
+		if value.Val != "_name" && (key.Type == influxql.AnyField || (value.Type != influxql.Tag && value.Type != influxql.Unknown)) {
 			itr, err := is.measurementSeriesIDIterator(name)
 			if err != nil {
 				return nil, err
@@ -2175,7 +2143,7 @@ func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byt
 //
 // N.B tagValuesByKeyAndExpr relies on keys being sorted in ascending
 // lexicographic order.
-func (is IndexSet) TagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, fieldset *MeasurementFieldSet) ([]map[string]struct{}, error) {
+func (is IndexSet) TagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr) ([]map[string]struct{}, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 	return is.tagValuesByKeyAndExpr(auth, name, keys, expr)

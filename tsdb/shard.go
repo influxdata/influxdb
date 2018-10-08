@@ -48,9 +48,6 @@ type Shard struct {
 // NewShard returns a new initialized Shard.
 func NewShard(id uint64, path string, sfile *SeriesFile, opt EngineOptions) *Shard {
 	logger := zap.NewNop()
-	if opt.FieldValidator == nil {
-		opt.FieldValidator = defaultFieldValidator{}
-	}
 
 	s := &Shard{
 		id:      id,
@@ -248,6 +245,8 @@ func (s *Shard) WritePoints(points []models.Point) error {
 			continue
 		}
 
+		// TODO(jeff): do we have to filter entries where the only field is "time"?
+
 		collection.Copy(j, iter.Index())
 		j++
 	}
@@ -261,13 +260,12 @@ func (s *Shard) WritePoints(points []models.Point) error {
 		return err
 	}
 
-	// validate and create any new fields
-	fieldsToCreate, err := s.validateSeriesAndFields(engine, collection)
-	if err != nil {
-		return err
-	}
-	if err := s.createFieldsAndMeasurements(engine, fieldsToCreate); err != nil {
-		return err
+	// make sure the series exist
+	if err := engine.CreateSeriesListIfNotExists(collection); err != nil {
+		// ignore PartialWriteErrors. The collection captures it.
+		if _, ok := err.(PartialWriteError); !ok {
+			return err
+		}
 	}
 
 	// Write to the engine.

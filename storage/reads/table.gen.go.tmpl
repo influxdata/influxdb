@@ -195,14 +195,14 @@ func (t *{{.name}}GroupTable) advanceCursor() bool {
 			continue
 		}
 
-		if cur, ok := cur.(cursors.{{.Name}}ArrayCursor); !ok {
+		if typedCur, ok := cur.(cursors.{{.Name}}ArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
 			t.err = errors.Errorf("expected {{.name}} cursor type, got %T", cur)
 			return false
 		} else {
 			t.readTags(t.gc.Tags())
-			t.cur = cur
+			t.cur = typedCur
 			return true
 		}
 	}

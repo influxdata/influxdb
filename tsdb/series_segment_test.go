@@ -2,6 +2,8 @@ package tsdb_test
 
 import (
 	"bytes"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +11,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/tsdb"
 )
+
+func MustTempDir() (string, func()) {
+	dir, err := ioutil.TempDir("", "test-series-segment")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp dir: %v", err))
+	}
+	return dir, func() { os.RemoveAll(dir) }
+}
 
 func TestSeriesSegment(t *testing.T) {
 	dir, cleanup := MustTempDir()
