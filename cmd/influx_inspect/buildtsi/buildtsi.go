@@ -36,6 +36,7 @@ type Command struct {
 	retentionFilter string
 	shardFilter     string
 	maxLogFileSize  int64
+	maxCacheSize    uint64
 	batchSize       int
 }
 
@@ -60,6 +61,7 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.retentionFilter, "retention", "", "optional: retention policy")
 	fs.StringVar(&cmd.shardFilter, "shard", "", "optional: shard id")
 	fs.Int64Var(&cmd.maxLogFileSize, "max-log-file-size", tsdb.DefaultMaxIndexLogFileSize, "optional: maximum log file size")
+	fs.Uint64Var(&cmd.maxCacheSize, "max-cache-size", tsdb.DefaultCacheMaxMemorySize, "optional: maximum cache size")
 	fs.IntVar(&cmd.batchSize, "batch-size", defaultBatchSize, "optional: set the size of the batches we write to the index. Setting this can have adverse affects on performance and heap requirements")
 	fs.BoolVar(&cmd.Verbose, "v", false, "verbose")
 	fs.SetOutput(cmd.Stdout)
@@ -257,7 +259,7 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 
 	// Write out wal files.
 	log.Info("Building cache from wal files")
-	cache := tsm1.NewCache(tsdb.DefaultCacheMaxMemorySize)
+	cache := tsm1.NewCache(cmd.maxCacheSize)
 	loader := tsm1.NewCacheLoader(walPaths)
 	loader.WithLogger(cmd.Logger)
 	if err := loader.Load(cache); err != nil {
