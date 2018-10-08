@@ -15,7 +15,6 @@ const dateFormat = 'YYYY-MM-DD HH:mm'
 const emptyTime = {lower: '', upper: ''}
 const format = t => moment(t.replace(/\'/g, '')).format(dateFormat)
 
-@ErrorHandling
 class TimeRangeDropdown extends Component {
   constructor(props) {
     super(props)
@@ -169,4 +168,4 @@ TimeRangeDropdown.propTypes = {
   page: string,
 }
 
-export default OnClickOutside(TimeRangeDropdown)
+export default OnClickOutside(ErrorHandling(TimeRangeDropdown))

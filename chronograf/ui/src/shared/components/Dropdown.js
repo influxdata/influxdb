@@ -7,7 +7,6 @@ import DropdownInput from 'shared/components/DropdownInput'
 import DropdownHead from 'shared/components/DropdownHead'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-@ErrorHandling
 export class Dropdown extends Component {
   constructor(props) {
     super(props)
@@ -246,4 +245,4 @@ Dropdown.propTypes = {
   tabIndex: number,
 }
 
-export default OnClickOutside(Dropdown)
+export default OnClickOutside(ErrorHandling(Dropdown))

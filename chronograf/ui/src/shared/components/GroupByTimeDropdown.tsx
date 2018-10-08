@@ -1,5 +1,5 @@
 import React, {SFC} from 'react'
-import {withRouter} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router'
 import {Location} from 'history'
 
 import groupByTimeOptions from 'src/shared/constants/groupByTimes'
@@ -30,7 +30,7 @@ const getOptions = (pathname: string): GroupByTimeOption[] =>
     ? groupByTimeOptions.filter(({menuOption}) => menuOption !== AUTO_GROUP_BY)
     : groupByTimeOptions
 
-const GroupByTimeDropdown: SFC<Props> = ({
+const GroupByTimeDropdown: SFC<Props & WithRouterProps> = ({
   selected,
   onChooseGroupByTime,
   location: {pathname},

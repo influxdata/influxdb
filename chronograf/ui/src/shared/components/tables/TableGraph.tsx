@@ -293,7 +293,11 @@ class TableGraph extends PureComponent<Props, State> {
   }
 
   private get tableWidth(): number {
-    const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
+    let tableWidth = 0
+
+    if (this.gridContainer && this.gridContainer.clientWidth) {
+      tableWidth = this.gridContainer.clientWidth
+    }
 
     return tableWidth
   }

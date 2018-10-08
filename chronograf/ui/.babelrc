@@ -1,12 +1,9 @@
 {
   "plugins": [
-    "syntax-trailing-function-commas",
-    "transform-decorators-legacy",
-    "transform-object-rest-spread",
-    "transform-class-properties",
-    "transform-runtime",
-    "lodash",
-    ["module-resolver", {
+    "@babel/plugin-transform-runtime",
+    "@babel/plugin-proposal-class-properties",
+    "babel-plugin-lodash",
+    ["babel-plugin-module-resolver", {
       "root": ["./src"],
       "alias": {
         "src": "./src",
@@ -16,16 +13,5 @@
       }
     }]
   ],
-  "presets": ["env", "react", "stage-0"],
-  "env": {
-    "development": {
-      "plugins": ["transform-decorators-legacy"]
-    },
-    "production": {
-      "plugins": [
-        "transform-react-remove-prop-types",
-        "transform-decorators-legacy"
-      ]
-    }
-  }
+  "presets": ["@babel/preset-env", "@babel/preset-react"]
 }

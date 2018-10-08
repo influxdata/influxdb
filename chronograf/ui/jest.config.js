@@ -16,7 +16,6 @@ module.exports = {
       },
       testRegex: '(/__tests__/.*|(\\.|/)(test))\\.(jsx?|tsx?)$',
       moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-      transformIgnorePatterns: ['/node_modules/(?!dygraphs)'],
       snapshotSerializers: ['enzyme-to-json/serializer'],
       moduleNameMapper: {
         '\\.(css|scss)$': 'identity-obj-proxy',

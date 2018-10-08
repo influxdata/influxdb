@@ -16,7 +16,6 @@ const staticLegendItemClassname = (visibilities, i, hoverEnabled) => {
   return 'static-legend--item'
 }
 
-@ErrorHandling
 class StaticLegend extends Component {
   constructor(props) {
     super(props)
@@ -110,4 +109,4 @@ StaticLegend.propTypes = {
   onUpdateHeight: func.isRequired,
 }
 
-export default StaticLegend
+export default ErrorHandling(StaticLegend)

@@ -7,7 +7,6 @@ import parsers from 'shared/parsing'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 const {tagKeys: showTagKeysParser} = parsers
 
-@ErrorHandling
 class TagKeyDropdown extends Component {
   constructor(props) {
     super(props)
@@ -90,4 +89,4 @@ TagKeyDropdown.propTypes = {
   onErrorThrown: func.isRequired,
 }
 
-export default TagKeyDropdown
+export default ErrorHandling(TagKeyDropdown)

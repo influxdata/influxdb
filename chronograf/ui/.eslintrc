@@ -241,12 +241,7 @@
       "prefer-const": 2,
       "prefer-template": 2,
       "react/display-name": 0,
-      "react/jsx-no-bind": [
-         2,
-         {
-            "ignoreRefs": true
-         }
-      ],
+      "react/jsx-no-bind": 0,
       "react/jsx-boolean-value": [
          2,
          "always"

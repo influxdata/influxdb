@@ -1,5 +1,5 @@
 /* eslint-disable no-magic-numbers */
-import {toRGB_} from 'dygraphs/src/dygraph-utils'
+import {toRGB} from 'src/shared/graphs/toRGB'
 
 export const LINE_COLORS = [
   '#00C9FF',
@@ -21,7 +21,7 @@ export const SMALL_CELL_HEIGHT = 2
 
 export const darkenColor = colorStr => {
   // Defined in dygraph-utils.js
-  const color = toRGB_(colorStr)
+  const color = toRGB(colorStr)
   color.r = Math.floor((255 + color.r) / 2)
   color.g = Math.floor((255 + color.g) / 2)
   color.b = Math.floor((255 + color.b) / 2)

@@ -7,7 +7,6 @@ import parsers from 'shared/parsing'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 const {measurements: showMeasurementsParser} = parsers
 
-@ErrorHandling
 class MeasurementDropdown extends Component {
   constructor(props) {
     super(props)
@@ -83,4 +82,4 @@ MeasurementDropdown.propTypes = {
   }).isRequired,
 }
 
-export default MeasurementDropdown
+export default ErrorHandling(MeasurementDropdown)

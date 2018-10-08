@@ -3,7 +3,6 @@ import React from 'react'
 import {mount} from 'enzyme'
 
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
-import {Dropdown} from 'src/shared/components/Dropdown'
 
 const defaultProps = {
   onChooseSortBy: () => {},
@@ -30,16 +29,14 @@ describe('Dashboards.Components.GraphOptionsSortBy', () => {
         internalName: 'boom',
         visible: true,
       }
+
       const {wrapper} = setup({
         selected,
       })
 
-      const dropdown = wrapper.find(Dropdown)
-      const label = wrapper.find('label')
+      const selectedText = wrapper.find('.dropdown-selected').text()
 
-      expect(dropdown.props().selected).toEqual(selected.displayName)
-      expect(dropdown.exists()).toBe(true)
-      expect(label.exists()).toBe(true)
+      expect(selectedText).toEqual(selected.displayName)
     })
 
     describe('when selected display name is not available', () => {
@@ -49,11 +46,12 @@ describe('Dashboards.Components.GraphOptionsSortBy', () => {
           internalName: 'boom',
           visible: true,
         }
+
         const {wrapper} = setup({selected})
 
-        const dropdown = wrapper.find(Dropdown)
+        const selectedText = wrapper.find('.dropdown-selected').text()
 
-        expect(dropdown.props().selected).toEqual(selected.internalName)
+        expect(selectedText).toEqual(selected.internalName)
       })
     })
   })

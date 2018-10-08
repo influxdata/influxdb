@@ -7,7 +7,7 @@ node_modules: yarn.lock
 ifndef YARN
 	$(error Please install yarn 0.19.1+)
 else
-	yarn --no-progress --no-emoji
+	yarn --no-progress --emoji false
 endif
 
 build: node_modules $(UISOURCES)
