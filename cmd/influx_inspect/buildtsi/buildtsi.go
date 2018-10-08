@@ -36,6 +36,7 @@ type Command struct {
 	retentionFilter string
 	shardFilter     string
 	maxLogFileSize  int64
+	maxCacheSize    uint64
 	batchSize       int
 }
 
@@ -60,6 +61,7 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.retentionFilter, "retention", "", "optional: retention policy")
 	fs.StringVar(&cmd.shardFilter, "shard", "", "optional: shard id")
 	fs.Int64Var(&cmd.maxLogFileSize, "max-log-file-size", tsdb.DefaultMaxIndexLogFileSize, "optional: maximum log file size")
+	fs.Uint64Var(&cmd.maxCacheSize, "max-cache-size", tsdb.DefaultCacheMaxMemorySize, "optional: maximum cache size")
 	fs.IntVar(&cmd.batchSize, "batch-size", defaultBatchSize, "optional: set the size of the batches we write to the index. Setting this can have adverse affects on performance and heap requirements")
 	fs.BoolVar(&cmd.Verbose, "v", false, "verbose")
 	fs.SetOutput(cmd.Stdout)
@@ -184,7 +186,7 @@ func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpNam
 
 				id, name := shards[i].ID, shards[i].Path
 				log := cmd.Logger.With(logger.Database(dbName), logger.RetentionPolicy(rpName), logger.Shard(id))
-				errC <- IndexShard(sfile, filepath.Join(dataDir, name), filepath.Join(walDir, name), cmd.maxLogFileSize, cmd.batchSize, log, cmd.Verbose)
+				errC <- IndexShard(sfile, filepath.Join(dataDir, name), filepath.Join(walDir, name), cmd.maxLogFileSize, cmd.maxCacheSize, cmd.batchSize, log, cmd.Verbose)
 			}
 		}()
 	}
@@ -198,7 +200,7 @@ func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpNam
 	return nil
 }
 
-func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize int64, batchSize int, log *zap.Logger, verboseLogging bool) error {
+func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize int64, maxCacheSize uint64, batchSize int, log *zap.Logger, verboseLogging bool) error {
 	log.Info("Rebuilding shard")
 
 	// Check if shard already has a TSI index.
@@ -260,7 +262,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 
 	} else {
 		log.Info("Building cache from wal files")
-		cache := tsm1.NewCache(tsdb.DefaultCacheMaxMemorySize)
+		cache := tsm1.NewCache(maxCacheSize)
 		loader := tsm1.NewCacheLoader(walPaths)
 		loader.WithLogger(log)
 		if err := loader.Load(cache); err != nil {
