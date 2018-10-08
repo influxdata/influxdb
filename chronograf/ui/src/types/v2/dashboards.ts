@@ -65,6 +65,11 @@ export interface View {
   id: string
   name: string
   properties: ViewProperties
+  links?: ViewLinks
+}
+
+export interface ViewLinks {
+  self: string
 }
 
 export type RefreshingViewProperties =
@@ -192,7 +197,7 @@ export interface LogViewerColumnSetting {
 }
 
 export enum ViewShape {
-  ChronografV2 = 'chronografV2',
+  ChronografV2 = 'chronograf-v2',
   Empty = 'empty',
 }
 

@@ -10,7 +10,7 @@ import {
 } from 'src/logs/actions'
 
 import {DEFAULT_TRUNCATION} from 'src/logs/constants'
-import {LogsState, SearchStatus} from 'src/types/logs'
+import {LogsState, SearchStatus, SeverityFormatOptions} from 'src/types/logs'
 
 export const defaultState: LogsState = {
   currentSource: null,
@@ -20,6 +20,11 @@ export const defaultState: LogsState = {
   filters: [],
   queryCount: 0,
   logConfig: {
+    id: null,
+    link: null,
+    tableColumns: [],
+    severityFormat: SeverityFormatOptions.dotText,
+    severityLevelColors: [],
     isTruncated: DEFAULT_TRUNCATION,
   },
   searchStatus: SearchStatus.None,
@@ -64,11 +69,26 @@ const changeFilter = (
   return {...state, filters: mappedFilters}
 }
 
-export const setConfigs = (state: LogsState, action: SetConfigAction) => {
+export const setConfigs = (
+  state: LogsState,
+  action: SetConfigAction
+): LogsState => {
   const {
-    logConfig: {isTruncated},
+    logConfig: {
+      id,
+      link,
+      tableColumns,
+      severityFormat,
+      severityLevelColors,
+      isTruncated,
+    },
   } = action.payload
   const updatedLogConfig = {
+    id,
+    link,
+    tableColumns,
+    severityFormat,
+    severityLevelColors,
     isTruncated,
   }
   return {...state, logConfig: updatedLogConfig}
