@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/tsi1"
 	"github.com/influxdata/platform/tsdb/tsm1"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -29,11 +30,12 @@ type Engine struct {
 	engineID *int // Not used by default.
 	nodeID   *int // Not used by default.
 
-	mu     sync.RWMutex
-	open   bool
-	index  *tsi1.Index
-	sfile  *tsdb.SeriesFile
-	engine *tsm1.Engine
+	mu               sync.RWMutex
+	open             bool
+	index            *tsi1.Index
+	sfile            *tsdb.SeriesFile
+	engine           *tsm1.Engine
+	retentionService *retentionService
 
 	logger *zap.Logger
 }
@@ -62,6 +64,26 @@ var WithEngineID = func(id int) Option {
 var WithNodeID = func(id int) Option {
 	return func(e *Engine) {
 		*e.nodeID = id
+	}
+}
+
+// WithRetentionService initialises a retention service on the engine with the
+// provided interval. WithRetentionService must be called after other options
+// to ensure that all metrics are labelled correctly.
+var WithRetentionService = func(finder BucketFinder, interval int64) Option {
+	return func(e *Engine) {
+		e.retentionService = newRetentionService(e, finder, interval)
+
+		labels := prometheus.Labels(map[string]string{"status": ""})
+		if e.engineID != nil {
+			labels["engine_id"] = fmt.Sprint(*e.engineID)
+		}
+
+		if e.nodeID != nil {
+			labels["node_id"] = fmt.Sprint(*e.nodeID)
+		}
+		e.retentionService.defaultMetricLabels = labels
+		e.retentionService.retentionMetrics = newRetentionMetrics(labels)
 	}
 }
 
@@ -110,6 +132,10 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	e.sfile.WithLogger(e.logger)
 	e.index.WithLogger(e.logger)
 	e.engine.WithLogger(e.logger)
+
+	if e.retentionService != nil {
+		e.retentionService.WithLogger(e.logger)
+	}
 }
 
 // Open opens the store and all underlying resources. It returns an error if

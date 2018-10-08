@@ -62,7 +62,8 @@ type retentionService struct {
 	logger   *zap.Logger
 	interval time.Duration // Interval that retention service deletes data.
 
-	// retentionMetrics *retentionMetrics
+	retentionMetrics    *retentionMetrics
+	defaultMetricLabels prometheus.Labels // N.B this must not be mutated after Open is called.
 
 	mu       sync.RWMutex
 	_closing chan struct{}
@@ -79,11 +80,17 @@ func newRetentionService(engine Deleter, bucketService BucketFinder, interval in
 		BucketService: bucketService,
 		logger:        zap.NewNop(),
 		interval:      time.Duration(interval) * time.Second,
-
-		// retentionMetrics: newRetentionMetrics(),
 	}
-
 	return s
+}
+
+// metricLabels returns a new copy of the default metric labels.
+func (s *retentionService) metricLabels() prometheus.Labels {
+	labels := make(map[string]string, len(s.defaultMetricLabels))
+	for k, v := range s.defaultMetricLabels {
+		labels[k] = v
+	}
+	return labels
 }
 
 // WithLogger sets the logger l on the service. It must be called before Open.
@@ -144,14 +151,16 @@ func (s *retentionService) run() {
 			}
 
 			now := time.Now().UTC()
-			// status := "ok"
+			labels := s.metricLabels()
+			labels["status"] = "ok"
 
 			if err := s.expireData(rpByBucketID, now); err != nil {
 				log.Error("Deletion not successful", zap.Error(err))
-				// status = "error"
+				labels["status"] = "error"
 			}
-			// s.retentionMetrics.CheckDuration.With(prometheus.Labels{"node_id": fmt.Sprint(s.nodeID), "partition": fmt.Sprint(shardID), "status": status}).Observe(time.Since(now).Seconds())
-			// s.retentionMetrics.Checks.With(prometheus.Labels{"node_id": fmt.Sprint(s.nodeID), "partition": fmt.Sprint(shardID), "status": status}).Inc()
+
+			s.retentionMetrics.CheckDuration.With(labels).Observe(time.Since(now).Seconds())
+			s.retentionMetrics.Checks.With(labels).Inc()
 		case <-closingCh:
 			return
 		}
@@ -209,12 +218,19 @@ func (s *retentionService) expireData(rpByBucketID map[string]time.Duration, now
 	}
 
 	defer func() {
-		// Track metrics on deletion.
-		// s.retentionMetrics.Unprocessable.With(prometheus.Labels{"node_id": fmt.Sprint(s.nodeID), "partition": fmt.Sprint(sh.ID()), "status": "bad_measurement"}).Add(float64(len(badMSketch)))
-		// s.retentionMetrics.Unprocessable.With(prometheus.Labels{"node_id": fmt.Sprint(s.nodeID), "partition": fmt.Sprint(sh.ID()), "status": "missing_bucket"}).Add(float64(len(missingBSketch)))
+		labels := s.metricLabels()
 
-		// s.retentionMetrics.Series.With(prometheus.Labels{"node_id": fmt.Sprint(s.nodeID), "partition": fmt.Sprint(sh.ID()), "status": "ok"}).Add(float64(atomic.LoadUint64(&seriesDeleted)))
-		// s.retentionMetrics.Series.With(prometheus.Labels{"node_id": fmt.Sprint(s.nodeID), "partition": fmt.Sprint(sh.ID()), "status": "skipped"}).Add(float64(atomic.LoadUint64(&seriesSkipped)))
+		labels["status"] = "bad_measurement"
+		s.retentionMetrics.Unprocessable.With(labels).Add(float64(len(badMSketch)))
+
+		labels["status"] = "missing_bucket"
+		s.retentionMetrics.Unprocessable.With(labels).Add(float64(len(missingBSketch)))
+
+		labels["status"] = "ok"
+		s.retentionMetrics.Series.With(labels).Add(float64(atomic.LoadUint64(&seriesDeleted)))
+
+		labels["status"] = "skipped"
+		s.retentionMetrics.Series.With(labels).Add(float64(atomic.LoadUint64(&seriesSkipped)))
 	}()
 
 	return s.Engine.DeleteSeriesRangeWithPredicate(newSeriesIteratorAdapter(cur), fn)
@@ -270,8 +286,10 @@ func (s *retentionService) Close() error {
 
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (s *retentionService) PrometheusCollectors() []prometheus.Collector {
+	if s.retentionMetrics != nil {
+		return s.retentionMetrics.PrometheusCollectors()
+	}
 	return nil
-	// return s.retentionMetrics.PrometheusCollectors()
 }
 
 // A BucketService is an platform.BucketService that the RetentionService can open,
