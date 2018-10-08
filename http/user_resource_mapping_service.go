@@ -72,8 +72,8 @@ func decodePostOrgMemberRequest(ctx context.Context, r *http.Request) (*postOrgM
 		return nil, err
 	}
 
-	if u.ID == nil {
-		return nil, kerrors.InvalidDataf("user id missing")
+	if !u.ID.Valid() {
+		return nil, kerrors.InvalidDataf("user id missing or invalid")
 	}
 
 	return &postOrgMemberRequest{

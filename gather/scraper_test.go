@@ -230,7 +230,7 @@ func (s *mockStorage) RemoveTarget(ctx context.Context, id platform.ID) error {
 		return nil
 	}
 	for k, v := range s.Targets {
-		if v.ID.String() == id.String() {
+		if v.ID == id {
 			s.Targets = append(s.Targets[:k], s.Targets[k+1:]...)
 			break
 		}
@@ -243,7 +243,7 @@ func (s *mockStorage) GetTargetByID(ctx context.Context, id platform.ID) (target
 	defer s.RUnlock()
 
 	for k, v := range s.Targets {
-		if v.ID.String() == id.String() {
+		if v.ID == id {
 			target = &s.Targets[k]
 			break
 		}

@@ -340,38 +340,6 @@ func (h *OrgHandler) handlePostOrgMember(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-type postOrgMemberRequest struct {
-	MemberID platform.ID
-	OrgID    platform.ID
-}
-
-func decodePostOrgMemberRequest(ctx context.Context, r *http.Request) (*postOrgMemberRequest, error) {
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
-	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
-	}
-
-	var oid platform.ID
-	if err := oid.DecodeFromString(id); err != nil {
-		return nil, err
-	}
-
-	u := &platform.User{}
-	if err := json.NewDecoder(r.Body).Decode(u); err != nil {
-		return nil, err
-	}
-
-	if !u.ID.Valid() {
-		return nil, kerrors.InvalidDataf("user id missing")
-	}
-
-	return &postOrgMemberRequest{
-		MemberID: u.ID,
-		OrgID:    oid,
-	}, nil
-}
-
 func (h *OrgHandler) handleGetOrgMembers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -412,39 +380,6 @@ func (h *OrgHandler) handleDeleteOrgMember(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-type deleteOrgMemberRequest struct {
-	MemberID platform.ID
-	OrgID    platform.ID
-}
-
-func decodeDeleteOrgMemberRequest(ctx context.Context, r *http.Request) (*deleteOrgMemberRequest, error) {
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
-	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
-	}
-
-	var oid platform.ID
-	if err := oid.DecodeFromString(id); err != nil {
-		return nil, err
-	}
-
-	id = params.ByName("mid")
-	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing member id")
-	}
-
-	var mid platform.ID
-	if err := mid.DecodeFromString(id); err != nil {
-		return nil, err
-	}
-
-	return &deleteOrgMemberRequest{
-		MemberID: mid,
-		OrgID:    oid,
-	}, nil
 }
 
 const (
