@@ -129,8 +129,10 @@ func (m *Monitor) Open() error {
 	return nil
 }
 
+// Enabled returns true if any underlying Config is Enabled.
 func (m *Monitor) Enabled() bool { return m.storeEnabled }
 
+// WritePoints writes the points the monitor gathers.
 func (m *Monitor) WritePoints(p models.Points) error {
 	if !m.storeEnabled {
 		return nil
