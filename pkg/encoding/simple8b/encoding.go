@@ -194,22 +194,22 @@ type packing struct {
 }
 
 var selector [16]packing = [16]packing{
-	packing{240, 0, unpack240, pack240},
-	packing{120, 0, unpack120, pack120},
-	packing{60, 1, unpack60, pack60},
-	packing{30, 2, unpack30, pack30},
-	packing{20, 3, unpack20, pack20},
-	packing{15, 4, unpack15, pack15},
-	packing{12, 5, unpack12, pack12},
-	packing{10, 6, unpack10, pack10},
-	packing{8, 7, unpack8, pack8},
-	packing{7, 8, unpack7, pack7},
-	packing{6, 10, unpack6, pack6},
-	packing{5, 12, unpack5, pack5},
-	packing{4, 15, unpack4, pack4},
-	packing{3, 20, unpack3, pack3},
-	packing{2, 30, unpack2, pack2},
-	packing{1, 60, unpack1, pack1},
+	{240, 0, unpack240, pack240},
+	{120, 0, unpack120, pack120},
+	{60, 1, unpack60, pack60},
+	{30, 2, unpack30, pack30},
+	{20, 3, unpack20, pack20},
+	{15, 4, unpack15, pack15},
+	{12, 5, unpack12, pack12},
+	{10, 6, unpack10, pack10},
+	{8, 7, unpack8, pack8},
+	{7, 8, unpack7, pack7},
+	{6, 10, unpack6, pack6},
+	{5, 12, unpack5, pack5},
+	{4, 15, unpack4, pack4},
+	{3, 20, unpack3, pack3},
+	{2, 30, unpack2, pack2},
+	{1, 60, unpack1, pack1},
 }
 
 // Count returns the number of integers encoded in the byte slice

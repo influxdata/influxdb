@@ -6,9 +6,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/kapacitor/pipeline"
 	"github.com/influxdata/kapacitor/pipeline/tick"
+	"github.com/influxdata/platform/chronograf"
 )
 
 // AlertServices generates alert chaining methods to be attached to an alert from all rule Services

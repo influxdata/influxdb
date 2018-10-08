@@ -10,8 +10,8 @@ import (
 	"context"
 
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/tsdb"
 )
 
 // buildFloatArrayCursor creates an array cursor for a float field.

@@ -176,7 +176,7 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape string `json:"shape"`
 			SingleStatViewProperties
 		}{
-			Shape: "chronograf-v2",
+			Shape:                    "chronograf-v2",
 			SingleStatViewProperties: vis,
 		}
 	case TableViewProperties:
@@ -208,7 +208,7 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape string `json:"shape"`
 			LinePlusSingleStatProperties
 		}{
-			Shape: "chronograf-v2",
+			Shape:                        "chronograf-v2",
 			LinePlusSingleStatProperties: vis,
 		}
 	case StepPlotViewProperties:
@@ -216,7 +216,7 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape string `json:"shape"`
 			StepPlotViewProperties
 		}{
-			Shape: "chronograf-v2",
+			Shape:                  "chronograf-v2",
 			StepPlotViewProperties: vis,
 		}
 	case StackedViewProperties:
@@ -224,7 +224,7 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape string `json:"shape"`
 			StackedViewProperties
 		}{
-			Shape: "chronograf-v2",
+			Shape:                 "chronograf-v2",
 			StackedViewProperties: vis,
 		}
 	case LogViewProperties:

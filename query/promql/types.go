@@ -8,8 +8,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
 )
 

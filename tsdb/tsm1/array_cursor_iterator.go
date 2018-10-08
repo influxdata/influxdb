@@ -6,9 +6,9 @@ import (
 
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/tsdb"
 )
 
 type arrayCursorIterator struct {

@@ -105,7 +105,10 @@ chronograf/ui/build:
 #
 
 fmt: $(SOURCES_NO_VENDOR)
-	goimports -w $^
+	gofmt -w -s $^
+
+checkfmt: $(SOURCES_NO_VENDOR)
+	./etc/checkfmt.sh
 
 chronograf/dist/dist_gen.go: chronograf/ui/build $(UISOURCES)
 	 $(GO_GENERATE) ./chronograf/dist/...
