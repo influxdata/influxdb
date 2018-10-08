@@ -5,7 +5,6 @@ import "github.com/influxdata/platform/models"
 const (
 	fieldKey       = "_field"
 	measurementKey = "_measurement"
-	valueKey       = "_value"
 )
 
 var (

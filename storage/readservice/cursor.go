@@ -51,16 +51,16 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, req *datatypes.R
 	mi := tsdb.NewMeasurementSliceIterator([][]byte{m})
 
 	if root := req.Predicate.GetRoot(); root != nil {
-		if p.cond, err = nodeToExpr(root, nil); err != nil {
+		if p.cond, err = reads.NodeToExpr(root, nil); err != nil {
 			return nil, err
 		}
 
-		p.hasValueExpr = hasFieldValueKey(p.cond)
+		p.hasValueExpr = reads.HasFieldValueKey(p.cond)
 		if !p.hasValueExpr {
 			opt.Condition = p.cond
 		} else {
-			opt.Condition = influxql.Reduce(rewriteExprRemoveFieldValue(influxql.CloneExpr(p.cond)), nil)
-			if isTrueBooleanLiteral(opt.Condition) {
+			opt.Condition = influxql.Reduce(reads.RewriteExprRemoveFieldValue(influxql.CloneExpr(p.cond)), nil)
+			if reads.IsTrueBooleanLiteral(opt.Condition) {
 				opt.Condition = nil
 			}
 		}
@@ -121,7 +121,7 @@ func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 	if c.cond != nil && c.hasValueExpr {
 		// TODO(sgc): lazily evaluate valueCond
 		c.row.ValueCond = influxql.Reduce(c.cond, c)
-		if isTrueBooleanLiteral(c.row.ValueCond) {
+		if reads.IsTrueBooleanLiteral(c.row.ValueCond) {
 			// we've reduced the expression to "true"
 			c.row.ValueCond = nil
 		}
