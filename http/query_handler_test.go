@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 )
 
@@ -88,6 +89,8 @@ func TestFluxService_Query(t *testing.T) {
 }
 
 func TestFluxQueryService_Query(t *testing.T) {
+	var orgID platform.ID
+	orgID.DecodeFromString("aaaaaaaaaaaaaaaa")
 	tests := []struct {
 		name    string
 		token   string
@@ -103,6 +106,7 @@ func TestFluxQueryService_Query(t *testing.T) {
 			token: "mytoken",
 			ctx:   context.Background(),
 			r: &query.Request{
+				OrganizationID: orgID,
 				Compiler: lang.FluxCompiler{
 					Query: "from()",
 				},
@@ -115,6 +119,7 @@ func TestFluxQueryService_Query(t *testing.T) {
 			token: "mytoken",
 			ctx:   context.Background(),
 			r: &query.Request{
+				OrganizationID: orgID,
 				Compiler: lang.FluxCompiler{
 					Query: "from()",
 				},
@@ -133,7 +138,9 @@ func TestFluxQueryService_Query(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var orgIDStr string
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				orgIDStr = r.URL.Query().Get(OrgID)
 				w.WriteHeader(tt.status)
 				fmt.Fprintln(w, tt.csv)
 			}))
@@ -167,6 +174,12 @@ func TestFluxQueryService_Query(t *testing.T) {
 			}
 			if n != int64(len(tt.want)) {
 				t.Errorf("FluxQueryService.Query() encode result = %d, want %d", n, len(tt.want))
+			}
+			if orgIDStr == "" {
+				t.Error("FluxQueryService.Query() encoded orgID is empty")
+			}
+			if got, want := orgIDStr, tt.r.OrganizationID.String(); got != want {
+				t.Errorf("FluxQueryService.Query() encoded orgID = %s, want %s", got, want)
 			}
 
 			got := b.String()
