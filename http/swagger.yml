@@ -726,12 +726,12 @@ paths:
             schema:
               type: string
           - in: query
-            name: ids
-            summary: dashboards to return
-            description: a comma separated id list of dashboards to return. If both this and owner are specified, only ids is used.
+            name: id
+            description: ID list of dashboards to return. If both this and owner are specified, only ids is used.
             schema:
-              type: string
-            example: 273de20b5b,667d679f84
+              type: array
+              items:
+                type: string
       responses:
         '200':
           description: all dashboards

@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
-	"strings"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
@@ -195,8 +194,7 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	qp := r.URL.Query()
 	req := &getDashboardsRequest{}
 
-	if idsStr := qp.Get("ids"); idsStr != "" {
-		ids := strings.Split(idsStr, ",")
+	if ids, ok := qp["id"]; ok {
 		for _, id := range ids {
 			i := &platform.ID{}
 			if err := i.DecodeFromString(id); err != nil {
@@ -692,12 +690,8 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 	}
 
 	qp := url.Query()
-	if len(filter.IDs) > 0 {
-		var ids string
-		for _, id := range filter.IDs {
-			ids = ids + id.String()
-		}
-		qp.Add("id", ids)
+	for _, id := range filter.IDs {
+		qp.Add("id", id.String())
 	}
 	url.RawQuery = qp.Encode()
 

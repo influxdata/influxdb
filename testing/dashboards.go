@@ -328,7 +328,7 @@ func FindDashboards(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   platform.ID
+		IDs  []*platform.ID
 		name string
 	}
 
@@ -385,7 +385,9 @@ func FindDashboards(
 				},
 			},
 			args: args{
-				ID: idFromString(t, dashTwoID),
+				IDs: []*platform.ID{
+					func() *platform.ID { a := idFromString(t, dashTwoID); return &a }(),
+				},
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
@@ -405,8 +407,8 @@ func FindDashboards(
 			ctx := context.Background()
 
 			filter := platform.DashboardFilter{}
-			if tt.args.ID != nil {
-				filter.ID = &tt.args.ID
+			if tt.args.IDs != nil {
+				filter.IDs = tt.args.IDs
 			}
 
 			dashboards, _, err := s.FindDashboards(ctx, filter)

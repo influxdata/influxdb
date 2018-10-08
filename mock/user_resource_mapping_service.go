@@ -23,5 +23,5 @@ func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Conte
 }
 
 func (s *UserResourceMappingService) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
-	return s.DeleteUserResourceMapping(ctx, resourceID, userID)
+	return s.DeleteMappingF(ctx, resourceID, userID)
 }
