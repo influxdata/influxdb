@@ -56,7 +56,7 @@ var (
 	httpBindAddress   string
 	authorizationPath string
 	boltPath          string
-	natsPath           string
+	natsPath          string
 	developerMode     bool
 	enginePath        string
 )
@@ -211,7 +211,7 @@ func platformF(cmd *cobra.Command, args []string) {
 
 	// TODO(jeff): this block is hacky support for a storage engine. it is not intended to
 	// be a long term solution.
-	var	storageQueryService query.ProxyQueryService
+	var storageQueryService query.ProxyQueryService
 	var pointsWriter storage.PointsWriter
 	{
 		config := storage.NewConfig()
@@ -232,8 +232,8 @@ func platformF(cmd *cobra.Command, args []string) {
 				AsyncQueryService: &queryAdapter{
 					Controller: NewController(
 						&store{engine: engine},
-						&bucketLookup{bolt: c},
-						&orgLookup{bolt: c},
+						query.FromBucketService(c),
+						query.FromOrganizationService(c),
 						logger.With(zap.String("service", "storage")),
 					),
 				},
@@ -322,10 +322,10 @@ func platformF(cmd *cobra.Command, args []string) {
 	}
 
 	handlerConfig := &http.APIBackend{
-		Logger:           logger,
-		NewBucketService: source.NewBucketService,
-		NewQueryService:  source.NewQueryService,
-		PointsWriter: pointsWriter,
+		Logger:                     logger,
+		NewBucketService:           source.NewBucketService,
+		NewQueryService:            source.NewQueryService,
+		PointsWriter:               pointsWriter,
 		AuthorizationService:       authSvc,
 		BucketService:              bucketSvc,
 		SessionService:             sessionSvc,

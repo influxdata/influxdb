@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/flux/functions/inputs"
 	"io"
 	"math"
 	"regexp"
@@ -21,14 +20,13 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions/inputs"
 	fstorage "github.com/influxdata/flux/functions/inputs/storage"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/logger"
 	influxquery "github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/storage"
@@ -84,30 +82,6 @@ func NewController(
 		panic(err)
 	}
 	return control.New(cc)
-}
-
-type bucketLookup struct {
-	bolt *bolt.Client
-}
-
-func (b *bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
-	bucket, err := b.bolt.FindBucketByName(context.TODO(), orgID, name)
-	if err != nil {
-		return nil, false
-	}
-	return bucket.ID, true
-}
-
-type orgLookup struct {
-	bolt *bolt.Client
-}
-
-func (o *orgLookup) Lookup(ctx context.Context, name string) (platform.ID, bool) {
-	org, err := o.bolt.FindOrganizationByName(ctx, name)
-	if err != nil {
-		return nil, false
-	}
-	return org.ID, true
 }
 
 type store struct {
