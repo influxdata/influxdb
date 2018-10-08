@@ -444,7 +444,7 @@ func FindUserResourceMappings(
 					{
 						ResourceID:   idFromString(t, bucketTwoID),
 						UserID:       idFromString(t, userTwoID),
-						UserType:     platform.Owner,
+						UserType:     platform.Member,
 						ResourceType: platform.BucketResourceType,
 					},
 				},
