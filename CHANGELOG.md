@@ -87,6 +87,7 @@ v1.6.0 [2018-07-05]
 -	[#10212](https://github.com/influxdata/influxdb/pull/10212): Ensure orhpaned series cleaned up with shard drop.
 -	[#10262](https://github.com/influxdata/influxdb/pull/10262): Fix the derivative and others time ranges for aggregate data.
 -	[#10326](https://github.com/influxdata/influxdb/pull/10326): Fix append of possible nil iterator.
+-	[#10339](https://github.com/influxdata/influxdb/pull/10339): Fix series file tombstoning.
 
 v1.5.4 [2018-06-21]
 -------------------
