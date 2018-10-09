@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -22,54 +21,12 @@ func (c *Client) initializeUserResourceMappings(ctx context.Context, tx *bolt.Tx
 }
 
 func filterMappingsFn(filter platform.UserResourceMappingFilter) func(m *platform.UserResourceMapping) bool {
-	if filter.UserID != nil && filter.ResourceID != nil && filter.UserType != "" {
-		return func(m *platform.UserResourceMapping) bool {
-			return bytes.Equal(m.ResourceID, filter.ResourceID) &&
-				bytes.Equal(m.UserID, filter.UserID) &&
-				m.UserType == filter.UserType
-		}
+	return func(mapping *platform.UserResourceMapping) bool {
+		return (filter.UserID == nil || (filter.UserID.String()) == mapping.UserID.String()) &&
+			(filter.ResourceID == nil || (filter.ResourceID.String()) == mapping.ResourceID.String()) &&
+			(filter.UserType == "" || (filter.UserType == mapping.UserType)) &&
+			(filter.ResourceType == "" || (filter.ResourceType == mapping.ResourceType))
 	}
-
-	if filter.UserID != nil && filter.ResourceID != nil {
-		return func(m *platform.UserResourceMapping) bool {
-			return bytes.Equal(m.UserID, filter.UserID) &&
-				bytes.Equal(m.ResourceID, filter.ResourceID)
-		}
-	}
-
-	if filter.UserID != nil && filter.UserType != "" {
-		return func(m *platform.UserResourceMapping) bool {
-			return bytes.Equal(m.UserID, filter.UserID) &&
-				m.UserType == filter.UserType
-		}
-	}
-
-	if filter.ResourceID != nil && filter.UserType != "" {
-		return func(m *platform.UserResourceMapping) bool {
-			return bytes.Equal(m.ResourceID, filter.ResourceID) &&
-				m.UserType == filter.UserType
-		}
-	}
-
-	if filter.UserID != nil {
-		return func(m *platform.UserResourceMapping) bool {
-			return bytes.Equal(m.UserID, filter.UserID)
-		}
-	}
-
-	if filter.ResourceID != nil {
-		return func(m *platform.UserResourceMapping) bool {
-			return bytes.Equal(m.ResourceID, filter.ResourceID)
-		}
-	}
-
-	if filter.UserType != "" {
-		return func(m *platform.UserResourceMapping) bool {
-			return m.UserType == filter.UserType
-		}
-	}
-
-	return func(m *platform.UserResourceMapping) bool { return true }
 }
 
 func (c *Client) FindUserResourceMappings(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.UserResourceMapping, int, error) {

@@ -155,6 +155,24 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	if req.ownerID != nil {
+		filter := platform.UserResourceMappingFilter{
+			UserID:       *req.ownerID,
+			UserType:     platform.Owner,
+			ResourceType: platform.DashboardResourceType,
+		}
+
+		mappings, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
+		if err != nil {
+			EncodeError(ctx, errors.InternalErrorf("Error loading dashboard owners: %v", err), w)
+			return
+		}
+
+		for _, mapping := range mappings {
+			req.filter.IDs = append(req.filter.IDs, &mapping.ResourceID)
+		}
+	}
+
 	dashboards, _, err := h.DashboardService.FindDashboards(ctx, req.filter)
 	if err != nil {
 		EncodeError(ctx, errors.InternalErrorf("Error loading dashboards: %v", err), w)
@@ -168,19 +186,29 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 }
 
 type getDashboardsRequest struct {
-	filter platform.DashboardFilter
+	filter  platform.DashboardFilter
+	ownerID *platform.ID
 }
 
 func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashboardsRequest, error) {
 	qp := r.URL.Query()
 	req := &getDashboardsRequest{}
 
-	if id := qp.Get("id"); id != "" {
-		req.filter.ID = &platform.ID{}
-		if err := req.filter.ID.DecodeFromString(id); err != nil {
+	if ids, ok := qp["id"]; ok {
+		for _, id := range ids {
+			i := &platform.ID{}
+			if err := i.DecodeFromString(id); err != nil {
+				return nil, err
+			}
+			req.filter.IDs = append(req.filter.IDs, i)
+		}
+	} else if owner := qp.Get("owner"); owner != "" {
+		req.ownerID = &platform.ID{}
+		if err := req.ownerID.DecodeFromString(owner); err != nil {
 			return nil, err
 		}
 	}
+
 	return req, nil
 }
 
@@ -662,8 +690,8 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 	}
 
 	qp := url.Query()
-	if filter.ID != nil {
-		qp.Add("id", filter.ID.String())
+	for _, id := range filter.IDs {
+		qp.Add("id", id.String())
 	}
 	url.RawQuery = qp.Encode()
 

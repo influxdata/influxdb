@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
@@ -61,8 +62,8 @@ func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform
 
 // FindDashboard retrieves a dashboard using an arbitrary dashboard filter.
 func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFilter) (*platform.Dashboard, error) {
-	if filter.ID != nil {
-		return c.FindDashboardByID(ctx, *filter.ID)
+	if len(filter.IDs) == 1 {
+		return c.FindDashboardByID(ctx, *filter.IDs[0])
 	}
 
 	var d *platform.Dashboard
@@ -89,9 +90,14 @@ func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFil
 }
 
 func filterDashboardsFn(filter platform.DashboardFilter) func(d *platform.Dashboard) bool {
-	if filter.ID != nil {
+	if len(filter.IDs) > 0 {
+		var sm sync.Map
+		for _, id := range filter.IDs {
+			sm.Store(id.String(), true)
+		}
 		return func(d *platform.Dashboard) bool {
-			return bytes.Equal(d.ID, *filter.ID)
+			_, ok := sm.Load(d.ID.String())
+			return ok
 		}
 	}
 
@@ -100,8 +106,8 @@ func filterDashboardsFn(filter platform.DashboardFilter) func(d *platform.Dashbo
 
 // FindDashboards retrives all dashboards that match an arbitrary dashboard filter.
 func (c *Client) FindDashboards(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
-	if filter.ID != nil {
-		d, err := c.FindDashboardByID(ctx, *filter.ID)
+	if len(filter.IDs) == 1 {
+		d, err := c.FindDashboardByID(ctx, *filter.IDs[0])
 		if err != nil {
 			return nil, 0, err
 		}

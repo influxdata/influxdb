@@ -18,6 +18,10 @@ const (
 	dashThreeID = "020f755c3c082002"
 )
 
+func idPtr(id platform.ID) *platform.ID {
+	return &id
+}
+
 var dashboardCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
@@ -328,7 +332,7 @@ func FindDashboards(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   platform.ID
+		IDs  []*platform.ID
 		name string
 	}
 
@@ -385,10 +389,45 @@ func FindDashboards(
 				},
 			},
 			args: args{
-				ID: idFromString(t, dashTwoID),
+				IDs: []*platform.ID{
+					idPtr(idFromString(t, dashTwoID)),
+				},
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
+					{
+						ID:   idFromString(t, dashTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find multiple dashboards by id",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   idFromString(t, dashOneID),
+						Name: "abc",
+					},
+					{
+						ID:   idFromString(t, dashTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				IDs: []*platform.ID{
+					idPtr(idFromString(t, dashOneID)),
+					idPtr(idFromString(t, dashTwoID)),
+				},
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:   idFromString(t, dashOneID),
+						Name: "abc",
+					},
 					{
 						ID:   idFromString(t, dashTwoID),
 						Name: "xyz",
@@ -405,8 +444,8 @@ func FindDashboards(
 			ctx := context.Background()
 
 			filter := platform.DashboardFilter{}
-			if tt.args.ID != nil {
-				filter.ID = &tt.args.ID
+			if tt.args.IDs != nil {
+				filter.IDs = tt.args.IDs
 			}
 
 			dashboards, _, err := s.FindDashboards(ctx, filter)

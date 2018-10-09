@@ -3,13 +3,17 @@ package platform
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 type UserType string
+type ResourceType string
 
 const (
-	Owner  UserType = "owner"
-	Member UserType = "member"
+	Owner                 UserType     = "owner"
+	Member                UserType     = "member"
+	DashboardResourceType ResourceType = "dashboard"
+	BucketResourceType    ResourceType = "bucket"
 )
 
 // UserResourceMappingService maps the relationships between users and resources
@@ -26,28 +30,35 @@ type UserResourceMappingService interface {
 
 // UserResourceMapping represents a mapping of a resource to its user
 type UserResourceMapping struct {
-	ResourceID ID       `json:"resource_id"`
-	UserID     ID       `json:"user_id"`
-	UserType   UserType `json:"user_type"`
+	ResourceID   ID           `json:"resource_id"`
+	ResourceType ResourceType `json:"resource_type"`
+	UserID       ID           `json:"user_id"`
+	UserType     UserType     `json:"user_type"`
 }
 
 // Validate reports any validation errors for the mapping.
 func (m UserResourceMapping) Validate() error {
 	if len(m.ResourceID) == 0 {
-		return errors.New("ResourceID is required")
+		return errors.New("resourceID is required")
 	}
 	if len(m.UserID) == 0 {
-		return errors.New("UserID is required")
+		return errors.New("userID is required")
 	}
 	if m.UserType != Owner && m.UserType != Member {
-		return errors.New("A valid user type is required")
+		return errors.New("a valid user type is required")
+	}
+	switch m.ResourceType {
+	case DashboardResourceType, BucketResourceType:
+	default:
+		return fmt.Errorf("a valid resource type is required")
 	}
 	return nil
 }
 
 // UserResourceMapping represents a set of filters that restrict the returned results.
 type UserResourceMappingFilter struct {
-	ResourceID ID
-	UserID     ID
-	UserType   UserType
+	ResourceID   ID
+	ResourceType ResourceType
+	UserID       ID
+	UserType     UserType
 }

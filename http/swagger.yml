@@ -721,11 +721,17 @@ paths:
       summary: Get all dashboards
       parameters:
           - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
+            name: owner
+            description: specifies the owner id to return resources for
             schema:
               type: string
+          - in: query
+            name: id
+            description: ID list of dashboards to return. If both this and owner are specified, only ids is used.
+            schema:
+              type: array
+              items:
+                type: string
       responses:
         '200':
           description: all dashboards

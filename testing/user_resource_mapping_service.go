@@ -86,30 +86,34 @@ func CreateUserResourceMapping(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
 			args: args{
 				mapping: &platform.UserResourceMapping{
-					ResourceID: idFromString(t, bucketTwoID),
-					UserID:     idFromString(t, userTwoID),
-					UserType:   platform.Member,
+					ResourceID:   idFromString(t, bucketTwoID),
+					UserID:       idFromString(t, userTwoID),
+					UserType:     platform.Member,
+					ResourceType: platform.BucketResourceType,
 				},
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -277,14 +281,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -294,14 +300,16 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -311,14 +319,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -330,9 +340,10 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -342,14 +353,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -361,26 +374,29 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
 		},
 		{
-			name: "find mappings filtered by type",
+			name: "find mappings filtered by user type",
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Owner,
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Owner,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -392,9 +408,44 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Owner,
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Owner,
+						ResourceType: platform.BucketResourceType,
+					},
+				},
+			},
+		},
+		{
+			name: "find mappings filtered by resource type",
+			fields: UserResourceFields{
+				UserResourceMappings: []*platform.UserResourceMapping{
+					{
+						ResourceID:   idFromString(t, bucketOneID),
+						UserID:       idFromString(t, userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.DashboardResourceType,
+					},
+					{
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
+					},
+				},
+			},
+			args: args{
+				filter: platform.UserResourceMappingFilter{
+					ResourceType: platform.BucketResourceType,
+				},
+			},
+			wants: wants{
+				mappings: []*platform.UserResourceMapping{
+					{
+						ResourceID:   idFromString(t, bucketTwoID),
+						UserID:       idFromString(t, userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},

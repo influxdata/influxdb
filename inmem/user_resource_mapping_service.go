@@ -72,7 +72,8 @@ func (s *Service) FindUserResourceMappings(ctx context.Context, filter platform.
 	filterFunc := func(mapping *platform.UserResourceMapping) bool {
 		return (filter.UserID == nil || (filter.UserID.String()) == mapping.UserID.String()) &&
 			(filter.ResourceID == nil || (filter.ResourceID.String()) == mapping.ResourceID.String()) &&
-			(filter.UserType == "" || (filter.UserType == mapping.UserType))
+			(filter.UserType == "" || (filter.UserType == mapping.UserType)) &&
+			(filter.ResourceType == "" || (filter.ResourceType == mapping.ResourceType))
 	}
 
 	mappings, err := s.filterUserResourceMappings(ctx, filterFunc)

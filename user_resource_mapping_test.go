@@ -6,9 +6,10 @@ import (
 
 func TestOwnerMappingValidate(t *testing.T) {
 	type fields struct {
-		ResourceID ID
-		UserID     ID
-		UserType   UserType
+		ResourceID   ID
+		ResourceType ResourceType
+		UserID       ID
+		UserType     UserType
 	}
 	tests := []struct {
 		name    string
@@ -18,33 +19,56 @@ func TestOwnerMappingValidate(t *testing.T) {
 		{
 			name: "mapping requires a resourceid",
 			fields: fields{
-				UserID:   []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserType: Owner,
+				UserID:       []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				UserType:     Owner,
+				ResourceType: DashboardResourceType,
 			},
 			wantErr: true,
 		},
 		{
-			name: "mapping requires an Owner",
+			name: "mapping requires a userid",
 			fields: fields{
-				ResourceID: []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserType:   Owner,
+				ResourceID:   []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				UserType:     Owner,
+				ResourceType: DashboardResourceType,
 			},
 			wantErr: true,
 		},
 		{
 			name: "mapping requires a usertype",
 			fields: fields{
+				ResourceID:   []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				UserID:       []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				ResourceType: DashboardResourceType,
+			},
+			wantErr: true,
+		},
+		{
+			name: "mapping requires a resourcetype",
+			fields: fields{
 				ResourceID: []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
 				UserID:     []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				UserType:   Owner,
 			},
 			wantErr: true,
 		},
 		{
 			name: "the usertype provided must be valid",
 			fields: fields{
-				ResourceID: []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserID:     []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserType:   "foo",
+				ResourceID:   []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				UserID:       []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				UserType:     "foo",
+				ResourceType: DashboardResourceType,
+			},
+			wantErr: true,
+		},
+		{
+			name: "the resourcetype provided must be valid",
+			fields: fields{
+				ResourceID:   []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				UserID:       []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				UserType:     Owner,
+				ResourceType: "foo",
 			},
 			wantErr: true,
 		},
