@@ -15,12 +15,17 @@ import (
 type ViewHandler struct {
 	*httprouter.Router
 
-	ViewService platform.ViewService
+	ViewService                platform.ViewService
+	UserResourceMappingService platform.UserResourceMappingService
 }
 
 const (
-	viewsPath   = "/api/v2/views"
-	viewsIDPath = "/api/v2/views/:id"
+	viewsPath            = "/api/v2/views"
+	viewsIDPath          = "/api/v2/views/:id"
+	viewsIDMembersPath   = "/api/v2/views/:id/members"
+	viewsIDMembersIDPath = "/api/v2/views/:id/members/:userID"
+	viewsIDOwnersPath    = "/api/v2/views/:id/owners"
+	viewsIDOwnersIDPath  = "/api/v2/views/:id/owners:userID"
 )
 
 // NewViewHandler returns a new instance of ViewHandler.
@@ -31,9 +36,19 @@ func NewViewHandler() *ViewHandler {
 
 	h.HandlerFunc("POST", viewsPath, h.handlePostViews)
 	h.HandlerFunc("GET", viewsPath, h.handleGetViews)
+
 	h.HandlerFunc("GET", viewsIDPath, h.handleGetView)
 	h.HandlerFunc("DELETE", viewsIDPath, h.handleDeleteView)
 	h.HandlerFunc("PATCH", viewsIDPath, h.handlePatchView)
+
+	h.HandlerFunc("POST", viewsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, platform.ViewResourceType, platform.Member))
+	h.HandlerFunc("GET", viewsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("DELETE", viewsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
+
+	h.HandlerFunc("POST", viewsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.ViewResourceType, platform.Owner))
+	h.HandlerFunc("GET", viewsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("DELETE", viewsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+
 	return h
 }
 
