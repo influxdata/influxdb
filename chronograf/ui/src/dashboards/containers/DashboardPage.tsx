@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
 
 // Components
-import {Page} from 'src/page_layout'
+import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'

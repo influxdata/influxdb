@@ -7,7 +7,7 @@ import _ from 'lodash'
 
 // Components
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
-import {Page} from 'src/page_layout'
+import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {
   OverlayTechnology,

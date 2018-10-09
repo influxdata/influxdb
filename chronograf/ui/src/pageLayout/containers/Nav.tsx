@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import NavMenu from 'src/page_layout/components/NavMenu'
+import NavMenu from 'src/pageLayout/components/NavMenu'
 
 // Types
 import {Source} from 'src/types/v2'

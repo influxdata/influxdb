@@ -10,7 +10,7 @@ import {
   Button,
   ButtonShape,
 } from 'src/clockface'
-import {Page} from 'src/page_layout'
+import {Page} from 'src/pageLayout'
 // import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import LiveUpdatingStatus from 'src/logs/components/LiveUpdatingStatus'
 

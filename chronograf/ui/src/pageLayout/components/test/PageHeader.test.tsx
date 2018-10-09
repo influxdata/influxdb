@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import {Page} from 'src/page_layout'
+import {Page} from 'src/pageLayout'
 
 describe('PageHeader', () => {
   let wrapper

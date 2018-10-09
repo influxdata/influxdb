@@ -2,23 +2,20 @@
 import React, {Component, CSSProperties} from 'react'
 
 // Constants
-import {
-  DEFAULT_PAGE_HEADER_CENTER_WIDTH,
-  CENTER_MIN_CHILD_COUNT,
-} from 'src/page_layout/constants'
+import {LEFT_MIN_CHILD_COUNT, DEFAULT_OFFSET} from 'src/pageLayout/constants'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: JSX.Element[] | JSX.Element | string | number
-  widthPixels?: number
+  offsetPixels?: number
 }
 
 @ErrorHandling
-class PageHeaderCenter extends Component<Props> {
+class PageHeaderLeft extends Component<Props> {
   public static defaultProps: Partial<Props> = {
-    widthPixels: DEFAULT_PAGE_HEADER_CENTER_WIDTH,
+    offsetPixels: DEFAULT_OFFSET,
   }
 
   public render() {
@@ -27,7 +24,7 @@ class PageHeaderCenter extends Component<Props> {
     this.validateChildCount()
 
     return (
-      <div className="page-header--center" style={this.styles}>
+      <div className="page-header--left" style={this.styles}>
         {children}
       </div>
     )
@@ -36,7 +33,7 @@ class PageHeaderCenter extends Component<Props> {
   private validateChildCount = (): void => {
     const {children} = this.props
 
-    if (React.Children.count(children) < CENTER_MIN_CHILD_COUNT) {
+    if (React.Children.count(children) < LEFT_MIN_CHILD_COUNT) {
       throw new Error(
         'Page.Header.Left require at least 1 child element. We recommend using <Page.Title />'
       )
@@ -44,12 +41,18 @@ class PageHeaderCenter extends Component<Props> {
   }
 
   private get styles(): CSSProperties {
-    const {widthPixels} = this.props
+    const {offsetPixels} = this.props
+
+    if (offsetPixels === DEFAULT_OFFSET) {
+      return {
+        flex: `1 0 ${offsetPixels}`,
+      }
+    }
 
     return {
-      flex: `1 0 ${widthPixels}px`,
+      flex: `1 0 calc(50% - ${offsetPixels}px)`,
     }
   }
 }
 
-export default PageHeaderCenter
+export default PageHeaderLeft

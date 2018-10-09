@@ -6,7 +6,7 @@ import _ from 'lodash'
 /// Components
 import TimeMachine from 'src/flux/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
-import {Page} from 'src/page_layout'
+import {Page} from 'src/pageLayout'
 
 // APIs
 import {getSuggestions, getAST, getTimeSeries} from 'src/flux/apis'

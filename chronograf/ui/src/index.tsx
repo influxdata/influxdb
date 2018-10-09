@@ -20,6 +20,7 @@ import CheckSources from 'src/CheckSources'
 import Setup from 'src/Setup'
 import Signin from 'src/Signin'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
+import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import {SourcePage, ManageSources} from 'src/sources'
 import {FluxPage} from 'src/flux'
 import {UserPage} from 'src/user'
@@ -110,6 +111,7 @@ class Root extends PureComponent<{}, State> {
                     component={DashboardPage}
                   />
                   <Route path="sources/new" component={SourcePage} />
+                  <Route path="data-explorer" component={DataExplorerPage} />
                   <Route path="dashboards" component={DashboardsPage} />
                   <Route path="manage-sources" component={ManageSources} />
                   <Route path="manage-sources/new" component={SourcePage} />

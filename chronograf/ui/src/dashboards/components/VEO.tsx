@@ -4,9 +4,16 @@ import {connect} from 'react-redux'
 
 // Components
 import VEOHeader from 'src/dashboards/components/VEOHeader'
+import TimeMachine from 'src/shared/components/TimeMachine'
 
 // Actions
-import {setViewName} from 'src/dashboards/actions/v2/veo'
+import {
+  setName,
+  setActiveTimeMachineID,
+} from 'src/shared/actions/v2/timeMachines'
+
+// Constants
+import {VEO_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
 
 // Types
 import {Source, AppState} from 'src/types/v2'
@@ -14,11 +21,12 @@ import {View} from 'src/types/v2/dashboards'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 
 interface StateProps {
-  viewName: string
+  name: string
 }
 
 interface DispatchProps {
-  onSetViewName: typeof setViewName
+  onSetName: typeof setName
+  onSetActiveTimeMachineID: typeof setActiveTimeMachineID
 }
 
 interface PassedProps {
@@ -44,30 +52,33 @@ class VEO extends PureComponent<Props, State> {
   }
 
   public componentDidMount() {
-    const {onSetViewName, view} = this.props
+    const {onSetActiveTimeMachineID, onSetName, view} = this.props
+
+    onSetActiveTimeMachineID(VEO_TIME_MACHINE_ID)
+
+    // TODO: Collect other view attributes here and set the time
+    // machine state in Redux with them. Make this a single action
     const name = view.name || ''
 
-    // TODO: Collect other view attributes here and set the draft VEO state in
-    // Redux with them. Make this a single action
-    onSetViewName(name)
+    onSetName(name)
   }
 
   public render() {
-    const {viewName, onSetViewName, onHide} = this.props
+    const {name, onSetName, onHide} = this.props
     const {activeTab} = this.state
 
     return (
       <div className="veo">
         <VEOHeader
-          key={viewName}
-          viewName={viewName}
-          onSetViewName={onSetViewName}
+          key={name}
+          name={name}
+          onSetName={onSetName}
           activeTab={activeTab}
           onSetActiveTab={this.handleSetActiveTab}
           onCancel={onHide}
           onSave={this.handleSave}
         />
-        <div className="veo--body" />
+        <TimeMachine />
       </div>
     )
   }
@@ -77,23 +88,25 @@ class VEO extends PureComponent<Props, State> {
   }
 
   private handleSave = (): void => {
-    const {view, viewName, onSave} = this.props
+    const {view, name, onSave} = this.props
 
     // TODO: Collect draft view state from Redux here
-    const newView = {...view, name: viewName}
+    const newView = {...view, name}
 
     onSave(newView)
   }
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {viewName} = state.veo
+  const {activeTimeMachineID, timeMachines} = state.timeMachines
+  const {name} = timeMachines[activeTimeMachineID].view
 
-  return {viewName}
+  return {name}
 }
 
 const mdtp: DispatchProps = {
-  onSetViewName: setViewName,
+  onSetName: setName,
+  onSetActiveTimeMachineID: setActiveTimeMachineID,
 }
 
 export default connect(mstp, mdtp)(VEO) as ComponentClass<PassedProps, State>

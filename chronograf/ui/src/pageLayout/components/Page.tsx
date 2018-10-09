@@ -3,9 +3,9 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Components
-import PageHeader from 'src/page_layout/components/PageHeader'
-import PageTitle from 'src/page_layout/components/PageTitle'
-import PageContents from 'src/page_layout/components/PageContents'
+import PageHeader from 'src/pageLayout/components/PageHeader'
+import PageTitle from 'src/pageLayout/components/PageTitle'
+import PageContents from 'src/pageLayout/components/PageContents'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

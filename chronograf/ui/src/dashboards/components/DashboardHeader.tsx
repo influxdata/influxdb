@@ -2,7 +2,7 @@
 import React, {Component} from 'react'
 
 // Components
-import {Page} from 'src/page_layout'
+import {Page} from 'src/pageLayout'
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'

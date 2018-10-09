@@ -5,7 +5,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import * as sourcesActions from 'src/shared/actions/sources'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-import {Page} from 'src/page_layout'
+import {Page} from 'src/pageLayout'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
 import {sourceDeleted, sourceDeleteFailed} from 'src/shared/copy/notifications'

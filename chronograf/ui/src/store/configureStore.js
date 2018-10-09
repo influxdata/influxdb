@@ -16,14 +16,14 @@ import dashboardsReducer from 'src/dashboards/reducers/v2/dashboards'
 import hoverTimeReducer from 'src/dashboards/reducers/v2/hoverTime'
 import viewsReducer from 'src/dashboards/reducers/v2/views'
 import logsReducer from 'src/logs/reducers'
-import veoReducer from 'src/dashboards/reducers/v2/veo'
+import timeMachinesReducer from 'src/shared/reducers/v2/timeMachines'
 
 const rootReducer = combineReducers({
   ...sharedReducers,
   ranges: rangesReducer,
   hoverTime: hoverTimeReducer,
   dashboards: dashboardsReducer,
-  veo: veoReducer,
+  timeMachines: timeMachinesReducer,
   routing: routerReducer,
   script: scriptReducer,
   sources: sourceReducer,

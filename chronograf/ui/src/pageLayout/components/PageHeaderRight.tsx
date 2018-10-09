@@ -2,7 +2,7 @@
 import React, {Component, CSSProperties} from 'react'
 
 // Constants
-import {DEFAULT_OFFSET} from 'src/page_layout/constants'
+import {DEFAULT_OFFSET} from 'src/pageLayout/constants'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

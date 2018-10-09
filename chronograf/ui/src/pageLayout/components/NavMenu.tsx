@@ -3,11 +3,11 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import NavMenuItem from 'src/page_layout/components/NavMenuItem'
+import NavMenuItem from 'src/pageLayout/components/NavMenuItem'
 import Avatar from 'src/shared/components/avatar/Avatar'
 
 // Types
-import {NavItem, NavItemType} from 'src/page_layout/containers/Nav'
+import {NavItem, NavItemType} from 'src/pageLayout/containers/Nav'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {IconFont} from 'src/clockface'
 

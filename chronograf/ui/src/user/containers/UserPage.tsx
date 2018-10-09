@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 /// Components
-import {Page} from 'src/page_layout'
+import {Page} from 'src/pageLayout'
 import ProfilePage from 'src/shared/components/profile_page/ProfilePage'
 import UserSettings from 'src/user/components/UserSettings'
 import TokenManager from 'src/user/components/TokenManager'

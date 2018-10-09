@@ -14,7 +14,7 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import Notifications from 'src/shared/components/notifications/Notifications'
 import SourceForm from 'src/sources/components/SourceForm'
-import {Page, PageHeader, PageContents} from 'src/page_layout'
+import {Page, PageHeader, PageContents} from 'src/pageLayout'
 import {DEFAULT_SOURCE} from 'src/shared/constants'
 
 const INITIAL_PATH = '/sources/new'
