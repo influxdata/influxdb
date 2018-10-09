@@ -216,8 +216,8 @@ func (e *Engine) MustOpen() {
 // This allows us to use the old `models` package helper functions and still write
 // the points in the correct format.
 func (e *Engine) Write1xPoints(pts []models.Point) error {
-	org, _ := platform.IDFromString("1111111111111111")
-	bucket, _ := platform.IDFromString("2222222222222222")
+	org, _ := platform.IDFromString("3131313131313131")
+	bucket, _ := platform.IDFromString("3232323232323232")
 	points, err := tsdb.ExplodePoints(*org, *bucket, pts)
 	if err != nil {
 		return err

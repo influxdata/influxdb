@@ -210,14 +210,24 @@ func (f *SeriesFile) Series(id SeriesID) ([]byte, models.Tags) {
 	return ParseSeriesKey(key)
 }
 
-// SeriesID return the series id for the series.
+// SeriesID returns the series id for the series.
 func (f *SeriesFile) SeriesID(name []byte, tags models.Tags, buf []byte) SeriesID {
+	return f.SeriesIDTyped(name, tags, buf).SeriesID()
+}
+
+// SeriesIDTyped returns the typed series id for the series.
+func (f *SeriesFile) SeriesIDTyped(name []byte, tags models.Tags, buf []byte) SeriesIDTyped {
 	key := AppendSeriesKey(buf[:0], name, tags)
+	return f.SeriesIDTypedBySeriesKey(key)
+}
+
+// SeriesIDTypedBySeriesKey returns the typed series id for the series.
+func (f *SeriesFile) SeriesIDTypedBySeriesKey(key []byte) SeriesIDTyped {
 	keyPartition := f.SeriesKeyPartition(key)
 	if keyPartition == nil {
-		return SeriesID{}
+		return SeriesIDTyped{}
 	}
-	return keyPartition.FindIDBySeriesKey(key)
+	return keyPartition.FindIDTypedBySeriesKey(key)
 }
 
 // HasSeries return true if the series exists.

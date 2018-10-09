@@ -6,7 +6,6 @@ import (
 
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
 )
@@ -33,16 +32,9 @@ type arrayCursorIterator struct {
 }
 
 func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (tsdb.Cursor, error) {
-	// Look up fields for measurement.
-	mf := q.e.fieldset.Fields(r.Name)
-	if mf == nil {
-		return nil, nil
-	}
-
-	// Find individual field.
-	f := mf.Field(r.Field)
-	if f == nil {
-		// field doesn't exist for this measurement
+	q.key = tsdb.AppendSeriesKey(q.key[:0], r.Name, r.Tags)
+	id := q.e.sfile.SeriesIDTypedBySeriesKey(q.key)
+	if id.IsZero() {
 		return nil, nil
 	}
 
@@ -56,19 +48,19 @@ func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (
 	opt.EndTime = r.EndTime
 
 	// Return appropriate cursor based on type.
-	switch f.Type {
-	case influxql.Float:
+	switch typ := id.Type(); typ {
+	case models.Float:
 		return q.buildFloatArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
-	case influxql.Integer:
+	case models.Integer:
 		return q.buildIntegerArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
-	case influxql.Unsigned:
+	case models.Unsigned:
 		return q.buildUnsignedArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
-	case influxql.String:
+	case models.String:
 		return q.buildStringArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
-	case influxql.Boolean:
+	case models.Boolean:
 		return q.buildBooleanArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
 	default:
-		panic(fmt.Sprintf("unreachable: %T", f.Type))
+		panic(fmt.Sprintf("unreachable: %v", typ))
 	}
 }
 

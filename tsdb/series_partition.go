@@ -390,14 +390,19 @@ func (p *SeriesPartition) Series(id SeriesID) ([]byte, models.Tags) {
 
 // FindIDBySeriesKey return the series id for the series key.
 func (p *SeriesPartition) FindIDBySeriesKey(key []byte) SeriesID {
+	return p.FindIDTypedBySeriesKey(key).SeriesID()
+}
+
+// FindIDTypedBySeriesKey return the typed series id for the series key.
+func (p *SeriesPartition) FindIDTypedBySeriesKey(key []byte) SeriesIDTyped {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
-		return SeriesID{}
+		return SeriesIDTyped{}
 	}
 	id := p.index.FindIDBySeriesKey(p.segments, key)
 	p.mu.RUnlock()
-	return id.SeriesID()
+	return id
 }
 
 // SeriesCount returns the number of series.

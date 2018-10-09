@@ -1194,7 +1194,6 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 // names from composite keys, and add them to the database index and measurement
 // fields.
 func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType) error {
-	var field []byte
 	collection := &tsdb.SeriesCollection{
 		Keys:  keys,
 		Names: make([][]byte, 0, len(keys)),
@@ -1204,13 +1203,8 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 
 	for i := 0; i < len(keys); i++ {
 		// Replace tsm key format with index key format.
-		collection.Keys[i], field = SeriesAndFieldFromCompositeKey(collection.Keys[i])
+		collection.Keys[i], _ = SeriesAndFieldFromCompositeKey(collection.Keys[i])
 		name := models.ParseName(collection.Keys[i])
-		mf := e.fieldset.CreateFieldsIfNotExists(name)
-		if err := mf.CreateFieldIfNotExists(field, fieldTypes[i]); err != nil {
-			return err
-		}
-
 		collection.Names = append(collection.Names, name)
 		collection.Tags = append(collection.Tags, models.ParseTags(keys[i]))
 		collection.Types = append(collection.Types, fieldTypeFromDataType(fieldTypes[i]))
@@ -1644,40 +1638,7 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 	if err := e.deleteMeasurement(name); err != nil {
 		return err
 	}
-
-	// A sentinel error message to cause DeleteWithLock to not delete the measurement
-	abortErr := fmt.Errorf("measurements still exist")
-
-	// Under write lock, delete the measurement if we no longer have any data stored for
-	// the measurement.  If data exists, we can't delete the field set yet as there
-	// were writes to the measurement while we are deleting it.
-	if err := e.fieldset.DeleteWithLock(string(name), func() error {
-		encodedName := models.EscapeMeasurement(name)
-
-		// First scan the cache to see if any series exists for this measurement.
-		if err := e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-			if bytes.HasPrefix(k, encodedName) {
-				return abortErr
-			}
-			return nil
-		}); err != nil {
-			return err
-		}
-
-		// Check the filestore.
-		return e.FileStore.WalkKeys(name, func(k []byte, typ byte) error {
-			if bytes.HasPrefix(k, encodedName) {
-				return abortErr
-			}
-			return nil
-		})
-
-	}); err != nil && err != abortErr {
-		// Something else failed, return it
-		return err
-	}
-
-	return e.fieldset.Save()
+	return nil
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
