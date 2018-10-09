@@ -55,11 +55,11 @@ func NewTaskHandler(logger *zap.Logger) *TaskHandler {
 	h.HandlerFunc("GET", tasksIDLogsPath, h.handleGetLogs)
 	h.HandlerFunc("GET", tasksIDRunsIDLogsPath, h.handleGetLogs)
 
-	h.HandlerFunc("POST", tasksIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("POST", tasksIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, platform.TaskResourceType, platform.Member))
 	h.HandlerFunc("GET", tasksIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Member))
 	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
-	h.HandlerFunc("POST", tasksIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("POST", tasksIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.TaskResourceType, platform.Owner))
 	h.HandlerFunc("GET", tasksIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
 	h.HandlerFunc("DELETE", tasksIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 

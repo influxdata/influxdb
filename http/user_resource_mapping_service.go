@@ -21,7 +21,7 @@ type UserResourceMappingService struct {
 }
 
 // newPostMemberHandler returns a handler func for a POST to /members or /owners endpoints
-func newPostMemberHandler(s platform.UserResourceMappingService, userType platform.UserType) http.HandlerFunc {
+func newPostMemberHandler(s platform.UserResourceMappingService, resourceType platform.ResourceType, userType platform.UserType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -32,9 +32,10 @@ func newPostMemberHandler(s platform.UserResourceMappingService, userType platfo
 		}
 
 		mapping := &platform.UserResourceMapping{
-			ResourceID: req.OrgID,
-			UserID:     req.MemberID,
-			UserType:   userType,
+			ResourceID:   req.OrgID,
+			ResourceType: resourceType,
+			UserID:       req.MemberID,
+			UserType:     userType,
 		}
 
 		if err := s.CreateUserResourceMapping(ctx, mapping); err != nil {
@@ -138,7 +139,7 @@ func decodeDeleteOrgMemberRequest(ctx context.Context, r *http.Request) (*delete
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing resource id")
 	}
 
 	var oid platform.ID
