@@ -1,10 +1,15 @@
-import {Action, ActionTypes} from 'src/dashboards/actions/v2/hoverTime'
+import {Action} from 'src/dashboards/actions/v2/hoverTime'
 
-const initialState = '0'
+export type HoverTimeState = string
 
-export default (state: string = initialState, action: Action): string => {
+const INITIAL_STATE = '0'
+
+export default (
+  state: HoverTimeState = INITIAL_STATE,
+  action: Action
+): string => {
   switch (action.type) {
-    case ActionTypes.SetHoverTime: {
+    case 'SET_HOVER_TIME': {
       const {hoverTime} = action.payload
 
       return hoverTime

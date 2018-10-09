@@ -15,19 +15,21 @@ import setupReducer from 'src/onboarding/reducers/setup'
 import rangesReducer from 'src/dashboards/reducers/v2/ranges'
 import dashboardsReducer from 'src/dashboards/reducers/v2/dashboards'
 import hoverTimeReducer from 'src/dashboards/reducers/v2/hoverTime'
-import activeViewReducer from 'src/dashboards/reducers/v2/views'
+import viewsReducer from 'src/dashboards/reducers/v2/views'
 import logsReducer from 'src/logs/reducers'
+import veoReducer from 'src/dashboards/reducers/v2/veo'
 
 const rootReducer = combineReducers({
   ...sharedReducers,
   ranges: rangesReducer,
   hoverTime: hoverTimeReducer,
   dashboards: dashboardsReducer,
+  veo: veoReducer,
   routing: routerReducer,
   script: scriptReducer,
   sources: sourceReducer,
   isSetupComplete: setupReducer,
-  activeViewID: activeViewReducer,
+  views: viewsReducer,
   logs: logsReducer,
 })
 

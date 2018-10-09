@@ -23,6 +23,7 @@ interface Props {
   onZoom: (range: TimeRange) => void
   onPositionChange: (cells: Cell[]) => void
   setScrollTop: (e: MouseEvent<JSX.Element>) => void
+  onEditView: (viewID: string) => void
 }
 
 @ErrorHandling
@@ -37,6 +38,7 @@ class DashboardComponent extends PureComponent<Props> {
       manualRefresh,
       onDeleteCell,
       onCloneCell,
+      onEditView,
       onPositionChange,
       inPresentationMode,
       setScrollTop,
@@ -61,6 +63,7 @@ class DashboardComponent extends PureComponent<Props> {
               onCloneCell={onCloneCell}
               onDeleteCell={onDeleteCell}
               onPositionChange={onPositionChange}
+              onEditView={onEditView}
             />
           ) : (
             <DashboardEmpty dashboard={dashboard} />

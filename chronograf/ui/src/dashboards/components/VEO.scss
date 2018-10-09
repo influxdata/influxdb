@@ -1,0 +1,23 @@
+$veo-padding: 25px;
+
+.veo {
+  width: calc(100% - 60px);
+  height: calc(100% - 30px);
+  margin: 0 auto;
+  background: $g3-castle;
+}
+
+.veo-header {
+  > .page-header {
+    background: $g2-kevlar;
+
+    .page-header--container {
+      max-width: none;
+      padding: $veo-padding;
+    }
+  }
+}
+
+.veo--body {
+  padding: $veo-padding;
+}

@@ -1,16 +1,46 @@
-import {Action, ActionTypes} from 'src/dashboards/actions/v2/views'
+// Types
+import {Action} from 'src/dashboards/actions/v2/views'
+import {RemoteDataState} from 'src/types'
+import {View} from 'src/types/v2'
 
-type State = string
+export interface ViewsState {
+  activeViewID: string
+  views: {
+    [viewID: string]: {
+      status: RemoteDataState
+      view: View
+    }
+  }
+  // viewStatus: RemoteDataState
+}
 
-const initialState = ''
+const INITIAL_STATE = {
+  activeViewID: '',
+  views: {},
+}
 
-export default (state: State = initialState, action: Action) => {
+const viewsReducer = (state: ViewsState = INITIAL_STATE, action: Action) => {
   switch (action.type) {
-    case ActionTypes.SetActiveView: {
+    case 'SET_ACTIVE_VIEW_ID': {
       const {activeViewID} = action.payload
-      return activeViewID
+
+      return {...state, activeViewID}
+    }
+
+    case 'SET_VIEW': {
+      const {id, view, status} = action.payload
+
+      return {
+        ...state,
+        views: {
+          ...state.views,
+          [id]: {view, status},
+        },
+      }
     }
   }
 
   return state
 }
+
+export default viewsReducer

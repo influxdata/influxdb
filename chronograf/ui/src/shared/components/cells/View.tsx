@@ -21,7 +21,7 @@ interface Props {
   autoRefresh: number
   manualRefresh: number
   onZoom: (range: TimeRange) => void
-  onSummonOverlay: () => void
+  onEditCell: () => void
 }
 
 @ErrorHandling
@@ -67,7 +67,7 @@ class ViewComponent extends Component<Props> {
       <div className="graph-empty">
         <button
           className="no-query--button btn btn-md btn-primary"
-          onClick={this.props.onSummonOverlay}
+          onClick={this.props.onEditCell}
         >
           <span className="icon plus" /> Add Data
         </button>

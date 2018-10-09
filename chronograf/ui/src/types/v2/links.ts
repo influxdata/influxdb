@@ -24,5 +24,6 @@ export interface Links {
   write: string
   users: string
   macros: string
+  views: string
   defaultDashboard: string
 }

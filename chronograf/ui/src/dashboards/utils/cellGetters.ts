@@ -1,4 +1,4 @@
-import {NewCell, Cell, Dashboard} from 'src/types/v2/dashboards'
+import {Cell, Dashboard, View, ViewShape} from 'src/types/v2/dashboards'
 import {UNTITLED_GRAPH} from 'src/dashboards/constants'
 
 const getMostCommonValue = (values: number[]): number => {
@@ -52,12 +52,19 @@ const getNextAvailablePosition = (dashboard, newCell) => {
       }
 }
 
-export const getNewDashboardCell = (dashboard: Dashboard): NewCell => {
+export const getNewDashboardCell = (dashboard: Dashboard): Cell => {
   const defaultCell = {
     x: 0,
     y: 0,
     h: 4,
     w: 4,
+    id: '',
+    viewID: '',
+    links: {
+      self: '',
+      view: '',
+      copy: '',
+    },
   }
 
   if (dashboard.cells.length === 0) {
@@ -92,4 +99,17 @@ export const getClonedDashboardCell = (
   const {x, y} = getNextAvailablePosition(dashboard, cloneCell)
 
   return {...cloneCell, x, y}
+}
+
+export const getNewView = (): View => {
+  const newView: View = {
+    id: '',
+    name: 'Untitled',
+    properties: {
+      type: ViewShape.Empty,
+      shape: ViewShape.Empty,
+    },
+  }
+
+  return newView
 }

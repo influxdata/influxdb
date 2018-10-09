@@ -31,6 +31,7 @@ const links: Links = {
   users: '/api/v2/users',
   write: '/api/v2/write',
   macros: '/api/v2/macros',
+  views: '/api/v2/views',
   defaultDashboard: '/v2/dashboards/029d13fda9c5b000',
 }
 

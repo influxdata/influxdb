@@ -1,17 +1,13 @@
-export enum ActionTypes {
-  SetHoverTime = 'SET_HOVER_TIME',
-}
-
 export type Action = SetHoverTimeAction
 
 interface SetHoverTimeAction {
-  type: ActionTypes.SetHoverTime
+  type: 'SET_HOVER_TIME'
   payload: {
     hoverTime: string
   }
 }
 
 export const setHoverTime = (hoverTime: string): SetHoverTimeAction => ({
-  type: ActionTypes.SetHoverTime,
+  type: 'SET_HOVER_TIME',
   payload: {hoverTime},
 })

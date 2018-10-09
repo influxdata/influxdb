@@ -65,16 +65,25 @@ class CellMenu extends PureComponent<Props, State> {
   }
 
   private get pencilMenu(): JSX.Element {
-    const {queries} = this.props
+    const {dataExists, onCSVDownload, onEdit} = this.props
 
-    if (!queries.length) {
-      return
-    }
+    const items = [
+      {
+        text: 'Configure',
+        action: onEdit,
+        disabled: false,
+      },
+      {
+        text: 'Download CSV',
+        action: onCSVDownload,
+        disabled: !dataExists,
+      },
+    ]
 
     return (
       <MenuTooltipButton
         icon="pencil"
-        menuItems={this.editMenuItems}
+        menuItems={items}
         informParent={this.handleToggleSubMenu}
       />
     )
@@ -88,34 +97,12 @@ class CellMenu extends PureComponent<Props, State> {
     })
   }
 
-  private get editMenuItems(): MenuItem[] {
-    const {dataExists, onCSVDownload} = this.props
-
-    return [
-      {
-        text: 'Configure',
-        action: this.handleEditCell,
-        disabled: false,
-      },
-      {
-        text: 'Download CSV',
-        action: onCSVDownload,
-        disabled: !dataExists,
-      },
-    ]
-  }
-
   private get cloneMenuItems(): MenuItem[] {
     return [{text: 'Clone Cell', action: this.handleCloneCell, disabled: false}]
   }
 
   private get deleteMenuItems(): MenuItem[] {
     return [{text: 'Confirm', action: this.handleDeleteCell, disabled: false}]
-  }
-
-  private handleEditCell = (): void => {
-    const {onEdit} = this.props
-    onEdit()
   }
 
   private handleDeleteCell = (): void => {

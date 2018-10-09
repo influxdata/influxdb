@@ -35,6 +35,7 @@ interface Props {
   onCloneCell?: (cell: Cell) => void
   onDeleteCell?: (cell: Cell) => void
   onPositionChange?: (cells: Cell[]) => void
+  onEditView: (viewID: string) => void
 }
 
 interface State {
@@ -89,6 +90,7 @@ class Cells extends Component<Props & WithRouterProps, State> {
               timeRange={timeRange}
               onCloneCell={onCloneCell}
               onDeleteCell={onDeleteCell}
+              onEditCell={this.handleEditCell(cell)}
             />
           </div>
         ))}
@@ -140,6 +142,12 @@ class Cells extends Component<Props & WithRouterProps, State> {
     if (changed) {
       this.props.onPositionChange(newCells)
     }
+  }
+
+  private handleEditCell = (cell: Cell) => {
+    const {onEditView} = this.props
+
+    return () => onEditView(cell.viewID)
   }
 
   // ensures that Status Page height fits the window

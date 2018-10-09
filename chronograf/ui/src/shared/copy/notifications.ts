@@ -518,6 +518,11 @@ export const cellAdded = (): Notification => ({
   message: `Added new cell to dashboard.`,
 })
 
+export const cellAddFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to add cell to dashboard',
+})
+
 export const cellDeleted = (): Notification => ({
   ...defaultDeletionNotification,
   icon: 'dash-h',

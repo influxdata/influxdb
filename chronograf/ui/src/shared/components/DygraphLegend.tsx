@@ -14,6 +14,7 @@ import {NO_CELL} from 'src/shared/constants'
 
 // Types
 import DygraphClass, {SeriesLegendData} from 'src/external/dygraph'
+import {AppState} from 'src/types/v2'
 
 interface Props {
   hoverTime: number
@@ -276,9 +277,9 @@ const mapDispatchToProps = {
   setActiveCell: actions.setActiveCell,
 }
 
-const mapStateToProps = ({hoverTime, activeViewID}) => ({
-  activeViewID,
-  hoverTime: +hoverTime,
+const mapStateToProps = (state: AppState) => ({
+  activeViewID: state.views.activeViewID,
+  hoverTime: +state.hoverTime,
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DygraphLegend)

@@ -1,22 +1,31 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {Component, ComponentClass} from 'react'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
 import CellMenu from 'src/shared/components/cells/CellMenu'
 import CellHeader from 'src/shared/components/cells/CellHeader'
 import ViewComponent from 'src/shared/components/cells/View'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// APIs
-import {getView} from 'src/dashboards/apis/v2/view'
+// Actions
+import {readView} from 'src/dashboards/actions/v2/views'
 
 // Types
 import {DashboardQuery, RemoteDataState, Template, TimeRange} from 'src/types'
-import {Cell, View} from 'src/types/v2'
+import {Cell, View, AppState} from 'src/types/v2'
 
-import {ErrorHandling} from 'src/shared/decorators/errors'
+interface StateProps {
+  view: View
+  viewStatus: RemoteDataState
+}
 
-interface Props {
+interface DispatchProps {
+  onReadView: typeof readView
+}
+
+interface PassedProps {
   cell: Cell
   timeRange: TimeRange
   templates: Template[]
@@ -24,33 +33,25 @@ interface Props {
   manualRefresh: number
   onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
+  onEditCell: () => void
   onZoom: (range: TimeRange) => void
   isEditable: boolean
 }
 
-interface State {
-  view: View
-  loading: RemoteDataState
-}
+type Props = StateProps & DispatchProps & PassedProps
 
 @ErrorHandling
-export default class CellComponent extends Component<Props, State> {
-  constructor(props) {
-    super(props)
-    this.state = {
-      view: null,
-      loading: RemoteDataState.NotStarted,
+class CellComponent extends Component<Props> {
+  public async componentDidMount() {
+    const {viewStatus, cell, onReadView} = this.props
+
+    if (viewStatus === RemoteDataState.NotStarted) {
+      onReadView(cell.links.view, cell.viewID)
     }
   }
 
-  public async componentDidMount() {
-    const {cell} = this.props
-    const view = await getView(cell.links.view)
-    this.setState({view, loading: RemoteDataState.Done})
-  }
-
   public render() {
-    const {cell, isEditable, onDeleteCell, onCloneCell} = this.props
+    const {cell, isEditable, onDeleteCell, onCloneCell, onEditCell} = this.props
 
     return (
       <div className="dash-graph">
@@ -61,18 +62,26 @@ export default class CellComponent extends Component<Props, State> {
           isEditable={isEditable}
           onDelete={onDeleteCell}
           onClone={onCloneCell}
-          onEdit={this.handleSummonOverlay}
+          onEdit={onEditCell}
           onCSVDownload={this.handleCSVDownload}
         />
-        <CellHeader cellName="" isEditable={isEditable} />
+        <CellHeader cellName={this.viewName} isEditable={isEditable} />
         <div className="dash-graph--container">{this.view}</div>
       </div>
     )
   }
 
   private get queries(): DashboardQuery[] {
-    const {view} = this.state
+    const {view} = this.props
+
     return _.get(view, ['properties.queries'], [])
+  }
+
+  private get viewName(): string {
+    const {view} = this.props
+    const viewName = view ? view.name : ''
+
+    return viewName
   }
 
   private get view(): JSX.Element {
@@ -82,10 +91,12 @@ export default class CellComponent extends Component<Props, State> {
       autoRefresh,
       manualRefresh,
       onZoom,
+      view,
+      viewStatus,
+      onEditCell,
     } = this.props
-    const {view, loading} = this.state
 
-    if (loading !== RemoteDataState.Done) {
+    if (viewStatus !== RemoteDataState.Done) {
       return null
     }
 
@@ -97,13 +108,9 @@ export default class CellComponent extends Component<Props, State> {
         timeRange={timeRange}
         autoRefresh={autoRefresh}
         manualRefresh={manualRefresh}
-        onSummonOverlay={this.handleSummonOverlay}
+        onEditCell={onEditCell}
       />
     )
-  }
-
-  private handleSummonOverlay = (): void => {
-    // TODO: add back in once CEO is refactored
   }
 
   private handleCSVDownload = (): void => {
@@ -119,3 +126,19 @@ export default class CellComponent extends Component<Props, State> {
     // }
   }
 }
+
+const mstp = (state: AppState, ownProps: PassedProps): StateProps => {
+  const entry = state.views.views[ownProps.cell.viewID]
+
+  if (entry) {
+    return {view: entry.view, viewStatus: entry.status}
+  }
+
+  return {view: null, viewStatus: RemoteDataState.NotStarted}
+}
+
+const mdtp: DispatchProps = {
+  onReadView: readView,
+}
+
+export default connect(mstp, mdtp)(CellComponent) as ComponentClass<PassedProps>
