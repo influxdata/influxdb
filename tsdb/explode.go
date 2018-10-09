@@ -1,7 +1,7 @@
 package tsdb
 
 import (
-	"encoding/hex"
+	"encoding/binary"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/models"
@@ -29,12 +29,9 @@ func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Poi
 	// is represented.
 
 	var nameBytes [16]byte
-	if _, err := hex.Decode(nameBytes[0:8], org.Encode()); err != nil {
-		return nil, err
-	}
-	if _, err := hex.Decode(nameBytes[8:16], bucket.Encode()); err != nil {
-		return nil, err
-	}
+
+	binary.BigEndian.PutUint64(nameBytes[0:8], uint64(org))
+	binary.BigEndian.PutUint64(nameBytes[8:16], uint64(bucket))
 	name := string(nameBytes[:])
 
 	var tags models.Tags
