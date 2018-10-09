@@ -94,9 +94,9 @@ from(bucket:"test") |> range(start:-1h)`
 		{caseName: "missing user", org: []byte{1}, user: nil, script: script},
 		{caseName: "missing name", org: []byte{1}, user: []byte{2}, script: scriptNoName},
 		{caseName: "missing script", org: []byte{1}, user: []byte{2}, script: ""},
-		{caseName: "repeated name and org", org: []byte{1}, user: []byte{3}, script: script},
-		{caseName: "repeated name and user", org: []byte{3}, user: []byte{2}, script: script},
-		{caseName: "repeated name, org, and user", org: []byte{1}, user: []byte{2}, script: script},
+		{caseName: "repeated name and org", org: []byte{1}, user: []byte{3}, script: script, noerr: true},
+		{caseName: "repeated name and user", org: []byte{3}, user: []byte{2}, script: script, noerr: true},
+		{caseName: "repeated name, org, and user", org: []byte{1}, user: []byte{2}, script: script, noerr: true},
 	} {
 		t.Run(args.caseName, func(t *testing.T) {
 			_, err := s.CreateTask(context.Background(), args.org, args.user, args.script, 0)
@@ -189,8 +189,8 @@ from(bucket:"y") |> range(start:-1h)`
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := s.ModifyTask(context.Background(), id1, script2); err != backend.ErrTaskNameTaken {
-			t.Fatal("expected ErrTaskNameTaken but did not receive one")
+		if err := s.ModifyTask(context.Background(), id1, script2); err != nil {
+			t.Fatalf("expected to be allowed to reuse name when modifying task, but got %v", err)
 		}
 	})
 }

@@ -57,11 +57,6 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, t := range s.tasks {
-		if t.Name == task.Name && (bytes.Equal(t.Org, org) || bytes.Equal(t.User, user)) {
-			return nil, ErrTaskNameTaken
-		}
-	}
 	s.tasks = append(s.tasks, task)
 	s.runners[id.String()] = StoreTaskMeta{
 		MaxConcurrency:  int32(o.Concurrency),
@@ -88,15 +83,7 @@ func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) err
 			continue
 		}
 
-		if t.Name != op.Name {
-			for i := range s.tasks {
-				tt := s.tasks[i]
-				if tt.Name == op.Name && i != n && (bytes.Equal(tt.Org, t.Org) || bytes.Equal(tt.User, t.User)) {
-					return ErrTaskNameTaken
-				}
-			}
-			t.Name = op.Name
-		}
+		t.Name = op.Name
 		t.Script = script
 		s.tasks[n] = t
 		return nil

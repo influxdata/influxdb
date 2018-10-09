@@ -8,8 +8,6 @@
 //    bucket(/tasks/v1/org_by_task_id) key(task_id) -> The organization ID (stored as encoded string) associated with given task.
 //    bucket(/tasks/v1/user_by_task_id) key(:task_id) -> The user ID (stored as encoded string) associated with given task.
 //    buket(/tasks/v1/name_by_task_id) key(:task_id) -> The user-supplied name of the script.
-//    bucket(/tasks/v1/name_by_org).bucket(:org_id) key(:task_name) -> Task ID. This allows us to make task names unique for org.
-//    bucket(/tasks/v1/name_by_user).bucket(:user_id) key(:task_name)  -> Task ID. This allows us to make task names unique for user.
 //    bucket(/tasks/v1/run_ids) -> Counter for run IDs
 //    bucket(/tasks/v1/orgs).bucket(:org_id) key(:task_id) -> Empty content; presence of :task_id allows for lookup from org to tasks.
 //    bucket(/tasks/v1/users).bucket(:user_id) key(:task_id) -> Empty content; presence of :task_id allows for lookup from user to tasks.
@@ -60,8 +58,6 @@ var (
 	taskMetaPath = []byte(basePath + "task_meta")
 	orgByTaskID  = []byte(basePath + "org_by_task_id")
 	userByTaskID = []byte(basePath + "user_by_task_id")
-	nameByUser   = []byte(basePath + "name_by_user")
-	nameByOrg    = []byte(basePath + "name_by_org")
 	nameByTaskID = []byte(basePath + "name_by_task_id")
 	runIDs       = []byte(basePath + "run_ids")
 )
@@ -82,7 +78,7 @@ func New(db *bolt.DB, rootBucket string) (*Store, error) {
 		// create the buckets inside the root
 		for _, b := range [][]byte{
 			tasksPath, orgsPath, usersPath, taskMetaPath,
-			orgByTaskID, userByTaskID, nameByUser, nameByOrg,
+			orgByTaskID, userByTaskID,
 			nameByTaskID, runIDs,
 		} {
 			_, err := root.CreateBucketIfNotExists(b)
@@ -96,30 +92,6 @@ func New(db *bolt.DB, rootBucket string) (*Store, error) {
 		return nil, err
 	}
 	return &Store{db: db, bucket: bucket}, nil
-}
-
-// checkIfNameIsUsed is a helper function that returns an error if a name if already used
-func (s *Store) checkIfNameIsUsed(b *bolt.Bucket, name []byte, org, user, taskID platform.ID) error {
-	var bNameByOrg *bolt.Bucket
-	if bNameByOrg = b.Bucket(nameByOrg); bNameByOrg != nil {
-		if bnameByOrgOrg := bNameByOrg.Bucket([]byte(org)); bnameByOrgOrg != nil {
-			gName := bnameByOrgOrg.Get(name)
-			if gName != nil && !bytes.Equal(gName, taskID) {
-				return backend.ErrTaskNameTaken
-			}
-		}
-	}
-
-	var bNameByUser *bolt.Bucket
-	if bNameByUser = b.Bucket(nameByUser); bNameByUser != nil {
-		if bnameByUserUser := bNameByUser.Bucket([]byte(user)); bnameByUserUser != nil {
-			gUser := bnameByUserUser.Get(name)
-			if gUser != nil && !bytes.Equal(gUser, taskID) {
-				return backend.ErrTaskNameTaken
-			}
-		}
-	}
-	return nil
 }
 
 // CreateTask creates a task in the boltdb task store.
@@ -139,9 +111,6 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		idi, _ := b.NextSequence() // we ignore this err check, because this can't err inside an Update call
 		binary.BigEndian.PutUint64(id, idi)
 		upid = unpadID(id)
-		if err := s.checkIfNameIsUsed(b, name, org, user, upid); err != nil {
-			return err
-		}
 		// write script
 		err := b.Bucket(tasksPath).Put(id, []byte(script))
 		if err != nil {
@@ -165,17 +134,6 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 			return err
 		}
 
-		// name by org
-		orgB, err = b.Bucket(nameByOrg).CreateBucketIfNotExists([]byte(org))
-		if err != nil {
-			return err
-		}
-
-		err = orgB.Put(name, upid)
-		if err != nil {
-			return err
-		}
-
 		err = b.Bucket(orgByTaskID).Put(id, []byte(org))
 		if err != nil {
 			return err
@@ -188,16 +146,6 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		}
 
 		err = userB.Put(id, nil)
-		if err != nil {
-			return err
-		}
-		// name by user
-		userB, err = b.Bucket(nameByUser).CreateBucketIfNotExists([]byte(user))
-		if err != nil {
-			return err
-		}
-
-		err = userB.Put(name, upid)
 		if err != nil {
 			return err
 		}
@@ -246,20 +194,7 @@ func (s *Store) ModifyTask(ctx context.Context, id platform.ID, newScript string
 		if err != nil {
 			return err
 		}
-		// TODO(docmerlin): org and user should be passed in, somehow, maybe via context or as an arg or something, these lookups are unecessairly expensive
-		org := b.Bucket(orgByTaskID).Get(paddedID)
-		user := b.Bucket(userByTaskID).Get(paddedID)
-		name := []byte(op.Name)
-		if err := s.checkIfNameIsUsed(b, name, org, user, id); err != nil {
-			return err
-		}
-		if err = b.Bucket(nameByOrg).Bucket(org).Put(name, id); err != nil {
-			return err
-		}
-		if b.Bucket(nameByUser).Bucket(user).Put(name, id); err != nil {
-			return err
-		}
-		return b.Bucket(nameByTaskID).Put(paddedID, name)
+		return b.Bucket(nameByTaskID).Put(paddedID, []byte(op.Name))
 	})
 }
 
@@ -530,7 +465,6 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 		if check := b.Bucket(tasksPath).Get(paddedID); check == nil {
 			return ErrNotFound
 		}
-		name := b.Bucket(nameByTaskID).Get(paddedID)
 
 		if err := b.Bucket(taskMetaPath).Delete(paddedID); err != nil {
 			return err
@@ -541,9 +475,6 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 		user := b.Bucket(userByTaskID).Get(paddedID)
 		if len(user) > 0 {
 			if err := b.Bucket(usersPath).Bucket(user).Delete(paddedID); err != nil {
-				return err
-			}
-			if err := b.Bucket(nameByUser).Bucket(user).Delete(name); err != nil {
 				return err
 			}
 		}
@@ -557,9 +488,6 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 		org := b.Bucket(orgByTaskID).Get(paddedID)
 		if len(org) > 0 {
 			if err := b.Bucket(orgsPath).Bucket(org).Delete(paddedID); err != nil {
-				return err
-			}
-			if err := b.Bucket(nameByOrg).Bucket(org).Delete(name); err != nil {
 				return err
 			}
 		}
