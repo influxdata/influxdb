@@ -18,17 +18,22 @@ type ViewHandler struct {
 	ViewService platform.ViewService
 }
 
+const (
+	viewsPath   = "/api/v2/views"
+	viewsIDPath = "/api/v2/views/:id"
+)
+
 // NewViewHandler returns a new instance of ViewHandler.
 func NewViewHandler() *ViewHandler {
 	h := &ViewHandler{
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/api/v2/views", h.handlePostViews)
-	h.HandlerFunc("GET", "/api/v2/views", h.handleGetViews)
-	h.HandlerFunc("GET", "/api/v2/views/:id", h.handleGetView)
-	h.HandlerFunc("DELETE", "/api/v2/views/:id", h.handleDeleteView)
-	h.HandlerFunc("PATCH", "/api/v2/views/:id", h.handlePatchView)
+	h.HandlerFunc("POST", viewsPath, h.handlePostViews)
+	h.HandlerFunc("GET", viewsPath, h.handleGetViews)
+	h.HandlerFunc("GET", viewsIDPath, h.handleGetView)
+	h.HandlerFunc("DELETE", viewsIDPath, h.handleDeleteView)
+	h.HandlerFunc("PATCH", viewsIDPath, h.handlePatchView)
 	return h
 }
 
