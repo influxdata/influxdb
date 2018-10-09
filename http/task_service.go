@@ -18,15 +18,20 @@ type TaskHandler struct {
 	*httprouter.Router
 	logger *zap.Logger
 
-	TaskService          platform.TaskService
-	AuthorizationService platform.AuthorizationService
-	OrganizationService  platform.OrganizationService
+	TaskService                platform.TaskService
+	AuthorizationService       platform.AuthorizationService
+	OrganizationService        platform.OrganizationService
+	UserResourceMappingService platform.UserResourceMappingService
 }
 
 const (
 	tasksPath              = "/api/v2/tasks"
 	tasksIDPath            = "/api/v2/tasks/:tid"
 	tasksIDLogsPath        = "/api/v2/tasks/:tid/logs"
+	tasksIDMembersPath     = "/api/v2/tasks/:tid/members"
+	tasksIDMembersIDPath   = "/api/v2/tasks/:tid/members/:userID"
+	tasksIDOwnersPath      = "/api/v2/tasks/:tid/owners"
+	tasksIDOwnersIDPath    = "/api/v2/tasks/:tid/owners/:userID"
 	tasksIDRunsPath        = "/api/v2/tasks/:tid/runs"
 	tasksIDRunsIDPath      = "/api/v2/tasks/:tid/runs/:rid"
 	tasksIDRunsIDLogsPath  = "/api/v2/tasks/:tid/runs/:rid/logs"
@@ -49,6 +54,14 @@ func NewTaskHandler(logger *zap.Logger) *TaskHandler {
 
 	h.HandlerFunc("GET", tasksIDLogsPath, h.handleGetLogs)
 	h.HandlerFunc("GET", tasksIDRunsIDLogsPath, h.handleGetLogs)
+
+	h.HandlerFunc("POST", tasksIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("GET", tasksIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
+
+	h.HandlerFunc("POST", tasksIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("GET", tasksIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("DELETE", tasksIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", tasksIDRunsPath, h.handleGetRuns)
 	h.HandlerFunc("GET", tasksIDRunsIDPath, h.handleGetRun)
