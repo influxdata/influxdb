@@ -9,10 +9,10 @@ import (
 
 func TestOwnerMappingValidate(t *testing.T) {
 	type fields struct {
-		ResourceID   ID
-		ResourceType ResourceType
-		UserID       ID
-		UserType     UserType
+		ResourceID   platform.ID
+		ResourceType platform.ResourceType
+		UserID       platform.ID
+		UserType     platform.UserType
 	}
 	tests := []struct {
 		name    string
@@ -24,7 +24,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 			fields: fields{
 				UserID:       platformtesting.MustIDFromString("debac1e0deadbeef"),
 				UserType:     platform.Owner,
-				ResourceType: DashboardResourceType,
+				ResourceType: platform.DashboardResourceType,
 			},
 			wantErr: true,
 		},
@@ -33,7 +33,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 			fields: fields{
 				ResourceID:   platformtesting.MustIDFromString("020f755c3c082000"),
 				UserType:     platform.Owner,
-				ResourceType: DashboardResourceType,
+				ResourceType: platform.DashboardResourceType,
 			},
 			wantErr: true,
 		},
@@ -42,7 +42,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 			fields: fields{
 				ResourceID:   platformtesting.MustIDFromString("020f755c3c082000"),
 				UserID:       platformtesting.MustIDFromString("debac1e0deadbeef"),
-				ResourceType: DashboardResourceType,
+				ResourceType: platform.DashboardResourceType,
 			},
 			wantErr: true,
 		},
@@ -51,7 +51,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 			fields: fields{
 				ResourceID: platformtesting.MustIDFromString("020f755c3c082000"),
 				UserID:     platformtesting.MustIDFromString("debac1e0deadbeef"),
-				UserType:   Owner,
+				UserType:   platform.Owner,
 			},
 			wantErr: true,
 		},
@@ -61,7 +61,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 				ResourceID:   platformtesting.MustIDFromString("020f755c3c082000"),
 				UserID:       platformtesting.MustIDFromString("debac1e0deadbeef"),
 				UserType:     "foo",
-				ResourceType: DashboardResourceType,
+				ResourceType: platform.DashboardResourceType,
 			},
 			wantErr: true,
 		},
@@ -70,7 +70,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 			fields: fields{
 				ResourceID:   platformtesting.MustIDFromString("020f755c3c082000"),
 				UserID:       platformtesting.MustIDFromString("debac1e0deadbeef"),
-				UserType:     Owner,
+				UserType:     platform.Owner,
 				ResourceType: "foo",
 			},
 			wantErr: true,

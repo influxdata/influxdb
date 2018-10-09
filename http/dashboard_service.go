@@ -194,16 +194,17 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	qp := r.URL.Query()
 	req := &getDashboardsRequest{}
 
+	initialID := platform.InvalidID()
 	if ids, ok := qp["id"]; ok {
 		for _, id := range ids {
-			i := platform.InvalidID()
+			i := initialID
 			if err := i.DecodeFromString(id); err != nil {
 				return nil, err
 			}
-			req.filter.IDs = append(req.filter.IDs, i)
+			req.filter.IDs = append(req.filter.IDs, &i)
 		}
 	} else if owner := qp.Get("owner"); owner != "" {
-		req.ownerID = platform.InvalidID()
+		req.ownerID = &initialID
 		if err := req.ownerID.DecodeFromString(owner); err != nil {
 			return nil, err
 		}
