@@ -11,7 +11,7 @@ import (
 func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, func()) {
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
-	ctx := context.TODO()
+	ctx := context.Background()
 	for _, o := range f.Organizations {
 		if err := s.PutOrganization(ctx, o); err != nil {
 			t.Fatalf("failed to populate organizations")
@@ -26,7 +26,6 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 }
 
 func TestBucketService_CreateBucket(t *testing.T) {
-	t.Skip("skipping to unblock")
 	platformtesting.CreateBucket(initBucketService, t)
 }
 
