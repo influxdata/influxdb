@@ -222,21 +222,17 @@ func (e *TestEngine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, fn 
 }
 
 type TestBucketFinder struct {
-	OpenFn        func() error
-	CloseFn       func() error
-	FindBucketsFn func(context.Context, platform.BucketFilter) ([]*platform.Bucket, int, error)
+	FindBucketsFn func(context.Context, platform.BucketFilter, ...platform.FindOptions) ([]*platform.Bucket, int, error)
 }
 
 func NewTestBucketFinder() *TestBucketFinder {
 	return &TestBucketFinder{
-		OpenFn:        func() error { return nil },
-		CloseFn:       func() error { return nil },
-		FindBucketsFn: func(context.Context, platform.BucketFilter) ([]*platform.Bucket, int, error) { return nil, 0, nil },
+		FindBucketsFn: func(context.Context, platform.BucketFilter, ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+			return nil, 0, nil
+		},
 	}
 }
 
-func (f *TestBucketFinder) Open() error  { return f.OpenFn() }
-func (f *TestBucketFinder) Close() error { return f.CloseFn() }
-func (f *TestBucketFinder) FindBuckets(ctx context.Context, filter platform.BucketFilter) ([]*platform.Bucket, int, error) {
-	return f.FindBucketsFn(ctx, filter)
+func (f *TestBucketFinder) FindBuckets(ctx context.Context, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+	return f.FindBucketsFn(ctx, filter, opts...)
 }

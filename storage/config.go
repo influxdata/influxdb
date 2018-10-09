@@ -6,10 +6,14 @@ import (
 )
 
 // Config defaults
-const ()
+const (
+	DefaultRetentionInterval = 3600 // 1 hour.
+)
 
 // Config holds the configuration for an Engine.
 type Config struct {
+	RetentionInterval int64 `tom:"retention_interval"` // Frequency of retention in seconds.
+
 	EngineOptions tsdb.EngineOptions `toml:"-"`
 	Index         tsi1.Config        `toml:"index"`
 	tsdb.Config
@@ -18,8 +22,9 @@ type Config struct {
 // NewConfig initialises a new config for an Engine.
 func NewConfig() Config {
 	return Config{
-		EngineOptions: tsdb.NewEngineOptions(),
-		Index:         tsi1.NewConfig(),
-		Config:        tsdb.NewConfig(),
+		RetentionInterval: DefaultRetentionInterval,
+		EngineOptions:     tsdb.NewEngineOptions(),
+		Index:             tsi1.NewConfig(),
+		Config:            tsdb.NewConfig(),
 	}
 }

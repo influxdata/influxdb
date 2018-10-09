@@ -41,9 +41,7 @@ type Deleter interface {
 
 // A BucketFinder is responsible for providing access to buckets via a filter.
 type BucketFinder interface {
-	Open() error
-	Close() error
-	FindBuckets(context.Context, platform.BucketFilter) ([]*platform.Bucket, int, error)
+	FindBuckets(context.Context, platform.BucketFilter, ...platform.FindOptions) ([]*platform.Bucket, int, error)
 }
 
 // ErrServiceClosed is returned when the service is unavailable.
@@ -110,11 +108,6 @@ func (s *retentionService) Open() error {
 		return fmt.Errorf("invalid interval %v", s.interval)
 	}
 
-	// Open BucketService implementation.
-	if err := s.BucketService.Open(); err != nil {
-		return err
-	}
-
 	s.mu.Lock()
 	s._closing = make(chan struct{})
 	s.mu.Unlock()
@@ -159,6 +152,9 @@ func (s *retentionService) run() {
 				labels["status"] = "error"
 			}
 
+			if s.retentionMetrics == nil {
+				continue
+			}
 			s.retentionMetrics.CheckDuration.With(labels).Observe(time.Since(now).Seconds())
 			s.retentionMetrics.Checks.With(labels).Inc()
 		case <-closingCh:
@@ -218,6 +214,9 @@ func (s *retentionService) expireData(rpByBucketID map[string]time.Duration, now
 	}
 
 	defer func() {
+		if s.retentionMetrics == nil {
+			return
+		}
 		labels := s.metricLabels()
 
 		labels["status"] = "bad_measurement"
@@ -273,11 +272,7 @@ func (s *retentionService) Close() error {
 	close(s.closing())
 	s.wg.Wait()
 
-	if err := s.BucketService.Close(); err != nil {
-		return err
-	}
 	s.logger.Info("Service closed", zap.Duration("took", time.Since(now)))
-
 	s.mu.Lock()
 	s._closing = nil
 	s.mu.Unlock()

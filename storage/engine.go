@@ -67,12 +67,12 @@ var WithNodeID = func(id int) Option {
 	}
 }
 
-// WithRetentionService initialises a retention service on the engine with the
-// provided interval. WithRetentionService must be called after other options
-// to ensure that all metrics are labelled correctly.
-var WithRetentionService = func(finder BucketFinder, interval int64) Option {
+// WithRetentionService initialises a retention service on the engine.
+// WithRetentionService must be called after other options to ensure that all
+// metrics are labelled correctly.
+var WithRetentionService = func(finder BucketFinder) Option {
 	return func(e *Engine) {
-		e.retentionService = newRetentionService(e, finder, interval)
+		e.retentionService = newRetentionService(e, finder, e.config.RetentionInterval)
 
 		labels := prometheus.Labels(map[string]string{"status": ""})
 		if e.engineID != nil {
