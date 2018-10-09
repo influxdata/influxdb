@@ -14,6 +14,8 @@ const (
 	Member                UserType     = "member"
 	DashboardResourceType ResourceType = "dashboard"
 	BucketResourceType    ResourceType = "bucket"
+	TaskResourceType      ResourceType = "task"
+	OrgResourceType       ResourceType = "org"
 )
 
 // UserResourceMappingService maps the relationships between users and resources

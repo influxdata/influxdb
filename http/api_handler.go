@@ -100,6 +100,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	h.TaskHandler = NewTaskHandler(b.Logger)
 	h.TaskHandler.TaskService = b.TaskService
+	h.TaskHandler.UserResourceMappingService = b.UserResourceMappingService
 
 	h.WriteHandler = NewWriteHandler(b.PointsWriter)
 	h.WriteHandler.AuthorizationService = b.AuthorizationService
