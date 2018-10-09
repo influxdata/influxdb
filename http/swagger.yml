@@ -6,7 +6,6 @@ servers:
   - url: /api/v2
 paths:
   /signin:
-    servers:
     post:
       summary: Exchange basic auth credentials for session
       security:
@@ -21,7 +20,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /signout:
-    servers:
     post:
       summary: Expire the current session
       responses:
@@ -74,6 +72,297 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OnboardingResponse"
+  /telegrafs:
+    get:
+      tags:
+        - Telegrafs
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string  
+      responses:
+        '200':
+          description: a list of telegraf configs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Telegrafs"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"  
+    post:
+      tags:
+        - Telegrafs
+      summary: Create a telegraf config
+      parameters:
+          - in: query
+            name: org
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
+      requestBody:
+        description: telegraf config to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegrafRequest"
+      responses:
+        '201':
+          description: Telegraf config created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Telegraf"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error" 
+  '/telegrafs/{telegrafID}':
+    get:
+      tags:
+        - Telegrafs
+      summary: Retrieve a telegraf config
+      parameters:
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of telegraf config
+      responses:
+        '200':
+          description: telegraf config details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Telegraf"
+            application/toml:
+              example: "[agent]\ninterval = \"10s\""
+              schema:
+                type: string
+            application/octet-stream:
+              example: "[agent]\ninterval = \"10s\""
+              schema:
+                type: string
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      tags:
+        - Telegrafs
+      summary: Update a telegraf config
+      parameters:
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of telegraf config
+      requestBody:
+        description: telegraf config update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegrafRequest"
+      responses:
+        '200':
+          description: An updated telegraf
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Telegraf"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/telegrafs/{telegrafID}/members':
+    get:
+      tags:
+        - Users
+        - Telegrafs
+      summary: List all users with member privileges for a telegraf config
+      parameters:
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+      responses:
+        '200':
+          description: a list of telegraf config members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Users"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+        - Telegrafs
+      summary: Add telegraf config member
+      parameters:
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+      requestBody:
+        description: user to add as member
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        '201':
+          description: member added to telegraf
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/telegrafs/{telegrafID}/members/{userID}':
+    delete:
+      tags:
+        - Users
+        - Telegrafs
+      summary: removes a member from a telegraf config
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of member to remove
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf
+      responses:
+        '204':
+          description: member removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/telegrafs/{telegrafID}/owners':
+    get:
+      tags:
+        - Users
+        - Telegrafs
+      summary: List all owners of a telegraf config
+      parameters:
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+      responses:
+        '200':
+          description: a list of telegraf config owners
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Users"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+        - Telegrafs
+      summary: Add telegraf config owner
+      parameters:
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+      requestBody:
+        description: user to add as owner
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        '201':
+          description: telegraf config owner added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/telegrafs/{telegrafID}/owners/{userID}':
+    delete:
+      tags:
+        - Users
+        - Telegrafs
+      summary: removes an owner from a telegraf config
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of owner to remove
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+      responses:
+        '204':
+          description: owner removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /macros:
     get:
       tags:
@@ -1642,7 +1931,7 @@ paths:
           schema:
             type: string
           required: true
-          description: ID of the organization
+          description: ID of the bucket
       responses:
         '200':
           description: a list of bucket members
@@ -1667,7 +1956,7 @@ paths:
           schema:
             type: string
           required: true
-          description: ID of the organization
+          description: ID of the bucket
       requestBody:
         description: user to add as member
         required: true
@@ -1721,7 +2010,7 @@ paths:
       tags:
         - Users
         - Buckets
-      summary: List all owners of an bucket
+      summary: List all owners of a bucket
       parameters:
         - in: path
           name: bucketID
@@ -1779,7 +2068,7 @@ paths:
       tags:
         - Users
         - Buckets
-      summary: removes an owner from an organization
+      summary: removes an owner from a bucket
       parameters:
         - in: path
           name: userID
@@ -4177,6 +4466,162 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Source"
+    TelegrafRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        agent:
+          type: object
+          properties:
+            interval:
+              type: integer
+        plugins:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                enum: [cpu, disk, diskio, docker, file, kernel, kubernetes, logparser, mem, net_response, net, ngnix, processes, procstats, prometheus, redis, swap, syslog, system, tail, influxdb_v2]
+              type:
+                type: string
+                enum: [input, output, processor, aggregator]
+              comment: 
+                type: string
+              configs:
+                oneOf:
+                - $ref: '#/components/schemas/TelegrafPluginInput'
+                - $ref: '#/components/schemas/TelegrafPluginInputDocker'
+                - $ref: '#/components/schemas/TelegrafPluginInputFile'
+                - $ref: '#/components/schemas/TelegrafPluginInputKubernetes'
+                - $ref: '#/components/schemas/TelegrafPluginInputLogParser'
+                - $ref: '#/components/schemas/TelegrafPluginInputProcstat'
+                - $ref: '#/components/schemas/TelegrafPluginInputPrometheus'
+                - $ref: '#/components/schemas/TelegrafPluginInputRedis'
+                - $ref: '#/components/schemas/TelegrafPluginInputSyslog'
+                - $ref: '#/components/schemas/TelegrafPluginOutputFile'
+                - $ref: '#/components/schemas/TelegrafPluginOutputInfluxDBV2'
+    Telegraf:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequest"
+        - type: object
+          properties:
+            id:
+              type: string
+            links:
+              type: object
+              properties:
+                self:
+                  type: string
+            owners:
+              $ref: "#/components/schemas/Owners"
+    Telegrafs:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+              format: url
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/Telegraf"
+    TelegrafPluginInput:
+      type: object
+    TelegrafPluginInputDocker:
+      type: object
+      properties:
+        endpoint:
+          type: string
+    TelegrafPluginInputFile:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            type: string   
+    TelegrafPluginInputKubernetes:
+      type: object
+      properties:
+        url:
+          type: string
+    TelegrafPluginInputLogParser:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            type: string   
+    TelegrafPluginInputNginx:
+      type: object
+      properties:
+        urls:
+          type: array
+          items:
+            type: string   
+    TelegrafPluginInputProcstat:
+      type: object
+      properties:
+        exe:
+          type: string
+    TelegrafPluginInputPrometheus:
+      type: object
+      properties:
+        urls:
+          type: array
+          items:
+            type: string   
+    TelegrafPluginInputRedis:
+      type: object
+      properties:
+        servers:
+          type: array
+          items:
+            type: string
+        password:
+          type: string     
+    TelegrafPluginInputSyslog:
+      type: object
+      properties:
+        server:
+          type: string     
+    TelegrafPluginOutputFile:
+      type: object
+      required:
+        - files
+      properties:
+        files:
+          type: array
+          items: 
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [stdout, path]
+              path:
+                type: string
+    TelegrafPluginOutputInfluxDBV2:
+      type: object
+      required:
+        - urls
+        - token
+        - organization
+        - bucket
+      properties:
+        urls:
+          type: array
+          items:
+            type: string
+        token:
+          type: string
+        organization:
+          type: string
+        bucket:
+          type: string           
     IsOnboarding:
       type: object
       properties:
