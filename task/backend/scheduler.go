@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -580,24 +581,29 @@ func (r *runner) executeAndWait(qr QueuedRun, runLogger *zap.Logger) {
 }
 
 func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger) {
-	switch s {
-	case RunStarted:
-		r.ts.metrics.StartRun(r.task.ID.String())
-	case RunSuccess:
-		r.ts.metrics.FinishRun(r.task.ID.String(), true)
-	case RunFail, RunCanceled:
-		r.ts.metrics.FinishRun(r.task.ID.String(), false)
-	default:
-		// We are deliberately not handling RunQueued yet.
-		// There is not really a notion of being queued in this runner architecture.
-		runLogger.Warn("Unhandled run state", zap.Stringer("state", s))
-	}
-
 	rlb := RunLogBase{
 		Task:            r.task,
 		RunID:           qr.RunID,
 		RunScheduledFor: qr.Now,
 		RequestedAt:     qr.RequestedAt,
+	}
+
+	switch s {
+	case RunStarted:
+		r.ts.metrics.StartRun(r.task.ID.String())
+		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), fmt.Sprintf("Started task from script: %q", r.task.Script))
+	case RunSuccess:
+		r.ts.metrics.FinishRun(r.task.ID.String(), true)
+		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), "Completed successfully")
+	case RunFail:
+		r.ts.metrics.FinishRun(r.task.ID.String(), false)
+		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), "Failed")
+	case RunCanceled:
+		r.ts.metrics.FinishRun(r.task.ID.String(), false)
+		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), "Canceled")
+	default: // We are deliberately not handling RunQueued yet.
+		// There is not really a notion of being queued in this runner architecture.
+		runLogger.Warn("Unhandled run state", zap.Stringer("state", s))
 	}
 
 	// Arbitrarily chosen short time limit for how fast the log write must complete.

@@ -294,7 +294,20 @@ func decodeDeleteTaskRequest(ctx context.Context, r *http.Request) (*deleteTaskR
 func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, err := decodeGetLogsRequest(ctx, r)
+	tok, err := GetToken(r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	auth, err := h.AuthorizationService.FindAuthorizationByToken(ctx, tok)
+	if err != nil {
+		EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
+		return
+	}
+	ctx = pcontext.SetAuthorization(ctx, auth)
+
+	req, err := decodeGetLogsRequest(ctx, r, h.OrganizationService)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -316,7 +329,7 @@ type getLogsRequest struct {
 	filter platform.LogFilter
 }
 
-func decodeGetLogsRequest(ctx context.Context, r *http.Request) (*getLogsRequest, error) {
+func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.OrganizationService) (*getLogsRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("tid")
 	if id == "" {
@@ -327,6 +340,17 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request) (*getLogsRequest
 	req.filter.Task = &platform.ID{}
 	if err := req.filter.Task.DecodeFromString(id); err != nil {
 		return nil, err
+	}
+
+	qp := r.URL.Query()
+
+	if orgName := qp.Get("org"); orgName != "" {
+		o, err := orgs.FindOrganization(ctx, platform.OrganizationFilter{Name: &orgName})
+		if err != nil {
+			return nil, err
+		}
+
+		req.filter.Org = &o.ID
 	}
 
 	if id := params.ByName("rid"); id != "" {
