@@ -143,7 +143,7 @@ func (cmd *Command) process(path string) error {
 }
 
 func (cmd *Command) printUsage() {
-	fmt.Println(`Deletes a measurement from a raw tsm file.
+	fmt.Print(`Deletes a measurement from a raw tsm file.
 
 Usage: influx_inspect deletetsm [flags] path...
 
