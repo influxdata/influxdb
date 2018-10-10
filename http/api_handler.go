@@ -131,6 +131,7 @@ var apiLinks = map[string]interface{}{
 	"auths":      "/api/v2/authorizations",
 	"buckets":    "/api/v2/buckets",
 	"users":      "/api/v2/users",
+	"me":         "/api/v2/me",
 	"tasks":      "/api/v2/tasks",
 	"macros":     "/api/v2/macros",
 	"query": map[string]string{
@@ -196,6 +197,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/users") {
+		h.UserHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v2/me") {
 		h.UserHandler.ServeHTTP(w, r)
 		return
 	}
