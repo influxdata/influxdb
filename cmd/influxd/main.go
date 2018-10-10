@@ -219,6 +219,7 @@ func platformF(cmd *cobra.Command, args []string) {
 
 		engine := storage.NewEngine(enginePath, config, storage.WithRetentionService(bucketSvc))
 		engine.WithLogger(logger)
+		reg.MustRegister(engine.PrometheusCollectors()...)
 
 		if err := engine.Open(); err != nil {
 			logger.Error("failed to open engine", zap.Error(err))

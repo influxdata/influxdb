@@ -138,6 +138,17 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	}
 }
 
+// PrometheusCollectors returns all the prometheus collectors associated with
+// the engine and its components.
+func (e *Engine) PrometheusCollectors() []prometheus.Collector {
+	var metrics []prometheus.Collector
+	// TODO(edd): Get prom metrics for TSM.
+	// TODO(edd): Get prom metrics for index.
+	// TODO(edd): Get prom metrics for series file.
+	metrics = append(metrics, e.retentionService.PrometheusCollectors()...)
+	return metrics
+}
+
 // Open opens the store and all underlying resources. It returns an error if
 // any of the underlying systems fail to open.
 func (e *Engine) Open() error {
