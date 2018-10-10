@@ -107,7 +107,7 @@ func (c *Client) findAuthorizationByToken(ctx context.Context, tx *bolt.Tx, n st
 func filterAuthorizationsFn(filter platform.AuthorizationFilter) func(a *platform.Authorization) bool {
 	if filter.ID != nil {
 		return func(a *platform.Authorization) bool {
-			return a.ID.Valid() && a.ID == *filter.ID
+			return a.ID == *filter.ID
 		}
 	}
 
@@ -119,7 +119,7 @@ func filterAuthorizationsFn(filter platform.AuthorizationFilter) func(a *platfor
 
 	if filter.UserID != nil {
 		return func(a *platform.Authorization) bool {
-			return a.UserID.Valid() && a.UserID == *filter.UserID
+			return a.UserID == *filter.UserID
 		}
 	}
 

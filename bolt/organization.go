@@ -130,7 +130,7 @@ func (c *Client) FindOrganization(ctx context.Context, filter platform.Organizat
 func filterOrganizationsFn(filter platform.OrganizationFilter) func(o *platform.Organization) bool {
 	if filter.ID != nil {
 		return func(o *platform.Organization) bool {
-			return o.ID.Valid() && o.ID == *filter.ID
+			return o.ID == *filter.ID
 		}
 	}
 
