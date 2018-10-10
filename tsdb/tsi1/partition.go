@@ -14,8 +14,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/pkg/bytesutil"
 	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/tsdb"
