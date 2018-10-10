@@ -25,14 +25,14 @@ func TestService_expireData(t *testing.T) {
 			t.Error(err)
 		}
 
-		if err := service.expireData(map[string]time.Duration{}, now); err != nil {
+		if err := service.expireData(map[platform.ID]time.Duration{}, now); err != nil {
 			t.Error(err)
 		}
 	})
 
 	// Generate some measurement names
 	var names [][]byte
-	rpByBucketID := map[string]time.Duration{}
+	rpByBucketID := map[platform.ID]time.Duration{}
 	expMatchedFrequencies := map[string]int{}  // To be used for verifying test results.
 	expRejectedFrequencies := map[string]int{} // To be used for verifying test results.
 	for i := 0; i < 15; i++ {
@@ -42,20 +42,19 @@ func TestService_expireData(t *testing.T) {
 			names = append(names, name)
 		}
 
-		_, bucketID, err := platform.ReadMeasurement(name)
-		if err != nil {
-			t.Fatal(err)
-		}
+		var n [16]byte
+		copy(n[:], name)
+		_, bucketID := tsdb.DecodeName(n)
 
 		// Put 1/3rd in the rpByBucketID into the set to delete and 1/3rd into the set
 		// to not delete because no rp, and 1/3rd into the set to not delete because 0 rp.
 		if i%3 == 0 {
-			rpByBucketID[string(bucketID)] = 3 * time.Hour
+			rpByBucketID[bucketID] = 3 * time.Hour
 			expMatchedFrequencies[string(name)] = repeat
 		} else if i%3 == 1 {
 			expRejectedFrequencies[string(name)] = repeat
 		} else if i%3 == 2 {
-			rpByBucketID[string(bucketID)] = 0
+			rpByBucketID[bucketID] = 0
 			expRejectedFrequencies[string(name)] = repeat
 		}
 	}
