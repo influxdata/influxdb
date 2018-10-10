@@ -256,12 +256,12 @@ func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersReque
 	qp := r.URL.Query()
 	req := &getUsersRequest{}
 
-	if id := qp.Get("id"); id != "" {
-		temp, err := platform.IDFromString(id)
+	if userID := qp.Get("id"); userID != "" {
+		id, err := platform.IDFromString(userID)
 		if err != nil {
 			return nil, err
 		}
-		req.filter.ID = temp
+		req.filter.ID = id
 	}
 
 	if name := qp.Get("name"); name != "" {

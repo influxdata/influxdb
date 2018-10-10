@@ -209,12 +209,12 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 	qp := r.URL.Query()
 	req := &getOrgsRequest{}
 
-	if id := qp.Get("id"); id != "" {
-		temp, err := platform.IDFromString(id)
+	if orgID := qp.Get("id"); orgID != "" {
+		id, err := platform.IDFromString(orgID)
 		if err != nil {
 			return nil, err
 		}
-		req.filter.ID = temp
+		req.filter.ID = id
 	}
 
 	if name := qp.Get("name"); name != "" {

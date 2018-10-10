@@ -99,28 +99,28 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request) (*getTasksReque
 	qp := r.URL.Query()
 	req := &getTasksRequest{}
 
-	if id := qp.Get("after"); id != "" {
-		temp, err := platform.IDFromString(id)
+	if after := qp.Get("after"); after != "" {
+		id, err := platform.IDFromString(after)
 		if err != nil {
 			return nil, err
 		}
-		req.filter.After = temp
+		req.filter.After = id
 	}
 
-	if id := qp.Get("organization"); id != "" {
-		temp, err := platform.IDFromString(id)
+	if orgID := qp.Get("organization"); orgID != "" {
+		id, err := platform.IDFromString(orgID)
 		if err != nil {
 			return nil, err
 		}
-		req.filter.Organization = temp
+		req.filter.Organization = id
 	}
 
-	if id := qp.Get("user"); id != "" {
-		userID, err := platform.IDFromString(id)
+	if userID := qp.Get("user"); userID != "" {
+		id, err := platform.IDFromString(userID)
 		if err != nil {
 			return nil, err
 		}
-		req.filter.User = userID
+		req.filter.User = id
 	}
 
 	return req, nil
@@ -357,12 +357,12 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 		req.filter.Org = &o.ID
 	}
 
-	if id := params.ByName("rid"); id != "" {
-		temp, err := platform.IDFromString(id)
+	if runID := params.ByName("rid"); id != "" {
+		id, err := platform.IDFromString(runID)
 		if err != nil {
 			return nil, err
 		}
-		req.filter.Run = temp
+		req.filter.Run = id
 	}
 
 	return req, nil

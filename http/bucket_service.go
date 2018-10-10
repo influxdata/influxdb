@@ -346,24 +346,24 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	qp := r.URL.Query()
 	req := &getBucketsRequest{}
 
-	if id := qp.Get("orgID"); id != "" {
-		temp, err := platform.IDFromString(id)
+	if orgID := qp.Get("orgID"); orgID != "" {
+		id, err := platform.IDFromString(orgID)
 		if err != nil {
 			return nil, err
 		}
-		req.filter.OrganizationID = temp
+		req.filter.OrganizationID = id
 	}
 
 	if org := qp.Get("org"); org != "" {
 		req.filter.Organization = &org
 	}
 
-	if id := qp.Get("id"); id != "" {
-		temp, err := platform.IDFromString(id)
+	if bucketID := qp.Get("id"); bucketID != "" {
+		id, err := platform.IDFromString(bucketID)
 		if err != nil {
 			return nil, err
 		}
-		req.filter.ID = temp
+		req.filter.ID = id
 	}
 
 	if name := qp.Get("name"); name != "" {
