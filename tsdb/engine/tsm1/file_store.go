@@ -547,6 +547,8 @@ func (f *FileStore) Open() error {
 					readerC <- &res{r: df, err: fmt.Errorf("cannot rename corrupt file %s: %v", file.Name(), e)}
 					return
 				}
+				readerC <- &res{r: df, err: fmt.Errorf("cannot read corrupt file %s: %v", file.Name(), err)}
+				return
 			}
 
 			df.WithObserver(f.obs)
