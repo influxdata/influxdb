@@ -1204,10 +1204,17 @@ func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) Next() (*{{$v.Name}}Point, erro
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []{{$v.Name}}Point
 			for _, rp := range itr.m {
@@ -1232,8 +1239,6 @@ func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}

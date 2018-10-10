@@ -14,6 +14,7 @@ v1.6.4 [unreleased]
 -	[#10348](https://github.com/influxdata/influxdb/pull/10348): Cleanup failed TSM snapshots.
 -	[#10355](https://github.com/influxdata/influxdb/pull/10355): Fix TSM1 panic on reader error.
 -	[#10356](https://github.com/influxdata/influxdb/pull/10356): Fix series file tombstoning.
+-	[#10364](https://github.com/influxdata/influxdb/pull/10364): Fixing the stream iterator to not ignore the error.
 
 v1.6.3 [2018-09-14]
 -------------------
