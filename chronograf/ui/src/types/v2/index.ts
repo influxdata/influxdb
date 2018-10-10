@@ -11,6 +11,7 @@ import {
   View,
   ViewType,
   ViewShape,
+  ViewParams,
   DashboardQuery,
 } from 'src/types/v2/dashboards'
 import {Links} from 'src/types/v2/links'
@@ -36,6 +37,7 @@ export {
   View,
   ViewType,
   ViewShape,
+  ViewParams,
   TimeRange,
   DashboardSwitcherLinks,
 }

@@ -270,3 +270,7 @@ export interface DashboardSwitcherLinks {
   active?: DashboardSwitcherLink
   links: DashboardSwitcherLink[]
 }
+
+export interface ViewParams {
+  type: ViewType
+}
