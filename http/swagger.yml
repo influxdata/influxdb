@@ -2397,6 +2397,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /me:
+    get:
+      tags:
+        - Users
+      summary: Returns currently authenticated user
+      responses:
+        '200':
+          description: currently authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /users:
     get:
       tags:
