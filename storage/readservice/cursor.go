@@ -5,6 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/storage/reads"
@@ -47,8 +48,8 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, req *datatypes.R
 	}
 	p := &indexSeriesCursor{row: reads.SeriesRow{Query: tsdb.CursorIterators{queries}}}
 
-	m := append(append([]byte(nil), src.OrganizationID...), src.BucketID...)
-	mi := tsdb.NewMeasurementSliceIterator([][]byte{m})
+	m := tsdb.EncodeName(platform.ID(src.OrganizationID), platform.ID(src.BucketID))
+	mi := tsdb.NewMeasurementSliceIterator([][]byte{m[:]})
 
 	if root := req.Predicate.GetRoot(); root != nil {
 		if p.cond, err = reads.NodeToExpr(root, nil); err != nil {

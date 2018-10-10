@@ -1,10 +1,11 @@
 package inputs_test
 
 import (
-	"github.com/influxdata/flux/functions/inputs"
-	"github.com/influxdata/flux/functions/transformations"
 	"testing"
 	"time"
+
+	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/functions/transformations"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
@@ -49,7 +50,7 @@ func TestFrom_NewQuery(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &inputs.FromOpSpec{
-							BucketID: platform.ID{170, 170, 170, 170}.String(),
+							BucketID: "aaaaaaaa",
 						},
 					},
 				},

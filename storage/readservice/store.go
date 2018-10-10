@@ -104,8 +104,8 @@ func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 // this is easier than fooling around with .proto files.
 
 type readSource struct {
-	BucketID       []byte `protobuf:"bytes,1,opt,name=bucket_id,proto3"`
-	OrganizationID []byte `protobuf:"bytes,2,opt,name=organization_id,proto3"`
+	BucketID       uint64 `protobuf:"varint,1,opt,name=bucket_id,proto3"`
+	OrganizationID uint64 `protobuf:"varint,2,opt,name=organization_id,proto3"`
 }
 
 func (r *readSource) XXX_MessageName() string { return "readSource" }
@@ -115,8 +115,8 @@ func (r *readSource) ProtoMessage()           {}
 
 func (s *store) GetSource(rs fstorage.ReadSpec) (proto.Message, error) {
 	return &readSource{
-		BucketID:       rs.BucketID,
-		OrganizationID: rs.OrganizationID,
+		BucketID:       uint64(rs.BucketID),
+		OrganizationID: uint64(rs.OrganizationID),
 	}, nil
 }
 
