@@ -1,51 +1,60 @@
+// Libraries
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, InjectedRouter} from 'react-router'
 
-import {searchToFilters} from 'src/logs/utils/search'
-import {notify as notifyAction} from 'src/shared/actions/notifications'
-
-import {NOW} from 'src/logs/constants'
-
-import {
-  getSourceAndPopulateNamespacesAsync,
-  setNamespaceAsync,
-  addFilter,
-  removeFilter,
-  changeFilter,
-  clearFilters,
-  setSearchStatus,
-  setConfig,
-} from 'src/logs/actions'
-import {getSourcesAsync} from 'src/shared/actions/sources'
+// Components
 import LogsHeader from 'src/logs/components/LogsHeader'
 import LoadingStatus from 'src/logs/components/loading_status/LoadingStatus'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/logs_filter_bar/LogsFilterBar'
-import {Source} from 'src/types/v2'
-import {Namespace} from 'src/types'
 
+// Actions
+import * as logActions from 'src/logs/actions'
+import {getSourcesAsync} from 'src/shared/actions/sources'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+
+// Utils
+import {searchToFilters} from 'src/logs/utils/search'
+
+// Constants
+import {NOW} from 'src/logs/constants'
+
+// Types
+import {Source, Links} from 'src/types/v2'
+import {Namespace} from 'src/types'
 import {Filter, LogConfig, SearchStatus} from 'src/types/logs'
 
-interface Props {
+interface StateProps {
+  links: Links
   sources: Source[]
-  currentSource: Source | null
-  currentNamespaces: Namespace[]
-  currentNamespace: Namespace
-  getSourceAndPopulateNamespaces: typeof getSourceAndPopulateNamespacesAsync
-  getSources: () => void
-  setNamespaceAsync: (namespace: Namespace) => void
-  addFilter: (filter: Filter) => void
-  removeFilter: (id: string) => void
-  changeFilter: (id: string, operator: string, value: string) => void
-  clearFilters: () => void
-  updateConfig: typeof setConfig
-  router: InjectedRouter
   filters: Filter[]
   logConfig: LogConfig
   searchStatus: SearchStatus
-  setSearchStatus: typeof setSearchStatus
+  currentNamespace: Namespace
+  currentSource: Source | null
+  currentNamespaces: Namespace[]
 }
+
+interface PassedProps {
+  router: InjectedRouter
+}
+
+interface DispatchProps {
+  notify: typeof notifyAction
+  getConfig: typeof logActions.getLogConfigAsync
+  getSources: typeof getSourcesAsync
+  addFilter: typeof logActions.addFilter
+  updateConfig: typeof logActions.setConfig
+  removeFilter: typeof logActions.removeFilter
+  changeFilter: typeof logActions.changeFilter
+  clearFilters: typeof logActions.clearFilters
+  setSearchStatus: typeof logActions.setSearchStatus
+  setNamespaceAsync: typeof logActions.setNamespaceAsync
+  getSourceAndPopulateNamespaces: typeof logActions.getSourceAndPopulateNamespacesAsync
+}
+
+type Props = StateProps & PassedProps & DispatchProps
 
 interface State {
   liveUpdating: boolean
@@ -70,9 +79,14 @@ class LogsPage extends Component<Props, State> {
   }
 
   public async componentDidMount() {
+    const {
+      links: {views: viewsLink},
+    } = this.props
+
     try {
       await this.props.getSources()
       await this.setCurrentSource()
+      await this.props.getConfig(viewsLink)
     } catch (e) {
       console.error('Failed to get sources and namespaces for logs')
     }
@@ -248,6 +262,7 @@ class LogsPage extends Component<Props, State> {
 
 const mapStateToProps = ({
   sources,
+  links,
   logs: {
     currentSource,
     currentNamespaces,
@@ -256,27 +271,30 @@ const mapStateToProps = ({
     logConfig,
     searchStatus,
   },
-}) => ({
+}): StateProps => ({
+  links,
   sources,
-  currentSource,
-  currentNamespaces,
-  currentNamespace,
   filters,
   logConfig,
   searchStatus,
+  currentSource,
+  currentNamespace,
+  currentNamespaces,
 })
 
-const mapDispatchToProps = {
-  getSourceAndPopulateNamespaces: getSourceAndPopulateNamespacesAsync,
-  getSources: getSourcesAsync,
-  setNamespaceAsync,
-  setSearchStatus,
-  addFilter,
-  removeFilter,
-  changeFilter,
-  clearFilters,
-  updateConfig: setConfig,
+const mapDispatchToProps: DispatchProps = {
   notify: notifyAction,
+  getSources: getSourcesAsync,
+  addFilter: logActions.addFilter,
+  updateConfig: logActions.setConfig,
+  removeFilter: logActions.removeFilter,
+  changeFilter: logActions.changeFilter,
+  clearFilters: logActions.clearFilters,
+  getConfig: logActions.getLogConfigAsync,
+  setSearchStatus: logActions.setSearchStatus,
+  setNamespaceAsync: logActions.setNamespaceAsync,
+  getSourceAndPopulateNamespaces:
+    logActions.getSourceAndPopulateNamespacesAsync,
 }
 
 export default withRouter(

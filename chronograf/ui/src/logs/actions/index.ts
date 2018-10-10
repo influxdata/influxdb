@@ -1,12 +1,29 @@
-import {Namespace} from 'src/types'
-import {Source} from 'src/types/v2'
-import {getSource} from 'src/sources/apis/v2'
+// Utils
 import {getDeep} from 'src/utils/wrappers'
+import {serverToUIConfig} from 'src/logs/utils/config'
 import AJAX from 'src/utils/ajax'
 
-import {Filter, LogConfig, SearchStatus} from 'src/types/logs'
+// APIs
+import {readViews as readViewsAJAX} from 'src/dashboards/apis/v2/view'
+import {getSource} from 'src/sources/apis/v2'
+
+// Data
+import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
+
+// Types
+import {Dispatch} from 'redux'
+import {View, ViewType} from 'src/types/v2/dashboards'
+import {Filter, LogConfig, SearchStatus, LogsState} from 'src/types/logs'
+import {Namespace} from 'src/types'
+import {Source} from 'src/types/v2'
 
 export const INITIAL_LIMIT = 1000
+
+interface State {
+  logs: LogsState
+}
+
+type GetState = () => State
 
 export enum ActionTypes {
   SetSource = 'LOGS_SET_SOURCE',
@@ -19,6 +36,9 @@ export enum ActionTypes {
   SetConfig = 'SET_CONFIG',
   SetSearchStatus = 'SET_SEARCH_STATUS',
 }
+
+const getIsTruncated = (state: State): boolean =>
+  state.logs.logConfig.isTruncated
 
 export interface AddFilterAction {
   type: ActionTypes.AddFilter
@@ -192,6 +212,23 @@ export const getSourceAndPopulateNamespacesAsync = (
       await dispatch(setSearchStatus(SearchStatus.SourceError))
     }
   }
+}
+
+export const getLogConfigAsync = (url: string) => async (
+  dispatch: Dispatch<SetConfigAction>,
+  getState: GetState
+) => {
+  const state = getState()
+  const isTruncated = getIsTruncated(state)
+  const views = await readViewsAJAX(url, {type: ViewType.LogViewer})
+  const logView: View = getDeep(views, '0', defaultLogView)
+
+  const logConfig = {
+    ...serverToUIConfig(logView),
+    isTruncated,
+  }
+
+  await dispatch(setConfig(logConfig))
 }
 
 export const setConfig = (logConfig: LogConfig): SetConfigAction => {
