@@ -10,6 +10,7 @@ v1.5.5 [unreleased]
 -	[#10184](https://github.com/influxdata/influxdb/pull/10184): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr
 -	[#10221](https://github.com/influxdata/influxdb/pull/10221): Ensure orhpaned series cleaned up with shard drop.
 -	[#10274](https://github.com/influxdata/influxdb/pull/10274): Fix the derivative and others time ranges for aggregate data.
+-	[#10363](https://github.com/influxdata/influxdb/pull/10363): Fixing the stream iterator to not ignore the error.
 
 v1.5.4 [2018-06-21]
 -------------------
