@@ -10,11 +10,11 @@ import (
 // IDLength is the exact length a string (or a byte slice representing it) must have in order to be decoded into a valid ID.
 const IDLength = 16
 
-// ErrInvalidID is the error thrown to notify invalid IDs.
+// ErrInvalidID signifies invalid IDs.
 var ErrInvalidID = errors.New("invalid ID")
 
-// ErrInvalidIDLength is the error thrown to notify input does not match the wanted length.
-var ErrInvalidIDLength = errors.New("input must be an array of 16 bytes")
+// ErrInvalidIDLength is returned when an ID has the incorrect number of bytes.
+var ErrInvalidIDLength = errors.New("id must have a length of 16 bytes")
 
 // ID is a unique identifier.
 //
