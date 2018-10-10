@@ -15,73 +15,9 @@ import (
 	"github.com/influxdata/platform/tsdb"
 )
 
-func TestService_Open(t *testing.T) {
-	t.Run("negative interval", func(t *testing.T) {
-		service := newRetentionEnforcer(nil, nil, -1)
-		defer service.Close()
-		if err := service.Open(); err == nil {
-			t.Fatal("didn't get error, expected one")
-		}
-	})
-
-	t.Run("disabled service", func(t *testing.T) {
-		service := newRetentionEnforcer(NewTestEngine(), NewTestBucketFinder(), 0)
-		defer service.Close()
-		if err := service.Open(); err != nil {
-			t.Fatalf("got error %v", err)
-		}
-
-		// Since service disabled the wait group shouldn't be waiting on anything.
-		done := make(chan struct{})
-		go func() {
-			service.wg.Wait()
-			close(done)
-		}()
-
-		timeout := time.NewTimer(time.Second)
-		select {
-		case <-timeout.C:
-			t.Fatal("test timed out waiting for wait group")
-		case <-done:
-			// Pass
-		}
-	})
-
-	t.Run("idempotency", func(t *testing.T) {
-		service := newRetentionEnforcer(NewTestEngine(), NewTestBucketFinder(), 0)
-		defer service.Close()
-		if err := service.Open(); err != nil {
-			t.Fatalf("got error %v", err)
-		}
-
-		// Re-opening an opened service is a no-op.
-		if err := service.Open(); err != nil {
-			t.Fatalf("got error %v", err)
-		}
-	})
-}
-
-func TestService_Close(t *testing.T) {
-	t.Run("idempotency", func(t *testing.T) {
-		service := newRetentionEnforcer(NewTestEngine(), NewTestBucketFinder(), 1)
-		if err := service.Open(); err != nil {
-			t.Fatalf("got error %v", err)
-		}
-
-		if err := service.Close(); err != nil {
-			t.Fatalf("got error %v", err)
-		}
-
-		// Re-closing an closed service is a no-op.
-		if err := service.Close(); err != nil {
-			t.Fatalf("got error %v", err)
-		}
-	})
-}
-
 func TestService_expireData(t *testing.T) {
 	engine := NewTestEngine()
-	service := newRetentionEnforcer(engine, NewTestBucketFinder(), 0)
+	service := newRetentionEnforcer(engine, NewTestBucketFinder())
 	now := time.Date(2018, 4, 10, 23, 12, 33, 0, time.UTC)
 
 	t.Run("no rpByBucketID", func(t *testing.T) {

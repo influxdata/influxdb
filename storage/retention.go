@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -19,7 +18,6 @@ import (
 )
 
 const (
-	serviceName      = "retention"
 	bucketAPITimeout = 10 * time.Second
 	engineAPITimeout = time.Minute
 )
@@ -48,28 +46,23 @@ type retentionEnforcer struct {
 	// organisations.
 	BucketService BucketFinder
 
-	logger   *zap.Logger
-	interval time.Duration // Interval that retention service deletes data.
+	logger *zap.Logger
 
 	retentionMetrics    *retentionMetrics
 	defaultMetricLabels prometheus.Labels // N.B this must not be mutated after Open is called.
-
-	mu       sync.RWMutex
-	_closing chan struct{}
-
-	wg sync.WaitGroup
 }
 
 // newRetentionEnforcer returns a new enforcer that ensures expired data is
 // deleted every interval period. Setting interval to 0 is equivalent to
 // disabling the service.
-func newRetentionEnforcer(engine Deleter, bucketService BucketFinder, interval int64) *retentionEnforcer {
+func newRetentionEnforcer(engine Deleter, bucketService BucketFinder) *retentionEnforcer {
 	s := &retentionEnforcer{
-		Engine:        engine,
-		BucketService: bucketService,
-		logger:        zap.NewNop(),
-		interval:      time.Duration(interval) * time.Second,
+		Engine:              engine,
+		BucketService:       bucketService,
+		logger:              zap.NewNop(),
+		defaultMetricLabels: prometheus.Labels{"status": ""},
 	}
+	s.retentionMetrics = newRetentionMetrics(s.defaultMetricLabels)
 	return s
 }
 
@@ -87,74 +80,31 @@ func (s *retentionEnforcer) WithLogger(l *zap.Logger) {
 	if s == nil {
 		return // Not initialised
 	}
-	s.logger = l.With(zap.String("service", serviceName))
-}
-
-// Open opens the service, which begins the process of removing expired data.
-// Re-opening the service once it's open is a no-op.
-func (s *retentionEnforcer) Open() error {
-	if s == nil || s.closing() != nil {
-		return nil // Not initialised or already open.
-	}
-
-	s.logger.Info("Service opening", zap.Duration("check_interval", s.interval))
-	if s.interval < 0 {
-		return fmt.Errorf("invalid interval %v", s.interval)
-	}
-
-	s.mu.Lock()
-	s._closing = make(chan struct{})
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go func() { defer s.wg.Done(); s.run() }()
-	s.logger.Info("Service finished opening")
-
-	return nil
+	s.logger = l.With(zap.String("component", "retention_enforcer"))
 }
 
 // run periodically expires (deletes) all data that's fallen outside of the
 // retention period for the associated bucket.
 func (s *retentionEnforcer) run() {
-	if s.interval == 0 {
-		s.logger.Info("Service disabled")
+	log, logEnd := logger.NewOperation(s.logger, "Data retention check", "data_retention_check")
+	defer logEnd()
+
+	rpByBucketID, err := s.getRetentionPeriodPerBucket()
+	if err != nil {
+		log.Error("Unable to determine bucket:RP mapping", zap.Error(err))
 		return
 	}
 
-	ticker := time.NewTicker(s.interval)
-	defer ticker.Stop()
+	now := time.Now().UTC()
+	labels := s.metricLabels()
+	labels["status"] = "ok"
 
-	closingCh := s.closing()
-	for {
-		select {
-		case <-ticker.C:
-			log, logEnd := logger.NewOperation(s.logger, "Data retention check", "data_retention_check")
-			defer logEnd()
-
-			rpByBucketID, err := s.getRetentionPeriodPerBucket()
-			if err != nil {
-				log.Error("Unable to determine bucket:RP mapping", zap.Error(err))
-				return
-			}
-
-			now := time.Now().UTC()
-			labels := s.metricLabels()
-			labels["status"] = "ok"
-
-			if err := s.expireData(rpByBucketID, now); err != nil {
-				log.Error("Deletion not successful", zap.Error(err))
-				labels["status"] = "error"
-			}
-
-			if s.retentionMetrics == nil {
-				continue
-			}
-			s.retentionMetrics.CheckDuration.With(labels).Observe(time.Since(now).Seconds())
-			s.retentionMetrics.Checks.With(labels).Inc()
-		case <-closingCh:
-			return
-		}
+	if err := s.expireData(rpByBucketID, now); err != nil {
+		log.Error("Deletion not successful", zap.Error(err))
+		labels["status"] = "error"
 	}
+	s.retentionMetrics.CheckDuration.With(labels).Observe(time.Since(now).Seconds())
+	s.retentionMetrics.Checks.With(labels).Inc()
 }
 
 // expireData runs a delete operation on the storage engine.
@@ -212,7 +162,6 @@ func (s *retentionEnforcer) expireData(rpByBucketID map[string]time.Duration, no
 			return
 		}
 		labels := s.metricLabels()
-
 		labels["status"] = "bad_measurement"
 		s.retentionMetrics.Unprocessable.With(labels).Add(float64(len(badMSketch)))
 
@@ -245,40 +194,9 @@ func (s *retentionEnforcer) getRetentionPeriodPerBucket() (map[string]time.Durat
 	return rpByBucketID, nil
 }
 
-// closing returns a channel to signal that the service is closing.
-func (s *retentionEnforcer) closing() chan struct{} {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s._closing
-}
-
-// Close closes the service.
-//
-// If a delete of data is in-progress, then it will be allowed to complete before
-// Close returns. Re-closing the service once it's closed is a no-op.
-func (s *retentionEnforcer) Close() error {
-	if s == nil || s.closing() == nil {
-		return nil // Not initialised or already closed.
-	}
-
-	now := time.Now()
-	s.logger.Info("Service closing")
-	close(s.closing())
-	s.wg.Wait()
-
-	s.logger.Info("Service closed", zap.Duration("took", time.Since(now)))
-	s.mu.Lock()
-	s._closing = nil
-	s.mu.Unlock()
-	return nil
-}
-
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (s *retentionEnforcer) PrometheusCollectors() []prometheus.Collector {
-	if s.retentionMetrics != nil {
-		return s.retentionMetrics.PrometheusCollectors()
-	}
-	return nil
+	return s.retentionMetrics.PrometheusCollectors()
 }
 
 // A BucketService is an platform.BucketService that the retentionEnforcer can open,

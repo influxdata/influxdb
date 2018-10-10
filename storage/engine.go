@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
@@ -31,11 +32,14 @@ type Engine struct {
 	nodeID   *int // Not used by default.
 
 	mu                sync.RWMutex
-	open              bool
+	closing           chan struct{} //closing returns the zero value when the engine is shutting down.
 	index             *tsi1.Index
 	sfile             *tsdb.SeriesFile
 	engine            *tsm1.Engine
 	retentionEnforcer *retentionEnforcer
+
+	// Tracks all goroutines started by the Engine.
+	wg sync.WaitGroup
 
 	logger *zap.Logger
 }
@@ -72,18 +76,18 @@ var WithNodeID = func(id int) Option {
 // metrics are labelled correctly.
 var WithRetentionEnforcer = func(finder BucketFinder) Option {
 	return func(e *Engine) {
-		e.retentionEnforcer = newRetentionEnforcer(e, finder, e.config.RetentionInterval)
+		e.retentionEnforcer = newRetentionEnforcer(e, finder)
 
-		labels := prometheus.Labels(map[string]string{"status": ""})
 		if e.engineID != nil {
-			labels["engine_id"] = fmt.Sprint(*e.engineID)
+			e.retentionEnforcer.defaultMetricLabels["engine_id"] = fmt.Sprint(*e.engineID)
 		}
 
 		if e.nodeID != nil {
-			labels["node_id"] = fmt.Sprint(*e.nodeID)
+			e.retentionEnforcer.defaultMetricLabels["node_id"] = fmt.Sprint(*e.nodeID)
 		}
-		e.retentionEnforcer.defaultMetricLabels = labels
-		e.retentionEnforcer.retentionMetrics = newRetentionMetrics(labels)
+
+		// As new labels may have been set, set the new metrics on the enforcer.
+		e.retentionEnforcer.retentionMetrics = newRetentionMetrics(e.retentionEnforcer.defaultMetricLabels)
 	}
 }
 
@@ -91,6 +95,7 @@ var WithRetentionEnforcer = func(finder BucketFinder) Option {
 // TSM engine.
 func NewEngine(path string, c Config, options ...Option) *Engine {
 	e := &Engine{
+		config: c,
 		path:   path,
 		sfile:  tsdb.NewSeriesFile(filepath.Join(path, tsdb.SeriesFileDirectory)),
 		logger: zap.NewNop(),
@@ -152,8 +157,8 @@ func (e *Engine) Open() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if e.open {
-		return nil // no-op
+	if e.closing != nil {
+		return nil // Already open
 	}
 
 	if err := e.sfile.Open(); err != nil {
@@ -169,28 +174,70 @@ func (e *Engine) Open() error {
 	}
 	e.engine.SetCompactionsEnabled(true) // TODO(edd):is this needed?
 
-	if err := e.retentionEnforcer.Open(); err != nil {
-		return err
+	e.closing = make(chan struct{})
+	// TODO(edd) background tasks will be run in priority order via a scheduler.
+	// For now we will just run on an interval as we only have the retention
+	// policy enforcer.
+	e.runRetentionEnforcer()
+
+	return nil
+}
+
+// runRetentionEnforcer runs the retention enforcer in a separate goroutine.
+//
+// Currently this just runs on an interval, but in the future we will add the
+// ability to reschedule the retention enforcement if there are not enough
+// resources available.
+func (e *Engine) runRetentionEnforcer() {
+	if e.config.RetentionInterval == 0 {
+		e.logger.Info("Retention enforcer disabled")
+		return // Enforcer disabled.
 	}
 
-	e.open = true
-	return nil
+	if e.config.RetentionInterval < 0 {
+		e.logger.Error("Negative retention interval", zap.Int64("interval", e.config.RetentionInterval))
+		return
+	}
+
+	interval := time.Duration(e.config.RetentionInterval) * time.Second
+	logger := e.logger.With(zap.String("component", "retention_enforcer"), zap.Duration("check_interval", interval))
+	logger.Info("Starting")
+
+	ticker := time.NewTicker(interval)
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		for {
+			// It's safe to read closing without a lock because it's never
+			// modified if this goroutine is active.
+			select {
+			case <-e.closing:
+				logger.Info("Stopping")
+				return
+			case <-ticker.C:
+				e.retentionEnforcer.run()
+			}
+		}
+	}()
 }
 
 // Close closes the store and all underlying resources. It returns an error if
 // any of the underlying systems fail to close.
 func (e *Engine) Close() error {
+	e.mu.RLock()
+	if e.closing == nil {
+		return nil // Already closed
+	}
+
+	close(e.closing)
+	e.mu.RUnlock()
+
+	// Wait for any other goroutines to finish.
+	e.wg.Wait()
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
-	if !e.open {
-		return nil // no-op
-	}
-	e.open = false
-
-	if err := e.retentionEnforcer.Close(); err != nil {
-		return err
-	}
+	e.closing = nil
 
 	if err := e.sfile.Close(); err != nil {
 		return err
@@ -206,7 +253,7 @@ func (e *Engine) Close() error {
 func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest, cond influxql.Expr) (SeriesCursor, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	if !e.open {
+	if e.closing == nil {
 		return nil, ErrEngineClosed
 	}
 	// TODO(edd): remove IndexSet
@@ -216,7 +263,7 @@ func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest
 func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	if !e.open {
+	if e.closing == nil {
 		return nil, ErrEngineClosed
 	}
 	return e.engine.CreateCursorIterator(ctx)
@@ -271,7 +318,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	if !e.open {
+	if e.closing == nil {
 		return ErrEngineClosed
 	}
 
@@ -296,7 +343,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, fn func([]byte, models.Tags) (int64, int64, bool)) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	if !e.open {
+	if e.closing == nil {
 		return ErrEngineClosed
 	}
 	return e.engine.DeleteSeriesRangeWithPredicate(itr, fn)
@@ -306,7 +353,7 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, fn func
 func (e *Engine) SeriesCardinality() int64 {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	if !e.open {
+	if e.closing == nil {
 		return 0
 	}
 	return e.index.SeriesN()
@@ -322,7 +369,7 @@ func (e *Engine) Path() string {
 func (e *Engine) ApplyFnToSeriesIDSet(fn func(*tsdb.SeriesIDSet)) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	if !e.open {
+	if e.closing == nil {
 		return
 	}
 	fn(e.index.SeriesIDSet())
