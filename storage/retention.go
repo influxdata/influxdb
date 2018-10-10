@@ -12,7 +12,6 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/prom"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,14 +23,6 @@ const (
 	bucketAPITimeout = 10 * time.Second
 	engineAPITimeout = time.Minute
 )
-
-type RetentionService interface {
-	prom.PrometheusCollector
-
-	Open() error
-	Close() error
-	WithLogger(*zap.Logger)
-}
 
 // A Deleter implementation is capable of deleting data from a storage engine.
 type Deleter interface {
@@ -47,9 +38,9 @@ type BucketFinder interface {
 // ErrServiceClosed is returned when the service is unavailable.
 var ErrServiceClosed = errors.New("service is currently closed")
 
-// The retentionService periodically removes data that is outside of the retention
+// The retentionEnforcer periodically removes data that is outside of the retention
 // period of the bucket associated with the data.
-type retentionService struct {
+type retentionEnforcer struct {
 	// Engine provides access to data stored on the engine
 	Engine Deleter
 
@@ -69,11 +60,11 @@ type retentionService struct {
 	wg sync.WaitGroup
 }
 
-// newRetentionService returns a new Service that performs deletes
-// every interval period. Setting interval to 0 is equivalent to disabling the
-// service.
-func newRetentionService(engine Deleter, bucketService BucketFinder, interval int64) *retentionService {
-	s := &retentionService{
+// newRetentionEnforcer returns a new enforcer that ensures expired data is
+// deleted every interval period. Setting interval to 0 is equivalent to
+// disabling the service.
+func newRetentionEnforcer(engine Deleter, bucketService BucketFinder, interval int64) *retentionEnforcer {
+	s := &retentionEnforcer{
 		Engine:        engine,
 		BucketService: bucketService,
 		logger:        zap.NewNop(),
@@ -83,7 +74,7 @@ func newRetentionService(engine Deleter, bucketService BucketFinder, interval in
 }
 
 // metricLabels returns a new copy of the default metric labels.
-func (s *retentionService) metricLabels() prometheus.Labels {
+func (s *retentionEnforcer) metricLabels() prometheus.Labels {
 	labels := make(map[string]string, len(s.defaultMetricLabels))
 	for k, v := range s.defaultMetricLabels {
 		labels[k] = v
@@ -92,7 +83,7 @@ func (s *retentionService) metricLabels() prometheus.Labels {
 }
 
 // WithLogger sets the logger l on the service. It must be called before Open.
-func (s *retentionService) WithLogger(l *zap.Logger) {
+func (s *retentionEnforcer) WithLogger(l *zap.Logger) {
 	if s == nil {
 		return // Not initialised
 	}
@@ -101,7 +92,7 @@ func (s *retentionService) WithLogger(l *zap.Logger) {
 
 // Open opens the service, which begins the process of removing expired data.
 // Re-opening the service once it's open is a no-op.
-func (s *retentionService) Open() error {
+func (s *retentionEnforcer) Open() error {
 	if s == nil || s.closing() != nil {
 		return nil // Not initialised or already open.
 	}
@@ -124,7 +115,7 @@ func (s *retentionService) Open() error {
 
 // run periodically expires (deletes) all data that's fallen outside of the
 // retention period for the associated bucket.
-func (s *retentionService) run() {
+func (s *retentionEnforcer) run() {
 	if s.interval == 0 {
 		s.logger.Info("Service disabled")
 		return
@@ -170,7 +161,7 @@ func (s *retentionService) run() {
 //
 // Any series data that (1) belongs to a bucket in the provided map and
 // (2) falls outside the bucket's indicated retention period will be deleted.
-func (s *retentionService) expireData(rpByBucketID map[string]time.Duration, now time.Time) error {
+func (s *retentionEnforcer) expireData(rpByBucketID map[string]time.Duration, now time.Time) error {
 	_, logEnd := logger.NewOperation(s.logger, "Data deletion", "data_deletion")
 	defer logEnd()
 
@@ -240,7 +231,7 @@ func (s *retentionService) expireData(rpByBucketID map[string]time.Duration, now
 
 // getRetentionPeriodPerBucket returns a map of (bucket ID -> retention period)
 // for all buckets.
-func (s *retentionService) getRetentionPeriodPerBucket() (map[string]time.Duration, error) {
+func (s *retentionEnforcer) getRetentionPeriodPerBucket() (map[string]time.Duration, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), bucketAPITimeout)
 	defer cancel()
 	buckets, _, err := s.BucketService.FindBuckets(ctx, platform.BucketFilter{})
@@ -255,7 +246,7 @@ func (s *retentionService) getRetentionPeriodPerBucket() (map[string]time.Durati
 }
 
 // closing returns a channel to signal that the service is closing.
-func (s *retentionService) closing() chan struct{} {
+func (s *retentionEnforcer) closing() chan struct{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s._closing
@@ -265,7 +256,7 @@ func (s *retentionService) closing() chan struct{} {
 //
 // If a delete of data is in-progress, then it will be allowed to complete before
 // Close returns. Re-closing the service once it's closed is a no-op.
-func (s *retentionService) Close() error {
+func (s *retentionEnforcer) Close() error {
 	if s == nil || s.closing() == nil {
 		return nil // Not initialised or already closed.
 	}
@@ -283,14 +274,14 @@ func (s *retentionService) Close() error {
 }
 
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
-func (s *retentionService) PrometheusCollectors() []prometheus.Collector {
+func (s *retentionEnforcer) PrometheusCollectors() []prometheus.Collector {
 	if s.retentionMetrics != nil {
 		return s.retentionMetrics.PrometheusCollectors()
 	}
 	return nil
 }
 
-// A BucketService is an platform.BucketService that the RetentionService can open,
+// A BucketService is an platform.BucketService that the retentionEnforcer can open,
 // close and log.
 type BucketService interface {
 	platform.BucketService

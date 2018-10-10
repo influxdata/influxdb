@@ -17,7 +17,7 @@ import (
 
 func TestService_Open(t *testing.T) {
 	t.Run("negative interval", func(t *testing.T) {
-		service := newRetentionService(nil, nil, -1)
+		service := newRetentionEnforcer(nil, nil, -1)
 		defer service.Close()
 		if err := service.Open(); err == nil {
 			t.Fatal("didn't get error, expected one")
@@ -25,7 +25,7 @@ func TestService_Open(t *testing.T) {
 	})
 
 	t.Run("disabled service", func(t *testing.T) {
-		service := newRetentionService(NewTestEngine(), NewTestBucketFinder(), 0)
+		service := newRetentionEnforcer(NewTestEngine(), NewTestBucketFinder(), 0)
 		defer service.Close()
 		if err := service.Open(); err != nil {
 			t.Fatalf("got error %v", err)
@@ -48,7 +48,7 @@ func TestService_Open(t *testing.T) {
 	})
 
 	t.Run("idempotency", func(t *testing.T) {
-		service := newRetentionService(NewTestEngine(), NewTestBucketFinder(), 0)
+		service := newRetentionEnforcer(NewTestEngine(), NewTestBucketFinder(), 0)
 		defer service.Close()
 		if err := service.Open(); err != nil {
 			t.Fatalf("got error %v", err)
@@ -63,7 +63,7 @@ func TestService_Open(t *testing.T) {
 
 func TestService_Close(t *testing.T) {
 	t.Run("idempotency", func(t *testing.T) {
-		service := newRetentionService(NewTestEngine(), NewTestBucketFinder(), 1)
+		service := newRetentionEnforcer(NewTestEngine(), NewTestBucketFinder(), 1)
 		if err := service.Open(); err != nil {
 			t.Fatalf("got error %v", err)
 		}
@@ -81,7 +81,7 @@ func TestService_Close(t *testing.T) {
 
 func TestService_expireData(t *testing.T) {
 	engine := NewTestEngine()
-	service := newRetentionService(engine, NewTestBucketFinder(), 0)
+	service := newRetentionEnforcer(engine, NewTestBucketFinder(), 0)
 	now := time.Date(2018, 4, 10, 23, 12, 33, 0, time.UTC)
 
 	t.Run("no rpByBucketID", func(t *testing.T) {

@@ -30,12 +30,12 @@ type Engine struct {
 	engineID *int // Not used by default.
 	nodeID   *int // Not used by default.
 
-	mu               sync.RWMutex
-	open             bool
-	index            *tsi1.Index
-	sfile            *tsdb.SeriesFile
-	engine           *tsm1.Engine
-	retentionService *retentionService
+	mu                sync.RWMutex
+	open              bool
+	index             *tsi1.Index
+	sfile             *tsdb.SeriesFile
+	engine            *tsm1.Engine
+	retentionEnforcer *retentionEnforcer
 
 	logger *zap.Logger
 }
@@ -67,12 +67,12 @@ var WithNodeID = func(id int) Option {
 	}
 }
 
-// WithRetentionService initialises a retention service on the engine.
-// WithRetentionService must be called after other options to ensure that all
+// WithRetentionEnforcer initialises a retention enforcer on the engine.
+// WithRetentionEnforcer must be called after other options to ensure that all
 // metrics are labelled correctly.
-var WithRetentionService = func(finder BucketFinder) Option {
+var WithRetentionEnforcer = func(finder BucketFinder) Option {
 	return func(e *Engine) {
-		e.retentionService = newRetentionService(e, finder, e.config.RetentionInterval)
+		e.retentionEnforcer = newRetentionEnforcer(e, finder, e.config.RetentionInterval)
 
 		labels := prometheus.Labels(map[string]string{"status": ""})
 		if e.engineID != nil {
@@ -82,8 +82,8 @@ var WithRetentionService = func(finder BucketFinder) Option {
 		if e.nodeID != nil {
 			labels["node_id"] = fmt.Sprint(*e.nodeID)
 		}
-		e.retentionService.defaultMetricLabels = labels
-		e.retentionService.retentionMetrics = newRetentionMetrics(labels)
+		e.retentionEnforcer.defaultMetricLabels = labels
+		e.retentionEnforcer.retentionMetrics = newRetentionMetrics(labels)
 	}
 }
 
@@ -132,7 +132,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	e.sfile.WithLogger(e.logger)
 	e.index.WithLogger(e.logger)
 	e.engine.WithLogger(e.logger)
-	e.retentionService.WithLogger(e.logger)
+	e.retentionEnforcer.WithLogger(e.logger)
 }
 
 // PrometheusCollectors returns all the prometheus collectors associated with
@@ -142,7 +142,7 @@ func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	// TODO(edd): Get prom metrics for TSM.
 	// TODO(edd): Get prom metrics for index.
 	// TODO(edd): Get prom metrics for series file.
-	metrics = append(metrics, e.retentionService.PrometheusCollectors()...)
+	metrics = append(metrics, e.retentionEnforcer.PrometheusCollectors()...)
 	return metrics
 }
 
@@ -169,7 +169,7 @@ func (e *Engine) Open() error {
 	}
 	e.engine.SetCompactionsEnabled(true) // TODO(edd):is this needed?
 
-	if err := e.retentionService.Open(); err != nil {
+	if err := e.retentionEnforcer.Open(); err != nil {
 		return err
 	}
 
@@ -188,7 +188,7 @@ func (e *Engine) Close() error {
 	}
 	e.open = false
 
-	if err := e.retentionService.Close(); err != nil {
+	if err := e.retentionEnforcer.Close(); err != nil {
 		return err
 	}
 
