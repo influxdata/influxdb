@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 
@@ -30,6 +31,10 @@ type WriteHandler struct {
 	PointsWriter storage.PointsWriter
 }
 
+const (
+	writePath = "/api/v2/write"
+)
+
 // NewWriteHandler creates a new handler at /api/v2/write to receive line protocol.
 func NewWriteHandler(writer storage.PointsWriter) *WriteHandler {
 	h := &WriteHandler{
@@ -38,7 +43,7 @@ func NewWriteHandler(writer storage.PointsWriter) *WriteHandler {
 		PointsWriter: writer,
 	}
 
-	h.HandlerFunc("POST", "/api/v2/write", h.handleWrite)
+	h.HandlerFunc("POST", writePath, h.handleWrite)
 	return h
 }
 
@@ -177,4 +182,62 @@ func decodeWriteRequest(ctx context.Context, r *http.Request) *postWriteRequest 
 type postWriteRequest struct {
 	Org    string
 	Bucket string
+}
+
+// WriteService sends data over HTTP to influxdb via line protocol.
+type WriteService struct {
+	Addr               string
+	Token              string
+	InsecureSkipVerify bool
+}
+
+var _ platform.WriteService = (*WriteService)(nil)
+
+func (s *WriteService) Write(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
+	u, err := newURL(s.Addr, writePath)
+	if err != nil {
+		return err
+	}
+
+	r, err = compressWithGzip(r)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", u.String(), r)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	req.Header.Set("Content-Encoding", "gzip")
+	SetToken(s.Token, req)
+
+	params := req.URL.Query()
+	params.Set("org", string(org.Encode()))
+	params.Set("bucket", string(bucket.Encode()))
+	req.URL.RawQuery = params.Encode()
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	return CheckError(resp)
+}
+
+func compressWithGzip(data io.Reader) (io.Reader, error) {
+	pr, pw := io.Pipe()
+	gw := gzip.NewWriter(pw)
+	var err error
+
+	go func() {
+		_, err = io.Copy(gw, data)
+		gw.Close()
+		pw.Close()
+	}()
+
+	return pr, err
 }
