@@ -131,6 +131,7 @@ var apiLinks = map[string]interface{}{
 	"auths":      "/api/v2/authorizations",
 	"buckets":    "/api/v2/buckets",
 	"users":      "/api/v2/users",
+	"me":         "/api/v2/me",
 	"tasks":      "/api/v2/tasks",
 	"macros":     "/api/v2/macros",
 	"query": map[string]string{
