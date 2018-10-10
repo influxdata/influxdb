@@ -107,8 +107,14 @@ chronograf/ui/build:
 fmt: $(SOURCES_NO_VENDOR)
 	gofmt -w -s $^
 
-checkfmt: $(SOURCES_NO_VENDOR)
+checkfmt:
 	./etc/checkfmt.sh
+
+tidy:
+	GO111MODULE=on go mod tidy
+
+checktidy:
+	./etc/checktidy.sh
 
 chronograf/dist/dist_gen.go: chronograf/ui/build $(UISOURCES)
 	 $(GO_GENERATE) ./chronograf/dist/...
@@ -167,4 +173,4 @@ run: chronogiraffe
 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) chronograf/ui run fmt test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe
+.PHONY: all subdirs $(SUBDIRS) chronograf/ui run fmt checkfmt tidy checktidy test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe
