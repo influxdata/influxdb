@@ -89,6 +89,7 @@ v1.6.0 [2018-07-05]
 -	[#10326](https://github.com/influxdata/influxdb/pull/10326): Fix append of possible nil iterator.
 -	[#10339](https://github.com/influxdata/influxdb/pull/10339): Fix series file tombstoning.
 -	[#10327](https://github.com/influxdata/influxdb/pull/10327): Cleanup failed TSM snapshots.
+-	[#10299](https://github.com/influxdata/influxdb/pull/10299): Fix TSM1 panic on reader error.
 
 v1.5.4 [2018-06-21]
 -------------------
