@@ -124,6 +124,42 @@ func TestSeriesFileCompactor(t *testing.T) {
 	}
 }
 
+// Ensure series file deletions persist across compactions.
+func TestSeriesFile_DeleteSeriesID(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	ids0, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil})
+	if err != nil {
+		t.Fatal(err)
+	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m2")}, []models.Tags{nil}); err != nil {
+		t.Fatal(err)
+	} else if err := sfile.ForceCompact(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Delete and ensure deletion.
+	if err := sfile.DeleteSeriesID(ids0[0]); err != nil {
+		t.Fatal(err)
+	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}); err != nil {
+		t.Fatal(err)
+	} else if !sfile.IsDeleted(ids0[0]) {
+		t.Fatal("expected deletion before compaction")
+	}
+
+	if err := sfile.ForceCompact(); err != nil {
+		t.Fatal(err)
+	} else if !sfile.IsDeleted(ids0[0]) {
+		t.Fatal("expected deletion after compaction")
+	}
+
+	if err := sfile.Reopen(); err != nil {
+		t.Fatal(err)
+	} else if !sfile.IsDeleted(ids0[0]) {
+		t.Fatal("expected deletion after reopen")
+	}
+}
+
 // Series represents name/tagset pairs that are used in testing.
 type Series struct {
 	Name    []byte
@@ -159,4 +195,23 @@ func MustOpenSeriesFile() *SeriesFile {
 func (f *SeriesFile) Close() error {
 	defer os.RemoveAll(f.Path())
 	return f.SeriesFile.Close()
+}
+
+// Reopen close & reopens the series file.
+func (f *SeriesFile) Reopen() error {
+	if err := f.SeriesFile.Close(); err != nil {
+		return err
+	}
+	f.SeriesFile = tsdb.NewSeriesFile(f.SeriesFile.Path())
+	return f.SeriesFile.Open()
+}
+
+// ForceCompact executes an immediate compaction across all partitions.
+func (f *SeriesFile) ForceCompact() error {
+	for _, p := range f.Partitions() {
+		if err := tsdb.NewSeriesPartitionCompactor().Compact(p); err != nil {
+			return err
+		}
+	}
+	return nil
 }
