@@ -16,31 +16,31 @@ const APP_NAME = 'appname'
 
 export const createRule = (
   part: TermPart,
-  type: TermType = TermType.INCLUDE
+  type: TermType = TermType.Include
 ): TermRule => ({
   type,
   pattern: getPattern(type, part),
 })
 
 const getPattern = (type: TermType, phrase: TermPart): RegExp => {
-  const {ATTRIBUTE, COLON, EXCLUSION} = TermPart
-  const PHRASE = `(${ATTRIBUTE}${COLON})?${phrase}`
+  const {Attribute, Colon, Exclusion} = TermPart
+  const phrasePattern = `(${Attribute}${Colon})?${phrase}`
 
   switch (type) {
-    case TermType.EXCLUDE:
-      return new RegExp(`^${EXCLUSION}${PHRASE}`)
+    case TermType.Exclude:
+      return new RegExp(`^${Exclusion}${phrasePattern}`)
     default:
-      return new RegExp(`^${PHRASE}`)
+      return new RegExp(`^${phrasePattern}`)
   }
 }
 
 export const LOG_SEARCH_TERMS: TermRule[] = [
-  createRule(TermPart.SINGLE_QUOTED, TermType.EXCLUDE),
-  createRule(TermPart.DOUBLE_QUOTED, TermType.EXCLUDE),
-  createRule(TermPart.SINGLE_QUOTED),
-  createRule(TermPart.DOUBLE_QUOTED),
-  createRule(TermPart.UNQUOTED_WORD, TermType.EXCLUDE),
-  createRule(TermPart.UNQUOTED_WORD),
+  createRule(TermPart.SingleQuoted, TermType.Exclude),
+  createRule(TermPart.DoubleQuoted, TermType.Exclude),
+  createRule(TermPart.SingleQuoted),
+  createRule(TermPart.DoubleQuoted),
+  createRule(TermPart.UnquotedWord, TermType.Exclude),
+  createRule(TermPart.UnquotedWord),
 ]
 
 export const searchToFilters = (searchTerm: string): Filter[] => {
@@ -116,9 +116,9 @@ const termToOp = (term: Term): Operator => {
   switch (term.attribute) {
     case MESSAGE_KEY:
     case APP_NAME:
-      return handleOpExclusion(term, Operator.LIKE, Operator.NOT_LIKE)
+      return handleOpExclusion(term, Operator.Like, Operator.NotLike)
     default:
-      return handleOpExclusion(term, Operator.EQUAL, Operator.NOT_EQUAL)
+      return handleOpExclusion(term, Operator.Equal, Operator.NotEqual)
   }
 }
 
@@ -128,9 +128,9 @@ const handleOpExclusion = (
   exclusion: Operator
 ): Operator => {
   switch (term.type) {
-    case TermType.EXCLUDE:
+    case TermType.Exclude:
       return exclusion
-    case TermType.INCLUDE:
+    case TermType.Include:
       return inclusion
   }
 }

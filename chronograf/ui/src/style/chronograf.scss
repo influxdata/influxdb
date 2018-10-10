@@ -22,6 +22,7 @@
 // Components
 // TODO: Import these styles into their respective components instead of this stylesheet
 @import 'src/page_layout/PageLayout';
+@import 'src/shared/components/color_dropdown/color-dropdown';
 @import 'src/shared/components/index_views/IndexList';
 @import 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown';
 @import 'src/shared/components/profile_page/ProfilePage';
@@ -56,3 +57,4 @@
 @import 'src/logs/containers/logs_page/logs-viewer';
 @import 'src/logs/components/loading_status/loading-status';
 @import 'src/logs/components/logs_filter_bar/logs-filter-bar';
+@import 'src/logs/components/options_overlay/logs-viewer-options';

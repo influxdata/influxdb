@@ -73,11 +73,11 @@ export const generateColumnConfig = (
   const settings: LogsTableColumn = column.settings.reduce(
     (acc, e) => {
       if (
-        e.type === ColumnSettingTypes.visibility &&
-        e.value === ColumnSettingVisibilityOptions.visible
+        e.type === ColumnSettingTypes.Visibility &&
+        e.value === ColumnSettingVisibilityOptions.Visible
       ) {
         acc.visible = true
-      } else if (e.type === ColumnSettingTypes.display) {
+      } else if (e.type === ColumnSettingTypes.Display) {
         acc.displayName = e.value
       }
       return acc
@@ -94,22 +94,22 @@ export const generateColumnFormatConfig = (
   let hasIcon = false
 
   column.settings.forEach(e => {
-    if (e.type === ColumnSettingTypes.label) {
-      if (e.value === ColumnSettingLabelOptions.icon) {
+    if (e.type === ColumnSettingTypes.Label) {
+      if (e.value === ColumnSettingLabelOptions.Icon) {
         hasIcon = true
       }
-      if (e.value === ColumnSettingLabelOptions.text) {
+      if (e.value === ColumnSettingLabelOptions.Text) {
         hasText = true
       }
     }
   })
 
   if (hasText && hasIcon) {
-    return SeverityFormatOptions.dotText
+    return SeverityFormatOptions.DotText
   } else if (hasText) {
-    return SeverityFormatOptions.text
+    return SeverityFormatOptions.Text
   } else {
-    return SeverityFormatOptions.dot
+    return SeverityFormatOptions.Dot
   }
 }
 
@@ -117,14 +117,18 @@ export const generateColumnColorsConfig = (
   column: LogViewerColumn
 ): SeverityLevelColor[] => {
   const colors = column.settings.filter(
-    e => e.type === ColumnSettingTypes.color
+    e => e.type === ColumnSettingTypes.Color
   )
   return colors.map(c => {
-    const level: SeverityLevelOptions = SeverityLevelOptions[c.name]
-    const color: SeverityColorOptions = SeverityColorOptions[c.value]
+    const level: SeverityLevelOptions = SeverityLevelOptions[capitalize(c.name)]
+    const color: SeverityColorOptions =
+      SeverityColorOptions[capitalize(c.value)]
     return {level, color}
   })
 }
+
+const capitalize = (word: string): string =>
+  word.charAt(0).toUpperCase() + word.slice(1)
 
 export const uiToServerConfig = (config: LogConfig): View => {
   const properties: LogViewerView = generateViewProperties(config)
@@ -174,19 +178,19 @@ export const generateViewColumns = (
 
   if (tableColumn.visible) {
     settings.push({
-      type: ColumnSettingTypes.visibility,
-      value: ColumnSettingVisibilityOptions.visible,
+      type: ColumnSettingTypes.Visibility,
+      value: ColumnSettingVisibilityOptions.Visible,
     })
   } else {
     settings.push({
-      type: ColumnSettingTypes.visibility,
-      value: ColumnSettingVisibilityOptions.hidden,
+      type: ColumnSettingTypes.Visibility,
+      value: ColumnSettingVisibilityOptions.Hidden,
     })
   }
 
   if (!_.isEmpty(tableColumn.displayName)) {
     settings.push({
-      type: ColumnSettingTypes.display,
+      type: ColumnSettingTypes.Display,
       value: tableColumn.displayName,
     })
   }
@@ -215,18 +219,18 @@ export const generateViewColumnSeverityLabels = (
   format: SeverityFormat
 ): LogViewerColumnSetting[] => {
   switch (format) {
-    case SeverityFormatOptions.dot:
+    case SeverityFormatOptions.Dot:
       return [
-        {type: ColumnSettingTypes.label, value: ColumnSettingLabelOptions.icon},
+        {type: ColumnSettingTypes.Label, value: ColumnSettingLabelOptions.Icon},
       ]
-    case SeverityFormatOptions.text:
+    case SeverityFormatOptions.Text:
       return [
-        {type: ColumnSettingTypes.label, value: ColumnSettingLabelOptions.text},
+        {type: ColumnSettingTypes.Label, value: ColumnSettingLabelOptions.Text},
       ]
-    case SeverityFormatOptions.dotText:
+    case SeverityFormatOptions.DotText:
       return [
-        {type: ColumnSettingTypes.label, value: ColumnSettingLabelOptions.icon},
-        {type: ColumnSettingTypes.label, value: ColumnSettingLabelOptions.text},
+        {type: ColumnSettingTypes.Label, value: ColumnSettingLabelOptions.Icon},
+        {type: ColumnSettingTypes.Label, value: ColumnSettingLabelOptions.Text},
       ]
   }
   return null
@@ -236,6 +240,6 @@ export const generateViewColumnSeverityColors = (
   levelColors: SeverityLevelColor[]
 ): LogViewerColumnSetting[] => {
   return levelColors.map(({color, level}) => {
-    return {type: ColumnSettingTypes.color, value: color, name: level}
+    return {type: ColumnSettingTypes.Color, value: color, name: level}
   })
 }

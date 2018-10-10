@@ -15,19 +15,19 @@ describe('Logs.searchToFilters', () => {
         id: isUUID,
         key: 'message',
         value: 'seq_!@.#',
-        operator: Operator.LIKE,
+        operator: Operator.Like,
       },
       {
         id: isUUID,
         key: 'message',
         value: 'TERMS',
-        operator: Operator.LIKE,
+        operator: Operator.Like,
       },
       {
         id: isUUID,
         key: 'message',
         value: '/api/search',
-        operator: Operator.LIKE,
+        operator: Operator.Like,
       },
     ]
 
@@ -43,25 +43,25 @@ describe('Logs.searchToFilters', () => {
         id: isUUID,
         key: 'severity',
         value: 'info',
-        operator: Operator.EQUAL,
+        operator: Operator.Equal,
       },
       {
         id: isUUID,
         key: 'message',
         value: ':TERMS',
-        operator: Operator.LIKE,
+        operator: Operator.Like,
       },
       {
         id: isUUID,
         key: 'host',
         value: 'del.local',
-        operator: Operator.NOT_EQUAL,
+        operator: Operator.NotEqual,
       },
       {
         id: isUUID,
         key: 'message',
         value: 'foo:',
-        operator: Operator.LIKE,
+        operator: Operator.Like,
       },
     ]
 
@@ -77,19 +77,19 @@ describe('Logs.searchToFilters', () => {
         id: isUUID,
         key: 'message',
         value: '/api/search',
-        operator: Operator.LIKE,
+        operator: Operator.Like,
       },
       {
         id: isUUID,
         key: 'message',
         value: 'status_bad',
-        operator: Operator.NOT_LIKE,
+        operator: Operator.NotLike,
       },
       {
         id: isUUID,
         key: 'message',
         value: '@123!',
-        operator: Operator.NOT_LIKE,
+        operator: Operator.NotLike,
       },
     ]
 
@@ -105,13 +105,13 @@ describe('Logs.searchToFilters', () => {
         id: isUUID,
         key: 'message',
         value: '/api/search status:200',
-        operator: Operator.LIKE,
+        operator: Operator.Like,
       },
       {
         id: isUUID,
         key: 'message',
         value: 'a success',
-        operator: Operator.LIKE,
+        operator: Operator.Like,
       },
     ]
 
@@ -127,13 +127,13 @@ describe('Logs.searchToFilters', () => {
         id: isUUID,
         key: 'message',
         value: '/api/search status:200',
-        operator: Operator.NOT_LIKE,
+        operator: Operator.NotLike,
       },
       {
         id: isUUID,
         key: 'message',
         value: 'a success',
-        operator: Operator.NOT_LIKE,
+        operator: Operator.NotLike,
       },
     ]
 
@@ -149,25 +149,25 @@ describe('Logs.searchToFilters', () => {
         id: isUUID,
         key: 'severity',
         value: '4\\d{2}',
-        operator: Operator.EQUAL,
+        operator: Operator.Equal,
       },
       {
         id: isUUID,
         key: 'message',
         value: 'NOT FOUND',
-        operator: Operator.NOT_LIKE,
+        operator: Operator.NotLike,
       },
       {
         id: isUUID,
         key: 'message',
         value: 'some "quote"',
-        operator: Operator.LIKE,
+        operator: Operator.Like,
       },
       {
         id: isUUID,
         key: 'message',
         value: 'thing',
-        operator: Operator.NOT_LIKE,
+        operator: Operator.NotLike,
       },
     ]
 
@@ -183,7 +183,7 @@ describe('Logs.searchToFilters', () => {
         id: isUUID,
         key: 'message',
         value: "some 'quote'",
-        operator: Operator.LIKE,
+        operator: Operator.Like,
       },
     ]
 

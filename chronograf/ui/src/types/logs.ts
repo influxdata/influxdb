@@ -1,5 +1,4 @@
 import {QueryConfig, Namespace, Source} from 'src/types'
-
 import {FieldOption} from 'src/types/v2/dashboards'
 
 export enum SearchStatus {
@@ -44,6 +43,7 @@ export interface LogConfig {
   isTruncated: boolean
 }
 
+// Severity Colors
 export interface SeverityLevelColor {
   level: SeverityLevelOptions
   color: SeverityColorOptions
@@ -60,84 +60,84 @@ export type LogsTableColumn = FieldOption
 
 // Log Severity
 export enum SeverityLevelOptions {
-  emerg = 'emerg',
-  alert = 'alert',
-  crit = 'crit',
-  err = 'err',
-  warning = 'warning',
-  notice = 'notice',
-  info = 'info',
-  debug = 'debug',
+  Emerg = 'emerg',
+  Alert = 'alert',
+  Crit = 'crit',
+  Err = 'err',
+  Warning = 'warning',
+  Notice = 'notice',
+  Info = 'info',
+  Debug = 'debug',
 }
 
 export enum SeverityFormatOptions {
-  dot = 'dot',
-  dotText = 'dotText',
-  text = 'text',
+  Dot = 'dot',
+  DotText = 'dotText',
+  Text = 'text',
 }
 
 export enum SeverityColorOptions {
-  ruby = 'ruby',
-  fire = 'fire',
-  curacao = 'curacao',
-  tiger = 'tiger',
-  pineapple = 'pineapple',
-  thunder = 'thunder',
-  sulfur = 'sulfur',
-  viridian = 'viridian',
-  rainforest = 'rainforest',
-  honeydew = 'honeydew',
-  ocean = 'ocean',
-  pool = 'pool',
-  laser = 'laser',
-  planet = 'planet',
-  star = 'star',
-  comet = 'comet',
-  graphite = 'graphite',
-  wolf = 'wolf',
-  mist = 'mist',
-  pearl = 'pearl',
+  Ruby = 'ruby',
+  Fire = 'fire',
+  Curacao = 'curacao',
+  Tiger = 'tiger',
+  Pineapple = 'pineapple',
+  Thunder = 'thunder',
+  Sulfur = 'sulfur',
+  Viridian = 'viridian',
+  Rainforest = 'rainforest',
+  Honeydew = 'honeydew',
+  Ocean = 'ocean',
+  Pool = 'pool',
+  Laser = 'laser',
+  Planet = 'planet',
+  Star = 'star',
+  Comet = 'comet',
+  Graphite = 'graphite',
+  Wolf = 'wolf',
+  Mist = 'mist',
+  Pearl = 'pearl',
 }
 
 export const SeverityColorValues = {
-  [SeverityColorOptions.ruby]: '#BF3D5E',
-  [SeverityColorOptions.fire]: '#DC4E58',
-  [SeverityColorOptions.curacao]: '#F95F53',
-  [SeverityColorOptions.tiger]: '#F48D38',
-  [SeverityColorOptions.pineapple]: '#FFB94A',
-  [SeverityColorOptions.thunder]: '#FFD255',
-  [SeverityColorOptions.sulfur]: '#FFE480',
-  [SeverityColorOptions.viridian]: '#32B08C',
-  [SeverityColorOptions.rainforest]: '#4ED8A0',
-  [SeverityColorOptions.honeydew]: '#7CE490',
-  [SeverityColorOptions.ocean]: '#4591ED',
-  [SeverityColorOptions.pool]: '#22ADF6',
-  [SeverityColorOptions.laser]: '#00C9FF',
-  [SeverityColorOptions.planet]: '#513CC6',
-  [SeverityColorOptions.star]: '#7A65F2',
-  [SeverityColorOptions.comet]: '#9394FF',
-  [SeverityColorOptions.graphite]: '#545667',
-  [SeverityColorOptions.wolf]: '#8E91A1',
-  [SeverityColorOptions.mist]: '#BEC2CC',
-  [SeverityColorOptions.pearl]: '#E7E8EB',
+  [SeverityColorOptions.Ruby]: '#BF3D5E',
+  [SeverityColorOptions.Fire]: '#DC4E58',
+  [SeverityColorOptions.Curacao]: '#F95F53',
+  [SeverityColorOptions.Tiger]: '#F48D38',
+  [SeverityColorOptions.Pineapple]: '#FFB94A',
+  [SeverityColorOptions.Thunder]: '#FFD255',
+  [SeverityColorOptions.Sulfur]: '#FFE480',
+  [SeverityColorOptions.Viridian]: '#32B08C',
+  [SeverityColorOptions.Rainforest]: '#4ED8A0',
+  [SeverityColorOptions.Honeydew]: '#7CE490',
+  [SeverityColorOptions.Ocean]: '#4591ED',
+  [SeverityColorOptions.Pool]: '#22ADF6',
+  [SeverityColorOptions.Laser]: '#00C9FF',
+  [SeverityColorOptions.Planet]: '#513CC6',
+  [SeverityColorOptions.Star]: '#7A65F2',
+  [SeverityColorOptions.Comet]: '#9394FF',
+  [SeverityColorOptions.Graphite]: '#545667',
+  [SeverityColorOptions.Wolf]: '#8E91A1',
+  [SeverityColorOptions.Mist]: '#BEC2CC',
+  [SeverityColorOptions.Pearl]: '#E7E8EB',
 }
 
 // Log Column Settings
 export enum ColumnSettingTypes {
-  visibility = 'visibility',
-  display = 'displayName',
-  label = 'label',
-  color = 'color',
+  Visibility = 'visibility',
+  Display = 'displayName',
+  Label = 'label',
+  Color = 'color',
 }
 
 export enum ColumnSettingLabelOptions {
-  text = 'text',
-  icon = 'icon',
+  Text = 'text',
+  Icon = 'icon',
 }
 
 export enum ColumnSettingVisibilityOptions {
-  visible = 'visible',
-  hidden = 'hidden',
+  Visible = 'visible',
+  Hidden = 'hidden',
 }
 
 // Time
@@ -174,29 +174,29 @@ export interface TermRule {
 }
 
 export enum TermType {
-  EXCLUDE,
-  INCLUDE,
+  Exclude,
+  Include,
 }
 
 export enum TermPart {
-  EXCLUSION = '-',
-  SINGLE_QUOTED = "'([^']+)'",
-  DOUBLE_QUOTED = '"([^"]+)"',
-  ATTRIBUTE = '(\\w+(?=\\:))',
-  COLON = '(?::)',
-  UNQUOTED_WORD = '([\\S]+)',
+  Exclusion = '-',
+  SingleQuoted = "'([^']+)'",
+  DoubleQuoted = '"([^"]+)"',
+  Attribute = '(\\w+(?=\\:))',
+  Colon = '(?::)',
+  UnquotedWord = '([\\S]+)',
 }
 
 export enum Operator {
-  NOT_LIKE = '!~',
-  LIKE = '=~',
-  EQUAL = '==',
-  NOT_EQUAL = '!=',
+  NotLike = '!~',
+  Like = '=~',
+  Equal = '==',
+  NotEqual = '!=',
 }
 
 export enum MatchType {
-  NONE = 'no-match',
-  MATCH = 'match',
+  None = 'no-match',
+  Match = 'match',
 }
 
 export interface MatchSection {

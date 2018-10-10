@@ -212,8 +212,8 @@ describe('Logs.Config', () => {
       const severityFormatDotText = generateColumnFormatConfig(viewDotText)
       const severityFormatDot = generateColumnFormatConfig(viewColumnDot)
 
-      expect(severityFormatDotText).toBe(SeverityFormatOptions.dotText)
-      expect(severityFormatDot).toBe(SeverityFormatOptions.dot)
+      expect(severityFormatDotText).toBe(SeverityFormatOptions.DotText)
+      expect(severityFormatDot).toBe(SeverityFormatOptions.Dot)
     })
 
     it('sorts columns by column position', () => {
@@ -256,12 +256,12 @@ describe('Logs.Config', () => {
 
       const expectedColors = [
         {
-          level: SeverityLevelOptions.emerg,
-          color: SeverityColorOptions.pineapple,
+          level: SeverityLevelOptions.Emerg,
+          color: SeverityColorOptions.Pineapple,
         },
         {
-          level: SeverityLevelOptions.err,
-          color: SeverityColorOptions.fire,
+          level: SeverityLevelOptions.Err,
+          color: SeverityColorOptions.Fire,
         },
       ]
 
@@ -285,15 +285,15 @@ describe('Logs.Config', () => {
           {internalName: 'appname', displayName: 'Application', visible: true},
           {internalName: 'host', displayName: '', visible: true},
         ],
-        severityFormat: SeverityFormatOptions.dotText,
+        severityFormat: SeverityFormatOptions.DotText,
         severityLevelColors: [
           {
-            level: SeverityLevelOptions.alert,
-            color: SeverityColorOptions.pearl,
+            level: SeverityLevelOptions.Alert,
+            color: SeverityColorOptions.Pearl,
           },
           {
-            level: SeverityLevelOptions.warning,
-            color: SeverityColorOptions.wolf,
+            level: SeverityLevelOptions.Warning,
+            color: SeverityColorOptions.Wolf,
           },
         ],
       }
@@ -325,8 +325,8 @@ describe('Logs.Config', () => {
     })
 
     it('generates label settings from view column settings', () => {
-      const severityFormatDotText = SeverityFormatOptions.dotText
-      const severityFormatDot = SeverityFormatOptions.dot
+      const severityFormatDotText = SeverityFormatOptions.DotText
+      const severityFormatDot = SeverityFormatOptions.Dot
 
       const settingsDotText = generateViewColumnSeverityLabels(
         severityFormatDotText
@@ -357,20 +357,20 @@ describe('Logs.Config', () => {
     it('generates color settings from severityLevelColors', () => {
       const severityLevelColors = [
         {
-          level: SeverityLevelOptions.emerg,
-          color: SeverityColorOptions.pearl,
+          level: SeverityLevelOptions.Emerg,
+          color: SeverityColorOptions.Pearl,
         },
         {
-          level: SeverityLevelOptions.alert,
-          color: SeverityColorOptions.mist,
+          level: SeverityLevelOptions.Alert,
+          color: SeverityColorOptions.Mist,
         },
         {
-          level: SeverityLevelOptions.crit,
-          color: SeverityColorOptions.wolf,
+          level: SeverityLevelOptions.Crit,
+          color: SeverityColorOptions.Wolf,
         },
         {
-          level: SeverityLevelOptions.err,
-          color: SeverityColorOptions.graphite,
+          level: SeverityLevelOptions.Err,
+          color: SeverityColorOptions.Graphite,
         },
       ]
 
@@ -381,22 +381,22 @@ describe('Logs.Config', () => {
         {
           type: 'color',
           name: 'emerg',
-          value: SeverityColorOptions.pearl,
+          value: SeverityColorOptions.Pearl,
         },
         {
           type: 'color',
           name: 'alert',
-          value: SeverityColorOptions.mist,
+          value: SeverityColorOptions.Mist,
         },
         {
           type: 'color',
           name: 'crit',
-          value: SeverityColorOptions.wolf,
+          value: SeverityColorOptions.Wolf,
         },
         {
           type: 'color',
           name: 'err',
-          value: SeverityColorOptions.graphite,
+          value: SeverityColorOptions.Graphite,
         },
       ]
 
@@ -415,12 +415,12 @@ describe('Logs.Config', () => {
         displayName: '',
         visible: true,
       }
-      const severityFormat = SeverityFormatOptions.dotText
+      const severityFormat = SeverityFormatOptions.DotText
       const severityLevelColors = [
-        {level: SeverityLevelOptions.emerg, color: SeverityColorOptions.pearl},
-        {level: SeverityLevelOptions.alert, color: SeverityColorOptions.mist},
-        {level: SeverityLevelOptions.crit, color: SeverityColorOptions.wolf},
-        {level: SeverityLevelOptions.err, color: SeverityColorOptions.graphite},
+        {level: SeverityLevelOptions.Emerg, color: SeverityColorOptions.Pearl},
+        {level: SeverityLevelOptions.Alert, color: SeverityColorOptions.Mist},
+        {level: SeverityLevelOptions.Crit, color: SeverityColorOptions.Wolf},
+        {level: SeverityLevelOptions.Err, color: SeverityColorOptions.Graphite},
       ]
       const settingsSeverity = generateViewColumnSettings(
         tableColumnSeverity,
@@ -452,22 +452,22 @@ describe('Logs.Config', () => {
         {
           type: 'color',
           name: 'emerg',
-          value: SeverityColorOptions.pearl,
+          value: SeverityColorOptions.Pearl,
         },
         {
           type: 'color',
           name: 'alert',
-          value: SeverityColorOptions.mist,
+          value: SeverityColorOptions.Mist,
         },
         {
           type: 'color',
           name: 'crit',
-          value: SeverityColorOptions.wolf,
+          value: SeverityColorOptions.Wolf,
         },
         {
           type: 'color',
           name: 'err',
-          value: SeverityColorOptions.graphite,
+          value: SeverityColorOptions.Graphite,
         },
       ]
 
@@ -497,15 +497,15 @@ describe('Logs.Config', () => {
           {internalName: 'appname', displayName: 'Application', visible: true},
           {internalName: 'host', displayName: '', visible: true},
         ],
-        severityFormat: SeverityFormatOptions.dotText,
+        severityFormat: SeverityFormatOptions.DotText,
         severityLevelColors: [
           {
-            level: SeverityLevelOptions.alert,
-            color: SeverityColorOptions.pearl,
+            level: SeverityLevelOptions.Alert,
+            color: SeverityColorOptions.Pearl,
           },
           {
-            level: SeverityLevelOptions.warning,
-            color: SeverityColorOptions.wolf,
+            level: SeverityLevelOptions.Warning,
+            color: SeverityColorOptions.Wolf,
           },
         ],
       }

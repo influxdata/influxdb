@@ -23,7 +23,7 @@ export const defaultState: LogsState = {
     id: null,
     link: null,
     tableColumns: [],
-    severityFormat: SeverityFormatOptions.dotText,
+    severityFormat: SeverityFormatOptions.DotText,
     severityLevelColors: [],
     isTruncated: DEFAULT_TRUNCATION,
   },
