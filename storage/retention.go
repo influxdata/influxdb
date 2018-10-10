@@ -93,14 +93,17 @@ func (s *retentionService) metricLabels() prometheus.Labels {
 
 // WithLogger sets the logger l on the service. It must be called before Open.
 func (s *retentionService) WithLogger(l *zap.Logger) {
+	if s == nil {
+		return // Not initialised
+	}
 	s.logger = l.With(zap.String("service", serviceName))
 }
 
 // Open opens the service, which begins the process of removing expired data.
 // Re-opening the service once it's open is a no-op.
 func (s *retentionService) Open() error {
-	if s.closing() != nil {
-		return nil // Already open.
+	if s == nil || s.closing() != nil {
+		return nil // Not initialised or already open.
 	}
 
 	s.logger.Info("Service opening", zap.Duration("check_interval", s.interval))
@@ -263,8 +266,8 @@ func (s *retentionService) closing() chan struct{} {
 // If a delete of data is in-progress, then it will be allowed to complete before
 // Close returns. Re-closing the service once it's closed is a no-op.
 func (s *retentionService) Close() error {
-	if s.closing() == nil {
-		return nil // Already closed.
+	if s == nil || s.closing() == nil {
+		return nil // Not initialised or already closed.
 	}
 
 	now := time.Now()

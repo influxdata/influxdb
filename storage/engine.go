@@ -132,10 +132,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	e.sfile.WithLogger(e.logger)
 	e.index.WithLogger(e.logger)
 	e.engine.WithLogger(e.logger)
-
-	if e.retentionService != nil {
-		e.retentionService.WithLogger(e.logger)
-	}
+	e.retentionService.WithLogger(e.logger)
 }
 
 // PrometheusCollectors returns all the prometheus collectors associated with
@@ -171,6 +168,11 @@ func (e *Engine) Open() error {
 		return err
 	}
 	e.engine.SetCompactionsEnabled(true) // TODO(edd):is this needed?
+
+	if err := e.retentionService.Open(); err != nil {
+		return err
+	}
+
 	e.open = true
 	return nil
 }
@@ -185,6 +187,10 @@ func (e *Engine) Close() error {
 		return nil // no-op
 	}
 	e.open = false
+
+	if err := e.retentionService.Close(); err != nil {
+		return err
+	}
 
 	if err := e.sfile.Close(); err != nil {
 		return err
