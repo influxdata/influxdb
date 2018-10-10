@@ -142,17 +142,6 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 			return err
 		}
 
-		// name by org
-		orgB, err = b.Bucket(nameByOrg).CreateBucketIfNotExists(encodedOrg)
-		if err != nil {
-			return err
-		}
-
-		err = orgB.Put(name, encodedID)
-		if err != nil {
-			return err
-		}
-
 		err = b.Bucket(orgByTaskID).Put(encodedID, encodedOrg)
 		if err != nil {
 			return err
