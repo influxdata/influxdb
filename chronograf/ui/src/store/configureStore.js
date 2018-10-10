@@ -9,7 +9,6 @@ import sharedReducers from 'src/shared/reducers'
 import persistStateEnhancer from './persistStateEnhancer'
 import scriptReducer from 'src/flux/reducers/script'
 import sourceReducer from 'src/sources/reducers/sources'
-import setupReducer from 'src/onboarding/reducers/setup'
 
 // v2 reducers
 import rangesReducer from 'src/dashboards/reducers/v2/ranges'
@@ -28,7 +27,6 @@ const rootReducer = combineReducers({
   routing: routerReducer,
   script: scriptReducer,
   sources: sourceReducer,
-  isSetupComplete: setupReducer,
   views: viewsReducer,
   logs: logsReducer,
 })

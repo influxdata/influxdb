@@ -12,8 +12,10 @@
   align-items: center;
   text-align: center;
   margin: $ix-marg-d;
+  margin-top: $ix-marg-a;
   flex-grow: 1;
-  width: 100%;
+  width: 80%;
+  max-width: 1000px;
   background-color: $g3-castle;
   border-radius: $radius;
 }
@@ -21,7 +23,7 @@
 .wizard-button-bar {
   display: inline-flex;
   flex-shrink: 0;
-  margin: $ix-marg-b auto $ix-marg-c auto;
+  margin: 32px auto;
   position: relative;
   min-width: 100%;
   justify-content: center;
@@ -49,4 +51,22 @@
 }
 .splash-logo.secondary {
   background-image: url('../../assets/images/cubo_doodle_green.svg');
+}
+
+.wizard-step--title {
+  font-size: 32px;
+  font-weight: 300;
+  color: $g15-platinum;
+  margin-top: 32px;
+  margin-bottom: $ix-marg-b;
+  @include no-user-select();
+}
+
+.wizard-step--sub-title {
+  margin-top: $ix-marg-b;
+  margin-bottom: 32px;
+  font-size: 16px;
+  font-weight: 400;
+  color: $g11-sidewalk;
+  @include no-user-select();
 }

@@ -1,11 +1,14 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
+
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
 import InitStep from 'src/onboarding/components/InitStep'
 import AdminStep from 'src/onboarding/components/AdminStep'
+import OtherStep from 'src/onboarding/components/OtherStep'
 import CompletionStep from 'src/onboarding/components/CompletionStep'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
@@ -16,10 +19,6 @@ import {
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {
-  completeSetup as completeSetupAction,
-  CompleteSetup,
-} from 'src/onboarding/actions'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
@@ -39,15 +38,16 @@ export interface OnboardingStepProps {
   setupParams: SetupParams
   handleSetSetupParams: (setupParams: SetupParams) => void
   notify: (message: Notification | NotificationFunc) => void
-  completeSetup: CompleteSetup
+  onCompleteSetup: () => void
+  onExit: () => void
 }
 
-interface Props {
+interface Props extends WithRouterProps {
   links: Links
   startStep?: number
   stepStatuses?: StepStatus[]
   notify: (message: Notification | NotificationFunc) => void
-  completeSetup: CompleteSetup
+  onCompleteSetup: () => void
 }
 
 interface State {
@@ -64,12 +64,13 @@ class OnboardingWizard extends PureComponent<Props, State> {
       StepStatus.Incomplete,
       StepStatus.Incomplete,
       StepStatus.Incomplete,
+      StepStatus.Incomplete,
     ],
   }
 
-  public stepTitles = ['Welcome', 'Setup admin', 'Complete']
-  public steps = [InitStep, AdminStep, CompletionStep]
-  public stepSkippable = [false, false, false]
+  public stepTitles = ['Welcome', 'Admin Setup', 'Next Step', 'Complete']
+  public steps = [InitStep, AdminStep, OtherStep, CompletionStep]
+  public stepSkippable = [false, false, true, false]
 
   constructor(props: Props) {
     super(props)
@@ -81,29 +82,44 @@ class OnboardingWizard extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {stepStatuses} = this.props
-    const {currentStepIndex} = this.state
     return (
       <WizardFullScreen>
-        <WizardProgressHeader
-          currentStepIndex={currentStepIndex}
-          stepSkippable={this.stepSkippable}
-        >
-          <ProgressBar
-            currentStepIndex={currentStepIndex}
-            handleSetCurrentStep={this.onSetCurrentStep}
-            stepStatuses={stepStatuses}
-            stepTitles={this.stepTitles}
-          />
-        </WizardProgressHeader>
+        {this.progressHeader}
         <div className="wizard-step--container">{this.currentStep}</div>
       </WizardFullScreen>
     )
   }
 
+  private get progressHeader(): JSX.Element {
+    const {stepStatuses} = this.props
+    const {currentStepIndex} = this.state
+
+    if (
+      currentStepIndex === 0 ||
+      currentStepIndex === stepStatuses.length - 1
+    ) {
+      return <div className="wizard--progress-header hidden" />
+    }
+
+    return (
+      <WizardProgressHeader
+        currentStepIndex={currentStepIndex}
+        stepSkippable={this.stepSkippable}
+        onSkip={this.handleExit}
+      >
+        <ProgressBar
+          currentStepIndex={currentStepIndex}
+          handleSetCurrentStep={this.onSetCurrentStep}
+          stepStatuses={stepStatuses}
+          stepTitles={this.stepTitles}
+        />
+      </WizardProgressHeader>
+    )
+  }
+
   private get currentStep(): React.ReactElement<OnboardingStepProps> {
     const {currentStepIndex, setupParams} = this.state
-    const {stepStatuses, links, notify, completeSetup} = this.props
+    const {stepStatuses, links, notify, onCompleteSetup} = this.props
 
     return React.createElement(this.steps[currentStepIndex], {
       stepStatuses,
@@ -115,8 +131,15 @@ class OnboardingWizard extends PureComponent<Props, State> {
       setupParams,
       handleSetSetupParams: this.onSetSetupParams,
       notify,
-      completeSetup,
+      onCompleteSetup,
+      onExit: this.handleExit,
     })
+  }
+
+  private handleExit = () => {
+    const {router, onCompleteSetup} = this.props
+    onCompleteSetup()
+    router.push(`/manage-sources`)
   }
 
   private onSetSetupParams = (setupParams: SetupParams): void => {
@@ -140,7 +163,6 @@ const mstp = ({links}) => ({
 
 const mdtp = {
   notify: notifyAction,
-  completeSetup: completeSetupAction,
 }
 
-export default connect(mstp, mdtp)(OnboardingWizard)
+export default connect(mstp, mdtp)(withRouter(OnboardingWizard))

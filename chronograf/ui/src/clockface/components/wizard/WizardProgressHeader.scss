@@ -5,10 +5,11 @@
 
 .wizard--progress-header {
   position: relative;
-  background-color: $g3-castle;
-  min-width: 100%;
+  background-color: $g0-obsidian;
+  width: 80%;
+  max-width: 1000px;
   height: 50px;
-  padding: $ix-marg-b $ix-marg-c;
+  padding: 0 $ix-marg-c;
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -18,4 +19,8 @@
 .wizard--progress-skip {
   position: absolute;
   right: $ix-marg-c;
+}
+
+.wizard--progress-header.hidden {
+  visibility: hidden;
 }

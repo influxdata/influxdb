@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -10,15 +9,14 @@ import {Button, ComponentColor, ComponentSize} from 'src/clockface'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 @ErrorHandling
-class CompletionStep extends PureComponent<
-  OnboardingStepProps & WithRouterProps
-> {
+class CompletionStep extends PureComponent<OnboardingStepProps> {
   public render() {
+    const {onExit} = this.props
     return (
       <div className="onboarding-step">
         <div className="splash-logo secondary" />
-        <h3 className="wizard-step-title">Setup Complete! </h3>
-        <p>This is completion step</p>
+        <h3 className="wizard-step--title">Setup Complete!</h3>
+        <h5 className="wizard-step--sub-title" />
         <div className="wizard-button-bar">
           <Button
             color={ComponentColor.Default}
@@ -29,23 +27,18 @@ class CompletionStep extends PureComponent<
           <Button
             color={ComponentColor.Success}
             text="Go to status dashboard"
-            size={ComponentSize.Large}
-            onClick={this.handleComplete}
+            size={ComponentSize.Medium}
+            onClick={onExit}
           />
         </div>
       </div>
     )
   }
 
-  private handleComplete = () => {
-    const {router, completeSetup} = this.props
-    completeSetup()
-    router.push(`/manage-sources`)
-  }
   private handleDecrement = () => {
     const {handleSetCurrentStep, currentStepIndex} = this.props
     handleSetCurrentStep(currentStepIndex - 1)
   }
 }
 
-export default withRouter(CompletionStep)
+export default CompletionStep

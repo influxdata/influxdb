@@ -14,8 +14,10 @@ class InitStep extends PureComponent<OnboardingStepProps> {
     return (
       <div className="onboarding-step">
         <div className="splash-logo primary" />
-        <h3 className="wizard-step-title">Welcome to InfluxData </h3>
-        <p>"Start using the InfluxData platform in a few easy steps"</p>
+        <h3 className="wizard-step--title">Welcome to InfluxData </h3>
+        <h5 className="wizard-step--sub-title">
+          Start using the InfluxData platform in a few easy steps
+        </h5>
         <div className="wizard-button-bar">
           <Button
             color={ComponentColor.Primary}
