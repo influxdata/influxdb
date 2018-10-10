@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"github.com/influxdata/platform"
+	platcontext "github.com/influxdata/platform/context"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
@@ -26,6 +27,7 @@ func NewUserHandler() *UserHandler {
 	}
 
 	h.HandlerFunc("POST", "/api/v2/users", h.handlePostUser)
+	h.HandlerFunc("GET", "/api/v2/me", h.handleGetMe)
 	h.HandlerFunc("GET", "/api/v2/users", h.handleGetUsers)
 	h.HandlerFunc("GET", "/api/v2/users/:id", h.handleGetUser)
 	h.HandlerFunc("PATCH", "/api/v2/users/:id", h.handlePatchUser)
@@ -67,6 +69,36 @@ func decodePostUserRequest(ctx context.Context, r *http.Request) (*postUserReque
 	return &postUserRequest{
 		User: b,
 	}, nil
+}
+
+// handleGetUser is the HTTP handler for the GET /api/v2/me.
+func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	a, err := platcontext.GetAuthorizer(ctx)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	id := []byte{}
+	switch s := a.(type) {
+	case *platform.Session:
+		id = s.UserID
+	case *platform.Authorization:
+		id = s.UserID
+	}
+
+	b, err := h.UserService.FindUserByID(ctx, id)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
 }
 
 // handleGetUser is the HTTP handler for the GET /api/v2/users/:id route.

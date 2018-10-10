@@ -200,6 +200,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.HasPrefix(r.URL.Path, "/api/v2/me") {
+		h.UserHandler.ServeHTTP(w, r)
+		return
+	}
+
 	if strings.HasPrefix(r.URL.Path, "/api/v2/orgs") {
 		h.OrgHandler.ServeHTTP(w, r)
 		return
