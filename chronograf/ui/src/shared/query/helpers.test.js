@@ -5,7 +5,7 @@ import {
   INFLUXQL,
   RELATIVE_LOWER,
   RELATIVE_UPPER,
-} from 'shared/constants/timeRange'
+} from 'shared/constants/timeRanges'
 const format = INFLUXQL
 
 describe('Shared.Query.Helpers', () => {

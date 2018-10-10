@@ -25,7 +25,7 @@ export interface TimeMachinesState {
 
 const initialStateHelper = (): TimeMachineState => ({
   view: getNewView(),
-  timeRange: {lower: 'now() - 1hr'},
+  timeRange: {lower: 'now() - 1h'},
 })
 
 const INITIAL_STATE: TimeMachinesState = {

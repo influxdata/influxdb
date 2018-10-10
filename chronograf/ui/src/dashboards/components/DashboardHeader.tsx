@@ -62,8 +62,8 @@ class DashboardHeader extends Component<Props> {
             selected={autoRefresh}
           />
           <TimeRangeDropdown
-            onChooseTimeRange={handleChooseTimeRange}
-            selected={{
+            onSetTimeRange={handleChooseTimeRange}
+            timeRange={{
               upper: zoomedUpper || upper,
               lower: zoomedLower || lower,
             }}

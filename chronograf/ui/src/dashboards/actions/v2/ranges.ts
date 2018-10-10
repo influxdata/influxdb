@@ -13,7 +13,7 @@ import {stripPrefix} from 'src/utils/basepath'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
-import {defaultTimeRange} from 'src/shared/data/timeRanges'
+import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 // Types
 import {TimeRange} from 'src/types'
@@ -132,7 +132,7 @@ export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
   if (!validatedTimeRange.lower) {
     const dashboardTimeRange = ranges.find(r => r.dashboardID === dashboardID)
 
-    validatedTimeRange = dashboardTimeRange || defaultTimeRange
+    validatedTimeRange = dashboardTimeRange || DEFAULT_TIME_RANGE
 
     if (timeRangeFromQueries.lower || timeRangeFromQueries.upper) {
       dispatch(notify(copy.invalidTimeRangeValueInURLQuery()))

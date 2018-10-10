@@ -87,6 +87,7 @@ export interface TimeRange {
   upper?: string | null
   seconds?: number
   format?: string
+  label?: string
 }
 
 export interface DurationRange {
@@ -99,12 +100,3 @@ export interface TimeShift {
   unit: string
   quantity: string
 }
-
-export interface TimeRangeOption extends TimeRange {
-  defaultGroupBy: string
-  seconds: number
-  inputValue: string
-  menuOption: string
-}
-
-export type DashTimeV1Range = TimeRangeOption & {dashboardID: number}

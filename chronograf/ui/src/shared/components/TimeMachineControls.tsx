@@ -26,11 +26,17 @@ type Props = StateProps & DispatchProps & PassedProps
 class TimeMachineControls extends PureComponent<Props> {
   public render() {
     const {timeRange, onSetTimeRange} = this.props
+
     return (
-      <TimeRangeDropdown
-        selected={timeRange}
-        onChooseTimeRange={onSetTimeRange}
-      />
+      <div className="time-machine-controls">
+        <div className="time-machine-controls--lhs" />
+        <div className="time-machine-controls--rhs">
+          <TimeRangeDropdown
+            timeRange={timeRange}
+            onSetTimeRange={onSetTimeRange}
+          />
+        </div>
+      </div>
     )
   }
 }

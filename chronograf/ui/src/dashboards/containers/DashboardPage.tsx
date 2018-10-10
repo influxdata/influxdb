@@ -37,7 +37,7 @@ import {
   TEMP_VAR_DASHBOARD_TIME,
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'src/shared/constants'
-import {FORMAT_INFLUXQL, defaultTimeRange} from 'src/shared/data/timeRanges'
+import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
 
 // Types
@@ -260,10 +260,7 @@ class DashboardPage extends Component<Props, State> {
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
     const {dashboard, setDashTimeV1, updateQueryParams} = this.props
-    setDashTimeV1(dashboard.id, {
-      ...timeRange,
-      format: FORMAT_INFLUXQL,
-    })
+    setDashTimeV1(dashboard.id, {...timeRange})
 
     updateQueryParams({
       lower: timeRange.lower,
@@ -437,7 +434,7 @@ const mstp = (state, {params: {dashboardID}}): StateProps => {
   } = state
 
   const timeRange =
-    ranges.find(r => r.dashboardID === dashboardID) || defaultTimeRange
+    ranges.find(r => r.dashboardID === dashboardID) || DEFAULT_TIME_RANGE
 
   const dashboard = dashboards.find(d => d.id === dashboardID)
 
