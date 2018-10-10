@@ -36,7 +36,6 @@ require (
 	github.com/gopherjs/gopherjs v0.0.0-20181004151105-1babbf986f6f // indirect
 	github.com/goreleaser/goreleaser v0.88.0
 	github.com/goreleaser/nfpm v0.9.5 // indirect
-	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
 	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
 	github.com/hashicorp/raft v1.0.0 // indirect

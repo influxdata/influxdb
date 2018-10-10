@@ -4,15 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/http"
-	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/query/functions/inputs"
-	"github.com/influxdata/platform/query/functions/inputs/storage"
-	"github.com/influxdata/platform/query/functions/inputs/storage/pb"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -31,7 +25,6 @@ var queryFlags struct {
 }
 
 func init() {
-
 	queryCmd.PersistentFlags().StringVar(&queryFlags.OrgID, "org-id", "", "Organization ID")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
@@ -63,44 +56,4 @@ func fluxQueryF(cmd *cobra.Command, args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-}
-
-func injectDeps(deps execute.Dependencies, hosts storage.Reader, buckets platform.BucketService, orgs platform.OrganizationService) error {
-	return inputs.InjectFromDependencies(deps, storage.Dependencies{
-		Reader:             hosts,
-		BucketLookup:       query.FromBucketService(buckets),
-		OrganizationLookup: query.FromOrganizationService(orgs),
-	})
-}
-
-func storageHostReader(hosts []string) (storage.Reader, error) {
-	return pb.NewReader(storage.NewStaticLookup(hosts))
-}
-
-func bucketService(addr, token string) (platform.BucketService, error) {
-	if addr == "" {
-		return nil, fmt.Errorf("bucket host address required")
-	}
-
-	return &http.BucketService{
-		Addr:  addr,
-		Token: token,
-	}, nil
-}
-
-func orgService(addr, token string) (platform.OrganizationService, error) {
-	if addr == "" {
-		return nil, fmt.Errorf("organization host address required")
-	}
-
-	return &http.OrganizationService{
-		Addr:  addr,
-		Token: token,
-	}, nil
-}
-
-func orgID(org string) (platform.ID, error) {
-	var oid platform.ID
-	err := oid.DecodeFromString(org)
-	return oid, err
 }

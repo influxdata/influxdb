@@ -105,8 +105,6 @@ github.com/gopherjs/gopherjs v0.0.0-20181004151105-1babbf986f6f h1:JJ2EP5vV3LAD2
 github.com/gopherjs/gopherjs v0.0.0-20181004151105-1babbf986f6f/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
 github.com/goreleaser/nfpm v0.9.5 h1:ntRGZSucXRjoCk6FdwJaXcCZxZZu7YoqX7UH5IC13l4=
 github.com/goreleaser/nfpm v0.9.5/go.mod h1:kn0Dps10Osi7V2icEXFTBRZhmiuGPUizzZVw/WQtQ/k=
-github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645 h1:MJG/KsmcqMwFAkh8mTnAwhyKoB+sTAnY4CACC110tbU=
-github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645/go.mod h1:6iZfnjpejD4L/4DwD7NryNaJyCQdzwWwH2MWhCA90Kw=
 github.com/hashicorp/go-immutable-radix v1.0.0 h1:AKDB1HM5PWEA7i4nhcpwOrO2byshxBjXVn/J/3+z5/0=
 github.com/hashicorp/go-immutable-radix v1.0.0/go.mod h1:0y9vanUI8NX6FsYoO3zeMjhV/C5i9g4Q3DwcSNZ4P60=
 github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c h1:BTAbnbegUIMB6xmQCwWE8yRzbA4XSpnZY5hvRJC188I=
@@ -125,7 +123,6 @@ github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/flux v0.0.0-20181009183631-f95c57ab4e42 h1:nMueWs0Rwz6G38UBuDq3tbarsyaR3M2znXLSSOltsOY=
 github.com/influxdata/flux v0.0.0-20181009183631-f95c57ab4e42/go.mod h1:BHspYxVDHrBApUfImcwa0ZOpRanbmO/ACD2iXbBD3Ic=
-github.com/influxdata/goreleaser v0.86.2-0.20181010170531-0fd209ba67f5 h1:nHhEtmA6VDreC0W8tqRoAj2Lu7HJacGgYFFuQshBR+E=
 github.com/influxdata/goreleaser v0.86.2-0.20181010170531-0fd209ba67f5/go.mod h1:aVuBpDAT5VtjtUxzvBt8HOd0buzvvk7OX3H2iaviixg=
 github.com/influxdata/influxdb v0.0.0-20181009160823-86ac358448ec h1:TCUzgPkjJ/gcXXjxjssQoAYHeUxPHEdTz4XgKrNKw+I=
 github.com/influxdata/influxdb v0.0.0-20181009160823-86ac358448ec/go.mod h1:qZna6X/4elxqT3yI9iZYdZrWWdeFOOprn86kgg4+IzY=
