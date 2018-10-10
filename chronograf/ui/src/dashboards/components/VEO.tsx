@@ -78,7 +78,7 @@ class VEO extends PureComponent<Props, State> {
           onCancel={onHide}
           onSave={this.handleSave}
         />
-        <TimeMachine />
+        <TimeMachine activeTab={activeTab} />
       </div>
     )
   }

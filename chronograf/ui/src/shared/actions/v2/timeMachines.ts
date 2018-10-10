@@ -1,9 +1,10 @@
-import {TimeRange} from 'src/types/v2'
+import {TimeRange, ViewType} from 'src/types/v2'
 
 export type Action =
   | SetActiveTimeMachineIDAction
   | SetNameAction
   | SetTimeRangeAction
+  | SetTypeAction
 
 interface SetActiveTimeMachineIDAction {
   type: 'SET_ACTIVE_TIME_MACHINE_ID'
@@ -35,4 +36,14 @@ interface SetTimeRangeAction {
 export const setTimeRange = (timeRange: TimeRange): SetTimeRangeAction => ({
   type: 'SET_TIME_RANGE',
   payload: {timeRange},
+})
+
+interface SetTypeAction {
+  type: 'SET_VIEW_TYPE'
+  payload: {type: ViewType}
+}
+
+export const setType = (type: ViewType): SetTypeAction => ({
+  type: 'SET_VIEW_TYPE',
+  payload: {type},
 })

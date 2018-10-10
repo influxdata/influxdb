@@ -199,9 +199,7 @@ class RefreshingView extends PureComponent<Props> {
   }
 }
 
-const mstp = ({sources, routing}: AppState): StateProps => {
-  const sourceID = routing.locationBeforeTransitions.query.sourceID
-  const source = sources.find(s => s.id === sourceID)
+const mstp = ({source}: AppState): StateProps => {
   const link = source.links.query
 
   return {

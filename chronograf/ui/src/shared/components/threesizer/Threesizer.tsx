@@ -38,7 +38,7 @@ interface DivisionProps {
   size?: number
   headerButtons?: JSX.Element[]
   menuOptions: MenuItem[]
-  render: (visibility?: string) => ReactElement<any>
+  render: (visibility: string, pixels: number) => ReactElement<any>
 }
 
 interface DivisionState extends DivisionProps {
