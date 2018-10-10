@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/deep"
 	"github.com/influxdata/platform/tsdb"

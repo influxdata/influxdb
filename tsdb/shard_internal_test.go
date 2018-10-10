@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
 )
 
