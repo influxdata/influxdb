@@ -269,7 +269,7 @@ func (t *transpilerState) from(m *influxql.Measurement) (flux.OperationID, error
 	}
 
 	spec := &inputs.FromOpSpec{
-		BucketID: mapping.BucketID,
+		BucketID: mapping.BucketID.String(),
 	}
 	return t.op("from", spec), nil
 }

@@ -5,14 +5,14 @@ import (
 	"os"
 
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/inputs"
-	"github.com/influxdata/flux/functions/inputs/storage"
 	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/query/functions/storage/pb"
+	"github.com/influxdata/platform/query/functions/inputs"
+	"github.com/influxdata/platform/query/functions/inputs/storage"
+	"github.com/influxdata/platform/query/functions/inputs/storage/pb"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

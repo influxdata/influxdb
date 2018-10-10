@@ -23,7 +23,7 @@ func init() {
 					{
 						ID: "from0",
 						Spec: &inputs.FromOpSpec{
-							BucketID: bucketID,
+							BucketID: bucketID.String(),
 						},
 					},
 					{
@@ -162,7 +162,7 @@ func init() {
 					{
 						ID: "from0",
 						Spec: &inputs.FromOpSpec{
-							BucketID: bucketID,
+							BucketID: bucketID.String(),
 						},
 					},
 					{

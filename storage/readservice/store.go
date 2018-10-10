@@ -7,8 +7,8 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	fstorage "github.com/influxdata/flux/functions/inputs/storage"
 	"github.com/influxdata/platform/models"
+	fstorage "github.com/influxdata/platform/query/functions/inputs/storage"
 	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/storage/reads"
 	"github.com/influxdata/platform/storage/reads/datatypes"

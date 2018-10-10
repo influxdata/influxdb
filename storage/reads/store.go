@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/gogo/protobuf/proto"
-	fstorage "github.com/influxdata/flux/functions/inputs/storage"
 	"github.com/influxdata/platform/models"
+	fstorage "github.com/influxdata/platform/query/functions/inputs/storage"
 	"github.com/influxdata/platform/storage/reads/datatypes"
 	"github.com/influxdata/platform/tsdb/cursors"
 )
