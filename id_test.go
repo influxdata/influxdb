@@ -38,7 +38,7 @@ func TestIDFromString(t *testing.T) {
 			name:    "Should not be able to decode a non hex ID",
 			id:      "gggggggggggggggg",
 			wantErr: true,
-			err:     "encoding/hex: invalid byte: U+0067 'g'",
+			err:     `strconv.ParseUint: parsing "gggggggggggggggg": invalid syntax`,
 		},
 		{
 			name:    "Should not be able to decode inputs with length less than 16 bytes",
@@ -82,7 +82,7 @@ func TestDecodeFromString(t *testing.T) {
 	want := []byte{48, 50, 48, 102, 55, 53, 53, 99, 51, 99, 48, 56, 50, 48, 48, 48}
 	got, _ := id.Encode()
 	if !bytes.Equal(want, got) {
-		t.Errorf("got ID not equal to wanted ID")
+		t.Errorf("got %s not equal to wanted %s", string(got), string(want))
 	}
 	if id.String() != "020f755c3c082000" {
 		t.Errorf("expecting string representation to contain the right value")
@@ -190,5 +190,22 @@ func TestValid(t *testing.T) {
 
 	if platform.InvalidID() != 0 {
 		t.Errorf("expecting invalid ID to return a zero ID, thus invalid")
+	}
+}
+
+func BenchmarkIDEncode(b *testing.B) {
+	var id platform.ID
+	id.DecodeFromString("5ca1ab1eba5eba11")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b, _ := id.Encode()
+		_ = b
+	}
+}
+
+func BenchmarkIDDecode(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		var id platform.ID
+		id.DecodeFromString("5ca1ab1eba5eba11")
 	}
 }

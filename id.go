@@ -5,6 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"reflect"
+	"strconv"
+	"unsafe"
 )
 
 // IDLength is the exact length a string (or a byte slice representing it) must have in order to be decoded into a valid ID.
@@ -53,18 +56,25 @@ func (i *ID) Decode(b []byte) error {
 		return ErrInvalidIDLength
 	}
 
-	dst := make([]byte, hex.DecodedLen(IDLength))
-	_, err := hex.Decode(dst, b)
+	res, err := strconv.ParseUint(unsafeBytesToString(b), 16, 64)
 	if err != nil {
 		return err
 	}
-	*i = ID(binary.BigEndian.Uint64(dst))
 
-	if !i.Valid() {
+	if *i = ID(res); !i.Valid() {
 		return ErrInvalidID
 	}
-
 	return nil
+}
+
+func unsafeBytesToString(in []byte) string {
+	src := *(*reflect.SliceHeader)(unsafe.Pointer(&in))
+	dst := reflect.StringHeader{
+		Data: src.Data,
+		Len:  src.Len,
+	}
+	s := *(*string)(unsafe.Pointer(&dst))
+	return s
 }
 
 // DecodeFromString parses s as a hex-encoded string.
