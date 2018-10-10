@@ -5,43 +5,21 @@ import (
 	"errors"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/platform/query/functions/inputs/storage"
+	"github.com/influxdata/platform/storage/reads"
+	"github.com/influxdata/platform/storage/reads/datatypes"
 	"go.uber.org/zap"
 )
 
-type ResultSet interface {
-	Close()
-	Next() bool
-	Cursor() tsdb.Cursor
-	Tags() models.Tags
-}
-
-type GroupResultSet interface {
-	Next() GroupCursor
-	Close()
-}
-
-type GroupCursor interface {
-	Tags() models.Tags
-	Keys() [][]byte
-	PartitionKeyVals() [][]byte
-	Next() bool
-	Cursor() tsdb.Cursor
-	Close()
-}
-
-type Store interface {
-	Read(ctx context.Context, req *ReadRequest) (ResultSet, error)
-	GroupRead(ctx context.Context, req *ReadRequest) (GroupResultSet, error)
-	WithLogger(log *zap.Logger)
-}
-
-func getReadSource(req *ReadRequest) (*ReadSource, error) {
+func getReadSource(req *datatypes.ReadRequest) (*ReadSource, error) {
 	if req.ReadSource == nil {
 		return nil, ErrMissingReadSource
 	}
@@ -53,14 +31,14 @@ func getReadSource(req *ReadRequest) (*ReadSource, error) {
 	return &source, nil
 }
 
-type localStore struct {
+type Store struct {
 	TSDBStore  *tsdb.Store
 	MetaClient MetaClient
 	Logger     *zap.Logger
 }
 
-func NewStore(store *tsdb.Store, metaClient MetaClient) Store {
-	return &localStore{
+func NewStore(store *tsdb.Store, metaClient MetaClient) *Store {
+	return &Store{
 		TSDBStore:  store,
 		MetaClient: metaClient,
 		Logger:     zap.NewNop(),
@@ -68,11 +46,11 @@ func NewStore(store *tsdb.Store, metaClient MetaClient) Store {
 }
 
 // WithLogger sets the logger for the service.
-func (s *localStore) WithLogger(log *zap.Logger) {
+func (s *Store) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "store"))
 }
 
-func (s *localStore) findShardIDs(database, rp string, desc bool, start, end int64) ([]uint64, error) {
+func (s *Store) findShardIDs(database, rp string, desc bool, start, end int64) ([]uint64, error) {
 	groups, err := s.MetaClient.ShardGroupsByTimeRange(database, rp, time.Unix(0, start), time.Unix(0, end))
 	if err != nil {
 		return nil, err
@@ -97,7 +75,7 @@ func (s *localStore) findShardIDs(database, rp string, desc bool, start, end int
 	return shardIDs, nil
 }
 
-func (s *localStore) validateArgs(database, rp string, start, end int64) (string, string, int64, int64, error) {
+func (s *Store) validateArgs(database, rp string, start, end int64) (string, string, int64, int64, error) {
 	di := s.MetaClient.Database(database)
 	if di == nil {
 		return "", "", 0, 0, errors.New("no database")
@@ -121,7 +99,7 @@ func (s *localStore) validateArgs(database, rp string, start, end int64) (string
 	return database, rp, start, end, nil
 }
 
-func (s *localStore) Read(ctx context.Context, req *ReadRequest) (ResultSet, error) {
+func (s *Store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error) {
 	if len(req.GroupKeys) > 0 {
 		panic("Read: len(Grouping) > 0")
 	}
@@ -148,30 +126,30 @@ func (s *localStore) Read(ctx context.Context, req *ReadRequest) (ResultSet, err
 	if err != nil {
 		return nil, err
 	}
-	if len(shardIDs) == 0 {
-		return (*resultSet)(nil), nil
+	if len(shardIDs) == 0 { // TODO(jeff): this was a typed nil
+		return nil, nil
 	}
 
-	var cur SeriesCursor
+	var cur reads.SeriesCursor
 	if ic, err := newIndexSeriesCursor(ctx, req.Predicate, s.TSDBStore.Shards(shardIDs)); err != nil {
 		return nil, err
-	} else if ic == nil {
-		return (*resultSet)(nil), nil
+	} else if ic == nil { // TODO(jeff): this was a typed nil
+		return nil, nil
 	} else {
 		cur = ic
 	}
 
 	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
-		cur = NewLimitSeriesCursor(ctx, cur, req.SeriesLimit, req.SeriesOffset)
+		cur = reads.NewLimitSeriesCursor(ctx, cur, req.SeriesLimit, req.SeriesOffset)
 	}
 
 	req.TimestampRange.Start = start
 	req.TimestampRange.End = end
 
-	return NewResultSet(ctx, req, cur), nil
+	return reads.NewResultSet(ctx, req, cur), nil
 }
 
-func (s *localStore) GroupRead(ctx context.Context, req *ReadRequest) (GroupResultSet, error) {
+func (s *Store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (reads.GroupResultSet, error) {
 	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
 		return nil, errors.New("GroupRead: SeriesLimit and SeriesOffset not supported when Grouping")
 	}
@@ -207,7 +185,7 @@ func (s *localStore) GroupRead(ctx context.Context, req *ReadRequest) (GroupResu
 	req.TimestampRange.Start = start
 	req.TimestampRange.End = end
 
-	newCursor := func() (SeriesCursor, error) {
+	newCursor := func() (reads.SeriesCursor, error) {
 		cur, err := newIndexSeriesCursor(ctx, req.Predicate, shards)
 		if cur == nil || err != nil {
 			return nil, err
@@ -215,10 +193,19 @@ func (s *localStore) GroupRead(ctx context.Context, req *ReadRequest) (GroupResu
 		return cur, nil
 	}
 
-	rs := NewGroupResultSet(ctx, req, newCursor)
+	rs := reads.NewGroupResultSet(ctx, req, newCursor)
 	if rs == nil {
 		return nil, nil
 	}
 
 	return rs, nil
+}
+
+func (s *Store) GetSource(rs storage.ReadSpec) (proto.Message, error) {
+	src := &ReadSource{Database: string(rs.BucketID)}
+	if i := strings.IndexByte(src.Database, '/'); i > -1 {
+		src.RetentionPolicy = src.Database[i+1:]
+		src.Database = src.Database[:i]
+	}
+	return src, nil
 }

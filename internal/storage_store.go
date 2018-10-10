@@ -4,8 +4,9 @@ import (
 	"context"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/platform/storage/reads"
+	"github.com/influxdata/platform/storage/reads/datatypes"
 	"go.uber.org/zap"
 )
 
@@ -14,7 +15,7 @@ import (
 // It's currently a partial implementation as one of a store's exported methods
 // returns an unexported type.
 type StorageStoreMock struct {
-	ReadFn       func(ctx context.Context, req *storage.ReadRequest) (storage.ResultSet, error)
+	ReadFn       func(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error)
 	WithLoggerFn func(log *zap.Logger)
 
 	ResultSet *StorageResultsMock
@@ -29,7 +30,7 @@ func NewStorageStoreMock() *StorageStoreMock {
 		WithLoggerFn: func(*zap.Logger) {},
 		ResultSet:    NewStorageResultsMock(),
 	}
-	store.ReadFn = func(context.Context, *storage.ReadRequest) (storage.ResultSet, error) {
+	store.ReadFn = func(context.Context, *datatypes.ReadRequest) (reads.ResultSet, error) {
 		return store.ResultSet, nil
 	}
 	return store
@@ -41,7 +42,7 @@ func (s *StorageStoreMock) WithLogger(log *zap.Logger) {
 }
 
 // Read reads the storage request and returns a cursor to access results.
-func (s *StorageStoreMock) Read(ctx context.Context, req *storage.ReadRequest) (storage.ResultSet, error) {
+func (s *StorageStoreMock) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error) {
 	return s.ReadFn(ctx, req)
 }
 

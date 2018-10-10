@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/storage/reads/datatypes"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -44,13 +44,13 @@ type Command struct {
 	expr            string
 	agg             string
 	groupArg        string
-	group           storage.ReadRequest_Group
+	group           datatypes.ReadRequest_Group
 	groupKeys       string
 	keys            []string
 	hintsArg        string
-	hints           storage.HintFlags
+	hints           datatypes.HintFlags
 
-	aggType storage.Aggregate_AggregateType
+	aggType datatypes.Aggregate_AggregateType
 
 	// response
 	integerSum  int64
@@ -149,7 +149,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 	defer conn.Close()
 
-	return cmd.query(storage.NewStorageClient(conn))
+	return cmd.query(datatypes.NewStorageClient(conn))
 }
 
 func (cmd *Command) validate() error {
@@ -161,36 +161,33 @@ func (cmd *Command) validate() error {
 	}
 
 	if cmd.agg != "" {
-		tm := proto.EnumValueMap("com.github.influxdata.influxdb.services.storage.Aggregate_AggregateType")
-		agg, ok := tm[strings.ToUpper(cmd.agg)]
+		agg, ok := datatypes.Aggregate_AggregateType_value[strings.ToUpper(cmd.agg)]
 		if !ok {
 			return errors.New("invalid aggregate function: " + cmd.agg)
 		}
-		cmd.aggType = storage.Aggregate_AggregateType(agg)
+		cmd.aggType = datatypes.Aggregate_AggregateType(agg)
 	}
 
-	enums := proto.EnumValueMap("com.github.influxdata.influxdb.services.storage.ReadRequest_Group")
-	group, ok := enums["GROUP_"+strings.ToUpper(cmd.groupArg)]
+	group, ok := datatypes.ReadRequest_Group_value["GROUP_"+strings.ToUpper(cmd.groupArg)]
 	if !ok {
 		return errors.New("invalid group type: " + cmd.groupArg)
 	}
-	cmd.group = storage.ReadRequest_Group(group)
+	cmd.group = datatypes.ReadRequest_Group(group)
 
-	enums = proto.EnumValueMap("com.github.influxdata.influxdb.services.storage.ReadRequest_HintFlags")
 	for _, h := range strings.Split(cmd.hintsArg, ",") {
-		cmd.hints |= storage.HintFlags(enums["HINT_"+strings.ToUpper(h)])
+		cmd.hints |= datatypes.HintFlags(datatypes.ReadRequest_HintFlags_value["HINT_"+strings.ToUpper(h)])
 	}
 
 	return nil
 }
 
-func (cmd *Command) query(c storage.StorageClient) error {
+func (cmd *Command) query(c datatypes.StorageClient) error {
 	src := storage.ReadSource{
 		Database:        cmd.database,
 		RetentionPolicy: cmd.retentionPolicy,
 	}
 
-	var req storage.ReadRequest
+	var req datatypes.ReadRequest
 	if any, err := types.MarshalAny(&src); err != nil {
 		return err
 	} else {
@@ -206,8 +203,8 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	req.GroupKeys = cmd.keys
 	req.Hints = cmd.hints
 
-	if cmd.aggType != storage.AggregateTypeNone {
-		req.Aggregate = &storage.Aggregate{Type: cmd.aggType}
+	if cmd.aggType != datatypes.AggregateTypeNone {
+		req.Aggregate = &datatypes.Aggregate{Type: cmd.aggType}
 	}
 
 	if cmd.expr != "" {
@@ -222,7 +219,7 @@ func (cmd *Command) query(c storage.StorageClient) error {
 			return v.Err()
 		}
 
-		req.Predicate = &storage.Predicate{Root: v.nodes[0]}
+		req.Predicate = &datatypes.Predicate{Root: v.nodes[0]}
 	}
 
 	stream, err := c.Read(context.Background(), &req)
@@ -240,7 +237,7 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	}()
 
 	for {
-		var rep storage.ReadResponse
+		var rep datatypes.ReadResponse
 
 		if err = stream.RecvMsg(&rep); err != nil {
 			if err == io.EOF {
@@ -263,31 +260,31 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	return nil
 }
 
-func (cmd *Command) processFramesSilent(frames []storage.ReadResponse_Frame) {
+func (cmd *Command) processFramesSilent(frames []datatypes.ReadResponse_Frame) {
 	for _, frame := range frames {
 		switch f := frame.Data.(type) {
-		case *storage.ReadResponse_Frame_IntegerPoints:
+		case *datatypes.ReadResponse_Frame_IntegerPoints:
 			for _, v := range f.IntegerPoints.Values {
 				cmd.integerSum += v
 			}
 			cmd.pointCount += uint64(len(f.IntegerPoints.Values))
 
-		case *storage.ReadResponse_Frame_UnsignedPoints:
+		case *datatypes.ReadResponse_Frame_UnsignedPoints:
 			for _, v := range f.UnsignedPoints.Values {
 				cmd.unsignedSum += v
 			}
 			cmd.pointCount += uint64(len(f.UnsignedPoints.Values))
 
-		case *storage.ReadResponse_Frame_FloatPoints:
+		case *datatypes.ReadResponse_Frame_FloatPoints:
 			for _, v := range f.FloatPoints.Values {
 				cmd.floatSum += v
 			}
 			cmd.pointCount += uint64(len(f.FloatPoints.Values))
 
-		case *storage.ReadResponse_Frame_StringPoints:
+		case *datatypes.ReadResponse_Frame_StringPoints:
 			cmd.pointCount += uint64(len(f.StringPoints.Values))
 
-		case *storage.ReadResponse_Frame_BooleanPoints:
+		case *datatypes.ReadResponse_Frame_BooleanPoints:
 			cmd.pointCount += uint64(len(f.BooleanPoints.Values))
 		}
 	}
@@ -307,13 +304,13 @@ func printByteSlice(wr *bufio.Writer, v [][]byte) {
 	wr.WriteString("\033[0m]\n")
 }
 
-func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadResponse_Frame) {
+func (cmd *Command) processFrames(wr *bufio.Writer, frames []datatypes.ReadResponse_Frame) {
 	var buf [1024]byte
 	var line []byte
 
 	for _, frame := range frames {
 		switch f := frame.Data.(type) {
-		case *storage.ReadResponse_Frame_Group:
+		case *datatypes.ReadResponse_Frame_Group:
 			g := f.Group
 			wr.WriteString("partition values")
 			printByteSlice(wr, g.PartitionKeyVals)
@@ -321,7 +318,7 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 			printByteSlice(wr, g.TagKeys)
 			wr.Flush()
 
-		case *storage.ReadResponse_Frame_Series:
+		case *datatypes.ReadResponse_Frame_Series:
 			s := f.Series
 			wr.WriteString("\033[36m")
 			first := true
@@ -338,7 +335,7 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 			wr.WriteString("\033[0m\n")
 			wr.Flush()
 
-		case *storage.ReadResponse_Frame_IntegerPoints:
+		case *datatypes.ReadResponse_Frame_IntegerPoints:
 			p := f.IntegerPoints
 			for i := 0; i < len(p.Timestamps); i++ {
 				line = buf[:0]
@@ -354,7 +351,7 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 			}
 			cmd.pointCount += uint64(len(f.IntegerPoints.Values))
 
-		case *storage.ReadResponse_Frame_UnsignedPoints:
+		case *datatypes.ReadResponse_Frame_UnsignedPoints:
 			p := f.UnsignedPoints
 			for i := 0; i < len(p.Timestamps); i++ {
 				line = buf[:0]
@@ -370,7 +367,7 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 			}
 			cmd.pointCount += uint64(len(f.UnsignedPoints.Values))
 
-		case *storage.ReadResponse_Frame_FloatPoints:
+		case *datatypes.ReadResponse_Frame_FloatPoints:
 			p := f.FloatPoints
 			for i := 0; i < len(p.Timestamps); i++ {
 				line = buf[:0]
@@ -386,7 +383,7 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 			}
 			cmd.pointCount += uint64(len(f.FloatPoints.Values))
 
-		case *storage.ReadResponse_Frame_StringPoints:
+		case *datatypes.ReadResponse_Frame_StringPoints:
 			p := f.StringPoints
 			for i := 0; i < len(p.Timestamps); i++ {
 				line = buf[:0]
@@ -399,7 +396,7 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 			}
 			cmd.pointCount += uint64(len(f.StringPoints.Values))
 
-		case *storage.ReadResponse_Frame_BooleanPoints:
+		case *datatypes.ReadResponse_Frame_BooleanPoints:
 			p := f.BooleanPoints
 			for i := 0; i < len(p.Timestamps); i++ {
 				line = buf[:0]
@@ -420,7 +417,7 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 }
 
 type exprToNodeVisitor struct {
-	nodes []*storage.Node
+	nodes []*datatypes.Node
 	err   error
 }
 
@@ -428,7 +425,7 @@ func (v *exprToNodeVisitor) Err() error {
 	return v.err
 }
 
-func (v *exprToNodeVisitor) pop() (top *storage.Node) {
+func (v *exprToNodeVisitor) pop() (top *datatypes.Node) {
 	if len(v.nodes) < 1 {
 		panic("exprToNodeVisitor: stack empty")
 	}
@@ -437,7 +434,7 @@ func (v *exprToNodeVisitor) pop() (top *storage.Node) {
 	return
 }
 
-func (v *exprToNodeVisitor) pop2() (lhs, rhs *storage.Node) {
+func (v *exprToNodeVisitor) pop2() (lhs, rhs *datatypes.Node) {
 	if len(v.nodes) < 2 {
 		panic("exprToNodeVisitor: stack empty")
 	}
@@ -448,24 +445,24 @@ func (v *exprToNodeVisitor) pop2() (lhs, rhs *storage.Node) {
 	return
 }
 
-func mapOpToComparison(op influxql.Token) storage.Node_Comparison {
+func mapOpToComparison(op influxql.Token) datatypes.Node_Comparison {
 	switch op {
 	case influxql.EQ:
-		return storage.ComparisonEqual
+		return datatypes.ComparisonEqual
 	case influxql.EQREGEX:
-		return storage.ComparisonRegex
+		return datatypes.ComparisonRegex
 	case influxql.NEQ:
-		return storage.ComparisonNotEqual
+		return datatypes.ComparisonNotEqual
 	case influxql.NEQREGEX:
-		return storage.ComparisonNotEqual
+		return datatypes.ComparisonNotEqual
 	case influxql.LT:
-		return storage.ComparisonLess
+		return datatypes.ComparisonLess
 	case influxql.LTE:
-		return storage.ComparisonLessEqual
+		return datatypes.ComparisonLessEqual
 	case influxql.GT:
-		return storage.ComparisonGreater
+		return datatypes.ComparisonGreater
 	case influxql.GTE:
-		return storage.ComparisonGreaterEqual
+		return datatypes.ComparisonGreaterEqual
 
 	default:
 		return -1
@@ -491,24 +488,24 @@ func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 
 		if comp := mapOpToComparison(n.Op); comp != -1 {
 			lhs, rhs := v.pop2()
-			v.nodes = append(v.nodes, &storage.Node{
-				NodeType: storage.NodeTypeComparisonExpression,
-				Value:    &storage.Node_Comparison_{Comparison: comp},
-				Children: []*storage.Node{lhs, rhs},
+			v.nodes = append(v.nodes, &datatypes.Node{
+				NodeType: datatypes.NodeTypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: comp},
+				Children: []*datatypes.Node{lhs, rhs},
 			})
 		} else if n.Op == influxql.AND || n.Op == influxql.OR {
-			var op storage.Node_Logical
+			var op datatypes.Node_Logical
 			if n.Op == influxql.AND {
-				op = storage.LogicalAnd
+				op = datatypes.LogicalAnd
 			} else {
-				op = storage.LogicalOr
+				op = datatypes.LogicalOr
 			}
 
 			lhs, rhs := v.pop2()
-			v.nodes = append(v.nodes, &storage.Node{
-				NodeType: storage.NodeTypeLogicalExpression,
-				Value:    &storage.Node_Logical_{Logical: op},
-				Children: []*storage.Node{lhs, rhs},
+			v.nodes = append(v.nodes, &datatypes.Node{
+				NodeType: datatypes.NodeTypeLogicalExpression,
+				Value:    &datatypes.Node_Logical_{Logical: op},
+				Children: []*datatypes.Node{lhs, rhs},
 			})
 		} else {
 			v.err = fmt.Errorf("unsupported operator, %s", n.Op)
@@ -522,51 +519,51 @@ func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 			return nil
 		}
 
-		v.nodes = append(v.nodes, &storage.Node{
-			NodeType: storage.NodeTypeParenExpression,
-			Children: []*storage.Node{v.pop()},
+		v.nodes = append(v.nodes, &datatypes.Node{
+			NodeType: datatypes.NodeTypeParenExpression,
+			Children: []*datatypes.Node{v.pop()},
 		})
 		return nil
 
 	case *influxql.StringLiteral:
-		v.nodes = append(v.nodes, &storage.Node{
-			NodeType: storage.NodeTypeLiteral,
-			Value:    &storage.Node_StringValue{StringValue: n.Val},
+		v.nodes = append(v.nodes, &datatypes.Node{
+			NodeType: datatypes.NodeTypeLiteral,
+			Value:    &datatypes.Node_StringValue{StringValue: n.Val},
 		})
 		return nil
 
 	case *influxql.NumberLiteral:
-		v.nodes = append(v.nodes, &storage.Node{
-			NodeType: storage.NodeTypeLiteral,
-			Value:    &storage.Node_FloatValue{FloatValue: n.Val},
+		v.nodes = append(v.nodes, &datatypes.Node{
+			NodeType: datatypes.NodeTypeLiteral,
+			Value:    &datatypes.Node_FloatValue{FloatValue: n.Val},
 		})
 		return nil
 
 	case *influxql.IntegerLiteral:
-		v.nodes = append(v.nodes, &storage.Node{
-			NodeType: storage.NodeTypeLiteral,
-			Value:    &storage.Node_IntegerValue{IntegerValue: n.Val},
+		v.nodes = append(v.nodes, &datatypes.Node{
+			NodeType: datatypes.NodeTypeLiteral,
+			Value:    &datatypes.Node_IntegerValue{IntegerValue: n.Val},
 		})
 		return nil
 
 	case *influxql.UnsignedLiteral:
-		v.nodes = append(v.nodes, &storage.Node{
-			NodeType: storage.NodeTypeLiteral,
-			Value:    &storage.Node_UnsignedValue{UnsignedValue: n.Val},
+		v.nodes = append(v.nodes, &datatypes.Node{
+			NodeType: datatypes.NodeTypeLiteral,
+			Value:    &datatypes.Node_UnsignedValue{UnsignedValue: n.Val},
 		})
 		return nil
 
 	case *influxql.VarRef:
-		v.nodes = append(v.nodes, &storage.Node{
-			NodeType: storage.NodeTypeTagRef,
-			Value:    &storage.Node_TagRefValue{TagRefValue: n.Val},
+		v.nodes = append(v.nodes, &datatypes.Node{
+			NodeType: datatypes.NodeTypeTagRef,
+			Value:    &datatypes.Node_TagRefValue{TagRefValue: n.Val},
 		})
 		return nil
 
 	case *influxql.RegexLiteral:
-		v.nodes = append(v.nodes, &storage.Node{
-			NodeType: storage.NodeTypeLiteral,
-			Value:    &storage.Node_RegexValue{RegexValue: n.Val.String()},
+		v.nodes = append(v.nodes, &datatypes.Node{
+			NodeType: datatypes.NodeTypeLiteral,
+			Value:    &datatypes.Node_RegexValue{RegexValue: n.Val.String()},
 		})
 		return nil
 	default:

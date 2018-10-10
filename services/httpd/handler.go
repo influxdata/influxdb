@@ -35,11 +35,12 @@ import (
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
 	pquery "github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/storage/reads"
+	"github.com/influxdata/platform/storage/reads/datatypes"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
@@ -1681,7 +1682,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 
 // Store describes the behaviour of the storage packages Store type.
 type Store interface {
-	Read(ctx context.Context, req *storage.ReadRequest) (storage.ResultSet, error)
+	Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error)
 	WithLogger(log *zap.Logger)
 }
 
