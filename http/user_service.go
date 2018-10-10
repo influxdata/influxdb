@@ -81,7 +81,7 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := []byte{}
+	var id platform.ID
 	switch s := a.(type) {
 	case *platform.Session:
 		id = s.UserID
