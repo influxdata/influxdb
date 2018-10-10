@@ -217,8 +217,9 @@ func platformF(cmd *cobra.Command, args []string) {
 		config.EngineOptions.WALEnabled = true // Enable a disk-based WAL.
 		config.EngineOptions.Config = config.Config
 
-		engine := storage.NewEngine(enginePath, config)
+		engine := storage.NewEngine(enginePath, config, storage.WithRetentionEnforcer(bucketSvc))
 		engine.WithLogger(logger)
+		reg.MustRegister(engine.PrometheusCollectors()...)
 
 		if err := engine.Open(); err != nil {
 			logger.Error("failed to open engine", zap.Error(err))

@@ -48,15 +48,12 @@ require (
 	github.com/influxdata/line-protocol v0.0.0-20180522152040-32c6aa80de5e
 	github.com/influxdata/roaring v0.4.12 // indirect
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
-	github.com/influxdata/yamux v0.0.0-20171107173414-1f58ded512de // indirect
-	github.com/influxdata/yarpc v0.0.1 // indirect
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jsternberg/zap-logfmt v1.2.0 // indirect
 	github.com/jtolds/gls v4.2.1+incompatible // indirect
 	github.com/julienschmidt/httprouter v0.0.0-20180715161854-348b672cd90d
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
-	github.com/kr/pty v1.1.3 // indirect
 	github.com/masterminds/semver v1.4.2 // indirect
 	github.com/mattn/go-zglob v0.0.0-20180803001819-2ea3427bfa53 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
@@ -100,6 +97,8 @@ require (
 	google.golang.org/grpc v1.15.0
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
+	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
+	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
 replace github.com/goreleaser/goreleaser => github.com/influxdata/goreleaser v0.86.2-0.20180917235036-c23174192b3a
