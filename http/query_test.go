@@ -9,13 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/flux/csv"
-	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/platform/mock"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query"
 )
 
