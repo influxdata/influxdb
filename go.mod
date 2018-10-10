@@ -54,7 +54,6 @@ require (
 	github.com/julienschmidt/httprouter v0.0.0-20180715161854-348b672cd90d
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
-	github.com/masterminds/semver v1.4.2 // indirect
 	github.com/mattn/go-zglob v0.0.0-20180803001819-2ea3427bfa53 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/mitchellh/go-homedir v1.0.0 // indirect
@@ -101,4 +100,4 @@ require (
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
-replace github.com/goreleaser/goreleaser => github.com/influxdata/goreleaser v0.86.2-0.20180917235036-c23174192b3a
+replace github.com/goreleaser/goreleaser => github.com/influxdata/goreleaser v0.86.2-0.20181010170531-0fd209ba67f5
