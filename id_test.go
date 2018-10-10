@@ -114,7 +114,7 @@ func TestEncode(t *testing.T) {
 
 func TestDecodeFromAllZeros(t *testing.T) {
 	var id platform.ID
-	err := id.Decode(make([]byte, platform.IDStringLength))
+	err := id.Decode(make([]byte, platform.IDLength))
 	if err == nil {
 		t.Errorf("expecting all zeros ID to not be a valid ID")
 	}

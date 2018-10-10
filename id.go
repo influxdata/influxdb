@@ -7,8 +7,8 @@ import (
 	"errors"
 )
 
-// IDStringLength is the exact length a string (or a byte slice representing it) must have in order to be decoded into a valid ID.
-const IDStringLength = 16
+// IDLength is the exact length a string (or a byte slice representing it) must have in order to be decoded into a valid ID.
+const IDLength = 16
 
 // ErrInvalidID is the error thrown to notify invalid IDs.
 var ErrInvalidID = errors.New("invalid ID")
@@ -49,11 +49,11 @@ func InvalidID() ID {
 // It errors if the input byte slice does not have the correct length
 // or if it contains all zeros.
 func (i *ID) Decode(b []byte) error {
-	if len(b) != IDStringLength {
+	if len(b) != IDLength {
 		return ErrInvalidIDLength
 	}
 
-	dst := make([]byte, hex.DecodedLen(IDStringLength))
+	dst := make([]byte, hex.DecodedLen(IDLength))
 	_, err := hex.Decode(dst, b)
 	if err != nil {
 		return err
@@ -80,7 +80,7 @@ func (i ID) Encode() ([]byte, error) {
 		return nil, ErrInvalidID
 	}
 
-	b := make([]byte, hex.DecodedLen(IDStringLength))
+	b := make([]byte, hex.DecodedLen(IDLength))
 	binary.BigEndian.PutUint64(b, uint64(i))
 
 	dst := make([]byte, hex.EncodedLen(len(b)))
