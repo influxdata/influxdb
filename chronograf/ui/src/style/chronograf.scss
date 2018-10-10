@@ -44,13 +44,7 @@
 @import 'src/dashboards/components/rename_dashboard/RenameDashboard';
 @import 'src/dashboards/components/dashboard_empty/DashboardEmpty';
 @import 'src/dashboards/components/VEO';
-@import 'src/flux/components/time_machine/TimeMachine';
-@import 'src/flux/components/time_machine/flux-overlay';
-@import 'src/flux/components/time_machine/flux-editor';
-@import 'src/flux/components/time_machine/flux-builder';
-@import 'src/flux/components/time_machine/flux-explorer';
-@import 'src/flux/components/time_machine/visualization';
-@import 'src/flux/components/time_machine/add-func-button';
+@import 'src/dataExplorer/components/DataExplorer';
 @import 'src/shared/components/views/Markdown';
 @import 'src/onboarding/OnboardingWizard.scss';
 

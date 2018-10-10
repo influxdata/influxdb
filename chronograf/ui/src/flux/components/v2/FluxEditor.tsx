@@ -1,12 +1,21 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import {Controlled as ReactCodeMirror, IInstance} from 'react-codemirror2'
 import {EditorChange, LineWidget} from 'codemirror'
 import {ShowHintOptions} from 'src/types/codemirror'
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import {OnChangeScript, OnSubmitScript, Suggestion} from 'src/types/flux'
-import {EXCLUDED_KEYS} from 'src/flux/constants/editor'
-import {getSuggestions} from 'src/flux/helpers/autoComplete'
 import 'src/external/codemirror'
+
+// Components
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Constants
+import {EXCLUDED_KEYS} from 'src/flux/constants/editor'
+
+// Utils
+import {getSuggestions} from 'src/flux/helpers/autoComplete'
+
+// Types
+import {OnChangeScript, OnSubmitScript, Suggestion} from 'src/types/flux'
 
 interface Gutter {
   line: number

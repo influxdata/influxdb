@@ -66,11 +66,11 @@ class SideNav extends PureComponent<Props> {
       },
       {
         type: NavItemType.Icon,
-        title: 'Flux Builder',
-        link: `/delorean/${this.sourceParam}`,
+        title: 'Data Explorer',
+        link: `/data-explorer/${this.sourceParam}`,
         icon: IconFont.Capacitor,
         location: location.pathname,
-        highlightWhen: ['delorean'],
+        highlightWhen: ['data-explorer'],
       },
       {
         type: NavItemType.Icon,

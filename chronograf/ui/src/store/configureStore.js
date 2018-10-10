@@ -7,7 +7,6 @@ import {resizeLayout} from 'src/shared/middleware/resizeLayout'
 import {queryStringConfig} from 'src/shared/middleware/queryStringConfig'
 import sharedReducers from 'src/shared/reducers'
 import persistStateEnhancer from './persistStateEnhancer'
-import scriptReducer from 'src/flux/reducers/script'
 import sourceReducer from 'src/sources/reducers/sources'
 
 // v2 reducers
@@ -25,7 +24,6 @@ const rootReducer = combineReducers({
   dashboards: dashboardsReducer,
   timeMachines: timeMachinesReducer,
   routing: routerReducer,
-  script: scriptReducer,
   sources: sourceReducer,
   views: viewsReducer,
   logs: logsReducer,

@@ -41,9 +41,7 @@ const timeMachineReducer = (
   action: Action
 ): TimeMachinesState => {
   if (action.type === 'SET_ACTIVE_TIME_MACHINE_ID') {
-    const {activeTimeMachineID} = action.payload
-
-    return {...state, activeTimeMachineID}
+    return {...state, activeTimeMachineID: action.payload.activeTimeMachineID}
   }
 
   // All other actions act upon whichever single `TimeMachineState` is

@@ -22,7 +22,6 @@ import Signin from 'src/Signin'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import {SourcePage, ManageSources} from 'src/sources'
-import {FluxPage} from 'src/flux'
 import {UserPage} from 'src/user'
 import {LogsPage} from 'src/logs'
 import NotFound from 'src/shared/components/NotFound'
@@ -119,7 +118,6 @@ class Root extends PureComponent<{}, State> {
                     path="manage-sources/:id/edit"
                     component={SourcePage}
                   />
-                  <Route path="delorean" component={FluxPage} />
                   <Route path="user/:tab" component={UserPage} />
                   <Route path="logs" component={LogsPage} />
                 </Route>

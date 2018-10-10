@@ -1,19 +1,49 @@
-import React, {PureComponent} from 'react'
+// Libraries
+import React, {PureComponent, ComponentClass} from 'react'
+import {connect} from 'react-redux'
 
-interface Props {}
+// Components
+import TimeMachine from 'src/shared/components/TimeMachine'
+
+// Actions
+import {setActiveTimeMachineID} from 'src/shared/actions/v2/timeMachines'
+
+// Utils
+import {DE_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
+
+interface StateProps {}
+
+interface DispatchProps {
+  onSetActiveTimeMachineID: typeof setActiveTimeMachineID
+}
+
+interface PassedProps {}
 
 interface State {}
 
-class DataExplorer extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
+type Props = StateProps & DispatchProps & PassedProps
 
-    this.state = {}
+class DataExplorer extends PureComponent<Props, State> {
+  public componentDidMount() {
+    const {onSetActiveTimeMachineID} = this.props
+
+    onSetActiveTimeMachineID(DE_TIME_MACHINE_ID)
   }
 
   public render() {
-    return null
+    return (
+      <div className="data-explorer">
+        <TimeMachine />
+      </div>
+    )
   }
 }
 
-export default DataExplorer
+const mdtp: DispatchProps = {
+  onSetActiveTimeMachineID: setActiveTimeMachineID,
+}
+
+export default connect(null, mdtp)(DataExplorer) as ComponentClass<
+  PassedProps,
+  State
+>
