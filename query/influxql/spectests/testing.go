@@ -84,9 +84,9 @@ func NewFixture(stmt string, spec *flux.Spec) Fixture {
 }
 
 func (f *fixture) Run(t *testing.T) {
-	organizationID = platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa")
-	bucketID = platformtesting.MustIDFromString("bbbbbbbbbbbbbbbb")
-	altBucketID = platformtesting.MustIDFromString("cccccccccccccccc")
+	organizationID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
+	bucketID = platformtesting.MustIDBase16("bbbbbbbbbbbbbbbb")
+	altBucketID = platformtesting.MustIDBase16("cccccccccccccccc")
 
 	t.Run(f.stmt, func(t *testing.T) {
 		if err := f.spec.Validate(); err != nil {

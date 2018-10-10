@@ -97,7 +97,7 @@ func CreateSession(
 				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
 				Users: []*platform.User{
 					{
-						ID:   MustIDFromString(sessionOneID),
+						ID:   MustIDBase16(sessionOneID),
 						Name: "user1",
 					},
 				},
@@ -107,8 +107,8 @@ func CreateSession(
 			},
 			wants: wants{
 				session: &platform.Session{
-					ID:     MustIDFromString(sessionTwoID),
-					UserID: MustIDFromString(sessionOneID),
+					ID:     MustIDBase16(sessionTwoID),
+					UserID: MustIDBase16(sessionOneID),
 					Key:    "abc123xyz",
 				},
 			},
@@ -164,8 +164,8 @@ func FindSession(
 				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
 				Sessions: []*platform.Session{
 					{
-						ID:        MustIDFromString(sessionOneID),
-						UserID:    MustIDFromString(sessionTwoID),
+						ID:        MustIDBase16(sessionOneID),
+						UserID:    MustIDBase16(sessionTwoID),
 						Key:       "abc123xyz",
 						ExpiresAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
 					},
@@ -176,8 +176,8 @@ func FindSession(
 			},
 			wants: wants{
 				session: &platform.Session{
-					ID:        MustIDFromString(sessionOneID),
-					UserID:    MustIDFromString(sessionTwoID),
+					ID:        MustIDBase16(sessionOneID),
+					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",
 					ExpiresAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
 				},
@@ -235,8 +235,8 @@ func ExpireSession(
 				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
 				Sessions: []*platform.Session{
 					{
-						ID:        MustIDFromString(sessionOneID),
-						UserID:    MustIDFromString(sessionTwoID),
+						ID:        MustIDBase16(sessionOneID),
+						UserID:    MustIDBase16(sessionTwoID),
 						Key:       "abc123xyz",
 						ExpiresAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
 					},
@@ -247,8 +247,8 @@ func ExpireSession(
 			},
 			wants: wants{
 				session: &platform.Session{
-					ID:        MustIDFromString(sessionOneID),
-					UserID:    MustIDFromString(sessionTwoID),
+					ID:        MustIDBase16(sessionOneID),
+					UserID:    MustIDBase16(sessionTwoID),
 					Key:       "abc123xyz",
 					ExpiresAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
 				},

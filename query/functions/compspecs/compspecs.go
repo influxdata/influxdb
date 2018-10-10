@@ -98,8 +98,8 @@ func init() {
 		Database:        "db",
 		RetentionPolicy: "rp",
 		Default:         true,
-		OrganizationID:  platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa"),
-		BucketID:        platformtesting.MustIDFromString("bbbbbbbbbbbbbbbb"),
+		OrganizationID:  platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+		BucketID:        platformtesting.MustIDBase16("bbbbbbbbbbbbbbbb"),
 	}
 	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
 		return &mapping, nil

@@ -251,8 +251,8 @@ const testScript = `option task = {
 		from(bucket: "one") |> toHTTP(url: "http://example.com")`
 
 func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
-	var orgID = platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa")
-	var userID = platformtesting.MustIDFromString("baaaaaaaaaaaaaab")
+	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
+	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/QuerySuccess", func(t *testing.T) {
 		tid, err := sys.st.CreateTask(context.Background(), orgID, userID, testScript, 0)
@@ -303,8 +303,8 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
-	var orgID = platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa")
-	var userID = platformtesting.MustIDFromString("baaaaaaaaaaaaaab")
+	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
+	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/QueryFail", func(t *testing.T) {
 		tid, err := sys.st.CreateTask(context.Background(), orgID, userID, testScript, 0)
@@ -331,8 +331,8 @@ func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
-	var orgID = platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa")
-	var userID = platformtesting.MustIDFromString("baaaaaaaaaaaaaab")
+	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
+	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/PromiseCancel", func(t *testing.T) {
 		tid, err := sys.st.CreateTask(context.Background(), orgID, userID, testScript, 0)
@@ -358,8 +358,8 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorServiceError(t *testing.T, fn createSysFn) {
-	var orgID = platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa")
-	var userID = platformtesting.MustIDFromString("baaaaaaaaaaaaaab")
+	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
+	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/ServiceError", func(t *testing.T) {
 		tid, err := sys.st.CreateTask(context.Background(), orgID, userID, testScript, 0)

@@ -43,12 +43,12 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
-		Org: platformtesting.MustIDFromString("ab01ab01ab01ab05"),
+		ID:  platformtesting.MustIDBase16("ab01ab01ab01ab01"),
+		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
 	scheduledFor := time.Unix(1, 0).UTC()
 	run := platform.Run{
-		ID:           platformtesting.MustIDFromString("2c20766972747573"),
+		ID:           platformtesting.MustIDBase16("2c20766972747573"),
 		TaskID:       task.ID,
 		Status:       "started",
 		ScheduledFor: scheduledFor.Format(time.RFC3339),
@@ -97,14 +97,14 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
-		Org: platformtesting.MustIDFromString("ab01ab01ab01ab05"),
+		ID:  platformtesting.MustIDBase16("ab01ab01ab01ab01"),
+		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
 
 	sf := time.Now().UTC()
 	sa := sf.Add(time.Second)
 	run := platform.Run{
-		ID:           platformtesting.MustIDFromString("2c20766972747573"),
+		ID:           platformtesting.MustIDBase16("2c20766972747573"),
 		TaskID:       task.ID,
 		Status:       "started",
 		ScheduledFor: sf.Format(time.RFC3339),
@@ -155,8 +155,8 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
-		Org: platformtesting.MustIDFromString("ab01ab01ab01ab05"),
+		ID:  platformtesting.MustIDBase16("ab01ab01ab01ab01"),
+		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
 
 	if _, err := reader.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID}); err == nil {
@@ -260,14 +260,14 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 	}
 
 	task := &backend.StoreTask{
-		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
-		Org: platformtesting.MustIDFromString("ab01ab01ab01ab05"),
+		ID:  platformtesting.MustIDBase16("ab01ab01ab01ab01"),
+		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
 	sf := time.Now().UTC()
 	sa := sf.Add(time.Second)
 
 	run := platform.Run{
-		ID:           platformtesting.MustIDFromString("2c20766972747573"),
+		ID:           platformtesting.MustIDBase16("2c20766972747573"),
 		TaskID:       task.ID,
 		Status:       "started",
 		ScheduledFor: sf.Format(time.RFC3339),
@@ -309,8 +309,8 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
-		Org: platformtesting.MustIDFromString("ab01ab01ab01ab05"),
+		ID:  platformtesting.MustIDBase16("ab01ab01ab01ab01"),
+		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
 
 	if _, err := reader.ListLogs(context.Background(), platform.LogFilter{}); err == nil {

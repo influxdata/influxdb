@@ -59,7 +59,7 @@ func TestRequest_JSON(t *testing.T) {
 			name: "simple",
 			data: `{"organization_id":"aaaaaaaaaaaaaaaa","compiler":{"a":"my custom compiler"},"compiler_type":"compilerA"}`,
 			want: query.Request{
-				OrganizationID: platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa"),
+				OrganizationID: platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
 				Compiler: &compilerA{
 					A: "my custom compiler",
 				},
@@ -97,7 +97,7 @@ func TestProxyRequest_JSON(t *testing.T) {
 			data: `{"request":{"organization_id":"aaaaaaaaaaaaaaaa","compiler":{"a":"my custom compiler"},"compiler_type":"compilerA"},"dialect":{"b":42},"dialect_type":"dialectB"}`,
 			want: query.ProxyRequest{
 				Request: query.Request{
-					OrganizationID: platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa"),
+					OrganizationID: platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
 					Compiler: &compilerA{
 						A: "my custom compiler",
 					},

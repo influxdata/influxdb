@@ -44,7 +44,7 @@ func TestService_handleGetViews(t *testing.T) {
 						return []*platform.View{
 							{
 								ViewContents: platform.ViewContents{
-									ID:   platformtesting.MustIDFromString("7365637465747572"),
+									ID:   platformtesting.MustIDBase16("7365637465747572"),
 									Name: "hello",
 								},
 								Properties: platform.LineViewProperties{
@@ -53,7 +53,7 @@ func TestService_handleGetViews(t *testing.T) {
 							},
 							{
 								ViewContents: platform.ViewContents{
-									ID:   platformtesting.MustIDFromString("6167697474697320"),
+									ID:   platformtesting.MustIDBase16("6167697474697320"),
 									Name: "example",
 								},
 							},
@@ -187,7 +187,7 @@ func TestService_handleGetView(t *testing.T) {
 					FindViewByIDF: func(ctx context.Context, id platform.ID) (*platform.View, error) {
 						return &platform.View{
 							ViewContents: platform.ViewContents{
-								ID:   platformtesting.MustIDFromString("020f755c3c082000"),
+								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 								Name: "example",
 							},
 						}, nil
@@ -294,7 +294,7 @@ func TestService_handlePostViews(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					CreateViewF: func(ctx context.Context, c *platform.View) error {
-						c.ID = platformtesting.MustIDFromString("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
@@ -302,7 +302,7 @@ func TestService_handlePostViews(t *testing.T) {
 			args: args{
 				view: &platform.View{
 					ViewContents: platform.ViewContents{
-						ID:   platformtesting.MustIDFromString("020f755c3c082000"),
+						ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 						Name: "hello",
 					},
 					Properties: platform.LineViewProperties{
@@ -390,7 +390,7 @@ func TestService_handleDeleteView(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					DeleteViewF: func(ctx context.Context, id platform.ID) error {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
 
@@ -487,10 +487,10 @@ func TestService_handlePatchView(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					UpdateViewF: func(ctx context.Context, id platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.View{
 								ViewContents: platform.ViewContents{
-									ID:   platformtesting.MustIDFromString("020f755c3c082000"),
+									ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 									Name: "example",
 								},
 								Properties: platform.LineViewProperties{
@@ -534,10 +534,10 @@ func TestService_handlePatchView(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					UpdateViewF: func(ctx context.Context, id platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.View{
 								ViewContents: platform.ViewContents{
-									ID:   platformtesting.MustIDFromString("020f755c3c082000"),
+									ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 									Name: "example",
 								},
 								Properties: platform.LineViewProperties{

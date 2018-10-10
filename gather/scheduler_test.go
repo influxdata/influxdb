@@ -32,7 +32,7 @@ func TestScheduler(t *testing.T) {
 		Metrics: make(map[int64]Metrics),
 		Targets: []platform.ScraperTarget{
 			{
-				ID:   platformtesting.MustIDFromString("3a0d0a6365646120"),
+				ID:   platformtesting.MustIDBase16("3a0d0a6365646120"),
 				Type: platform.PrometheusScraperType,
 				URL:  ts.URL + "/metrics",
 			},

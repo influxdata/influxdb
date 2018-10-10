@@ -25,7 +25,7 @@ func TestView_MarshalJSON(t *testing.T) {
 			args: args{
 				view: platform.View{
 					ViewContents: platform.ViewContents{
-						ID:   platformtesting.MustIDFromString("f01dab1ef005ba11"),
+						ID:   platformtesting.MustIDBase16("f01dab1ef005ba11"),
 						Name: "hello",
 					},
 					Properties: platform.LineViewProperties{

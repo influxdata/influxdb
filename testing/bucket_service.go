@@ -112,22 +112,22 @@ func CreateBucket(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 			},
 			args: args{
 				bucket: &platform.Bucket{
 					Name:           "name1",
-					OrganizationID: MustIDFromString(orgOneID),
+					OrganizationID: MustIDBase16(orgOneID),
 				},
 			},
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
 						Name:           "name1",
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 					},
 				},
@@ -138,46 +138,46 @@ func CreateBucket(
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return MustIDFromString(bucketTwoID)
+						return MustIDBase16(bucketTwoID)
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
+						ID:             MustIDBase16(bucketOneID),
 						Name:           "bucket1",
-						OrganizationID: MustIDFromString(orgOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 				},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDFromString(orgTwoID),
+						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 			},
 			args: args{
 				bucket: &platform.Bucket{
 					Name:           "bucket2",
-					OrganizationID: MustIDFromString(orgTwoID),
+					OrganizationID: MustIDBase16(orgTwoID),
 				},
 			},
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
+						ID:             MustIDBase16(bucketOneID),
 						Name:           "bucket1",
 						Organization:   "theorg",
-						OrganizationID: MustIDFromString(orgOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
+						ID:             MustIDBase16(bucketTwoID),
 						Name:           "bucket2",
 						Organization:   "otherorg",
-						OrganizationID: MustIDFromString(orgTwoID),
+						OrganizationID: MustIDBase16(orgTwoID),
 					},
 				},
 			},
@@ -187,24 +187,24 @@ func CreateBucket(
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return MustIDFromString(bucketTwoID)
+						return MustIDBase16(bucketTwoID)
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
+						ID:             MustIDBase16(bucketOneID),
 						Name:           "bucket1",
-						OrganizationID: MustIDFromString(orgOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 				},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDFromString(orgTwoID),
+						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 			},
@@ -217,16 +217,16 @@ func CreateBucket(
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
+						ID:             MustIDBase16(bucketOneID),
 						Name:           "bucket1",
 						Organization:   "theorg",
-						OrganizationID: MustIDFromString(orgOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
+						ID:             MustIDBase16(bucketTwoID),
 						Name:           "bucket2",
 						Organization:   "otherorg",
-						OrganizationID: MustIDFromString(orgTwoID),
+						OrganizationID: MustIDBase16(orgTwoID),
 					},
 				},
 			},
@@ -236,40 +236,40 @@ func CreateBucket(
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return MustIDFromString(bucketTwoID)
+						return MustIDBase16(bucketTwoID)
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
+						ID:             MustIDBase16(bucketOneID),
 						Name:           "bucket1",
-						OrganizationID: MustIDFromString(orgOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 				},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDFromString(orgTwoID),
+						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 			},
 			args: args{
 				bucket: &platform.Bucket{
 					Name:           "bucket1",
-					OrganizationID: MustIDFromString(orgOneID),
+					OrganizationID: MustIDBase16(orgOneID),
 				},
 			},
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
+						ID:             MustIDBase16(bucketOneID),
 						Name:           "bucket1",
 						Organization:   "theorg",
-						OrganizationID: MustIDFromString(orgOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 				},
 				err: fmt.Errorf("bucket with name bucket1 already exists"),
@@ -280,46 +280,46 @@ func CreateBucket(
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return MustIDFromString(bucketTwoID)
+						return MustIDBase16(bucketTwoID)
 					},
 				},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDFromString(orgTwoID),
+						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
+						ID:             MustIDBase16(bucketOneID),
 						Name:           "bucket1",
-						OrganizationID: MustIDFromString(orgOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 				},
 			},
 			args: args{
 				bucket: &platform.Bucket{
 					Name:           "bucket1",
-					OrganizationID: MustIDFromString(orgTwoID),
+					OrganizationID: MustIDBase16(orgTwoID),
 				},
 			},
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
+						ID:             MustIDBase16(bucketOneID),
 						Name:           "bucket1",
 						Organization:   "theorg",
-						OrganizationID: MustIDFromString(orgOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
+						ID:             MustIDBase16(bucketTwoID),
 						Name:           "bucket1",
 						Organization:   "otherorg",
-						OrganizationID: MustIDFromString(orgTwoID),
+						OrganizationID: MustIDBase16(orgTwoID),
 					},
 				},
 			},
@@ -385,30 +385,30 @@ func FindBucketByID(
 			fields: BucketFields{
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "bucket1",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "bucket2",
 					},
 				},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 			},
 			args: args{
-				id: MustIDFromString(bucketTwoID),
+				id: MustIDBase16(bucketTwoID),
 			},
 			wants: wants{
 				bucket: &platform.Bucket{
-					ID:             MustIDFromString(bucketTwoID),
-					OrganizationID: MustIDFromString(orgOneID),
+					ID:             MustIDBase16(bucketTwoID),
+					OrganizationID: MustIDBase16(orgOneID),
 					Organization:   "theorg",
 					Name:           "bucket2",
 				},
@@ -468,22 +468,22 @@ func FindBuckets(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDFromString(orgTwoID),
+						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgTwoID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgTwoID),
 						Name:           "xyz",
 					},
 				},
@@ -492,14 +492,14 @@ func FindBuckets(
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgTwoID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgTwoID),
 						Organization:   "otherorg",
 						Name:           "xyz",
 					},
@@ -512,27 +512,27 @@ func FindBuckets(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDFromString(orgTwoID),
+						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgTwoID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgTwoID),
 						Name:           "xyz",
 					},
 					{
-						ID:             MustIDFromString(bucketThreeID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketThreeID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "123",
 					},
 				},
@@ -543,14 +543,14 @@ func FindBuckets(
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 					},
 					{
-						ID:             MustIDFromString(bucketThreeID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketThreeID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 						Name:           "123",
 					},
@@ -563,45 +563,45 @@ func FindBuckets(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   MustIDFromString(orgTwoID),
+						ID:   MustIDBase16(orgTwoID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgTwoID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgTwoID),
 						Name:           "xyz",
 					},
 					{
-						ID:             MustIDFromString(bucketThreeID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketThreeID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "123",
 					},
 				},
 			},
 			args: args{
-				organizationID: MustIDFromString(orgOneID),
+				organizationID: MustIDBase16(orgOneID),
 			},
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 					},
 					{
-						ID:             MustIDFromString(bucketThreeID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketThreeID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 						Name:           "123",
 					},
@@ -614,30 +614,30 @@ func FindBuckets(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "xyz",
 					},
 				},
 			},
 			args: args{
-				ID: MustIDFromString(bucketTwoID),
+				ID: MustIDBase16(bucketTwoID),
 			},
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 						Name:           "xyz",
 					},
@@ -650,18 +650,18 @@ func FindBuckets(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "xyz",
 					},
 				},
@@ -672,8 +672,8 @@ func FindBuckets(
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 						Name:           "xyz",
 					},
@@ -745,19 +745,19 @@ func DeleteBucket(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
 						Name:           "A",
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 					{
 						Name:           "B",
-						ID:             MustIDFromString(bucketThreeID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketThreeID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -768,8 +768,8 @@ func DeleteBucket(
 				buckets: []*platform.Bucket{
 					{
 						Name:           "B",
-						ID:             MustIDFromString(bucketThreeID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketThreeID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 					},
 				},
@@ -781,19 +781,19 @@ func DeleteBucket(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
 						Name:           "A",
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 					{
 						Name:           "B",
-						ID:             MustIDFromString(bucketThreeID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketThreeID),
+						OrganizationID: MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -805,14 +805,14 @@ func DeleteBucket(
 				buckets: []*platform.Bucket{
 					{
 						Name:           "A",
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 					},
 					{
 						Name:           "B",
-						ID:             MustIDFromString(bucketThreeID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketThreeID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Organization:   "theorg",
 					},
 				},
@@ -825,7 +825,7 @@ func DeleteBucket(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.DeleteBucket(ctx, MustIDFromString(tt.args.ID))
+			err := s.DeleteBucket(ctx, MustIDBase16(tt.args.ID))
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -875,30 +875,30 @@ func FindBucket(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "xyz",
 					},
 				},
 			},
 			args: args{
 				name:           "abc",
-				organizationID: MustIDFromString(orgOneID),
+				organizationID: MustIDBase16(orgOneID),
 			},
 			wants: wants{
 				bucket: &platform.Bucket{
-					ID:             MustIDFromString(bucketOneID),
-					OrganizationID: MustIDFromString(orgOneID),
+					ID:             MustIDBase16(bucketOneID),
+					OrganizationID: MustIDBase16(orgOneID),
 					Organization:   "theorg",
 					Name:           "abc",
 				},
@@ -964,30 +964,30 @@ func UpdateBucket(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "bucket1",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "bucket2",
 					},
 				},
 			},
 			args: args{
-				id:   MustIDFromString(bucketOneID),
+				id:   MustIDBase16(bucketOneID),
 				name: "changed",
 			},
 			wants: wants{
 				bucket: &platform.Bucket{
-					ID:             MustIDFromString(bucketOneID),
-					OrganizationID: MustIDFromString(orgOneID),
+					ID:             MustIDBase16(bucketOneID),
+					OrganizationID: MustIDBase16(orgOneID),
 					Organization:   "theorg",
 					Name:           "changed",
 				},
@@ -999,30 +999,30 @@ func UpdateBucket(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "bucket1",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "bucket2",
 					},
 				},
 			},
 			args: args{
-				id:        MustIDFromString(bucketOneID),
+				id:        MustIDBase16(bucketOneID),
 				retention: 100,
 			},
 			wants: wants{
 				bucket: &platform.Bucket{
-					ID:              MustIDFromString(bucketOneID),
-					OrganizationID:  MustIDFromString(orgOneID),
+					ID:              MustIDBase16(bucketOneID),
+					OrganizationID:  MustIDBase16(orgOneID),
 					Organization:    "theorg",
 					Name:            "bucket1",
 					RetentionPeriod: 100 * time.Minute,
@@ -1035,31 +1035,31 @@ func UpdateBucket(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   MustIDFromString(orgOneID),
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             MustIDFromString(bucketOneID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "bucket1",
 					},
 					{
-						ID:             MustIDFromString(bucketTwoID),
-						OrganizationID: MustIDFromString(orgOneID),
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
 						Name:           "bucket2",
 					},
 				},
 			},
 			args: args{
-				id:        MustIDFromString(bucketTwoID),
+				id:        MustIDBase16(bucketTwoID),
 				retention: 101,
 				name:      "changed",
 			},
 			wants: wants{
 				bucket: &platform.Bucket{
-					ID:              MustIDFromString(bucketTwoID),
-					OrganizationID:  MustIDFromString(orgOneID),
+					ID:              MustIDBase16(bucketTwoID),
+					OrganizationID:  MustIDBase16(orgOneID),
 					Organization:    "theorg",
 					Name:            "changed",
 					RetentionPeriod: 101 * time.Minute,

@@ -22,7 +22,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 		{
 			name: "mapping requires a resourceid",
 			fields: fields{
-				UserID:       platformtesting.MustIDFromString("debac1e0deadbeef"),
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
 				UserType:     platform.Owner,
 				ResourceType: platform.DashboardResourceType,
 			},
@@ -31,7 +31,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 		{
 			name: "mapping requires a userid",
 			fields: fields{
-				ResourceID:   platformtesting.MustIDFromString("020f755c3c082000"),
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
 				UserType:     platform.Owner,
 				ResourceType: platform.DashboardResourceType,
 			},
@@ -40,8 +40,8 @@ func TestOwnerMappingValidate(t *testing.T) {
 		{
 			name: "mapping requires a usertype",
 			fields: fields{
-				ResourceID:   platformtesting.MustIDFromString("020f755c3c082000"),
-				UserID:       platformtesting.MustIDFromString("debac1e0deadbeef"),
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
 				ResourceType: platform.DashboardResourceType,
 			},
 			wantErr: true,
@@ -49,8 +49,8 @@ func TestOwnerMappingValidate(t *testing.T) {
 		{
 			name: "mapping requires a resourcetype",
 			fields: fields{
-				ResourceID: platformtesting.MustIDFromString("020f755c3c082000"),
-				UserID:     platformtesting.MustIDFromString("debac1e0deadbeef"),
+				ResourceID: platformtesting.MustIDBase16("020f755c3c082000"),
+				UserID:     platformtesting.MustIDBase16("debac1e0deadbeef"),
 				UserType:   platform.Owner,
 			},
 			wantErr: true,
@@ -58,8 +58,8 @@ func TestOwnerMappingValidate(t *testing.T) {
 		{
 			name: "the usertype provided must be valid",
 			fields: fields{
-				ResourceID:   platformtesting.MustIDFromString("020f755c3c082000"),
-				UserID:       platformtesting.MustIDFromString("debac1e0deadbeef"),
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
 				UserType:     "foo",
 				ResourceType: platform.DashboardResourceType,
 			},
@@ -68,8 +68,8 @@ func TestOwnerMappingValidate(t *testing.T) {
 		{
 			name: "the resourcetype provided must be valid",
 			fields: fields{
-				ResourceID:   platformtesting.MustIDFromString("020f755c3c082000"),
-				UserID:       platformtesting.MustIDFromString("debac1e0deadbeef"),
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
 				UserType:     platform.Owner,
 				ResourceType: "foo",
 			},

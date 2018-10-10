@@ -61,13 +61,13 @@ func CreateView(
 			fields: ViewFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return MustIDFromString(viewTwoID)
+						return MustIDBase16(viewTwoID)
 					},
 				},
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 					},
@@ -88,14 +88,14 @@ func CreateView(
 				views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 						Properties: platform.EmptyViewProperties{},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -161,14 +161,14 @@ func FindViewByID(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 						Properties: platform.EmptyViewProperties{},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -179,12 +179,12 @@ func FindViewByID(
 				},
 			},
 			args: args{
-				id: MustIDFromString(viewTwoID),
+				id: MustIDBase16(viewTwoID),
 			},
 			wants: wants{
 				view: &platform.View{
 					ViewContents: platform.ViewContents{
-						ID:   MustIDFromString(viewTwoID),
+						ID:   MustIDBase16(viewTwoID),
 						Name: "view2",
 					},
 					Properties: platform.TableViewProperties{
@@ -246,14 +246,14 @@ func FindViews(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 						Properties: platform.EmptyViewProperties{},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -268,14 +268,14 @@ func FindViews(
 				views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 						Properties: platform.EmptyViewProperties{},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -292,14 +292,14 @@ func FindViews(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 						Properties: platform.EmptyViewProperties{},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -310,13 +310,13 @@ func FindViews(
 				},
 			},
 			args: args{
-				ID: MustIDFromString(viewTwoID),
+				ID: MustIDBase16(viewTwoID),
 			},
 			wants: wants{
 				views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -383,14 +383,14 @@ func DeleteView(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 						Properties: platform.EmptyViewProperties{},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -401,13 +401,13 @@ func DeleteView(
 				},
 			},
 			args: args{
-				ID: MustIDFromString(viewOneID),
+				ID: MustIDBase16(viewOneID),
 			},
 			wants: wants{
 				views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -424,14 +424,14 @@ func DeleteView(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 						Properties: platform.EmptyViewProperties{},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -442,21 +442,21 @@ func DeleteView(
 				},
 			},
 			args: args{
-				ID: MustIDFromString(viewThreeID),
+				ID: MustIDBase16(viewThreeID),
 			},
 			wants: wants{
 				err: fmt.Errorf("View not found"),
 				views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 						Properties: platform.EmptyViewProperties{},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -524,14 +524,14 @@ func UpdateView(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 						Properties: platform.EmptyViewProperties{},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -542,13 +542,13 @@ func UpdateView(
 				},
 			},
 			args: args{
-				id:   MustIDFromString(viewOneID),
+				id:   MustIDBase16(viewOneID),
 				name: "changed",
 			},
 			wants: wants{
 				view: &platform.View{
 					ViewContents: platform.ViewContents{
-						ID:   MustIDFromString(viewOneID),
+						ID:   MustIDBase16(viewOneID),
 						Name: "changed",
 					},
 					Properties: platform.EmptyViewProperties{},
@@ -561,14 +561,14 @@ func UpdateView(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewOneID),
+							ID:   MustIDBase16(viewOneID),
 							Name: "view1",
 						},
 						Properties: platform.EmptyViewProperties{},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID:   MustIDFromString(viewTwoID),
+							ID:   MustIDBase16(viewTwoID),
 							Name: "view2",
 						},
 						Properties: platform.TableViewProperties{
@@ -579,7 +579,7 @@ func UpdateView(
 				},
 			},
 			args: args{
-				id: MustIDFromString(viewOneID),
+				id: MustIDBase16(viewOneID),
 				properties: platform.TableViewProperties{
 					Type:       "table",
 					TimeFormat: "rfc3339",
@@ -588,7 +588,7 @@ func UpdateView(
 			wants: wants{
 				view: &platform.View{
 					ViewContents: platform.ViewContents{
-						ID:   MustIDFromString(viewOneID),
+						ID:   MustIDBase16(viewOneID),
 						Name: "view1",
 					},
 					Properties: platform.TableViewProperties{

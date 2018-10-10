@@ -31,7 +31,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 }
 `,
 			want: platform.Macro{
-				ID:       platformtesting.MustIDFromString(macroTestID),
+				ID:       platformtesting.MustIDBase16(macroTestID),
 				Name:     "howdy",
 				Selected: make([]string, 0),
 				Arguments: &platform.MacroArguments{
@@ -57,7 +57,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 }
 `,
 			want: platform.Macro{
-				ID:       platformtesting.MustIDFromString(macroTestID),
+				ID:       platformtesting.MustIDBase16(macroTestID),
 				Name:     "howdy",
 				Selected: make([]string, 0),
 				Arguments: &platform.MacroArguments{
@@ -83,7 +83,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 }
 `,
 			want: platform.Macro{
-				ID:       platformtesting.MustIDFromString(macroTestID),
+				ID:       platformtesting.MustIDBase16(macroTestID),
 				Name:     "howdy",
 				Selected: make([]string, 0),
 				Arguments: &platform.MacroArguments{

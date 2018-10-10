@@ -154,25 +154,25 @@ func Generate(
 				password: "pass1",
 				results: &platform.OnboardingResults{
 					User: &platform.User{
-						ID:   MustIDFromString(oneID),
+						ID:   MustIDBase16(oneID),
 						Name: "admin",
 					},
 					Org: &platform.Organization{
-						ID:   MustIDFromString(twoID),
+						ID:   MustIDBase16(twoID),
 						Name: "org1",
 					},
 					Bucket: &platform.Bucket{
-						ID:             MustIDFromString(threeID),
+						ID:             MustIDBase16(threeID),
 						Name:           "bucket1",
 						Organization:   "org1",
-						OrganizationID: MustIDFromString(twoID),
+						OrganizationID: MustIDBase16(twoID),
 					},
 					Auth: &platform.Authorization{
-						ID:     MustIDFromString(fourID),
+						ID:     MustIDBase16(fourID),
 						Token:  oneToken,
 						Status: platform.Active,
 						User:   "admin",
-						UserID: MustIDFromString(oneID),
+						UserID: MustIDBase16(oneID),
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 							platform.DeleteUserPermission,
@@ -180,7 +180,7 @@ func Generate(
 								Resource: platform.OrganizationResource,
 								Action:   platform.WriteAction,
 							},
-							platform.WriteBucketPermission(MustIDFromString(threeID)),
+							platform.WriteBucketPermission(MustIDBase16(threeID)),
 						},
 					},
 				},
@@ -231,7 +231,7 @@ func (g *loopIDGenerator) ID() platform.ID {
 	if g.p == len(g.s) {
 		g.p = 0
 	}
-	id := MustIDFromString(g.s[g.p])
+	id := MustIDBase16(g.s[g.p])
 	g.p++
 	return id
 }

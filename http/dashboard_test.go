@@ -43,21 +43,21 @@ func TestService_handleGetDashboards(t *testing.T) {
 					FindDashboardsF: func(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
 						return []*platform.Dashboard{
 							{
-								ID:   platformtesting.MustIDFromString("da7aba5e5d81e550"),
+								ID:   platformtesting.MustIDBase16("da7aba5e5d81e550"),
 								Name: "hello",
 								Cells: []*platform.Cell{
 									{
-										ID:     platformtesting.MustIDFromString("da7aba5e5d81e550"),
+										ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
 										X:      1,
 										Y:      2,
 										W:      3,
 										H:      4,
-										ViewID: platformtesting.MustIDFromString("ba0bab707a11ed12"),
+										ViewID: platformtesting.MustIDBase16("ba0bab707a11ed12"),
 									},
 								},
 							},
 							{
-								ID:   platformtesting.MustIDFromString("0ca2204eca2204e0"),
+								ID:   platformtesting.MustIDBase16("0ca2204eca2204e0"),
 								Name: "example",
 							},
 						}, 2, nil
@@ -195,18 +195,18 @@ func TestService_handleGetDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*platform.Dashboard, error) {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Dashboard{
-								ID:   platformtesting.MustIDFromString("020f755c3c082000"),
+								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 								Name: "hello",
 								Cells: []*platform.Cell{
 									{
-										ID:     platformtesting.MustIDFromString("da7aba5e5d81e550"),
+										ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
 										X:      1,
 										Y:      2,
 										W:      3,
 										H:      4,
-										ViewID: platformtesting.MustIDFromString("ba0bab707a11ed12"),
+										ViewID: platformtesting.MustIDBase16("ba0bab707a11ed12"),
 									},
 								},
 							}, nil
@@ -328,23 +328,23 @@ func TestService_handlePostDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					CreateDashboardF: func(ctx context.Context, c *platform.Dashboard) error {
-						c.ID = platformtesting.MustIDFromString("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
 			},
 			args: args{
 				dashboard: &platform.Dashboard{
-					ID:   platformtesting.MustIDFromString("020f755c3c082000"),
+					ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 					Name: "hello",
 					Cells: []*platform.Cell{
 						{
-							ID:     platformtesting.MustIDFromString("da7aba5e5d81e550"),
+							ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
 							X:      1,
 							Y:      2,
 							W:      3,
 							H:      4,
-							ViewID: platformtesting.MustIDFromString("ba0bab707a11ed12"),
+							ViewID: platformtesting.MustIDBase16("ba0bab707a11ed12"),
 						},
 					},
 				},
@@ -436,7 +436,7 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					DeleteDashboardF: func(ctx context.Context, id platform.ID) error {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
 
@@ -533,18 +533,18 @@ func TestService_handlePatchDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					UpdateDashboardF: func(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							d := &platform.Dashboard{
-								ID:   platformtesting.MustIDFromString("020f755c3c082000"),
+								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 								Name: "hello",
 								Cells: []*platform.Cell{
 									{
-										ID:     platformtesting.MustIDFromString("da7aba5e5d81e550"),
+										ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
 										X:      1,
 										Y:      2,
 										W:      3,
 										H:      4,
-										ViewID: platformtesting.MustIDFromString("ba0bab707a11ed12"),
+										ViewID: platformtesting.MustIDBase16("ba0bab707a11ed12"),
 									},
 								},
 							}
@@ -701,7 +701,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opt platform.AddDashboardCellOptions) error {
-						c.ID = platformtesting.MustIDFromString("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
@@ -709,10 +709,10 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			args: args{
 				id: "020f755c3c082000",
 				cell: &platform.Cell{
-					ID:     platformtesting.MustIDFromString("020f755c3c082000"),
+					ID:     platformtesting.MustIDBase16("020f755c3c082000"),
 					X:      10,
 					Y:      11,
-					ViewID: platformtesting.MustIDFromString("da7aba5e5d81e550"),
+					ViewID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
 				},
 			},
 			wants: wants{
@@ -891,8 +891,8 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 				&mock.DashboardService{
 					UpdateDashboardCellF: func(ctx context.Context, id, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
 						cell := &platform.Cell{
-							ID:     platformtesting.MustIDFromString("020f755c3c082000"),
-							ViewID: platformtesting.MustIDFromString("da7aba5e5d81e550"),
+							ID:     platformtesting.MustIDBase16("020f755c3c082000"),
+							ViewID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
 						}
 
 						if err := upd.Apply(cell); err != nil {
@@ -906,7 +906,7 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 			args: args{
 				id:     "020f755c3c082000",
 				cellID: "020f755c3c082000",
-				viewID: platformtesting.MustIDFromString("da7aba5e5d81e550"),
+				viewID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
 				x:      10,
 				y:      11,
 			},

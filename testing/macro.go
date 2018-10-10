@@ -92,12 +92,12 @@ func CreateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 			fields: MacroFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return MustIDFromString(idA)
+						return MustIDBase16(idA)
 					},
 				},
 				Macros: []*platform.Macro{
 					{
-						ID:       MustIDFromString(idB),
+						ID:       MustIDBase16(idB),
 						Name:     "existing-macro",
 						Selected: []string{"a"},
 						Arguments: &platform.MacroArguments{
@@ -109,7 +109,7 @@ func CreateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 			},
 			args: args{
 				macro: &platform.Macro{
-					ID:       MustIDFromString(idB),
+					ID:       MustIDBase16(idB),
 					Name:     "my-macro",
 					Selected: []string{"a"},
 					Arguments: &platform.MacroArguments{
@@ -122,7 +122,7 @@ func CreateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 				err: nil,
 				macros: []*platform.Macro{
 					{
-						ID:       MustIDFromString(idB),
+						ID:       MustIDBase16(idB),
 						Name:     "existing-macro",
 						Selected: []string{"a"},
 						Arguments: &platform.MacroArguments{
@@ -131,7 +131,7 @@ func CreateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 						},
 					},
 					{
-						ID:       MustIDFromString(idA),
+						ID:       MustIDBase16(idA),
 						Name:     "my-macro",
 						Selected: []string{"a"},
 						Arguments: &platform.MacroArguments{
@@ -183,7 +183,7 @@ func FindMacroByID(init func(MacroFields, *testing.T) (platform.MacroService, fu
 			fields: MacroFields{
 				Macros: []*platform.Macro{
 					{
-						ID:   MustIDFromString(idA),
+						ID:   MustIDBase16(idA),
 						Name: "existing-macro-a",
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",
@@ -191,7 +191,7 @@ func FindMacroByID(init func(MacroFields, *testing.T) (platform.MacroService, fu
 						},
 					},
 					{
-						ID:   MustIDFromString(idB),
+						ID:   MustIDBase16(idB),
 						Name: "existing-macro-b",
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",
@@ -201,12 +201,12 @@ func FindMacroByID(init func(MacroFields, *testing.T) (platform.MacroService, fu
 				},
 			},
 			args: args{
-				id: MustIDFromString(idB),
+				id: MustIDBase16(idB),
 			},
 			wants: wants{
 				err: nil,
 				macro: &platform.Macro{
-					ID:   MustIDFromString(idB),
+					ID:   MustIDBase16(idB),
 					Name: "existing-macro-b",
 					Arguments: &platform.MacroArguments{
 						Type:   "constant",
@@ -221,7 +221,7 @@ func FindMacroByID(init func(MacroFields, *testing.T) (platform.MacroService, fu
 				Macros: []*platform.Macro{},
 			},
 			args: args{
-				id: MustIDFromString(idA),
+				id: MustIDBase16(idA),
 			},
 			wants: wants{
 				err:   kerrors.Errorf(kerrors.NotFound, "macro with ID %s not found", idA),
@@ -266,7 +266,7 @@ func UpdateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 			fields: MacroFields{
 				Macros: []*platform.Macro{
 					{
-						ID:   MustIDFromString(idA),
+						ID:   MustIDBase16(idA),
 						Name: "existing-macro-a",
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",
@@ -274,7 +274,7 @@ func UpdateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 						},
 					},
 					{
-						ID:   MustIDFromString(idB),
+						ID:   MustIDBase16(idB),
 						Name: "existing-macro-b",
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",
@@ -284,7 +284,7 @@ func UpdateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 				},
 			},
 			args: args{
-				id: MustIDFromString(idB),
+				id: MustIDBase16(idB),
 				update: &platform.MacroUpdate{
 					Name: "new-macro-b-name",
 				},
@@ -293,7 +293,7 @@ func UpdateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 				err: nil,
 				macros: []*platform.Macro{
 					{
-						ID:   MustIDFromString(idA),
+						ID:   MustIDBase16(idA),
 						Name: "existing-macro-a",
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",
@@ -301,7 +301,7 @@ func UpdateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 						},
 					},
 					{
-						ID:   MustIDFromString(idB),
+						ID:   MustIDBase16(idB),
 						Name: "new-macro-b-name",
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",
@@ -317,7 +317,7 @@ func UpdateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 				Macros: []*platform.Macro{},
 			},
 			args: args{
-				id: MustIDFromString(idA),
+				id: MustIDBase16(idA),
 				update: &platform.MacroUpdate{
 					Name: "howdy",
 				},
@@ -376,7 +376,7 @@ func DeleteMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 			fields: MacroFields{
 				Macros: []*platform.Macro{
 					{
-						ID:   MustIDFromString(idA),
+						ID:   MustIDBase16(idA),
 						Name: "existing-macro",
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",
@@ -386,7 +386,7 @@ func DeleteMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 				},
 			},
 			args: args{
-				id: MustIDFromString(idA),
+				id: MustIDBase16(idA),
 			},
 			wants: wants{
 				err:    nil,
@@ -398,7 +398,7 @@ func DeleteMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 			fields: MacroFields{
 				Macros: []*platform.Macro{
 					{
-						ID:   MustIDFromString(idA),
+						ID:   MustIDBase16(idA),
 						Name: "existing-macro",
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",
@@ -408,13 +408,13 @@ func DeleteMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 				},
 			},
 			args: args{
-				id: MustIDFromString(idB),
+				id: MustIDBase16(idB),
 			},
 			wants: wants{
 				err: kerrors.Errorf(kerrors.NotFound, "macro with ID %s not found", idB),
 				macros: []*platform.Macro{
 					{
-						ID:   MustIDFromString(idA),
+						ID:   MustIDBase16(idA),
 						Name: "existing-macro",
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",

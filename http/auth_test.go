@@ -44,14 +44,14 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 					FindAuthorizationsFn: func(ctx context.Context, filter platform.AuthorizationFilter, opts ...platform.FindOptions) ([]*platform.Authorization, int, error) {
 						return []*platform.Authorization{
 							{
-								ID:     platformtesting.MustIDFromString("0d0a657820696e74"),
+								ID:     platformtesting.MustIDBase16("0d0a657820696e74"),
 								Token:  "hello",
-								UserID: platformtesting.MustIDFromString("2070616e656d2076"),
+								UserID: platformtesting.MustIDBase16("2070616e656d2076"),
 							},
 							{
-								ID:     platformtesting.MustIDFromString("6669646573207375"),
+								ID:     platformtesting.MustIDBase16("6669646573207375"),
 								Token:  "example",
-								UserID: platformtesting.MustIDFromString("6c7574652c206f6e"),
+								UserID: platformtesting.MustIDBase16("6c7574652c206f6e"),
 							},
 						}, 2, nil
 					},
@@ -177,10 +177,10 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			fields: fields{
 				&mock.AuthorizationService{
 					FindAuthorizationByIDFn: func(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Authorization{
-								ID:     platformtesting.MustIDFromString("020f755c3c082000"),
-								UserID: platformtesting.MustIDFromString("020f755c3c082000"),
+								ID:     platformtesting.MustIDBase16("020f755c3c082000"),
+								UserID: platformtesting.MustIDBase16("020f755c3c082000"),
 								Token:  "hello",
 							}, nil
 						}
@@ -290,7 +290,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			fields: fields{
 				&mock.AuthorizationService{
 					CreateAuthorizationFn: func(ctx context.Context, c *platform.Authorization) error {
-						c.ID = platformtesting.MustIDFromString("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
@@ -298,8 +298,8 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			args: args{
 				authorization: &platform.Authorization{
 					Token:  "hello",
-					ID:     platformtesting.MustIDFromString("020f755c3c082000"),
-					UserID: platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa"),
+					ID:     platformtesting.MustIDBase16("020f755c3c082000"),
+					UserID: platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
 				},
 			},
 			wants: wants{
@@ -377,7 +377,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			fields: fields{
 				&mock.AuthorizationService{
 					DeleteAuthorizationFn: func(ctx context.Context, id platform.ID) error {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
 

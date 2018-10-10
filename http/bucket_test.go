@@ -44,15 +44,15 @@ func TestService_handleGetBuckets(t *testing.T) {
 					FindBucketsFn: func(ctx context.Context, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, int, error) {
 						return []*platform.Bucket{
 							{
-								ID:              platformtesting.MustIDFromString("0b501e7e557ab1ed"),
+								ID:              platformtesting.MustIDBase16("0b501e7e557ab1ed"),
 								Name:            "hello",
-								OrganizationID:  platformtesting.MustIDFromString("50f7ba1150f7ba11"),
+								OrganizationID:  platformtesting.MustIDBase16("50f7ba1150f7ba11"),
 								RetentionPeriod: 2 * time.Second,
 							},
 							{
-								ID:              platformtesting.MustIDFromString("c0175f0077a77005"),
+								ID:              platformtesting.MustIDBase16("c0175f0077a77005"),
 								Name:            "example",
-								OrganizationID:  platformtesting.MustIDFromString("7e55e118dbabb1ed"),
+								OrganizationID:  platformtesting.MustIDBase16("7e55e118dbabb1ed"),
 								RetentionPeriod: 24 * time.Hour,
 							},
 						}, 2, nil
@@ -179,10 +179,10 @@ func TestService_handleGetBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Bucket{
-								ID:              platformtesting.MustIDFromString("020f755c3c082000"),
-								OrganizationID:  platformtesting.MustIDFromString("020f755c3c082000"),
+								ID:              platformtesting.MustIDBase16("020f755c3c082000"),
+								OrganizationID:  platformtesting.MustIDBase16("020f755c3c082000"),
 								Name:            "hello",
 								RetentionPeriod: 30 * time.Second,
 							}, nil
@@ -293,7 +293,7 @@ func TestService_handlePostBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					CreateBucketFn: func(ctx context.Context, c *platform.Bucket) error {
-						c.ID = platformtesting.MustIDFromString("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
@@ -301,7 +301,7 @@ func TestService_handlePostBucket(t *testing.T) {
 			args: args{
 				bucket: &platform.Bucket{
 					Name:           "hello",
-					OrganizationID: platformtesting.MustIDFromString("6f626f7274697320"),
+					OrganizationID: platformtesting.MustIDBase16("6f626f7274697320"),
 				},
 			},
 			wants: wants{
@@ -380,7 +380,7 @@ func TestService_handleDeleteBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					DeleteBucketFn: func(ctx context.Context, id platform.ID) error {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
 
@@ -477,11 +477,11 @@ func TestService_handlePatchBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
-						if id == platformtesting.MustIDFromString("020f755c3c082000") {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							d := &platform.Bucket{
-								ID:             platformtesting.MustIDFromString("020f755c3c082000"),
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
 								Name:           "hello",
-								OrganizationID: platformtesting.MustIDFromString("020f755c3c082000"),
+								OrganizationID: platformtesting.MustIDBase16("020f755c3c082000"),
 							}
 
 							if upd.Name != nil {

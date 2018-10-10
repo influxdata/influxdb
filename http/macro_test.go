@@ -37,7 +37,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 					FindMacrosF: func(ctx context.Context) ([]*platform.Macro, error) {
 						return []*platform.Macro{
 							{
-								ID:       platformtesting.MustIDFromString("6162207574726f71"),
+								ID:       platformtesting.MustIDBase16("6162207574726f71"),
 								Name:     "macro-a",
 								Selected: []string{"b"},
 								Arguments: &platform.MacroArguments{
@@ -46,7 +46,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 								},
 							},
 							{
-								ID:       platformtesting.MustIDFromString("61726920617a696f"),
+								ID:       platformtesting.MustIDBase16("61726920617a696f"),
 								Name:     "macro-b",
 								Selected: []string{"c"},
 								Arguments: &platform.MacroArguments{
@@ -123,7 +123,7 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 				&mock.MacroService{
 					FindMacroByIDF: func(ctx context.Context, id platform.ID) (*platform.Macro, error) {
 						return &platform.Macro{
-							ID:       platformtesting.MustIDFromString("75650d0a636f6d70"),
+							ID:       platformtesting.MustIDBase16("75650d0a636f6d70"),
 							Name:     "macro-a",
 							Selected: []string{"b"},
 							Arguments: &platform.MacroArguments{
@@ -222,7 +222,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			fields: fields{
 				&mock.MacroService{
 					CreateMacroF: func(ctx context.Context, m *platform.Macro) error {
-						m.ID = platformtesting.MustIDFromString("75650d0a636f6d70")
+						m.ID = platformtesting.MustIDBase16("75650d0a636f6d70")
 						return nil
 					},
 				},
@@ -256,7 +256,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			fields: fields{
 				&mock.MacroService{
 					CreateMacroF: func(ctx context.Context, m *platform.Macro) error {
-						m.ID = platformtesting.MustIDFromString("0")
+						m.ID = platformtesting.MustIDBase16("0")
 						return nil
 					},
 				},
@@ -275,7 +275,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			fields: fields{
 				&mock.MacroService{
 					CreateMacroF: func(ctx context.Context, m *platform.Macro) error {
-						m.ID = platformtesting.MustIDFromString("0")
+						m.ID = platformtesting.MustIDBase16("0")
 						return nil
 					},
 				},
@@ -344,7 +344,7 @@ func TestMacroService_handlePatchMacro(t *testing.T) {
 				&mock.MacroService{
 					UpdateMacroF: func(ctx context.Context, id platform.ID, u *platform.MacroUpdate) (*platform.Macro, error) {
 						return &platform.Macro{
-							ID:   platformtesting.MustIDFromString("75650d0a636f6d70"),
+							ID:   platformtesting.MustIDBase16("75650d0a636f6d70"),
 							Name: "new-name",
 							Arguments: &platform.MacroArguments{
 								Type:   "constant",
