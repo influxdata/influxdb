@@ -14,9 +14,9 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/toml"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/tsi1"
 	"github.com/influxdata/platform/tsdb/tsm1"
