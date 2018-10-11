@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -11,7 +10,7 @@ import (
 	"github.com/influxdata/platform/cmd/influx/internal"
 	"github.com/influxdata/platform/http"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/ssh/terminal"
+	"github.com/tcnksm/go-input"
 )
 
 // setup Command
@@ -47,14 +46,14 @@ func setupF(cmd *cobra.Command, args []string) {
 	w := internal.NewTabWriter(os.Stdout)
 	w.WriteHeaders(
 		"UserID",
-		"UserName",
+		"Username",
 		"Organization",
 		"Bucket",
 		"Token",
 	)
 	w.Write(map[string]interface{}{
 		"UserID":       result.User.ID.String(),
-		"UserName":     result.User.Name,
+		"Username":     result.User.Name,
 		"Organization": result.Org.Name,
 		"Bucket":       result.Bucket.Name,
 		"Token":        result.Auth.Token,
@@ -63,97 +62,134 @@ func setupF(cmd *cobra.Command, args []string) {
 }
 
 func getOnboardingRequest() (or *platform.OnboardingRequest) {
-	term := terminal.NewTerminal(struct {
-		io.Reader
-		io.Writer
-	}{os.Stdin, os.Stdout}, " ")
+	ui := &input.UI{
+		Writer: os.Stdout,
+		Reader: os.Stdin,
+	}
 	var confirmed bool
 	for !confirmed {
 		or = new(platform.OnboardingRequest)
-		term.Write([]byte(promptWithColor(`Welcome to the influxdata platform!
+		fmt.Println(promptWithColor(`Welcome to InfluxDB 2.0!`, colorYellow))
+		or.User = getInput(ui, "Please type your primary username", "")
+		or.Password = getPassword(ui)
+		or.Org = getInput(ui, "Please type your primary organization name.\r\nOr ENTER to use \"default\"", "default")
+		or.Bucket = getInput(ui, "Please type your primary bucket name.\r\nOr ENTER to use \"default\"", "default")
 
-Type cancel at anytime to terminate setup
-`, term.Escape.Yellow, term)))
-		or.User = getInput(term, "Please type your primary username:", "", false)
-		or.Password = getInput(term, "Please type your password:", "", true)
-		or.Org = getInput(term, "Please type your primary organization name.\r\nOr ENTER to use \"default\":", "default", false)
-		or.Bucket = getInput(term, "Please type your primary bucket name.\r\nOr ENTER to use \"default\":", "default", false)
-
-		confirmed = getConfirm(term, or)
+		confirmed = getConfirm(ui, or)
 	}
 
 	return or
 }
 
-func promptWithColor(s string, color []byte, term *terminal.Terminal) string {
-	return string(color) + s + string(term.Escape.Reset)
+// vt100EscapeCodes
+var (
+	keyEscape    = byte(27)
+	colorBlack   = []byte{keyEscape, '[', '3', '0', 'm'}
+	colorRed     = []byte{keyEscape, '[', '3', '1', 'm'}
+	colorGreen   = []byte{keyEscape, '[', '3', '2', 'm'}
+	colorYellow  = []byte{keyEscape, '[', '3', '3', 'm'}
+	colorBlue    = []byte{keyEscape, '[', '3', '4', 'm'}
+	colorMagenta = []byte{keyEscape, '[', '3', '5', 'm'}
+	colorCyan    = []byte{keyEscape, '[', '3', '6', 'm'}
+	colorWhite   = []byte{keyEscape, '[', '3', '7', 'm'}
+	keyReset     = []byte{keyEscape, '[', '0', 'm'}
+)
+
+func promptWithColor(s string, color []byte) string {
+	return string(color) + s + string(keyReset)
 }
 
-func getConfirm(term *terminal.Terminal, or *platform.OnboardingRequest) bool {
-	oldState, err := terminal.MakeRaw(0)
+func getConfirm(ui *input.UI, or *platform.OnboardingRequest) bool {
+	fmt.Print(promptWithColor(fmt.Sprintf(`
+You have entered:
+    Username:      %s
+    Organization:  %s
+    Bucket:        %s
+`, or.User, or.Org, or.Bucket), colorCyan))
+	prompt := promptWithColor("Confirm? (y/n)", colorRed)
+	result, err := ui.Ask(prompt, &input.Options{
+		HideOrder: true,
+	})
 	if err != nil {
+		os.Exit(1)
+	}
+	switch result {
+	case "y":
+		return true
+	default:
 		return false
 	}
-	defer terminal.Restore(0, oldState)
-	term.Write([]byte(promptWithColor(fmt.Sprintf(`
-You have entered:
-    username:      %s
-    organization:  %s
-    bucket:        %s
-`, or.User, or.Org, or.Bucket), term.Escape.Cyan, term)))
-	prompt := promptWithColor("Confirm? (y/n): ", term.Escape.Red, term)
-	term.SetPrompt(prompt)
-	for {
-		line, _ := term.ReadLine()
-		line = strings.TrimSpace(line)
-		switch line {
-		case "y":
-			return true
-		case "n":
-			return false
-		case "cancel":
-			terminal.Restore(0, oldState)
-			os.Exit(0)
-		default:
-			continue
-		}
-	}
 }
 
-func getInput(term *terminal.Terminal, prompt, defaultValue string, isPassword bool) string {
-	var line string
-	oldState, err := terminal.MakeRaw(0)
-	if err != nil {
-		return ""
-	}
-	defer terminal.Restore(0, oldState)
+var errPasswordIsNotMatch = fmt.Errorf("passwords do not match")
 
-	prompt = promptWithColor(prompt, term.Escape.Cyan, term)
-	if isPassword {
-		for {
-			line, _ = term.ReadPassword(prompt)
-			if strings.TrimSpace(line) == "" {
+func getPassword(ui *input.UI) (password string) {
+	var err error
+enterPasswd:
+	query := promptWithColor("Please type your password", colorCyan)
+	for {
+		password, err = ui.Ask(query, &input.Options{
+			Required:  true,
+			HideOrder: true,
+			Hide:      true,
+		})
+		switch err {
+		case input.ErrInterrupted:
+			os.Exit(1)
+		default:
+			if password = strings.TrimSpace(password); password == "" {
 				continue
 			}
-			goto handleCancel
 		}
+		break
 	}
+	query = promptWithColor("Please type your password again", colorCyan)
 	for {
-		term.SetPrompt(prompt)
-		line, _ = term.ReadLine()
-		line = strings.TrimSpace(line)
-		if defaultValue != "" && line == "" {
-			line = defaultValue
-		} else if defaultValue == "" && line == "" {
-			continue
+		_, err = ui.Ask(query, &input.Options{
+			Required:  true,
+			HideOrder: true,
+			Hide:      true,
+			ValidateFunc: func(s string) error {
+				if s != password {
+					return errPasswordIsNotMatch
+				}
+				return nil
+			},
+		})
+		switch err {
+		case input.ErrInterrupted:
+			os.Exit(1)
+		case nil:
+			break
+		default:
+			fmt.Println(promptWithColor("Passwords do not match!", colorRed))
+			goto enterPasswd
 		}
-		goto handleCancel
+		break
 	}
+	return password
+}
 
-handleCancel:
-	if line == "cancel" {
-		terminal.Restore(0, oldState)
-		os.Exit(0)
+func getInput(ui *input.UI, prompt, defaultValue string) string {
+	option := &input.Options{
+		Required:  true,
+		HideOrder: true,
 	}
-	return line
+	if defaultValue != "" {
+		option.Default = defaultValue
+		option.HideDefault = true
+	}
+	prompt = promptWithColor(prompt, colorCyan)
+	for {
+		line, err := ui.Ask(prompt, option)
+		switch err {
+		case input.ErrInterrupted:
+			os.Exit(1)
+		default:
+			if line = strings.TrimSpace(line); line == "" {
+				continue
+			}
+			return line
+		}
+	}
 }
