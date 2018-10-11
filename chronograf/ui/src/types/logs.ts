@@ -1,7 +1,9 @@
+import {Index} from 'react-virtualized'
+
 import {Bucket, Source} from 'src/types/v2'
 import {QueryConfig} from 'src/types'
 
-import {FieldOption} from 'src/types/v2/dashboards'
+import {FieldOption, TimeSeriesValue} from 'src/types/v2/dashboards'
 
 export enum SearchStatus {
   None = 'None',
@@ -206,3 +208,11 @@ export interface MatchSection {
   type: MatchType
   text: string
 }
+
+// Table Data
+export interface TableData {
+  columns: string[]
+  values: TimeSeriesValue[][]
+}
+
+export type RowHeightHandler = (index: Index) => number

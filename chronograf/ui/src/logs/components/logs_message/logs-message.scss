@@ -1,0 +1,30 @@
+/*
+   logs-message
+   -----------------------------------------------------------------------------
+*/
+
+.logs-message--copy {
+    position: absolute;
+    right: $ix-marg-a;
+    bottom: 50%;
+    transform: translateY(50%);
+    opacity: 0;
+    z-index: 20;
+  }
+  
+  .expanded--message .logs-message--copy {
+    top: $ix-marg-a;
+    transform: none;
+  }
+  
+  .logs-message:hover {
+    color: $g20-white;
+  }
+  
+  .logs-message:hover .logs-message--copy {
+    opacity: 1;
+  }
+  
+  .logs-message--match {
+    color: $c-laser;
+  }
