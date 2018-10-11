@@ -3281,8 +3281,7 @@ components:
           description: The ID of the organization that owns this Task.
           type: string
         name:
-          readOnly: true
-          description: A read-only description of the task.
+          description: A description of the task.
           type: string
         status:
           description: The current status of the task. When updated to 'inactive', cancels all queued jobs of this task.
@@ -3297,11 +3296,9 @@ components:
           description: The Flux script to run for this task.
           type: string
         every:
-          readOnly: true
           description: A simple task repetition schedule; parsed from Flux.
           type: string
         cron:
-          readOnly: true
           description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
           type: string
       required: [name, organization, flux]
