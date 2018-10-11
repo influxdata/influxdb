@@ -27,6 +27,7 @@ func init() {
 	influxCmd.AddCommand(setupCmd)
 	influxCmd.AddCommand(taskCmd)
 	influxCmd.AddCommand(userCmd)
+	influxCmd.AddCommand(writeCmd)
 }
 
 // Flags contains all the CLI flag values for influx.
