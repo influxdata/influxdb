@@ -201,6 +201,9 @@ type ReadSpec struct {
 	// When GroupMode is GroupModeBy, the results will be grouped by the specified keys.
 	// When GroupMode is GroupModeExcept, the results will be grouped by all keys, except those specified.
 	GroupKeys []string
+
+	Database        string // required by InfluxDB OSS
+	RetentionPolicy string // required by InfluxDB OSS
 }
 
 type Reader interface {
