@@ -10,6 +10,7 @@ import persistStateEnhancer from './persistStateEnhancer'
 import sourceReducer from 'src/sources/reducers/sources'
 
 // v2 reducers
+import tasksReducer from 'src/tasks/reducers/v2'
 import rangesReducer from 'src/dashboards/reducers/v2/ranges'
 import dashboardsReducer from 'src/dashboards/reducers/v2/dashboards'
 import hoverTimeReducer from 'src/dashboards/reducers/v2/hoverTime'
@@ -27,6 +28,7 @@ const rootReducer = combineReducers({
   sources: sourceReducer,
   views: viewsReducer,
   logs: logsReducer,
+  tasks: tasksReducer,
 })
 
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose

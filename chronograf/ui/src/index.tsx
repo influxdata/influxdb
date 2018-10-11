@@ -19,6 +19,8 @@ import App from 'src/App'
 import CheckSources from 'src/CheckSources'
 import Setup from 'src/Setup'
 import Signin from 'src/Signin'
+import TaskPage from 'src/tasks/containers/TaskPage'
+import TasksPage from 'src/tasks/containers/TasksPage'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import {SourcePage, ManageSources} from 'src/sources'
@@ -109,6 +111,8 @@ class Root extends PureComponent<{}, State> {
                     path="dashboards/:dashboardID"
                     component={DashboardPage}
                   />
+                  <Route path="tasks" component={TasksPage} />
+                  <Route path="tasks/new" component={TaskPage} />
                   <Route path="sources/new" component={SourcePage} />
                   <Route path="data-explorer" component={DataExplorerPage} />
                   <Route path="dashboards" component={DashboardsPage} />

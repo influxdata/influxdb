@@ -12,7 +12,8 @@ import FormFooter from 'src/clockface/components/form_layout/FormFooter'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  children: JSX.Element[]
+  children: JSX.Element[] | JSX.Element
+  style?: React.CSSProperties
   className?: string
 }
 
@@ -37,11 +38,15 @@ class Form extends Component<Props> {
   }).join(', ')
 
   public render() {
-    const {children} = this.props
+    const {children, style} = this.props
 
     this.validateChildren()
 
-    return <div className={this.formWrapperClass}>{children}</div>
+    return (
+      <div style={style} className={this.formWrapperClass}>
+        {children}
+      </div>
+    )
   }
 
   private get formWrapperClass(): string {
