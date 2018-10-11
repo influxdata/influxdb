@@ -56,14 +56,10 @@ func (t *floatTable) Close() {
 func (t *floatTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
@@ -149,14 +145,10 @@ func (t *floatGroupTable) Close() {
 func (t *floatGroupTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
@@ -265,14 +257,10 @@ func (t *integerTable) Close() {
 func (t *integerTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
@@ -358,14 +346,10 @@ func (t *integerGroupTable) Close() {
 func (t *integerGroupTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
@@ -474,14 +458,10 @@ func (t *unsignedTable) Close() {
 func (t *unsignedTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
@@ -567,14 +547,10 @@ func (t *unsignedGroupTable) Close() {
 func (t *unsignedGroupTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
@@ -683,14 +659,10 @@ func (t *stringTable) Close() {
 func (t *stringTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
@@ -776,14 +748,10 @@ func (t *stringGroupTable) Close() {
 func (t *stringGroupTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
@@ -892,14 +860,10 @@ func (t *booleanTable) Close() {
 func (t *booleanTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
@@ -985,14 +949,10 @@ func (t *booleanGroupTable) Close() {
 func (t *booleanGroupTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
