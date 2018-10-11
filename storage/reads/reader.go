@@ -166,12 +166,16 @@ READ:
 			continue
 		}
 
+		// Evaluate table.Done early to avoid a data race if table.Close() is run on another goroutine
+		// and reassigns the underlying channel.
+		done := table.Done()
+
 		if err := f(table); err != nil {
 			table.Close()
 			return err
 		}
 		select {
-		case <-table.Done():
+		case <-done:
 		case <-bi.ctx.Done():
 			break READ
 		}
