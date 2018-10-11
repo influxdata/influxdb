@@ -44,7 +44,7 @@ export const getAST = async (request: ASTRequest) => {
   }
 }
 
-interface GetTimeSeriesResult {
+export interface GetTimeSeriesResult {
   didTruncate: boolean
   tables: FluxTable[]
 }
