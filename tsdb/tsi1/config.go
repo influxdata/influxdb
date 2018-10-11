@@ -1,6 +1,6 @@
 package tsi1
 
-import "github.com/influxdata/influxdb/toml"
+import "github.com/influxdata/platform/toml"
 
 // DefaultMaxIndexLogFileSize is the default threshold, in bytes, when an index
 // write-ahead log file will compact into an index file.

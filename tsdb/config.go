@@ -6,7 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/platform/toml"
 	"github.com/influxdata/platform/tsdb/defaults"
 )
 
