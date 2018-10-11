@@ -76,6 +76,7 @@ require (
 	github.com/smartystreets/goconvey v0.0.0-20180222194500-ef6db91d284a // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/viper v1.2.1
+	github.com/tcnksm/go-input v0.0.0-20180404061846-548a7d7a8ee8
 	github.com/tinylib/msgp v1.0.2 // indirect
 	github.com/tylerb/graceful v1.2.15
 	github.com/willf/bitset v1.1.9 // indirect
