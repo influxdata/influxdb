@@ -388,12 +388,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:fc44561260a885822897a83e0f1f75ba70a06aceb6c6b7d6f6f78d007928be1a"
+  digest = "1:ee19d49e5e08eed14432f6b082fae33db9e3da7f2ea049254f8276036e9c7cc9"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
     "ast",
-    "builtin",
     "compiler",
     "control",
     "csv",
@@ -410,7 +409,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "9d686b2d96734e1f0a32480c1929fe7352c2be85"
+  revision = "331c3678304cd48fac3e47f4f80cdfe27a8e880d"
 
 [[projects]]
   branch = "master"
@@ -425,10 +424,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:2179d7b22da2d618e607eefa471c59374e5d7a3b60c0a46cc2f1fd2a0d3f1ac4"
+  digest = "1:a52531fd6b0bc36b4ec92336ed67a5a05a2ee75b3525d721096b47037cd22c88"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
+    "logger",
     "models",
     "pkg/binaryutil",
     "pkg/bytesutil",
@@ -438,17 +438,17 @@
     "pkg/mmap",
     "pkg/rhh",
     "pkg/slices",
-    "query",
-    "query/functions/inputs",
+    "pkg/snowflake",
     "query/functions/inputs/storage",
     "storage/reads",
     "storage/reads/datatypes",
+    "toml",
     "tsdb",
     "tsdb/cursors",
     "tsdb/defaults",
   ]
   pruneopts = "UT"
-  revision = "ad74678200cc16846db8dbc1c07bc953c07f83da"
+  revision = "a005792a8c866fe404c86f2a153978ce74358306"
 
 [[projects]]
   branch = "master"
@@ -964,16 +964,16 @@
     "github.com/google/go-cmp/cmp",
     "github.com/google/go-cmp/cmp/cmpopts",
     "github.com/influxdata/flux",
-    "github.com/influxdata/flux/builtin",
     "github.com/influxdata/flux/control",
     "github.com/influxdata/flux/csv",
     "github.com/influxdata/flux/execute",
+    "github.com/influxdata/flux/functions/inputs",
+    "github.com/influxdata/flux/functions/transformations",
     "github.com/influxdata/flux/lang",
+    "github.com/influxdata/flux/options",
+    "github.com/influxdata/flux/plan",
     "github.com/influxdata/influxql",
-    "github.com/influxdata/platform",
     "github.com/influxdata/platform/models",
-    "github.com/influxdata/platform/query",
-    "github.com/influxdata/platform/query/functions/inputs",
     "github.com/influxdata/platform/query/functions/inputs/storage",
     "github.com/influxdata/platform/storage/reads",
     "github.com/influxdata/platform/storage/reads/datatypes",

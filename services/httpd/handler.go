@@ -38,7 +38,6 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
-	pquery "github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/storage/reads"
 	"github.com/influxdata/platform/storage/reads/datatypes"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -1122,8 +1121,7 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pr := req.ProxyRequest()
-	ctx = pquery.ContextWithRequest(ctx, &pr.Request)
-	q, err := h.Controller.Query(ctx, pr.Request.Compiler)
+	q, err := h.Controller.Query(ctx, pr.Compiler)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)
 		return

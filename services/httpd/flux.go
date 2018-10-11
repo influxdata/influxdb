@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/platform/query"
 	"github.com/pkg/errors"
 )
 
@@ -92,11 +91,11 @@ func (r QueryRequest) Validate() error {
 
 // ProxyRequest specifies a query request and the dialect for the results.
 type ProxyRequest struct {
-	// Request is the basic query request
-	Request query.Request `json:"request"`
+	// Compiler converts the query to a specification to run against the data.
+	Compiler flux.Compiler
 
 	// Dialect is the result encoder
-	Dialect flux.Dialect `json:"dialect"`
+	Dialect flux.Dialect
 }
 
 // ProxyRequest returns a request to proxy from the flux.
@@ -127,9 +126,7 @@ func (r QueryRequest) ProxyRequest() *ProxyRequest {
 	// TODO(nathanielc): Use commentPrefix and dateTimeFormat
 	// once they are supported.
 	return &ProxyRequest{
-		Request: query.Request{
-			Compiler: compiler,
-		},
+		Compiler: compiler,
 		Dialect: csv.Dialect{
 			ResultEncoderConfig: cfg,
 		},

@@ -1,14 +1,10 @@
 package control
 
 import (
-	"context"
-
-	_ "github.com/influxdata/flux/builtin"
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query/functions/inputs"
-	fstorage "github.com/influxdata/platform/query/functions/inputs/storage"
+	_ "github.com/influxdata/influxdb/flux/builtin"
+	"github.com/influxdata/influxdb/flux/functions/inputs"
 	"github.com/influxdata/platform/storage/reads"
 	"go.uber.org/zap"
 )
@@ -28,25 +24,9 @@ func NewController(s reads.Store, logger *zap.Logger) *control.Controller {
 		Verbose:              false,
 	}
 
-	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, fstorage.Dependencies{
-		Reader:             reads.NewReader(s),
-		BucketLookup:       bucketLookup{},
-		OrganizationLookup: orgLookup{},
-	})
+	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, inputs.Dependencies{Reader: reads.NewReader(s)})
 	if err != nil {
 		panic(err)
 	}
 	return control.New(cc)
-}
-
-type orgLookup struct{}
-
-func (l orgLookup) Lookup(ctx context.Context, name string) (platform.ID, bool) {
-	return platform.ID(name), true
-}
-
-type bucketLookup struct{}
-
-func (l bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
-	return platform.ID(name), true
 }
