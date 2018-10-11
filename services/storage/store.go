@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -202,10 +201,5 @@ func (s *Store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 }
 
 func (s *Store) GetSource(rs storage.ReadSpec) (proto.Message, error) {
-	src := &ReadSource{Database: string(rs.BucketID)}
-	if i := strings.IndexByte(src.Database, '/'); i > -1 {
-		src.RetentionPolicy = src.Database[i+1:]
-		src.Database = src.Database[:i]
-	}
-	return src, nil
+	return &ReadSource{Database: rs.Database, RetentionPolicy: rs.RetentionPolicy}, nil
 }
