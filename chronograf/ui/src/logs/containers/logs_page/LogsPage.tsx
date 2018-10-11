@@ -21,8 +21,7 @@ import {searchToFilters} from 'src/logs/utils/search'
 import {NOW} from 'src/logs/constants'
 
 // Types
-import {Source, Links} from 'src/types/v2'
-import {Namespace} from 'src/types'
+import {Source, Links, Bucket} from 'src/types/v2'
 import {Filter, LogConfig, SearchStatus} from 'src/types/logs'
 
 interface StateProps {
@@ -31,9 +30,9 @@ interface StateProps {
   filters: Filter[]
   logConfig: LogConfig
   searchStatus: SearchStatus
-  currentNamespace: Namespace
+  currentBucket: Bucket
   currentSource: Source | null
-  currentNamespaces: Namespace[]
+  currentBuckets: Bucket[]
 }
 
 interface PassedProps {
@@ -50,8 +49,8 @@ interface DispatchProps {
   changeFilter: typeof logActions.changeFilter
   clearFilters: typeof logActions.clearFilters
   setSearchStatus: typeof logActions.setSearchStatus
-  setNamespaceAsync: typeof logActions.setNamespaceAsync
-  getSourceAndPopulateNamespaces: typeof logActions.getSourceAndPopulateNamespacesAsync
+  setBucketAsync: typeof logActions.setBucketAsync
+  getSourceAndPopulateBuckets: typeof logActions.getSourceAndPopulateBucketsAsync
 }
 
 type Props = StateProps & PassedProps & DispatchProps
@@ -88,7 +87,7 @@ class LogsPage extends Component<Props, State> {
       await this.setCurrentSource()
       await this.props.getConfig(viewsLink)
     } catch (e) {
-      console.error('Failed to get sources and namespaces for logs')
+      console.error('Failed to get sources and buckets for logs')
     }
   }
 
@@ -129,27 +128,22 @@ class LogsPage extends Component<Props, State> {
           return src.default
         }) || this.props.sources[0]
 
-      return await this.props.getSourceAndPopulateNamespaces(source.links.self)
+      return await this.props.getSourceAndPopulateBuckets(source.links.self)
     }
   }
 
   private get header(): JSX.Element {
-    const {
-      sources,
-      currentSource,
-      currentNamespaces,
-      currentNamespace,
-    } = this.props
+    const {sources, currentSource, currentBuckets, currentBucket} = this.props
 
     return (
       <LogsHeader
         liveUpdating={this.isLiveUpdating}
         availableSources={sources}
         onChooseSource={this.handleChooseSource}
-        onChooseNamespace={this.handleChooseNamespace}
+        onChooseBucket={this.handleChooseBucket}
         currentSource={currentSource}
-        currentNamespaces={currentNamespaces}
-        currentNamespace={currentNamespace}
+        currentBuckets={currentBuckets}
+        currentBucket={currentBucket}
         onChangeLiveUpdatingStatus={this.handleChangeLiveUpdatingStatus}
         onShowOptionsOverlay={this.handleToggleOverlay}
       />
@@ -206,13 +200,13 @@ class LogsPage extends Component<Props, State> {
   private handleChooseSource = async (sourceID: string) => {
     const source = this.props.sources.find(s => s.id === sourceID)
     this.props.setSearchStatus(SearchStatus.Clearing)
-    await this.props.getSourceAndPopulateNamespaces(source.links.self)
+    await this.props.getSourceAndPopulateBuckets(source.links.self)
   }
 
-  private handleChooseNamespace = async (namespace: Namespace) => {
+  private handleChooseBucket = async (bucket: Bucket) => {
     this.props.setSearchStatus(SearchStatus.Clearing)
-    await this.props.setNamespaceAsync(namespace)
-    this.props.setSearchStatus(SearchStatus.UpdatingNamespace)
+    await this.props.setBucketAsync(bucket)
+    this.props.setSearchStatus(SearchStatus.UpdatingBucket)
   }
 
   private handleUpdateTruncation = (isTruncated: boolean) => {
@@ -265,8 +259,8 @@ const mapStateToProps = ({
   links,
   logs: {
     currentSource,
-    currentNamespaces,
-    currentNamespace,
+    currentBuckets,
+    currentBucket,
     filters,
     logConfig,
     searchStatus,
@@ -278,8 +272,8 @@ const mapStateToProps = ({
   logConfig,
   searchStatus,
   currentSource,
-  currentNamespace,
-  currentNamespaces,
+  currentBucket,
+  currentBuckets,
 })
 
 const mapDispatchToProps: DispatchProps = {
@@ -292,9 +286,8 @@ const mapDispatchToProps: DispatchProps = {
   clearFilters: logActions.clearFilters,
   getConfig: logActions.getLogConfigAsync,
   setSearchStatus: logActions.setSearchStatus,
-  setNamespaceAsync: logActions.setNamespaceAsync,
-  getSourceAndPopulateNamespaces:
-    logActions.getSourceAndPopulateNamespacesAsync,
+  setBucketAsync: logActions.setBucketAsync,
+  getSourceAndPopulateBuckets: logActions.getSourceAndPopulateBucketsAsync,
 }
 
 export default withRouter(

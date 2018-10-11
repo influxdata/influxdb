@@ -26,8 +26,7 @@ class LoadingStatus extends PureComponent<Props> {
       case SearchStatus.SourceError:
         return (
           <>
-            Try changing your <strong>Source</strong> or{' '}
-            <strong>Namespace</strong>.
+            Try changing your <strong>Source</strong> or <strong>Bucket</strong>.
           </>
         )
       case SearchStatus.NoResults:
@@ -53,7 +52,7 @@ class LoadingStatus extends PureComponent<Props> {
       case SearchStatus.UpdatingFilters:
       case SearchStatus.UpdatingTimeBounds:
       case SearchStatus.UpdatingSource:
-      case SearchStatus.UpdatingNamespace:
+      case SearchStatus.UpdatingBucket:
       case SearchStatus.Loading:
         return (
           <div className="logs-viewer--search-graphic">
@@ -87,8 +86,8 @@ class LoadingStatus extends PureComponent<Props> {
         return 'Searching time bounds...'
       case SearchStatus.UpdatingSource:
         return 'Searching updated source...'
-      case SearchStatus.UpdatingNamespace:
-        return 'Searching updated namespace...'
+      case SearchStatus.UpdatingBucket:
+        return 'Searching updated bucket...'
       case SearchStatus.SourceError:
         return 'Could not find logs for source.'
       case SearchStatus.Loading:

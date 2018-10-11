@@ -1,11 +1,11 @@
 // Utils
 import {getDeep} from 'src/utils/wrappers'
 import {serverToUIConfig} from 'src/logs/utils/config'
-import AJAX from 'src/utils/ajax'
 
 // APIs
 import {readViews as readViewsAJAX} from 'src/dashboards/apis/v2/view'
 import {getSource} from 'src/sources/apis/v2'
+import {getBuckets} from 'src/shared/apis/v2/buckets'
 
 // Data
 import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
@@ -14,8 +14,7 @@ import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
 import {Dispatch} from 'redux'
 import {View, ViewType} from 'src/types/v2/dashboards'
 import {Filter, LogConfig, SearchStatus, LogsState} from 'src/types/logs'
-import {Namespace} from 'src/types'
-import {Source} from 'src/types/v2'
+import {Source, Bucket} from 'src/types/v2'
 
 export const INITIAL_LIMIT = 1000
 
@@ -27,8 +26,8 @@ type GetState = () => State
 
 export enum ActionTypes {
   SetSource = 'LOGS_SET_SOURCE',
-  SetNamespaces = 'LOGS_SET_NAMESPACES',
-  SetNamespace = 'LOGS_SET_NAMESPACE',
+  SetBuckets = 'LOGS_SET_BUCKETS',
+  SetBucket = 'LOGS_SET_BUCKET',
   AddFilter = 'LOGS_ADD_FILTER',
   RemoveFilter = 'LOGS_REMOVE_FILTER',
   ChangeFilter = 'LOGS_CHANGE_FILTER',
@@ -73,17 +72,17 @@ interface SetSourceAction {
   }
 }
 
-interface SetNamespacesAction {
-  type: ActionTypes.SetNamespaces
+interface SetBucketsAction {
+  type: ActionTypes.SetBuckets
   payload: {
-    namespaces: Namespace[]
+    buckets: Bucket[]
   }
 }
 
-interface SetNamespaceAction {
-  type: ActionTypes.SetNamespace
+interface SetBucketAction {
+  type: ActionTypes.SetBucket
   payload: {
-    namespace: Namespace
+    bucket: Bucket
   }
 }
 
@@ -103,8 +102,8 @@ interface SetSearchStatusAction {
 
 export type Action =
   | SetSourceAction
-  | SetNamespacesAction
-  | SetNamespaceAction
+  | SetBucketsAction
+  | SetBucketAction
   | AddFilterAction
   | RemoveFilterAction
   | ChangeFilterAction
@@ -147,57 +146,51 @@ export const removeFilter = (id: string): RemoveFilterAction => ({
   payload: {id},
 })
 
-export const setNamespaceAsync = (namespace: Namespace) => async (
+export const setBucketAsync = (bucket: Bucket) => async (
   dispatch
 ): Promise<void> => {
   dispatch({
-    type: ActionTypes.SetNamespace,
-    payload: {namespace},
+    type: ActionTypes.SetBucket,
+    payload: {bucket},
   })
 }
 
-export const setNamespaces = (
-  namespaces: Namespace[]
-): SetNamespacesAction => ({
-  type: ActionTypes.SetNamespaces,
+export const setBuckets = (buckets: Bucket[]): SetBucketsAction => ({
+  type: ActionTypes.SetBuckets,
   payload: {
-    namespaces,
+    buckets,
   },
 })
 
-export const populateNamespacesAsync = (
+export const populateBucketsAsync = (
   bucketsLink: string,
   source: Source = null
 ) => async (dispatch): Promise<void> => {
   try {
-    const {data: buckets} = await AJAX({url: bucketsLink, method: 'GET'})
-    const namespaces: Namespace[] = buckets.map(b => ({
-      database: b.name,
-      retentionPolicy: b.rp,
-    }))
+    const buckets = await getBuckets(bucketsLink)
 
-    if (namespaces && namespaces.length > 0) {
-      dispatch(setNamespaces(namespaces))
+    if (buckets && buckets.length > 0) {
+      dispatch(setBuckets(buckets))
       if (source && source.telegraf) {
-        const defaultNamespace = namespaces.find(
-          namespace => namespace.database === source.telegraf
+        const defaultBucket = buckets.find(
+          bucket => bucket.name === source.telegraf
         )
 
-        await dispatch(setNamespaceAsync(defaultNamespace))
+        await dispatch(setBucketAsync(defaultBucket))
       } else {
-        await dispatch(setNamespaceAsync(namespaces[0]))
+        await dispatch(setBucketAsync(buckets[0]))
       }
     }
   } catch (e) {
-    dispatch(setNamespaces([]))
-    dispatch(setNamespaceAsync(null))
-    throw new Error('Failed to populate namespaces')
+    dispatch(setBuckets([]))
+    dispatch(setBucketAsync(null))
+    throw new Error('Failed to populate buckets')
   }
 }
 
-export const getSourceAndPopulateNamespacesAsync = (
-  sourceURL: string
-) => async (dispatch): Promise<void> => {
+export const getSourceAndPopulateBucketsAsync = (sourceURL: string) => async (
+  dispatch
+): Promise<void> => {
   const source = await getSource(sourceURL)
 
   const bucketsLink = getDeep<string | null>(source, 'links.buckets', null)
@@ -206,7 +199,7 @@ export const getSourceAndPopulateNamespacesAsync = (
     dispatch(setSource(source))
 
     try {
-      await dispatch(populateNamespacesAsync(bucketsLink, source))
+      await dispatch(populateBucketsAsync(bucketsLink, source))
       await dispatch(setSearchStatus(SearchStatus.UpdatingSource))
     } catch (e) {
       await dispatch(setSearchStatus(SearchStatus.SourceError))

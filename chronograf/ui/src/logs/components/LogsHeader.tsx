@@ -1,7 +1,6 @@
 import _ from 'lodash'
 import React, {PureComponent} from 'react'
-import {Source} from 'src/types/v2'
-import {Namespace} from 'src/types'
+import {Source, Bucket} from 'src/types/v2'
 
 import {
   Dropdown,
@@ -20,12 +19,12 @@ interface SourceItem {
 }
 
 interface Props {
-  currentNamespace: Namespace
+  currentBucket: Bucket
   availableSources: Source[]
   currentSource: Source | null
-  currentNamespaces: Namespace[]
+  currentBuckets: Bucket[]
   onChooseSource: (sourceID: string) => void
-  onChooseNamespace: (namespace: Namespace) => void
+  onChooseBucket: (bucket: Bucket) => void
   liveUpdating: boolean
   onChangeLiveUpdatingStatus: () => void
   onShowOptionsOverlay: () => void
@@ -62,12 +61,12 @@ class LogsHeader extends PureComponent<Props> {
           <Dropdown
             customClass="dropdown-180"
             icon={IconFont.Disks}
-            selectedID={this.selectedNamespace}
-            onChange={this.handleChooseNamespace}
-            titleText="Namespaces"
+            selectedID={this.selectedBucket}
+            onChange={this.handleChooseBucket}
+            titleText="Buckets"
             mode={DropdownMode.ActionList}
           >
-            {this.namespaceDropDownItems}
+            {this.bucketDropDownItems}
           </Dropdown>
           {/* <Authorized requiredRole={EDITOR_ROLE}> */}
           <Button
@@ -85,8 +84,8 @@ class LogsHeader extends PureComponent<Props> {
     this.props.onChooseSource(item.id)
   }
 
-  private handleChooseNamespace = (namespace: Namespace) => {
-    this.props.onChooseNamespace(namespace)
+  private handleChooseBucket = (bucket: Bucket) => {
+    this.props.onChooseBucket(bucket)
   }
 
   private get selectedSource(): string {
@@ -110,28 +109,28 @@ class LogsHeader extends PureComponent<Props> {
     return EMPTY_ID
   }
 
-  private get selectedNamespace(): string {
-    const {currentNamespace} = this.props
+  private get selectedBucket(): string {
+    const {currentBucket} = this.props
 
-    if (!currentNamespace) {
+    if (!currentBucket) {
       return EMPTY_ID
     }
 
-    return `${currentNamespace.database}.${currentNamespace.retentionPolicy}`
+    return `${currentBucket.name}.${currentBucket.rp}`
   }
 
-  private get namespaceDropDownItems() {
-    const {currentNamespaces} = this.props
+  private get bucketDropDownItems() {
+    const {currentBuckets} = this.props
 
-    if (_.isEmpty(currentNamespaces)) {
-      return this.renderEmptyDropdown('No Namespaces Found')
+    if (_.isEmpty(currentBuckets)) {
+      return this.renderEmptyDropdown('No Buckets Found')
     }
 
-    return currentNamespaces.map((namespace: Namespace) => {
-      const namespaceText = `${namespace.database}.${namespace.retentionPolicy}`
+    return currentBuckets.map((bucket: Bucket) => {
+      const bucketText = `${bucket.name}.${bucket.rp}`
       return (
-        <Dropdown.Item value={namespace} key={namespaceText} id={namespaceText}>
-          {namespaceText}
+        <Dropdown.Item value={bucket} key={bucketText} id={bucketText}>
+          {bucketText}
         </Dropdown.Item>
       )
     })

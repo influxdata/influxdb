@@ -1,4 +1,6 @@
-import {QueryConfig, Namespace, Source} from 'src/types'
+import {Bucket, Source} from 'src/types/v2'
+import {QueryConfig} from 'src/types'
+
 import {FieldOption} from 'src/types/v2/dashboards'
 
 export enum SearchStatus {
@@ -8,7 +10,7 @@ export enum SearchStatus {
   UpdatingTimeBounds = 'UpdatingTimeBounds',
   UpdatingFilters = 'UpdatingFilters',
   UpdatingSource = 'UpdatingSource',
-  UpdatingNamespace = 'UpdatingNamespace',
+  UpdatingBucket = 'UpdatingBucket',
   SourceError = 'SourceError',
   Loaded = 'Loaded',
   Clearing = 'Clearing',
@@ -24,8 +26,8 @@ export interface Filter {
 
 export interface LogsState {
   currentSource: Source | null
-  currentNamespaces: Namespace[]
-  currentNamespace: Namespace | null
+  currentBuckets: Bucket[]
+  currentBucket: Bucket | null
   tableQueryConfig: QueryConfig | null
   filters: Filter[]
   queryCount: number

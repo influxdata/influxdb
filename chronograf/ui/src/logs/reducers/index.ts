@@ -14,8 +14,8 @@ import {LogsState, SearchStatus, SeverityFormatOptions} from 'src/types/logs'
 
 export const defaultState: LogsState = {
   currentSource: null,
-  currentNamespaces: [],
-  currentNamespace: null,
+  currentBuckets: [],
+  currentBucket: null,
   tableQueryConfig: null,
   filters: [],
   queryCount: 0,
@@ -98,10 +98,10 @@ export default (state: LogsState = defaultState, action: Action) => {
   switch (action.type) {
     case ActionTypes.SetSource:
       return {...state, currentSource: action.payload.source}
-    case ActionTypes.SetNamespaces:
-      return {...state, currentNamespaces: action.payload.namespaces}
-    case ActionTypes.SetNamespace:
-      return {...state, currentNamespace: action.payload.namespace}
+    case ActionTypes.SetBuckets:
+      return {...state, currentBuckets: action.payload.buckets}
+    case ActionTypes.SetBucket:
+      return {...state, currentBucket: action.payload.bucket}
     case ActionTypes.SetSearchStatus:
       return {...state, searchStatus: action.payload.searchStatus}
     case ActionTypes.AddFilter:
