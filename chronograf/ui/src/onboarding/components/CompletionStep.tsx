@@ -26,7 +26,7 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
           />
           <Button
             color={ComponentColor.Success}
-            text="Go to status dashboard"
+            text="Go to InfluxDB 2.0"
             size={ComponentSize.Medium}
             onClick={onExit}
           />
