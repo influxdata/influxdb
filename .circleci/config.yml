@@ -41,6 +41,13 @@ jobs:
             - platform-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
             - platform-gocache-{{ .Branch }}-                # Matches a new commit on an existing branch.
             - platform-gocache-                              # Matches a new branch.
+      # Populate GOPATH/pkg.
+      - restore_cache:
+          name: Restoring GOPATH/pkg/mod
+          keys:
+            - platform-gomod-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - platform-gomod-{{ .Branch }}-                # Matches a new commit on an existing branch.
+            - platform-gomod-                              # Matches a new branch.
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
       - run: make vet
       - run: make checkfmt
@@ -55,6 +62,12 @@ jobs:
           key: platform-gocache-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
+          when: always
+      - save_cache:
+          name: Saving GOPATH/pkg/mod
+          key: platform-gomod-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /go/pkg/mod
           when: always
 
   deploy:
@@ -72,6 +85,10 @@ jobs:
           name: Restoring GOCACHE
           keys:
             - platform-gocache- # Just match the most recent Go cache.
+      - restore_cache:
+          name: Restoring GOPATH/pkg/mod
+          keys:
+            - platform-gomod- # Just match the most recent Go mod cache.
       - restore_cache:
           name: Restore Yarn package cache
           keys:
