@@ -67,7 +67,12 @@ func (c *Client) Open(ctx context.Context) error {
 	}
 	c.db = db
 
-	return c.initialize(context.TODO())
+	if err := c.initialize(ctx); err != nil {
+		return err
+	}
+
+	c.Logger.Info("Opened bolt database", zap.String("path", c.Path))
+	return nil
 }
 
 // initialize creates Buckets that are missing

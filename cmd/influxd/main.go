@@ -146,6 +146,7 @@ func platformF(cmd *cobra.Command, args []string) {
 
 	c := bolt.NewClient()
 	c.Path = boltPath
+	c.WithLogger(logger)
 
 	if err := c.Open(ctx); err != nil {
 		logger.Error("failed opening bolt", zap.Error(err))
