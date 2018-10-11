@@ -8,6 +8,8 @@ import LogsHeader from 'src/logs/components/LogsHeader'
 import LoadingStatus from 'src/logs/components/loading_status/LoadingStatus'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/logs_filter_bar/LogsFilterBar'
+import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
+import OptionsOverlay from 'src/logs/components/options_overlay/OptionsOverlay'
 
 // Actions
 import * as logActions from 'src/logs/actions'
@@ -16,13 +18,22 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Utils
 import {searchToFilters} from 'src/logs/utils/search'
+import {getDeep} from 'src/utils/wrappers'
 
 // Constants
 import {NOW} from 'src/logs/constants'
 
 // Types
 import {Source, Links, Bucket} from 'src/types/v2'
-import {Filter, LogConfig, SearchStatus} from 'src/types/logs'
+import {
+  Filter,
+  LogConfig,
+  SearchStatus,
+  SeverityFormat,
+  SeverityLevelColor,
+  SeverityFormatOptions,
+  LogsTableColumn,
+} from 'src/types/logs'
 
 interface StateProps {
   links: Links
@@ -44,7 +55,8 @@ interface DispatchProps {
   getConfig: typeof logActions.getLogConfigAsync
   getSources: typeof getSourcesAsync
   addFilter: typeof logActions.addFilter
-  updateConfig: typeof logActions.setConfig
+  updateConfig: typeof logActions.updateLogConfigAsync
+  createConfig: typeof logActions.createLogConfigAsync
   removeFilter: typeof logActions.removeFilter
   changeFilter: typeof logActions.changeFilter
   clearFilters: typeof logActions.clearFilters
@@ -57,6 +69,7 @@ type Props = StateProps & PassedProps & DispatchProps
 
 interface State {
   liveUpdating: boolean
+  isOverlayVisible: boolean
 }
 
 const RELATIVE_TIME = 0
@@ -67,6 +80,7 @@ class LogsPage extends Component<Props, State> {
 
     this.state = {
       liveUpdating: false,
+      isOverlayVisible: false,
     }
   }
 
@@ -78,14 +92,10 @@ class LogsPage extends Component<Props, State> {
   }
 
   public async componentDidMount() {
-    const {
-      links: {views: viewsLink},
-    } = this.props
-
     try {
       await this.props.getSources()
       await this.setCurrentSource()
-      await this.props.getConfig(viewsLink)
+      await this.props.getConfig(this.configLink)
     } catch (e) {
       console.error('Failed to get sources and buckets for logs')
     }
@@ -117,19 +127,9 @@ class LogsPage extends Component<Props, State> {
             <LoadingStatus status={searchStatus} lower={0} upper={0} />
           </div>
         </div>
+        {this.configOverlay}
       </>
     )
-  }
-
-  private setCurrentSource = async () => {
-    if (!this.props.currentSource && this.props.sources.length > 0) {
-      const source =
-        this.props.sources.find(src => {
-          return src.default
-        }) || this.props.sources[0]
-
-      return await this.props.getSourceAndPopulateBuckets(source.links.self)
-    }
   }
 
   private get header(): JSX.Element {
@@ -149,6 +149,74 @@ class LogsPage extends Component<Props, State> {
       />
     )
   }
+
+  private get configOverlay(): JSX.Element {
+    const {isOverlayVisible} = this.state
+
+    return (
+      <OverlayTechnology visible={isOverlayVisible}>
+        <OptionsOverlay
+          columns={this.tableColumns}
+          severityFormat={this.severityFormat}
+          severityLevelColors={this.severityLevelColors}
+          onSave={this.handleSaveOptions}
+          onDismissOverlay={this.handleToggleOverlay}
+        />
+      </OverlayTechnology>
+    )
+  }
+
+  private get tableColumns(): LogsTableColumn[] {
+    const {logConfig} = this.props
+
+    return getDeep<LogsTableColumn[]>(logConfig, 'tableColumns', [])
+  }
+
+  private get severityLevelColors(): SeverityLevelColor[] {
+    return getDeep<SeverityLevelColor[]>(
+      this.props.logConfig,
+      'severityLevelColors',
+      []
+    )
+  }
+
+  private get severityFormat(): SeverityFormat {
+    return getDeep<SeverityFormat>(
+      this.props.logConfig,
+      'severityFormat',
+      SeverityFormatOptions.DotText
+    )
+  }
+
+  private handleSaveOptions = async (config: Partial<LogConfig>) => {
+    const {logConfig} = this.props
+    const updatedConfig = {
+      ...logConfig,
+      ...config,
+    }
+
+    if (!this.isLogConfigSaved) {
+      await this.props.createConfig(this.configLink, updatedConfig)
+    } else {
+      await this.props.updateConfig(updatedConfig)
+    }
+  }
+
+  private get isLogConfigSaved(): boolean {
+    return this.props.logConfig.id !== null
+  }
+
+  private setCurrentSource = async () => {
+    if (!this.props.currentSource && this.props.sources.length > 0) {
+      const source =
+        this.props.sources.find(src => {
+          return src.default
+        }) || this.props.sources[0]
+
+      return await this.props.getSourceAndPopulateBuckets(source.links.self)
+    }
+  }
+
   private handleChangeLiveUpdatingStatus = async (): Promise<void> => {
     const {liveUpdating} = this.state
 
@@ -218,6 +286,10 @@ class LogsPage extends Component<Props, State> {
     })
   }
 
+  private get configLink(): string {
+    return getDeep<string>(this.props, 'links.views', '')
+  }
+
   private get isTruncated(): boolean {
     return this.props.logConfig.isTruncated
   }
@@ -248,10 +320,9 @@ class LogsPage extends Component<Props, State> {
     // TODO: handle updating time in LogState
   }
 
-  /**
-   * Toggle log config options overlay visibilty
-   */
-  private handleToggleOverlay = (): void => {}
+  private handleToggleOverlay = (): void => {
+    this.setState({isOverlayVisible: !this.state.isOverlayVisible})
+  }
 }
 
 const mapStateToProps = ({
@@ -280,7 +351,8 @@ const mapDispatchToProps: DispatchProps = {
   notify: notifyAction,
   getSources: getSourcesAsync,
   addFilter: logActions.addFilter,
-  updateConfig: logActions.setConfig,
+  updateConfig: logActions.updateLogConfigAsync,
+  createConfig: logActions.createLogConfigAsync,
   removeFilter: logActions.removeFilter,
   changeFilter: logActions.changeFilter,
   clearFilters: logActions.clearFilters,

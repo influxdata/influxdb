@@ -1,9 +1,13 @@
 // Utils
 import {getDeep} from 'src/utils/wrappers'
-import {serverToUIConfig} from 'src/logs/utils/config'
+import {serverToUIConfig, uiToServerConfig} from 'src/logs/utils/config'
 
 // APIs
-import {readViews as readViewsAJAX} from 'src/dashboards/apis/v2/view'
+import {
+  readViews as readViewsAJAX,
+  createView as createViewAJAX,
+  updateView as updateViewAJAX,
+} from 'src/dashboards/apis/v2/view'
 import {getSource} from 'src/sources/apis/v2'
 import {getBuckets} from 'src/shared/apis/v2/buckets'
 
@@ -221,6 +225,34 @@ export const getLogConfigAsync = (url: string) => async (
     isTruncated,
   }
 
+  await dispatch(setConfig(logConfig))
+}
+
+export const createLogConfigAsync = (
+  url: string,
+  newConfig: LogConfig
+) => async (dispatch: Dispatch<SetConfigAction>) => {
+  const {isTruncated} = newConfig
+  const {id, ...newLogView} = uiToServerConfig(newConfig)
+  const logView = await createViewAJAX(url, newLogView)
+  const logConfig = {
+    ...serverToUIConfig(logView),
+    isTruncated,
+  }
+  await dispatch(setConfig(logConfig))
+}
+
+export const updateLogConfigAsync = (updatedConfig: LogConfig) => async (
+  dispatch: Dispatch<SetConfigAction>
+) => {
+  const {isTruncated, link} = updatedConfig
+  const updatedView = uiToServerConfig(updatedConfig)
+  const logView = await updateViewAJAX(link, updatedView)
+
+  const logConfig = {
+    ...serverToUIConfig(logView),
+    isTruncated,
+  }
   await dispatch(setConfig(logConfig))
 }
 

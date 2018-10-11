@@ -9,6 +9,7 @@ import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
 import {SEVERITY_COLORS} from 'src/logs/constants'
 
 import {SeverityColor, SeverityColorOptions} from 'src/types/logs'
+import {capitalize} from 'src/logs/utils/config'
 
 interface Props {
   selected: SeverityColor
@@ -132,7 +133,7 @@ export default class ColorDropdown extends Component<Props, State> {
     const hex = target.dataset.tagValue || target.parentElement.dataset.tagValue
     const nameString =
       target.dataset.tagKey || target.parentElement.dataset.tagKey
-    const name = SeverityColorOptions[nameString]
+    const name = SeverityColorOptions[capitalize(nameString)]
 
     const color: SeverityColor = {name, hex}
     this.props.onChoose(this.props.severityLevel, color)

@@ -127,7 +127,7 @@ export const generateColumnColorsConfig = (
   })
 }
 
-const capitalize = (word: string): string =>
+export const capitalize = (word: string): string =>
   word.charAt(0).toUpperCase() + word.slice(1)
 
 export const uiToServerConfig = (config: LogConfig): View => {
