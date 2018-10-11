@@ -366,7 +366,7 @@ func (ts *taskScheduler) WorkCurrentlyRunning(meta *StoreTaskMeta) error {
 	for _, cr := range meta.CurrentlyRunning {
 		foundWorker := false
 		for _, r := range ts.runners {
-			qr := QueuedRun{TaskID: ts.task.ID, RunID: cr.RunID, Now: cr.Now}
+			qr := QueuedRun{TaskID: ts.task.ID, RunID: platform.ID(cr.RunID), Now: cr.Now}
 			if r.RestartRun(qr) {
 				foundWorker = true
 				break

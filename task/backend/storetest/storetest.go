@@ -1,9 +1,7 @@
 package storetest
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"math"
 	"os"
@@ -89,14 +87,14 @@ from(bucket:"test") |> range(start:-1h)`
 		name, script string
 		noerr        bool
 	}{
-		{caseName: "happy path", org: []byte{1}, user: []byte{2}, script: script, noerr: true},
-		{caseName: "missing org", org: nil, user: []byte{2}, script: script},
-		{caseName: "missing user", org: []byte{1}, user: nil, script: script},
-		{caseName: "missing name", org: []byte{1}, user: []byte{2}, script: scriptNoName},
-		{caseName: "missing script", org: []byte{1}, user: []byte{2}, script: ""},
-		{caseName: "repeated name and org", org: []byte{1}, user: []byte{3}, script: script, noerr: true},
-		{caseName: "repeated name and user", org: []byte{3}, user: []byte{2}, script: script, noerr: true},
-		{caseName: "repeated name, org, and user", org: []byte{1}, user: []byte{2}, script: script, noerr: true},
+		{caseName: "happy path", org: platform.ID(1), user: platform.ID(2), script: script, noerr: true},
+		{caseName: "missing org", org: platform.ID(0), user: platform.ID(2), script: script},
+		{caseName: "missing user", org: platform.ID(1), user: platform.ID(0), script: script},
+		{caseName: "missing name", org: platform.ID(1), user: platform.ID(2), script: scriptNoName},
+		{caseName: "missing script", org: platform.ID(1), user: platform.ID(2), script: ""},
+		{caseName: "repeated name and org", org: platform.ID(1), user: platform.ID(3), script: script, noerr: true},
+		{caseName: "repeated name and user", org: platform.ID(3), user: platform.ID(2), script: script, noerr: true},
+		{caseName: "repeated name, org, and user", org: platform.ID(1), user: platform.ID(2), script: script, noerr: true},
 	} {
 		t.Run(args.caseName, func(t *testing.T) {
 			_, err := s.CreateTask(context.Background(), args.org, args.user, args.script, 0)
@@ -139,7 +137,7 @@ from(bucket:"y") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
+		id, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -164,10 +162,10 @@ from(bucket:"y") |> range(start:-1h)`
 		id       platform.ID
 		script   string
 	}{
-		{caseName: "missing id", id: nil, script: script},
-		{caseName: "not found", id: []byte{7, 1, 2, 3}, script: script},
-		{caseName: "missing script", id: []byte{1}, script: ""},
-		{caseName: "missing name", id: []byte{1}, script: scriptNoName},
+		{caseName: "missing id", id: platform.ID(0), script: script},
+		{caseName: "not found", id: platform.ID(7123), script: script},
+		{caseName: "missing script", id: platform.ID(1), script: ""},
+		{caseName: "missing name", id: platform.ID(1), script: scriptNoName},
 	} {
 		t.Run(args.caseName, func(t *testing.T) {
 			s := create(t)
@@ -181,11 +179,11 @@ from(bucket:"y") |> range(start:-1h)`
 	t.Run("name repetition", func(t *testing.T) {
 		s := create(t)
 		defer destroy(t, s)
-		id1, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
+		id1, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = s.CreateTask(context.Background(), []byte{1}, []byte{2}, script2, 0)
+		_, err = s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script2, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -206,8 +204,8 @@ from(bucket:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		orgID := []byte{1}
-		userID := []byte{2}
+		orgID := platform.ID(1)
+		userID := platform.ID(2)
 
 		id, err := s.CreateTask(context.Background(), orgID, userID, fmt.Sprintf(scriptFmt, 0), 0)
 		if err != nil {
@@ -221,7 +219,7 @@ from(bucket:"test") |> range(start:-1h)`
 		if len(ts) != 1 {
 			t.Fatalf("expected 1 result, got %d", len(ts))
 		}
-		if !bytes.Equal(ts[0].ID, id) {
+		if ts[0].ID != id {
 			t.Fatalf("got task ID %v, exp %v", ts[0].ID, id)
 		}
 
@@ -232,11 +230,11 @@ from(bucket:"test") |> range(start:-1h)`
 		if len(ts) != 1 {
 			t.Fatalf("expected 1 result, got %d", len(ts))
 		}
-		if !bytes.Equal(ts[0].ID, id) {
+		if ts[0].ID != id {
 			t.Fatalf("got task ID %v, exp %v", ts[0].ID, id)
 		}
 
-		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{Org: []byte{1, 2, 3}})
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{Org: platform.ID(123)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -244,7 +242,7 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("expected no results for bad org ID, got %d result(s)", len(ts))
 		}
 
-		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{User: []byte{1, 2, 3}})
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{User: platform.ID(123)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -264,7 +262,7 @@ from(bucket:"test") |> range(start:-1h)`
 		if len(ts) != 1 {
 			t.Fatalf("expected 1 result, got %d", len(ts))
 		}
-		if !bytes.Equal(ts[0].ID, newID) {
+		if ts[0].ID != newID {
 			t.Fatalf("got task ID %v, exp %v", ts[0].ID, newID)
 		}
 	})
@@ -279,8 +277,8 @@ from(bucket:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		orgID := []byte{1}
-		userID := []byte{2}
+		orgID := platform.ID(1)
+		userID := platform.ID(2)
 
 		type createdTask struct {
 			id           platform.ID
@@ -319,15 +317,15 @@ from(bucket:"test") |> range(start:-1h)`
 			}
 
 			for i, g := range got {
-				if !bytes.Equal(tasks[i].id, g.ID) {
+				if tasks[i].id != g.ID {
 					t.Fatalf("task ID mismatch at index %d: got %x, expected %x", i, g.ID, tasks[i].id)
 				}
 
-				if !bytes.Equal(orgID, g.Org) {
+				if orgID != g.Org {
 					t.Fatalf("task org mismatch at index %d: got %x, expected %x", i, g.Org, orgID)
 				}
 
-				if !bytes.Equal(userID, g.User) {
+				if userID != g.User {
 					t.Fatalf("task user mismatch at index %d: got %x, expected %x", i, g.User, userID)
 				}
 
@@ -354,7 +352,7 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatal("expected error for huge page size but got nil")
 		}
 
-		if _, err := s.ListTasks(context.Background(), backend.TaskSearchParams{Org: []byte{1}, User: []byte{2}}); err == nil {
+		if _, err := s.ListTasks(context.Background(), backend.TaskSearchParams{Org: platform.ID(1), User: platform.ID(2)}); err == nil {
 			t.Fatal("expected error when specifying both org and user, but got nil")
 		}
 	})
@@ -372,8 +370,8 @@ from(bucket:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		org := []byte{1}
-		user := []byte{2}
+		org := platform.ID(1)
+		user := platform.ID(2)
 
 		id, err := s.CreateTask(context.Background(), org, user, script, 0)
 		if err != nil {
@@ -385,13 +383,13 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(task.ID, id) {
+		if task.ID != id {
 			t.Fatalf("unexpected ID: got %v, exp %v", task.ID, id)
 		}
-		if !bytes.Equal(task.Org, org) {
+		if task.Org != org {
 			t.Fatalf("unexpected org: got %v, exp %v", task.Org, org)
 		}
-		if !bytes.Equal(task.User, user) {
+		if task.User != user {
 			t.Fatalf("unexpected user: got %v, exp %v", task.User, user)
 		}
 		if task.Name != "a task" {
@@ -401,10 +399,10 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("unexpected script %q", task.Script)
 		}
 
-		badID := append([]byte(nil), id...)
-		badID[len(badID)-1]++
+		badID := uint64(id)
+		badID++
 
-		task, err = s.FindTaskByID(context.Background(), badID)
+		task, err = s.FindTaskByID(context.Background(), platform.ID(badID))
 		if err != nil {
 			t.Fatalf("expected no error when finding nonexistent ID, got %v", err)
 		}
@@ -427,8 +425,8 @@ from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	org := []byte{1}
-	user := []byte{2}
+	org := platform.ID(1)
+	user := platform.ID(2)
 
 	id, err := s.CreateTask(context.Background(), org, user, script, 6000)
 	if err != nil {
@@ -456,7 +454,7 @@ from(bucket:"test") |> range(start:-1h)`
 		t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
 	}
 
-	badID := []byte("bad")
+	badID := platform.ID(0)
 	meta, err = s.FindTaskMetaByID(context.Background(), badID)
 	if err == nil {
 		t.Fatalf("failed to error on bad taskID")
@@ -507,8 +505,8 @@ from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	org := []byte{1}
-	user := []byte{2}
+	org := platform.ID(1)
+	user := platform.ID(2)
 
 	id, err := s.CreateTask(context.Background(), org, user, script, 6000)
 	if err != nil {
@@ -520,13 +518,13 @@ from(bucket:"test") |> range(start:-1h)`
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(task.ID, id) {
+	if task.ID != id {
 		t.Fatalf("unexpected ID: got %v, exp %v", task.ID, id)
 	}
-	if !bytes.Equal(task.Org, org) {
+	if task.Org != org {
 		t.Fatalf("unexpected org: got %v, exp %v", task.Org, org)
 	}
-	if !bytes.Equal(task.User, user) {
+	if task.User != user {
 		t.Fatalf("unexpected user: got %v, exp %v", task.User, user)
 	}
 	if task.Name != "a task" {
@@ -552,7 +550,7 @@ from(bucket:"test") |> range(start:-1h)`
 		t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
 	}
 
-	badID := []byte("bad")
+	badID := platform.ID(0)
 	task, meta, err = s.FindTaskByIDWithMeta(context.Background(), badID)
 	if err == nil {
 		t.Fatalf("failed to error on bad taskID")
@@ -573,8 +571,8 @@ func testStoreTaskEnableDisable(t *testing.T, create CreateStoreFunc, destroy De
 	s := create(t)
 	defer destroy(t, s)
 
-	org := []byte{1}
-	user := []byte{2}
+	org := platform.ID(1)
+	user := platform.ID(2)
 
 	id, err := s.CreateTask(context.Background(), org, user, script, 0)
 	if err != nil {
@@ -691,14 +689,14 @@ from(bucket:"test") |> range(start:-1h)`
 	defer destroy(t, s)
 
 	t.Run("no queue", func(t *testing.T) {
-		taskID, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 30)
+		taskID, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script, 30)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		badID := append([]byte(nil), taskID...)
-		badID[len(badID)-1]++
-		if _, err := s.CreateNextRun(context.Background(), badID, 999); err == nil {
+		badID := uint64(taskID)
+		badID++
+		if _, err := s.CreateNextRun(context.Background(), platform.ID(badID), 999); err == nil {
 			t.Fatal("expected error for CreateNextRun with bad ID, got none")
 		}
 
@@ -714,7 +712,7 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(rc.Created.TaskID, taskID) {
+		if rc.Created.TaskID != taskID {
 			t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
 		}
 		if rc.Created.Now != 60 {
@@ -729,7 +727,7 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(rc.Created.TaskID, taskID) {
+		if rc.Created.TaskID != taskID {
 			t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
 		}
 		if rc.Created.Now != 120 {
@@ -749,7 +747,7 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 
 	from(bucket:"test") |> range(start:-1h)`
-		taskID, err := s.CreateTask(context.Background(), []byte{5}, []byte{6}, script, 2999)
+		taskID, err := s.CreateTask(context.Background(), platform.ID(5), platform.ID(6), script, 2999)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -839,7 +837,7 @@ from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
+	task, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -868,7 +866,7 @@ from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	taskID, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
+	taskID, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -900,10 +898,10 @@ func testStoreDeleteUser(t *testing.T, create CreateStoreFunc, destroy DestroySt
 	defer destroy(t, s)
 	ids := createABunchOFTasks(t, s,
 		func(u, _ uint64) bool {
-			return u == 0
+			return u == 1
 		},
 	)
-	user := make(platform.ID, 8)
+	user := platform.ID(1)
 	err := s.DeleteUser(context.Background(), user)
 	if err != nil {
 		t.Fatal(err)
@@ -924,10 +922,10 @@ func testStoreDeleteOrg(t *testing.T, create CreateStoreFunc, destroy DestroySto
 	defer destroy(t, s)
 	ids := createABunchOFTasks(t, s,
 		func(_, o uint64) bool {
-			return o == 0
+			return o == 1
 		},
 	)
-	org := make(platform.ID, 8)
+	org := platform.ID(1)
 	err := s.DeleteOrg(context.Background(), org)
 	if err != nil {
 		t.Fatal(err)
@@ -954,12 +952,10 @@ from(bucket:"test") |> range(start:-1h)`
 	var ids []platform.ID
 	var err error
 	for i := 0; i < 15; i++ {
-		for userInt := uint64(0); userInt < 4; userInt++ {
-			for orgInt := uint64(0); orgInt < 3; orgInt++ {
-				org := make(platform.ID, 8)
-				user := make(platform.ID, 8)
-				binary.BigEndian.PutUint64(org, orgInt)
-				binary.BigEndian.PutUint64(user, userInt)
+		for userInt := uint64(1); userInt < 5; userInt++ {
+			for orgInt := uint64(1); orgInt < 4; orgInt++ {
+				org := platform.ID(orgInt)
+				user := platform.ID(userInt)
 				if id, err = s.CreateTask(context.Background(), org, user, script, 0); err != nil {
 					t.Fatal(err)
 				}

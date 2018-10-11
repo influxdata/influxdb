@@ -44,15 +44,15 @@ func TestService_handleGetBuckets(t *testing.T) {
 					FindBucketsFn: func(ctx context.Context, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, int, error) {
 						return []*platform.Bucket{
 							{
-								ID:              platform.ID("0"),
+								ID:              platformtesting.MustIDBase16("0b501e7e557ab1ed"),
 								Name:            "hello",
-								OrganizationID:  platform.ID("10"),
+								OrganizationID:  platformtesting.MustIDBase16("50f7ba1150f7ba11"),
 								RetentionPeriod: 2 * time.Second,
 							},
 							{
-								ID:              platform.ID("2"),
+								ID:              platformtesting.MustIDBase16("c0175f0077a77005"),
 								Name:            "example",
-								OrganizationID:  platform.ID("20"),
+								OrganizationID:  platformtesting.MustIDBase16("7e55e118dbabb1ed"),
 								RetentionPeriod: 24 * time.Hour,
 							},
 						}, 2, nil
@@ -71,21 +71,21 @@ func TestService_handleGetBuckets(t *testing.T) {
   "buckets": [
     {
       "links": {
-        "org": "/api/v2/orgs/3130",
-        "self": "/api/v2/buckets/30"
+        "org": "/api/v2/orgs/50f7ba1150f7ba11",
+        "self": "/api/v2/buckets/0b501e7e557ab1ed"
       },
-      "id": "30",
-      "organizationID": "3130",
+      "id": "0b501e7e557ab1ed",
+      "organizationID": "50f7ba1150f7ba11",
       "name": "hello",
       "retentionPeriod": "2s"
     },
     {
       "links": {
-        "org": "/api/v2/orgs/3230",
-        "self": "/api/v2/buckets/32"
+        "org": "/api/v2/orgs/7e55e118dbabb1ed",
+        "self": "/api/v2/buckets/c0175f0077a77005"
       },
-      "id": "32",
-      "organizationID": "3230",
+      "id": "c0175f0077a77005",
+      "organizationID": "7e55e118dbabb1ed",
       "name": "example",
 	  "retentionPeriod": "1d"
     }
@@ -179,10 +179,10 @@ func TestService_handleGetBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Bucket{
-								ID:              mustParseID("020f755c3c082000"),
-								OrganizationID:  mustParseID("020f755c3c082000"),
+								ID:              platformtesting.MustIDBase16("020f755c3c082000"),
+								OrganizationID:  platformtesting.MustIDBase16("020f755c3c082000"),
 								Name:            "hello",
 								RetentionPeriod: 30 * time.Second,
 							}, nil
@@ -293,7 +293,7 @@ func TestService_handlePostBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					CreateBucketFn: func(ctx context.Context, c *platform.Bucket) error {
-						c.ID = mustParseID("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
@@ -301,7 +301,7 @@ func TestService_handlePostBucket(t *testing.T) {
 			args: args{
 				bucket: &platform.Bucket{
 					Name:           "hello",
-					OrganizationID: platform.ID("0"),
+					OrganizationID: platformtesting.MustIDBase16("6f626f7274697320"),
 				},
 			},
 			wants: wants{
@@ -310,11 +310,11 @@ func TestService_handlePostBucket(t *testing.T) {
 				body: `
 {
   "links": {
-    "org": "/api/v2/orgs/30",
+    "org": "/api/v2/orgs/6f626f7274697320",
     "self": "/api/v2/buckets/020f755c3c082000"
   },
   "id": "020f755c3c082000",
-  "organizationID": "30",
+  "organizationID": "6f626f7274697320",
   "name": "hello",
   "retentionPeriod": "0s"
 }
@@ -380,7 +380,7 @@ func TestService_handleDeleteBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					DeleteBucketFn: func(ctx context.Context, id platform.ID) error {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
 
@@ -477,11 +477,11 @@ func TestService_handlePatchBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							d := &platform.Bucket{
-								ID:             mustParseID("020f755c3c082000"),
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
 								Name:           "hello",
-								OrganizationID: mustParseID("020f755c3c082000"),
+								OrganizationID: platformtesting.MustIDBase16("020f755c3c082000"),
 							}
 
 							if upd.Name != nil {

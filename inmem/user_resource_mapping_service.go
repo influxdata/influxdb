@@ -61,7 +61,7 @@ func (s *Service) filterUserResourceMappings(ctx context.Context, fn func(m *pla
 }
 
 func (s *Service) FindUserResourceMappings(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.UserResourceMapping, int, error) {
-	if filter.ResourceID != nil && filter.UserID != nil {
+	if filter.ResourceID.Valid() && filter.UserID.Valid() {
 		m, err := s.FindUserResourceBy(ctx, filter.ResourceID, filter.UserID)
 		if err != nil {
 			return nil, 0, err
@@ -70,10 +70,32 @@ func (s *Service) FindUserResourceMappings(ctx context.Context, filter platform.
 	}
 
 	filterFunc := func(mapping *platform.UserResourceMapping) bool {
-		return (filter.UserID == nil || (filter.UserID.String()) == mapping.UserID.String()) &&
-			(filter.ResourceID == nil || (filter.ResourceID.String()) == mapping.ResourceID.String()) &&
-			(filter.UserType == "" || (filter.UserType == mapping.UserType)) &&
-			(filter.ResourceType == "" || (filter.ResourceType == mapping.ResourceType))
+		// No filter field, so it lists all
+		if filter.UserType == "" && filter.ResourceType == "" && !filter.UserID.Valid() && !filter.ResourceID.Valid() {
+			return true
+		}
+
+		// Filter by UserID
+		if filter.UserID.Valid() && filter.UserID == mapping.UserID {
+			return true
+		}
+
+		// Filter by ResourceID
+		if filter.ResourceID.Valid() && filter.ResourceID == mapping.ResourceID {
+			return true
+		}
+
+		// Filter by user type
+		if filter.UserType == mapping.UserType {
+			return true
+		}
+
+		// Filter by resource type
+		if filter.ResourceType == mapping.ResourceType {
+			return true
+		}
+
+		return false
 	}
 
 	mappings, err := s.filterUserResourceMappings(ctx, filterFunc)

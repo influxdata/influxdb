@@ -92,7 +92,7 @@ func requestMacroID(ctx context.Context) (platform.ID, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	urlID := params.ByName("id")
 	if urlID == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return platform.InvalidID(), kerrors.InvalidDataf("url missing id")
 	}
 
 	id, err := platform.IDFromString(urlID)

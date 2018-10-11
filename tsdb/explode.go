@@ -1,7 +1,7 @@
 package tsdb
 
 import (
-	"encoding/hex"
+	"encoding/binary"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/models"
@@ -18,6 +18,21 @@ var (
 	MeasurementTagKeyBytes = []byte(MeasurementTagKey)
 )
 
+// DecodeName converts tsdb internal serialization back to organization and bucket IDs.
+func DecodeName(name [16]byte) (org, bucket platform.ID) {
+	org = platform.ID(binary.BigEndian.Uint64(name[0:8]))
+	bucket = platform.ID(binary.BigEndian.Uint64(name[8:16]))
+	return
+}
+
+// EncodeName converts org/bucket pairs to the tsdb internal serialization
+func EncodeName(org, bucket platform.ID) [16]byte {
+	var nameBytes [16]byte
+	binary.BigEndian.PutUint64(nameBytes[0:8], uint64(org))
+	binary.BigEndian.PutUint64(nameBytes[8:16], uint64(bucket))
+	return nameBytes
+}
+
 // ExplodePoints creates a list of points that only contains one field per point. It also
 // moves the measurement to a tag, and changes the measurement to be the provided argument.
 func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Point, error) {
@@ -27,15 +42,8 @@ func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Poi
 	// or we should use hex encoded measurement names. Either way, we shouldn't be doing a
 	// decode of the encode here, and we don't want to depend on details of how the ID type
 	// is represented.
-
-	var nameBytes [16]byte
-	if _, err := hex.Decode(nameBytes[0:8], org.Encode()); err != nil {
-		return nil, err
-	}
-	if _, err := hex.Decode(nameBytes[8:16], bucket.Encode()); err != nil {
-		return nil, err
-	}
-	name := string(nameBytes[:])
+	ob := EncodeName(org, bucket)
+	name := string(ob[:])
 
 	var tags models.Tags
 	for _, pt := range points {

@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/task/backend"
 	"github.com/influxdata/platform/task/backend/coordinator"
 	"github.com/influxdata/platform/task/mock"
+	platformtesting "github.com/influxdata/platform/testing"
 )
 
 func timeoutSelector(ch <-chan *mock.Task) (*mock.Task, error) {
@@ -30,8 +30,8 @@ func TestCoordinator(t *testing.T) {
 	createChan := sched.TaskCreateChan()
 	releaseChan := sched.TaskReleaseChan()
 
-	orgID := platform.ID("org")
-	usrID := platform.ID("usr")
+	orgID := platformtesting.MustIDBase16("69746f7175650d0a")
+	usrID := platformtesting.MustIDBase16("6c61757320657420")
 	script := `option task = {name: "a task",cron: "* * * * *"} from(bucket:"test") |> range(start:-1h)`
 	id, err := coord.CreateTask(context.Background(), orgID, usrID, script, 0)
 	if err != nil {

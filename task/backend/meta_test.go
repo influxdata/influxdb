@@ -47,7 +47,9 @@ func TestMeta_CreateNextRun(t *testing.T) {
 
 	idErr := errors.New("error making ID")
 	*bad = good
-	if _, err := bad.CreateNextRun(120, func() (platform.ID, error) { return nil, idErr }); err != idErr {
+	if _, err := bad.CreateNextRun(120, func() (platform.ID, error) {
+		return platform.InvalidID(), idErr
+	}); err != idErr {
 		t.Fatalf("expected id creation error, got %v", err)
 	}
 
@@ -55,10 +57,10 @@ func TestMeta_CreateNextRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rc.Created.TaskID != nil {
+	if rc.Created.TaskID.Valid() {
 		t.Fatalf("CreateNextRun should not have set task ID; got %v", rc.Created.TaskID)
 	}
-	if rc.Created.RunID == nil {
+	if !rc.Created.RunID.Valid() {
 		t.Fatal("CreateNextRun should have set run ID but didn't")
 	}
 	if rc.Created.Now != 120 {
@@ -72,10 +74,10 @@ func TestMeta_CreateNextRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rc.Created.TaskID != nil {
+	if rc.Created.TaskID.Valid() {
 		t.Fatalf("CreateNextRun should not have set task ID; got %v", rc.Created.TaskID)
 	}
-	if rc.Created.RunID == nil {
+	if !rc.Created.RunID.Valid() {
 		t.Fatal("CreateNextRun should have set run ID but didn't")
 	}
 	if rc.Created.Now != 180 {

@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"bytes"
 	"errors"
 	"math"
 	"time"
@@ -19,7 +18,7 @@ import (
 // If runID matched a run, FinishRun returns true. Otherwise it returns false.
 func (stm *StoreTaskMeta) FinishRun(runID platform.ID) bool {
 	for i, runner := range stm.CurrentlyRunning {
-		if !bytes.Equal(runner.RunID, runID) {
+		if platform.ID(runner.RunID) != runID {
 			continue
 		}
 
@@ -93,7 +92,7 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 	stm.CurrentlyRunning = append(stm.CurrentlyRunning, &StoreTaskMetaRun{
 		Now:   nextScheduledUnix,
 		Try:   1,
-		RunID: id,
+		RunID: uint64(id),
 	})
 
 	return RunCreation{
@@ -135,7 +134,7 @@ func (stm *StoreTaskMeta) createNextRunFromQueue(now, nextDue int64, sch cron.Sc
 	stm.CurrentlyRunning = append(stm.CurrentlyRunning, &StoreTaskMetaRun{
 		Now:   runNow,
 		Try:   1,
-		RunID: id,
+		RunID: uint64(id),
 
 		RangeStart:  q.Start,
 		RangeEnd:    q.End,

@@ -37,7 +37,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 					FindMacrosF: func(ctx context.Context) ([]*platform.Macro, error) {
 						return []*platform.Macro{
 							{
-								ID:       platform.ID("0"),
+								ID:       platformtesting.MustIDBase16("6162207574726f71"),
 								Name:     "macro-a",
 								Selected: []string{"b"},
 								Arguments: &platform.MacroArguments{
@@ -46,7 +46,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 								},
 							},
 							{
-								ID:       platform.ID("1"),
+								ID:       platformtesting.MustIDBase16("61726920617a696f"),
 								Name:     "macro-b",
 								Selected: []string{"c"},
 								Arguments: &platform.MacroArguments{
@@ -61,7 +61,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"macros":[{"id":"30","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/30"}},{"id":"31","name":"macro-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/macros/31"}}],"links":{"self":"/api/v2/macros"}}
+				body: `{"macros":[{"id":"6162207574726f71","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71"}},{"id":"61726920617a696f","name":"macro-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/macros/61726920617a696f"}}],"links":{"self":"/api/v2/macros"}}
 `,
 			},
 		},
@@ -117,13 +117,13 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 		{
 			name: "get a single macro",
 			args: args{
-				id: "30",
+				id: "75650d0a636f6d70",
 			},
 			fields: fields{
 				&mock.MacroService{
 					FindMacroByIDF: func(ctx context.Context, id platform.ID) (*platform.Macro, error) {
 						return &platform.Macro{
-							ID:       platform.ID("0"),
+							ID:       platformtesting.MustIDBase16("75650d0a636f6d70"),
 							Name:     "macro-a",
 							Selected: []string{"b"},
 							Arguments: &platform.MacroArguments{
@@ -137,14 +137,14 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"30","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/30"}}
+				body: `{"id":"75650d0a636f6d70","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/75650d0a636f6d70"}}
 `,
 			},
 		},
 		{
 			name: "get a non-existant macro",
 			args: args{
-				id: "30",
+				id: "75650d0a636f6d70",
 			},
 			fields: fields{
 				&mock.MacroService{
@@ -222,7 +222,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			fields: fields{
 				&mock.MacroService{
 					CreateMacroF: func(ctx context.Context, m *platform.Macro) error {
-						m.ID = platform.ID("0")
+						m.ID = platformtesting.MustIDBase16("75650d0a636f6d70")
 						return nil
 					},
 				},
@@ -247,7 +247,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  201,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"30","name":"my-great-macro","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"links":{"self":"/api/v2/macros/30"}}
+				body: `{"id":"75650d0a636f6d70","name":"my-great-macro","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"links":{"self":"/api/v2/macros/75650d0a636f6d70"}}
 `,
 			},
 		},
@@ -256,7 +256,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			fields: fields{
 				&mock.MacroService{
 					CreateMacroF: func(ctx context.Context, m *platform.Macro) error {
-						m.ID = platform.ID("0")
+						m.ID = platformtesting.MustIDBase16("0")
 						return nil
 					},
 				},
@@ -275,7 +275,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			fields: fields{
 				&mock.MacroService{
 					CreateMacroF: func(ctx context.Context, m *platform.Macro) error {
-						m.ID = platform.ID("0")
+						m.ID = platformtesting.MustIDBase16("0")
 						return nil
 					},
 				},
@@ -344,7 +344,7 @@ func TestMacroService_handlePatchMacro(t *testing.T) {
 				&mock.MacroService{
 					UpdateMacroF: func(ctx context.Context, id platform.ID, u *platform.MacroUpdate) (*platform.Macro, error) {
 						return &platform.Macro{
-							ID:   platform.ID("0"),
+							ID:   platformtesting.MustIDBase16("75650d0a636f6d70"),
 							Name: "new-name",
 							Arguments: &platform.MacroArguments{
 								Type:   "constant",
@@ -356,13 +356,13 @@ func TestMacroService_handlePatchMacro(t *testing.T) {
 				},
 			},
 			args: args{
-				id:     "30",
+				id:     "75650d0a636f6d70",
 				update: `{"name": "new-name"}`,
 			},
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"30","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"links":{"self":"/api/v2/macros/30"}}
+				body: `{"id":"75650d0a636f6d70","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"links":{"self":"/api/v2/macros/75650d0a636f6d70"}}
 `,
 			},
 		},
@@ -372,7 +372,7 @@ func TestMacroService_handlePatchMacro(t *testing.T) {
 				&mock.MacroService{},
 			},
 			args: args{
-				id:     "30",
+				id:     "75650d0a636f6d70",
 				update: `{}`,
 			},
 			wants: wants{
@@ -447,7 +447,7 @@ func TestMacroService_handleDeleteMacro(t *testing.T) {
 				},
 			},
 			args: args{
-				id: "30",
+				id: "75650d0a636f6d70",
 			},
 			wants: wants{
 				statusCode: 204,
@@ -463,7 +463,7 @@ func TestMacroService_handleDeleteMacro(t *testing.T) {
 				},
 			},
 			args: args{
-				id: "30",
+				id: "75650d0a636f6d70",
 			},
 			wants: wants{
 				statusCode: 404,

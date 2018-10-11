@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -55,9 +54,13 @@ func (c *Client) FindUserByID(ctx context.Context, id platform.ID) (*platform.Us
 }
 
 func (c *Client) findUserByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.User, error) {
-	var u platform.User
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
 
-	v := tx.Bucket(userBucket).Get(id)
+	var u platform.User
+	v := tx.Bucket(userBucket).Get(encodedID)
 
 	if len(v) == 0 {
 		// TODO: Make standard error
@@ -88,8 +91,11 @@ func (c *Client) FindUserByName(ctx context.Context, n string) (*platform.User, 
 }
 
 func (c *Client) findUserByName(ctx context.Context, tx *bolt.Tx, n string) (*platform.User, error) {
-	id := tx.Bucket(userIndex).Get(userIndexKey(n))
-	return c.findUserByID(ctx, tx, platform.ID(id))
+	var id platform.ID
+	if err := id.Decode(tx.Bucket(userIndex).Get(userIndexKey(n))); err != nil {
+		return nil, err
+	}
+	return c.findUserByID(ctx, tx, id)
 }
 
 // FindUser retrives a user using an arbitrary user filter.
@@ -131,7 +137,7 @@ func (c *Client) FindUser(ctx context.Context, filter platform.UserFilter) (*pla
 func filterUsersFn(filter platform.UserFilter) func(u *platform.User) bool {
 	if filter.ID != nil {
 		return func(u *platform.User) bool {
-			return bytes.Equal(u.ID, *filter.ID)
+			return u.ID.Valid() && u.ID == *filter.ID
 		}
 	}
 
@@ -212,11 +218,14 @@ func (c *Client) putUser(ctx context.Context, tx *bolt.Tx, u *platform.User) err
 	if err != nil {
 		return err
 	}
-
-	if err := tx.Bucket(userIndex).Put(userIndexKey(u.Name), u.ID); err != nil {
+	encodedID, err := u.ID.Encode()
+	if err != nil {
 		return err
 	}
-	return tx.Bucket(userBucket).Put(u.ID, v)
+	if err := tx.Bucket(userIndex).Put(userIndexKey(u.Name), encodedID); err != nil {
+		return err
+	}
+	return tx.Bucket(userBucket).Put(encodedID, v)
 }
 
 func userIndexKey(n string) []byte {
@@ -296,11 +305,14 @@ func (c *Client) deleteUser(ctx context.Context, tx *bolt.Tx, id platform.ID) er
 	if err != nil {
 		return err
 	}
-
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
 	if err := tx.Bucket(userIndex).Delete(userIndexKey(u.Name)); err != nil {
 		return err
 	}
-	return tx.Bucket(userBucket).Delete(id)
+	return tx.Bucket(userBucket).Delete(encodedID)
 }
 
 func (c *Client) deleteUsersAuthorizations(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
@@ -339,7 +351,12 @@ func (c *Client) setPassword(ctx context.Context, tx *bolt.Tx, name string, pass
 		return err
 	}
 
-	return tx.Bucket(userpasswordBucket).Put(u.ID, hash)
+	encodedID, err := u.ID.Encode()
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket(userpasswordBucket).Put(encodedID, hash)
 }
 
 // ComparePassword compares a provided password with the stored password hash.
@@ -353,7 +370,13 @@ func (c *Client) comparePassword(ctx context.Context, tx *bolt.Tx, name string, 
 	if err != nil {
 		return err
 	}
-	hash := tx.Bucket(userpasswordBucket).Get(u.ID)
+
+	encodedID, err := u.ID.Encode()
+	if err != nil {
+		return err
+	}
+
+	hash := tx.Bucket(userpasswordBucket).Get(encodedID)
 
 	return bcrypt.CompareHashAndPassword(hash, []byte(password))
 }

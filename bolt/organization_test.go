@@ -22,8 +22,8 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	}
 	return c, func() {
 		defer closeFn()
-		for _, u := range f.Organizations {
-			if err := c.DeleteOrganization(ctx, u.ID); err != nil {
+		for _, o := range f.Organizations {
+			if err := c.DeleteOrganization(ctx, o.ID); err != nil {
 				t.Logf("failed to remove organizations: %v", err)
 			}
 		}

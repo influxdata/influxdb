@@ -81,7 +81,7 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := []byte{}
+	var id platform.ID
 	switch s := a.(type) {
 	case *platform.Session:
 		id = s.UserID
@@ -256,11 +256,12 @@ func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersReque
 	qp := r.URL.Query()
 	req := &getUsersRequest{}
 
-	if id := qp.Get("id"); id != "" {
-		req.filter.ID = &platform.ID{}
-		if err := req.filter.ID.DecodeFromString(id); err != nil {
+	if userID := qp.Get("id"); userID != "" {
+		id, err := platform.IDFromString(userID)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.ID = id
 	}
 
 	if name := qp.Get("name"); name != "" {

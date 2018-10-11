@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -21,15 +20,25 @@ var DefaultSource = platform.Source{
 	Type:    platform.SelfSourceType,
 }
 
+const (
+	// DefaultSourceID it the default source identifier
+	DefaultSourceID = "020f755c3c082000"
+	// DefaultSourceOrganizationID is the default source's organization identifier
+	DefaultSourceOrganizationID = "50616e67652c206c"
+)
+
 func init() {
-	// TODO(desa): This ID is temporary. It should be updated to be 0 when we switch to integer ids.
-	if err := DefaultSource.ID.DecodeFromString("020f755c3c082000"); err != nil {
+	if err := DefaultSource.ID.DecodeFromString(DefaultSourceID); err != nil {
 		panic(fmt.Sprintf("failed to decode default source id: %v", err))
+	}
+
+	if err := DefaultSource.OrganizationID.DecodeFromString(DefaultSourceOrganizationID); err != nil {
+		panic(fmt.Sprintf("failed to decode default source organization id: %v", err))
 	}
 }
 
 func (c *Client) initializeSources(ctx context.Context, tx *bolt.Tx) error {
-	if _, err := tx.CreateBucketIfNotExists([]byte(sourceBucket)); err != nil {
+	if _, err := tx.CreateBucketIfNotExists(sourceBucket); err != nil {
 		return err
 	}
 
@@ -94,7 +103,12 @@ func (c *Client) FindSourceByID(ctx context.Context, id platform.ID) (*platform.
 }
 
 func (c *Client) findSourceByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Source, error) {
-	v := tx.Bucket(sourceBucket).Get(id)
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	v := tx.Bucket(sourceBucket).Get(encodedID)
 
 	if len(v) == 0 {
 		return nil, platform.ErrSourceNotFound
@@ -149,6 +163,11 @@ func (c *Client) CreateSource(ctx context.Context, s *platform.Source) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		s.ID = c.IDGenerator.ID()
 
+		// Generating an organization id if it missing or invalid
+		if !s.OrganizationID.Valid() {
+			s.OrganizationID = c.IDGenerator.ID()
+		}
+
 		return c.putSource(ctx, tx, s)
 	})
 }
@@ -166,7 +185,12 @@ func (c *Client) putSource(ctx context.Context, tx *bolt.Tx, s *platform.Source)
 		return err
 	}
 
-	if err := tx.Bucket(sourceBucket).Put(s.ID, v); err != nil {
+	encodedID, err := s.ID.Encode()
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Bucket(sourceBucket).Put(encodedID, v); err != nil {
 		return err
 	}
 
@@ -229,12 +253,18 @@ func (c *Client) DeleteSource(ctx context.Context, id platform.ID) error {
 }
 
 func (c *Client) deleteSource(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
-	if bytes.Equal(id, DefaultSource.ID) {
+	if id == DefaultSource.ID {
 		return fmt.Errorf("cannot delete autogen source")
 	}
 	_, err := c.findSourceByID(ctx, tx, id)
 	if err != nil {
 		return err
 	}
-	return tx.Bucket(sourceBucket).Delete(id)
+
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket(sourceBucket).Delete(encodedID)
 }

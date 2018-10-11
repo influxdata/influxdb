@@ -1,7 +1,6 @@
 package inmem
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -29,7 +28,7 @@ func (s *Service) FindViewByID(ctx context.Context, id platform.ID) (*platform.V
 func filterViewFn(filter platform.ViewFilter) func(d *platform.View) bool {
 	if filter.ID != nil {
 		return func(d *platform.View) bool {
-			return bytes.Equal(d.ID, *filter.ID)
+			return d.ID == *filter.ID
 		}
 	}
 
@@ -109,7 +108,7 @@ func (s *Service) DeleteView(ctx context.Context, id platform.ID) error {
 }
 
 func (s *Service) createViewIfNotExists(ctx context.Context, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
-	if len(opts.UsingView) != 0 {
+	if opts.UsingView.Valid() {
 		// Creates a hard copy of a view
 		v, err := s.FindViewByID(ctx, opts.UsingView)
 		if err != nil {
@@ -121,7 +120,7 @@ func (s *Service) createViewIfNotExists(ctx context.Context, cell *platform.Cell
 		}
 		cell.ViewID = view.ID
 		return nil
-	} else if len(cell.ViewID) != 0 {
+	} else if cell.ViewID.Valid() {
 		// Creates a soft copy of a view
 		_, err := s.FindViewByID(ctx, cell.ViewID)
 		if err != nil {

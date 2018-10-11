@@ -6,7 +6,10 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform"
+	platformtesting "github.com/influxdata/platform/testing"
 )
+
+var macroTestID = "debac1e0deadbeef"
 
 func TestMacro_UnmarshalJSON(t *testing.T) {
 	tests := []struct {
@@ -18,7 +21,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 			name: "with constant arguments",
 			json: `
 { 
-  "id": "30",
+  "id": "debac1e0deadbeef",
   "name": "howdy",
   "selected": [],
   "arguments": {
@@ -28,7 +31,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 }
 `,
 			want: platform.Macro{
-				ID:       platform.ID("0"),
+				ID:       platformtesting.MustIDBase16(macroTestID),
 				Name:     "howdy",
 				Selected: make([]string, 0),
 				Arguments: &platform.MacroArguments{
@@ -41,7 +44,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 			name: "with map arguments",
 			json: `
 { 
-  "id": "30",
+  "id": "debac1e0deadbeef",
   "name": "howdy",
   "selected": [],
   "arguments": {
@@ -54,7 +57,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 }
 `,
 			want: platform.Macro{
-				ID:       platform.ID("0"),
+				ID:       platformtesting.MustIDBase16(macroTestID),
 				Name:     "howdy",
 				Selected: make([]string, 0),
 				Arguments: &platform.MacroArguments{
@@ -67,7 +70,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 			name: "with query arguments",
 			json: `
 { 
-  "id": "30",
+  "id": "debac1e0deadbeef",
   "name": "howdy",
   "selected": [],
   "arguments": {
@@ -80,7 +83,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 }
 `,
 			want: platform.Macro{
-				ID:       platform.ID("0"),
+				ID:       platformtesting.MustIDBase16(macroTestID),
 				Name:     "howdy",
 				Selected: make([]string, 0),
 				Arguments: &platform.MacroArguments{

@@ -39,11 +39,11 @@ func TestBasicAuthHandler_handleSignin(t *testing.T) {
 				SessionService: &mock.SessionService{
 					CreateSessionFn: func(context.Context, string) (*platform.Session, error) {
 						return &platform.Session{
-							ID:        platform.ID("0"),
+							ID:        platform.ID(0),
 							Key:       "abc123xyz",
 							CreatedAt: time.Date(2018, 9, 26, 0, 0, 0, 0, time.UTC),
 							ExpiresAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
-							UserID:    platform.ID("1"),
+							UserID:    platform.ID(1),
 						}, nil
 					},
 				},

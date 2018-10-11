@@ -67,14 +67,18 @@ func (c *Client) FindMacroByID(ctx context.Context, id platform.ID) (*platform.M
 }
 
 func (c *Client) findMacroByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Macro, error) {
-	d := tx.Bucket(macroBucket).Get([]byte(id))
+	encID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+	d := tx.Bucket(macroBucket).Get(encID)
 
 	if d == nil {
 		return nil, kerrors.Errorf(kerrors.NotFound, "macro with ID %v not found", id)
 	}
 
 	macro := &platform.Macro{}
-	err := json.Unmarshal(d, &macro)
+	err = json.Unmarshal(d, &macro)
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +107,12 @@ func (c *Client) putMacro(ctx context.Context, tx *bolt.Tx, macro *platform.Macr
 	if err != nil {
 		return err
 	}
+	encID, err := macro.ID.Encode()
+	if err != nil {
+		return err
+	}
 
-	return tx.Bucket(macroBucket).Put([]byte(macro.ID), j)
+	return tx.Bucket(macroBucket).Put(encID, j)
 }
 
 // UpdateMacro updates a single macro in the store with a changeset
@@ -136,13 +144,19 @@ func (c *Client) UpdateMacro(ctx context.Context, id platform.ID, update *platfo
 func (c *Client) DeleteMacro(ctx context.Context, id platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(macroBucket)
-		d := b.Get([]byte(id))
+
+		encID, err := id.Encode()
+		if err != nil {
+			return err
+		}
+
+		d := b.Get(encID)
 
 		if d == nil {
 			return kerrors.Errorf(kerrors.NotFound, "macro with ID %v not found", id)
 		}
 
-		b.Delete([]byte(id))
+		b.Delete(encID)
 
 		return nil
 	})

@@ -51,7 +51,7 @@ func TestAuthorizationService_Metrics(t *testing.T) {
 	reg.MustRegister(svc.PrometheusCollectors()...)
 
 	ctx := context.Background()
-	id := platform.ID{1}
+	id := platform.ID(1)
 
 	if _, err := svc.FindAuthorizationByID(ctx, id); err != nil {
 		t.Fatal(err)
@@ -89,7 +89,8 @@ func TestAuthorizationService_Metrics(t *testing.T) {
 		t.Fatalf("exp 1 request, got %v", got)
 	}
 
-	if err := svc.DeleteAuthorization(ctx, nil); err != nil {
+	var tempID platform.ID
+	if err := svc.DeleteAuthorization(ctx, tempID); err != nil {
 		t.Fatal(err)
 	}
 	mfs = promtest.MustGather(t, reg)
@@ -137,7 +138,7 @@ func TestAuthorizationService_Metrics(t *testing.T) {
 		t.Fatalf("exp 1 request, got %v", got)
 	}
 
-	if err := svc.DeleteAuthorization(ctx, nil); err != forced {
+	if err := svc.DeleteAuthorization(ctx, tempID); err != forced {
 		t.Fatalf("expected forced error, got %v", err)
 	}
 	mfs = promtest.MustGather(t, reg)

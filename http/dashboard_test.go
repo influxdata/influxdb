@@ -43,21 +43,21 @@ func TestService_handleGetDashboards(t *testing.T) {
 					FindDashboardsF: func(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
 						return []*platform.Dashboard{
 							{
-								ID:   platform.ID("0"),
+								ID:   platformtesting.MustIDBase16("da7aba5e5d81e550"),
 								Name: "hello",
 								Cells: []*platform.Cell{
 									{
-										ID:     platform.ID("0"),
+										ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
 										X:      1,
 										Y:      2,
 										W:      3,
 										H:      4,
-										ViewID: platform.ID("1"),
+										ViewID: platformtesting.MustIDBase16("ba0bab707a11ed12"),
 									},
 								},
 							},
 							{
-								ID:   platform.ID("2"),
+								ID:   platformtesting.MustIDBase16("0ca2204eca2204e0"),
 								Name: "example",
 							},
 						}, 2, nil
@@ -75,34 +75,34 @@ func TestService_handleGetDashboards(t *testing.T) {
   },
   "dashboards": [
     {
-      "id": "30",
+      "id": "da7aba5e5d81e550",
       "name": "hello",
       "cells": [
         {
-          "id": "30",
+          "id": "da7aba5e5d81e550",
           "x": 1,
           "y": 2,
           "w": 3,
           "h": 4,
-          "viewID": "31",
+          "viewID": "ba0bab707a11ed12",
           "links": {
-            "self": "/api/v2/dashboards/30/cells/30",
-            "view": "/api/v2/views/31"
+            "self": "/api/v2/dashboards/da7aba5e5d81e550/cells/da7aba5e5d81e550",
+            "view": "/api/v2/views/ba0bab707a11ed12"
           }
         }
       ],
       "links": {
-        "self": "/api/v2/dashboards/30",
-        "cells": "/api/v2/dashboards/30/cells"
+        "self": "/api/v2/dashboards/da7aba5e5d81e550",
+        "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells"
       }
     },
     {
-      "id": "32",
+      "id": "0ca2204eca2204e0",
       "name": "example",
       "cells": [],
       "links": {
-        "self": "/api/v2/dashboards/32",
-        "cells": "/api/v2/dashboards/32/cells"
+        "self": "/api/v2/dashboards/0ca2204eca2204e0",
+        "cells": "/api/v2/dashboards/0ca2204eca2204e0/cells"
       }
     }
   ]
@@ -195,18 +195,18 @@ func TestService_handleGetDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*platform.Dashboard, error) {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Dashboard{
-								ID:   mustParseID("020f755c3c082000"),
+								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 								Name: "hello",
 								Cells: []*platform.Cell{
 									{
-										ID:     platform.ID("0"),
+										ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
 										X:      1,
 										Y:      2,
 										W:      3,
 										H:      4,
-										ViewID: platform.ID("1"),
+										ViewID: platformtesting.MustIDBase16("ba0bab707a11ed12"),
 									},
 								},
 							}, nil
@@ -228,15 +228,15 @@ func TestService_handleGetDashboard(t *testing.T) {
   "name": "hello",
   "cells": [
     {
-      "id": "30",
+      "id": "da7aba5e5d81e550",
       "x": 1,
       "y": 2,
       "w": 3,
       "h": 4,
-      "viewID": "31",
+      "viewID": "ba0bab707a11ed12",
       "links": {
-        "self": "/api/v2/dashboards/020f755c3c082000/cells/30",
-        "view": "/api/v2/views/31"
+        "self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
+        "view": "/api/v2/views/ba0bab707a11ed12"
       }
     }
   ],
@@ -328,22 +328,23 @@ func TestService_handlePostDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					CreateDashboardF: func(ctx context.Context, c *platform.Dashboard) error {
-						c.ID = mustParseID("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
 			},
 			args: args{
 				dashboard: &platform.Dashboard{
+					ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 					Name: "hello",
 					Cells: []*platform.Cell{
 						{
-							ID:     platform.ID("0"),
+							ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
 							X:      1,
 							Y:      2,
 							W:      3,
 							H:      4,
-							ViewID: platform.ID("1"),
+							ViewID: platformtesting.MustIDBase16("ba0bab707a11ed12"),
 						},
 					},
 				},
@@ -357,15 +358,15 @@ func TestService_handlePostDashboard(t *testing.T) {
   "name": "hello",
   "cells": [
     {
-      "id": "30",
+      "id": "da7aba5e5d81e550",
       "x": 1,
       "y": 2,
       "w": 3,
       "h": 4,
-      "viewID": "31",
+      "viewID": "ba0bab707a11ed12",
       "links": {
-        "self": "/api/v2/dashboards/020f755c3c082000/cells/30",
-        "view": "/api/v2/views/31"
+        "self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
+        "view": "/api/v2/views/ba0bab707a11ed12"
       }
     }
   ],
@@ -435,7 +436,7 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					DeleteDashboardF: func(ctx context.Context, id platform.ID) error {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
 
@@ -532,18 +533,18 @@ func TestService_handlePatchDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					UpdateDashboardF: func(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							d := &platform.Dashboard{
-								ID:   mustParseID("020f755c3c082000"),
+								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 								Name: "hello",
 								Cells: []*platform.Cell{
 									{
-										ID:     platform.ID("0"),
+										ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
 										X:      1,
 										Y:      2,
 										W:      3,
 										H:      4,
-										ViewID: platform.ID("1"),
+										ViewID: platformtesting.MustIDBase16("ba0bab707a11ed12"),
 									},
 								},
 							}
@@ -572,15 +573,15 @@ func TestService_handlePatchDashboard(t *testing.T) {
   "name": "example",
   "cells": [
     {
-      "id": "30",
+      "id": "da7aba5e5d81e550",
       "x": 1,
       "y": 2,
       "w": 3,
       "h": 4,
-      "viewID": "31",
+      "viewID": "ba0bab707a11ed12",
       "links": {
-        "self": "/api/v2/dashboards/020f755c3c082000/cells/30",
-        "view": "/api/v2/views/31"
+        "self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
+        "view": "/api/v2/views/ba0bab707a11ed12"
       }
     }
   ],
@@ -700,7 +701,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opt platform.AddDashboardCellOptions) error {
-						c.ID = mustParseID("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
@@ -708,9 +709,10 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			args: args{
 				id: "020f755c3c082000",
 				cell: &platform.Cell{
+					ID:     platformtesting.MustIDBase16("020f755c3c082000"),
 					X:      10,
 					Y:      11,
-					ViewID: platform.ID("0"),
+					ViewID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
 				},
 			},
 			wants: wants{
@@ -723,10 +725,10 @@ func TestService_handlePostDashboardCell(t *testing.T) {
   "y": 11,
   "w": 0,
   "h": 0,
-  "viewID": "30",
+  "viewID": "da7aba5e5d81e550",
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000/cells/020f755c3c082000",
-    "view": "/api/v2/views/30"
+    "view": "/api/v2/views/da7aba5e5d81e550"
   }
 }
 `,
@@ -889,8 +891,8 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 				&mock.DashboardService{
 					UpdateDashboardCellF: func(ctx context.Context, id, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
 						cell := &platform.Cell{
-							ID:     mustParseID("020f755c3c082000"),
-							ViewID: platform.ID("0"),
+							ID:     platformtesting.MustIDBase16("020f755c3c082000"),
+							ViewID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
 						}
 
 						if err := upd.Apply(cell); err != nil {
@@ -904,6 +906,7 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 			args: args{
 				id:     "020f755c3c082000",
 				cellID: "020f755c3c082000",
+				viewID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
 				x:      10,
 				y:      11,
 			},
@@ -917,10 +920,10 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
   "y": 11,
   "w": 0,
   "h": 0,
-  "viewID": "30",
+  "viewID": "da7aba5e5d81e550",
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000/cells/020f755c3c082000",
-    "view": "/api/v2/views/30"
+    "view": "/api/v2/views/da7aba5e5d81e550"
   }
 }
 `,
@@ -946,8 +949,8 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 			if tt.args.h != 0 {
 				upd.H = &tt.args.h
 			}
-			if len(tt.args.viewID) != 0 {
-				upd.ViewID = &tt.args.viewID
+			if tt.args.viewID.Valid() {
+				upd.ViewID = tt.args.viewID
 			}
 
 			b, err := json.Marshal(upd)
@@ -994,17 +997,17 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 
 func Test_dashboardCellIDPath(t *testing.T) {
 	t.Parallel()
-	dashboard, err := platform.IDFromString("deadbeef")
+	dashboard, err := platform.IDFromString("deadbeefdeadbeef")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cell, err := platform.IDFromString("cade9a7e")
+	cell, err := platform.IDFromString("cade9a7ecade9a7e")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want := "/api/v2/dashboards/deadbeef/cells/cade9a7e"
+	want := "/api/v2/dashboards/deadbeefdeadbeef/cells/cade9a7ecade9a7e"
 	if got := dashboardCellIDPath(*dashboard, *cell); got != want {
 		t.Errorf("dashboardCellIDPath() = got: %s want: %s", got, want)
 	}

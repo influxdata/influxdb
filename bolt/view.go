@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 
@@ -43,7 +42,12 @@ func (c *Client) FindViewByID(ctx context.Context, id platform.ID) (*platform.Vi
 func (c *Client) findViewByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.View, error) {
 	var d platform.View
 
-	v := tx.Bucket(viewBucket).Get([]byte(id))
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	v := tx.Bucket(viewBucket).Get(encodedID)
 
 	if len(v) == 0 {
 		return nil, platform.ErrViewNotFound
@@ -108,7 +112,7 @@ func (c *Client) FindView(ctx context.Context, filter platform.ViewFilter) (*pla
 func filterViewsFn(filter platform.ViewFilter) func(d *platform.View) bool {
 	if filter.ID != nil {
 		return func(d *platform.View) bool {
-			return bytes.Equal(d.ID, *filter.ID)
+			return d.ID == *filter.ID
 		}
 	}
 
@@ -185,7 +189,11 @@ func (c *Client) putView(ctx context.Context, tx *bolt.Tx, d *platform.View) err
 	if err != nil {
 		return err
 	}
-	if err := tx.Bucket(viewBucket).Put([]byte(d.ID), v); err != nil {
+	encodedID, err := d.ID.Encode()
+	if err != nil {
+		return err
+	}
+	if err := tx.Bucket(viewBucket).Put(encodedID, v); err != nil {
 		return err
 	}
 	return nil
@@ -255,5 +263,9 @@ func (c *Client) deleteView(ctx context.Context, tx *bolt.Tx, id platform.ID) er
 	if err != nil {
 		return err
 	}
-	return tx.Bucket(viewBucket).Delete([]byte(id))
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(viewBucket).Delete(encodedID)
 }

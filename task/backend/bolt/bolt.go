@@ -17,9 +17,7 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -98,59 +96,75 @@ func New(db *bolt.DB, rootBucket string) (*Store, error) {
 func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
 	o, err := backend.StoreValidator.CreateArgs(org, user, script)
 	if err != nil {
-		return nil, err
+		return platform.InvalidID(), err
 	}
 
-	id := make(platform.ID, 8)
-	var upid []byte
+	var id platform.ID
 	err = s.db.Update(func(tx *bolt.Tx) error {
 		// get the root bucket
 		b := tx.Bucket(s.bucket)
 		name := []byte(o.Name)
 		// Get ID
 		idi, _ := b.NextSequence() // we ignore this err check, because this can't err inside an Update call
-		binary.BigEndian.PutUint64(id, idi)
-		upid = unpadID(id)
+		id = platform.ID(idi)
+		// Encode ID
+		encodedID, err := id.Encode()
+		if err != nil {
+			return err
+		}
+
 		// write script
-		err := b.Bucket(tasksPath).Put(id, []byte(script))
+		err = b.Bucket(tasksPath).Put(encodedID, []byte(script))
 		if err != nil {
 			return err
 		}
 
 		// name
-		err = b.Bucket(nameByTaskID).Put(id, name)
+		err = b.Bucket(nameByTaskID).Put(encodedID, name)
+		if err != nil {
+			return err
+		}
+
+		// Encode org ID
+		encodedOrg, err := org.Encode()
 		if err != nil {
 			return err
 		}
 
 		// org
-		orgB, err := b.Bucket(orgsPath).CreateBucketIfNotExists([]byte(org))
+		orgB, err := b.Bucket(orgsPath).CreateBucketIfNotExists(encodedOrg)
 		if err != nil {
 			return err
 		}
 
-		err = orgB.Put(id, nil)
+		err = orgB.Put(encodedID, nil)
 		if err != nil {
 			return err
 		}
 
-		err = b.Bucket(orgByTaskID).Put(id, []byte(org))
+		err = b.Bucket(orgByTaskID).Put(encodedID, encodedOrg)
+		if err != nil {
+			return err
+		}
+
+		// Encoded user ID
+		encodedUser, err := user.Encode()
 		if err != nil {
 			return err
 		}
 
 		// user
-		userB, err := b.Bucket(usersPath).CreateBucketIfNotExists([]byte(user))
+		userB, err := b.Bucket(usersPath).CreateBucketIfNotExists(encodedUser)
 		if err != nil {
 			return err
 		}
 
-		err = userB.Put(id, nil)
+		err = userB.Put(encodedID, nil)
 		if err != nil {
 			return err
 		}
 
-		err = b.Bucket(userByTaskID).Put(id, []byte(user))
+		err = b.Bucket(userByTaskID).Put(encodedID, encodedUser)
 		if err != nil {
 			return err
 		}
@@ -169,12 +183,14 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 			return err
 		}
 		metaB := b.Bucket(taskMetaPath)
-		return metaB.Put(id, stmBytes)
+		return metaB.Put(encodedID, stmBytes)
 	})
+
 	if err != nil {
-		return nil, err
+		return platform.InvalidID(), err
 	}
-	return upid, nil
+
+	return id, nil
 }
 
 // ModifyTask changes a task with a new script, it should error if the task does not exist.
@@ -183,24 +199,30 @@ func (s *Store) ModifyTask(ctx context.Context, id platform.ID, newScript string
 	if err != nil {
 		return err
 	}
-	paddedID := padID(id)
+
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
 		bt := b.Bucket(tasksPath)
-		if v := bt.Get(paddedID); v == nil { // this is so we can error if the task doesn't exist
-			return ErrNotFound
-		}
-		err = bt.Put(paddedID, []byte(newScript))
+
+		encodedID, err := id.Encode()
 		if err != nil {
 			return err
 		}
-		return b.Bucket(nameByTaskID).Put(paddedID, []byte(op.Name))
+
+		if v := bt.Get(encodedID); v == nil { // this is so we can error if the task doesn't exist
+			return ErrNotFound
+		}
+		err = bt.Put(encodedID, []byte(newScript))
+		if err != nil {
+			return err
+		}
+		return b.Bucket(nameByTaskID).Put(encodedID, []byte(op.Name))
 	})
 }
 
 // ListTasks lists the tasks based on a filter.
 func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) ([]backend.StoreTask, error) {
-	if len(params.Org) > 0 && len(params.User) > 0 {
+	if params.Org.Valid() && params.User.Valid() {
 		return nil, errors.New("ListTasks: org and user filters are mutually exclusive")
 	}
 
@@ -224,14 +246,22 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 	if err := s.db.View(func(tx *bolt.Tx) error {
 		var c *bolt.Cursor
 		b := tx.Bucket(s.bucket)
-		if len(params.Org) > 0 {
-			orgB := b.Bucket(orgsPath).Bucket(params.Org)
+		if params.Org.Valid() {
+			encodedOrg, err := params.Org.Encode()
+			if err != nil {
+				return err
+			}
+			orgB := b.Bucket(orgsPath).Bucket(encodedOrg)
 			if orgB == nil {
 				return ErrNotFound
 			}
 			c = orgB.Cursor()
-		} else if len(params.User) > 0 {
-			userB := b.Bucket(usersPath).Bucket(params.User)
+		} else if params.User.Valid() {
+			encodedUser, err := params.User.Encode()
+			if err != nil {
+				return err
+			}
+			userB := b.Bucket(usersPath).Bucket(encodedUser)
 			if userB == nil {
 				return ErrNotFound
 			}
@@ -239,16 +269,26 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 		} else {
 			c = b.Bucket(tasksPath).Cursor()
 		}
-		if len(params.After) > 0 {
-			c.Seek(padID(params.After))
+		if params.After.Valid() {
+			encodedAfter, err := params.After.Encode()
+			if err != nil {
+				return err
+			}
+			c.Seek(encodedAfter)
 			for k, _ := c.Next(); k != nil && len(taskIDs) < lim; k, _ = c.Next() {
-				kCopy := append([]byte(nil), k...)
-				taskIDs = append(taskIDs, kCopy)
+				var nID platform.ID
+				if err := nID.Decode(k); err != nil {
+					return err
+				}
+				taskIDs = append(taskIDs, nID)
 			}
 		} else {
 			for k, _ := c.First(); k != nil && len(taskIDs) < lim; k, _ = c.Next() {
-				kCopy := append([]byte(nil), k...)
-				taskIDs = append(taskIDs, kCopy)
+				var nID platform.ID
+				if err := nID.Decode(k); err != nil {
+					return err
+				}
+				taskIDs = append(taskIDs, nID)
 			}
 		}
 
@@ -260,34 +300,51 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 				return ctx.Err()
 			default:
 				// TODO(docmerlin): change the setup to reduce the number of lookups to 1 or 2.
-				paddedID := taskIDs[i]
-				tasks[i].ID = unpadID(paddedID)
-				tasks[i].Script = string(b.Bucket(tasksPath).Get(paddedID))
-				tasks[i].Name = string(b.Bucket(nameByTaskID).Get(paddedID))
+				encodedID, err := taskIDs[i].Encode()
+				if err != nil {
+					return err
+				}
+				tasks[i].ID = taskIDs[i]
+				tasks[i].Script = string(b.Bucket(tasksPath).Get(encodedID))
+				tasks[i].Name = string(b.Bucket(nameByTaskID).Get(encodedID))
 			}
 		}
-		if len(params.Org) > 0 {
+		if params.Org.Valid() {
 			for i := range taskIDs {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
 				default:
-					paddedID := taskIDs[i]
+					encodedID, err := taskIDs[i].Encode()
+					if err != nil {
+						return err
+					}
 					tasks[i].Org = params.Org
-					tasks[i].User = append([]byte(nil), b.Bucket(userByTaskID).Get(paddedID)...)
+					var userID platform.ID
+					if err := userID.Decode(b.Bucket(userByTaskID).Get(encodedID)); err != nil {
+						return err
+					}
+					tasks[i].User = userID
 				}
 			}
 			return nil
 		}
-		if len(params.User) > 0 {
+		if params.User.Valid() {
 			for i := range taskIDs {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
 				default:
-					paddedID := taskIDs[i]
+					encodedID, err := taskIDs[i].Encode()
+					if err != nil {
+						return err
+					}
 					tasks[i].User = params.User
-					tasks[i].Org = append([]byte(nil), b.Bucket(orgByTaskID).Get(paddedID)...)
+					var orgID platform.ID
+					if err := orgID.Decode(b.Bucket(orgByTaskID).Get(encodedID)); err != nil {
+						return err
+					}
+					tasks[i].Org = orgID
 				}
 			}
 			return nil
@@ -297,9 +354,22 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				paddedID := taskIDs[i]
-				tasks[i].User = append([]byte(nil), b.Bucket(userByTaskID).Get(paddedID)...)
-				tasks[i].Org = append([]byte(nil), b.Bucket(orgByTaskID).Get(paddedID)...)
+				encodedID, err := taskIDs[i].Encode()
+				if err != nil {
+					return err
+				}
+
+				var userID platform.ID
+				if err := userID.Decode(b.Bucket(userByTaskID).Get(encodedID)); err != nil {
+					return err
+				}
+				tasks[i].User = userID
+
+				var orgID platform.ID
+				if err := orgID.Decode(b.Bucket(orgByTaskID).Get(encodedID)); err != nil {
+					return err
+				}
+				tasks[i].Org = orgID
 			}
 		}
 		return nil
@@ -314,22 +384,29 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 
 // FindTaskByID finds a task with a given an ID.  It will return nil if the task does not exist.
 func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.StoreTask, error) {
-	var userID, org []byte
+	var userID, orgID platform.ID
 	var script, name string
-	paddedID := padID(id)
-	err := s.db.View(func(tx *bolt.Tx) error {
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+	err = s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		scriptBytes := b.Bucket(tasksPath).Get(paddedID)
+		scriptBytes := b.Bucket(tasksPath).Get(encodedID)
 		if scriptBytes == nil {
 			return ErrNotFound
 		}
 		script = string(scriptBytes)
 
-		// Assign copies of everything so we don't hold a stale reference to a bolt-maintained byte slice.
-		userID = append(userID, b.Bucket(userByTaskID).Get(paddedID)...)
-		org = append(org, b.Bucket(orgByTaskID).Get(paddedID)...)
+		if err := userID.Decode(b.Bucket(userByTaskID).Get(encodedID)); err != nil {
+			return err
+		}
 
-		name = string(b.Bucket(nameByTaskID).Get(paddedID))
+		if err := orgID.Decode(b.Bucket(orgByTaskID).Get(encodedID)); err != nil {
+			return err
+		}
+
+		name = string(b.Bucket(nameByTaskID).Get(encodedID))
 		return nil
 	})
 	if err == ErrNotFound {
@@ -340,8 +417,8 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 	}
 
 	return &backend.StoreTask{
-		ID:     append([]byte(nil), id...), // copy of input id
-		Org:    org,
+		ID:     id,
+		Org:    orgID,
 		User:   userID,
 		Name:   name,
 		Script: script,
@@ -350,10 +427,13 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 
 func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*backend.StoreTaskMeta, error) {
 	var stmBytes []byte
-	paddedID := padID(id)
-	err := s.db.View(func(tx *bolt.Tx) error {
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+	err = s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		stmBytes = b.Bucket(taskMetaPath).Get(paddedID)
+		stmBytes = b.Bucket(taskMetaPath).Get(encodedID)
 		if stmBytes == nil {
 			return errors.New("task meta not found")
 		}
@@ -373,23 +453,33 @@ func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*backend.
 }
 
 func (s *Store) FindTaskByIDWithMeta(ctx context.Context, id platform.ID) (*backend.StoreTask, *backend.StoreTaskMeta, error) {
-	var stmBytes, userID, org []byte
+	var stmBytes []byte
+	var userID, orgID platform.ID
 	var script, name string
-	paddedID := padID(id)
-	err := s.db.View(func(tx *bolt.Tx) error {
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, nil, err
+	}
+	err = s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		scriptBytes := b.Bucket(tasksPath).Get(paddedID)
+		scriptBytes := b.Bucket(tasksPath).Get(encodedID)
 		if scriptBytes == nil {
 			return ErrNotFound
 		}
 		script = string(scriptBytes)
 
 		// Assign copies of everything so we don't hold a stale reference to a bolt-maintained byte slice.
-		stmBytes = append(stmBytes, b.Bucket(taskMetaPath).Get(paddedID)...)
-		userID = append(userID, b.Bucket(userByTaskID).Get(paddedID)...)
-		org = append(org, b.Bucket(orgByTaskID).Get(paddedID)...)
+		stmBytes = append(stmBytes, b.Bucket(taskMetaPath).Get(encodedID)...)
 
-		name = string(b.Bucket(nameByTaskID).Get(paddedID))
+		if err := userID.Decode(b.Bucket(userByTaskID).Get(encodedID)); err != nil {
+			return err
+		}
+
+		if err := orgID.Decode(b.Bucket(orgByTaskID).Get(encodedID)); err != nil {
+			return err
+		}
+
+		name = string(b.Bucket(nameByTaskID).Get(encodedID))
 		return nil
 	})
 	if err != nil {
@@ -403,8 +493,8 @@ func (s *Store) FindTaskByIDWithMeta(ctx context.Context, id platform.ID) (*back
 	}
 
 	return &backend.StoreTask{
-		ID:     append([]byte(nil), id...), // copy of input id
-		Org:    org,
+		ID:     id,
+		Org:    orgID,
 		User:   userID,
 		Name:   name,
 		Script: script,
@@ -412,10 +502,13 @@ func (s *Store) FindTaskByIDWithMeta(ctx context.Context, id platform.ID) (*back
 }
 
 func (s *Store) EnableTask(ctx context.Context, id platform.ID) error {
-	paddedID := padID(id)
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket).Bucket(taskMetaPath)
-		stmBytes := b.Get(paddedID)
+		stmBytes := b.Get(encodedID)
 		if stmBytes == nil {
 			return errors.New("task meta not found")
 		}
@@ -430,15 +523,18 @@ func (s *Store) EnableTask(ctx context.Context, id platform.ID) error {
 			return err
 		}
 
-		return b.Put(paddedID, stmBytes)
+		return b.Put(encodedID, stmBytes)
 	})
 }
 
 func (s *Store) DisableTask(ctx context.Context, id platform.ID) error {
-	paddedID := padID(id)
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket).Bucket(taskMetaPath)
-		stmBytes := b.Get(paddedID)
+		stmBytes := b.Get(encodedID)
 		if stmBytes == nil {
 			return errors.New("task meta not found")
 		}
@@ -453,45 +549,47 @@ func (s *Store) DisableTask(ctx context.Context, id platform.ID) error {
 			return err
 		}
 
-		return b.Put(paddedID, stmBytes)
+		return b.Put(encodedID, stmBytes)
 	})
 }
 
 // DeleteTask deletes the task.
 func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, err error) {
-	paddedID := padID(id)
+	encodedID, err := id.Encode()
+	if err != nil {
+		return false, err
+	}
 	err = s.db.Batch(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		if check := b.Bucket(tasksPath).Get(paddedID); check == nil {
+		if check := b.Bucket(tasksPath).Get(encodedID); check == nil {
 			return ErrNotFound
 		}
-
-		if err := b.Bucket(taskMetaPath).Delete(paddedID); err != nil {
+		if err := b.Bucket(taskMetaPath).Delete(encodedID); err != nil {
 			return err
 		}
-		if err := b.Bucket(tasksPath).Delete(paddedID); err != nil {
+		if err := b.Bucket(tasksPath).Delete(encodedID); err != nil {
 			return err
 		}
-		user := b.Bucket(userByTaskID).Get(paddedID)
+		user := b.Bucket(userByTaskID).Get(encodedID)
 		if len(user) > 0 {
-			if err := b.Bucket(usersPath).Bucket(user).Delete(paddedID); err != nil {
+			if err := b.Bucket(usersPath).Bucket(user).Delete(encodedID); err != nil {
 				return err
 			}
 		}
-		if err := b.Bucket(userByTaskID).Delete(paddedID); err != nil {
+		if err := b.Bucket(userByTaskID).Delete(encodedID); err != nil {
 			return err
 		}
-		if err := b.Bucket(nameByTaskID).Delete(paddedID); err != nil {
+		if err := b.Bucket(nameByTaskID).Delete(encodedID); err != nil {
 			return err
 		}
 
-		org := b.Bucket(orgByTaskID).Get(paddedID)
+		org := b.Bucket(orgByTaskID).Get(encodedID)
 		if len(org) > 0 {
-			if err := b.Bucket(orgsPath).Bucket(org).Delete(paddedID); err != nil {
+			if err := b.Bucket(orgsPath).Bucket(org).Delete(encodedID); err != nil {
 				return err
 			}
 		}
-		return b.Bucket(orgByTaskID).Delete(paddedID)
+		return b.Bucket(orgByTaskID).Delete(encodedID)
 	})
 	if err == ErrNotFound {
 		return false, nil
@@ -504,10 +602,15 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 
 func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (backend.RunCreation, error) {
 	var rc backend.RunCreation
-	paddedID := padID(taskID)
+
+	encodedID, err := taskID.Encode()
+	if err != nil {
+		return rc, err
+	}
+
 	if err := s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
+		stmBytes := b.Bucket(taskMetaPath).Get(encodedID)
 		if stmBytes == nil {
 			return ErrNotFound
 		}
@@ -518,14 +621,12 @@ func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 		}
 
 		makeID := func() (platform.ID, error) {
-			id := make(platform.ID, 8)
 			idi, err := b.Bucket(runIDs).NextSequence()
 			if err != nil {
-				return nil, err
+				return platform.InvalidID(), err
 			}
 
-			binary.BigEndian.PutUint64(id, idi)
-			return id, nil
+			return platform.ID(idi), nil
 		}
 
 		var err error
@@ -533,13 +634,13 @@ func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 		if err != nil {
 			return err
 		}
-		rc.Created.TaskID = append([]byte(nil), taskID...)
+		rc.Created.TaskID = taskID
 
 		stmBytes, err = stm.Marshal()
 		if err != nil {
 			return err
 		}
-		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(paddedID, stmBytes)
+		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(encodedID, stmBytes)
 	}); err != nil {
 		return backend.RunCreation{}, err
 	}
@@ -549,11 +650,14 @@ func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 func (s *Store) FinishRun(ctx context.Context, taskID, runID platform.ID) error {
-	paddedID := padID(taskID)
+	encodedID, err := taskID.Encode()
+	if err != nil {
+		return err
+	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
+		stmBytes := b.Bucket(taskMetaPath).Get(encodedID)
 		var stm backend.StoreTaskMeta
 		if err := stm.Unmarshal(stmBytes); err != nil {
 			return err
@@ -567,16 +671,19 @@ func (s *Store) FinishRun(ctx context.Context, taskID, runID platform.ID) error 
 			return err
 		}
 
-		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(paddedID, stmBytes)
+		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(encodedID, stmBytes)
 	})
 }
 
 func (s *Store) ManuallyRunTimeRange(_ context.Context, taskID platform.ID, start, end, requestedAt int64) error {
-	paddedID := padID(taskID)
+	encodedID, err := taskID.Encode()
+	if err != nil {
+		return err
+	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		stmBytes := b.Bucket(taskMetaPath).Get(paddedID)
+		stmBytes := b.Bucket(taskMetaPath).Get(encodedID)
 		var stm backend.StoreTaskMeta
 		if err := stm.Unmarshal(stmBytes); err != nil {
 			return err
@@ -590,7 +697,7 @@ func (s *Store) ManuallyRunTimeRange(_ context.Context, taskID platform.ID, star
 			return err
 		}
 
-		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(paddedID, stmBytes)
+		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(encodedID, stmBytes)
 	})
 }
 
@@ -599,31 +706,14 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// unpadID returns a copy of id with leading 0-bytes removed.
-// This allows user-facing IDs to look prettier.
-func unpadID(id platform.ID) platform.ID {
-	trimmed := bytes.TrimLeft(id, "\x00")
-	return append([]byte(nil), trimmed...)
-}
-
-// padID returns an id, copying it and padding it with leading `0` bytes, if it is less than 8 long.
-// it does not copy the id if it is already 8 long
-// This allows us to accept pretty user-facing IDs but pad them internally for boltdb sorting.
-func padID(id platform.ID) platform.ID {
-	if len(id) >= 8 {
-		// don't pad if the id is long enough
-		return id
-	}
-
-	var buf [8]byte
-	copy(buf[len(buf)-len(id):], id)
-	return buf[:]
-}
-
 // DeleteUser syncronously deletes a user and all their tasks from a bolt store.
 func (s *Store) DeleteUser(ctx context.Context, id platform.ID) error {
-	userID := padID(id)
-	err := s.db.Update(func(tx *bolt.Tx) error {
+	userID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+
+	err = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
 		ub := b.Bucket(usersPath).Bucket(userID)
 		if ub == nil {
@@ -682,7 +772,11 @@ func (s *Store) DeleteUser(ctx context.Context, id platform.ID) error {
 
 // DeleteOrg syncronously deletes an org and all their tasks from a bolt store.
 func (s *Store) DeleteOrg(ctx context.Context, id platform.ID) error {
-	orgID := padID(id)
+	orgID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+
 	return s.db.Batch(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
 		ob := b.Bucket(orgsPath).Bucket(orgID)

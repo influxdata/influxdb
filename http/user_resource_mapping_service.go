@@ -72,8 +72,8 @@ func decodePostOrgMemberRequest(ctx context.Context, r *http.Request) (*postOrgM
 		return nil, err
 	}
 
-	if u.ID == nil {
-		return nil, kerrors.InvalidDataf("user id missing")
+	if !u.ID.Valid() {
+		return nil, kerrors.InvalidDataf("user id missing or invalid")
 	}
 
 	return &postOrgMemberRequest{
@@ -172,10 +172,10 @@ func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Contex
 	query := url.Query()
 
 	// this is not how this is going to work, lol
-	if filter.ResourceID != nil {
+	if filter.ResourceID.Valid() {
 		query.Add("resourceID", filter.ResourceID.String())
 	}
-	if filter.UserID != nil {
+	if filter.UserID.Valid() {
 		query.Add("userID", filter.UserID.String())
 	}
 	if filter.UserType != "" {
@@ -205,11 +205,11 @@ func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Contex
 }
 
 func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Context, m *platform.UserResourceMapping) error {
-	if m.ResourceID == nil {
+	if !m.ResourceID.Valid() {
 		return kerrors.InvalidDataf("resource ID is required")
 	}
 
-	if m.UserID == nil {
+	if !m.UserID.Valid() {
 		return kerrors.InvalidDataf("user ID is required")
 	}
 

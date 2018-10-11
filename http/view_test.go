@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
+	platformtesting "github.com/influxdata/platform/testing"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -43,7 +44,7 @@ func TestService_handleGetViews(t *testing.T) {
 						return []*platform.View{
 							{
 								ViewContents: platform.ViewContents{
-									ID:   platform.ID("0"),
+									ID:   platformtesting.MustIDBase16("7365637465747572"),
 									Name: "hello",
 								},
 								Properties: platform.LineViewProperties{
@@ -52,7 +53,7 @@ func TestService_handleGetViews(t *testing.T) {
 							},
 							{
 								ViewContents: platform.ViewContents{
-									ID:   platform.ID("2"),
+									ID:   platformtesting.MustIDBase16("6167697474697320"),
 									Name: "example",
 								},
 							},
@@ -71,10 +72,10 @@ func TestService_handleGetViews(t *testing.T) {
   },
   "views": [
     {
-      "id": "30",
+      "id": "7365637465747572",
       "name": "hello",
       "links": {
-        "self": "/api/v2/views/30"
+        "self": "/api/v2/views/7365637465747572"
       },
       "properties": {
         "shape": "chronograf-v2",
@@ -86,10 +87,10 @@ func TestService_handleGetViews(t *testing.T) {
       }
     },
     {
-      "id": "32",
+      "id": "6167697474697320",
       "name": "example",
       "links": {
-        "self": "/api/v2/views/32"
+        "self": "/api/v2/views/6167697474697320"
       },
       "properties": {
         "shape": "empty"
@@ -186,7 +187,7 @@ func TestService_handleGetView(t *testing.T) {
 					FindViewByIDF: func(ctx context.Context, id platform.ID) (*platform.View, error) {
 						return &platform.View{
 							ViewContents: platform.ViewContents{
-								ID:   mustParseID("020f755c3c082000"),
+								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 								Name: "example",
 							},
 						}, nil
@@ -293,7 +294,7 @@ func TestService_handlePostViews(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					CreateViewF: func(ctx context.Context, c *platform.View) error {
-						c.ID = mustParseID("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
@@ -301,6 +302,7 @@ func TestService_handlePostViews(t *testing.T) {
 			args: args{
 				view: &platform.View{
 					ViewContents: platform.ViewContents{
+						ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 						Name: "hello",
 					},
 					Properties: platform.LineViewProperties{
@@ -388,7 +390,7 @@ func TestService_handleDeleteView(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					DeleteViewF: func(ctx context.Context, id platform.ID) error {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
 
@@ -485,10 +487,10 @@ func TestService_handlePatchView(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					UpdateViewF: func(ctx context.Context, id platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.View{
 								ViewContents: platform.ViewContents{
-									ID:   mustParseID("020f755c3c082000"),
+									ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 									Name: "example",
 								},
 								Properties: platform.LineViewProperties{
@@ -532,10 +534,10 @@ func TestService_handlePatchView(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					UpdateViewF: func(ctx context.Context, id platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.View{
 								ViewContents: platform.ViewContents{
-									ID:   mustParseID("020f755c3c082000"),
+									ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 									Name: "example",
 								},
 								Properties: platform.LineViewProperties{
@@ -636,12 +638,4 @@ func jsonEqual(s1, s2 string) (eq bool, err error) {
 	}
 
 	return cmp.Equal(o1, o2), nil
-}
-
-func mustParseID(i string) platform.ID {
-	id, err := platform.IDFromString(i)
-	if err != nil {
-		panic(err)
-	}
-	return *id
 }

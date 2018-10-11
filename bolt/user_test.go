@@ -79,7 +79,7 @@ func TestBasicAuth(t *testing.T) {
 				users: []*platform.User{
 					{
 						Name: "user1",
-						ID:   platform.ID("0"),
+						ID:   platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
 					},
 				},
 			},
@@ -96,7 +96,7 @@ func TestBasicAuth(t *testing.T) {
 				users: []*platform.User{
 					{
 						Name: "user1",
-						ID:   platform.ID("0"),
+						ID:   platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
 					},
 				},
 			},
@@ -184,7 +184,7 @@ func TestBasicAuth_CompareAndSet(t *testing.T) {
 				users: []*platform.User{
 					{
 						Name: "user1",
-						ID:   platform.ID("0"),
+						ID:   platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
 					},
 				},
 			},

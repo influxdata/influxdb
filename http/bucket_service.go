@@ -199,8 +199,7 @@ type postBucketRequest struct {
 }
 
 func (b postBucketRequest) Validate() error {
-	// TODO(goller): hey leo, is this ok?
-	if b.Bucket.Organization == "" && len(b.Bucket.OrganizationID) == 0 {
+	if b.Bucket.Organization == "" && !b.Bucket.OrganizationID.Valid() {
 		return fmt.Errorf("bucket requires an organization")
 	}
 	return nil
@@ -347,22 +346,24 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	qp := r.URL.Query()
 	req := &getBucketsRequest{}
 
-	if id := qp.Get("orgID"); id != "" {
-		req.filter.OrganizationID = &platform.ID{}
-		if err := req.filter.OrganizationID.DecodeFromString(id); err != nil {
+	if orgID := qp.Get("orgID"); orgID != "" {
+		id, err := platform.IDFromString(orgID)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.OrganizationID = id
 	}
 
 	if org := qp.Get("org"); org != "" {
 		req.filter.Organization = &org
 	}
 
-	if id := qp.Get("id"); id != "" {
-		req.filter.ID = &platform.ID{}
-		if err := req.filter.ID.DecodeFromString(id); err != nil {
+	if bucketID := qp.Get("id"); bucketID != "" {
+		id, err := platform.IDFromString(bucketID)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.ID = id
 	}
 
 	if name := qp.Get("name"); name != "" {

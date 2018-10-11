@@ -55,14 +55,18 @@ func (c *Client) RemoveTarget(ctx context.Context, id platform.ID) error {
 		if err != nil {
 			return err
 		}
-		return tx.Bucket(scraperBucket).Delete(id)
+		encID, err := id.Encode()
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(scraperBucket).Delete(encID)
 	})
 }
 
 // UpdateTarget updates a scraper target.
 func (c *Client) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (target *platform.ScraperTarget, err error) {
-	if len(update.ID) == 0 {
-		return nil, errors.New("update scraper: id is empty")
+	if !update.ID.Valid() {
+		return nil, errors.New("update scraper: id is invalid")
 	}
 	err = c.db.Update(func(tx *bolt.Tx) error {
 		target, err = c.findTargetByID(ctx, tx, update.ID)
@@ -87,7 +91,11 @@ func (c *Client) GetTargetByID(ctx context.Context, id platform.ID) (target *pla
 
 func (c *Client) findTargetByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (target *platform.ScraperTarget, err error) {
 	target = new(platform.ScraperTarget)
-	v := tx.Bucket(scraperBucket).Get(id)
+	encID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+	v := tx.Bucket(scraperBucket).Get(encID)
 	if len(v) == 0 {
 		return nil, fmt.Errorf("scraper target is not found")
 	}
@@ -103,7 +111,11 @@ func (c *Client) putTarget(ctx context.Context, tx *bolt.Tx, target *platform.Sc
 	if err != nil {
 		return err
 	}
-	return tx.Bucket(scraperBucket).Put(target.ID, v)
+	encID, err := target.ID.Encode()
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(scraperBucket).Put(encID, v)
 }
 
 // PutTarget will put a scraper target without setting an ID.

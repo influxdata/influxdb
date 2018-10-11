@@ -151,23 +151,23 @@ func authorizationFindF(cmd *cobra.Command, args []string) {
 
 	filter := platform.AuthorizationFilter{}
 	if authorizationFindFlags.id != "" {
-		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(authorizationFindFlags.id)
+		fID, err := platform.IDFromString(authorizationFindFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		filter.ID = fID
 	}
 	if authorizationFindFlags.user != "" {
 		filter.User = &authorizationFindFlags.user
 	}
 	if authorizationFindFlags.userID != "" {
-		filter.UserID = &platform.ID{}
-		err := filter.UserID.DecodeFromString(authorizationFindFlags.userID)
+		uID, err := platform.IDFromString(authorizationFindFlags.userID)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		filter.UserID = uID
 	}
 
 	authorizations, _, err := s.FindAuthorizations(context.Background(), filter)
@@ -230,20 +230,20 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) {
 		Token: flags.token,
 	}
 
-	id := platform.ID{}
-	if err := id.DecodeFromString(authorizationDeleteFlags.id); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	ctx := context.TODO()
-	a, err := s.FindAuthorizationByID(ctx, id)
+	id, err := platform.IDFromString(authorizationDeleteFlags.id)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	if err := s.DeleteAuthorization(context.Background(), id); err != nil {
+	ctx := context.TODO()
+	a, err := s.FindAuthorizationByID(ctx, *id)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if err := s.DeleteAuthorization(context.Background(), *id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -300,7 +300,7 @@ func authorizationActiveF(cmd *cobra.Command, args []string) {
 		Token: flags.token,
 	}
 
-	id := platform.ID{}
+	var id platform.ID
 	if err := id.DecodeFromString(authorizationActiveFlags.id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -370,7 +370,7 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) {
 		Token: flags.token,
 	}
 
-	id := platform.ID{}
+	var id platform.ID
 	if err := id.DecodeFromString(authorizationInactiveFlags.id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

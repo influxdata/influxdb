@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/platform"
 	influxlogger "github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/mock"
+	platformtesting "github.com/influxdata/platform/testing"
 )
 
 func TestScheduler(t *testing.T) {
@@ -31,6 +32,7 @@ func TestScheduler(t *testing.T) {
 		Metrics: make(map[int64]Metrics),
 		Targets: []platform.ScraperTarget{
 			{
+				ID:   platformtesting.MustIDBase16("3a0d0a6365646120"),
 				Type: platform.PrometheusScraperType,
 				URL:  ts.URL + "/metrics",
 			},

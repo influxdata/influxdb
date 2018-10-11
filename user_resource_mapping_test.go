@@ -1,15 +1,18 @@
-package platform
+package platform_test
 
 import (
 	"testing"
+
+	"github.com/influxdata/platform"
+	platformtesting "github.com/influxdata/platform/testing"
 )
 
 func TestOwnerMappingValidate(t *testing.T) {
 	type fields struct {
-		ResourceID   ID
-		ResourceType ResourceType
-		UserID       ID
-		UserType     UserType
+		ResourceID   platform.ID
+		ResourceType platform.ResourceType
+		UserID       platform.ID
+		UserType     platform.UserType
 	}
 	tests := []struct {
 		name    string
@@ -19,55 +22,55 @@ func TestOwnerMappingValidate(t *testing.T) {
 		{
 			name: "mapping requires a resourceid",
 			fields: fields{
-				UserID:       []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserType:     Owner,
-				ResourceType: DashboardResourceType,
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     platform.Owner,
+				ResourceType: platform.DashboardResourceType,
 			},
 			wantErr: true,
 		},
 		{
 			name: "mapping requires a userid",
 			fields: fields{
-				ResourceID:   []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserType:     Owner,
-				ResourceType: DashboardResourceType,
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+				UserType:     platform.Owner,
+				ResourceType: platform.DashboardResourceType,
 			},
 			wantErr: true,
 		},
 		{
 			name: "mapping requires a usertype",
 			fields: fields{
-				ResourceID:   []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserID:       []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				ResourceType: DashboardResourceType,
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
+				ResourceType: platform.DashboardResourceType,
 			},
 			wantErr: true,
 		},
 		{
 			name: "mapping requires a resourcetype",
 			fields: fields{
-				ResourceID: []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserID:     []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserType:   Owner,
+				ResourceID: platformtesting.MustIDBase16("020f755c3c082000"),
+				UserID:     platformtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:   platform.Owner,
 			},
 			wantErr: true,
 		},
 		{
 			name: "the usertype provided must be valid",
 			fields: fields{
-				ResourceID:   []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserID:       []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
 				UserType:     "foo",
-				ResourceType: DashboardResourceType,
+				ResourceType: platform.DashboardResourceType,
 			},
 			wantErr: true,
 		},
 		{
 			name: "the resourcetype provided must be valid",
 			fields: fields{
-				ResourceID:   []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserID:       []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				UserType:     Owner,
+				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
+				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
+				UserType:     platform.Owner,
 				ResourceType: "foo",
 			},
 			wantErr: true,
@@ -75,7 +78,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := UserResourceMapping{
+			m := platform.UserResourceMapping{
 				ResourceID: tt.fields.ResourceID,
 				UserID:     tt.fields.UserID,
 				UserType:   tt.fields.UserType,

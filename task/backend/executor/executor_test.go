@@ -20,6 +20,7 @@ import (
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/task/backend"
 	"github.com/influxdata/platform/task/backend/executor"
+	platformtesting "github.com/influxdata/platform/testing"
 	"go.uber.org/zap"
 )
 
@@ -250,13 +251,15 @@ const testScript = `option task = {
 		from(bucket: "one") |> toHTTP(url: "http://example.com")`
 
 func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
+	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
+	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/QuerySuccess", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript, 0)
+		tid, err := sys.st.CreateTask(context.Background(), orgID, userID, testScript, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
+		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -300,13 +303,15 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
+	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
+	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/QueryFail", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript, 0)
+		tid, err := sys.st.CreateTask(context.Background(), orgID, userID, testScript, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
+		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -326,13 +331,15 @@ func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
+	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
+	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/PromiseCancel", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript, 0)
+		tid, err := sys.st.CreateTask(context.Background(), orgID, userID, testScript, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
+		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -351,13 +358,15 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorServiceError(t *testing.T, fn createSysFn) {
+	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
+	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/ServiceError", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript, 0)
+		tid, err := sys.st.CreateTask(context.Background(), orgID, userID, testScript, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID{1}, Now: 123}
+		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
 
 		var forced = errors.New("forced")
 		sys.svc.FailNextQuery(forced)

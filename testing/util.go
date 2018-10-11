@@ -1,15 +1,14 @@
 package testing
 
 import (
-	"testing"
-
 	"github.com/influxdata/platform"
 )
 
-func idFromString(t *testing.T, s string) platform.ID {
+// MustIDBase16 is an helper to ensure a correct ID is built during testing.
+func MustIDBase16(s string) platform.ID {
 	id, err := platform.IDFromString(s)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 	return *id
 }

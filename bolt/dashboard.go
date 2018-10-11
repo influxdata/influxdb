@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -45,9 +44,13 @@ func (c *Client) FindDashboardByID(ctx context.Context, id platform.ID) (*platfo
 }
 
 func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Dashboard, error) {
-	var d platform.Dashboard
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
 
-	v := tx.Bucket(dashboardBucket).Get([]byte(id))
+	var d platform.Dashboard
+	v := tx.Bucket(dashboardBucket).Get(encodedID)
 
 	if len(v) == 0 {
 		return nil, platform.ErrDashboardNotFound
@@ -168,7 +171,7 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 }
 
 func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
-	if len(opts.UsingView) != 0 {
+	if opts.UsingView.Valid() {
 		// Creates a hard copy of a view
 		v, err := c.findViewByID(ctx, tx, opts.UsingView)
 		if err != nil {
@@ -180,7 +183,7 @@ func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *p
 		}
 		cell.ViewID = view.ID
 		return nil
-	} else if len(cell.ViewID) != 0 {
+	} else if cell.ViewID.Valid() {
 		// Creates a soft copy of a view
 		_, err := c.findViewByID(ctx, tx, cell.ViewID)
 		if err != nil {
@@ -213,7 +216,7 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 		}
 
 		for _, cell := range cs {
-			if len(cell.ID) == 0 {
+			if !cell.ID.Valid() {
 				return fmt.Errorf("cannot provide empty cell id")
 			}
 
@@ -222,7 +225,7 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 				return fmt.Errorf("cannot replace cells that were not already present")
 			}
 
-			if !bytes.Equal(cl.ViewID, cell.ViewID) {
+			if cl.ViewID != cell.ViewID {
 				return fmt.Errorf("cannot update view id in replace")
 			}
 		}
@@ -260,7 +263,7 @@ func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID, cellID pl
 
 		idx := -1
 		for i, cell := range d.Cells {
-			if bytes.Equal(cell.ID, cellID) {
+			if cell.ID == cellID {
 				idx = i
 				break
 			}
@@ -289,7 +292,7 @@ func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID pl
 
 		idx := -1
 		for i, cell := range d.Cells {
-			if bytes.Equal(cell.ID, cellID) {
+			if cell.ID == cellID {
 				idx = i
 				break
 			}
@@ -326,7 +329,11 @@ func (c *Client) putDashboard(ctx context.Context, tx *bolt.Tx, d *platform.Dash
 	if err != nil {
 		return err
 	}
-	if err := tx.Bucket(dashboardBucket).Put([]byte(d.ID), v); err != nil {
+	encodedID, err := d.ID.Encode()
+	if err != nil {
+		return err
+	}
+	if err := tx.Bucket(dashboardBucket).Put(encodedID, v); err != nil {
 		return err
 	}
 	return nil
@@ -397,5 +404,9 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 			return err
 		}
 	}
-	return tx.Bucket(dashboardBucket).Delete([]byte(id))
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(dashboardBucket).Delete(encodedID)
 }
