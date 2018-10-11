@@ -129,7 +129,6 @@ enterPasswd:
 	query := promptWithColor("Please type your password", colorCyan)
 	for {
 		password, err = ui.Ask(query, &input.Options{
-			Loop:      true,
 			Required:  true,
 			HideOrder: true,
 			Hide:      true,
