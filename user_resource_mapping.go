@@ -16,6 +16,7 @@ const (
 	BucketResourceType    ResourceType = "bucket"
 	TaskResourceType      ResourceType = "task"
 	OrgResourceType       ResourceType = "org"
+	ViewResourceType      ResourceType = "view"
 )
 
 // UserResourceMappingService maps the relationships between users and resources
@@ -50,7 +51,7 @@ func (m UserResourceMapping) Validate() error {
 		return errors.New("a valid user type is required")
 	}
 	switch m.ResourceType {
-	case DashboardResourceType, BucketResourceType:
+	case DashboardResourceType, BucketResourceType, TaskResourceType, OrgResourceType, ViewResourceType:
 	default:
 		return fmt.Errorf("a valid resource type is required")
 	}
