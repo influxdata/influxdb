@@ -561,6 +561,18 @@ func FindOrganization(
 				},
 			},
 		},
+		{
+			name: "missing organization returns error",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{},
+			},
+			args: args{
+				name: "abc",
+			},
+			wants: wants{
+				err: fmt.Errorf("organization not found"),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -576,12 +588,6 @@ func FindOrganization(
 			organization, err := s.FindOrganization(ctx, filter)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
 			}
 
 			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {

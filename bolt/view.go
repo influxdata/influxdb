@@ -48,7 +48,6 @@ func (c *Client) findViewByID(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 	}
 
 	v := tx.Bucket(viewBucket).Get(encodedID)
-
 	if len(v) == 0 {
 		return nil, platform.ErrViewNotFound
 	}

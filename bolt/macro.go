@@ -71,8 +71,8 @@ func (c *Client) findMacroByID(ctx context.Context, tx *bolt.Tx, id platform.ID)
 	if err != nil {
 		return nil, err
 	}
-	d := tx.Bucket(macroBucket).Get(encID)
 
+	d := tx.Bucket(macroBucket).Get(encID)
 	if d == nil {
 		return nil, kerrors.Errorf(kerrors.NotFound, "macro with ID %v not found", id)
 	}
@@ -151,7 +151,6 @@ func (c *Client) DeleteMacro(ctx context.Context, id platform.ID) error {
 		}
 
 		d := b.Get(encID)
-
 		if d == nil {
 			return kerrors.Errorf(kerrors.NotFound, "macro with ID %v not found", id)
 		}

@@ -49,13 +49,12 @@ func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform
 		return nil, err
 	}
 
-	var d platform.Dashboard
 	v := tx.Bucket(dashboardBucket).Get(encodedID)
-
 	if len(v) == 0 {
 		return nil, platform.ErrDashboardNotFound
 	}
 
+	var d platform.Dashboard
 	if err := json.Unmarshal(v, &d); err != nil {
 		return nil, err
 	}

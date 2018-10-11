@@ -62,7 +62,6 @@ func (c *Client) findBucketByID(ctx context.Context, tx *bolt.Tx, id platform.ID
 	}
 
 	v := tx.Bucket(bucketBucket).Get(encodedID)
-
 	if len(v) == 0 {
 		// TODO: Make standard error
 		return nil, fmt.Errorf("bucket not found")
@@ -106,8 +105,14 @@ func (c *Client) findBucketByName(ctx context.Context, tx *bolt.Tx, orgID platfo
 		return nil, err
 	}
 
+	buf := tx.Bucket(bucketIndex).Get(key)
+	if buf == nil {
+		// TODO: Make standard error
+		return nil, fmt.Errorf("bucket not found")
+	}
+
 	var id platform.ID
-	if err := id.Decode(tx.Bucket(bucketIndex).Get(key)); err != nil {
+	if err := id.Decode(buf); err != nil {
 		return nil, err
 	}
 	return c.findBucketByID(ctx, tx, id)

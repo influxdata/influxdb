@@ -97,8 +97,13 @@ func (c *Client) FindAuthorizationByToken(ctx context.Context, n string) (*platf
 }
 
 func (c *Client) findAuthorizationByToken(ctx context.Context, tx *bolt.Tx, n string) (*platform.Authorization, error) {
+	a := tx.Bucket(authorizationIndex).Get(authorizationIndexKey(n))
+	if a == nil {
+		// TODO: Make standard error
+		return nil, fmt.Errorf("authorization not found")
+	}
 	var id platform.ID
-	if err := id.Decode(tx.Bucket(authorizationIndex).Get(authorizationIndexKey(n))); err != nil {
+	if err := id.Decode(a); err != nil {
 		return nil, err
 	}
 	return c.findAuthorizationByID(ctx, tx, id)

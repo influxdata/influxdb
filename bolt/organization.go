@@ -52,14 +52,13 @@ func (c *Client) findOrganizationByID(ctx context.Context, tx *bolt.Tx, id platf
 		return nil, err
 	}
 
-	var o platform.Organization
 	v := tx.Bucket(organizationBucket).Get(encodedID)
-
 	if len(v) == 0 {
 		// TODO: Make standard error
 		return nil, fmt.Errorf("organization not found")
 	}
 
+	var o platform.Organization
 	if err := json.Unmarshal(v, &o); err != nil {
 		return nil, err
 	}
@@ -84,8 +83,14 @@ func (c *Client) FindOrganizationByName(ctx context.Context, n string) (*platfor
 }
 
 func (c *Client) findOrganizationByName(ctx context.Context, tx *bolt.Tx, n string) (*platform.Organization, error) {
+	o := tx.Bucket(organizationIndex).Get(organizationIndexKey(n))
+	if o == nil {
+		// TODO: Make standard error
+		return nil, fmt.Errorf("organization not found")
+	}
+
 	var id platform.ID
-	if err := id.Decode(tx.Bucket(organizationIndex).Get(organizationIndexKey(n))); err != nil {
+	if err := id.Decode(o); err != nil {
 		return nil, err
 	}
 	return c.findOrganizationByID(ctx, tx, id)

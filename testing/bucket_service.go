@@ -680,6 +680,22 @@ func FindBuckets(
 				},
 			},
 		},
+		{
+			name: "missing bucket returns no buckets",
+			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*platform.Bucket{},
+			},
+			args: args{
+				name: "xyz",
+			},
+			wants: wants{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -904,6 +920,25 @@ func FindBucket(
 				},
 			},
 		},
+		{
+			name: "missing bucket returns error",
+			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*platform.Bucket{},
+			},
+			args: args{
+				name:           "xyz",
+				organizationID: MustIDBase16(orgOneID),
+			},
+			wants: wants{
+				err: fmt.Errorf("no results found"),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -922,12 +957,6 @@ func FindBucket(
 			bucket, err := s.FindBucket(ctx, filter)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
 			}
 
 			if diff := cmp.Diff(bucket, tt.wants.bucket, bucketCmpOptions...); diff != "" {

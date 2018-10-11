@@ -76,7 +76,6 @@ func (c *Client) findUserResourceMapping(ctx context.Context, tx *bolt.Tx, resou
 	}
 
 	v := tx.Bucket(userResourceMappingBucket).Get(key)
-
 	if len(v) == 0 {
 		return nil, fmt.Errorf("userResource mapping not found")
 	}

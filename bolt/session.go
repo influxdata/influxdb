@@ -46,7 +46,6 @@ func (c *Client) FindSession(ctx context.Context, key string) (*platform.Session
 
 func (c *Client) findSession(ctx context.Context, tx *bolt.Tx, key string) (*platform.Session, error) {
 	v := tx.Bucket(sessionBucket).Get([]byte(key))
-
 	if len(v) == 0 {
 		return nil, fmt.Errorf("session not found")
 	}
