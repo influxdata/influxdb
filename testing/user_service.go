@@ -563,6 +563,18 @@ func FindUser(
 				},
 			},
 		},
+		{
+			name: "user does not exist",
+			fields: UserFields{
+				Users: []*platform.User{},
+			},
+			args: args{
+				name: "abc",
+			},
+			wants: wants{
+				err: fmt.Errorf("user not found"),
+			},
+		},
 	}
 
 	for _, tt := range tests {

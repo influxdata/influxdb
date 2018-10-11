@@ -91,8 +91,14 @@ func (c *Client) FindUserByName(ctx context.Context, n string) (*platform.User, 
 }
 
 func (c *Client) findUserByName(ctx context.Context, tx *bolt.Tx, n string) (*platform.User, error) {
+	u := tx.Bucket(userIndex).Get(userIndexKey(n))
+	if u == nil {
+		// TODO: Make standard error
+		return nil, fmt.Errorf("user not found")
+	}
+
 	var id platform.ID
-	if err := id.Decode(tx.Bucket(userIndex).Get(userIndexKey(n))); err != nil {
+	if err := id.Decode(u); err != nil {
 		return nil, err
 	}
 	return c.findUserByID(ctx, tx, id)
