@@ -68,8 +68,8 @@ func influxDir() (string, error) {
 	u, err := user.Current()
 	if err == nil {
 		dir = u.HomeDir
-	} else if os.Getenv("HOME") != "" {
-		dir = os.Getenv("HOME")
+	} else if home := os.Getenv("HOME"); home != "" {
+		dir = home
 	} else {
 		wd, err := os.Getwd()
 		if err != nil {
@@ -83,6 +83,12 @@ func influxDir() (string, error) {
 }
 
 func init() {
+	dir, err := influxDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to determine influx directory: %v", err)
+		os.Exit(1)
+	}
+
 	viper.SetEnvPrefix("INFLUX")
 
 	platformCmd.Flags().StringVar(&httpBindAddress, "http-bind-address", ":9999", "bind address for the rest http api")
@@ -97,7 +103,7 @@ func init() {
 		authorizationPath = h
 	}
 
-	platformCmd.Flags().StringVar(&boltPath, "bolt-path", "influxd.bolt", "path to boltdb database")
+	platformCmd.Flags().StringVar(&boltPath, "bolt-path", filepath.Join(dir, "influxd.bolt"), "path to boltdb database")
 	viper.BindEnv("BOLT_PATH")
 	if h := viper.GetString("BOLT_PATH"); h != "" {
 		boltPath = h
@@ -107,12 +113,6 @@ func init() {
 	viper.BindEnv("DEV_MODE")
 	if h := viper.GetBool("DEV_MODE"); h {
 		developerMode = h
-	}
-
-	dir, err := influxDir()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to determine influx directory: %v", err)
-		os.Exit(1)
 	}
 
 	// TODO(edd): do we need NATS for anything?
