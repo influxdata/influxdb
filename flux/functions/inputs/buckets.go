@@ -16,8 +16,8 @@ func init() {
 }
 
 type BucketsDecoder struct {
-	deps    BucketDependencies
-	alloc   *execute.Allocator
+	deps  BucketDependencies
+	alloc *execute.Allocator
 }
 
 func (bd *BucketsDecoder) Connect() error {
@@ -63,9 +63,6 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 		Type:  flux.TInt,
 	})
 
-
-
-
 	for _, database := range bd.deps.TSDBStore.Databases() {
 		bucket := bd.deps.MetaClient.Database(database)
 		rp := bucket.RetentionPolicy(bucket.DefaultRetentionPolicy)
@@ -105,4 +102,3 @@ func InjectBucketDependencies(depsMap execute.Dependencies, deps BucketDependenc
 	depsMap[inputs.BucketsKind] = deps
 	return nil
 }
-
