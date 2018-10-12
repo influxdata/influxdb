@@ -167,20 +167,24 @@ func (s *inmem) FindTaskByID(_ context.Context, id platform.ID) (*StoreTask, err
 		}
 	}
 
-	return nil, nil
+	return nil, ErrTaskNotFound
 }
 
 func (s *inmem) FindTaskByIDWithMeta(_ context.Context, id platform.ID) (*StoreTask, *StoreTaskMeta, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	task := new(StoreTask)
+	var task *StoreTask
 	for _, t := range s.tasks {
 		if t.ID == id {
 			// Return a copy of the task.
+			task = new(StoreTask)
 			*task = t
 			break
 		}
+	}
+	if task == nil {
+		return nil, nil, ErrTaskNotFound
 	}
 
 	meta, ok := s.runners[id.String()]
@@ -228,7 +232,7 @@ func (s *inmem) FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTas
 
 	meta, ok := s.runners[id.String()]
 	if !ok {
-		return nil, errors.New("task meta not found")
+		return nil, ErrTaskNotFound
 	}
 
 	return &meta, nil

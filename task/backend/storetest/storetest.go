@@ -28,7 +28,7 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 			"ListTasks",
 			"FindTask",
 			"FindMeta",
-			"FindTaskAndMeta",
+			"FindTaskByIDWithMeta",
 			"EnableDisableTask",
 			"DeleteTask",
 			"CreateNextRun",
@@ -42,7 +42,7 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 		"ListTasks":            testStoreListTasks,
 		"FindTask":             testStoreFindTask,
 		"FindMeta":             testStoreFindMeta,
-		"FindTaskAndMeta":      testStoreFindIDAndMeta,
+		"FindTaskByIDWithMeta": testStoreFindByIDWithMeta,
 		"EnableDisableTask":    testStoreTaskEnableDisable,
 		"DeleteTask":           testStoreDelete,
 		"CreateNextRun":        testStoreCreateNextRun,
@@ -409,12 +409,11 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("unexpected script %q", task.Script)
 		}
 
-		badID := uint64(id)
-		badID++
+		badID := id + 1
 
-		task, err = s.FindTaskByID(context.Background(), platform.ID(badID))
-		if err != nil {
-			t.Fatalf("expected no error when finding nonexistent ID, got %v", err)
+		task, err = s.FindTaskByID(context.Background(), badID)
+		if err != backend.ErrTaskNotFound {
+			t.Fatalf("expected %v when finding nonexistent ID, got %v", backend.ErrTaskNotFound, err)
 		}
 		if task != nil {
 			t.Fatalf("expected nil task when finding nonexistent ID, got %#v", task)
@@ -529,7 +528,7 @@ from(bucket:"test") |> range(start:-1h)`
 	})
 }
 
-func testStoreFindIDAndMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
+func testStoreFindByIDWithMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
 	const script = `option task = {
 		name: "a task",
 		cron: "* * * * *",
@@ -587,10 +586,10 @@ from(bucket:"test") |> range(start:-1h)`
 		t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
 	}
 
-	badID := platform.ID(0)
+	badID := task.ID + 1
 	task, meta, err = s.FindTaskByIDWithMeta(context.Background(), badID)
-	if err == nil {
-		t.Fatalf("failed to error on bad taskID")
+	if err != backend.ErrTaskNotFound {
+		t.Fatalf("expected %v when task not found, got %v", backend.ErrTaskNotFound, err)
 	}
 	if meta != nil || task != nil {
 		t.Fatalf("expected nil meta and task when finding nonexistent ID, got meta: %#v, task: %#v", meta, task)
@@ -650,6 +649,16 @@ func testStoreTaskEnableDisable(t *testing.T, create CreateStoreFunc, destroy De
 	if meta.Status != string(backend.TaskActive) {
 		t.Fatal("task status not set to active after enabling")
 	}
+
+	badID := id + 1
+
+	meta, err = s.FindTaskMetaByID(context.Background(), badID)
+	if err != backend.ErrTaskNotFound {
+		t.Fatalf("expected %v when task not found, got %v", backend.ErrTaskNotFound, err)
+	}
+	if meta != nil {
+		t.Fatal("expected nil meta when task not found, got non-nil")
+	}
 }
 
 func testStoreDelete(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
@@ -688,12 +697,8 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 
 		// The deleted task should not be found.
-		task, err := s.FindTaskByID(context.Background(), id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if task != nil {
-			t.Fatalf("expected nil task when finding nonexistent ID, got %#v", task)
+		if _, err := s.FindTaskByID(context.Background(), id); err != backend.ErrTaskNotFound {
+			t.Fatalf("expected task not to be found, got %v", err)
 		}
 
 		// It's safe to reuse the same name, for the same org with a new user, after deleting the original.

@@ -147,6 +147,12 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		if f.Every != "" {
 			t.Fatalf(`%s: wrong every returned; want "", got %q`, fn, f.Every)
 		}
+		if fn == "FindTaskByID" {
+			// TODO(mr): do this check for every fn, not only FindTaskByID.
+			if f.Status != string(backend.DefaultTaskStatus) {
+				t.Fatalf(`%s: wrong default task status; want %q, got %q`, fn, backend.DefaultTaskStatus, f.Status)
+			}
+		}
 	}
 
 	// Update task.
@@ -170,8 +176,8 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Task should not be returned.
-	if _, err := sys.ts.FindTaskByID(sys.Ctx, origID); err != nil {
-		t.Fatal(err)
+	if _, err := sys.ts.FindTaskByID(sys.Ctx, origID); err != backend.ErrTaskNotFound {
+		t.Fatalf("expected %v, got %v", backend.ErrTaskNotFound, err)
 	}
 }
 

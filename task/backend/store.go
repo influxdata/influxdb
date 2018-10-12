@@ -15,14 +15,19 @@ import (
 	"github.com/influxdata/platform/task/options"
 )
 
-// ErrUserNotFound is an error for when we can't find a user
-var ErrUserNotFound = errors.New("user not found")
+var (
+	// ErrTaskNotFound indicates no task could be found for given parameters.
+	ErrTaskNotFound = errors.New("task not found")
 
-// ErrOrgNotFound is an error for when we can't find an org
-var ErrOrgNotFound = errors.New("org not found")
+	// ErrUserNotFound is an error for when we can't find a user
+	ErrUserNotFound = errors.New("user not found")
 
-// ErrManualQueueFull is returned when a manual run request cannot be completed.
-var ErrManualQueueFull = errors.New("manual queue at capacity")
+	// ErrOrgNotFound is an error for when we can't find an org
+	ErrOrgNotFound = errors.New("org not found")
+
+	// ErrManualQueueFull is returned when a manual run request cannot be completed.
+	ErrManualQueueFull = errors.New("manual queue at capacity")
+)
 
 type TaskStatus string
 
