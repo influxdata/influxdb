@@ -193,7 +193,7 @@ type WriteService struct {
 
 var _ platform.WriteService = (*WriteService)(nil)
 
-func (s *WriteService) Write(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
+func (s *WriteService) Write(ctx context.Context, orgID, bucketID platform.ID, r io.Reader) error {
 	u, err := newURL(s.Addr, writePath)
 	if err != nil {
 		return err
@@ -213,9 +213,19 @@ func (s *WriteService) Write(ctx context.Context, org, bucket platform.ID, r io.
 	req.Header.Set("Content-Encoding", "gzip")
 	SetToken(s.Token, req)
 
+	org, err := orgID.Encode()
+	if err != nil {
+		return err
+	}
+
+	bucket, err := bucketID.Encode()
+	if err != nil {
+		return err
+	}
+
 	params := req.URL.Query()
-	params.Set("org", string(org.Encode()))
-	params.Set("bucket", string(bucket.Encode()))
+	params.Set("org", string(org))
+	params.Set("bucket", string(bucket))
 	req.URL.RawQuery = params.Encode()
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
