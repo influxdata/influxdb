@@ -93,8 +93,8 @@ func New(db *bolt.DB, rootBucket string) (*Store, error) {
 }
 
 // CreateTask creates a task in the boltdb task store.
-func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
-	o, err := backend.StoreValidator.CreateArgs(org, user, script)
+func (s *Store) CreateTask(ctx context.Context, req backend.CreateTaskRequest) (platform.ID, error) {
+	o, err := backend.StoreValidator.CreateArgs(req)
 	if err != nil {
 		return platform.InvalidID(), err
 	}
@@ -114,7 +114,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		}
 
 		// write script
-		err = b.Bucket(tasksPath).Put(encodedID, []byte(script))
+		err = b.Bucket(tasksPath).Put(encodedID, []byte(req.Script))
 		if err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		}
 
 		// Encode org ID
-		encodedOrg, err := org.Encode()
+		encodedOrg, err := req.Org.Encode()
 		if err != nil {
 			return err
 		}
@@ -148,7 +148,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		}
 
 		// Encoded user ID
-		encodedUser, err := user.Encode()
+		encodedUser, err := req.User.Encode()
 		if err != nil {
 			return err
 		}
@@ -173,7 +173,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		stm := backend.StoreTaskMeta{
 			MaxConcurrency:  int32(o.Concurrency),
 			Status:          string(backend.TaskEnabled),
-			LatestCompleted: scheduleAfter,
+			LatestCompleted: req.ScheduleAfter,
 			EffectiveCron:   o.EffectiveCronString(),
 			Delay:           int32(o.Delay / time.Second),
 		}

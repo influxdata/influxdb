@@ -79,13 +79,24 @@ type RunCreation struct {
 	HasQueue bool
 }
 
+type CreateTaskRequest struct {
+	// Owners.
+	Org, User platform.ID
+
+	// Script content of the task.
+	Script string
+
+	// Unix timestamp (seconds elapsed since January 1, 1970 UTC).
+	// The first run of the task will be run according to the earliest time after ScheduleAfter,
+	// matching the task's schedul via its cron or every option.
+	ScheduleAfter int64
+}
+
 // Store is the interface around persisted tasks.
 type Store interface {
-	// CreateTask creates a task with the given script, belonging to the given org and user.
-	// The scheduleAfter parameter is a Unix timestamp (seconds elapsed since January 1, 1970 UTC),
-	// and the first run of the task will be run according to the earliest time after scheduleAfter,
-	// matching the task's schedule via its cron or every option.
-	CreateTask(ctx context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error)
+	// CreateTask creates a task with from the given CreateTaskRequest.
+	// If the task is created successfully, the ID of the new task is returned.
+	CreateTask(ctx context.Context, req CreateTaskRequest) (platform.ID, error)
 
 	// ModifyTask updates the script of an existing task.
 	// It returns an error if there was no task matching the given ID.
@@ -242,24 +253,24 @@ type StoreValidation struct{}
 
 // CreateArgs returns the script's parsed options,
 // and an error if any of the provided fields are invalid for creating a task.
-func (StoreValidation) CreateArgs(org, user platform.ID, script string) (options.Options, error) {
+func (StoreValidation) CreateArgs(req CreateTaskRequest /*org, user platform.ID, script string*/) (options.Options, error) {
 	var missing []string
 	var o options.Options
 
-	if script == "" {
+	if req.Script == "" {
 		missing = append(missing, "script")
 	} else {
 		var err error
-		o, err = options.FromScript(script)
+		o, err = options.FromScript(req.Script)
 		if err != nil {
 			return o, err
 		}
 	}
 
-	if !org.Valid() {
+	if !req.Org.Valid() {
 		missing = append(missing, "organization ID")
 	}
-	if !user.Valid() {
+	if !req.User.Valid() {
 		missing = append(missing, "user ID")
 	}
 

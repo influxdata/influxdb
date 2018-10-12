@@ -97,7 +97,12 @@ from(bucket:"test") |> range(start:-1h)`
 		{caseName: "repeated name, org, and user", org: platform.ID(1), user: platform.ID(2), script: script, noerr: true},
 	} {
 		t.Run(args.caseName, func(t *testing.T) {
-			_, err := s.CreateTask(context.Background(), args.org, args.user, args.script, 0)
+			req := backend.CreateTaskRequest{
+				Org:    args.org,
+				User:   args.user,
+				Script: args.script,
+			}
+			_, err := s.CreateTask(context.Background(), req)
 			if args.noerr && err != nil {
 				t.Fatalf("expected err!=nil but got nil instead")
 			} else if err == nil && !args.noerr {
@@ -137,7 +142,7 @@ from(bucket:"y") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		id, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script, 0)
+		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -179,11 +184,11 @@ from(bucket:"y") |> range(start:-1h)`
 	t.Run("name repetition", func(t *testing.T) {
 		s := create(t)
 		defer destroy(t, s)
-		id1, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script, 0)
+		id1, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script2, 0)
+		_, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script2})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,7 +212,7 @@ from(bucket:"test") |> range(start:-1h)`
 		orgID := platform.ID(1)
 		userID := platform.ID(2)
 
-		id, err := s.CreateTask(context.Background(), orgID, userID, fmt.Sprintf(scriptFmt, 0), 0)
+		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: fmt.Sprintf(scriptFmt, 0)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -250,7 +255,7 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("expected no results for bad user ID, got %d result(s)", len(ts))
 		}
 
-		newID, err := s.CreateTask(context.Background(), orgID, userID, fmt.Sprintf(scriptFmt, 1), 0)
+		newID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: fmt.Sprintf(scriptFmt, 1)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -296,7 +301,7 @@ from(bucket:"test") |> range(start:-1h)`
 			tasks[i].name = fmt.Sprintf("my_bucket_%d", i)
 			tasks[i].script = fmt.Sprintf(script, i, i)
 
-			id, err := s.CreateTask(context.Background(), orgID, userID, tasks[i].script, 0)
+			id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: tasks[i].script})
 			if err != nil {
 				t.Fatalf("failed to create task %d: %v", i, err)
 			}
@@ -373,7 +378,7 @@ from(bucket:"test") |> range(start:-1h)`
 		org := platform.ID(1)
 		user := platform.ID(2)
 
-		id, err := s.CreateTask(context.Background(), org, user, script, 0)
+		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -428,7 +433,7 @@ from(bucket:"test") |> range(start:-1h)`
 	org := platform.ID(1)
 	user := platform.ID(2)
 
-	id, err := s.CreateTask(context.Background(), org, user, script, 6000)
+	id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, Script: script, ScheduleAfter: 6000})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -508,7 +513,7 @@ from(bucket:"test") |> range(start:-1h)`
 	org := platform.ID(1)
 	user := platform.ID(2)
 
-	id, err := s.CreateTask(context.Background(), org, user, script, 6000)
+	id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, Script: script, ScheduleAfter: 6000})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -574,7 +579,7 @@ func testStoreTaskEnableDisable(t *testing.T, create CreateStoreFunc, destroy De
 	org := platform.ID(1)
 	user := platform.ID(2)
 
-	id, err := s.CreateTask(context.Background(), org, user, script, 0)
+	id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, Script: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -628,7 +633,7 @@ from(bucket:"test") |> range(start:-1h)`
 		defer destroy(t, s)
 
 		org, user := idGen.ID(), idGen.ID()
-		id, err := s.CreateTask(context.Background(), org, user, script, 0)
+		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -660,7 +665,7 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 
 		// It's safe to reuse the same name, for the same org with a new user, after deleting the original.
-		id, err = s.CreateTask(context.Background(), org, idGen.ID(), script, 0)
+		id, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: idGen.ID(), Script: script})
 		if err != nil {
 			t.Fatalf("Error when reusing task name that was previously deleted: %v", err)
 		}
@@ -669,7 +674,7 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 
 		// Reuse the same name, for the original user but a new org.
-		if _, err = s.CreateTask(context.Background(), idGen.ID(), user, script, 0); err != nil {
+		if _, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: idGen.ID(), User: user, Script: script}); err != nil {
 			t.Fatalf("Error when reusing task name that was previously deleted: %v", err)
 		}
 	})
@@ -689,7 +694,7 @@ from(bucket:"test") |> range(start:-1h)`
 	defer destroy(t, s)
 
 	t.Run("no queue", func(t *testing.T) {
-		taskID, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script, 30)
+		taskID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script, ScheduleAfter: 30})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -747,7 +752,7 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 
 	from(bucket:"test") |> range(start:-1h)`
-		taskID, err := s.CreateTask(context.Background(), platform.ID(5), platform.ID(6), script, 2999)
+		taskID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 5, User: 6, Script: script, ScheduleAfter: 2999})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -837,7 +842,7 @@ from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	task, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script, 0)
+	task, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -866,7 +871,7 @@ from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	taskID, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script, 0)
+	taskID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -956,7 +961,7 @@ from(bucket:"test") |> range(start:-1h)`
 			for orgInt := uint64(1); orgInt < 4; orgInt++ {
 				org := platform.ID(orgInt)
 				user := platform.ID(userInt)
-				if id, err = s.CreateTask(context.Background(), org, user, script, 0); err != nil {
+				if id, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, Script: script}); err != nil {
 					t.Fatal(err)
 				}
 				if filter(userInt, orgInt) {
