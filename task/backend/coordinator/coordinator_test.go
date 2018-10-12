@@ -29,6 +29,7 @@ func TestCoordinator(t *testing.T) {
 	coord := coordinator.New(sched, st)
 	createChan := sched.TaskCreateChan()
 	releaseChan := sched.TaskReleaseChan()
+	updateChan := sched.TaskUpdateChan()
 
 	orgID := platformtesting.MustIDBase16("69746f7175650d0a")
 	usrID := platformtesting.MustIDBase16("6c61757320657420")
@@ -109,16 +110,7 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	task, err = timeoutSelector(releaseChan)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if task.Script != script {
-		t.Fatal("task sent to scheduler doesnt match task created")
-	}
-
-	task, err = timeoutSelector(createChan)
+	task, err = timeoutSelector(updateChan)
 	if err != nil {
 		t.Fatal(err)
 	}

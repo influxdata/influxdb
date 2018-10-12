@@ -70,11 +70,7 @@ func (c *Coordinator) ModifyTask(ctx context.Context, id platform.ID, newScript 
 		return err
 	}
 
-	if err := c.sch.ReleaseTask(id); err != nil {
-		return err
-	}
-
-	if err := c.sch.ClaimTask(task, meta); err != nil {
+	if err := c.sch.UpdateTask(task, meta); err != nil {
 		return err
 	}
 

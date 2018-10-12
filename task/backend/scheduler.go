@@ -97,6 +97,9 @@ type Scheduler interface {
 	// ClaimTask begins control of task execution in this scheduler.
 	ClaimTask(task *StoreTask, meta *StoreTaskMeta) error
 
+	// UpdateTask will update the concurrency and the runners for a task
+	UpdateTask(task *StoreTask, meta *StoreTaskMeta) error
+
 	// ReleaseTask immediately cancels any in-progress runs for the given task ID,
 	// and releases any resources related to management of that task.
 	ReleaseTask(taskID platform.ID) error
@@ -265,6 +268,32 @@ func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err err
 	if now := atomic.LoadInt64(&s.now); now >= next || hasQueue {
 		ts.Work()
 	}
+	return nil
+}
+
+func (s *TickScheduler) UpdateTask(task *StoreTask, meta *StoreTaskMeta) error {
+	s.schedulerMu.Lock()
+	defer s.schedulerMu.Unlock()
+
+	tid := task.ID.String()
+	ts, ok := s.taskSchedulers[tid]
+	if !ok {
+		return ErrTaskNotClaimed
+	}
+	ts.Cancel()
+
+	nts, err := newTaskScheduler(s.ctx, s.wg, s, task, meta, s.metrics)
+	if err != nil {
+		return err
+	}
+
+	s.taskSchedulers[tid] = nts
+
+	next, hasQueue := ts.NextDue()
+	if now := atomic.LoadInt64(&s.now); now >= next || hasQueue {
+		ts.Work()
+	}
+
 	return nil
 }
 

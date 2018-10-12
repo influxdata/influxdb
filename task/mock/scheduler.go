@@ -26,6 +26,7 @@ type Scheduler struct {
 
 	createChan  chan *Task
 	releaseChan chan *Task
+	updateChan  chan *Task
 
 	claimError   error
 	releaseError error
@@ -83,6 +84,28 @@ func (s *Scheduler) ClaimTask(task *backend.StoreTask, meta *backend.StoreTaskMe
 	return nil
 }
 
+func (s *Scheduler) UpdateTask(task *backend.StoreTask, meta *backend.StoreTaskMeta) error {
+	s.Lock()
+	defer s.Unlock()
+
+	_, ok := s.claims[task.ID.String()]
+	if !ok {
+		return errors.New("task not in list")
+	}
+
+	s.meta[task.ID.String()] = *meta
+
+	t := &Task{Script: task.Script, StartExecution: meta.LatestCompleted, ConcurrencyLimit: uint8(meta.MaxConcurrency)}
+
+	s.claims[task.ID.String()] = t
+
+	if s.updateChan != nil {
+		s.updateChan <- t
+	}
+
+	return nil
+}
+
 func (s *Scheduler) ReleaseTask(taskID platform.ID) error {
 	if s.releaseError != nil {
 		return s.releaseError
@@ -116,6 +139,10 @@ func (s *Scheduler) TaskCreateChan() <-chan *Task {
 func (s *Scheduler) TaskReleaseChan() <-chan *Task {
 	s.releaseChan = make(chan *Task, 10)
 	return s.releaseChan
+}
+func (s *Scheduler) TaskUpdateChan() <-chan *Task {
+	s.updateChan = make(chan *Task, 10)
+	return s.updateChan
 }
 
 // ClaimError sets an error to be returned by s.ClaimTask, if err is not nil.

@@ -197,6 +197,57 @@ func TestScheduler_Release(t *testing.T) {
 	}
 }
 
+func TestScheduler_UpdateTask(t *testing.T) {
+	d := mock.NewDesiredState()
+	e := mock.NewExecutor()
+	s := backend.NewScheduler(d, e, backend.NopLogWriter{}, 3059, backend.WithLogger(zaptest.NewLogger(t)))
+	s.Start(context.Background())
+	defer s.Stop()
+
+	task := &backend.StoreTask{
+		ID: platform.ID(1),
+	}
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency:  1,
+		EffectiveCron:   "* * * * *", // Every minute.
+		LatestCompleted: 3000,
+	}
+
+	d.SetTaskMeta(task.ID, *meta)
+	if err := s.ClaimTask(task, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	s.Tick(3060)
+	p, err := e.PollForNumberRunning(task.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p[0].Finish(mock.NewRunResult(nil, false), nil)
+
+	meta.EffectiveCron = "0 * * * *"
+	meta.MaxConcurrency = 30
+	d.SetTaskMeta(task.ID, *meta)
+
+	if err := s.UpdateTask(task, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	s.Tick(3061)
+	p, err = e.PollForNumberRunning(task.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s.Tick(3600)
+	p, err = e.PollForNumberRunning(task.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p[0].Finish(mock.NewRunResult(nil, false), nil)
+}
+
 func TestScheduler_Queue(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
