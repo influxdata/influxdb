@@ -86,7 +86,15 @@ class SideNav extends PureComponent<Props> {
         link: `/logs/${this.sourceParam}`,
         icon: IconFont.Wood,
         location: location.pathname,
-        highlightWhen: ['manage-sources'],
+        highlightWhen: ['logs'],
+      },
+      {
+        type: NavItemType.Icon,
+        title: 'Tasks',
+        link: `/tasks/${this.sourceParam}`,
+        icon: IconFont.Wood,
+        location: location.pathname,
+        highlightWhen: ['tasks'],
       },
       {
         type: NavItemType.Icon,

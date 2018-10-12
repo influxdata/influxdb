@@ -1,12 +1,28 @@
 import AJAX from 'src/utils/ajax'
 
-export const submitNewTask = (url, owner, org, flux) => {
-  const data = {
+export const submitNewTask = async (url, owner, org, flux) => {
+  const request = {
     flux,
     organizationId: org.id,
-    status: 'enabled',
+    status: 'active',
     owner,
   }
 
-  return AJAX({url, data, method: 'POST'})
+  const {data} = await AJAX({url, data: request, method: 'POST'})
+
+  return data
+}
+
+export const getUserTasks = async (url, user) => {
+  const completeUrl = `${url}?user=${user.id}`
+
+  const {data} = await AJAX({url: completeUrl})
+
+  return data
+}
+
+export const deleteTask = (url: string, taskID: string) => {
+  const completeUrl = `${url}/${taskID}`
+
+  return AJAX({url: completeUrl, method: 'DELETE'})
 }
