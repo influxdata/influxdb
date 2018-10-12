@@ -1,5 +1,6 @@
 import _ from 'lodash'
 import React, {PureComponent} from 'react'
+import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
 import FluxEditor from 'src/flux/components/v2/FluxEditor'
 
@@ -15,6 +16,10 @@ import {
 } from 'src/clockface'
 import {Page} from 'src/pageLayout'
 
+interface PassedInProps {
+  router: InjectedRouter
+}
+
 interface ConnectStateProps {
   newScript: string
   tasksLink: string
@@ -26,7 +31,7 @@ interface ConnectDispatchProps {
 }
 
 class TaskPage extends PureComponent<
-  {} & ConnectStateProps & ConnectDispatchProps
+  PassedInProps & ConnectStateProps & ConnectDispatchProps
 > {
   constructor(props) {
     super(props)
@@ -45,6 +50,7 @@ class TaskPage extends PureComponent<
             <Button
               color={ComponentColor.Default}
               text="Cancel"
+              onClick={this.handleCancel}
               size={ComponentSize.Medium}
             />
             <Button
@@ -82,6 +88,10 @@ class TaskPage extends PureComponent<
 
   private handleSave = () => {
     this.props.saveNewScript()
+  }
+
+  private handleCancel = () => {
+    this.props.router.push('/tasks')
   }
 }
 

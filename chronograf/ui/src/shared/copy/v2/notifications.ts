@@ -16,3 +16,8 @@ export const taskNotCreated = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to create new task',
 })
+
+export const tasksFetchFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to get tasks from server',
+})
