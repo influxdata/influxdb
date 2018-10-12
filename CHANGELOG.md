@@ -11,6 +11,7 @@ v1.5.5 [unreleased]
 -	[#10221](https://github.com/influxdata/influxdb/pull/10221): Ensure orhpaned series cleaned up with shard drop.
 -	[#10274](https://github.com/influxdata/influxdb/pull/10274): Fix the derivative and others time ranges for aggregate data.
 -	[#10363](https://github.com/influxdata/influxdb/pull/10363): Fixing the stream iterator to not ignore the error.
+-	[#10372](https://github.com/influxdata/influxdb/pull/10372): Do not panic when a series id iterator is nil.
 
 v1.5.4 [2018-06-21]
 -------------------
