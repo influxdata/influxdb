@@ -66,16 +66,16 @@ func getOnboardingRequest() (or *platform.OnboardingRequest) {
 		Writer: os.Stdout,
 		Reader: os.Stdin,
 	}
-	var confirmed bool
-	for !confirmed {
-		or = new(platform.OnboardingRequest)
-		fmt.Println(promptWithColor(`Welcome to InfluxDB 2.0!`, colorYellow))
-		or.User = getInput(ui, "Please type your primary username", "")
-		or.Password = getPassword(ui)
-		or.Org = getInput(ui, "Please type your primary organization name.\r\nOr ENTER to use \"default\"", "default")
-		or.Bucket = getInput(ui, "Please type your primary bucket name.\r\nOr ENTER to use \"default\"", "default")
+	or = new(platform.OnboardingRequest)
+	fmt.Println(promptWithColor(`Welcome to InfluxDB 2.0!`, colorYellow))
+	or.User = getInput(ui, "Please type your primary username", "")
+	or.Password = getPassword(ui)
+	or.Org = getInput(ui, "Please type your primary organization name.\r\nOr ENTER to use \"default\"", "default")
+	or.Bucket = getInput(ui, "Please type your primary bucket name.\r\nOr ENTER to use \"default\"", "default")
 
-		confirmed = getConfirm(ui, or)
+	if confirmed := getConfirm(ui, or); !confirmed {
+		fmt.Println("Setup is canceled.")
+		os.Exit(1)
 	}
 
 	return or
@@ -100,24 +100,28 @@ func promptWithColor(s string, color []byte) string {
 }
 
 func getConfirm(ui *input.UI, or *platform.OnboardingRequest) bool {
-	fmt.Print(promptWithColor(fmt.Sprintf(`
+	prompt := promptWithColor("Confirm? (y/n)", colorRed)
+	for {
+		fmt.Print(promptWithColor(fmt.Sprintf(`
 You have entered:
     Username:      %s
     Organization:  %s
     Bucket:        %s
 `, or.User, or.Org, or.Bucket), colorCyan))
-	prompt := promptWithColor("Confirm? (y/n)", colorRed)
-	result, err := ui.Ask(prompt, &input.Options{
-		HideOrder: true,
-	})
-	if err != nil {
-		os.Exit(1)
-	}
-	switch result {
-	case "y":
-		return true
-	default:
-		return false
+		result, err := ui.Ask(prompt, &input.Options{
+			HideOrder: true,
+		})
+		if err != nil {
+			os.Exit(1)
+		}
+		switch result {
+		case "y":
+			return true
+		case "n":
+			return false
+		default:
+			continue
+		}
 	}
 }
 
