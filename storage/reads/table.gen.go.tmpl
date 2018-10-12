@@ -50,14 +50,10 @@ func (t *{{.name}}Table) Close() {
 func (t *{{.name}}Table) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
@@ -143,14 +139,10 @@ func (t *{{.name}}GroupTable) Close() {
 func (t *{{.name}}GroupTable) Do(f func(flux.ColReader) error) error {
 	defer t.Close()
 
-	if !t.more {
-		return t.err
-	}
-
-	f(t)
-	for t.advance() {
-		if err := f(t); err != nil {
-			return err
+	if t.more {
+		t.err = f(t)
+		for t.err == nil && t.advance() {
+			t.err = f(t)
 		}
 	}
 
