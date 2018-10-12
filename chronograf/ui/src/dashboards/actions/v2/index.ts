@@ -21,8 +21,9 @@ import {notify} from 'src/shared/actions/notifications'
 import {
   deleteTimeRange,
   updateTimeRangeFromQueryParams,
+  DeleteTimeRangeAction,
 } from 'src/dashboards/actions/v2/ranges'
-import {setView} from 'src/dashboards/actions/v2/views'
+import {setView, SetViewAction} from 'src/dashboards/actions/v2/views'
 
 // Utils
 import {
@@ -35,6 +36,7 @@ import * as copy from 'src/shared/copy/notifications'
 
 // Types
 import {RemoteDataState} from 'src/types'
+import {PublishNotificationAction} from 'src/types/actions/notifications'
 import {Dashboard, Cell, View, AppState} from 'src/types/v2'
 
 export enum ActionTypes {
@@ -52,6 +54,10 @@ export type Action =
   | LoadDashboardAction
   | UpdateDashboardAction
   | DeleteCellAction
+  | PublishNotificationAction
+  | SetViewAction
+  | DeleteTimeRangeAction
+  | DeleteDashboardFailedAction
 
 interface DeleteCellAction {
   type: ActionTypes.DeleteCell

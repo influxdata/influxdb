@@ -14,18 +14,29 @@ import {
   DashboardQuery,
 } from 'src/types/v2/dashboards'
 import {Links} from 'src/types/v2/links'
+import {Notification} from 'src/types'
 import {TimeRange} from 'src/types/queries'
+import {LogsState} from 'src/types/logs'
 import {TimeMachinesState} from 'src/shared/reducers/v2/timeMachines'
+import {AppState as AppPresentationState} from 'src/shared/reducers/app'
+import {State as TaskState} from 'src/tasks/reducers/v2'
+import {RouterState} from 'react-router-redux'
 
-// TODO(chnn): Convert configureStore.js to TypeScript, then move this. Also
-// fill out with remaining state interfaces.
 export interface AppState {
-  dashboards: Dashboard[]
-  timeMachines: TimeMachinesState
+  VERSION: string
+  links: Links
+  app: AppPresentationState
+  logs: LogsState
   ranges: RangeState
   views: ViewsState
+  sources: Source[]
+  dashboards: Dashboard[]
   hoverTime: HoverTimeState
-  links: Links
+  notifications: Notification[]
+  timeMachines: TimeMachinesState
+  routing: RouterState
+  tasks: TaskState
+  timeRange: TimeRange
 }
 
 export {

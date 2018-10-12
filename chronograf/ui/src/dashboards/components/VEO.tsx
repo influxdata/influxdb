@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ComponentClass} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
@@ -29,14 +29,14 @@ interface DispatchProps {
   onSetActiveTimeMachineID: typeof setActiveTimeMachineID
 }
 
-interface PassedProps {
+interface OwnProps {
   source: Source
   view: View
   onHide: () => void
   onSave: (v: View) => Promise<void>
 }
 
-type Props = PassedProps & StateProps & DispatchProps
+type Props = OwnProps & StateProps & DispatchProps
 
 interface State {
   activeTab: TimeMachineTab
@@ -109,4 +109,4 @@ const mdtp: DispatchProps = {
   onSetActiveTimeMachineID: setActiveTimeMachineID,
 }
 
-export default connect(mstp, mdtp)(VEO) as ComponentClass<PassedProps, State>
+export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(VEO)

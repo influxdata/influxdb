@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import {DashboardTimeRange as Range} from 'src/types/localStorage'
+import {Range} from 'src/dashboards/reducers/v2/ranges'
 
 const dashtime = (ranges: Range[]): Range[] => {
   if (!Array.isArray(ranges)) {

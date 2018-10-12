@@ -1,4 +1,4 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 
 import _ from 'lodash'
@@ -210,7 +210,7 @@ class DygraphLegend extends PureComponent<Props, State> {
     return ''
   }
 
-  private unhighlightCallback = (e: MouseEvent) => {
+  private unhighlightCallback = (e: MouseEvent<Element>) => {
     const {top, bottom, left, right} = this.legendRef.getBoundingClientRect()
 
     const mouseY = e.clientY

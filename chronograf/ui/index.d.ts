@@ -428,7 +428,7 @@ declare module 'src/external/dygraph' {
       annotation: dygraphs.Annotation,
       point: Point,
       dygraph: Dygraph,
-      event: MouseEvent
+      event: MouseEvent<Element>
     ) => any
 
     /** This function is called whenever the user mouses over this annotation. */
@@ -436,7 +436,7 @@ declare module 'src/external/dygraph' {
       annotation: dygraphs.Annotation,
       point: Point,
       dygraph: Dygraph,
-      event: MouseEvent
+      event: MouseEvent<Element>
     ) => any
 
     /** This function is called whenever the user mouses out of this annotation. */
@@ -444,7 +444,7 @@ declare module 'src/external/dygraph' {
       annotation: dygraphs.Annotation,
       point: Point,
       dygraph: Dygraph,
-      event: MouseEvent
+      event: MouseEvent<Element>
     ) => any
 
     /** this function is called whenever the user double-clicks on this annotation. */
@@ -452,7 +452,7 @@ declare module 'src/external/dygraph' {
       annotation: dygraphs.Annotation,
       point: Point,
       dygraph: Dygraph,
-      event: MouseEvent
+      event: MouseEvent<Element>
     ) => any
   }
 
@@ -730,7 +730,7 @@ declare module 'src/external/dygraph' {
      *
      * Returns a two-element array: [X, Y].
      */
-    public eventToDomCoords(event: MouseEvent): [number, number]
+    public eventToDomCoords(event: MouseEvent<Element>): [number, number]
 
     /**
      * Manually set the selected points and display information about them in the
@@ -891,7 +891,7 @@ declare module 'src/external/dygraph' {
       annotation: dygraphs.Annotation,
       point: Point,
       dygraph: Dygraph,
-      event: MouseEvent
+      event: MouseEvent<Element>
     ) => any
 
     /**
@@ -901,7 +901,7 @@ declare module 'src/external/dygraph' {
       annotation: dygraphs.Annotation,
       point: Point,
       dygraph: Dygraph,
-      event: MouseEvent
+      event: MouseEvent<Element>
     ) => any
 
     /**
@@ -911,7 +911,7 @@ declare module 'src/external/dygraph' {
       annotation: dygraphs.Annotation,
       point: Point,
       dygraph: Dygraph,
-      event: MouseEvent
+      event: MouseEvent<Element>
     ) => any
 
     /**
@@ -921,7 +921,7 @@ declare module 'src/external/dygraph' {
       annotation: dygraphs.Annotation,
       point: Point,
       dygraph: Dygraph,
-      event: MouseEvent
+      event: MouseEvent<Element>
     ) => any
 
     /**
@@ -939,7 +939,11 @@ declare module 'src/external/dygraph' {
     /**
      * A function to call when the canvas is clicked.
      */
-    clickCallback?: (e: MouseEvent, xval: number, points: Point[]) => any
+    clickCallback?: (
+      e: MouseEvent<Element>,
+      xval: number,
+      points: Point[]
+    ) => any
 
     /**
      * If <strong>colors</strong> is not specified, saturation of the automatically-generated
@@ -1093,7 +1097,7 @@ declare module 'src/external/dygraph' {
      * When set, this callback gets called every time a new point is highlighted.
      */
     highlightCallback?: (
-      event: MouseEvent,
+      event: MouseEvent<Element>,
       xval: number,
       points: Point[],
       row: number,
@@ -1211,7 +1215,7 @@ declare module 'src/external/dygraph' {
     /**
      * A function to call when a data point is clicked. and the point that was clicked.
      */
-    pointClickCallback?: (e: MouseEvent, point: Point) => any
+    pointClickCallback?: (e: MouseEvent<Element>, point: Point) => any
 
     /**
      * Height, in pixels, of the range selector widget. This option can only be specified at
@@ -1316,7 +1320,7 @@ declare module 'src/external/dygraph' {
      * When set, this callback gets called every time the user stops highlighting any point by
      * mousing out of the graph.
      */
-    unhighlightCallback?: (event: MouseEvent) => any
+    unhighlightCallback?: (event: MouseEvent<Element>) => any
 
     /**
      * Which series should initially be visible? Once the Dygraph has been constructed, you can

@@ -3,7 +3,7 @@ import _ from 'lodash'
 import {TimeRange} from 'src/types'
 import {Action, ActionTypes} from 'src/dashboards/actions/v2/ranges'
 
-interface Range extends TimeRange {
+export interface Range extends TimeRange {
   dashboardID: string
 }
 

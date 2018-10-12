@@ -13,6 +13,7 @@ import {Options} from 'src/external/dygraph'
 import {StepPlotView} from 'src/types/v2/dashboards'
 import {TimeRange} from 'src/types/v2'
 import {FluxTable, RemoteDataState} from 'src/types'
+import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 
 interface Props {
   loading: RemoteDataState
@@ -21,8 +22,8 @@ interface Props {
   tables: FluxTable[]
   viewID: string
   staticLegend: boolean
-  onZoom: () => void
-  handleSetHoverTime: () => void
+  onZoom: (range: TimeRange) => void
+  handleSetHoverTime: typeof setHoverTime
 }
 
 @ErrorHandlingWith(InvalidData)

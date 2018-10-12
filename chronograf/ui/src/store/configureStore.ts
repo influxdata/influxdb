@@ -1,5 +1,6 @@
 import {createStore, applyMiddleware, compose} from 'redux'
-import {combineReducers} from 'redux'
+import {History} from 'history'
+import {combineReducers, Store} from 'redux'
 import {routerReducer, routerMiddleware} from 'react-router-redux'
 import thunkMiddleware from 'redux-thunk'
 
@@ -18,7 +19,16 @@ import viewsReducer from 'src/dashboards/reducers/v2/views'
 import logsReducer from 'src/logs/reducers'
 import timeMachinesReducer from 'src/shared/reducers/v2/timeMachines'
 
-const rootReducer = combineReducers({
+// Types
+import {LocalStorage} from 'src/types/localStorage'
+import {AppState} from 'src/types/v2'
+
+type ReducerState = Pick<
+  AppState,
+  Exclude<keyof AppState, 'VERSION' | 'timeRange'>
+>
+
+const rootReducer = combineReducers<ReducerState>({
   ...sharedReducers,
   ranges: rangesReducer,
   hoverTime: hoverTimeReducer,
@@ -31,22 +41,26 @@ const rootReducer = combineReducers({
   tasks: tasksReducer,
 })
 
-const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose
+const composeEnhancers =
+  (window as any).__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose
 
-export default function configureStore(initialState, browserHistory) {
-  const routingMiddleware = routerMiddleware(browserHistory)
+export default function configureStore(
+  initialState: LocalStorage,
+  history: History
+): Store<AppState & LocalStorage> {
+  const routingMiddleware = routerMiddleware(history)
   const createPersistentStore = composeEnhancers(
     persistStateEnhancer(),
     applyMiddleware(
       thunkMiddleware,
       routingMiddleware,
-      queryStringConfig,
-      resizeLayout
+      resizeLayout,
+      queryStringConfig
     )
   )(createStore)
 
   // https://github.com/elgerlambert/redux-localstorage/issues/42
-  // createPersistantStore should ONLY take reducer and initialState
+  // createPersistentStore should ONLY take reducer and initialState
   // any store enhancers must be added to the compose() function.
   return createPersistentStore(rootReducer, initialState)
 }

@@ -1,5 +1,9 @@
-// Trigger resize event to relayout the React Layout plugin
-export const resizeLayout = () => next => action => {
+import {Dispatch, Action, Middleware} from 'redux'
+
+// Trigger resize event to re-layout the React Layout plugin
+export const resizeLayout: Middleware = () => (next: Dispatch<Action>) => (
+  action: Action
+) => {
   next(action)
 
   if (

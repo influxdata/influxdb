@@ -16,13 +16,13 @@ import TimeMachineTables from 'src/shared/components/tables/TimeMachineTables'
 
 // Constants
 import {emptyGraphCopy} from 'src/shared/copy/cell'
-// import {DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
 
 // Actions
 import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 
 // Types
 import {TimeRange, Template} from 'src/types'
+import {AppState} from 'src/types/v2'
 import {DashboardQuery} from 'src/types/v2/dashboards'
 import {
   RefreshingViewProperties,
@@ -31,8 +31,7 @@ import {
   SingleStatView,
 } from 'src/types/v2/dashboards'
 
-interface Props {
-  link: string
+interface OwnProps {
   timeRange: TimeRange
   templates: Template[]
   viewID: string
@@ -41,15 +40,21 @@ interface Props {
   autoRefresh: number
   manualRefresh: number
   staticLegend: boolean
-  onZoom: () => void
-  editQueryStatus: () => void
-  onSetResolution: () => void
-  grabDataForDownload: () => void
-  handleSetHoverTime: () => void
+  onZoom: (range: TimeRange) => void
   properties: RefreshingViewProperties
 }
 
-class RefreshingView extends PureComponent<Props & WithRouterProps> {
+interface StateProps {
+  link: string
+}
+
+interface DispatchProps {
+  handleSetHoverTime: typeof setHoverTime
+}
+
+type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+
+class RefreshingView extends PureComponent<Props> {
   public static defaultProps: Partial<Props> = {
     inView: true,
     manualRefresh: 0,
@@ -201,7 +206,7 @@ class RefreshingView extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-const mstp = ({sources, routing}): Partial<Props> => {
+const mstp = ({sources, routing}: AppState): StateProps => {
   const sourceID = routing.locationBeforeTransitions.query.sourceID
   const source = sources.find(s => s.id === sourceID)
   const link = source.links.query
@@ -215,4 +220,6 @@ const mdtp = {
   handleSetHoverTime: setHoverTime,
 }
 
-export default connect(mstp, mdtp)(withRouter(RefreshingView))
+export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(
+  withRouter(RefreshingView)
+)

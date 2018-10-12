@@ -13,12 +13,13 @@ import {Options} from 'src/external/dygraph'
 import {LineView} from 'src/types/v2/dashboards'
 import {TimeRange} from 'src/types/v2'
 import {FluxTable, RemoteDataState} from 'src/types'
+import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 
 interface Props {
   viewID: string
   staticLegend: boolean
-  onZoom: () => void
-  handleSetHoverTime: () => void
+  onZoom: (range: TimeRange) => void
+  handleSetHoverTime: typeof setHoverTime
   tables: FluxTable[]
   properties: LineView
   timeRange: TimeRange

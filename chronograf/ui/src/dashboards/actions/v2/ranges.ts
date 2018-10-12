@@ -32,7 +32,7 @@ export enum ActionTypes {
   SetZoomedTimeRange = 'SET_DASHBOARD_ZOOMED_TIME_RANGE',
 }
 
-interface DeleteTimeRangeAction {
+export interface DeleteTimeRangeAction {
   type: ActionTypes.DeleteTimeRange
   payload: {
     dashboardID: string

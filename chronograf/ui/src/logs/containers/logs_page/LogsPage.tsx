@@ -1,7 +1,7 @@
 // Libraries
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, InjectedRouter} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import LogsHeader from 'src/logs/components/LogsHeader'
@@ -24,7 +24,7 @@ import {getDeep} from 'src/utils/wrappers'
 import {NOW} from 'src/logs/constants'
 
 // Types
-import {Source, Links, Bucket} from 'src/types/v2'
+import {Source, Links, Bucket, AppState} from 'src/types/v2'
 import {
   Filter,
   LogConfig,
@@ -46,10 +46,6 @@ interface StateProps {
   currentBuckets: Bucket[]
 }
 
-interface PassedProps {
-  router: InjectedRouter
-}
-
 interface DispatchProps {
   notify: typeof notifyAction
   getConfig: typeof logActions.getLogConfigAsync
@@ -65,7 +61,7 @@ interface DispatchProps {
   getSourceAndPopulateBuckets: typeof logActions.getSourceAndPopulateBucketsAsync
 }
 
-type Props = StateProps & PassedProps & DispatchProps
+type Props = StateProps & DispatchProps & WithRouterProps
 
 interface State {
   liveUpdating: boolean
@@ -325,7 +321,7 @@ class LogsPage extends Component<Props, State> {
   }
 }
 
-const mapStateToProps = ({
+const mstp = ({
   sources,
   links,
   logs: {
@@ -336,7 +332,7 @@ const mapStateToProps = ({
     logConfig,
     searchStatus,
   },
-}): StateProps => ({
+}: AppState): StateProps => ({
   links,
   sources,
   filters,
@@ -347,7 +343,7 @@ const mapStateToProps = ({
   currentBuckets,
 })
 
-const mapDispatchToProps: DispatchProps = {
+const mdtp: DispatchProps = {
   notify: notifyAction,
   getSources: getSourcesAsync,
   addFilter: logActions.addFilter,
@@ -362,6 +358,6 @@ const mapDispatchToProps: DispatchProps = {
   getSourceAndPopulateBuckets: logActions.getSourceAndPopulateBucketsAsync,
 }
 
-export default withRouter(
-  connect(mapStateToProps, mapDispatchToProps)(LogsPage)
+export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(
+  withRouter(LogsPage)
 )

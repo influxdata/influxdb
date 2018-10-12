@@ -3,7 +3,10 @@ import {Dispatch} from 'redux'
 import {getLinks as getLinksAJAX} from 'src/shared/apis/links'
 
 import {errorThrown} from 'src/shared/actions/errors'
+
+// Types
 import {Links} from 'src/types/v2/links'
+import {ErrorThrownAction} from 'src/types/actions/errors'
 
 export enum ActionTypes {
   LinksGetRequested = 'LINKS_GET_REQUESTED',
@@ -55,7 +58,10 @@ const linksGetFailed = (): LinksGetFailedAction => ({
 
 export const getLinksAsync = () => async (
   dispatch: Dispatch<
-    LinksGetRequestedAction | LinksGetCompletedAction | LinksGetFailedAction
+    | LinksGetRequestedAction
+    | LinksGetCompletedAction
+    | LinksGetFailedAction
+    | ErrorThrownAction
   >
 ): Promise<void> => {
   dispatch(linksGetRequested())

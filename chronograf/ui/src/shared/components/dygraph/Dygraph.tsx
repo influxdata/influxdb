@@ -373,7 +373,7 @@ class Dygraph extends Component<Props, State> {
 
   private eventToTimestamp = ({
     pageX: pxBetweenMouseAndPage,
-  }: MouseEvent<HTMLDivElement>): string => {
+  }: MouseEvent<Element>): string => {
     const {
       left: pxBetweenGraphAndPage,
     } = this.graphRef.current.getBoundingClientRect()
@@ -389,7 +389,7 @@ class Dygraph extends Component<Props, State> {
     this.props.handleSetHoverTime(NULL_HOVER_TIME)
   }
 
-  private handleShowLegend = (e: MouseEvent<HTMLDivElement>): void => {
+  private handleShowLegend = (e: MouseEvent<Element>): void => {
     const {isMouseInLegend} = this.state
 
     if (isMouseInLegend) {

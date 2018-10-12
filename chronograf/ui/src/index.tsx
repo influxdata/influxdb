@@ -4,8 +4,7 @@ import React, {PureComponent} from 'react'
 import {render} from 'react-dom'
 import {Provider} from 'react-redux'
 import {Router, Route, useRouterHistory} from 'react-router'
-import {createHistory} from 'history'
-import {syncHistoryWithStore} from 'react-router-redux'
+import {createHistory, History} from 'history'
 import {bindActionCreators} from 'redux'
 
 import configureStore from 'src/store/configureStore'
@@ -34,8 +33,10 @@ import {disablePresentationMode} from 'src/shared/actions/app'
 import {errorThrown} from 'src/shared/actions/errors'
 import {notify} from 'src/shared/actions/notifications'
 
+// Styles
 import 'src/style/chronograf.scss'
 
+// Types
 import * as ErrorsModels from 'src/types/errors'
 
 const errorsQueue = []
@@ -53,14 +54,14 @@ declare global {
 // Older method used for pre-IE 11 compatibility
 window.basepath = basepath
 
-const browserHistory = useRouterHistory(createHistory)({
+const history: History = useRouterHistory(createHistory)({
   basename: basepath, // this is written in when available by the URL prefixer middleware
 })
 
-const store = configureStore(loadLocalStorage(errorsQueue), browserHistory)
+const store = configureStore(loadLocalStorage(errorsQueue), history)
 const {dispatch} = store
 
-browserHistory.listen(() => {
+history.listen(() => {
   dispatch(disablePresentationMode())
 })
 
@@ -71,8 +72,6 @@ window.addEventListener('keyup', event => {
     dispatch(disablePresentationMode())
   }
 })
-
-const history = syncHistoryWithStore(browserHistory, store)
 
 interface State {
   ready: boolean

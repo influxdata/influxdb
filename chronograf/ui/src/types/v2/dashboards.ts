@@ -85,8 +85,8 @@ export type RefreshingViewProperties =
 export type ViewProperties =
   | RefreshingViewProperties
   | MarkdownView
-  | LogViewerView
   | EmptyView
+  | LogViewerView
 
 export interface EmptyView {
   type: ViewShape.Empty

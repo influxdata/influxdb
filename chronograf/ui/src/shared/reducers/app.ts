@@ -3,7 +3,7 @@ import {combineReducers} from 'redux'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 import {ActionTypes, Action} from 'src/types/actions/app'
 
-interface State {
+export interface AppState {
   ephemeral: {
     inPresentationMode: boolean
   }
@@ -13,7 +13,7 @@ interface State {
   }
 }
 
-const initialState: State = {
+const initialState: AppState = {
   ephemeral: {
     inPresentationMode: false,
   },
@@ -75,7 +75,7 @@ const appPersistedReducer = (
   }
 }
 
-const appReducer = combineReducers<State>({
+const appReducer = combineReducers<AppState>({
   ephemeral: appEphemeralReducer,
   persisted: appPersistedReducer,
 })
