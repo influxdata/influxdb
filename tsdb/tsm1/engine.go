@@ -183,9 +183,6 @@ type Engine struct {
 	compactionLimiter limiter.Fixed
 
 	scheduler *scheduler
-
-	// provides access to the total set of series IDs
-	seriesIDSets tsdb.SeriesIDSets
 }
 
 // NewEngine returns a new instance of Engine.
@@ -235,7 +232,6 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		stats:                         stats,
 		compactionLimiter:             opt.CompactionLimiter,
 		scheduler:                     newScheduler(stats, opt.CompactionLimiter.Capacity()),
-		seriesIDSets:                  opt.SeriesIDSets,
 	}
 
 	if opt.WALEnabled {
@@ -1606,14 +1602,6 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			if err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
 				return err
 			}
-		}
-
-		// Remove any series IDs for our set that still exist in other shards.
-		// We cannot remove these from the series file yet.
-		if err := e.seriesIDSets.ForEach(func(s *tsdb.SeriesIDSet) {
-			ids = ids.AndNot(s)
-		}); err != nil {
-			return err
 		}
 
 		// Remove the remaining ids from the series file as they no longer exist
