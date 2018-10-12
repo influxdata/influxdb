@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"path"
 
@@ -217,6 +218,9 @@ func (s *ScraperService) ListTargets(ctx context.Context) ([]platform.ScraperTar
 // UpdateTarget updates a single scraper target with changeset.
 // Returns the new target state after update.
 func (s *ScraperService) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+	if !update.ID.Valid() {
+		return nil, errors.New("update scraper: id is invalid")
+	}
 	url, err := newURL(s.Addr, targetIDPath(update.ID))
 	if err != nil {
 		return nil, err

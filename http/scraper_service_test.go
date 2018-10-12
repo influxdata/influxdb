@@ -33,8 +33,6 @@ func initScraperService(f platformtesting.TargetFields, t *testing.T) (platform.
 	return &client, done
 }
 
-/*
 func TestScraperService(t *testing.T) {
 	platformtesting.ScraperService(initScraperService, t)
 }
-*/

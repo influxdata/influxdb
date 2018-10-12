@@ -138,6 +138,7 @@ func AddTarget(
 			},
 			args: args{
 				target: &platform.ScraperTarget{
+					ID:         MustIDBase16(targetTwoID),
 					Name:       "name2",
 					Type:       platform.PrometheusScraperType,
 					OrgName:    "org2",
