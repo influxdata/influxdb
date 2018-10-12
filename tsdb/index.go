@@ -281,6 +281,17 @@ func (a SeriesIDIterators) Close() (err error) {
 	return err
 }
 
+func (a SeriesIDIterators) filterNonNil() []SeriesIDIterator {
+	other := make([]SeriesIDIterator, 0, len(a))
+	for _, itr := range a {
+		if itr == nil {
+			continue
+		}
+		other = append(other, itr)
+	}
+	return other
+}
+
 // seriesQueryAdapterIterator adapts SeriesIDIterator to an influxql.Iterator.
 type seriesQueryAdapterIterator struct {
 	once     sync.Once
@@ -423,6 +434,7 @@ func MergeSeriesIDIterators(itrs ...SeriesIDIterator) SeriesIDIterator {
 	} else if n == 1 {
 		return itrs[0]
 	}
+	itrs = SeriesIDIterators(itrs).filterNonNil()
 
 	// Merge as series id sets, if available.
 	if a := NewSeriesIDSetIterators(itrs); a != nil {

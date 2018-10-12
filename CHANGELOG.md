@@ -15,6 +15,7 @@ v1.6.4 [unreleased]
 -	[#10355](https://github.com/influxdata/influxdb/pull/10355): Fix TSM1 panic on reader error.
 -	[#10356](https://github.com/influxdata/influxdb/pull/10356): Fix series file tombstoning.
 -	[#10364](https://github.com/influxdata/influxdb/pull/10364): Fixing the stream iterator to not ignore the error.
+-	[#10371](https://github.com/influxdata/influxdb/pull/10371): Do not panic when a series id iterator is nil.
 
 v1.6.3 [2018-09-14]
 -------------------

@@ -26,6 +26,7 @@ func TestMergeSeriesIDIterators(t *testing.T) {
 	itr := tsdb.MergeSeriesIDIterators(
 		tsdb.NewSeriesIDSliceIterator([]uint64{1, 2, 3}),
 		tsdb.NewSeriesIDSliceIterator(nil),
+		nil,
 		tsdb.NewSeriesIDSliceIterator([]uint64{1, 2, 3, 4}),
 	)
 
