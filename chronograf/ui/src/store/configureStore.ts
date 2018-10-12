@@ -18,6 +18,7 @@ import hoverTimeReducer from 'src/dashboards/reducers/v2/hoverTime'
 import viewsReducer from 'src/dashboards/reducers/v2/views'
 import logsReducer from 'src/logs/reducers'
 import timeMachinesReducer from 'src/shared/reducers/v2/timeMachines'
+import orgsReducer from 'src/shared/reducers/v2/orgs'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -39,6 +40,7 @@ const rootReducer = combineReducers<ReducerState>({
   views: viewsReducer,
   logs: logsReducer,
   tasks: tasksReducer,
+  orgs: orgsReducer,
 })
 
 const composeEnhancers =

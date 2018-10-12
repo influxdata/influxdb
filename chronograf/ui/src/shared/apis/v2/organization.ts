@@ -1,7 +1,7 @@
 import _ from 'lodash'
 import AJAX from 'src/utils/ajax'
 
-interface Organization {
+export interface Organization {
   name: string
   id: string
 }

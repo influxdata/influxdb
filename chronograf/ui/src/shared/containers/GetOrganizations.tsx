@@ -1,30 +1,34 @@
-import _ from 'lodash'
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
-import {getLinksAsync} from 'src/shared/actions/links'
+import {getOrganizations} from 'src/shared/actions/v2/orgs'
 
 interface PassedInProps {
   children: React.ReactElement<any>
 }
 
 interface ConnectDispatchProps {
-  getLinks: typeof getLinksAsync
+  getOrganizations: typeof getOrganizations
 }
+
+type Props = ConnectDispatchProps & PassedInProps
 
 interface State {
   ready: boolean
 }
 
-type Props = ConnectDispatchProps & PassedInProps
-
-class GetLinks extends PureComponent<Props, State> {
-  constructor(props: Props) {
+class GetOrganizations extends PureComponent<Props, State> {
+  constructor(props) {
     super(props)
 
     this.state = {
       ready: false,
     }
+  }
+
+  public async componentDidMount() {
+    await this.props.getOrganizations()
+    this.setState({ready: true})
   }
 
   public render() {
@@ -34,17 +38,12 @@ class GetLinks extends PureComponent<Props, State> {
 
     return <div className="page-spinner" />
   }
-
-  public async componentDidMount() {
-    await this.props.getLinks()
-    this.setState({ready: true})
-  }
 }
 
 const mdtp = {
-  getLinks: getLinksAsync,
+  getOrganizations,
 }
 
 export default connect<{}, ConnectDispatchProps, PassedInProps>(null, mdtp)(
-  GetLinks
+  GetOrganizations
 )

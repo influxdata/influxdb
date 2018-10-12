@@ -22,6 +22,11 @@ import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {State as TaskState} from 'src/tasks/reducers/v2'
 import {RouterState} from 'react-router-redux'
 
+interface Organization {
+  id: string
+  name: string
+}
+
 export interface AppState {
   VERSION: string
   links: Links
@@ -37,6 +42,7 @@ export interface AppState {
   routing: RouterState
   tasks: TaskState
   timeRange: TimeRange
+  orgs: Organization[]
 }
 
 export {
