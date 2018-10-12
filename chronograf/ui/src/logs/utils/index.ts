@@ -17,17 +17,35 @@ export const formatTime = (time: number): string => {
 }
 
 export const transformFluxLogsResponse = (
-  response: GetTimeSeriesResult
+  response: GetTimeSeriesResult,
+  columnNames: string[]
 ): TableData => {
   const {tables} = response
 
   const values: TimeSeriesValue[][] = []
+  const columns: string[] = []
+  const indicesToKeep = []
+
   const rows = getDeep<TimeSeriesValue[][]>(tables, '0.data', [])
   const columnNamesRow = getDeep<string[]>(tables, '0.data.0', [])
-  const columns: string[] = columnNamesRow.slice(3)
+
+  for (let i = 0; i < columnNamesRow.length; i++) {
+    if (columnNames.includes(columnNamesRow[i])) {
+      indicesToKeep.push(i)
+      columns.push(columnNamesRow[i])
+    }
+  }
 
   for (let i = 1; i < rows.length; i++) {
-    values.push(rows[i].slice(3))
+    const row = rows[i]
+    const valuesForThisRow = []
+
+    for (let j = 0; j < indicesToKeep.length; j++) {
+      const index = indicesToKeep[j]
+      valuesForThisRow.push(row[index])
+    }
+
+    values.push(valuesForThisRow)
   }
 
   return {
