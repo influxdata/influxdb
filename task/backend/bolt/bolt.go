@@ -169,13 +169,15 @@ func (s *Store) CreateTask(ctx context.Context, req backend.CreateTaskRequest) (
 			return err
 		}
 
-		// metadata
 		stm := backend.StoreTaskMeta{
 			MaxConcurrency:  int32(o.Concurrency),
-			Status:          string(backend.TaskEnabled),
+			Status:          string(req.Status),
 			LatestCompleted: req.ScheduleAfter,
 			EffectiveCron:   o.EffectiveCronString(),
 			Delay:           int32(o.Delay / time.Second),
+		}
+		if stm.Status == "" {
+			stm.Status = string(backend.DefaultTaskStatus)
 		}
 
 		stmBytes, err := stm.Marshal()
@@ -517,7 +519,7 @@ func (s *Store) EnableTask(ctx context.Context, id platform.ID) error {
 		if err != nil {
 			return err
 		}
-		stm.Status = string(backend.TaskEnabled)
+		stm.Status = string(backend.TaskActive)
 		stmBytes, err = stm.Marshal()
 		if err != nil {
 			return err
@@ -543,7 +545,7 @@ func (s *Store) DisableTask(ctx context.Context, id platform.ID) error {
 		if err != nil {
 			return err
 		}
-		stm.Status = string(backend.TaskDisabled)
+		stm.Status = string(backend.TaskInactive)
 		stmBytes, err = stm.Marshal()
 		if err != nil {
 			return err

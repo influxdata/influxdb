@@ -58,13 +58,18 @@ func (s *inmem) CreateTask(_ context.Context, req CreateTaskRequest) (platform.I
 	defer s.mu.Unlock()
 
 	s.tasks = append(s.tasks, task)
-	s.runners[id.String()] = StoreTaskMeta{
+
+	stm := StoreTaskMeta{
 		MaxConcurrency:  int32(o.Concurrency),
-		Status:          string(TaskEnabled),
+		Status:          string(req.Status),
 		LatestCompleted: req.ScheduleAfter,
 		EffectiveCron:   o.EffectiveCronString(),
 		Delay:           int32(o.Delay / time.Second),
 	}
+	if stm.Status == "" {
+		stm.Status = string(DefaultTaskStatus)
+	}
+	s.runners[id.String()] = stm
 
 	return id, nil
 }
@@ -196,7 +201,7 @@ func (s *inmem) EnableTask(ctx context.Context, id platform.ID) error {
 	if !ok {
 		return errors.New("task meta not found")
 	}
-	meta.Status = string(TaskEnabled)
+	meta.Status = string(TaskActive)
 	s.runners[strID] = meta
 
 	return nil
@@ -211,7 +216,7 @@ func (s *inmem) DisableTask(ctx context.Context, id platform.ID) error {
 	if !ok {
 		return errors.New("task meta not found")
 	}
-	meta.Status = string(TaskDisabled)
+	meta.Status = string(TaskInactive)
 	s.runners[strID] = meta
 
 	return nil

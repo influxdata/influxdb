@@ -21,17 +21,16 @@ var ErrUserNotFound = errors.New("user not found")
 // ErrOrgNotFound is an error for when we can't find an org
 var ErrOrgNotFound = errors.New("org not found")
 
-// ErrTaskNameTaken is an error for when a task name is already taken
-var ErrTaskNameTaken = errors.New("task name already in use by current user or target organization")
-
 // ErrManualQueueFull is returned when a manual run request cannot be completed.
 var ErrManualQueueFull = errors.New("manual queue at capacity")
 
 type TaskStatus string
 
 const (
-	TaskEnabled  TaskStatus = "enabled"
-	TaskDisabled TaskStatus = "disabled"
+	TaskActive   TaskStatus = "active"
+	TaskInactive TaskStatus = "inactive"
+
+	DefaultTaskStatus TaskStatus = TaskActive
 )
 
 type RunStatus int
@@ -90,6 +89,10 @@ type CreateTaskRequest struct {
 	// The first run of the task will be run according to the earliest time after ScheduleAfter,
 	// matching the task's schedul via its cron or every option.
 	ScheduleAfter int64
+
+	// The initial task status.
+	// If empty, will be treated as DefaultTaskStatus.
+	Status TaskStatus
 }
 
 // Store is the interface around persisted tasks.
@@ -115,10 +118,10 @@ type Store interface {
 	// FindTaskByIDWithMeta combines finding the task and the meta into a single call.
 	FindTaskByIDWithMeta(ctx context.Context, id platform.ID) (*StoreTask, *StoreTaskMeta, error)
 
-	// EnableTask updates task status to enabled.
+	// EnableTask updates task status to active.
 	EnableTask(ctx context.Context, id platform.ID) error
 
-	// disableTask updates task status to disabled.
+	// DisableTask updates task status to inactive.
 	DisableTask(ctx context.Context, id platform.ID) error
 
 	// DeleteTask returns whether an entry matching the given ID was deleted.
@@ -253,7 +256,7 @@ type StoreValidation struct{}
 
 // CreateArgs returns the script's parsed options,
 // and an error if any of the provided fields are invalid for creating a task.
-func (StoreValidation) CreateArgs(req CreateTaskRequest /*org, user platform.ID, script string*/) (options.Options, error) {
+func (StoreValidation) CreateArgs(req CreateTaskRequest) (options.Options, error) {
 	var missing []string
 	var o options.Options
 
@@ -276,6 +279,10 @@ func (StoreValidation) CreateArgs(req CreateTaskRequest /*org, user platform.ID,
 
 	if len(missing) > 0 {
 		return o, fmt.Errorf("missing required fields to create task: %s", strings.Join(missing, ", "))
+	}
+
+	if req.Status != "" && req.Status != TaskActive && req.Status != TaskInactive {
+		return o, fmt.Errorf("invalid status: %s", req.Status)
 	}
 
 	return o, nil

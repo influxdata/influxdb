@@ -116,9 +116,9 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 	if upd.Status != nil {
 		var err error
 		switch *upd.Status {
-		case string(backend.TaskEnabled):
+		case string(backend.TaskActive):
 			err = p.s.EnableTask(ctx, id)
-		case string(backend.TaskDisabled):
+		case string(backend.TaskInactive):
 			err = p.s.DisableTask(ctx, id)
 		default:
 			err = fmt.Errorf("invalid status: %s", *upd.Status)

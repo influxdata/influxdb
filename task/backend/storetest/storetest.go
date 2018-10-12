@@ -85,6 +85,7 @@ from(bucket:"test") |> range(start:-1h)`
 		caseName     string
 		org, user    platform.ID
 		name, script string
+		status       backend.TaskStatus
 		noerr        bool
 	}{
 		{caseName: "happy path", org: platform.ID(1), user: platform.ID(2), script: script, noerr: true},
@@ -95,18 +96,22 @@ from(bucket:"test") |> range(start:-1h)`
 		{caseName: "repeated name and org", org: platform.ID(1), user: platform.ID(3), script: script, noerr: true},
 		{caseName: "repeated name and user", org: platform.ID(3), user: platform.ID(2), script: script, noerr: true},
 		{caseName: "repeated name, org, and user", org: platform.ID(1), user: platform.ID(2), script: script, noerr: true},
+		{caseName: "explicitly active", org: 1, user: 2, script: script, status: backend.TaskActive, noerr: true},
+		{caseName: "explicitly inactive", org: 1, user: 2, script: script, status: backend.TaskInactive, noerr: true},
+		{caseName: "invalid status", org: 1, user: 2, script: script, status: backend.TaskStatus("this is not a valid status")},
 	} {
 		t.Run(args.caseName, func(t *testing.T) {
 			req := backend.CreateTaskRequest{
 				Org:    args.org,
 				User:   args.user,
 				Script: args.script,
+				Status: args.status,
 			}
 			_, err := s.CreateTask(context.Background(), req)
 			if args.noerr && err != nil {
-				t.Fatalf("expected err!=nil but got nil instead")
-			} else if err == nil && !args.noerr {
-				t.Fatalf("expected nil error but got %v", err)
+				t.Fatalf("expected no err but got %v", err)
+			} else if !args.noerr && err == nil {
+				t.Fatal("expected error but got nil")
 			}
 		})
 	}
@@ -427,74 +432,101 @@ func testStoreFindMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStor
 
 from(bucket:"test") |> range(start:-1h)`
 
-	s := create(t)
-	defer destroy(t, s)
+	t.Run("happy path", func(t *testing.T) {
+		s := create(t)
+		defer destroy(t, s)
 
-	org := platform.ID(1)
-	user := platform.ID(2)
+		org := platform.ID(1)
+		user := platform.ID(2)
 
-	id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, Script: script, ScheduleAfter: 6000})
-	if err != nil {
-		t.Fatal(err)
-	}
+		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, Script: script, ScheduleAfter: 6000})
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	meta, err := s.FindTaskMetaByID(context.Background(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
+		meta, err := s.FindTaskMetaByID(context.Background(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if meta.MaxConcurrency != 3 {
-		t.Fatal("failed to set max concurrency")
-	}
+		if meta.MaxConcurrency != 3 {
+			t.Fatal("failed to set max concurrency")
+		}
 
-	if meta.LatestCompleted != 6000 {
-		t.Fatalf("LatestCompleted should have been set to 6000, got %d", meta.LatestCompleted)
-	}
+		if meta.LatestCompleted != 6000 {
+			t.Fatalf("LatestCompleted should have been set to 6000, got %d", meta.LatestCompleted)
+		}
 
-	if meta.EffectiveCron != "* * * * *" {
-		t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
-	}
+		if meta.EffectiveCron != "* * * * *" {
+			t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
+		}
 
-	if time.Duration(meta.Delay)*time.Second != 5*time.Second {
-		t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
-	}
+		if time.Duration(meta.Delay)*time.Second != 5*time.Second {
+			t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
+		}
 
-	badID := platform.ID(0)
-	meta, err = s.FindTaskMetaByID(context.Background(), badID)
-	if err == nil {
-		t.Fatalf("failed to error on bad taskID")
-	}
-	if meta != nil {
-		t.Fatalf("expected nil meta when finding nonexistent ID, got %#v", meta)
-	}
+		if meta.Status != string(backend.DefaultTaskStatus) {
+			t.Fatalf("unexpected status: got %v, exp %v", meta.Status, backend.DefaultTaskStatus)
+		}
 
-	rc, err := s.CreateNextRun(context.Background(), id, 6065)
-	if err != nil {
-		t.Fatal(err)
-	}
+		badID := platform.ID(0)
+		meta, err = s.FindTaskMetaByID(context.Background(), badID)
+		if err == nil {
+			t.Fatalf("failed to error on bad taskID")
+		}
+		if meta != nil {
+			t.Fatalf("expected nil meta when finding nonexistent ID, got %#v", meta)
+		}
 
-	_, err = s.CreateNextRun(context.Background(), id, 6125)
-	if err != nil {
-		t.Fatal(err)
-	}
+		rc, err := s.CreateNextRun(context.Background(), id, 6065)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	err = s.FinishRun(context.Background(), id, rc.Created.RunID)
-	if err != nil {
-		t.Fatal(err)
-	}
+		_, err = s.CreateNextRun(context.Background(), id, 6125)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	meta, err = s.FindTaskMetaByID(context.Background(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
+		err = s.FinishRun(context.Background(), id, rc.Created.RunID)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if len(meta.CurrentlyRunning) != 1 {
-		t.Fatal("creating and finishing runs doesn't work")
-	}
+		meta, err = s.FindTaskMetaByID(context.Background(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if meta.LatestCompleted != 6060 {
-		t.Fatalf("expected LatestCompleted to be updated by finished run, but it wasn't; LatestCompleted=%d", meta.LatestCompleted)
-	}
+		if len(meta.CurrentlyRunning) != 1 {
+			t.Fatal("creating and finishing runs doesn't work")
+		}
+
+		if meta.LatestCompleted != 6060 {
+			t.Fatalf("expected LatestCompleted to be updated by finished run, but it wasn't; LatestCompleted=%d", meta.LatestCompleted)
+		}
+	})
+
+	t.Run("explicit status", func(t *testing.T) {
+		s := create(t)
+		defer destroy(t, s)
+
+		for _, st := range []backend.TaskStatus{backend.TaskActive, backend.TaskInactive} {
+			id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script, Status: st})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			meta, err := s.FindTaskMetaByID(context.Background(), id)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if meta.Status != string(st) {
+				t.Fatalf("got status %v, exp %v", meta.Status, st)
+			}
+		}
+	})
 }
 
 func testStoreFindIDAndMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
@@ -589,8 +621,8 @@ func testStoreTaskEnableDisable(t *testing.T, create CreateStoreFunc, destroy De
 		t.Fatal(err)
 	}
 
-	if meta.Status != string(backend.TaskEnabled) {
-		t.Fatal("task status not set to enabled on create")
+	if meta.Status != string(backend.TaskActive) {
+		t.Fatal("task status not set to active on create")
 	}
 
 	if err := s.DisableTask(context.Background(), id); err != nil {
@@ -602,8 +634,8 @@ func testStoreTaskEnableDisable(t *testing.T, create CreateStoreFunc, destroy De
 		t.Fatal(err)
 	}
 
-	if meta.Status != string(backend.TaskDisabled) {
-		t.Fatal("task status not set to enabled on create")
+	if meta.Status != string(backend.TaskInactive) {
+		t.Fatal("task status not set to inactive after disabling")
 	}
 
 	if err := s.EnableTask(context.Background(), id); err != nil {
@@ -615,8 +647,8 @@ func testStoreTaskEnableDisable(t *testing.T, create CreateStoreFunc, destroy De
 		t.Fatal(err)
 	}
 
-	if meta.Status != string(backend.TaskEnabled) {
-		t.Fatal("task status not set to enabled on create")
+	if meta.Status != string(backend.TaskActive) {
+		t.Fatal("task status not set to active after enabling")
 	}
 }
 
