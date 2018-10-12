@@ -388,7 +388,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ee19d49e5e08eed14432f6b082fae33db9e3da7f2ea049254f8276036e9c7cc9"
+  digest = "1:cc977ce9615b1e9e23fe61d1fb36845a971199193c174968fdb017ec58913b79"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -409,7 +409,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "331c3678304cd48fac3e47f4f80cdfe27a8e880d"
+  revision = "59f53657bd7fb74bcfa5af586be28214239d7556"
 
 [[projects]]
   branch = "master"
@@ -972,6 +972,7 @@
     "github.com/influxdata/flux/lang",
     "github.com/influxdata/flux/options",
     "github.com/influxdata/flux/plan",
+    "github.com/influxdata/flux/values",
     "github.com/influxdata/influxql",
     "github.com/influxdata/platform/models",
     "github.com/influxdata/platform/query/functions/inputs/storage",
