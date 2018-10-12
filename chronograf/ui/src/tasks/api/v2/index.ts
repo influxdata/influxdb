@@ -20,3 +20,9 @@ export const getUserTasks = async (url, user) => {
 
   return data
 }
+
+export const deleteTask = (url: string, taskID: string) => {
+  const completeUrl = `${url}/${taskID}`
+
+  return AJAX({url: completeUrl, method: 'DELETE'})
+}

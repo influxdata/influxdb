@@ -1,13 +1,18 @@
 import {push} from 'react-router-redux'
 
 import {Task} from 'src/types/v2/tasks'
-import {submitNewTask, getUserTasks} from 'src/tasks/api/v2'
+import {
+  submitNewTask,
+  getUserTasks,
+  deleteTask as deleteTaskAPI,
+} from 'src/tasks/api/v2'
 import {getMe} from 'src/shared/apis/v2/user'
 import {getOrganizations} from 'src/shared/apis/v2/organization'
 import {notify} from 'src/shared/actions/notifications'
 import {
   taskNotCreated,
   tasksFetchFailed,
+  taskDeleteFailed,
 } from 'src/shared/copy/v2/notifications'
 
 export type Action = SetNewScript | SetTasks
@@ -40,6 +45,21 @@ export const setNewScript = (script: string): SetNewScript => ({
   type: ActionTypes.SetNewScript,
   payload: {script},
 })
+
+export const deleteTask = (task: Task) => async (dispatch, getState) => {
+  try {
+    const {
+      links: {tasks: url},
+    } = await getState()
+
+    await deleteTaskAPI(url, task.id)
+
+    dispatch(populateTasks())
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(taskDeleteFailed()))
+  }
+}
 
 export const populateTasks = () => async (
   dispatch,

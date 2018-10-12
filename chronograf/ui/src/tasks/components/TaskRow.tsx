@@ -6,6 +6,7 @@ import {getDeep} from 'src/utils/wrappers'
 
 interface Props {
   task: Task
+  onDelete: (task: Task) => void
 }
 
 export default class TaskRow extends PureComponent<Props> {
@@ -15,10 +16,11 @@ export default class TaskRow extends PureComponent<Props> {
         <td>{this.name}</td>
         <td>{this.organizationName}</td>
         <td>
-          <SlideToggle active={true} />
+          <SlideToggle onChange={this.handleStatusChange} active={true} />
         </td>
         <td>
           <Button
+            onClick={this.handleDelete}
             color={ComponentColor.Danger}
             text="Delete"
             size={ComponentSize.Medium}
@@ -27,6 +29,14 @@ export default class TaskRow extends PureComponent<Props> {
       </tr>
     )
   }
+
+  private handleDelete = () => {
+    const {task, onDelete} = this.props
+
+    onDelete(task)
+  }
+
+  private handleStatusChange = () => {}
 
   private get name(): string {
     const {task} = this.props

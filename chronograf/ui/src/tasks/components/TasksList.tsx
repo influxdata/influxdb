@@ -5,6 +5,7 @@ import TaskRow from 'src/tasks/components/TaskRow'
 
 interface Props {
   tasks: Task[]
+  onDelete: (task: Task) => void
 }
 
 export default class TasksList extends PureComponent<Props> {
@@ -16,7 +17,7 @@ export default class TasksList extends PureComponent<Props> {
             <th>Name</th>
             <th>Organization</th>
             <th>Enabled</th>
-            <th />
+            <th style={{width: '140px'}} />
           </tr>
         </thead>
         <tbody>{this.tasks}</tbody>
@@ -24,9 +25,21 @@ export default class TasksList extends PureComponent<Props> {
     )
   }
 
-  private get tasks(): JSX.Element[] {
-    const {tasks} = this.props
+  private get tasks(): JSX.Element | JSX.Element[] {
+    const {tasks, onDelete} = this.props
 
-    return tasks.map(task => <TaskRow key={`task-${task.id}`} task={task} />)
+    if (tasks.length > 0) {
+      return tasks.map(task => (
+        <TaskRow key={`task-${task.id}`} onDelete={onDelete} task={task} />
+      ))
+    }
+
+    return (
+      <tr>
+        <td style={{textAlign: 'center', padding: '15px'}} colSpan={4}>
+          No tasks were found
+        </td>
+      </tr>
+    )
   }
 }

@@ -113,4 +113,6 @@ const mdtp: ConnectDispatchProps = {
   saveNewScript,
 }
 
-export default connect(mstp, mdtp)(TaskPage) as React.ComponentClass<{}>
+export default connect<ConnectStateProps, ConnectDispatchProps, {}>(mstp, mdtp)(
+  TaskPage
+)
