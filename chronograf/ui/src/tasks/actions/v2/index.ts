@@ -67,10 +67,9 @@ export const populateTasks = () => async (
 ): Promise<void> => {
   try {
     const {
-      links: {tasks: url, me: meUrl, orgs: orgsUrl},
+      orgs,
+      links: {tasks: url, me: meUrl},
     } = await getState()
-
-    const orgs = await getOrganizations(orgsUrl)
 
     const user = await getMe(meUrl)
     const tasks = await getUserTasks(url, user)
@@ -95,12 +94,12 @@ export const saveNewScript = () => async (
 ): Promise<void> => {
   try {
     const {
-      links: {tasks: url, me: meUrl, orgs: orgsUrl},
+      orgs,
+      links: {tasks: url, me: meUrl},
       tasks: {newScript: script},
     } = await getState()
 
     const user = await getMe(meUrl)
-    const orgs = await getOrganizations(orgsUrl)
 
     await submitNewTask(url, user, orgs[0], script)
 
