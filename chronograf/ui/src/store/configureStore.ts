@@ -11,6 +11,7 @@ import persistStateEnhancer from './persistStateEnhancer'
 import sourceReducer from 'src/sources/reducers/sources'
 
 // v2 reducers
+import meReducer from 'src/shared/reducers/v2/me'
 import tasksReducer from 'src/tasks/reducers/v2'
 import rangesReducer from 'src/dashboards/reducers/v2/ranges'
 import dashboardsReducer from 'src/dashboards/reducers/v2/dashboards'
@@ -41,6 +42,7 @@ const rootReducer = combineReducers<ReducerState>({
   logs: logsReducer,
   tasks: tasksReducer,
   orgs: orgsReducer,
+  me: meReducer,
 })
 
 const composeEnhancers =

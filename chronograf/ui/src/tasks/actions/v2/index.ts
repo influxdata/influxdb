@@ -7,7 +7,6 @@ import {
   deleteTask as deleteTaskAPI,
 } from 'src/tasks/api/v2'
 import {getMe} from 'src/shared/apis/v2/user'
-import {getOrganizations} from 'src/shared/apis/v2/organization'
 import {notify} from 'src/shared/actions/notifications'
 import {
   taskNotCreated,

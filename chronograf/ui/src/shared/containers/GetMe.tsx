@@ -1,14 +1,14 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
-import {getLinks} from 'src/shared/actions/links'
+import {getMe} from 'src/shared/actions/v2/me'
 
 interface PassedInProps {
   children: React.ReactElement<any>
 }
 
 interface ConnectDispatchProps {
-  getLinks: typeof getLinks
+  getMe: typeof getMe
 }
 
 interface State {
@@ -17,7 +17,7 @@ interface State {
 
 type Props = ConnectDispatchProps & PassedInProps
 
-class GetLinks extends PureComponent<Props, State> {
+class GetMe extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
@@ -35,15 +35,15 @@ class GetLinks extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    await this.props.getLinks()
+    await this.props.getMe()
     this.setState({ready: true})
   }
 }
 
 const mdtp = {
-  getLinks,
+  getMe,
 }
 
 export default connect<{}, ConnectDispatchProps, PassedInProps>(null, mdtp)(
-  GetLinks
+  GetMe
 )
