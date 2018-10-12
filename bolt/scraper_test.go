@@ -14,9 +14,9 @@ func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T)
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}
 	c.IDGenerator = f.IDGenerator
-	ctx := context.TODO()
+	ctx := context.Background()
 	for _, target := range f.Targets {
-		if err := c.PutTarget(ctx, &target); err != nil {
+		if err := c.PutTarget(ctx, target); err != nil {
 			t.Fatalf("failed to populate users")
 		}
 	}

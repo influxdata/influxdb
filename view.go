@@ -63,7 +63,7 @@ type View struct {
 
 // ViewContents is the id and name of a specific view.
 type ViewContents struct {
-	ID   ID     `json:"id"`
+	ID   ID     `json:"id,omitempty"`
 	Name string `json:"name"`
 }
 

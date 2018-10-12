@@ -51,7 +51,7 @@ func ProbeAuthScheme(r *http.Request) (string, error) {
 	_, sessErr := decodeCookieSession(r.Context(), r)
 
 	if tokenErr != nil && sessErr != nil {
-		return "", fmt.Errorf("unknown authentication scheme")
+		return "", fmt.Errorf("token required")
 	}
 
 	if tokenErr == nil {

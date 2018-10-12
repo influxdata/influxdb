@@ -253,7 +253,7 @@ func (s *ScraperService) UpdateTarget(ctx context.Context, update *platform.Scra
 }
 
 // AddTarget creates a new scraper target and sets target.ID with the new identifier.
-func (s *ScraperService) AddTarget(ctx context.Context, target platform.ScraperTarget) error {
+func (s *ScraperService) AddTarget(ctx context.Context, target *platform.ScraperTarget) error {
 	url, err := newURL(s.Addr, targetPath)
 	if err != nil {
 		return err

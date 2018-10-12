@@ -144,6 +144,39 @@ func CreateDashboard(
 				},
 			},
 		},
+		{
+			name: "create dashboard with missing id",
+			fields: DashboardFields{
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return MustIDBase16(dashTwoID)
+					},
+				},
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+					},
+				},
+			},
+			args: args{
+				dashboard: &platform.Dashboard{
+					Name: "dashboard2",
+				},
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+					},
+					{
+						ID:   MustIDBase16(dashTwoID),
+						Name: "dashboard2",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -220,6 +253,49 @@ func AddDashboardCell(
 				dashboardID: MustIDBase16(dashOneID),
 				cell: &platform.Cell{
 					ID:     MustIDBase16(dashTwoID),
+					ViewID: MustIDBase16(dashTwoID),
+				},
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID:     MustIDBase16(dashTwoID),
+								ViewID: MustIDBase16(dashTwoID),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "add cell with no id",
+			fields: DashboardFields{
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return MustIDBase16(dashTwoID)
+					},
+				},
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+					},
+				},
+				Views: []*platform.View{
+					{
+						ViewContents: platform.ViewContents{
+							ID: MustIDBase16(dashTwoID),
+						},
+					},
+				},
+			},
+			args: args{
+				dashboardID: MustIDBase16(dashOneID),
+				cell: &platform.Cell{
 					ViewID: MustIDBase16(dashTwoID),
 				},
 			},

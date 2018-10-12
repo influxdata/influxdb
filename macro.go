@@ -30,7 +30,7 @@ type MacroService interface {
 // A Macro describes a keyword that can be expanded into several possible
 // values when used in an InfluxQL or Flux query
 type Macro struct {
-	ID        ID              `json:"id"`
+	ID        ID              `json:"id,omitempty"`
 	Name      string          `json:"name"`
 	Selected  []string        `json:"selected"`
 	Arguments *MacroArguments `json:"arguments"`

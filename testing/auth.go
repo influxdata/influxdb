@@ -206,6 +206,71 @@ func CreateAuthorization(
 				},
 			},
 		},
+		{
+			name: "missing id authorization",
+			fields: AuthorizationFields{
+				IDGenerator: mock.NewIDGenerator(authTwoID, t),
+				TokenGenerator: &mock.TokenGenerator{
+					TokenFn: func() (string, error) {
+						return "rand", nil
+					},
+				},
+				Users: []*platform.User{
+					{
+						Name: "cooluser",
+						ID:   MustIDBase16(userOneID),
+					},
+					{
+						Name: "regularuser",
+						ID:   MustIDBase16(userTwoID),
+					},
+				},
+				Authorizations: []*platform.Authorization{
+					{
+						ID:     MustIDBase16(authOneID),
+						UserID: MustIDBase16(userOneID),
+						Token:  "supersecret",
+						Permissions: []platform.Permission{
+							platform.CreateUserPermission,
+							platform.DeleteUserPermission,
+						},
+					},
+				},
+			},
+			args: args{
+				authorization: &platform.Authorization{
+					User: "regularuser",
+					Permissions: []platform.Permission{
+						platform.CreateUserPermission,
+					},
+				},
+			},
+			wants: wants{
+				authorizations: []*platform.Authorization{
+					{
+						ID:     MustIDBase16(authOneID),
+						UserID: MustIDBase16(userOneID),
+						User:   "cooluser",
+						Status: platform.Active,
+						Token:  "supersecret",
+						Permissions: []platform.Permission{
+							platform.CreateUserPermission,
+							platform.DeleteUserPermission,
+						},
+					},
+					{
+						ID:     MustIDBase16(authTwoID),
+						UserID: MustIDBase16(userTwoID),
+						User:   "regularuser",
+						Token:  "rand",
+						Status: platform.Active,
+						Permissions: []platform.Permission{
+							platform.CreateUserPermission,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

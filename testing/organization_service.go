@@ -174,6 +174,35 @@ func CreateOrganization(
 				err: fmt.Errorf("organization with name organization1 already exists"),
 			},
 		},
+		{
+			name: "create organization with no id",
+			fields: OrganizationFields{
+				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+				},
+			},
+			args: args{
+				organization: &platform.Organization{
+					Name: "organization2",
+				},
+			},
+			wants: wants{
+				organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "organization2",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

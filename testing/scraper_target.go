@@ -22,7 +22,7 @@ const (
 // TargetFields will include the IDGenerator, and targets
 type TargetFields struct {
 	IDGenerator platform.IDGenerator
-	Targets     []platform.ScraperTarget
+	Targets     []*platform.ScraperTarget
 }
 
 var targetCmpOptions = cmp.Options{
@@ -36,6 +36,43 @@ var targetCmpOptions = cmp.Options{
 		})
 		return out
 	}),
+}
+
+// ScraperService tests all the service functions.
+func ScraperService(
+	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, func()), t *testing.T,
+) {
+	tests := []struct {
+		name string
+		fn   func(init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, func()),
+			t *testing.T)
+	}{
+		{
+			name: "AddTarget",
+			fn:   AddTarget,
+		},
+		{
+			name: "ListTargets",
+			fn:   ListTargets,
+		},
+		{
+			name: "GetTargetByID",
+			fn:   GetTargetByID,
+		},
+		{
+			name: "RemoveTarget",
+			fn:   RemoveTarget,
+		},
+		{
+			name: "UpdateTarget",
+			fn:   UpdateTarget,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fn(init, t)
+		})
+	}
 }
 
 // AddTarget testing.
@@ -60,7 +97,7 @@ func AddTarget(
 			name: "create targets with empty set",
 			fields: TargetFields{
 				IDGenerator: mock.NewIDGenerator(targetOneID, t),
-				Targets:     []platform.ScraperTarget{},
+				Targets:     []*platform.ScraperTarget{},
 			},
 			args: args{
 				target: &platform.ScraperTarget{
@@ -88,7 +125,7 @@ func AddTarget(
 			name: "basic create target",
 			fields: TargetFields{
 				IDGenerator: mock.NewIDGenerator(targetTwoID, t),
-				Targets: []platform.ScraperTarget{
+				Targets: []*platform.ScraperTarget{
 					{
 						Name:       "name1",
 						Type:       platform.PrometheusScraperType,
@@ -178,7 +215,7 @@ func ListTargets(
 		{
 			name: "find all targets",
 			fields: TargetFields{
-				Targets: []platform.ScraperTarget{
+				Targets: []*platform.ScraperTarget{
 					{
 						Name:       "name1",
 						Type:       platform.PrometheusScraperType,
@@ -264,7 +301,7 @@ func GetTargetByID(
 		{
 			name: "basic find target by id",
 			fields: TargetFields{
-				Targets: []platform.ScraperTarget{
+				Targets: []*platform.ScraperTarget{
 					{
 						ID:   MustIDBase16(targetOneID),
 						Name: "target1",
@@ -330,7 +367,7 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 		{
 			name: "delete targets using exist id",
 			fields: TargetFields{
-				Targets: []platform.ScraperTarget{
+				Targets: []*platform.ScraperTarget{
 					{
 						ID: MustIDBase16(targetOneID),
 					},
@@ -353,7 +390,7 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 		{
 			name: "delete targets using id that does not exist",
 			fields: TargetFields{
-				Targets: []platform.ScraperTarget{
+				Targets: []*platform.ScraperTarget{
 					{
 						ID: MustIDBase16(targetOneID),
 					},
@@ -428,7 +465,7 @@ func UpdateTarget(
 		{
 			name: "update url with blank id",
 			fields: TargetFields{
-				Targets: []platform.ScraperTarget{
+				Targets: []*platform.ScraperTarget{
 					{
 						ID:  MustIDBase16(targetOneID),
 						URL: "url1",
@@ -449,7 +486,7 @@ func UpdateTarget(
 		{
 			name: "update url with non exist id",
 			fields: TargetFields{
-				Targets: []platform.ScraperTarget{
+				Targets: []*platform.ScraperTarget{
 					{
 						ID:  MustIDBase16(targetOneID),
 						URL: "url1",
@@ -471,7 +508,7 @@ func UpdateTarget(
 		{
 			name: "update url",
 			fields: TargetFields{
-				Targets: []platform.ScraperTarget{
+				Targets: []*platform.ScraperTarget{
 					{
 						ID:  MustIDBase16(targetOneID),
 						URL: "url1",
@@ -499,7 +536,7 @@ func UpdateTarget(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			upd := &platform.ScraperTarget{
 				ID:  tt.args.id,

@@ -99,17 +99,17 @@ func CreateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 					{
 						ID:       MustIDBase16(idB),
 						Name:     "existing-macro",
-						Selected: []string{"a"},
+						Selected: []string{"b"},
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",
-							Values: platform.MacroConstantValues{"a"},
+							Values: platform.MacroConstantValues{"b"},
 						},
 					},
 				},
 			},
 			args: args{
 				macro: &platform.Macro{
-					ID:       MustIDBase16(idB),
+					ID:       MustIDBase16(idA),
 					Name:     "my-macro",
 					Selected: []string{"a"},
 					Arguments: &platform.MacroArguments{
@@ -124,10 +124,10 @@ func CreateMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 					{
 						ID:       MustIDBase16(idB),
 						Name:     "existing-macro",
-						Selected: []string{"a"},
+						Selected: []string{"b"},
 						Arguments: &platform.MacroArguments{
 							Type:   "constant",
-							Values: platform.MacroConstantValues{"a"},
+							Values: platform.MacroConstantValues{"b"},
 						},
 					},
 					{

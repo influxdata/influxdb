@@ -6,7 +6,7 @@ import (
 
 // Authorization is a authorization. 🎉
 type Authorization struct {
-	ID          ID           `json:"id"`
+	ID          ID           `json:"id,omitempty"`
 	Token       string       `json:"token"`
 	Status      Status       `json:"status"`
 	User        string       `json:"user,omitempty"`

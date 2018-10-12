@@ -639,3 +639,48 @@ func jsonEqual(s1, s2 string) (eq bool, err error) {
 
 	return cmp.Equal(o1, o2), nil
 }
+
+/* TODO: Add a go view service client
+
+func initViewService(f platformtesting.ViewFields, t *testing.T) (platform.ViewService, func()) {
+	t.Helper()
+	svc := inmem.NewService()
+	svc.IDGenerator = f.IDGenerator
+
+	ctx := context.Background()
+	for _, b := range f.Views {
+		if err := s.PutView(ctx, b); err != nil {
+			t.Fatalf("failed to populate Views")
+		}
+	}
+
+	handler := NewViewHandler()
+	handler.ViewService = svc
+	server := httptest.NewServer(handler)
+	client := ViewService{
+		Addr: server.URL,
+	}
+	done := server.Close
+
+	return &client, done
+}
+
+func TestViewService_CreateView(t *testing.T) {
+	platformtesting.CreateView(initViewService, t)
+}
+
+func TestViewService_FindViewByID(t *testing.T) {
+	platformtesting.FindViewByID(initViewService, t)
+}
+func TestViewService_FindViews(t *testing.T) {
+	platformtesting.FindViews(initViewService, t)
+}
+
+func TestViewService_DeleteView(t *testing.T) {
+	platformtesting.DeleteView(initViewService, t)
+}
+
+func TestViewService_UpdateView(t *testing.T) {
+	platformtesting.UpdateView(initViewService, t)
+}
+*/

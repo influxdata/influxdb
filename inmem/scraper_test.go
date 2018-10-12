@@ -11,9 +11,9 @@ import (
 func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, func()) {
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
-	ctx := context.TODO()
+	ctx := context.Background()
 	for _, target := range f.Targets {
-		if err := s.PutTarget(ctx, &target); err != nil {
+		if err := s.PutTarget(ctx, target); err != nil {
 			t.Fatalf("failed to populate scraper targets")
 		}
 	}

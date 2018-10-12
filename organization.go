@@ -4,7 +4,7 @@ import "context"
 
 // Organization is an organization. 🎉
 type Organization struct {
-	ID   ID     `json:"id"`
+	ID   ID     `json:"id,omitempty"`
 	Name string `json:"name"`
 }
 

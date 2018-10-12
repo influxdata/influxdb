@@ -3,6 +3,7 @@ package platform
 import "context"
 
 const (
+	// ErrSourceNotFound is a chronograf error when a source does not exist.
 	ErrSourceNotFound = ChronografError("source not found")
 )
 
@@ -10,8 +11,11 @@ const (
 type SourceType string
 
 const (
-	V2SourceType   = "v2"
-	V1SourceType   = "v1"
+	// V2SourceType is an InfluxDBv2 type.
+	V2SourceType = "v2"
+	// V1SourceType is an InfluxDBv1 type.
+	V1SourceType = "v1"
+	// SelfSourceType is the source hosting the UI.
 	SelfSourceType = "self"
 )
 
@@ -19,7 +23,7 @@ const (
 // TODO(desa): do we still need default?
 // TODO(desa): do sources belong
 type Source struct {
-	ID                 ID         `json:"id,string"`                    // ID is the unique ID of the source
+	ID                 ID         `json:"id,string,omitempty"`          // ID is the unique ID of the source
 	OrganizationID     ID         `json:"organizationID"`               // OrganizationID is the organization ID that resource belongs to
 	Default            bool       `json:"default"`                      // Default specifies the default source for the application
 	Name               string     `json:"name"`                         // Name is the user-defined name for the source
@@ -41,7 +45,7 @@ type V1SourceFields struct {
 	FluxURL      string `json:"fluxURL,omitempty"`      // FluxURL is the url for a flux connected to a 1x source
 }
 
-// SourceFields
+// SourceFields is used to authorize against an influx 2.0 source.
 type SourceFields struct {
 	Token string `json:"token"` // Token is the 2.0 authorization token associated with a source
 }
