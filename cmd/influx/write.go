@@ -75,22 +75,22 @@ func fluxWriteF(cmd *cobra.Command, args []string) {
 		Token: flags.token,
 	}
 
+	var err error
 	filter := platform.BucketFilter{}
-	if writeFlags.Bucket != "" {
-		filter.Name = &writeFlags.Bucket
-	}
+
 	if writeFlags.BucketID != "" {
-		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(writeFlags.BucketID)
+		filter.ID, err = platform.IDFromString(writeFlags.BucketID)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 	}
+	if writeFlags.Bucket != "" {
+		filter.Name = &writeFlags.Bucket
+	}
 
 	if writeFlags.OrgID != "" {
-		filter.OrganizationID = &platform.ID{}
-		err := filter.OrganizationID.DecodeFromString(bucketFindFlags.orgID)
+		filter.OrganizationID, err = platform.IDFromString(writeFlags.OrgID)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
