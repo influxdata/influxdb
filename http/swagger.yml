@@ -82,7 +82,7 @@ paths:
             description: specifies the organization of the resource
             required: true
             schema:
-              type: string  
+              type: string
       responses:
         '200':
           description: a list of telegraf configs
@@ -95,7 +95,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"  
+                $ref: "#/components/schemas/Error"
     post:
       tags:
         - Telegrafs
@@ -126,7 +126,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error" 
+                $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}':
     get:
       tags:
@@ -3324,11 +3324,11 @@ components:
             self:
               readOnly: true
               type: string
-              format: url
+              format: uri
             user:
               readOnly: true
               type: string
-              format: url
+              format: uri
         id:
           readOnly: true
           type: string
@@ -3372,15 +3372,15 @@ components:
             self:
               readOnly: true
               type: string
-              format: url
+              format: uri
             org:
               readOnly: true
               type: string
-              format: url
+              format: uri
             write:
               readOnly: true
               type: string
-              format: url
+              format: uri
         id:
           readOnly: true
           type: string
@@ -3424,7 +3424,7 @@ components:
       properties:
         href:
           type: string
-          format: url
+          format: uri
       required: [href]
     Links:
       type: object
@@ -3472,23 +3472,23 @@ components:
             self:
               readOnly: true
               type: string
-              format: url
+              format: uri
             users:
               readOnly: true
               type: string
-              format: url
+              format: uri
             buckets:
               readOnly: true
               type: string
-              format: url
+              format: uri
             tasks:
               readOnly: true
               type: string
-              format: url
+              format: uri
             dashboards:
               readOnly: true
               type: string
-              format: url
+              format: uri
         id:
           readOnly: true
           type: string
@@ -3629,60 +3629,60 @@ components:
       properties:
         ast:
           type: string
-          format: url
+          format: uri
         self:
           type: string
-          format: url
+          format: uri
         suggestions:
           type: string
-          format: url
+          format: uri
     Routes:
       properties:
         sources:
           type: string
-          format: url
+          format: uri
         dashboards:
           type: string
-          format: url
+          format: uri
         query:
           type: string
-          format: url
+          format: uri
         write:
           type: string
-          format: url
+          format: uri
         orgs:
           type: string
-          format: url
+          format: uri
         auths:
           type: string
-          format: url
+          format: uri
         buckets:
           type: string
-          format: url
+          format: uri
         users:
           type: string
-          format: url
+          format: uri
         tasks:
           type: string
-          format: url
+          format: uri
         system:
           type: object
           properties:
             metrics:
               type: string
-              format: url
+              format: uri
             debug:
               type: string
-              format: url
+              format: uri
             health:
               type: string
-              format: url
+              format: uri
         external:
           type: object
           properties:
             statusFeed:
               type: string
-              format: url
+              format: uri
         flux:
           $ref: "#/components/schemas/FluxLinks"
     Error:
@@ -3935,7 +3935,7 @@ components:
           type: string
         source:
           type: string
-          format: url
+          format: uri
           description: Optional URI for data source for this query
         queryConfig:
           $ref: '#/components/schemas/QueryConfig'
@@ -4238,7 +4238,7 @@ components:
           properties:
             self:
               type: string
-              format: url
+              format: uri
         id:
           readOnly: true
           type: string
@@ -4430,6 +4430,7 @@ components:
           enum: ["v1","v2","self"]
         url:
           type: string
+          format: uri
         insecureSkipVerify:
           type: boolean
         telegraf:
@@ -4444,10 +4445,12 @@ components:
           type: string
         metaUrl:
           type: string
+          format: uri
         defaultRP:
           type: string
         fluxURL:
           type: string
+          format: uri
         languages:
           type: array
           readOnly: true
@@ -4465,7 +4468,7 @@ components:
           properties:
             self:
               type: string
-              format: url
+              format: uri
         sources:
           type: array
           items:
@@ -4529,7 +4532,7 @@ components:
           properties:
             self:
               type: string
-              format: url
+              format: uri
         sources:
           type: array
           items:
@@ -4547,26 +4550,28 @@ components:
         files:
           type: array
           items:
-            type: string   
+            type: string
     TelegrafPluginInputKubernetes:
       type: object
       properties:
         url:
           type: string
+          format: uri
     TelegrafPluginInputLogParser:
       type: object
       properties:
         files:
           type: array
           items:
-            type: string   
+            type: string
     TelegrafPluginInputNginx:
       type: object
       properties:
         urls:
           type: array
           items:
-            type: string   
+            type: string
+            format: uri
     TelegrafPluginInputProcstat:
       type: object
       properties:
@@ -4578,7 +4583,8 @@ components:
         urls:
           type: array
           items:
-            type: string   
+            type: string
+            format: uri
     TelegrafPluginInputRedis:
       type: object
       properties:
@@ -4587,12 +4593,12 @@ components:
           items:
             type: string
         password:
-          type: string     
+          type: string
     TelegrafPluginInputSyslog:
       type: object
       properties:
         server:
-          type: string     
+          type: string
     TelegrafPluginOutputFile:
       type: object
       required:
@@ -4600,7 +4606,7 @@ components:
       properties:
         files:
           type: array
-          items: 
+          items:
             type: object
             properties:
               type:
@@ -4620,12 +4626,13 @@ components:
           type: array
           items:
             type: string
+            format: uri
         token:
           type: string
         organization:
           type: string
         bucket:
-          type: string           
+          type: string
     IsOnboarding:
       type: object
       properties:
