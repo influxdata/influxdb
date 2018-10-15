@@ -1,6 +1,6 @@
 package reads
 
-//go:generate tmpl -data=@types.tmpldata table.gen.go.tmpl
+//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@types.tmpldata table.gen.go.tmpl
 
 import (
 	"fmt"

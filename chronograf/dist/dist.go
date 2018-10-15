@@ -1,6 +1,6 @@
 package dist
 
-//go:generate go-bindata -o dist_gen.go -ignore 'map|go' -tags assets -pkg dist ../ui/build/...
+//go:generate env GO111MODULE=on go run github.com/kevinburke/go-bindata/go-bindata -o dist_gen.go -ignore 'map|go' -tags assets -pkg dist ../ui/build/...
 
 import (
 	"fmt"

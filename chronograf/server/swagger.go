@@ -1,6 +1,6 @@
 package server
 
-//go:generate go-bindata -o swagger_gen.go -tags assets -ignore go -nocompress -pkg server .
+//go:generate env GO111MODULE=on go run github.com/kevinburke/go-bindata/go-bindata -o swagger_gen.go -tags assets -ignore go -nocompress -pkg server .
 
 import "net/http"
 

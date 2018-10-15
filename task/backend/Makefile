@@ -1,9 +1,11 @@
 targets := meta.pb.go
 
+GO_GENERATE := go generate
+
 all: $(targets)
 
 $(targets): meta.proto
-	PATH="../../../../../bin/${GOOS}:${PATH}" $(GO_GENERATE) -x ./
+	$(GO_GENERATE) -x
 
 clean:
 	rm -f $(targets)
