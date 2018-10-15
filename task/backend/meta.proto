@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "internal/gogo.proto";
+import "gogoproto/gogo.proto";
 
 package com.influxdata.platform.task.backend;
 

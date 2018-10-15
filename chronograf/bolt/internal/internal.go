@@ -8,7 +8,7 @@ import (
 	"github.com/influxdata/platform/chronograf"
 )
 
-//go:generate protoc --gogo_out=. internal.proto
+//go:generate protoc --plugin ../../../scripts/protoc-gen-gogo --gogo_out=. internal.proto
 
 // MarshalBuild encodes a build to binary protobuf format.
 func MarshalBuild(b chronograf.BuildInfo) ([]byte, error) {

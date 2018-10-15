@@ -1,6 +1,6 @@
 package tsdb
 
-//go:generate protoc --gogo_out=. internal/meta.proto
+//go:generate protoc --plugin ../scripts/protoc-gen-gogo --gogo_out=. internal/meta.proto
 
 import (
 	"sort"

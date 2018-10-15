@@ -43,19 +43,12 @@ CMDS := \
 	bin/$(GOOS)/influx \
 	bin/$(GOOS)/influxd
 
-# List of utilities to build as part of the build process
-UTILS := \
-	bin/$(GOOS)/pigeon \
-	bin/$(GOOS)/protoc-gen-gogofaster \
-	bin/$(GOOS)/goreleaser \
-	bin/$(GOOS)/go-bindata
-
 # Default target to build all go commands.
 #
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
 all: GO_ARGS=-tags 'assets $(GO_TAGS)'
-all: node_modules $(UTILS) subdirs chronograf/ui generate $(CMDS)
+all: node_modules subdirs chronograf/ui generate $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
@@ -73,21 +66,8 @@ $(CMDS): $(SOURCES)
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
 #
-# Define targets for utilities
+# Define targets for the web ui
 #
-
-bin/$(GOOS)/pigeon: go.mod go.sum
-	$(GO_BUILD) -o $@ github.com/mna/pigeon
-
-bin/$(GOOS)/protoc-gen-gogofaster: go.mod go.sum
-	$(GO_BUILD) -o $@ github.com/gogo/protobuf/protoc-gen-gogofaster
-
-bin/$(GOOS)/goreleaser: go.mod go.sum
-	$(GO_BUILD) -o $@ github.com/goreleaser/goreleaser
-
-bin/$(GOOS)/go-bindata: go.mod go.sum
-	$(GO_BUILD) -o $@ github.com/kevinburke/go-bindata/go-bindata
-
 
 node_modules: chronograf/ui/node_modules
 
@@ -144,8 +124,8 @@ vet:
 bench:
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
-nightly: bin/$(GOOS)/goreleaser all
-	PATH=./bin/$(GOOS):${PATH} goreleaser --snapshot --rm-dist --publish-snapshots
+nightly: all
+	env GO111MODULE=on go run github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
 
 # Recursively clean all subdirs
 clean: $(SUBDIRS)
@@ -165,7 +145,7 @@ define CHRONOGIRAFFE
 ,"   ##    /
 endef
 export CHRONOGIRAFFE
-chronogiraffe: $(UTILS) subdirs generate $(CMDS)
+chronogiraffe: subdirs generate $(CMDS)
 	@echo "$$CHRONOGIRAFFE"
 
 run: chronogiraffe
