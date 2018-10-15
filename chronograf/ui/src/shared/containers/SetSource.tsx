@@ -5,7 +5,10 @@ import {Location} from 'history'
 
 import {Source} from 'src/types/v2'
 import {Links} from 'src/types/v2/links'
+import {notify} from 'src/shared/actions/notifications'
 import {Notification, NotificationFunc} from 'src/types'
+
+import {setSource, resetSource} from 'src/shared/actions/v2/source'
 
 import {getSourceHealth} from 'src/sources/apis/v2'
 import * as copy from 'src/shared/copy/notifications'
@@ -14,7 +17,6 @@ interface PassedInProps extends WithRouterProps {
   router: InjectedRouter
   children: React.ReactElement<any>
   location: Location
-  notify: (message: Notification | NotificationFunc) => void
 }
 
 interface ConnectStateProps {
@@ -22,24 +24,31 @@ interface ConnectStateProps {
   links: Links
 }
 
-type Props = ConnectStateProps & PassedInProps
+interface ConnectDispatchProps {
+  setSource: typeof setSource
+  resetSource: typeof resetSource
+  notify: (message: Notification | NotificationFunc) => void
+}
+
+type Props = ConnectStateProps & ConnectDispatchProps & PassedInProps
 
 export const SourceContext = React.createContext({})
 
 class SetSource extends PureComponent<Props> {
   public render() {
+    return this.props.children && React.cloneElement(this.props.children)
+  }
+
+  public componentDidMount() {
     const source = this.source
 
-    return (
-      <SourceContext.Provider value={source}>
-        {this.props.children &&
-          React.cloneElement(this.props.children, {...this.props, source})}
-      </SourceContext.Provider>
-    )
+    if (source) {
+      this.props.setSource(source)
+    }
   }
 
   public async componentDidUpdate() {
-    const {router, sources, notify} = this.props
+    const {router, sources} = this.props
     const source = this.source
     const defaultSource = sources.find(s => s.default === true)
 
@@ -61,8 +70,10 @@ class SetSource extends PureComponent<Props> {
 
     try {
       await getSourceHealth(source.links.health)
+      this.props.setSource(source)
     } catch (error) {
-      notify(copy.sourceNoLongerAvailable(source.name))
+      this.props.notify(copy.sourceNoLongerAvailable(source.name))
+      this.props.resetSource()
     }
   }
 
@@ -107,6 +118,13 @@ const mstp = ({sources, links}) => ({
   sources,
 })
 
-export default connect<ConnectStateProps, {}, PassedInProps>(mstp)(
-  withRouter(SetSource)
-)
+const mdtp = {
+  setSource,
+  resetSource,
+  notify,
+}
+
+export default connect<ConnectStateProps, ConnectDispatchProps, PassedInProps>(
+  mstp,
+  mdtp
+)(withRouter(SetSource))

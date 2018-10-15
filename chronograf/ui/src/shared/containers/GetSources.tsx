@@ -2,9 +2,9 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
-// APIs
-import {getSourcesAsync} from 'src/shared/actions/sources'
+import {RemoteDataState} from 'src/types'
 
+import {getSourcesAsync} from 'src/shared/actions/sources'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
 }
 
 interface State {
-  ready: boolean
+  ready: RemoteDataState
 }
 
 @ErrorHandling
@@ -22,21 +22,21 @@ export class GetSources extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      ready: false,
+      ready: RemoteDataState.NotStarted,
     }
   }
 
   public async componentDidMount() {
     await this.props.getSources()
-    this.setState({ready: true})
+    this.setState({ready: RemoteDataState.Done})
   }
 
   public render() {
-    if (this.state.ready) {
-      return this.props.children && React.cloneElement(this.props.children)
+    if (this.state.ready !== RemoteDataState.Done) {
+      return <div className="page-spinner" />
     }
 
-    return <div className="page-spinner" />
+    return this.props.children && React.cloneElement(this.props.children)
   }
 }
 

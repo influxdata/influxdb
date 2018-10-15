@@ -22,6 +22,7 @@ import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {State as TaskState} from 'src/tasks/reducers/v2'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/v2/me'
+import {SourceState} from 'src/shared/reducers/v2/source'
 
 interface Organization {
   id: string
@@ -45,6 +46,7 @@ export interface AppState {
   timeRange: TimeRange
   orgs: Organization[]
   me: MeState
+  source: SourceState
 }
 
 export {

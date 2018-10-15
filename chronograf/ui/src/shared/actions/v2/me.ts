@@ -1,8 +1,11 @@
+import {AppState} from 'src/types/v2'
 import {getMe as getMeAPI} from 'src/shared/apis/v2/user'
 
 export enum ActionTypes {
   SetMe = 'SET_ME',
 }
+
+type GetStateFunc = () => Promise<AppState>
 
 export interface SetMe {
   type: ActionTypes.SetMe
@@ -23,7 +26,7 @@ export const setMe = me => ({
   },
 })
 
-export const getMe = () => async (dispatch, getState) => {
+export const getMe = () => async (dispatch, getState: GetStateFunc) => {
   try {
     const {
       links: {me: url},

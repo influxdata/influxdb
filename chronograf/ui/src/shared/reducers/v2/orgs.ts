@@ -6,7 +6,7 @@ const defaultState = []
 export default (state = defaultState, action: Actions): Organization[] => {
   switch (action.type) {
     case ActionTypes.SetOrganizations:
-      return action.payload.organizations
+      return [...action.payload.organizations]
     default:
       return state
   }

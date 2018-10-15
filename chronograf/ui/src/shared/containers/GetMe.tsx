@@ -1,6 +1,8 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
+import {RemoteDataState} from 'src/types'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {getMe} from 'src/shared/actions/v2/me'
 
@@ -13,7 +15,7 @@ interface ConnectDispatchProps {
 }
 
 interface State {
-  ready: boolean
+  ready: RemoteDataState
 }
 
 type Props = ConnectDispatchProps & PassedInProps
@@ -24,21 +26,21 @@ class GetMe extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      ready: false,
+      ready: RemoteDataState.NotStarted,
     }
   }
 
   public render() {
-    if (this.state.ready) {
-      return this.props.children && React.cloneElement(this.props.children)
+    if (this.state.ready !== RemoteDataState.Done) {
+      return <div className="page-spinner" />
     }
 
-    return <div className="page-spinner" />
+    return this.props.children && React.cloneElement(this.props.children)
   }
 
   public async componentDidMount() {
     await this.props.getMe()
-    this.setState({ready: true})
+    this.setState({ready: RemoteDataState.Done})
   }
 }
 

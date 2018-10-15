@@ -1,3 +1,4 @@
+import {AppState} from 'src/types/v2'
 import {push} from 'react-router-redux'
 
 import {Task} from 'src/types/v2/tasks'
@@ -15,6 +16,7 @@ import {
 } from 'src/shared/copy/v2/notifications'
 
 export type Action = SetNewScript | SetTasks
+type GetStateFunc = () => Promise<AppState>
 
 export enum ActionTypes {
   SetNewScript = 'SET_NEW_SCRIPT',
@@ -45,7 +47,10 @@ export const setNewScript = (script: string): SetNewScript => ({
   payload: {script},
 })
 
-export const deleteTask = (task: Task) => async (dispatch, getState) => {
+export const deleteTask = (task: Task) => async (
+  dispatch,
+  getState: GetStateFunc
+) => {
   try {
     const {
       links: {tasks: url},
@@ -62,7 +67,7 @@ export const deleteTask = (task: Task) => async (dispatch, getState) => {
 
 export const populateTasks = () => async (
   dispatch,
-  getState
+  getState: GetStateFunc
 ): Promise<void> => {
   try {
     const {
@@ -89,7 +94,7 @@ export const populateTasks = () => async (
 
 export const saveNewScript = () => async (
   dispatch,
-  getState
+  getState: GetStateFunc
 ): Promise<void> => {
   try {
     const {
