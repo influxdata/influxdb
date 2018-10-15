@@ -16,6 +16,7 @@ v1.6.4 [unreleased]
 -	[#10356](https://github.com/influxdata/influxdb/pull/10356): Fix series file tombstoning.
 -	[#10364](https://github.com/influxdata/influxdb/pull/10364): Fixing the stream iterator to not ignore the error.
 -	[#10371](https://github.com/influxdata/influxdb/pull/10371): Do not panic when a series id iterator is nil.
+-	[#10343](https://github.com/influxdata/influxdb/pull/10343): Fix append of possible nil iterator.
 
 v1.6.3 [2018-09-14]
 -------------------
