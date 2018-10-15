@@ -21,6 +21,13 @@ import {TimeMachinesState} from 'src/shared/reducers/v2/timeMachines'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {State as TaskState} from 'src/tasks/reducers/v2'
 import {RouterState} from 'react-router-redux'
+import {MeState} from 'src/shared/reducers/v2/me'
+import {SourceState} from 'src/shared/reducers/v2/source'
+
+interface Organization {
+  id: string
+  name: string
+}
 
 export interface AppState {
   VERSION: string
@@ -37,6 +44,9 @@ export interface AppState {
   routing: RouterState
   tasks: TaskState
   timeRange: TimeRange
+  orgs: Organization[]
+  me: MeState
+  source: SourceState
 }
 
 export {

@@ -53,7 +53,7 @@ const linksGetFailed = (): LinksGetFailedAction => ({
   type: ActionTypes.LinksGetFailed,
 })
 
-export const getLinksAsync = () => async (
+export const getLinks = () => async (
   dispatch: Dispatch<
     LinksGetRequestedAction | LinksGetCompletedAction | LinksGetFailedAction
   >

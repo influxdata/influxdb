@@ -39,6 +39,7 @@ export const links: Links = {
   macros: '/api/v2/macros',
   views: '/api/v2/views',
   defaultDashboard: '/v2/dashboards/029d13fda9c5b000',
+  me: '/api/v2/me',
 }
 
 export const queryConfig = {

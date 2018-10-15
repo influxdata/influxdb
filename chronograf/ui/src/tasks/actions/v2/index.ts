@@ -1,3 +1,4 @@
+import {AppState} from 'src/types/v2'
 import {push} from 'react-router-redux'
 
 import {Task} from 'src/types/v2/tasks'
@@ -7,7 +8,6 @@ import {
   deleteTask as deleteTaskAPI,
 } from 'src/tasks/api/v2'
 import {getMe} from 'src/shared/apis/v2/user'
-import {getOrganizations} from 'src/shared/apis/v2/organization'
 import {notify} from 'src/shared/actions/notifications'
 import {
   taskNotCreated,
@@ -16,6 +16,7 @@ import {
 } from 'src/shared/copy/v2/notifications'
 
 export type Action = SetNewScript | SetTasks
+type GetStateFunc = () => Promise<AppState>
 
 export enum ActionTypes {
   SetNewScript = 'SET_NEW_SCRIPT',
@@ -46,7 +47,10 @@ export const setNewScript = (script: string): SetNewScript => ({
   payload: {script},
 })
 
-export const deleteTask = (task: Task) => async (dispatch, getState) => {
+export const deleteTask = (task: Task) => async (
+  dispatch,
+  getState: GetStateFunc
+) => {
   try {
     const {
       links: {tasks: url},
@@ -63,14 +67,13 @@ export const deleteTask = (task: Task) => async (dispatch, getState) => {
 
 export const populateTasks = () => async (
   dispatch,
-  getState
+  getState: GetStateFunc
 ): Promise<void> => {
   try {
     const {
-      links: {tasks: url, me: meUrl, orgs: orgsUrl},
+      orgs,
+      links: {tasks: url, me: meUrl},
     } = await getState()
-
-    const orgs = await getOrganizations(orgsUrl)
 
     const user = await getMe(meUrl)
     const tasks = await getUserTasks(url, user)
@@ -91,16 +94,16 @@ export const populateTasks = () => async (
 
 export const saveNewScript = () => async (
   dispatch,
-  getState
+  getState: GetStateFunc
 ): Promise<void> => {
   try {
     const {
-      links: {tasks: url, me: meUrl, orgs: orgsUrl},
+      orgs,
+      links: {tasks: url, me: meUrl},
       tasks: {newScript: script},
     } = await getState()
 
     const user = await getMe(meUrl)
-    const orgs = await getOrganizations(orgsUrl)
 
     await submitNewTask(url, user, orgs[0], script)
 
