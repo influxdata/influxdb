@@ -11,7 +11,7 @@ export default class TasksHeader extends PureComponent<Props> {
     const {onCreateTask} = this.props
 
     return (
-      <Page.Header fullWidth={true}>
+      <Page.Header fullWidth={false}>
         <Page.Header.Left>
           <Page.Title title="Tasks" />
         </Page.Header.Left>
@@ -21,7 +21,7 @@ export default class TasksHeader extends PureComponent<Props> {
             onClick={onCreateTask}
             icon={IconFont.Plus}
             text="Create Task"
-            titleText="Create a new task"
+            titleText="Create a new Task"
           />
         </Page.Header.Right>
       </Page.Header>

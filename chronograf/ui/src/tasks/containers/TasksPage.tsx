@@ -1,12 +1,20 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {InjectedRouter} from 'react-router'
 
+// Components
 import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
+import {Page} from 'src/pageLayout'
 
+// Actions
 import {populateTasks, deleteTask} from 'src/tasks/actions/v2'
+
+// Types
 import {Task} from 'src/types/v2/tasks'
+
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -23,15 +31,24 @@ interface ConnectedStateProps {
 
 type Props = ConnectedDispatchProps & PassedInProps & ConnectedStateProps
 
+@ErrorHandling
 class TasksPage extends PureComponent<Props> {
   public render(): JSX.Element {
     const {tasks} = this.props
 
     return (
-      <div className="page">
+      <Page>
         <TasksHeader onCreateTask={this.handleCreateTask} />
-        <TasksList tasks={tasks} onDelete={this.handleDelete} />
-      </div>
+        <Page.Contents fullWidth={false} scrollable={true}>
+          <div className="col-xs-12">
+            <TasksList
+              tasks={tasks}
+              onDelete={this.handleDelete}
+              onCreate={this.handleCreateTask}
+            />
+          </div>
+        </Page.Contents>
+      </Page>
     )
   }
 

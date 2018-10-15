@@ -51,7 +51,7 @@ class LogsHeader extends PureComponent<Props> {
         </Page.Header.Left>
         <Page.Header.Right>
           <Dropdown
-            customClass="dropdown-300"
+            widthPixels={200}
             selectedID={this.selectedSource}
             onChange={this.handleChooseSource}
             titleText="Sources"
@@ -59,7 +59,7 @@ class LogsHeader extends PureComponent<Props> {
             {this.sourceDropDownItems}
           </Dropdown>
           <Dropdown
-            customClass="dropdown-180"
+            widthPixels={160}
             icon={IconFont.Disks}
             selectedID={this.selectedBucket}
             onChange={this.handleChooseBucket}
