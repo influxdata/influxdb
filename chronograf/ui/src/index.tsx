@@ -14,7 +14,8 @@ import {getBasepath} from 'src/utils/basepath'
 
 // Components
 import App from 'src/App'
-import CheckSources from 'src/CheckSources'
+import GetSources from 'src/shared/containers/GetSources'
+import SetSource from 'src/shared/containers/SetSource'
 import GetOrganizations from 'src/shared/containers/GetOrganizations'
 import Setup from 'src/Setup'
 import Signin from 'src/Signin'
@@ -77,33 +78,35 @@ class Root extends PureComponent {
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
                     <Route component={App}>
-                      <Route path="/" component={CheckSources}>
-                        <Route
-                          path="dashboards/:dashboardID"
-                          component={DashboardPage}
-                        />
-                        <Route path="tasks" component={TasksPage} />
-                        <Route path="tasks/new" component={TaskPage} />
-                        <Route path="sources/new" component={SourcePage} />
-                        <Route
-                          path="data-explorer"
-                          component={DataExplorerPage}
-                        />
-                        <Route path="dashboards" component={DashboardsPage} />
-                        <Route
-                          path="manage-sources"
-                          component={ManageSources}
-                        />
-                        <Route
-                          path="manage-sources/new"
-                          component={SourcePage}
-                        />
-                        <Route
-                          path="manage-sources/:id/edit"
-                          component={SourcePage}
-                        />
-                        <Route path="user/:tab" component={UserPage} />
-                        <Route path="logs" component={LogsPage} />
+                      <Route path="/" component={GetSources}>
+                        <Route path="/" component={SetSource}>
+                          <Route
+                            path="dashboards/:dashboardID"
+                            component={DashboardPage}
+                          />
+                          <Route path="tasks" component={TasksPage} />
+                          <Route path="tasks/new" component={TaskPage} />
+                          <Route path="sources/new" component={SourcePage} />
+                          <Route
+                            path="data-explorer"
+                            component={DataExplorerPage}
+                          />
+                          <Route path="dashboards" component={DashboardsPage} />
+                          <Route
+                            path="manage-sources"
+                            component={ManageSources}
+                          />
+                          <Route
+                            path="manage-sources/new"
+                            component={SourcePage}
+                          />
+                          <Route
+                            path="manage-sources/:id/edit"
+                            component={SourcePage}
+                          />
+                          <Route path="user/:tab" component={UserPage} />
+                          <Route path="logs" component={LogsPage} />
+                        </Route>
                       </Route>
                     </Route>
                   </Route>

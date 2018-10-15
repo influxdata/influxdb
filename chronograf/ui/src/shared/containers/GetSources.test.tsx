@@ -1,6 +1,6 @@
 import React from 'react'
 import {shallow} from 'enzyme'
-import {CheckSources} from 'src/CheckSources'
+import {GetSources} from 'src/shared/containers/GetSources'
 import MockChild from 'mocks/MockChild'
 
 import {source} from 'mocks/dummy'
@@ -27,9 +27,9 @@ const setup = (override?) => {
   }
 
   const wrapper = shallow(
-    <CheckSources {...props}>
+    <GetSources {...props}>
       <MockChild />
-    </CheckSources>
+    </GetSources>
   )
 
   return {

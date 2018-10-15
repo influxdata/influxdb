@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import {getMe} from 'src/shared/actions/v2/me'
 
 interface PassedInProps {
@@ -17,6 +18,7 @@ interface State {
 
 type Props = ConnectDispatchProps & PassedInProps
 
+@ErrorHandling
 class GetMe extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)

@@ -2,6 +2,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 import {getOrganizations} from 'src/shared/actions/v2/orgs'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface PassedInProps {
   children: React.ReactElement<any>
@@ -17,6 +18,7 @@ interface State {
   ready: boolean
 }
 
+@ErrorHandling
 class GetOrganizations extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

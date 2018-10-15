@@ -1,31 +1,34 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
+// APIs
+import {getSourcesAsync} from 'src/shared/actions/sources'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {getLinks} from 'src/shared/actions/links'
 
-interface PassedInProps {
+interface Props {
   children: React.ReactElement<any>
-}
-
-interface ConnectDispatchProps {
-  getLinks: typeof getLinks
+  getSources: typeof getSourcesAsync
 }
 
 interface State {
   ready: boolean
 }
 
-type Props = ConnectDispatchProps & PassedInProps
-
 @ErrorHandling
-class GetLinks extends PureComponent<Props, State> {
-  constructor(props: Props) {
+export class GetSources extends PureComponent<Props, State> {
+  constructor(props) {
     super(props)
 
     this.state = {
       ready: false,
     }
+  }
+
+  public async componentDidMount() {
+    await this.props.getSources()
+    this.setState({ready: true})
   }
 
   public render() {
@@ -35,17 +38,10 @@ class GetLinks extends PureComponent<Props, State> {
 
     return <div className="page-spinner" />
   }
-
-  public async componentDidMount() {
-    await this.props.getLinks()
-    this.setState({ready: true})
-  }
 }
 
 const mdtp = {
-  getLinks,
+  getSources: getSourcesAsync,
 }
 
-export default connect<{}, ConnectDispatchProps, PassedInProps>(null, mdtp)(
-  GetLinks
-)
+export default connect(null, mdtp)(GetSources)
