@@ -18,6 +18,7 @@ import {
   IconFont,
   ComponentSize,
   ComponentSpacer,
+  EmptyState,
 } from 'src/clockface'
 import DefaultToggle from 'src/dashboards/components/DashboardDefaultToggle'
 
@@ -166,20 +167,23 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
     const {onCreateDashboard, searchTerm} = this.props
 
     if (searchTerm) {
-      return <h4>No dashboards match your search term</h4>
+      return (
+        <EmptyState size={ComponentSize.Large}>
+          <EmptyState.Text text="No dashboards match your search term" />
+        </EmptyState>
+      )
     }
 
     return (
-      <>
-        <h4>Looks like you don’t have any dashboards</h4>
-        <br />
+      <EmptyState size={ComponentSize.Large}>
+        <EmptyState.Text text="Looks like you don’t have any dashboards" />
         <Button
           text="Create a Dashboard"
           icon={IconFont.Plus}
           color={ComponentColor.Primary}
           onClick={onCreateDashboard}
         />
-      </>
+      </EmptyState>
     )
   }
 }
