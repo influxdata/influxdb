@@ -59,7 +59,7 @@ var WithTSMFilenameFormatter = func(fn tsm1.FormatFileNameFunc) Option {
 // engines are in use.
 var WithEngineID = func(id int) Option {
 	return func(e *Engine) {
-		*e.engineID = id
+		e.engineID = &id
 	}
 }
 
@@ -67,7 +67,7 @@ var WithEngineID = func(id int) Option {
 // when a system has engines running on multiple nodes.
 var WithNodeID = func(id int) Option {
 	return func(e *Engine) {
-		*e.nodeID = id
+		e.nodeID = &id
 	}
 }
 
