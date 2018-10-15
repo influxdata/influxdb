@@ -15,6 +15,7 @@ import WizardFullScreen from './components/wizard/WizardFullScreen'
 import WizardProgressHeader from './components/wizard/WizardProgressHeader'
 import ProgressBar from './components/wizard/ProgressBar'
 import ComponentSpacer from './components/component_spacer/ComponentSpacer'
+import EmptyState from './components/empty_state/EmptyState'
 
 // Import Types
 import {
@@ -38,6 +39,7 @@ export {
   Dropdown,
   DropdownMode,
   MultiSelectDropdown,
+  EmptyState,
   Form,
   Input,
   InputType,

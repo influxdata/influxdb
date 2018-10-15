@@ -1,0 +1,53 @@
+/*
+  Empty States
+  ------------------------------------------------------------------------------
+*/
+
+.empty-state {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+
+.empty-state--text,
+.empty-state--sub-text {
+  color: $empty-state-text;
+  @extend %no-user-select;
+}
+
+.empty-state--xs {
+  padding: $ix-marg-a 0;
+
+  .empty-state--text,
+  .empty-state--sub-text {
+    margin: $ix-marg-a 0;
+  }
+}
+
+.empty-state--sm {
+  padding: $ix-marg-c 0;
+
+  .empty-state--text,
+  .empty-state--sub-text {
+    margin: $ix-marg-b 0;
+  }
+}
+
+.empty-state--md {
+  padding: $ix-marg-d 0;
+
+  .empty-state--text,
+  .empty-state--sub-text {
+    margin: $ix-marg-b 0;
+  }
+}
+
+.empty-state--lg {
+  padding: $ix-marg-f 0;
+
+  .empty-state--text,
+  .empty-state--sub-text {
+    margin: $ix-marg-c 0;
+  }
+}
