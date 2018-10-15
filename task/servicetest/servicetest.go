@@ -366,7 +366,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			tid := tasks[len(tasks)-1].ID
 			if _, err := sys.S.CreateNextRun(sys.Ctx, tid, math.MaxInt64); err != nil {
 				// This may have errored due to the task being deleted. Check if the task still exists.
-				if t, err2 := sys.S.FindTaskByID(sys.Ctx, tid); err2 == nil && t == nil {
+				if _, err2 := sys.S.FindTaskByID(sys.Ctx, tid); err2 == backend.ErrTaskNotFound {
 					// It was deleted. Just continue.
 					continue
 				}
