@@ -343,7 +343,9 @@ func (f *LogFile) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
 		if tv.cardinality() == 0 {
 			continue
 		}
-		itrs = append(itrs, tsdb.NewSeriesIDSetIterator(tv.seriesIDSet()))
+		if itr := tsdb.NewSeriesIDSetIterator(tv.seriesIDSet()); itr != nil {
+			itrs = append(itrs, itr)
+		}
 	}
 
 	return tsdb.MergeSeriesIDIterators(itrs...)
