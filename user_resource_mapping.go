@@ -9,6 +9,7 @@ import (
 type UserType string
 type ResourceType string
 
+// available user resource types.
 const (
 	Owner                 UserType     = "owner"
 	Member                UserType     = "member"
@@ -17,6 +18,7 @@ const (
 	TaskResourceType      ResourceType = "task"
 	OrgResourceType       ResourceType = "org"
 	ViewResourceType      ResourceType = "view"
+	TelegrafResourceType  ResourceType = "telegraf"
 )
 
 // UserResourceMappingService maps the relationships between users and resources
@@ -51,7 +53,7 @@ func (m UserResourceMapping) Validate() error {
 		return errors.New("a valid user type is required")
 	}
 	switch m.ResourceType {
-	case DashboardResourceType, BucketResourceType, TaskResourceType, OrgResourceType, ViewResourceType:
+	case DashboardResourceType, BucketResourceType, TaskResourceType, OrgResourceType, ViewResourceType, TelegrafResourceType:
 	default:
 		return fmt.Errorf("a valid resource type is required")
 	}

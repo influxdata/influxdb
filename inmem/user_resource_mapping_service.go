@@ -75,27 +75,29 @@ func (s *Service) FindUserResourceMappings(ctx context.Context, filter platform.
 			return true
 		}
 
+		good := true
+
 		// Filter by UserID
-		if filter.UserID.Valid() && filter.UserID == mapping.UserID {
-			return true
+		if filter.UserID.Valid() && filter.UserID != mapping.UserID {
+			good = false
 		}
 
 		// Filter by ResourceID
-		if filter.ResourceID.Valid() && filter.ResourceID == mapping.ResourceID {
-			return true
+		if filter.ResourceID.Valid() && filter.ResourceID != mapping.ResourceID {
+			good = false
 		}
 
 		// Filter by user type
-		if filter.UserType == mapping.UserType {
-			return true
+		if filter.UserType != "" && filter.UserType != mapping.UserType {
+			good = false
 		}
 
 		// Filter by resource type
-		if filter.ResourceType == mapping.ResourceType {
-			return true
+		if filter.ResourceType != "" && filter.ResourceType != mapping.ResourceType {
+			good = false
 		}
 
-		return false
+		return good
 	}
 
 	mappings, err := s.filterUserResourceMappings(ctx, filterFunc)
@@ -133,5 +135,17 @@ func (s *Service) DeleteUserResourceMapping(ctx context.Context, resourceID, use
 	}
 
 	s.userResourceMappingKV.Delete(encodeUserResourceMappingKey(resourceID, userID))
+	return nil
+}
+
+func (s *Service) deleteUserResourceMapping(ctx context.Context, filter platform.UserResourceMappingFilter) error {
+	mappings, _, err := s.FindUserResourceMappings(ctx, filter)
+	if mappings == nil && err != nil {
+		return err
+	}
+	for _, m := range mappings {
+		s.userResourceMappingKV.Delete(encodeUserResourceMappingKey(m.ResourceID, m.UserID))
+	}
+
 	return nil
 }

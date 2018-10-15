@@ -108,6 +108,11 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
+		// Always create Telegraf Config bucket.
+		if err := c.initializeTelegraf(ctx, tx); err != nil {
+			return err
+		}
+
 		// Always create Source bucket.
 		if err := c.initializeSources(ctx, tx); err != nil {
 			return err
