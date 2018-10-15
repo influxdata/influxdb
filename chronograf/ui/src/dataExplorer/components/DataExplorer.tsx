@@ -10,6 +10,7 @@ import {setActiveTimeMachineID} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
 import {DE_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
+import {TimeMachineTab} from 'src/types/v2/timeMachine'
 
 interface StateProps {}
 
@@ -17,7 +18,9 @@ interface DispatchProps {
   onSetActiveTimeMachineID: typeof setActiveTimeMachineID
 }
 
-interface PassedProps {}
+interface PassedProps {
+  activeTab: TimeMachineTab
+}
 
 interface State {}
 
@@ -31,9 +34,13 @@ class DataExplorer extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {activeTab} = this.props
+
     return (
       <div className="data-explorer">
-        <TimeMachine />
+        <div className="time-machine-page">
+          <TimeMachine activeTab={activeTab} />
+        </div>
       </div>
     )
   }

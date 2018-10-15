@@ -30,7 +30,7 @@ interface Props {
   orientation: string
   activeHandleID: string
   headerOrientation: string
-  render: (visibility: string) => ReactElement<any>
+  render: (visibility: string, pixels: number) => ReactElement<any>
   onHandleStartDrag: (id: string, e: MouseEvent<HTMLElement>) => void
   onDoubleClick: (id: string) => void
   onMaximize: (id: string) => void
@@ -46,15 +46,17 @@ class Division extends PureComponent<Props> {
   }
 
   private collapseThreshold: number = 0
-  private ref: React.RefObject<HTMLDivElement>
+  private divisionRef: React.RefObject<HTMLDivElement>
+  private divisionPixels: number = 0
 
   constructor(props) {
     super(props)
-    this.ref = React.createRef<HTMLDivElement>()
+    this.divisionRef = React.createRef<HTMLDivElement>()
   }
 
   public componentDidMount() {
     const {name} = this.props
+    this.calcDivisionPixels()
 
     if (!name) {
       return 0
@@ -70,18 +72,25 @@ class Division extends PureComponent<Props> {
     this.collapseThreshold = width + NAME_OFFSET
   }
 
+  public componentDidUpdate() {
+    this.calcDivisionPixels()
+  }
+
   public render() {
     const {render} = this.props
+
     return (
       <div
         className={this.containerClass}
         style={this.containerStyle}
-        ref={this.ref}
+        ref={this.divisionRef}
       >
         {this.renderDragHandle}
         <div className={this.contentsClass} style={this.contentStyle}>
           {this.renderHeader}
-          <div className="threesizer--body">{render(this.visibility)}</div>
+          <div className="threesizer--body">
+            {render(this.visibility, this.divisionPixels)}
+          </div>
         </div>
       </div>
     )
@@ -273,11 +282,11 @@ class Division extends PureComponent<Props> {
       return true
     }
 
-    if (!this.ref || this.props.size >= 0.33) {
+    if (!this.divisionRef || this.props.size >= 0.33) {
       return false
     }
 
-    const {width} = this.ref.current.getBoundingClientRect()
+    const {width} = this.divisionRef.current.getBoundingClientRect()
 
     return width <= this.collapseThreshold
   }
@@ -311,6 +320,19 @@ class Division extends PureComponent<Props> {
   private handleMaximize = (): void => {
     const {id, onMaximize} = this.props
     onMaximize(id)
+  }
+
+  private calcDivisionPixels = (): void => {
+    const {orientation} = this.props
+
+    const {clientWidth, clientHeight} = this.divisionRef.current
+
+    let divisionPixels = clientWidth
+    if (orientation === HANDLE_HORIZONTAL) {
+      divisionPixels = clientHeight
+    }
+
+    this.divisionPixels = divisionPixels
   }
 }
 

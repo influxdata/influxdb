@@ -1,0 +1,159 @@
+/*
+  Graph Type Selector Styles
+  ------------------------------------------------------------------------------
+*/
+
+$graph-type--card: 190px;
+$graph-type--margin: 4px;
+$graph-type--graphic: 150px;
+
+.graph-type-selector {
+  background-color: $g3-castle;
+}
+
+.graph-type-selector--container {
+  min-width: 200px;
+  padding: 30px;
+}
+
+.graph-type-selector--grid {
+  width: 100%;
+  display: inline-block;
+  margin: 0 (-10px / 2);
+  margin-bottom: -10px;
+}
+
+.graph-type-selector--option {
+  float: left;
+  width: $graph-type--card;
+  padding-bottom: $graph-type--card;
+  position: relative;
+
+  > div > p {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 900;
+    position: absolute;
+    bottom: 7%;
+    left: 10px;
+    width: calc(100% - 20px);
+    text-align: center;
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // Actual "card"
+  > div {
+    background-color: $g2-kevlar;
+    color: $g11-sidewalk;
+    border-radius: $ix-radius;
+    width: $graph-type--card - ($graph-type--margin / 2);
+    height: $graph-type--card - ($graph-type--margin / 2);
+    position: absolute;
+    top: 10px / 2;
+    left: 10px / 2;
+    transition: color 0.25s ease, border-color 0.25s ease,
+      background-color 0.25s ease;
+
+    &:hover {
+      cursor: pointer;
+      background-color: $g4-onyx;
+      color: $g15-platinum;
+    }
+  }
+}
+
+// Active state "card"
+.graph-type-selector--option.active > div,
+.graph-type-selector--option.active > div:hover {
+  background-color: $g5-pepper;
+  color: $g18-cloud;
+}
+
+.graph-type-selector--graphic {
+  width: $graph-type--graphic;
+  height: $graph-type--graphic;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  > svg,
+  > svg * {
+    transform: translate3d(0, 0, 0);
+  }
+  > svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+.graph-type-selector--graphic-line {
+  stroke-width: 1px;
+  fill: none;
+  stroke-linecap: round;
+  stroke-miterlimit: 10;
+
+  &.graphic-line-a {
+    stroke: $g11-sidewalk;
+  }
+  &.graphic-line-b {
+    stroke: $g9-mountain;
+  }
+  &.graphic-line-c {
+    stroke: $g7-graphite;
+  }
+  &.graphic-line-d {
+    stroke: $g13-mist;
+  }
+}
+.graph-type-selector--graphic-fill {
+  opacity: 0.045;
+
+  &.graphic-fill-a {
+    fill: $g11-sidewalk;
+  }
+  &.graphic-fill-b {
+    fill: $g9-mountain;
+  }
+  &.graphic-fill-c {
+    fill: $g7-graphite;
+  }
+  &.graphic-fill-d {
+    fill: $g13-mist;
+    opacity: 1;
+  }
+}
+.graph-type-selector--option.active .graph-type-selector--graphic {
+  .graph-type-selector--graphic-line.graphic-line-a {
+    stroke: $c-pool;
+  }
+  .graph-type-selector--graphic-line.graphic-line-b {
+    stroke: $c-dreamsicle;
+  }
+  .graph-type-selector--graphic-line.graphic-line-c {
+    stroke: $c-rainforest;
+  }
+  .graph-type-selector--graphic-line.graphic-line-d {
+    stroke: $g17-whisper;
+  }
+  .graph-type-selector--graphic-fill.graphic-fill-a {
+    fill: $c-pool;
+  }
+  .graph-type-selector--graphic-fill.graphic-fill-b {
+    fill: $c-dreamsicle;
+  }
+  .graph-type-selector--graphic-fill.graphic-fill-c {
+    fill: $c-rainforest;
+  }
+  .graph-type-selector--graphic-fill.graphic-fill-a,
+  .graph-type-selector--graphic-fill.graphic-fill-b,
+  .graph-type-selector--graphic-fill.graphic-fill-c {
+    opacity: 0.22;
+  }
+  .graph-type-selector--graphic-fill.graphic-fill-d {
+    fill: $g17-whisper;
+    opacity: 1;
+  }
+}

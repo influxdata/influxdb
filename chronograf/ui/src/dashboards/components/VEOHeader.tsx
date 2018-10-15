@@ -3,8 +3,8 @@ import React, {PureComponent} from 'react'
 
 // Components
 import VEOHeaderName from 'src/dashboards/components/VEOHeaderName'
+import TimeMachineTabs from 'src/shared/components/TimeMachineTabs'
 import {
-  Radio,
   ButtonShape,
   Button,
   ComponentColor,
@@ -43,26 +43,10 @@ class VEOHeader extends PureComponent<Props> {
             <VEOHeaderName name={name} onRename={onSetName} />
           </Page.Header.Left>
           <Page.Header.Center>
-            <Radio shape={ButtonShape.StretchToFit}>
-              <Radio.Button
-                id="deceo-tab-queries"
-                titleText="Queries"
-                value={TimeMachineTab.Queries}
-                active={activeTab === TimeMachineTab.Queries}
-                onClick={onSetActiveTab}
-              >
-                Queries
-              </Radio.Button>
-              <Radio.Button
-                id="deceo-tab-vis"
-                titleText="Visualization"
-                value={TimeMachineTab.Visualization}
-                active={activeTab === TimeMachineTab.Visualization}
-                onClick={onSetActiveTab}
-              >
-                Visualization
-              </Radio.Button>
-            </Radio>
+            <TimeMachineTabs
+              activeTab={activeTab}
+              onSetActiveTab={onSetActiveTab}
+            />
           </Page.Header.Center>
           <Page.Header.Right>
             <Button
