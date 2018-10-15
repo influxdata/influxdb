@@ -30,19 +30,11 @@ import NotFound from 'src/shared/components/NotFound'
 // Actions
 import {getLinksAsync} from 'src/shared/actions/links'
 import {disablePresentationMode} from 'src/shared/actions/app'
-import {errorThrown} from 'src/shared/actions/errors'
-import {notify} from 'src/shared/actions/notifications'
 
 // Styles
 import 'src/style/chronograf.scss'
 
-// Types
-import * as ErrorsModels from 'src/types/errors'
-
-const errorsQueue = []
-
 const rootNode = getRootNode()
-
 const basepath = getBasepath()
 
 declare global {
@@ -58,7 +50,7 @@ const history: History = useRouterHistory(createHistory)({
   basename: basepath, // this is written in when available by the URL prefixer middleware
 })
 
-const store = configureStore(loadLocalStorage(errorsQueue), history)
+const store = configureStore(loadLocalStorage(), history)
 const {dispatch} = store
 
 history.listen(() => {
@@ -88,13 +80,11 @@ class Root extends PureComponent<{}, State> {
   }
 
   public async componentDidMount() {
-    this.flushErrorsQueue()
-
     try {
       await this.getLinks()
       this.setState({ready: true})
     } catch (error) {
-      dispatch(errorThrown(error))
+      console.error('Could not get links')
     }
   }
 
@@ -133,24 +123,6 @@ class Root extends PureComponent<{}, State> {
     ) : (
       <div className="page-spinner" />
     )
-  }
-
-  private flushErrorsQueue() {
-    if (errorsQueue.length) {
-      errorsQueue.forEach(error => {
-        if (typeof error === 'object') {
-          dispatch(notify(error))
-        } else {
-          dispatch(
-            errorThrown(
-              {status: 0, auth: null},
-              error,
-              ErrorsModels.AlertType.Warning
-            )
-          )
-        }
-      })
-    }
   }
 }
 

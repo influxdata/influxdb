@@ -6,6 +6,7 @@
 // v4.1 adds url download capability via solo URL argument (same domain/CORS only)
 // v4.2 adds semantic variable names, long (over 2MB) dataURL support, and hidden by default temp anchors
 // https://github.com/rndme/download
+/* tslint:disable */
 
 const dataUrlToBlob = (myBlob, strUrl) => {
   const parts = strUrl.split(/[:;,]/),
@@ -30,7 +31,7 @@ const download = (data, strFileName, strMimeType) => {
   let url = !strFileName && !strMimeType && payload
   const anchor = document.createElement('a')
   const toString = a => `${a}`
-  let myBlob = _window.Blob || _window.MozBlob || _window.WebKitBlob || toString
+  let myBlob: any = _window.Blob || toString
   let fileName = strFileName || 'download'
   let reader
   myBlob = myBlob.call ? myBlob.bind(_window) : Blob
@@ -47,7 +48,7 @@ const download = (data, strFileName, strMimeType) => {
       const ajax = new XMLHttpRequest()
       ajax.open('GET', url, true)
       ajax.responseType = 'blob'
-      ajax.onload = function(e) {
+      ajax.onload = function(e: any) {
         download(e.target.response, fileName, defaultMime)
       }
       setTimeout(function() {
@@ -100,7 +101,7 @@ const download = (data, strFileName, strMimeType) => {
     } else {
       return navigator.msSaveBlob // IE10 can't do a[download], only Blobs:
         ? navigator.msSaveBlob(dataUrlToBlob(myBlob, payload), fileName)
-        : saver(payload) // everyone else can save dataURLs un-processed
+        : saver(payload, false) // everyone else can save dataURLs un-processed
     }
   } // end if dataURL passed?
 
@@ -121,16 +122,16 @@ const download = (data, strFileName, strMimeType) => {
     // handle non-Blob()+non-URL browsers:
     if (typeof blob === 'string' || blob.constructor === toString) {
       try {
-        return saver(`data:${mimeType};base64,${_window.btoa(blob)}`)
+        return saver(`data:${mimeType};base64,${_window.btoa(blob)}`, false)
       } catch (y) {
-        return saver(`data:${mimeType},${encodeURIComponent(blob)}`)
+        return saver(`data:${mimeType},${encodeURIComponent(blob)}`, false)
       }
     }
 
     // Blob but not URL support:
     reader = new FileReader()
     reader.onload = function() {
-      saver(this.result)
+      saver(this.result, false)
     }
     reader.readAsDataURL(blob)
   }

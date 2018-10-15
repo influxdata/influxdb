@@ -16,7 +16,6 @@ import {OverlayTechnology} from 'src/clockface'
 import * as dashboardActions from 'src/dashboards/actions/v2'
 import * as rangesActions from 'src/dashboards/actions/v2/ranges'
 import * as appActions from 'src/shared/actions/app'
-import * as errorActions from 'src/shared/actions/errors'
 import * as notifyActions from 'src/shared/actions/notifications'
 import * as viewActions from 'src/dashboards/actions/v2/views'
 
@@ -56,7 +55,6 @@ import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
 import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
-import * as ErrorsActions from 'src/types/actions/errors'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
 interface StateProps {
@@ -82,7 +80,6 @@ interface DispatchProps {
   setZoomedTimeRange: typeof rangesActions.setZoomedTimeRange
   handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
-  errorThrown: ErrorsActions.ErrorThrownActionCreator
   notify: NotificationsActions.PublishNotificationActionCreator
   onAddCell: typeof dashboardActions.addCellAsync
   onCreateCellWithView: typeof dashboardActions.createCellWithView
@@ -459,7 +456,6 @@ const mdtp: DispatchProps = {
   updateCells: dashboardActions.updateCellsAsync,
   handleChooseAutoRefresh: appActions.setAutoRefresh,
   handleClickPresentationButton: appActions.delayEnablePresentationMode,
-  errorThrown: errorActions.errorThrown,
   notify: notifyActions.notify,
   setDashTimeV1: rangesActions.setDashTimeV1,
   updateQueryParams: rangesActions.updateQueryParams,

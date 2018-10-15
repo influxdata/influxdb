@@ -39,7 +39,6 @@ interface OwnProps {
   timeFormat: string
   autoRefresh: number
   manualRefresh: number
-  staticLegend: boolean
   onZoom: (range: TimeRange) => void
   properties: RefreshingViewProperties
 }
@@ -58,7 +57,6 @@ class RefreshingView extends PureComponent<Props> {
   public static defaultProps: Partial<Props> = {
     inView: true,
     manualRefresh: 0,
-    staticLegend: false,
   }
 
   public render() {
@@ -70,7 +68,6 @@ class RefreshingView extends PureComponent<Props> {
       timeRange,
       templates,
       properties,
-      staticLegend,
       manualRefresh,
       handleSetHoverTime,
     } = this.props
@@ -120,7 +117,6 @@ class RefreshingView extends PureComponent<Props> {
                   loading={loading}
                   timeRange={timeRange}
                   properties={properties}
-                  staticLegend={staticLegend}
                   handleSetHoverTime={handleSetHoverTime}
                 />
               )
@@ -143,7 +139,6 @@ class RefreshingView extends PureComponent<Props> {
                   loading={loading}
                   timeRange={timeRange}
                   properties={lineProperties}
-                  staticLegend={staticLegend}
                   handleSetHoverTime={handleSetHoverTime}
                 >
                   <SingleStatTransform tables={tables}>
@@ -165,7 +160,6 @@ class RefreshingView extends PureComponent<Props> {
                   loading={loading}
                   timeRange={timeRange}
                   properties={properties}
-                  staticLegend={staticLegend}
                   handleSetHoverTime={handleSetHoverTime}
                 />
               )
@@ -178,7 +172,6 @@ class RefreshingView extends PureComponent<Props> {
                   loading={loading}
                   timeRange={timeRange}
                   properties={properties}
-                  staticLegend={staticLegend}
                   handleSetHoverTime={handleSetHoverTime}
                 />
               )

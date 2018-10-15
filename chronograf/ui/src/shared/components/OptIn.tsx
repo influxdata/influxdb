@@ -14,7 +14,7 @@ interface Props {
   customPlaceholder?: string
   customValue?: string
   onSetValue: (value: string) => void
-  type: string | number
+  type: string
 }
 
 interface State {

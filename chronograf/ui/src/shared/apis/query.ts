@@ -1,20 +1,10 @@
 import {getDeep} from 'src/utils/wrappers'
-import {
-  handleSuccess,
-  handleError,
-  handleLoading,
-} from 'src/shared/actions/timeSeries'
 import {analyzeQueries} from 'src/shared/apis'
 import {DEFAULT_DURATION_MS} from 'src/shared/constants'
 import replaceTemplates, {replaceInterval} from 'src/tempVars/utils/replace'
 import {proxy} from 'src/utils/queryUrlGenerator'
 
 import {Template} from 'src/types'
-
-const noop = () => ({
-  type: 'NOOP',
-  payload: {},
-})
 
 interface Query {
   id: string
@@ -25,13 +15,14 @@ export const fetchTimeSeries = async (
   link: string,
   queries: Query[],
   resolution: number,
-  templates: Template[],
-  editQueryStatus: () => any = noop
+  templates: Template[]
 ) => {
-  const timeSeriesPromises = queries.map(async query => {
+  const timeSeriesPromises = queries.map(async ({text}) => {
     try {
-      const text = await replace(query.text, link, templates, resolution)
-      return handleQueryFetchStatus({...query, text}, link, editQueryStatus)
+      const query = await replace(text, link, templates, resolution)
+      const payload = {source: link, query}
+      const {data} = await proxy(payload)
+      return data
     } catch (error) {
       console.error(error)
       throw error
@@ -39,29 +30,6 @@ export const fetchTimeSeries = async (
   })
 
   return Promise.all(timeSeriesPromises)
-}
-
-const handleQueryFetchStatus = async (
-  query: Query,
-  link: string,
-  editQueryStatus: () => any
-) => {
-  try {
-    handleLoading(query, editQueryStatus)
-
-    const payload = {
-      source: link,
-      query: query.text,
-    }
-
-    const {data} = await proxy(payload)
-
-    return handleSuccess(data, query, editQueryStatus)
-  } catch (error) {
-    console.error(error)
-    handleError(error, query, editQueryStatus)
-    throw error
-  }
 }
 
 const replace = async (

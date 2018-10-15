@@ -5,16 +5,17 @@ import {
 } from 'src/shared/constants/codeMirrorModes'
 import 'codemirror/addon/hint/show-hint'
 
-/* eslint-disable */
+/* tslint:disable */
+
 const CodeMirror = require('codemirror')
 
-CodeMirror.defineSimpleMode = function (name, states) {
-  CodeMirror.defineMode(name, function (config) {
+CodeMirror.defineSimpleMode = function(name, states) {
+  CodeMirror.defineMode(name, function(config) {
     return CodeMirror.simpleMode(config, states)
   })
 }
 
-CodeMirror.simpleMode = function (config, states) {
+CodeMirror.simpleMode = function(config, states) {
   ensureState(states, 'start')
   const states_ = {},
     meta = states.meta || {}
@@ -49,6 +50,8 @@ CodeMirror.simpleMode = function (config, states) {
         local: state.local,
         localState: null,
         indent: state.indent && state.indent.slice(0),
+        stack: null,
+        persistentStates: null,
       }
       if (state.localState) {
         s.localState = CodeMirror.copyState(state.local.mode, state.localState)
@@ -71,10 +74,12 @@ CodeMirror.simpleMode = function (config, states) {
     },
     token: tokenFunction(states_, config),
     innerMode(state) {
-      return state.local && {
-        mode: state.local.mode,
-        state: state.localState
-      }
+      return (
+        state.local && {
+          mode: state.local.mode,
+          state: state.localState,
+        }
+      )
     },
     indent: indentFunction(states_, meta),
   }
@@ -131,13 +136,13 @@ function Rule(data, states) {
   if (data.next || data.push) {
     ensureState(states, data.next || data.push)
   }
-  this.regex = toRegex(data.regex)
+  this.regex = toRegex(data.regex, null)
   this.token = asToken(data.token)
   this.data = data
 }
 
 function tokenFunction(states, config) {
-  return function (stream, state) {
+  return function(stream, state) {
     if (state.pending) {
       const pend = state.pending.shift()
       if (state.pending.length === 0) {
@@ -173,8 +178,8 @@ function tokenFunction(states, config) {
       if (matches) {
         if (rule.data.next) {
           state.state = rule.data.next
-        } else if (rule.data.push) {;
-          (state.stack || (state.stack = [])).push(state.state)
+        } else if (rule.data.push) {
+          ;(state.stack || (state.stack = [])).push(state.state)
           state.state = rule.data.push
         } else if (rule.data.pop && state.stack && state.stack.length) {
           state.state = state.stack.pop()
@@ -199,7 +204,7 @@ function tokenFunction(states, config) {
             if (matches[j]) {
               state.pending.push({
                 text: matches[j],
-                token: rule.token[j - 1]
+                token: rule.token[j - 1],
               })
             }
           }
@@ -251,9 +256,9 @@ function enterLocalMode(config, state, spec, token) {
       }
     }
   }
-  const mode = pers ?
-    pers.mode :
-    spec.mode || CodeMirror.getMode(config, spec.spec)
+  const mode = pers
+    ? pers.mode
+    : spec.mode || CodeMirror.getMode(config, spec.spec)
   const lState = pers ? pers.state : CodeMirror.startState(mode)
   if (spec.persistent && !pers) {
     state.persistentStates = {
@@ -267,7 +272,7 @@ function enterLocalMode(config, state, spec, token) {
   state.localState = lState
   state.local = {
     mode,
-    end: spec.end && toRegex(spec.end),
+    end: spec.end && toRegex(spec.end, null),
     endScan: spec.end && spec.forceEnd !== false && toRegex(spec.end, false),
     endToken: token && token.join ? token[token.length - 1] : token,
   }
@@ -282,15 +287,14 @@ function indexOf(val, arr) {
 }
 
 function indentFunction(states, meta) {
-  return function (state, textAfter, line) {
+  return function(state, textAfter, line) {
     if (state.local && state.local.mode.indent) {
       return state.local.mode.indent(state.localState, textAfter, line)
     }
     if (
       state.indent === null ||
       state.local ||
-      (meta.dontIndentStates &&
-        indexOf(state.state, meta.dontIndentStates) > -1)
+      (meta.dontIndentStates && indexOf(state.state, meta.dontIndentStates))
     ) {
       return CodeMirror.Pass
     }

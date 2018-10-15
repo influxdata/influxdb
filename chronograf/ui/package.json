@@ -8,31 +8,46 @@
     "type": "git",
     "url": "github:influxdata/chronograf"
   },
+  "alias": {
+    "src": "./src"
+  },
   "scripts": {
     "start": "yarn install -s && parcel watch -d build src/index.html",
-    "build": "parcel build -d build --no-source-maps --log-level 2 src/index.html",
+    "build":
+      "parcel build -d build --no-source-maps --log-level 2 src/index.html",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch",
-    "lint": "yarn run eslint; yarn run tslint; yarn run tsc",
-    "eslint": "eslint src",
-    "eslint:watch": "esw src --watch --cache",
-    "eslint:fix": "eslint src --fix",
+    "test:debug":
+      "node --inspect-brk node_modules/.bin/jest --runInBand --watch",
+    "lint": "yarn run tslint; yarn run tsc",
     "tslint": "tslint -c ./tslint.json '{src,test}/**/*.ts?(x)'",
     "tslint:fix": "tslint --fix -c ./tslint.json '{src,test}/**/*.ts?(x)'",
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty",
     "tsc:watch": "tsc -p ./tsconfig.json --noEmit --pretty -w"
   },
+  "jest": {
+    "displayName": "test",
+    "testURL": "http://localhost",
+    "testPathIgnorePatterns": [
+      "build",
+      "<rootDir>/node_modules/(?!(jest-test))"
+    ],
+    "setupFiles": ["<rootDir>/testSetup.ts"],
+    "modulePaths": ["<rootDir>", "<rootDir>/node_modules/"],
+    "moduleDirectories": ["src"],
+    "transform": {
+      "^.+\\.tsx?$": "ts-jest"
+    },
+    "testRegex": "(/__tests__/.*|(\\.|/)(test))\\.(ts?|tsx?)$",
+    "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
+    "snapshotSerializers": ["enzyme-to-json/serializer"],
+    "moduleNameMapper": {
+      "\\.(css|scss)$": "identity-obj-proxy"
+    }
+  },
   "author": "",
   "devDependencies": {
-    "@babel/core": "^7.1.0",
-    "@babel/plugin-proposal-class-properties": "^7.1.0",
-    "@babel/plugin-proposal-decorators": "^7.1.2",
-    "@babel/plugin-proposal-object-rest-spread": "^7.0.0",
-    "@babel/plugin-transform-runtime": "^7.1.0",
-    "@babel/preset-env": "^7.1.0",
-    "@babel/preset-react": "^7.0.0",
     "@types/chroma-js": "^1.3.4",
     "@types/codemirror": "^0.0.56",
     "@types/d3-color": "^1.2.1",
@@ -57,25 +72,13 @@
     "@types/text-encoding": "^0.0.32",
     "@types/uuid": "^3.4.3",
     "autoprefixer": "^6.3.1",
-    "babel-core": "^7.0.0-bridge",
-    "babel-eslint": "^10.0.1",
-    "babel-jest": "^23.6.0",
-    "babel-plugin-lodash": "^3.3.4",
-    "babel-plugin-module-resolver": "^3.1.1",
     "enzyme": "^3.6.0",
     "enzyme-adapter-react-16": "^1.6.0",
     "enzyme-to-json": "^3.3.4",
-    "eslint": "^5.6.1",
-    "eslint-config-prettier": "^2.9.0",
-    "eslint-plugin-babel": "^5.2.1",
-    "eslint-plugin-jest": "^21.12.2",
-    "eslint-plugin-prettier": "^2.6.0",
-    "eslint-plugin-react": "^7.11.1",
     "express": "^4.14.0",
     "http-proxy-middleware": "^0.18.0",
     "identity-obj-proxy": "^3.0.0",
     "jest": "^23.6.0",
-    "jest-runner-eslint": "^0.6.0",
     "jest-runner-tslint": "^1.0.4",
     "jsdom": "^9.0.0",
     "node-sass": "^4.9.3",
@@ -87,10 +90,9 @@
     "tslint-config-prettier": "^1.10.0",
     "tslint-plugin-prettier": "^1.3.0",
     "tslint-react": "^3.5.1",
-    "typescript": "^3.0.3"
+    "typescript": "^3.1.3"
   },
   "dependencies": {
-    "@babel/runtime": "^7.0.0",
     "axios": "^0.18.0",
     "babel-polyfill": "^6.26.0",
     "bignumber.js": "^4.0.2",
@@ -102,8 +104,6 @@
     "d3-scale": "^2.1.0",
     "dygraphs": "2.1.0",
     "fast.js": "^0.1.1",
-    "fixed-data-table-2": "^0.8.13",
-    "he": "^1.1.1",
     "history": "^3.2",
     "lodash": "^4.3.0",
     "memoize-one": "^4.0.2",
@@ -113,7 +113,6 @@
     "prop-types": "^15.6.1",
     "qs": "^6.5.2",
     "react": "^15.0.0 || ^16.0.0",
-    "react-addons-shallow-compare": "^15.0.2",
     "react-codemirror2": "^4.2.1",
     "react-copy-to-clipboard": "^5.0.1",
     "react-custom-scrollbars": "^4.1.1",
@@ -123,7 +122,6 @@
     "react-dom": "^16.3.1",
     "react-grid-layout": "^0.16.6",
     "react-markdown": "^3.6.0",
-    "react-onclickoutside": "^5.2.0",
     "react-redux": "^5.0.7",
     "react-resize-detector": "^2.3.0",
     "react-router": "^3.0.2",

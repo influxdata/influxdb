@@ -225,7 +225,7 @@ const constructCells = (
             cells.time[cellIndex] = time
             cells.seriesIndex[cellIndex] = seriesIndex
             cells.responseIndex[cellIndex] = responseIndex
-            cellIndex++ // eslint-disable-line no-plusplus
+            cellIndex++
           })
         })
       }

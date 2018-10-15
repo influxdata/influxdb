@@ -36,7 +36,6 @@ import {
   TemplateValueType,
 } from 'src/types/tempVars'
 import {FluxTable, ScriptStatus, SchemaFilter, RemoteDataState} from './flux'
-import {AnnotationInterface} from './annotations'
 import {WriteDataMode} from './dataExplorer'
 
 export {
@@ -80,6 +79,5 @@ export {
   ScriptStatus,
   SchemaFilter,
   RemoteDataState,
-  AnnotationInterface,
   WriteDataMode,
 }

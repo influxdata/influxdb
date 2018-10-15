@@ -9,7 +9,6 @@ import {AppState} from 'src/types/v2'
 
 interface OwnProps {
   dygraph: Dygraph
-  staticLegendHeight: number
 }
 
 interface StateProps {
@@ -59,8 +58,7 @@ class Crosshair extends PureComponent<Props> {
   }
 
   private get crosshairHeight(): string {
-    return `calc(100% - ${this.props.staticLegendHeight +
-      DYGRAPH_CONTAINER_XLABEL_MARGIN}px)`
+    return `calc(100% - ${DYGRAPH_CONTAINER_XLABEL_MARGIN}px)`
   }
 }
 

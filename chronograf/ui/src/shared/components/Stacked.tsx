@@ -21,17 +21,12 @@ interface Props {
   timeRange: TimeRange
   tables: FluxTable[]
   viewID: string
-  staticLegend: boolean
   onZoom: (range: TimeRange) => void
   handleSetHoverTime: typeof setHoverTime
 }
 
 @ErrorHandlingWith(InvalidData)
 class Stacked extends PureComponent<Props> {
-  public static defaultProps: Partial<Props> = {
-    staticLegend: false,
-  }
-
   public render() {
     const {
       tables,
@@ -40,7 +35,6 @@ class Stacked extends PureComponent<Props> {
       loading,
       timeRange,
       properties,
-      staticLegend,
       handleSetHoverTime,
     } = this.props
 
@@ -61,7 +55,6 @@ class Stacked extends PureComponent<Props> {
               options={this.options}
               timeRange={timeRange}
               timeSeries={dygraphsData}
-              staticLegend={staticLegend}
               handleSetHoverTime={handleSetHoverTime}
             />
           </DygraphCell>

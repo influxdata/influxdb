@@ -1,4 +1,3 @@
-/* eslint-disable no-magic-numbers */
 import {toRGB} from 'src/shared/graphs/toRGB'
 
 export const LINE_COLORS = [

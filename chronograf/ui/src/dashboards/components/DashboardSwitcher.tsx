@@ -3,7 +3,7 @@ import {Link, withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 import classnames from 'classnames'
 
-import OnClickOutside from 'src/shared/components/OnClickOutside'
+import {ClickOutside} from 'src/shared/components/ClickOutside'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -33,22 +33,24 @@ class DashboardSwitcher extends PureComponent<Props & WithRouterProps, State> {
     const openClass = isOpen ? 'open' : ''
 
     return (
-      <div className={`dropdown dashboard-switcher ${openClass}`}>
-        <button
-          className="btn btn-square btn-default btn-sm dropdown-toggle"
-          onClick={this.handleToggleMenu}
-        >
-          <span className="icon dash-h" />
-        </button>
-        <ul className="dropdown-menu">
-          <FancyScrollbar
-            autoHeight={true}
-            maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
+      <ClickOutside onClickOutside={this.handleClickOutside}>
+        <div className={`dropdown dashboard-switcher ${openClass}`}>
+          <button
+            className="btn btn-square btn-default btn-sm dropdown-toggle"
+            onClick={this.handleToggleMenu}
           >
-            {this.links}
-          </FancyScrollbar>
-        </ul>
-      </div>
+            <span className="icon dash-h" />
+          </button>
+          <ul className="dropdown-menu">
+            <FancyScrollbar
+              autoHeight={true}
+              maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
+            >
+              {this.links}
+            </FancyScrollbar>
+          </ul>
+        </div>
+      </ClickOutside>
     )
   }
 
@@ -97,4 +99,4 @@ class DashboardSwitcher extends PureComponent<Props & WithRouterProps, State> {
   }
 }
 
-export default OnClickOutside(withRouter(DashboardSwitcher))
+export default withRouter(DashboardSwitcher)

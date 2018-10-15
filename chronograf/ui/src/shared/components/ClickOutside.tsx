@@ -4,7 +4,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: ReactElement<any>
-  onClickOutside: () => void
+  onClickOutside: (e) => void
 }
 
 @ErrorHandling
@@ -24,7 +24,7 @@ export class ClickOutside extends PureComponent<Props> {
   private handleClickOutside = e => {
     const domNode = ReactDOM.findDOMNode(this)
     if (!domNode || !domNode.contains(e.target)) {
-      this.props.onClickOutside()
+      this.props.onClickOutside(e)
     }
   }
 }

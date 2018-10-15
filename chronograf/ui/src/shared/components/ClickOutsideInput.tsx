@@ -1,6 +1,6 @@
-import React, {Component, MouseEvent, ChangeEvent} from 'react'
+import React, {Component, MouseEvent, ChangeEvent, KeyboardEvent} from 'react'
 
-import onClickOutside from 'src/shared/components/OnClickOutside'
+import {ClickOutside} from 'src/shared/components/ClickOutside'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
   onGetRef: (el: HTMLInputElement) => void
   onFocus: () => void
   onChange: (e: ChangeEvent<HTMLInputElement>) => void
-  onKeyDown: () => void
+  onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void
   handleClickOutsideInput: (e: MouseEvent<HTMLElement>) => void
 }
 
@@ -38,20 +38,22 @@ class ClickOutsideInput extends Component<Props> {
     } = this.props
 
     return (
-      <input
-        className="form-control input-sm"
-        id={id}
-        min={min}
-        max={max}
-        type={type}
-        name={customPlaceholder}
-        ref={onGetRef}
-        value={customValue}
-        onFocus={onFocus}
-        onChange={onChange}
-        onKeyDown={onKeyDown}
-        placeholder={customPlaceholder}
-      />
+      <ClickOutside onClickOutside={this.handleClickOutside}>
+        <input
+          className="form-control input-sm"
+          id={id}
+          min={min}
+          max={max}
+          type={type}
+          name={customPlaceholder}
+          ref={onGetRef}
+          value={customValue}
+          onFocus={onFocus}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          placeholder={customPlaceholder}
+        />
+      </ClickOutside>
     )
   }
 
@@ -60,4 +62,4 @@ class ClickOutsideInput extends Component<Props> {
   }
 }
 
-export default onClickOutside(ClickOutsideInput)
+export default ClickOutsideInput

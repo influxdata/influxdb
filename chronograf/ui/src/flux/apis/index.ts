@@ -1,8 +1,7 @@
 import _ from 'lodash'
 
 import AJAX from 'src/utils/ajax'
-import {Service, FluxTable} from 'src/types'
-import {updateService} from 'src/shared/apis'
+import {FluxTable} from 'src/types'
 import {getDeep} from 'src/utils/wrappers'
 import {
   parseResponse,
@@ -97,22 +96,6 @@ export const getTimeSeries = async (
       tables: parseResponseError(responseBody),
       didTruncate: false,
     }
-  }
-}
-
-export const updateScript = async (service: Service, script: string) => {
-  const updates = {...service, metadata: {script}}
-
-  try {
-    const response = await updateService(updates)
-    return response
-  } catch (error) {
-    if (error.data) {
-      console.error('Could not update script', error.data)
-      throw error.data
-    }
-
-    throw error
   }
 }
 

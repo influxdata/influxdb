@@ -1,7 +1,6 @@
 import {deleteSource, getSources as getSourcesAJAX} from 'src/sources/apis/v2'
 
 import {notify} from './notifications'
-import {errorThrown} from 'src/shared/actions/errors'
 
 import {HTTP_NOT_FOUND} from 'src/shared/constants'
 import {serverError} from 'src/shared/copy/notifications'
@@ -70,7 +69,6 @@ export const removeAndLoadSources = (source: Source) => async (
       // A 404 means that either a concurrent write occurred or the source
       // passed to this action creator doesn't exist (or is undefined)
       if (err.status !== HTTP_NOT_FOUND) {
-        // eslint-disable-line no-magic-numbers
         throw err
       }
     }
@@ -87,6 +85,6 @@ export const getSourcesAsync = () => async (dispatch): Promise<void> => {
     const sources = await getSourcesAJAX()
     dispatch(loadSources(sources))
   } catch (error) {
-    dispatch(errorThrown(error))
+    dispatch(notify(serverError))
   }
 }

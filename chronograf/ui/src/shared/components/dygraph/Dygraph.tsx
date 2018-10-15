@@ -7,7 +7,6 @@ import ReactResizeDetector from 'react-resize-detector'
 // Components
 import Dygraphs from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
-import StaticLegend from 'src/shared/components/StaticLegend'
 import Crosshair from 'src/shared/components/crosshair/Crosshair'
 
 // Utils
@@ -55,11 +54,9 @@ interface Props {
   setResolution?: (w: number) => void
   onZoom?: (timeRange: TimeRange) => void
   isGraphFilled?: boolean
-  staticLegend?: boolean
 }
 
 interface State {
-  staticLegendHeight: number
   xAxisRange: [number, number]
   isMouseInLegend: boolean
 }
@@ -83,7 +80,6 @@ class Dygraph extends Component<Props, State> {
     },
     isGraphFilled: true,
     onZoom: () => {},
-    staticLegend: false,
     setResolution: () => {},
     handleSetHoverTime: () => {},
     underlayCallback: () => {},
@@ -96,7 +92,6 @@ class Dygraph extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
     this.state = {
-      staticLegendHeight: 0,
       xAxisRange: [0, 0],
       isMouseInLegend: false,
     }
@@ -235,8 +230,7 @@ class Dygraph extends Component<Props, State> {
   }
 
   public render() {
-    const {staticLegendHeight} = this.state
-    const {staticLegend, viewID} = this.props
+    const {viewID} = this.props
 
     return (
       <div
@@ -253,24 +247,10 @@ class Dygraph extends Component<Props, State> {
               onShow={this.handleShowLegend}
               onMouseEnter={this.handleMouseEnterLegend}
             />
-            <Crosshair
-              dygraph={this.dygraph}
-              staticLegendHeight={staticLegendHeight}
-            />
+            <Crosshair dygraph={this.dygraph} />
           </div>
         )}
-        {staticLegend && (
-          <StaticLegend
-            dygraphSeries={this.colorDygraphSeries}
-            dygraph={this.dygraph}
-            height={staticLegendHeight}
-            onUpdateHeight={this.handleUpdateStaticLegendHeight}
-          />
-        )}
-        {this.nestedGraph &&
-          React.cloneElement(this.nestedGraph, {
-            staticLegendHeight,
-          })}
+        {this.nestedGraph && React.cloneElement(this.nestedGraph)}
         <div
           className="dygraph-child-container"
           ref={this.graphRef}
@@ -308,19 +288,6 @@ class Dygraph extends Component<Props, State> {
   }
 
   private get dygraphStyle(): CSSProperties {
-    const {staticLegend} = this.props
-    const {staticLegendHeight} = this.state
-
-    if (staticLegend) {
-      const cellVerticalPadding = 16
-
-      return {
-        ...this.containerStyle,
-        zIndex: 2,
-        height: `calc(100% - ${staticLegendHeight + cellVerticalPadding}px)`,
-      }
-    }
-
     return {...this.containerStyle, zIndex: 2}
   }
 
@@ -448,10 +415,6 @@ class Dygraph extends Component<Props, State> {
     }
     const nanoDate = new NanoDate(date)
     return nanoDate.toISOString()
-  }
-
-  private handleUpdateStaticLegendHeight = (staticLegendHeight: number) => {
-    this.setState({staticLegendHeight})
   }
 
   private handleMouseEnterLegend = () => {

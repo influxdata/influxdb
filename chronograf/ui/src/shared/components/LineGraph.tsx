@@ -42,7 +42,6 @@ class LineGraph extends PureComponent<Props> {
       children,
       timeRange,
       properties,
-      staticLegend,
       handleSetHoverTime,
     } = this.props
 
@@ -63,7 +62,6 @@ class LineGraph extends PureComponent<Props> {
               options={this.options}
               timeRange={timeRange}
               timeSeries={dygraphsData}
-              staticLegend={staticLegend}
               handleSetHoverTime={handleSetHoverTime}
             >
               {children}

@@ -5,7 +5,7 @@ import {
   INVALID,
   RELATIVE_LOWER,
   RELATIVE_UPPER,
-} from 'shared/constants/timeRanges'
+} from 'src/shared/constants/timeRanges'
 const now = /^now/
 
 export const timeRangeType = ({upper, lower, type}) => {

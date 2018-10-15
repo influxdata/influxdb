@@ -1,5 +1,5 @@
 import Dygraph from 'dygraphs/src/dygraph'
-/* eslint-disable */
+/* tslint:disable */
 /**
  * Synchronize zooming and/or selections between a set of dygraphs.
  *
@@ -53,8 +53,10 @@ var synchronize = function(/* dygraphs..., opts */) {
       throw 'Last argument must be either Dygraph or Object.'
     } else {
       for (var i = 0; i < OPTIONS.length; i++) {
-        var optName = OPTIONS[i]
-        if (obj.hasOwnProperty(optName)) opts[optName] = obj[optName]
+        let optName = OPTIONS[i]
+        if (obj.hasOwnProperty(optName)) {
+          opts[optName] = obj[optName]
+        }
       }
     }
   }
@@ -69,48 +71,56 @@ var synchronize = function(/* dygraphs..., opts */) {
       }
     }
     if (i < arguments.length - 1) {
-      throw 'Invalid invocation of Dygraph.synchronize(). ' +
-        'All but the last argument must be Dygraph objects.'
-    } else if (i == arguments.length - 1) {
+      throw new Error(
+        'Invalid invocation of Dygraph.synchronize(). ' +
+          'All but the last argument must be Dygraph objects.'
+      )
+    } else if (i === arguments.length - 1) {
       parseOpts(arguments[arguments.length - 1])
     }
   } else if (arguments[0].length) {
     // Invoked w/ list of dygraphs, options
-    for (var i = 0; i < arguments[0].length; i++) {
+    for (let i = 0; i < arguments[0].length; i++) {
       dygraphs.push(arguments[0][i])
     }
-    if (arguments.length == 2) {
+    if (arguments.length === 2) {
       parseOpts(arguments[1])
     } else if (arguments.length > 2) {
-      throw 'Invalid invocation of Dygraph.synchronize(). ' +
-        'Expected two arguments: array and optional options argument.'
+      throw new Error(
+        'Invalid invocation of Dygraph.synchronize(). ' +
+          'Expected two arguments: array and optional options argument.'
+      )
     } // otherwise arguments.length == 1, which is fine.
   } else {
-    throw 'Invalid invocation of Dygraph.synchronize(). ' +
-      'First parameter must be either Dygraph or list of Dygraphs.'
+    throw new Error(
+      'Invalid invocation of Dygraph.synchronize(). ' +
+        'First parameter must be either Dygraph or list of Dygraphs.'
+    )
   }
 
   if (dygraphs.length < 2) {
-    throw 'Invalid invocation of Dygraph.synchronize(). ' +
-      'Need two or more dygraphs to synchronize.'
+    throw new Error(
+      'Invalid invocation of Dygraph.synchronize(). ' +
+        'Need two or more dygraphs to synchronize.'
+    )
   }
 
-  var readycount = dygraphs.length
-  for (var i = 0; i < dygraphs.length; i++) {
-    var g = dygraphs[i]
+  let readycount = dygraphs.length
+  for (let i = 0; i < dygraphs.length; i++) {
+    const g = dygraphs[i]
     g.ready(function() {
-      if (--readycount == 0) {
+      if (--readycount === 0) {
         // store original callbacks
-        var callBackTypes = [
+        const callBackTypes = [
           'drawCallback',
           'highlightCallback',
           'unhighlightCallback',
         ]
-        for (var j = 0; j < dygraphs.length; j++) {
+        for (let j = 0; j < dygraphs.length; j++) {
           if (!prevCallbacks[j]) {
             prevCallbacks[j] = {}
           }
-          for (var k = callBackTypes.length - 1; k >= 0; k--) {
+          for (let k = callBackTypes.length - 1; k >= 0; k--) {
             prevCallbacks[j][callBackTypes[k]] = dygraphs[j].getFunctionOption(
               callBackTypes[k]
             )
@@ -130,9 +140,9 @@ var synchronize = function(/* dygraphs..., opts */) {
   }
 
   return {
-    detach: function() {
-      for (var i = 0; i < dygraphs.length; i++) {
-        var g = dygraphs[i]
+    detach() {
+      for (let i = 0; i < dygraphs.length; i++) {
+        const g = dygraphs[i]
         if (opts.zoom) {
           g.updateOptions({drawCallback: prevCallbacks[i].drawCallback})
         }
@@ -152,32 +162,43 @@ var synchronize = function(/* dygraphs..., opts */) {
 }
 
 function arraysAreEqual(a, b) {
-  if (!Array.isArray(a) || !Array.isArray(b)) return false
-  var i = a.length
-  if (i !== b.length) return false
+  if (!Array.isArray(a) || !Array.isArray(b)) {
+    return false
+  }
+  let i = a.length
+  if (i !== b.length) {
+    return false
+  }
   while (i--) {
-    if (a[i] !== b[i]) return false
+    if (a[i] !== b[i]) {
+      return false
+    }
   }
   return true
 }
 
 function attachZoomHandlers(gs, syncOpts, prevCallbacks) {
-  var block = false
-  for (var i = 0; i < gs.length; i++) {
-    var g = gs[i]
+  let block = false
+  for (let i = 0; i < gs.length; i++) {
+    const g = gs[i]
     g.updateOptions(
       {
-        drawCallback: function(me, initial) {
-          if (block || initial) return
+        drawCallback(me, initial) {
+          if (block || initial) {
+            return
+          }
           block = true
           // In the original code, the following assignment was originally
           // var opts = {dateWindow: me.xAxisRange()}, but this assumed that
           // all graphs shared the same time range and thus enforced that.
-          var opts = {}
-          if (syncOpts.range) opts.valueRange = me.yAxisRange()
+          type AnyObj = {[x: string]: any}
+          const opts = {} as AnyObj
+          if (syncOpts.range) {
+            opts.valueRange = me.yAxisRange()
+          }
 
-          for (var j = 0; j < gs.length; j++) {
-            if (gs[j] == me) {
+          for (let j = 0; j < gs.length; j++) {
+            if (gs[j] === me) {
               if (prevCallbacks[j] && prevCallbacks[j].drawCallback) {
                 prevCallbacks[j].drawCallback.apply(this, arguments)
               }
@@ -203,36 +224,40 @@ function attachZoomHandlers(gs, syncOpts, prevCallbacks) {
 }
 
 function attachSelectionHandlers(gs, prevCallbacks) {
-  var block = false
-  for (var i = 0; i < gs.length; i++) {
-    var g = gs[i]
+  let block = false
+  for (let i = 0; i < gs.length; i++) {
+    const g = gs[i]
 
     g.updateOptions(
       {
-        highlightCallback: function(event, x, points, row, seriesName) {
-          if (block) return
+        highlightCallback(__, x, ___, ____, seriesName) {
+          if (block) {
+            return
+          }
           block = true
-          var me = this
-          for (var i = 0; i < gs.length; i++) {
-            if (me == gs[i]) {
+          const me = this
+          for (let i = 0; i < gs.length; i++) {
+            if (me === gs[i]) {
               if (prevCallbacks[i] && prevCallbacks[i].highlightCallback) {
                 prevCallbacks[i].highlightCallback.apply(this, arguments)
               }
               continue
             }
-            var idx = gs[i].getRowForX(x)
+            const idx = gs[i].getRowForX(x)
             if (idx !== null) {
               gs[i].setSelection(idx, seriesName)
             }
           }
           block = false
         },
-        unhighlightCallback: function(event) {
-          if (block) return
+        unhighlightCallback() {
+          if (block) {
+            return
+          }
           block = true
-          var me = this
-          for (var i = 0; i < gs.length; i++) {
-            if (me == gs[i]) {
+          const me = this
+          for (let i = 0; i < gs.length; i++) {
+            if (me === gs[i]) {
               if (prevCallbacks[i] && prevCallbacks[i].unhighlightCallback) {
                 prevCallbacks[i].unhighlightCallback.apply(this, arguments)
               }
@@ -249,11 +274,21 @@ function attachSelectionHandlers(gs, prevCallbacks) {
 }
 
 function isValidPoint(p, opt_allowNaNY) {
-  if (!p) return false // null or undefined object
-  if (p.yval === null) return false // missing point
-  if (p.x === null || p.x === undefined) return false
-  if (p.y === null || p.y === undefined) return false
-  if (isNaN(p.x) || (!opt_allowNaNY && isNaN(p.y))) return false
+  if (!p) {
+    return false
+  } // null or undefined object
+  if (p.yval === null) {
+    return false
+  } // missing point
+  if (p.x === null || p.x === undefined) {
+    return false
+  }
+  if (p.y === null || p.y === undefined) {
+    return false
+  }
+  if (isNaN(p.x) || (!opt_allowNaNY && isNaN(p.y))) {
+    return false
+  }
   return true
 }
 
@@ -263,14 +298,16 @@ Dygraph.prototype.findClosestPoint = function(domX, domY) {
       `Dygraph version changed to ${Dygraph.VERSION} - re-copy findClosestPoint`
     )
   }
-  var minXDist = Infinity
-  var minYDist = Infinity
-  var xdist, ydist, dx, dy, point, closestPoint, closestSeries, closestRow
-  for (var setIdx = this.layout_.points.length - 1; setIdx >= 0; --setIdx) {
-    var points = this.layout_.points[setIdx]
-    for (var i = 0; i < points.length; ++i) {
+  let minXDist = Infinity
+  let minYDist = Infinity
+  let xdist, ydist, dx, dy, point, closestPoint, closestSeries, closestRow
+  for (let setIdx = this.layout_.points.length - 1; setIdx >= 0; --setIdx) {
+    const points = this.layout_.points[setIdx]
+    for (let i = 0; i < points.length; ++i) {
       point = points[i]
-      if (!isValidPoint(point)) continue
+      if (!isValidPoint(point, null)) {
+        continue
+      }
 
       dx = point.canvasx - domX
       dy = point.canvasy - domY
@@ -293,7 +330,7 @@ Dygraph.prototype.findClosestPoint = function(domX, domY) {
       }
     }
   }
-  var name = this.layout_.setNames[closestSeries]
+  const name = this.layout_.setNames[closestSeries]
   return {
     row: closestRow,
     seriesName: name,
@@ -311,7 +348,7 @@ Dygraph.Plugins.Crosshair = (function() {
    * @constructor
    */
 
-  var crosshair = function(opt_options) {
+  const crosshair = function(opt_options) {
     this.canvas_ = document.createElement('canvas')
     opt_options = opt_options || {}
     this.direction_ = opt_options.direction || null
@@ -339,16 +376,16 @@ Dygraph.Plugins.Crosshair = (function() {
       return
     }
 
-    var width = e.dygraph.width_
-    var height = e.dygraph.height_
-    var xLabelPixels = 20
+    const width = e.dygraph.width_
+    const height = e.dygraph.height_
+    const xLabelPixels = 20
 
     this.canvas_.width = width
     this.canvas_.height = height - xLabelPixels
     this.canvas_.style.width = width + 'px' // for IE
     this.canvas_.style.height = height - xLabelPixels + 'px' // for IE
 
-    var ctx = this.canvas_.getContext('2d')
+    const ctx = this.canvas_.getContext('2d')
     ctx.clearRect(0, 0, width, height)
     ctx.strokeStyle = '#C6CAD3'
     ctx.lineWidth = 1
@@ -358,7 +395,7 @@ Dygraph.Plugins.Crosshair = (function() {
     if (e.dygraph.selPoints_.length) {
       ctx.beginPath()
 
-      var canvasx = Math.floor(e.dygraph.selPoints_[0].canvasx) + 0.5 // crisper rendering
+      const canvasx = Math.floor(e.dygraph.selPoints_[0].canvasx) + 0.5 // crisper rendering
 
       if (this.direction_ === 'vertical' || this.direction_ === 'both') {
         ctx.moveTo(canvasx, 0)
@@ -366,8 +403,8 @@ Dygraph.Plugins.Crosshair = (function() {
       }
 
       if (this.direction_ === 'horizontal' || this.direction_ === 'both') {
-        for (var i = 0; i < e.dygraph.selPoints_.length; i++) {
-          var canvasy = Math.floor(e.dygraph.selPoints_[i].canvasy) + 0.5 // crisper rendering
+        for (let i = 0; i < e.dygraph.selPoints_.length; i++) {
+          const canvasy = Math.floor(e.dygraph.selPoints_[i].canvasy) + 0.5 // crisper rendering
           ctx.moveTo(0, canvasy)
           ctx.lineTo(width, canvasy)
         }
@@ -378,8 +415,8 @@ Dygraph.Plugins.Crosshair = (function() {
     }
   }
 
-  crosshair.prototype.deselect = function(e) {
-    var ctx = this.canvas_.getContext('2d')
+  crosshair.prototype.deselect = function() {
+    const ctx = this.canvas_.getContext('2d')
     ctx.clearRect(0, 0, this.canvas_.width, this.canvas_.height)
   }
 
@@ -389,6 +426,5 @@ Dygraph.Plugins.Crosshair = (function() {
 
   return crosshair
 })()
-/* eslint-enable */
 
 export default Dygraph
