@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/tsi1"
@@ -305,6 +306,90 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 	idx.Run(t, func(t *testing.T) {
 		if got, exp := idx.DiskSizeBytes(), expSize; got != exp {
 			t.Fatalf("got %d bytes, expected %d", got, exp)
+		}
+	})
+}
+
+// Ensure index can returns measurement cardinality stats.
+func TestIndex_MeasurementCardinalityStats(t *testing.T) {
+	t.Run("Empty", func(t *testing.T) {
+		idx := MustOpenIndex(1, tsi1.NewConfig())
+		defer idx.Close()
+		if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{}); diff != "" {
+			t.Fatal(diff)
+		}
+	})
+
+	t.Run("Simple", func(t *testing.T) {
+		idx := MustOpenIndex(1, tsi1.NewConfig())
+		defer idx.Close()
+
+		if err := idx.CreateSeriesSliceIfNotExists([]Series{
+			{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+			{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+			{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{"cpu": 2, "mem": 1}); diff != "" {
+			t.Fatal(diff)
+		}
+	})
+
+	t.Run("SimpleWithDelete", func(t *testing.T) {
+		idx := MustOpenIndex(1, tsi1.NewConfig())
+		defer idx.Close()
+
+		if err := idx.CreateSeriesSliceIfNotExists([]Series{
+			{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+			{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+			{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		seriesID := idx.SeriesFile.SeriesID([]byte("cpu"), models.NewTags(map[string]string{"region": "west"}), nil)
+		if err := idx.DropSeries(seriesID, idx.SeriesFile.SeriesKey(seriesID), true); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{"cpu": 1, "mem": 1}); diff != "" {
+			t.Fatal(diff)
+		}
+
+		seriesID = idx.SeriesFile.SeriesID([]byte("mem"), models.NewTags(map[string]string{"region": "east"}), nil)
+		if err := idx.DropSeries(seriesID, idx.SeriesFile.SeriesKey(seriesID), true); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{"cpu": 1}); diff != "" {
+			t.Fatal(diff)
+		}
+	})
+
+	t.Run("Large", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("short mode, skipping")
+		}
+		idx := MustOpenIndex(1, tsi1.NewConfig())
+		defer idx.Close()
+
+		for i := 0; i < 1000; i++ {
+			a := make([]Series, 1000)
+			for j := range a {
+				a[j] = Series{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": fmt.Sprintf("east%04d", (i*1000)+j)})}
+			}
+			if err := idx.CreateSeriesSliceIfNotExists(a); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{"cpu": 1000000}); diff != "" {
+			t.Fatal(diff)
+		}
+
+		// Reopen and verify count.
+		if err := idx.Reopen(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{"cpu": 1000000}); diff != "" {
+			t.Fatal(diff)
 		}
 	})
 }
