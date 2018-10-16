@@ -142,17 +142,15 @@ type ExecutionOptions struct {
 	AbortCh <-chan struct{}
 }
 
-type contextKey int
-
-const (
-	iteratorsContextKey contextKey = iota
-	monitorContextKey
+type (
+	iteratorsContextKey struct{}
+	monitorContextKey struct{}
 )
 
 // NewContextWithIterators returns a new context.Context with the *Iterators slice added.
 // The query planner will add instances of AuxIterator to the Iterators slice.
 func NewContextWithIterators(ctx context.Context, itr *Iterators) context.Context {
-	return context.WithValue(ctx, iteratorsContextKey, itr)
+	return context.WithValue(ctx, iteratorsContextKey{}, itr)
 }
 
 // StatementExecutor executes a statement within the Executor.
