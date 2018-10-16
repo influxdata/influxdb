@@ -8,10 +8,16 @@ import (
 
 // InfluxDBV2 is based on telegraf influxdb_v2 output plugin.
 type InfluxDBV2 struct {
+	baseOutput
 	URLs         []string `toml:"urls"`
 	Token        string   `toml:"token"`
 	Organization string   `toml:"organization"`
 	Bucket       string   `toml:"bucket"`
+}
+
+// PluginName is based on telegraf plugin name.
+func (i *InfluxDBV2) PluginName() string {
+	return "influxdb_v2"
 }
 
 // TOML encodes to toml string.
@@ -20,7 +26,7 @@ func (i *InfluxDBV2) TOML() string {
 	for k, v := range i.URLs {
 		s[k] = strconv.Quote(v)
 	}
-	return fmt.Sprintf(`[[outputs.influxdb_v2]]	
+	return fmt.Sprintf(`[[outputs.%s]]	
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
@@ -36,5 +42,5 @@ func (i *InfluxDBV2) TOML() string {
 
   ## Destination bucket to write into.
   bucket = "%s"
-`, strings.Join(s, ", "), i.Token, i.Organization, i.Bucket)
+`, i.PluginName(), strings.Join(s, ", "), i.Token, i.Organization, i.Bucket)
 }

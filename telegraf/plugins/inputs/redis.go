@@ -8,8 +8,14 @@ import (
 
 // Redis is based on telegraf Redis plugin.
 type Redis struct {
+	baseInput
 	Servers  []string `json:"servers"`
 	Password string   `json:"password"`
+}
+
+// PluginName is based on telegraf plugin name.
+func (r *Redis) PluginName() string {
+	return "redis"
 }
 
 // TOML encodes to toml string
@@ -22,7 +28,7 @@ func (r *Redis) TOML() string {
 	if r.Password != "" {
 		password = fmt.Sprintf(`  password = "%s"`, r.Password)
 	}
-	return fmt.Sprintf(`[[inputs.redis]]
+	return fmt.Sprintf(`[[inputs.%s]]
   ## specify servers via a url matching:
   ##  [protocol://][:password]@address[:port]
   ##  e.g.
@@ -36,5 +42,5 @@ func (r *Redis) TOML() string {
 
   ## specify server password
 %s
-`, strings.Join(s, ", "), password)
+`, r.PluginName(), strings.Join(s, ", "), password)
 }

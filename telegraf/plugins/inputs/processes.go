@@ -1,10 +1,21 @@
 package inputs
 
+import (
+	"fmt"
+)
+
 // Processes is based on telegraf Processes.
-type Processes struct{}
+type Processes struct {
+	baseInput
+}
+
+// PluginName is based on telegraf plugin name.
+func (p *Processes) PluginName() string {
+	return "processes"
+}
 
 // TOML encodes to toml string
 func (p *Processes) TOML() string {
-	return `[[inputs.processes]]
-`
+	return fmt.Sprintf(`[[inputs.%s]]
+`, p.PluginName())
 }

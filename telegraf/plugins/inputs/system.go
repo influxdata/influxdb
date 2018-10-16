@@ -1,10 +1,21 @@
 package inputs
 
+import (
+	"fmt"
+)
+
 // SystemStats is based on telegraf SystemStats.
-type SystemStats struct{}
+type SystemStats struct {
+	baseInput
+}
+
+// PluginName is based on telegraf plugin name.
+func (s *SystemStats) PluginName() string {
+	return "system"
+}
 
 // TOML encodes to toml string
 func (s *SystemStats) TOML() string {
-	return `[[inputs.system]]
-`
+	return fmt.Sprintf(`[[inputs.%s]]
+`, s.PluginName())
 }

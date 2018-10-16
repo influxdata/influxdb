@@ -8,6 +8,7 @@ import (
 
 // File is based on telegraf file output plugin.
 type File struct {
+	baseOutput
 	Files []FileConfig `json:"files"`
 }
 
@@ -15,6 +16,11 @@ type File struct {
 type FileConfig struct {
 	Typ  string `json:"type"`
 	Path string `json:"path"`
+}
+
+// PluginName is based on telegraf plugin name.
+func (f *File) PluginName() string {
+	return "file"
 }
 
 // TOML encodes to toml string.
@@ -27,8 +33,8 @@ func (f *File) TOML() string {
 		}
 		s[k] = strconv.Quote(v.Path)
 	}
-	return fmt.Sprintf(`[[outputs.file]]
+	return fmt.Sprintf(`[[outputs.%s]]
   ## Files to write to, "stdout" is a specially handled file.
   files = [%s]
-`, strings.Join(s, ", "))
+`, f.PluginName(), strings.Join(s, ", "))
 }
