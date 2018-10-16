@@ -25,14 +25,14 @@ func newPostMemberHandler(s platform.UserResourceMappingService, resourceType pl
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		req, err := decodePostOrgMemberRequest(ctx, r)
+		req, err := decodePostMemberRequest(ctx, r)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
 		mapping := &platform.UserResourceMapping{
-			ResourceID:   req.OrgID,
+			ResourceID:   req.ResourceID,
 			ResourceType: resourceType,
 			UserID:       req.MemberID,
 			UserType:     userType,
@@ -50,20 +50,20 @@ func newPostMemberHandler(s platform.UserResourceMappingService, resourceType pl
 	}
 }
 
-type postOrgMemberRequest struct {
-	MemberID platform.ID
-	OrgID    platform.ID
+type postMemberRequest struct {
+	MemberID   platform.ID
+	ResourceID platform.ID
 }
 
-func decodePostOrgMemberRequest(ctx context.Context, r *http.Request) (*postOrgMemberRequest, error) {
+func decodePostMemberRequest(ctx context.Context, r *http.Request) (*postMemberRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
 		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
-	var oid platform.ID
-	if err := oid.DecodeFromString(id); err != nil {
+	var rid platform.ID
+	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
@@ -76,9 +76,9 @@ func decodePostOrgMemberRequest(ctx context.Context, r *http.Request) (*postOrgM
 		return nil, kerrors.InvalidDataf("user id missing or invalid")
 	}
 
-	return &postOrgMemberRequest{
-		MemberID: u.ID,
-		OrgID:    oid,
+	return &postMemberRequest{
+		MemberID:   u.ID,
+		ResourceID: rid,
 	}, nil
 }
 
@@ -87,14 +87,14 @@ func newGetMembersHandler(s platform.UserResourceMappingService, userType platfo
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		req, err := decodeGetOrgRequest(ctx, r)
+		req, err := decodeGetMembersRequest(ctx, r)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
 		filter := platform.UserResourceMappingFilter{
-			ResourceID: req.OrgID,
+			ResourceID: req.ResourceID,
 			UserType:   platform.Member,
 		}
 		mappings, _, err := s.FindUserResourceMappings(ctx, filter)
@@ -110,18 +110,42 @@ func newGetMembersHandler(s platform.UserResourceMappingService, userType platfo
 	}
 }
 
+type getMembersRequest struct {
+	MemberID   platform.ID
+	ResourceID platform.ID
+}
+
+func decodeGetMembersRequest(ctx context.Context, r *http.Request) (*getMembersRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	req := &getMembersRequest{
+		ResourceID: i,
+	}
+
+	return req, nil
+}
+
 // newDeleteMemberHandler returns a handler func for a DELETE to /members or /owners endpoints
 func newDeleteMemberHandler(s platform.UserResourceMappingService, userType platform.UserType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		req, err := decodeDeleteOrgMemberRequest(ctx, r)
+		req, err := decodeDeleteMemberRequest(ctx, r)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
-		if err := s.DeleteUserResourceMapping(ctx, req.OrgID, req.MemberID); err != nil {
+		if err := s.DeleteUserResourceMapping(ctx, req.ResourceID, req.MemberID); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
@@ -130,20 +154,20 @@ func newDeleteMemberHandler(s platform.UserResourceMappingService, userType plat
 	}
 }
 
-type deleteOrgMemberRequest struct {
-	MemberID platform.ID
-	OrgID    platform.ID
+type deleteMemberRequest struct {
+	MemberID   platform.ID
+	ResourceID platform.ID
 }
 
-func decodeDeleteOrgMemberRequest(ctx context.Context, r *http.Request) (*deleteOrgMemberRequest, error) {
+func decodeDeleteMemberRequest(ctx context.Context, r *http.Request) (*deleteMemberRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
 		return nil, kerrors.InvalidDataf("url missing resource id")
 	}
 
-	var oid platform.ID
-	if err := oid.DecodeFromString(id); err != nil {
+	var rid platform.ID
+	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
@@ -157,9 +181,9 @@ func decodeDeleteOrgMemberRequest(ctx context.Context, r *http.Request) (*delete
 		return nil, err
 	}
 
-	return &deleteOrgMemberRequest{
-		MemberID: mid,
-		OrgID:    oid,
+	return &deleteMemberRequest{
+		MemberID:   mid,
+		ResourceID: rid,
 	}, nil
 }
 
