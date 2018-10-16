@@ -65,7 +65,6 @@ func TestFloatArrayEncode_Compare(t *testing.T) {
 		input[i] = (rand.Float64() * math.MaxFloat64) - math.MaxFloat32
 	}
 
-	// Example from the paper
 	s := tsm1.NewFloatEncoder()
 	for _, v := range input {
 		s.Write(v)
