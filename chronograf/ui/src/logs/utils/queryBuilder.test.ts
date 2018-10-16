@@ -44,7 +44,7 @@ describe('Logs.queryBuilder', () => {
   })
 
   it('can build a query config into a query with a filter', () => {
-    filters = [{key: 'severity', operator: '==', value: 'notice', id: '1'}]
+    filters = [{key: 'severity', operator: '!=', value: 'notice', id: '1'}]
     const actual = buildInfiniteScrollLogQuery(
       lower,
       upper,
@@ -58,7 +58,7 @@ describe('Logs.queryBuilder', () => {
       `filter(fn: (r) => r._measurement == "syslog")`,
       `pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")`,
       `group(none: true)`,
-      `filter(fn: (r) => r.severity == "notice")`,
+      `filter(fn: (r) => r.severity != "notice")`,
       `sort(cols: ["_time"])`,
       `keep(columns: ["severity", "timestamp", "message", "facility", "procid", "appname", "host"])`,
     ].join('\n  |> ')
@@ -69,7 +69,7 @@ describe('Logs.queryBuilder', () => {
   it('can build a query config into a query with multiple filters', () => {
     filters = [
       {key: 'severity', operator: '==', value: 'notice', id: '1'},
-      {key: 'procid', operator: '==', value: 'beep', id: '1'},
+      {key: 'appname', operator: '!~', value: 'beep', id: '1'},
       {key: 'appname', operator: '=~', value: 'o_trace_id=broken', id: '1'},
     ]
 
@@ -86,7 +86,7 @@ describe('Logs.queryBuilder', () => {
       `filter(fn: (r) => r._measurement == "syslog")`,
       `pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")`,
       `group(none: true)`,
-      `filter(fn: (r) => r.severity == "notice" and r.procid == "beep" and r.appname =~ "o_trace_id=broken")`,
+      `filter(fn: (r) => r.severity == "notice" and r.appname !~ /beep/ and r.appname =~ /o_trace_id=broken/)`,
       `sort(cols: ["_time"])`,
       `keep(columns: ["severity", "timestamp", "message", "facility", "procid", "appname", "host"])`,
     ].join('\n  |> ')

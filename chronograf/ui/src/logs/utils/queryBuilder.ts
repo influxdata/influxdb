@@ -113,10 +113,18 @@ const buildFilterFunc = (filters: Filter[]): string[] => {
   }
 
   const filterConditions = filters
-    .map(
-      filter => `${ROW_NAME}.${filter.key} ${filter.operator} "${filter.value}"`
-    )
+    .map(filterToPredicateExpression)
     .join(' and ')
 
   return [`filter(fn: (${ROW_NAME}) => ${filterConditions})`]
+}
+
+const filterToPredicateExpression = (filter: Filter): string => {
+  switch (filter.operator) {
+    case '!~':
+    case '=~':
+      return `${ROW_NAME}.${filter.key} ${filter.operator} /${filter.value}/`
+    default:
+      return `${ROW_NAME}.${filter.key} ${filter.operator} "${filter.value}"`
+  }
 }

@@ -26,7 +26,7 @@ export interface Filter {
   operator: string
 }
 
-export interface LogsState {
+export interface LogsConfigState {
   currentSource: Source | null
   currentBuckets: Bucket[]
   currentBucket: Bucket | null
@@ -36,6 +36,19 @@ export interface LogsState {
   logConfig: LogConfig
   searchStatus: SearchStatus
 }
+
+export interface LogsTableDataState {
+  currentTailUpperBound: number | undefined
+  nextTailLowerBound: number | undefined
+  tailChunkDurationMs: number
+  tableQueryConfig: QueryConfig | null
+  tableInfiniteData: {
+    forward: TableData
+    backward: TableData
+  }
+}
+
+export type LogsState = LogsConfigState & LogsTableDataState
 
 // Log Config
 export interface LogConfig {
@@ -216,3 +229,10 @@ export interface TableData {
 }
 
 export type RowHeightHandler = (index: Index) => number
+
+// Logs State Getter
+export interface State {
+  logs: LogsState
+}
+
+export type GetState = () => State

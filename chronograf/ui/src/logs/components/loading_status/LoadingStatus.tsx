@@ -89,7 +89,7 @@ class LoadingStatus extends PureComponent<Props> {
       case SearchStatus.UpdatingBucket:
         return 'Searching updated bucket...'
       case SearchStatus.SourceError:
-        return 'Could not find logs for source.'
+        return 'Could not fetch logs for source.'
       case SearchStatus.Loading:
       default:
         return 'Searching...'

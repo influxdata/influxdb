@@ -3,6 +3,7 @@ import {
   SeverityColorValues,
   SeverityColorOptions,
   SeverityLevelOptions,
+  TableData,
 } from 'src/types/logs'
 
 export const NOW = 0
@@ -110,3 +111,20 @@ export const SEVERITY_COLORS = [
     name: SeverityColorOptions.Pearl,
   },
 ]
+
+export const DEFAULT_TAIL_CHUNK_DURATION_MS = 5000
+export const DEFAULT_MAX_TAIL_BUFFER_DURATION_MS = 30000
+
+export const defaultTableData: TableData = {
+  columns: [
+    'time',
+    'severity',
+    'timestamp',
+    'message',
+    'facility',
+    'procid',
+    'appname',
+    'host',
+  ],
+  values: [],
+}
