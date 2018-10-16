@@ -1,10 +1,21 @@
 package inputs
 
+import (
+	"fmt"
+)
+
 // NetResponse is based on telegraf NetResponse.
-type NetResponse struct{}
+type NetResponse struct {
+	baseInput
+}
+
+// PluginName is based on telegraf plugin name.
+func (n *NetResponse) PluginName() string {
+	return "net_response"
+}
 
 // TOML encodes to toml string
 func (n *NetResponse) TOML() string {
-	return `[[inputs.net_response]]
-`
+	return fmt.Sprintf(`[[inputs.%s]]
+`, n.PluginName())
 }

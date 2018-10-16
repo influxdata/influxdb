@@ -1,10 +1,21 @@
 package inputs
 
+import (
+	"fmt"
+)
+
 // Kernel is based on telegraf Kernel.
-type Kernel struct{}
+type Kernel struct {
+	baseInput
+}
+
+// PluginName is based on telegraf plugin name.
+func (k *Kernel) PluginName() string {
+	return "kernel"
+}
 
 // TOML encodes to toml string
 func (k *Kernel) TOML() string {
-	return `[[inputs.kernel]]
-`
+	return fmt.Sprintf(`[[inputs.%s]]
+`, k.PluginName())
 }

@@ -8,7 +8,13 @@ import (
 
 // Tail is based on telegraf Tail plugin.
 type Tail struct {
+	baseInput
 	Files []string `json:"files"`
+}
+
+// PluginName is based on telegraf plugin name.
+func (t *Tail) PluginName() string {
+	return "tail"
 }
 
 // TOML encodes to toml string
@@ -17,7 +23,7 @@ func (t *Tail) TOML() string {
 	for k, v := range t.Files {
 		s[k] = strconv.Quote(v)
 	}
-	return fmt.Sprintf(`[[inputs.tail]]	
+	return fmt.Sprintf(`[[inputs.%s]]	
   ## files to tail.
   ## These accept standard unix glob matching rules, but with the addition of
   ## ** as a "super asterisk". ie:
@@ -28,5 +34,5 @@ func (t *Tail) TOML() string {
   ## See https://github.com/gobwas/glob for more examples
   ##
   files = [%s]
-`, strings.Join(s, ", "))
+`, t.PluginName(), strings.Join(s, ", "))
 }

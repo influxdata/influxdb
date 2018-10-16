@@ -4489,7 +4489,7 @@ components:
                 enum: [input, output, processor, aggregator]
               comment: 
                 type: string
-              configs:
+              config:
                 oneOf:
                 - $ref: '#/components/schemas/TelegrafPluginInput'
                 - $ref: '#/components/schemas/TelegrafPluginInputDocker'

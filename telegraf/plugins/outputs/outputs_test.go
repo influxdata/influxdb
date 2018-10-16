@@ -1,10 +1,23 @@
 package outputs
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/influxdata/platform/telegraf/plugins"
+)
 
 // local plugin
 type telegrafPluginConfig interface {
 	TOML() string
+	Type() plugins.Type
+	PluginName() string
+}
+
+func TestType(t *testing.T) {
+	b := baseOutput(0)
+	if b.Type() != plugins.Output {
+		t.Fatalf("output plugins type should be output, got %s", b.Type())
+	}
 }
 
 func TestTOML(t *testing.T) {

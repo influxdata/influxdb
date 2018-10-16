@@ -1,10 +1,23 @@
 package inputs
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/influxdata/platform/telegraf/plugins"
+)
 
 // local plugin
 type telegrafPluginConfig interface {
 	TOML() string
+	Type() plugins.Type
+	PluginName() string
+}
+
+func TestType(t *testing.T) {
+	b := baseInput(0)
+	if b.Type() != plugins.Input {
+		t.Fatalf("input plugins type should be input, got %s", b.Type())
+	}
 }
 
 func TestTOML(t *testing.T) {
@@ -18,6 +31,13 @@ func TestTOML(t *testing.T) {
 				&CPUStats{}:  "[[inputs.cpu]]\n",
 				&DiskStats{}: "[[inputs.disk]]\n",
 				&DiskIO{}:    "[[inputs.diskio]]\n",
+				&Docker{}: `[[inputs.docker]]	
+  ## Docker Endpoint
+  ##   To use TCP, set endpoint = "tcp://[ip]:[port]"
+  ##   To use environment variables (ie, docker-machine), set endpoint = "ENV"
+  ##   exp: unix:///var/run/docker.sock
+  endpoint = ""
+`,
 				&File{}: `[[inputs.file]]	
   ## Files to parse each interval.
   ## These accept standard unix glob matching rules, but with the addition of
@@ -100,6 +120,15 @@ func TestTOML(t *testing.T) {
 		{
 			name: "standard testing",
 			plugins: map[telegrafPluginConfig]string{
+				&Docker{
+					Endpoint: "unix:///var/run/docker.sock",
+				}: `[[inputs.docker]]	
+  ## Docker Endpoint
+  ##   To use TCP, set endpoint = "tcp://[ip]:[port]"
+  ##   To use environment variables (ie, docker-machine), set endpoint = "ENV"
+  ##   exp: unix:///var/run/docker.sock
+  endpoint = "unix:///var/run/docker.sock"
+`,
 				&File{
 					Files: []string{
 						"/var/log/**.log",
