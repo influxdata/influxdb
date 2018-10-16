@@ -36,7 +36,7 @@ const (
 // NewDashboardHandler returns a new instance of DashboardHandler.
 func NewDashboardHandler(mappingService platform.UserResourceMappingService) *DashboardHandler {
 	h := &DashboardHandler{
-		Router: httprouter.New(),
+		Router:                     httprouter.New(),
 		UserResourceMappingService: mappingService,
 	}
 

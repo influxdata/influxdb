@@ -34,7 +34,7 @@ const (
 // NewOrgHandler returns a new instance of OrgHandler.
 func NewOrgHandler(mappingService platform.UserResourceMappingService) *OrgHandler {
 	h := &OrgHandler{
-		Router: httprouter.New(),
+		Router:                     httprouter.New(),
 		UserResourceMappingService: mappingService,
 	}
 
