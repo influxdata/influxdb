@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/snowflake"
+	"github.com/influxdata/platform/task/options"
 )
 
 var _ Store = (*inmem)(nil)
@@ -74,27 +75,58 @@ func (s *inmem) CreateTask(_ context.Context, req CreateTaskRequest) (platform.I
 	return id, nil
 }
 
-func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) error {
-	op, err := StoreValidator.ModifyArgs(id, script)
+func (s *inmem) UpdateTask(_ context.Context, req UpdateTaskRequest) (UpdateTaskResult, error) {
+	var res UpdateTaskResult
+	op, err := StoreValidator.UpdateArgs(req)
 	if err != nil {
-		return err
+		return res, err
 	}
+
+	idStr := req.ID.String()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	found := false
 	for n, t := range s.tasks {
-		if t.ID != id {
+		if t.ID != req.ID {
 			continue
 		}
+		found = true
 
+		res.OldScript = t.Script
+		if req.Script == "" {
+			op, err = options.FromScript(t.Script)
+			if err != nil {
+				return res, err
+			}
+		} else {
+			t.Script = req.Script
+		}
 		t.Name = op.Name
-		t.Script = script
+
 		s.tasks[n] = t
-		return nil
+		res.NewTask = t
+		break
+	}
+	if !found {
+		return res, fmt.Errorf("ModifyTask: record not found for %s", idStr)
 	}
 
-	return fmt.Errorf("ModifyTask: record not found for %s", id)
+	stm, ok := s.runners[idStr]
+	if !ok {
+		panic("inmem store: had task without runner for task ID " + idStr)
+	}
+	res.OldStatus = TaskStatus(stm.Status)
+
+	if req.Status != "" {
+		// Changing the status.
+		stm.Status = string(req.Status)
+		s.runners[idStr] = stm
+	}
+	res.NewMeta = stm
+
+	return res, nil
 }
 
 func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTask, error) {
@@ -193,37 +225,6 @@ func (s *inmem) FindTaskByIDWithMeta(_ context.Context, id platform.ID) (*StoreT
 	}
 
 	return task, &meta, nil
-}
-
-func (s *inmem) EnableTask(ctx context.Context, id platform.ID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	strID := id.String()
-
-	meta, ok := s.runners[strID]
-	if !ok {
-		return errors.New("task meta not found")
-	}
-	meta.Status = string(TaskActive)
-	s.runners[strID] = meta
-
-	return nil
-}
-
-func (s *inmem) DisableTask(ctx context.Context, id platform.ID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	strID := id.String()
-
-	meta, ok := s.runners[strID]
-	if !ok {
-		return errors.New("task meta not found")
-	}
-	meta.Status = string(TaskInactive)
-	s.runners[strID] = meta
-
-	return nil
 }
 
 func (s *inmem) FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTaskMeta, error) {

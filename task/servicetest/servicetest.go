@@ -155,7 +155,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		}
 	}
 
-	// Update task.
+	// Update task: script only.
 	newFlux := fmt.Sprintf(scriptFmt, 99)
 	origID := f.ID
 	f, err = sys.ts.UpdateTask(sys.Ctx, origID, platform.TaskUpdate{Flux: &newFlux})
@@ -168,6 +168,36 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	if f.Flux != newFlux {
 		t.Fatalf("wrong flux from update; want %q, got %q", newFlux, f.Flux)
+	}
+	if f.Status != string(backend.TaskActive) {
+		t.Fatalf("expected task to be created active, got %q", f.Status)
+	}
+
+	// Update task: status only.
+	newStatus := string(backend.TaskInactive)
+	f, err = sys.ts.UpdateTask(sys.Ctx, origID, platform.TaskUpdate{Status: &newStatus})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Flux != newFlux {
+		t.Fatalf("flux unexpected updated: %s", f.Flux)
+	}
+	if f.Status != newStatus {
+		t.Fatalf("expected task status to be inactive, got %q", f.Status)
+	}
+
+	// Update task: reactivate status and update script.
+	newStatus = string(backend.TaskActive)
+	newFlux = fmt.Sprintf(scriptFmt, 98)
+	f, err = sys.ts.UpdateTask(sys.Ctx, origID, platform.TaskUpdate{Flux: &newFlux, Status: &newStatus})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Flux != newFlux {
+		t.Fatalf("flux unexpected updated: %s", f.Flux)
+	}
+	if f.Status != newStatus {
+		t.Fatalf("expected task status to be inactive, got %q", f.Status)
 	}
 
 	// Delete task.

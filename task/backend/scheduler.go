@@ -14,8 +14,15 @@ import (
 	"go.uber.org/zap"
 )
 
-var ErrRunCanceled = errors.New("run canceled")
-var ErrTaskNotClaimed = errors.New("task not claimed")
+var (
+	ErrRunCanceled = errors.New("run canceled")
+
+	// ErrTaskNotClaimed is returned when attempting to operate against a task that must be claimed but is not.
+	ErrTaskNotClaimed = errors.New("task not claimed")
+
+	// ErrTaskAlreadyClaimed is returned when attempting to operate against a task that must not be claimed but is.
+	ErrTaskAlreadyClaimed = errors.New("task already claimed")
+)
 
 // DesiredState persists the desired state of a run.
 type DesiredState interface {
@@ -259,7 +266,7 @@ func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err err
 	tid := task.ID.String()
 	_, ok := s.taskSchedulers[tid]
 	if ok {
-		return errors.New("task has already been claimed")
+		return ErrTaskAlreadyClaimed
 	}
 
 	s.taskSchedulers[tid] = ts

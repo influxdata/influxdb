@@ -60,50 +60,40 @@ func (c *Coordinator) CreateTask(ctx context.Context, req backend.CreateTaskRequ
 	return id, nil
 }
 
-func (c *Coordinator) ModifyTask(ctx context.Context, id platform.ID, newScript string) error {
-	if err := c.Store.ModifyTask(ctx, id, newScript); err != nil {
-		return err
-	}
-
-	task, meta, err := c.Store.FindTaskByIDWithMeta(ctx, id)
+func (c *Coordinator) UpdateTask(ctx context.Context, req backend.UpdateTaskRequest) (backend.UpdateTaskResult, error) {
+	res, err := c.Store.UpdateTask(ctx, req)
 	if err != nil {
-		return err
+		return res, err
 	}
 
-	if err := c.sch.UpdateTask(task, meta); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *Coordinator) EnableTask(ctx context.Context, id platform.ID) error {
-	if err := c.Store.EnableTask(ctx, id); err != nil {
-		return err
-	}
-
-	task, meta, err := c.Store.FindTaskByIDWithMeta(ctx, id)
+	task, meta, err := c.Store.FindTaskByIDWithMeta(ctx, req.ID)
 	if err != nil {
-		return err
+		return res, err
 	}
 
-	if err := c.sch.ClaimTask(task, meta); err != nil {
-		return err
+	// If disabling the task, do so before modifying the script.
+	if req.Status == backend.TaskInactive && res.OldStatus != backend.TaskInactive {
+		if err := c.sch.ReleaseTask(req.ID); err != nil && err != backend.ErrTaskNotClaimed {
+			return res, err
+		}
 	}
 
-	return nil
-}
-
-func (c *Coordinator) DisableTask(ctx context.Context, id platform.ID) error {
-	if err := c.Store.DisableTask(ctx, id); err != nil {
-		return err
+	if err := c.sch.UpdateTask(task, meta); err != nil && err != backend.ErrTaskNotClaimed {
+		return res, err
 	}
 
-	return c.sch.ReleaseTask(id)
+	// If enabling the task, claim it after modifying the script.
+	if req.Status == backend.TaskActive {
+		if err := c.sch.ClaimTask(task, meta); err != nil && err != backend.ErrTaskAlreadyClaimed {
+			return res, err
+		}
+	}
+
+	return res, nil
 }
 
 func (c *Coordinator) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, err error) {
-	if err := c.sch.ReleaseTask(id); err != nil {
+	if err := c.sch.ReleaseTask(id); err != nil && err != backend.ErrTaskNotClaimed {
 		return false, err
 	}
 

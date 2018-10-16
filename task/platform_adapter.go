@@ -3,7 +3,6 @@ package task
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/influxdata/platform"
@@ -92,42 +91,31 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 		return nil, errors.New("cannot update task without content")
 	}
 
+	req := backend.UpdateTaskRequest{ID: id}
+	if upd.Flux != nil {
+		req.Script = *upd.Flux
+	}
+	if upd.Status != nil {
+		req.Status = backend.TaskStatus(*upd.Status)
+	}
+	res, err := p.s.UpdateTask(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := options.FromScript(res.NewTask.Script)
+	if err != nil {
+		return nil, err
+	}
+
 	task := &platform.Task{
 		ID:     id,
-		Name:   "TODO",
-		Status: "TODO",
-		Owner:  platform.User{}, // TODO(mr): populate from context?
-	}
-	if upd.Flux != nil {
-		task.Flux = *upd.Flux
-
-		opts, err := options.FromScript(task.Flux)
-		if err != nil {
-			return nil, err
-		}
-		task.Every = opts.Every.String()
-		task.Cron = opts.Cron
-
-		if err := p.s.ModifyTask(ctx, id, task.Flux); err != nil {
-			return nil, err
-		}
-	}
-
-	if upd.Status != nil {
-		var err error
-		switch *upd.Status {
-		case string(backend.TaskActive):
-			err = p.s.EnableTask(ctx, id)
-		case string(backend.TaskInactive):
-			err = p.s.DisableTask(ctx, id)
-		default:
-			err = fmt.Errorf("invalid status: %s", *upd.Status)
-		}
-
-		if err != nil {
-			return nil, err
-		}
-		task.Status = *upd.Status
+		Name:   opts.Name,
+		Status: res.NewMeta.Status,
+		Owner:  platform.User{},
+		Flux:   res.NewTask.Script,
+		Every:  opts.Every.String(),
+		Cron:   opts.Cron,
 	}
 
 	return task, nil

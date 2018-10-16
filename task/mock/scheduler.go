@@ -3,7 +3,6 @@ package mock
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -69,7 +68,7 @@ func (s *Scheduler) ClaimTask(task *backend.StoreTask, meta *backend.StoreTaskMe
 
 	_, ok := s.claims[task.ID.String()]
 	if ok {
-		return errors.New("task already in list")
+		return backend.ErrTaskAlreadyClaimed
 	}
 	s.meta[task.ID.String()] = *meta
 
@@ -90,7 +89,7 @@ func (s *Scheduler) UpdateTask(task *backend.StoreTask, meta *backend.StoreTaskM
 
 	_, ok := s.claims[task.ID.String()]
 	if !ok {
-		return errors.New("task not in list")
+		return backend.ErrTaskNotClaimed
 	}
 
 	s.meta[task.ID.String()] = *meta
@@ -116,7 +115,7 @@ func (s *Scheduler) ReleaseTask(taskID platform.ID) error {
 
 	t, ok := s.claims[taskID.String()]
 	if !ok {
-		return errors.New("task not in list")
+		return backend.ErrTaskNotClaimed
 	}
 	if s.releaseChan != nil {
 		s.releaseChan <- t

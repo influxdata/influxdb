@@ -25,6 +25,7 @@ import (
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
+	"github.com/influxdata/platform/task/options"
 )
 
 // ErrDBReadOnly is an error for when the database is set to read only.
@@ -195,31 +196,86 @@ func (s *Store) CreateTask(ctx context.Context, req backend.CreateTaskRequest) (
 	return id, nil
 }
 
-// ModifyTask changes a task with a new script, it should error if the task does not exist.
-func (s *Store) ModifyTask(ctx context.Context, id platform.ID, newScript string) error {
-	op, err := backend.StoreValidator.ModifyArgs(id, newScript)
+func (s *Store) UpdateTask(ctx context.Context, req backend.UpdateTaskRequest) (backend.UpdateTaskResult, error) {
+	var res backend.UpdateTaskResult
+	op, err := backend.StoreValidator.UpdateArgs(req)
 	if err != nil {
-		return err
+		return res, err
 	}
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	encodedID, err := req.ID.Encode()
+	if err != nil {
+		return res, err
+	}
+
+	err = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
 		bt := b.Bucket(tasksPath)
 
-		encodedID, err := id.Encode()
-		if err != nil {
+		v := bt.Get(encodedID)
+		if v == nil {
+			return backend.ErrTaskNotFound
+		}
+		res.OldScript = string(v)
+
+		newScript := req.Script
+		if req.Script == "" {
+			// Need to build op from existing script.
+			op, err = options.FromScript(string(v))
+			if err != nil {
+				return err
+			}
+			newScript = string(v)
+		} else {
+			if err := bt.Put(encodedID, []byte(req.Script)); err != nil {
+				return err
+			}
+			if err := b.Bucket(nameByTaskID).Put(encodedID, []byte(op.Name)); err != nil {
+				return err
+			}
+		}
+
+		var userID, orgID platform.ID
+		if err := userID.Decode(b.Bucket(userByTaskID).Get(encodedID)); err != nil {
 			return err
 		}
 
-		if v := bt.Get(encodedID); v == nil {
-			return backend.ErrTaskNotFound
-		}
-		err = bt.Put(encodedID, []byte(newScript))
-		if err != nil {
+		if err := orgID.Decode(b.Bucket(orgByTaskID).Get(encodedID)); err != nil {
 			return err
 		}
-		return b.Bucket(nameByTaskID).Put(encodedID, []byte(op.Name))
+
+		stmBytes := b.Bucket(taskMetaPath).Get(encodedID)
+		if stmBytes == nil {
+			return backend.ErrTaskNotFound
+		}
+		var stm backend.StoreTaskMeta
+		if err := stm.Unmarshal(stmBytes); err != nil {
+			return err
+		}
+		res.OldStatus = backend.TaskStatus(stm.Status)
+		if req.Status != "" {
+			stm.Status = string(req.Status)
+			stmBytes, err = stm.Marshal()
+			if err != nil {
+				return err
+			}
+			if err := b.Bucket(taskMetaPath).Put(encodedID, stmBytes); err != nil {
+				return err
+			}
+		}
+		res.NewMeta = stm
+
+		res.NewTask = backend.StoreTask{
+			ID:     req.ID,
+			Org:    orgID,
+			User:   userID,
+			Name:   op.Name,
+			Script: newScript,
+		}
+
+		return nil
 	})
+	return res, err
 }
 
 // ListTasks lists the tasks based on a filter.
@@ -497,58 +553,6 @@ func (s *Store) FindTaskByIDWithMeta(ctx context.Context, id platform.ID) (*back
 		Name:   name,
 		Script: script,
 	}, &stm, nil
-}
-
-func (s *Store) EnableTask(ctx context.Context, id platform.ID) error {
-	encodedID, err := id.Encode()
-	if err != nil {
-		return err
-	}
-	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(s.bucket).Bucket(taskMetaPath)
-		stmBytes := b.Get(encodedID)
-		if stmBytes == nil {
-			return errors.New("task meta not found")
-		}
-		stm := backend.StoreTaskMeta{}
-		err := stm.Unmarshal(stmBytes)
-		if err != nil {
-			return err
-		}
-		stm.Status = string(backend.TaskActive)
-		stmBytes, err = stm.Marshal()
-		if err != nil {
-			return err
-		}
-
-		return b.Put(encodedID, stmBytes)
-	})
-}
-
-func (s *Store) DisableTask(ctx context.Context, id platform.ID) error {
-	encodedID, err := id.Encode()
-	if err != nil {
-		return err
-	}
-	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(s.bucket).Bucket(taskMetaPath)
-		stmBytes := b.Get(encodedID)
-		if stmBytes == nil {
-			return errors.New("task meta not found")
-		}
-		stm := backend.StoreTaskMeta{}
-		err := stm.Unmarshal(stmBytes)
-		if err != nil {
-			return err
-		}
-		stm.Status = string(backend.TaskInactive)
-		stmBytes, err = stm.Marshal()
-		if err != nil {
-			return err
-		}
-
-		return b.Put(encodedID, stmBytes)
-	})
 }
 
 // DeleteTask deletes the task.

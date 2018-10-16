@@ -38,6 +38,19 @@ const (
 	DefaultTaskStatus TaskStatus = TaskActive
 )
 
+// validate returns an error if s is not a known task status.
+func (s TaskStatus) validate(allowEmpty bool) error {
+	if allowEmpty && s == "" {
+		return nil
+	}
+
+	if s == TaskActive || s == TaskInactive {
+		return nil
+	}
+
+	return fmt.Errorf("invalid task status: %q", s)
+}
+
 type RunStatus int
 
 const (
@@ -83,6 +96,7 @@ type RunCreation struct {
 	HasQueue bool
 }
 
+// CreateTaskRequest encapsulates state of a new task to be created.
 type CreateTaskRequest struct {
 	// Owners.
 	Org, User platform.ID
@@ -100,21 +114,47 @@ type CreateTaskRequest struct {
 	Status TaskStatus
 }
 
+// UpdateTaskRequest encapsulates requested changes to a task.
+type UpdateTaskRequest struct {
+	// ID of the task.
+	ID platform.ID
+
+	// New script content of the task.
+	// If empty, do not modify the existing script.
+	Script string
+
+	// The new desired task status.
+	// If empty, do not modify the existing status.
+	Status TaskStatus
+}
+
+// UpdateTaskResult describes the result of modifying a single task.
+// Having the content returned from ModifyTask makes it much simpler for callers
+// to decide how to notify on status changes, etc.
+type UpdateTaskResult struct {
+	OldScript string
+	OldStatus TaskStatus
+
+	NewTask StoreTask
+	NewMeta StoreTaskMeta
+}
+
 // Store is the interface around persisted tasks.
 type Store interface {
 	// CreateTask creates a task with from the given CreateTaskRequest.
 	// If the task is created successfully, the ID of the new task is returned.
 	CreateTask(ctx context.Context, req CreateTaskRequest) (platform.ID, error)
 
-	// ModifyTask updates the script of an existing task.
+	// UpdateTask updates an existing task.
 	// It returns an error if there was no task matching the given ID.
-	ModifyTask(ctx context.Context, id platform.ID, newScript string) error
+	// If the returned error is not nil, the returned result should not be inspected.
+	UpdateTask(ctx context.Context, req UpdateTaskRequest) (UpdateTaskResult, error)
 
 	// ListTasks lists the tasks in the store that match the search params.
 	ListTasks(ctx context.Context, params TaskSearchParams) ([]StoreTask, error)
 
 	// FindTaskByID returns the task with the given ID.
-	// If no task matches the ID, the returned task is nil.
+	// If no task matches the ID, the returned task is nil and ErrTaskNotFound is returned.
 	FindTaskByID(ctx context.Context, id platform.ID) (*StoreTask, error)
 
 	// FindTaskMetaByID returns the metadata about a task.
@@ -122,12 +162,6 @@ type Store interface {
 
 	// FindTaskByIDWithMeta combines finding the task and the meta into a single call.
 	FindTaskByIDWithMeta(ctx context.Context, id platform.ID) (*StoreTask, *StoreTaskMeta, error)
-
-	// EnableTask updates task status to active.
-	EnableTask(ctx context.Context, id platform.ID) error
-
-	// DisableTask updates task status to inactive.
-	DisableTask(ctx context.Context, id platform.ID) error
 
 	// DeleteTask returns whether an entry matching the given ID was deleted.
 	// If err is non-nil, deleted is false.
@@ -286,30 +320,36 @@ func (StoreValidation) CreateArgs(req CreateTaskRequest) (options.Options, error
 		return o, fmt.Errorf("missing required fields to create task: %s", strings.Join(missing, ", "))
 	}
 
-	if req.Status != "" && req.Status != TaskActive && req.Status != TaskInactive {
-		return o, fmt.Errorf("invalid status: %s", req.Status)
+	if err := req.Status.validate(true); err != nil {
+		return o, err
 	}
 
 	return o, nil
 }
 
-// ModifyArgs returns the script's parsed options,
-// and an error if any of the provided fields are invalid for modifying a task.
-func (StoreValidation) ModifyArgs(taskID platform.ID, script string) (options.Options, error) {
+// UpdateArgs validates the UpdateTaskRequest.
+// If the update only includes a new status (i.e. req.Script is empty), the returned options are zero.
+// If the update contains neither a new script nor a new status, or if the script is invalid, an error is returned.
+func (StoreValidation) UpdateArgs(req UpdateTaskRequest) (options.Options, error) {
 	var missing []string
 	var o options.Options
 
-	if script == "" {
-		missing = append(missing, "script")
+	if req.Script == "" && req.Status == "" {
+		missing = append(missing, "script or status")
 	} else {
-		var err error
-		o, err = options.FromScript(script)
-		if err != nil {
+		if req.Script != "" {
+			var err error
+			o, err = options.FromScript(req.Script)
+			if err != nil {
+				return o, err
+			}
+		}
+		if err := req.Status.validate(true); err != nil {
 			return o, err
 		}
 	}
 
-	if !taskID.Valid() {
+	if !req.ID.Valid() {
 		missing = append(missing, "task ID")
 	}
 
