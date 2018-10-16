@@ -1,8 +1,10 @@
 package simple8b_test
 
 import (
+	"math/rand"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/pkg/encoding/simple8b"
 )
 
@@ -18,15 +20,135 @@ func Test_Encode_NoValues(t *testing.T) {
 	}
 }
 
-func Test_TooBig(t *testing.T) {
-	values := 1
-	in := make([]uint64, values)
-	for i := 0; i < values; i++ {
-		in[i] = 2<<61 - 1
+func ones(n int) func() []uint64 {
+	return func() []uint64 {
+		in := make([]uint64, n)
+		for i := 0; i < n; i++ {
+			in[i] = 1
+		}
+		return in
 	}
-	_, err := simple8b.EncodeAll(in)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
+}
+
+func bitsN(b int) func(n int) func() []uint64 {
+	return func(n int) func() []uint64 {
+		return bits(n, b)
+	}
+}
+
+func combineN(fns ...func(n int) func() []uint64) func(n int) func() []uint64 {
+	return func(n int) func() []uint64 {
+		var out []func() []uint64
+		for _, fn := range fns {
+			out = append(out, fn(n))
+		}
+		return combine(out...)
+	}
+}
+
+// bits generates sequence of n numbers with max bits,
+// ensuring max bit is set for 50% of the values.
+func bits(n, bits int) func() []uint64 {
+	return func() []uint64 {
+		out := make([]uint64, n)
+		maxVal := uint64(1 << uint8(bits))
+		for i := range out {
+			topBit := uint64((i & 1) << uint8(bits-1))
+			out[i] = uint64(rand.Int63n(int64(maxVal))) | topBit
+			if out[i] >= maxVal {
+				panic("max")
+			}
+		}
+		return out
+	}
+}
+
+func combine(fns ...func() []uint64) func() []uint64 {
+	return func() []uint64 {
+		var out []uint64
+		for _, fn := range fns {
+			out = append(out, fn()...)
+		}
+		return out
+	}
+}
+
+// TestEncodeAll ensures 100% test coverage of simple8b.EncodeAll and
+// verifies all output by comparing the original input with the output of simple8b.DecodeAll
+func TestEncodeAll(t *testing.T) {
+	rand.Seed(0)
+
+	tests := []struct {
+		name string
+		in   []uint64
+		fn   func() []uint64
+		err  error
+	}{
+		{name: "no values", in: []uint64{}},
+		{name: "mixed sizes", in: []uint64{7, 6, 256, 4, 3, 2, 1}},
+		{name: "too big", in: []uint64{7, 6, 2<<61 - 1, 4, 3, 2, 1}, err: simple8b.ErrValueOutOfBounds},
+		{name: "1 bit", fn: bits(100, 1)},
+		{name: "2 bits", fn: bits(100, 2)},
+		{name: "3 bits", fn: bits(100, 3)},
+		{name: "4 bits", fn: bits(100, 4)},
+		{name: "5 bits", fn: bits(100, 5)},
+		{name: "6 bits", fn: bits(100, 6)},
+		{name: "7 bits", fn: bits(100, 7)},
+		{name: "8 bits", fn: bits(100, 8)},
+		{name: "10 bits", fn: bits(100, 10)},
+		{name: "12 bits", fn: bits(100, 12)},
+		{name: "15 bits", fn: bits(100, 15)},
+		{name: "20 bits", fn: bits(100, 20)},
+		{name: "30 bits", fn: bits(100, 30)},
+		{name: "60 bits", fn: bits(100, 60)},
+		{name: "combination", fn: combine(
+			bits(100, 1),
+			bits(100, 2),
+			bits(100, 3),
+			bits(100, 4),
+			bits(100, 5),
+			bits(100, 6),
+			bits(100, 7),
+			bits(100, 8),
+			bits(100, 10),
+			bits(100, 12),
+			bits(100, 15),
+			bits(100, 20),
+			bits(100, 30),
+			bits(100, 60),
+		)},
+		{name: "240 ones", fn: ones(240)},
+		{name: "120 ones", fn: func() []uint64 {
+			in := ones(240)()
+			in[120] = 5
+			return in
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.fn != nil {
+				test.in = test.fn()
+			}
+
+			encoded, err := simple8b.EncodeAll(append(make([]uint64, 0, len(test.in)), test.in...))
+			if test.err != nil {
+				if err != test.err {
+					t.Fatalf("expected encode error, got\n%s", err)
+				}
+				return
+			}
+
+			decoded := make([]uint64, len(test.in))
+			n, err := simple8b.DecodeAll(decoded, encoded)
+			if err != nil {
+				t.Fatalf("unexpected decode error\n%s", err)
+			}
+
+			if !cmp.Equal(decoded[:n], test.in) {
+				t.Fatalf("unexpected values; +got/-exp\n%s", cmp.Diff(decoded, test.in))
+			}
+		})
 	}
 }
 
@@ -272,18 +394,65 @@ func TestCountBytesBetween_SkipMin(t *testing.T) {
 	}
 }
 
+func BenchmarkEncodeAll(b *testing.B) {
+	benchmarks := []struct {
+		name string
+		fn   func(n int) func() []uint64
+	}{
+		{name: "1 bit", fn: bitsN(1)},
+		{name: "2 bits", fn: bitsN(2)},
+		{name: "3 bits", fn: bitsN(3)},
+		{name: "4 bits", fn: bitsN(4)},
+		{name: "5 bits", fn: bitsN(5)},
+		{name: "6 bits", fn: bitsN(6)},
+		{name: "7 bits", fn: bitsN(7)},
+		{name: "8 bits", fn: bitsN(8)},
+		{name: "10 bits", fn: bitsN(10)},
+		{name: "12 bits", fn: bitsN(12)},
+		{name: "15 bits", fn: bitsN(15)},
+		{name: "20 bits", fn: bitsN(20)},
+		{name: "30 bits", fn: bitsN(30)},
+		{name: "60 bits", fn: bitsN(60)},
+		{name: "combination", fn: combineN(
+			bitsN(1),
+			bitsN(2),
+			bitsN(3),
+			bitsN(4),
+			bitsN(5),
+			bitsN(6),
+			bitsN(7),
+			bitsN(8),
+			bitsN(10),
+			bitsN(12),
+			bitsN(15),
+			bitsN(20),
+			bitsN(30),
+			bitsN(60),
+		)},
+	}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				in := bm.fn(1000)()
+				simple8b.EncodeAll(append(make([]uint64, 0, len(in)), in...))
+			}
+		})
+	}
+}
+
 func BenchmarkEncode(b *testing.B) {
-	total := 0
 	x := make([]uint64, 1024)
 	for i := 0; i < len(x); i++ {
 		x[i] = uint64(15)
 	}
 
+	in := make([]uint64, 1024)
+
+	b.SetBytes(int64(len(x) * 8))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		simple8b.EncodeAll(x)
-		b.SetBytes(int64(len(x) * 8))
-		total += len(x)
+		copy(in, x)
+		simple8b.EncodeAll(in)
 	}
 }
 
@@ -312,11 +481,11 @@ func BenchmarkDecode(b *testing.B) {
 
 	decoded := make([]uint64, len(x))
 
+	b.SetBytes(int64(len(decoded) * 8))
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		_, _ = simple8b.DecodeAll(decoded, y)
-		b.SetBytes(int64(len(decoded) * 8))
 		total += len(decoded)
 	}
 }
