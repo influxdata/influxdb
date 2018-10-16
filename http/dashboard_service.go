@@ -34,9 +34,10 @@ const (
 )
 
 // NewDashboardHandler returns a new instance of DashboardHandler.
-func NewDashboardHandler() *DashboardHandler {
+func NewDashboardHandler(mappingService platform.UserResourceMappingService) *DashboardHandler {
 	h := &DashboardHandler{
 		Router: httprouter.New(),
+		UserResourceMappingService: mappingService,
 	}
 
 	h.HandlerFunc("POST", dashboardsPath, h.handlePostDashboard)

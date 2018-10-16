@@ -32,9 +32,10 @@ const (
 )
 
 // NewBucketHandler returns a new instance of BucketHandler.
-func NewBucketHandler() *BucketHandler {
+func NewBucketHandler(mappingService platform.UserResourceMappingService) *BucketHandler {
 	h := &BucketHandler{
 		Router: httprouter.New(),
+		UserResourceMappingService: mappingService,
 	}
 
 	h.HandlerFunc("POST", bucketsPath, h.handlePostBucket)

@@ -22,7 +22,7 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 		}
 	}
 
-	handler := NewOrgHandler()
+	handler := NewOrgHandler(svc)
 	handler.OrganizationService = svc
 	handler.BucketService = svc
 	server := httptest.NewServer(handler)

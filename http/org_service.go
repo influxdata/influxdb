@@ -32,9 +32,10 @@ const (
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.
-func NewOrgHandler() *OrgHandler {
+func NewOrgHandler(mappingService platform.UserResourceMappingService) *OrgHandler {
 	h := &OrgHandler{
 		Router: httprouter.New(),
+		UserResourceMappingService: mappingService,
 	}
 
 	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
