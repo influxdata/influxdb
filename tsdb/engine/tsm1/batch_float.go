@@ -184,7 +184,7 @@ func FloatArrayEncodeAll(src []float64, b []byte) ([]byte, error) {
 				v = sigbits << 58 // Move 6 LSB of sigbits to MSB
 				mask = v >> 56    // Move 6 MSB to 8 LSB
 				if m <= 2 {
-					// The 6 bits fir into the current byte.
+					// The 6 bits fit into the current byte.
 					b[n>>3] |= byte(mask >> m)
 					n += l
 				} else { // In this case there are fewer than 6 bits available in current byte.

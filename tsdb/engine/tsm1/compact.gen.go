@@ -1098,75 +1098,74 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 		// Since we combined multiple blocks, we could have more values than we should put into
 		// a single block.  We need to chunk them up into groups and re-encode them.
 		return k.chunkFloat(nil)
-	} else {
-		var i int
+	}
+	var i int
 
+	for i < len(k.blocks) {
+
+		// skip this block if it's values were already read
+		if k.blocks[i].read() {
+			i++
+			continue
+		}
+		// If we this block is already full, just add it as is
+		if BlockCount(k.blocks[i].b) >= k.size {
+			k.merged = append(k.merged, k.blocks[i])
+		} else {
+			break
+		}
+		i++
+	}
+
+	if k.fast {
 		for i < len(k.blocks) {
-
 			// skip this block if it's values were already read
 			if k.blocks[i].read() {
 				i++
 				continue
 			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				k.merged = append(k.merged, k.blocks[i])
-			} else {
-				break
-			}
+
+			k.merged = append(k.merged, k.blocks[i])
 			i++
 		}
-
-		if k.fast {
-			for i < len(k.blocks) {
-				// skip this block if it's values were already read
-				if k.blocks[i].read() {
-					i++
-					continue
-				}
-
-				k.merged = append(k.merged, k.blocks[i])
-				i++
-			}
-		}
-
-		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
-		if i == len(k.blocks)-1 {
-			if !k.blocks[i].read() {
-				k.merged = append(k.merged, k.blocks[i])
-			}
-			i++
-		}
-
-		// The remaining blocks can be combined and we know that they do not overlap and
-		// so we can just append each, sort and re-encode.
-		for i < len(k.blocks) && k.mergedFloatValues.Len() < k.size {
-			if k.blocks[i].read() {
-				i++
-				continue
-			}
-
-			var v tsdb.FloatArray
-			if err := DecodeFloatArrayBlock(k.blocks[i].b, &v); err != nil {
-				k.err = err
-				return nil
-			}
-
-			// Apply each tombstone to the block
-			for _, ts := range k.blocks[i].tombstones {
-				v.Exclude(ts.Min, ts.Max)
-			}
-
-			k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
-
-			k.mergedFloatValues.Merge(&v)
-			i++
-		}
-
-		k.blocks = k.blocks[i:]
-
-		return k.chunkFloat(k.merged)
 	}
+
+	// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+	if i == len(k.blocks)-1 {
+		if !k.blocks[i].read() {
+			k.merged = append(k.merged, k.blocks[i])
+		}
+		i++
+	}
+
+	// The remaining blocks can be combined and we know that they do not overlap and
+	// so we can just append each, sort and re-encode.
+	for i < len(k.blocks) && k.mergedFloatValues.Len() < k.size {
+		if k.blocks[i].read() {
+			i++
+			continue
+		}
+
+		var v tsdb.FloatArray
+		if err := DecodeFloatArrayBlock(k.blocks[i].b, &v); err != nil {
+			k.err = err
+			return nil
+		}
+
+		// Apply each tombstone to the block
+		for _, ts := range k.blocks[i].tombstones {
+			v.Exclude(ts.Min, ts.Max)
+		}
+
+		k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
+
+		k.mergedFloatValues.Merge(&v)
+		i++
+	}
+
+	k.blocks = k.blocks[i:]
+
+	return k.chunkFloat(k.merged)
 }
 
 func (k *tsmBatchKeyIterator) chunkFloat(dst blocks) blocks {
@@ -1303,75 +1302,74 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 		// Since we combined multiple blocks, we could have more values than we should put into
 		// a single block.  We need to chunk them up into groups and re-encode them.
 		return k.chunkInteger(nil)
-	} else {
-		var i int
+	}
+	var i int
 
+	for i < len(k.blocks) {
+
+		// skip this block if it's values were already read
+		if k.blocks[i].read() {
+			i++
+			continue
+		}
+		// If we this block is already full, just add it as is
+		if BlockCount(k.blocks[i].b) >= k.size {
+			k.merged = append(k.merged, k.blocks[i])
+		} else {
+			break
+		}
+		i++
+	}
+
+	if k.fast {
 		for i < len(k.blocks) {
-
 			// skip this block if it's values were already read
 			if k.blocks[i].read() {
 				i++
 				continue
 			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				k.merged = append(k.merged, k.blocks[i])
-			} else {
-				break
-			}
+
+			k.merged = append(k.merged, k.blocks[i])
 			i++
 		}
-
-		if k.fast {
-			for i < len(k.blocks) {
-				// skip this block if it's values were already read
-				if k.blocks[i].read() {
-					i++
-					continue
-				}
-
-				k.merged = append(k.merged, k.blocks[i])
-				i++
-			}
-		}
-
-		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
-		if i == len(k.blocks)-1 {
-			if !k.blocks[i].read() {
-				k.merged = append(k.merged, k.blocks[i])
-			}
-			i++
-		}
-
-		// The remaining blocks can be combined and we know that they do not overlap and
-		// so we can just append each, sort and re-encode.
-		for i < len(k.blocks) && k.mergedIntegerValues.Len() < k.size {
-			if k.blocks[i].read() {
-				i++
-				continue
-			}
-
-			var v tsdb.IntegerArray
-			if err := DecodeIntegerArrayBlock(k.blocks[i].b, &v); err != nil {
-				k.err = err
-				return nil
-			}
-
-			// Apply each tombstone to the block
-			for _, ts := range k.blocks[i].tombstones {
-				v.Exclude(ts.Min, ts.Max)
-			}
-
-			k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
-
-			k.mergedIntegerValues.Merge(&v)
-			i++
-		}
-
-		k.blocks = k.blocks[i:]
-
-		return k.chunkInteger(k.merged)
 	}
+
+	// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+	if i == len(k.blocks)-1 {
+		if !k.blocks[i].read() {
+			k.merged = append(k.merged, k.blocks[i])
+		}
+		i++
+	}
+
+	// The remaining blocks can be combined and we know that they do not overlap and
+	// so we can just append each, sort and re-encode.
+	for i < len(k.blocks) && k.mergedIntegerValues.Len() < k.size {
+		if k.blocks[i].read() {
+			i++
+			continue
+		}
+
+		var v tsdb.IntegerArray
+		if err := DecodeIntegerArrayBlock(k.blocks[i].b, &v); err != nil {
+			k.err = err
+			return nil
+		}
+
+		// Apply each tombstone to the block
+		for _, ts := range k.blocks[i].tombstones {
+			v.Exclude(ts.Min, ts.Max)
+		}
+
+		k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
+
+		k.mergedIntegerValues.Merge(&v)
+		i++
+	}
+
+	k.blocks = k.blocks[i:]
+
+	return k.chunkInteger(k.merged)
 }
 
 func (k *tsmBatchKeyIterator) chunkInteger(dst blocks) blocks {
@@ -1508,75 +1506,74 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 		// Since we combined multiple blocks, we could have more values than we should put into
 		// a single block.  We need to chunk them up into groups and re-encode them.
 		return k.chunkUnsigned(nil)
-	} else {
-		var i int
+	}
+	var i int
 
+	for i < len(k.blocks) {
+
+		// skip this block if it's values were already read
+		if k.blocks[i].read() {
+			i++
+			continue
+		}
+		// If we this block is already full, just add it as is
+		if BlockCount(k.blocks[i].b) >= k.size {
+			k.merged = append(k.merged, k.blocks[i])
+		} else {
+			break
+		}
+		i++
+	}
+
+	if k.fast {
 		for i < len(k.blocks) {
-
 			// skip this block if it's values were already read
 			if k.blocks[i].read() {
 				i++
 				continue
 			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				k.merged = append(k.merged, k.blocks[i])
-			} else {
-				break
-			}
+
+			k.merged = append(k.merged, k.blocks[i])
 			i++
 		}
-
-		if k.fast {
-			for i < len(k.blocks) {
-				// skip this block if it's values were already read
-				if k.blocks[i].read() {
-					i++
-					continue
-				}
-
-				k.merged = append(k.merged, k.blocks[i])
-				i++
-			}
-		}
-
-		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
-		if i == len(k.blocks)-1 {
-			if !k.blocks[i].read() {
-				k.merged = append(k.merged, k.blocks[i])
-			}
-			i++
-		}
-
-		// The remaining blocks can be combined and we know that they do not overlap and
-		// so we can just append each, sort and re-encode.
-		for i < len(k.blocks) && k.mergedUnsignedValues.Len() < k.size {
-			if k.blocks[i].read() {
-				i++
-				continue
-			}
-
-			var v tsdb.UnsignedArray
-			if err := DecodeUnsignedArrayBlock(k.blocks[i].b, &v); err != nil {
-				k.err = err
-				return nil
-			}
-
-			// Apply each tombstone to the block
-			for _, ts := range k.blocks[i].tombstones {
-				v.Exclude(ts.Min, ts.Max)
-			}
-
-			k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
-
-			k.mergedUnsignedValues.Merge(&v)
-			i++
-		}
-
-		k.blocks = k.blocks[i:]
-
-		return k.chunkUnsigned(k.merged)
 	}
+
+	// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+	if i == len(k.blocks)-1 {
+		if !k.blocks[i].read() {
+			k.merged = append(k.merged, k.blocks[i])
+		}
+		i++
+	}
+
+	// The remaining blocks can be combined and we know that they do not overlap and
+	// so we can just append each, sort and re-encode.
+	for i < len(k.blocks) && k.mergedUnsignedValues.Len() < k.size {
+		if k.blocks[i].read() {
+			i++
+			continue
+		}
+
+		var v tsdb.UnsignedArray
+		if err := DecodeUnsignedArrayBlock(k.blocks[i].b, &v); err != nil {
+			k.err = err
+			return nil
+		}
+
+		// Apply each tombstone to the block
+		for _, ts := range k.blocks[i].tombstones {
+			v.Exclude(ts.Min, ts.Max)
+		}
+
+		k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
+
+		k.mergedUnsignedValues.Merge(&v)
+		i++
+	}
+
+	k.blocks = k.blocks[i:]
+
+	return k.chunkUnsigned(k.merged)
 }
 
 func (k *tsmBatchKeyIterator) chunkUnsigned(dst blocks) blocks {
@@ -1713,75 +1710,74 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 		// Since we combined multiple blocks, we could have more values than we should put into
 		// a single block.  We need to chunk them up into groups and re-encode them.
 		return k.chunkString(nil)
-	} else {
-		var i int
+	}
+	var i int
 
+	for i < len(k.blocks) {
+
+		// skip this block if it's values were already read
+		if k.blocks[i].read() {
+			i++
+			continue
+		}
+		// If we this block is already full, just add it as is
+		if BlockCount(k.blocks[i].b) >= k.size {
+			k.merged = append(k.merged, k.blocks[i])
+		} else {
+			break
+		}
+		i++
+	}
+
+	if k.fast {
 		for i < len(k.blocks) {
-
 			// skip this block if it's values were already read
 			if k.blocks[i].read() {
 				i++
 				continue
 			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				k.merged = append(k.merged, k.blocks[i])
-			} else {
-				break
-			}
+
+			k.merged = append(k.merged, k.blocks[i])
 			i++
 		}
-
-		if k.fast {
-			for i < len(k.blocks) {
-				// skip this block if it's values were already read
-				if k.blocks[i].read() {
-					i++
-					continue
-				}
-
-				k.merged = append(k.merged, k.blocks[i])
-				i++
-			}
-		}
-
-		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
-		if i == len(k.blocks)-1 {
-			if !k.blocks[i].read() {
-				k.merged = append(k.merged, k.blocks[i])
-			}
-			i++
-		}
-
-		// The remaining blocks can be combined and we know that they do not overlap and
-		// so we can just append each, sort and re-encode.
-		for i < len(k.blocks) && k.mergedStringValues.Len() < k.size {
-			if k.blocks[i].read() {
-				i++
-				continue
-			}
-
-			var v tsdb.StringArray
-			if err := DecodeStringArrayBlock(k.blocks[i].b, &v); err != nil {
-				k.err = err
-				return nil
-			}
-
-			// Apply each tombstone to the block
-			for _, ts := range k.blocks[i].tombstones {
-				v.Exclude(ts.Min, ts.Max)
-			}
-
-			k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
-
-			k.mergedStringValues.Merge(&v)
-			i++
-		}
-
-		k.blocks = k.blocks[i:]
-
-		return k.chunkString(k.merged)
 	}
+
+	// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+	if i == len(k.blocks)-1 {
+		if !k.blocks[i].read() {
+			k.merged = append(k.merged, k.blocks[i])
+		}
+		i++
+	}
+
+	// The remaining blocks can be combined and we know that they do not overlap and
+	// so we can just append each, sort and re-encode.
+	for i < len(k.blocks) && k.mergedStringValues.Len() < k.size {
+		if k.blocks[i].read() {
+			i++
+			continue
+		}
+
+		var v tsdb.StringArray
+		if err := DecodeStringArrayBlock(k.blocks[i].b, &v); err != nil {
+			k.err = err
+			return nil
+		}
+
+		// Apply each tombstone to the block
+		for _, ts := range k.blocks[i].tombstones {
+			v.Exclude(ts.Min, ts.Max)
+		}
+
+		k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
+
+		k.mergedStringValues.Merge(&v)
+		i++
+	}
+
+	k.blocks = k.blocks[i:]
+
+	return k.chunkString(k.merged)
 }
 
 func (k *tsmBatchKeyIterator) chunkString(dst blocks) blocks {
@@ -1918,75 +1914,74 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 		// Since we combined multiple blocks, we could have more values than we should put into
 		// a single block.  We need to chunk them up into groups and re-encode them.
 		return k.chunkBoolean(nil)
-	} else {
-		var i int
+	}
+	var i int
 
+	for i < len(k.blocks) {
+
+		// skip this block if it's values were already read
+		if k.blocks[i].read() {
+			i++
+			continue
+		}
+		// If we this block is already full, just add it as is
+		if BlockCount(k.blocks[i].b) >= k.size {
+			k.merged = append(k.merged, k.blocks[i])
+		} else {
+			break
+		}
+		i++
+	}
+
+	if k.fast {
 		for i < len(k.blocks) {
-
 			// skip this block if it's values were already read
 			if k.blocks[i].read() {
 				i++
 				continue
 			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				k.merged = append(k.merged, k.blocks[i])
-			} else {
-				break
-			}
+
+			k.merged = append(k.merged, k.blocks[i])
 			i++
 		}
-
-		if k.fast {
-			for i < len(k.blocks) {
-				// skip this block if it's values were already read
-				if k.blocks[i].read() {
-					i++
-					continue
-				}
-
-				k.merged = append(k.merged, k.blocks[i])
-				i++
-			}
-		}
-
-		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
-		if i == len(k.blocks)-1 {
-			if !k.blocks[i].read() {
-				k.merged = append(k.merged, k.blocks[i])
-			}
-			i++
-		}
-
-		// The remaining blocks can be combined and we know that they do not overlap and
-		// so we can just append each, sort and re-encode.
-		for i < len(k.blocks) && k.mergedBooleanValues.Len() < k.size {
-			if k.blocks[i].read() {
-				i++
-				continue
-			}
-
-			var v tsdb.BooleanArray
-			if err := DecodeBooleanArrayBlock(k.blocks[i].b, &v); err != nil {
-				k.err = err
-				return nil
-			}
-
-			// Apply each tombstone to the block
-			for _, ts := range k.blocks[i].tombstones {
-				v.Exclude(ts.Min, ts.Max)
-			}
-
-			k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
-
-			k.mergedBooleanValues.Merge(&v)
-			i++
-		}
-
-		k.blocks = k.blocks[i:]
-
-		return k.chunkBoolean(k.merged)
 	}
+
+	// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+	if i == len(k.blocks)-1 {
+		if !k.blocks[i].read() {
+			k.merged = append(k.merged, k.blocks[i])
+		}
+		i++
+	}
+
+	// The remaining blocks can be combined and we know that they do not overlap and
+	// so we can just append each, sort and re-encode.
+	for i < len(k.blocks) && k.mergedBooleanValues.Len() < k.size {
+		if k.blocks[i].read() {
+			i++
+			continue
+		}
+
+		var v tsdb.BooleanArray
+		if err := DecodeBooleanArrayBlock(k.blocks[i].b, &v); err != nil {
+			k.err = err
+			return nil
+		}
+
+		// Apply each tombstone to the block
+		for _, ts := range k.blocks[i].tombstones {
+			v.Exclude(ts.Min, ts.Max)
+		}
+
+		k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
+
+		k.mergedBooleanValues.Merge(&v)
+		i++
+	}
+
+	k.blocks = k.blocks[i:]
+
+	return k.chunkBoolean(k.merged)
 }
 
 func (k *tsmBatchKeyIterator) chunkBoolean(dst blocks) blocks {

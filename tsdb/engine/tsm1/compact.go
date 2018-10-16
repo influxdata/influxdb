@@ -1677,16 +1677,50 @@ RETRY:
 
 	// Read the next block from each TSM iterator
 	for i, v := range k.buf {
-		if len(v) == 0 {
-			iter := k.iterators[i]
-			if iter.Next() {
+		if len(v) != 0 {
+			continue
+		}
+
+		iter := k.iterators[i]
+		if iter.Next() {
+			key, minTime, maxTime, typ, _, b, err := iter.Read()
+			if err != nil {
+				k.err = err
+			}
+
+			// This block may have ranges of time removed from it that would
+			// reduce the block min and max time.
+			tombstones := iter.r.TombstoneRange(key)
+
+			var blk *block
+			if cap(k.buf[i]) > len(k.buf[i]) {
+				k.buf[i] = k.buf[i][:len(k.buf[i])+1]
+				blk = k.buf[i][len(k.buf[i])-1]
+				if blk == nil {
+					blk = &block{}
+					k.buf[i][len(k.buf[i])-1] = blk
+				}
+			} else {
+				blk = &block{}
+				k.buf[i] = append(k.buf[i], blk)
+			}
+			blk.minTime = minTime
+			blk.maxTime = maxTime
+			blk.key = key
+			blk.typ = typ
+			blk.b = b
+			blk.tombstones = tombstones
+			blk.readMin = math.MaxInt64
+			blk.readMax = math.MinInt64
+
+			blockKey := key
+			for bytes.Equal(iter.PeekNext(), blockKey) {
+				iter.Next()
 				key, minTime, maxTime, typ, _, b, err := iter.Read()
 				if err != nil {
 					k.err = err
 				}
 
-				// This block may have ranges of time removed from it that would
-				// reduce the block min and max time.
 				tombstones := iter.r.TombstoneRange(key)
 
 				var blk *block
@@ -1701,6 +1735,7 @@ RETRY:
 					blk = &block{}
 					k.buf[i] = append(k.buf[i], blk)
 				}
+
 				blk.minTime = minTime
 				blk.maxTime = maxTime
 				blk.key = key
@@ -1709,44 +1744,11 @@ RETRY:
 				blk.tombstones = tombstones
 				blk.readMin = math.MaxInt64
 				blk.readMax = math.MinInt64
-
-				blockKey := key
-				for bytes.Equal(iter.PeekNext(), blockKey) {
-					iter.Next()
-					key, minTime, maxTime, typ, _, b, err := iter.Read()
-					if err != nil {
-						k.err = err
-					}
-
-					tombstones := iter.r.TombstoneRange(key)
-
-					var blk *block
-					if cap(k.buf[i]) > len(k.buf[i]) {
-						k.buf[i] = k.buf[i][:len(k.buf[i])+1]
-						blk = k.buf[i][len(k.buf[i])-1]
-						if blk == nil {
-							blk = &block{}
-							k.buf[i][len(k.buf[i])-1] = blk
-						}
-					} else {
-						blk = &block{}
-						k.buf[i] = append(k.buf[i], blk)
-					}
-
-					blk.minTime = minTime
-					blk.maxTime = maxTime
-					blk.key = key
-					blk.typ = typ
-					blk.b = b
-					blk.tombstones = tombstones
-					blk.readMin = math.MaxInt64
-					blk.readMax = math.MinInt64
-				}
 			}
+		}
 
-			if iter.Err() != nil {
-				k.err = iter.Err()
-			}
+		if iter.Err() != nil {
+			k.err = iter.Err()
 		}
 	}
 
