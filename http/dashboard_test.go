@@ -136,7 +136,8 @@ func TestService_handleGetDashboards(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewDashboardHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewDashboardHandler(mappingService)
 			h.DashboardService = tt.fields.DashboardService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -268,7 +269,8 @@ func TestService_handleGetDashboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewDashboardHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewDashboardHandler(mappingService)
 			h.DashboardService = tt.fields.DashboardService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -382,7 +384,8 @@ func TestService_handlePostDashboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewDashboardHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewDashboardHandler(mappingService)
 			h.DashboardService = tt.fields.DashboardService
 
 			b, err := json.Marshal(tt.args.dashboard)
@@ -471,7 +474,8 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewDashboardHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewDashboardHandler(mappingService)
 			h.DashboardService = tt.fields.DashboardService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -630,7 +634,8 @@ func TestService_handlePatchDashboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewDashboardHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewDashboardHandler(mappingService)
 			h.DashboardService = tt.fields.DashboardService
 
 			upd := platform.DashboardUpdate{}
@@ -738,7 +743,8 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewDashboardHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewDashboardHandler(mappingService)
 			h.DashboardService = tt.fields.DashboardService
 
 			b, err := json.Marshal(tt.args.cell)
@@ -820,7 +826,8 @@ func TestService_handleDeleteDashboardCell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewDashboardHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewDashboardHandler(mappingService)
 			h.DashboardService = tt.fields.DashboardService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -933,7 +940,8 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewDashboardHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewDashboardHandler(mappingService)
 			h.DashboardService = tt.fields.DashboardService
 
 			upd := platform.CellUpdate{}
@@ -1030,7 +1038,8 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 		}
 	}
 
-	handler := NewDashboardHandler()
+	mappingService := mock.NewUserResourceMappingService()
+	handler := NewDashboardHandler(mappingService)
 	handler.DashboardService = svc
 	server := httptest.NewServer(handler)
 	client := DashboardService{

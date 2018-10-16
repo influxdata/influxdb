@@ -9,19 +9,31 @@ import (
 var _ platform.UserResourceMappingService = &UserResourceMappingService{}
 
 type UserResourceMappingService struct {
-	FindMappingsF  func(context.Context, platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error)
-	CreateMappingF func(context.Context, *platform.UserResourceMapping) error
-	DeleteMappingF func(context.Context, platform.ID, platform.ID) error
+	FindMappingsFn  func(context.Context, platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error)
+	CreateMappingFn func(context.Context, *platform.UserResourceMapping) error
+	DeleteMappingFn func(context.Context, platform.ID, platform.ID) error
+}
+
+// NewUserResourceMappingService returns a mock of UserResourceMappingService
+// where its methods will return zero values.
+func NewUserResourceMappingService() *UserResourceMappingService {
+	return &UserResourceMappingService{
+		FindMappingsFn: func(context.Context, platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error) {
+			return nil, 0, nil
+		},
+		CreateMappingFn: func(context.Context, *platform.UserResourceMapping) error { return nil },
+		DeleteMappingFn: func(context.Context, platform.ID, platform.ID) error { return nil },
+	}
 }
 
 func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.UserResourceMapping, int, error) {
-	return s.FindMappingsF(ctx, filter)
+	return s.FindMappingsFn(ctx, filter)
 }
 
 func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Context, m *platform.UserResourceMapping) error {
-	return s.CreateMappingF(ctx, m)
+	return s.CreateMappingFn(ctx, m)
 }
 
 func (s *UserResourceMappingService) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
-	return s.DeleteMappingF(ctx, resourceID, userID)
+	return s.DeleteMappingFn(ctx, resourceID, userID)
 }

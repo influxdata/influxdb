@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/inmem"
+	"github.com/influxdata/platform/mock"
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
@@ -22,7 +23,8 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 		}
 	}
 
-	handler := NewOrgHandler(svc)
+	mappingService := mock.NewUserResourceMappingService()
+	handler := NewOrgHandler(mappingService)
 	handler.OrganizationService = svc
 	handler.BucketService = svc
 	server := httptest.NewServer(handler)
