@@ -11,7 +11,7 @@ var _ platform.DashboardService = &DashboardService{}
 type DashboardService struct {
 	CreateDashboardF   func(context.Context, *platform.Dashboard) error
 	FindDashboardByIDF func(context.Context, platform.ID) (*platform.Dashboard, error)
-	FindDashboardsF    func(context.Context, platform.DashboardFilter) ([]*platform.Dashboard, int, error)
+	FindDashboardsF    func(context.Context, platform.DashboardFilter, platform.FindOptions) ([]*platform.Dashboard, int, error)
 	UpdateDashboardF   func(context.Context, platform.ID, platform.DashboardUpdate) (*platform.Dashboard, error)
 	DeleteDashboardF   func(context.Context, platform.ID) error
 
@@ -26,8 +26,8 @@ func (s *DashboardService) FindDashboardByID(ctx context.Context, id platform.ID
 	return s.FindDashboardByIDF(ctx, id)
 }
 
-func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
-	return s.FindDashboardsF(ctx, filter)
+func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
+	return s.FindDashboardsF(ctx, filter, opts)
 }
 
 func (s *DashboardService) CreateDashboard(ctx context.Context, b *platform.Dashboard) error {

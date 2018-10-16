@@ -14,6 +14,7 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}
 	c.IDGenerator = f.IDGenerator
+	c.WithTime(f.NowFn)
 	ctx := context.TODO()
 	for _, b := range f.Dashboards {
 		if err := c.PutDashboard(ctx, b); err != nil {

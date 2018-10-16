@@ -1015,6 +1015,15 @@ paths:
             schema:
               type: string
           - in: query
+            name: sortBy
+            description: specifies the owner id to return resources for
+            schema:
+              type: string
+              enum:
+                - "ID"
+                - "CreatedAt"
+                - "UpdatedAt"
+          - in: query
             name: id
             description: ID list of dashboards to return. If both this and owner are specified, only ids is used.
             schema:
@@ -4397,6 +4406,15 @@ components:
         description:
           type: string
           description: user-facing description of the dashboard
+        meta:
+          type: object
+          properties:
+            createdAt:
+              type: string
+              format: date
+            updatedAt:
+              type: string
+              format: date
         cells:
             $ref: "#/components/schemas/Cells"
     Dashboards:
@@ -4493,7 +4511,7 @@ components:
               type:
                 type: string
                 enum: [input, output, processor, aggregator]
-              comment: 
+              comment:
                 type: string
               config:
                 oneOf:
@@ -4649,7 +4667,7 @@ components:
         bucket:
           type: string
         retentionPeriodHrs:
-          type: integer  
+          type: integer
       required:
         - username
         - password
