@@ -180,8 +180,8 @@ func NewHandler(c Config) *Handler {
 			"POST", "/api/v1/prom/read", true, true, h.servePromRead,
 		},
 		Route{
-			"flux-read", // Prometheus remote read
-			"POST", "/v2/query", true, true, h.serveFluxQuery,
+			"flux-read",
+			"POST", "/api/v2/query", true, true, h.serveFluxQuery,
 		},
 		Route{ // Ping
 			"ping",
