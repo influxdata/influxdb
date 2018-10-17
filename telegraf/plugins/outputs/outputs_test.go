@@ -1,6 +1,8 @@
 package outputs
 
 import (
+	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/influxdata/platform/telegraf/plugins"
@@ -11,6 +13,7 @@ type telegrafPluginConfig interface {
 	TOML() string
 	Type() plugins.Type
 	PluginName() string
+	UnmarshalTOML(data interface{}) error
 }
 
 func TestType(t *testing.T) {
@@ -96,6 +99,154 @@ func TestTOML(t *testing.T) {
 			if toml != output.TOML() {
 				t.Fatalf("%s failed want %s, got %v", c.name, toml, output.TOML())
 			}
+		}
+	}
+}
+
+func TestDecodeTOML(t *testing.T) {
+	cases := []struct {
+		name    string
+		want    telegrafPluginConfig
+		wantErr error
+		output  telegrafPluginConfig
+		data    interface{}
+	}{
+		{
+			name:    "file empty",
+			want:    &File{},
+			wantErr: errors.New("bad files for file output plugin"),
+			output:  &File{},
+		},
+		{
+			name:    "file bad data not array",
+			want:    &File{},
+			wantErr: errors.New("not an array for file output plugin"),
+			output:  &File{},
+			data: map[string]interface{}{
+				"files": "",
+			},
+		},
+		{
+			name: "file",
+			want: &File{
+				Files: []FileConfig{
+					{Path: "/tmp/out.txt"},
+					{Typ: "stdout"},
+				},
+			},
+			output: &File{},
+			data: map[string]interface{}{
+				"files": []interface{}{
+					"/tmp/out.txt",
+					"stdout",
+				},
+			},
+		},
+		{
+			name:    "influxdb_v2 empty",
+			want:    &InfluxDBV2{},
+			wantErr: errors.New("bad urls for influxdb_v2 output plugin"),
+			output:  &InfluxDBV2{},
+		},
+		{
+			name:    "influxdb_v2 bad urls",
+			want:    &InfluxDBV2{},
+			wantErr: errors.New("urls is not an array for influxdb_v2 output plugin"),
+			output:  &InfluxDBV2{},
+			data: map[string]interface{}{
+				"urls": "",
+			},
+		},
+		{
+			name: "influxdb_v2 missing token",
+			want: &InfluxDBV2{
+				URLs: []string{
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
+				},
+			},
+			wantErr: errors.New("token is missing for influxdb_v2 output plugin"),
+			output:  &InfluxDBV2{},
+			data: map[string]interface{}{
+				"urls": []interface{}{
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
+				},
+			},
+		},
+		{
+			name: "influxdb_v2 missing org",
+			want: &InfluxDBV2{
+				URLs: []string{
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
+				},
+				Token: "token1",
+			},
+			wantErr: errors.New("organization is missing for influxdb_v2 output plugin"),
+			output:  &InfluxDBV2{},
+			data: map[string]interface{}{
+				"urls": []interface{}{
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
+				},
+				"token": "token1",
+			},
+		},
+		{
+			name: "influxdb_v2 missing bucket",
+			want: &InfluxDBV2{
+				URLs: []string{
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
+				},
+				Token:        "token1",
+				Organization: "org1",
+			},
+			wantErr: errors.New("bucket is missing for influxdb_v2 output plugin"),
+			output:  &InfluxDBV2{},
+			data: map[string]interface{}{
+				"urls": []interface{}{
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
+				},
+				"token":        "token1",
+				"organization": "org1",
+			},
+		},
+		{
+			name: "influxdb_v2",
+			want: &InfluxDBV2{
+				URLs: []string{
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
+				},
+				Token:        "token1",
+				Organization: "org1",
+				Bucket:       "bucket1",
+			},
+			output: &InfluxDBV2{},
+			data: map[string]interface{}{
+				"urls": []interface{}{
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
+				},
+				"token":        "token1",
+				"organization": "org1",
+				"bucket":       "bucket1",
+			},
+		},
+	}
+	for _, c := range cases {
+		err := c.output.UnmarshalTOML(c.data)
+		if c.wantErr != nil && (err == nil || err.Error() != c.wantErr.Error()) {
+			t.Fatalf("%s failed want err %s, got %v", c.name, c.wantErr.Error(), err)
+		}
+		if c.wantErr == nil && err != nil {
+			t.Fatalf("%s failed want err nil, got %v", c.name, err)
+		}
+		if !reflect.DeepEqual(c.output, c.want) {
+			t.Fatalf("%s failed want %v, got %v", c.name, c.want, c.output)
 		}
 	}
 }

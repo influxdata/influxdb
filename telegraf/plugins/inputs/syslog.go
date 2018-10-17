@@ -1,6 +1,7 @@
 package inputs
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -24,4 +25,14 @@ func (s *Syslog) TOML() string {
   ## If no port is specified, 6514 is used (RFC5425#section-4.1).
   server = "%s"
 `, s.PluginName(), s.Address)
+}
+
+// UnmarshalTOML decodes the parsed data to the object
+func (s *Syslog) UnmarshalTOML(data interface{}) error {
+	dataOK, ok := data.(map[string]interface{})
+	if !ok {
+		return errors.New("bad server for syslog input plugin")
+	}
+	s.Address, _ = dataOK["server"].(string)
+	return nil
 }

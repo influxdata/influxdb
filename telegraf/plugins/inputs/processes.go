@@ -19,3 +19,8 @@ func (p *Processes) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
 `, p.PluginName())
 }
+
+// UnmarshalTOML decodes the parsed data to the object
+func (p *Processes) UnmarshalTOML(data interface{}) error {
+	return nil
+}

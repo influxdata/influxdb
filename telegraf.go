@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -48,6 +49,70 @@ type TelegrafConfig struct {
 
 	Agent   TelegrafAgentConfig
 	Plugins []TelegrafPlugin
+}
+
+// TOML returns the telegraf toml config string.
+func (tc TelegrafConfig) TOML() string {
+	plugins := ""
+	for _, p := range tc.Plugins {
+		plugins += p.Config.TOML()
+	}
+	interval := time.Duration(tc.Agent.Interval * 1000000)
+	return fmt.Sprintf(`# Configuration for telegraf agent
+[agent]
+  ## Default data collection interval for all inputs
+  interval = "%s"
+  ## Rounds collection interval to 'interval'
+  ## ie, if interval="10s" then always collect on :00, :10, :20, etc.
+  round_interval = true
+
+  ## Telegraf will send metrics to outputs in batches of at most
+  ## metric_batch_size metrics.
+  ## This controls the size of writes that Telegraf sends to output plugins.
+  metric_batch_size = 1000
+
+  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
+  ## output, and will flush this buffer on a successful write. Oldest metrics
+  ## are dropped first when this buffer fills.
+  ## This buffer only fills when writes fail to output plugin(s).
+  metric_buffer_limit = 10000
+
+  ## Collection jitter is used to jitter the collection by a random amount.
+  ## Each plugin will sleep for a random time within jitter before collecting.
+  ## This can be used to avoid many plugins querying things like sysfs at the
+  ## same time, which can have a measurable effect on the system.
+  collection_jitter = "0s"
+
+  ## Default flushing interval for all outputs. Maximum flush_interval will be
+  ## flush_interval + flush_jitter
+  flush_interval = "10s"
+  ## Jitter the flush interval by a random amount. This is primarily to avoid
+  ## large write spikes for users running a large number of telegraf instances.
+  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s
+  flush_jitter = "0s"
+
+  ## By default or when set to "0s", precision will be set to the same
+  ## timestamp order as the collection interval, with the maximum being 1s.
+  ##   ie, when interval = "10s", precision will be "1s"
+  ##       when interval = "250ms", precision will be "1ms"
+  ## Precision will NOT be used for service inputs. It is up to each individual
+  ## service input to set the timestamp at the appropriate precision.
+  ## Valid time units are "ns", "us" (or "µs"), "ms", "s".
+  precision = ""
+
+  ## Logging configuration:
+  ## Run telegraf with debug log messages.
+  debug = false
+  ## Run telegraf in quiet mode (error log messages only).
+  quiet = false
+  ## Specify the log file name. The empty string means to log to stderr.
+  logfile = ""
+
+  ## Override default hostname, if empty use os.Hostname()
+  hostname = ""
+  ## If set to true, do no set the "host" tag in the telegraf agent.
+  omit_hostname = false
+%s`, interval.String(), plugins)
 }
 
 // telegrafConfigEncode is the helper struct for json encoding.
@@ -110,6 +175,8 @@ type TelegrafAgentConfig struct {
 type TelegrafPluginConfig interface {
 	// TOML encodes to toml string
 	TOML() string
+	// UnmarshalTOML decodes the parsed data to the object
+	UnmarshalTOML(data interface{}) error
 	// Type is the plugin type
 	Type() plugins.Type
 	// PluginName is the string value of telegraf plugin package name.
@@ -145,6 +212,85 @@ func (tc *TelegrafConfig) MarshalJSON() ([]byte, error) {
 		}
 	}
 	return json.Marshal(tce)
+}
+
+// UnmarshalTOML implements toml.Unmarshaler interface.
+func (tc *TelegrafConfig) UnmarshalTOML(data interface{}) error {
+	dataOk, ok := data.(map[string]interface{})
+	if !ok {
+		return errors.New("blank string")
+	}
+	agent, ok := dataOk["agent"].(map[string]interface{})
+	if !ok {
+		return errors.New("agent is missing")
+	}
+
+	intervalStr, ok := agent["interval"].(string)
+	if !ok {
+		return errors.New("agent interval is not string")
+	}
+
+	interval, err := time.ParseDuration(intervalStr)
+	if err != nil {
+		return err
+	}
+	tc.Agent = TelegrafAgentConfig{
+		Interval: interval.Nanoseconds() / 1000000,
+	}
+
+	for tp, ps := range dataOk {
+		if tp == "agent" {
+			continue
+		}
+		plugins, ok := ps.(map[string]interface{})
+		if !ok {
+			return &Error{
+				Msg: "bad plugin type",
+			}
+		}
+		for name, configDataArray := range plugins {
+			if configDataArray == nil {
+				if err := tc.parseTOMLPluginConfig(tp, name, configDataArray); err != nil {
+					return err
+				}
+				continue
+			}
+			for _, configData := range configDataArray.([]map[string]interface{}) {
+				if err := tc.parseTOMLPluginConfig(tp, name, configData); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (tc *TelegrafConfig) parseTOMLPluginConfig(typ, name string, configData interface{}) error {
+	var ok bool
+	var p TelegrafPluginConfig
+	switch typ {
+	case "inputs":
+		p, ok = availableInputPlugins[name]
+	case "outputs":
+		p, ok = availableOutputPlugins[name]
+	default:
+		return &Error{
+			Msg: fmt.Sprintf(ErrUnsupportTelegrafPluginType, typ),
+		}
+	}
+	if !ok {
+		return &Error{
+			Msg: fmt.Sprintf(ErrUnsupportTelegrafPluginName, name, typ),
+		}
+	}
+	if err := p.UnmarshalTOML(configData); err != nil {
+		return err
+	}
+	tc.Plugins = append(tc.Plugins, TelegrafPlugin{
+		Config: p,
+	})
+	return nil
 }
 
 // UnmarshalJSON implement the json.Unmarshaler interface.

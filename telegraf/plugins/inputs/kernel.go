@@ -19,3 +19,8 @@ func (k *Kernel) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
 `, k.PluginName())
 }
+
+// UnmarshalTOML decodes the parsed data to the object
+func (k *Kernel) UnmarshalTOML(data interface{}) error {
+	return nil
+}

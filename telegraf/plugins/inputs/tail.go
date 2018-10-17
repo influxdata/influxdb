@@ -1,6 +1,7 @@
 package inputs
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -34,5 +35,33 @@ func (t *Tail) TOML() string {
   ## See https://github.com/gobwas/glob for more examples
   ##
   files = [%s]
+
+  ## Read file from beginning.
+  from_beginning = false
+  ## Whether file is a named pipe
+  pipe = false
+  ## Method used to watch for file updates.  Can be either "inotify" or "poll".
+  # watch_method = "inotify"
+  ## Data format to consume.
+  ## Each data format has its own unique set of configuration options, read
+  ## more about them here:
+  ## https://github.com/influxdata/telegraf/blob/master/docs/DATA_FORMATS_INPUT.md
+  data_format = "influx"
 `, t.PluginName(), strings.Join(s, ", "))
+}
+
+// UnmarshalTOML decodes the parsed data to the object
+func (t *Tail) UnmarshalTOML(data interface{}) error {
+	dataOK, ok := data.(map[string]interface{})
+	if !ok {
+		return errors.New("bad files for tail input plugin")
+	}
+	files, ok := dataOK["files"].([]interface{})
+	if !ok {
+		return errors.New("not an array for tail input plugin")
+	}
+	for _, fi := range files {
+		t.Files = append(t.Files, fi.(string))
+	}
+	return nil
 }
