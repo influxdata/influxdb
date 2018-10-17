@@ -29,14 +29,17 @@ func NewProxyQueryService(engine *storage.Engine, bucketSvc platform.BucketServi
 		Verbose:              false,
 	}
 
+	lookupSvc := query.FromBucketService(bucketSvc)
 	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, fstorage.Dependencies{
 		Reader:             reads.NewReader(newStore(engine)),
-		BucketLookup:       query.FromBucketService(bucketSvc),
+		BucketLookup:       lookupSvc,
 		OrganizationLookup: query.FromOrganizationService(orgSvc),
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	err = inputs.InjectBucketDependencies(cc.ExecutorDependencies, lookupSvc)
 
 	return query.ProxyQueryServiceBridge{
 		QueryService: query.QueryServiceBridge{

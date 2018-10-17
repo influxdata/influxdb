@@ -32,6 +32,19 @@ func (b *BucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool
 	return bucket.ID, true
 }
 
+func (b *BucketLookup) FindAllBuckets(orgID platform.ID) ([]*platform.Bucket, int) {
+	oid := platform.ID(orgID)
+	filter := platform.BucketFilter{
+		OrganizationID: &oid,
+	}
+	buckets, count, err := b.BucketService.FindBuckets(context.Background(), filter)
+	if err != nil {
+		return nil, count
+	}
+	return buckets, count
+
+}
+
 // FromOrganizationService wraps a platform.OrganizationService in the OrganizationLookup interface.
 func FromOrganizationService(srv platform.OrganizationService) *OrganizationLookup {
 	return &OrganizationLookup{OrganizationService: srv}

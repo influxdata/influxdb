@@ -39,7 +39,7 @@ require (
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/influxdata/flux v0.0.0-20181009183631-f95c57ab4e42
+	github.com/influxdata/flux v0.0.0-20181012184356-59f53657bd7f
 	github.com/influxdata/influxdb v0.0.0-20181009160823-86ac358448ec
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/line-protocol v0.0.0-20180522152040-32c6aa80de5e
@@ -83,13 +83,13 @@ require (
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6 // indirect
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20181001203147-e3636079e1a4
-	golang.org/x/net v0.0.0-20181005035420-146acd28ed58
+	golang.org/x/net v0.0.0-20181011144130-49bb7cea24b1
 	golang.org/x/oauth2 v0.0.0-20181003184128-c57b0facaced
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
-	golang.org/x/sys v0.0.0-20181005133103-4497e2df6f9e
+	golang.org/x/sys v0.0.0-20181011152604-fa43e7bc11ba
 	golang.org/x/text v0.3.0
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
-	golang.org/x/tools v0.0.0-20181009172131-6d96510a3a1c // indirect
+	golang.org/x/tools v0.0.0-20181012181339-19e2aca3fdf9 // indirect
 	google.golang.org/api v0.0.0-20181003000758-f5c49d98d21c
 	google.golang.org/grpc v1.15.0
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
