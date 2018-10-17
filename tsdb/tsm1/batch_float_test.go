@@ -3,14 +3,12 @@ package tsm1_test
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"math"
 	"math/rand"
 	"reflect"
 	"testing"
 	"testing/quick"
 
-	"github.com/dgryski/go-bitstream"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/tsdb/tsm1"
 )
@@ -266,174 +264,6 @@ func TestFloatArrayDecodeAll_Empty(t *testing.T) {
 	}
 }
 
-func TestBatchBitStreamEOF(t *testing.T) {
-	br := tsm1.NewBatchBitReader([]byte("0"))
-
-	b := br.ReadBits(8)
-	if br.Err() != nil {
-		t.Fatal(br.Err())
-	}
-	if b != '0' {
-		t.Error("ReadBits(8) didn't return first byte")
-	}
-
-	br.ReadBits(8)
-	if br.Err() != io.EOF {
-		t.Error("ReadBits(8) on empty string didn't return EOF")
-	}
-
-	// 0 = 0b00110000
-	br = tsm1.NewBatchBitReader([]byte("0"))
-
-	buf := bytes.NewBuffer(nil)
-	bw := bitstream.NewWriter(buf)
-
-	for i := 0; i < 4; i++ {
-		bit := br.ReadBit()
-		if br.Err() == io.EOF {
-			break
-		}
-		if br.Err() != nil {
-			t.Error("GetBit returned error err=", br.Err().Error())
-			return
-		}
-		bw.WriteBit(bitstream.Bit(bit))
-	}
-
-	bw.Flush(bitstream.One)
-
-	err := bw.WriteByte(0xAA)
-	if err != nil {
-		t.Error("unable to WriteByte")
-	}
-
-	c := buf.Bytes()
-
-	if len(c) != 2 || c[1] != 0xAA || c[0] != 0x3f {
-		t.Error("bad return from 4 read bytes")
-	}
-
-	br = tsm1.NewBatchBitReader([]byte(""))
-	br.ReadBit()
-	if br.Err() != io.EOF {
-		t.Error("ReadBit on empty string didn't return EOF")
-	}
-}
-
-func TestBatchBitStream(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	br := tsm1.NewBatchBitReader([]byte("hello"))
-	bw := bitstream.NewWriter(buf)
-
-	for {
-		bit := br.ReadBit()
-		if br.Err() == io.EOF {
-			break
-		}
-		if br.Err() != nil {
-			t.Error("GetBit returned error err=", br.Err().Error())
-			return
-		}
-		bw.WriteBit(bitstream.Bit(bit))
-	}
-
-	s := buf.String()
-
-	if s != "hello" {
-		t.Error("expected 'hello', got=", []byte(s))
-	}
-}
-
-func TestBatchByteStream(t *testing.T) {
-	buf := bytes.NewBuffer(nil)
-	br := tsm1.NewBatchBitReader([]byte("hello"))
-	bw := bitstream.NewWriter(buf)
-
-	for i := 0; i < 3; i++ {
-		bit := br.ReadBit()
-		if br.Err() == io.EOF {
-			break
-		}
-		if br.Err() != nil {
-			t.Error("GetBit returned error err=", br.Err().Error())
-			return
-		}
-		bw.WriteBit(bitstream.Bit(bit))
-	}
-
-	for i := 0; i < 3; i++ {
-		byt := br.ReadBits(8)
-		if br.Err() == io.EOF {
-			break
-		}
-		if br.Err() != nil {
-			t.Error("ReadBits(8) returned error err=", br.Err().Error())
-			return
-		}
-		bw.WriteByte(byte(byt))
-	}
-
-	u := br.ReadBits(13)
-
-	if br.Err() != nil {
-		t.Error("ReadBits returned error err=", br.Err().Error())
-		return
-	}
-
-	bw.WriteBits(u, 13)
-
-	bw.WriteBits(('!'<<12)|('.'<<4)|0x02, 20)
-	// 0x2f == '/'
-	bw.Flush(bitstream.One)
-
-	s := buf.String()
-
-	if s != "hello!./" {
-		t.Errorf("expected 'hello!./', got=%x", []byte(s))
-	}
-}
-
-// Ensure bit reader can read random bits written to a stream.
-func TestBatchBitReader_Quick(t *testing.T) {
-	if err := quick.Check(func(values []uint64, nbits []uint) bool {
-		// Limit nbits to 64.
-		for i := 0; i < len(values) && i < len(nbits); i++ {
-			nbits[i] = (nbits[i] % 64) + 1
-			values[i] = values[i] & (math.MaxUint64 >> (64 - nbits[i]))
-		}
-
-		// Write bits to a buffer.
-		var buf bytes.Buffer
-		w := bitstream.NewWriter(&buf)
-		for i := 0; i < len(values) && i < len(nbits); i++ {
-			w.WriteBits(values[i], int(nbits[i]))
-		}
-		w.Flush(bitstream.Zero)
-
-		// Read bits from the buffer.
-		r := tsm1.NewBatchBitReader(buf.Bytes())
-		for i := 0; i < len(values) && i < len(nbits); i++ {
-			v := r.ReadBits(nbits[i])
-			if r.Err() != nil {
-				t.Errorf("unexpected error(%d): %s", i, r.Err())
-				return false
-			} else if v != values[i] {
-				t.Errorf("value mismatch(%d): got=%d, exp=%d (nbits=%d)", i, v, values[i], nbits[i])
-				return false
-			}
-		}
-
-		return true
-	}, &quick.Config{
-		Values: func(a []reflect.Value, rand *rand.Rand) {
-			a[0], _ = quick.Value(reflect.TypeOf([]uint64{}), rand)
-			a[1], _ = quick.Value(reflect.TypeOf([]uint{}), rand)
-		},
-	}); err != nil {
-		t.Fatal(err)
-	}
-}
-
 var bufResult []byte
 
 func BenchmarkEncodeFloats(b *testing.B) {
@@ -460,6 +290,8 @@ func BenchmarkEncodeFloats(b *testing.B) {
 					enc.Flush()
 					if bufResult, err = enc.Bytes(); err != nil {
 						b.Fatal(err)
+					} else {
+						b.SetBytes(int64(len(bufResult)))
 					}
 				}
 			})
@@ -470,6 +302,8 @@ func BenchmarkEncodeFloats(b *testing.B) {
 				for n := 0; n < b.N; n++ {
 					if bufResult, err = tsm1.FloatArrayEncodeAll(input, bufResult); err != nil {
 						b.Fatal(err)
+					} else {
+						b.SetBytes(int64(len(bufResult)))
 					}
 				}
 			})
@@ -493,6 +327,8 @@ func BenchmarkEncodeFloats(b *testing.B) {
 					enc.Flush()
 					if bufResult, err = enc.Bytes(); err != nil {
 						b.Fatal(err)
+					} else {
+						b.SetBytes(int64(len(bufResult)))
 					}
 				}
 			})
@@ -503,9 +339,70 @@ func BenchmarkEncodeFloats(b *testing.B) {
 				for n := 0; n < b.N; n++ {
 					if bufResult, err = tsm1.FloatArrayEncodeAll(input, bufResult); err != nil {
 						b.Fatal(err)
+					} else {
+						b.SetBytes(int64(len(bufResult)))
 					}
 				}
 			})
+		})
+	}
+}
+
+func BenchmarkDecodeFloats(b *testing.B) {
+	cases := []int{1, 55, 550, 1000}
+	for _, n := range cases {
+		b.Run(fmt.Sprintf("%d_seq", n), func(b *testing.B) {
+			s := tsm1.NewFloatEncoder()
+			for i := 0; i < n; i++ {
+				s.Write(float64(i))
+			}
+			s.Flush()
+			data, err := s.Bytes()
+			if err != nil {
+				b.Fatalf("unexpected error: %v", err)
+			}
+
+			b.SetBytes(int64(len(data)))
+			b.ResetTimer()
+
+			dst := make([]float64, n)
+			for i := 0; i < b.N; i++ {
+
+				got, err := tsm1.FloatArrayDecodeAll(data, dst)
+				if err != nil {
+					b.Fatalf("unexpected error\n%s", err.Error())
+				}
+				if len(got) != n {
+					b.Fatalf("unexpected length -got/+exp\n%s", cmp.Diff(len(got), n))
+				}
+			}
+		})
+
+		b.Run(fmt.Sprintf("%d_ran", n), func(b *testing.B) {
+			s := tsm1.NewFloatEncoder()
+			for i := 0; i < n; i++ {
+				s.Write(rand.Float64() * 100.0)
+			}
+			s.Flush()
+			data, err := s.Bytes()
+			if err != nil {
+				b.Fatalf("unexpected error: %v", err)
+			}
+
+			b.SetBytes(int64(len(data)))
+			b.ResetTimer()
+
+			dst := make([]float64, n)
+			for i := 0; i < b.N; i++ {
+
+				got, err := tsm1.FloatArrayDecodeAll(data, dst)
+				if err != nil {
+					b.Fatalf("unexpected error\n%s", err.Error())
+				}
+				if len(got) != n {
+					b.Fatalf("unexpected length -got/+exp\n%s", cmp.Diff(len(got), n))
+				}
+			}
 		})
 	}
 }
@@ -537,10 +434,10 @@ func BenchmarkFloatArrayDecodeAll(b *testing.B) {
 
 				got, err := tsm1.FloatArrayDecodeAll(bytes, dst)
 				if err != nil {
-					b.Fatalf("unexpected length -got/+exp\n%s", cmp.Diff(len(dst), size))
+					b.Fatalf("unexpected error\n%s", err.Error())
 				}
 				if len(got) != size {
-					b.Fatalf("unexpected length -got/+exp\n%s", cmp.Diff(len(dst), size))
+					b.Fatalf("unexpected length -got/+exp\n%s", cmp.Diff(len(got), size))
 				}
 			}
 		})
