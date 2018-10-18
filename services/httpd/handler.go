@@ -40,6 +40,7 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/storage/reads"
 	"github.com/influxdata/platform/storage/reads/datatypes"
+	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
@@ -118,6 +119,7 @@ type Handler struct {
 	// Flux services
 	Controller       *control.Controller
 	CompilerMappings flux.CompilerMappings
+	registered       bool
 
 	Config    *Config
 	Logger    *zap.Logger
@@ -234,12 +236,24 @@ func (h *Handler) Open() {
 		}
 		h.Logger.Info("opened HTTP access log", zap.String("path", path))
 	}
+
+	if h.Config.FluxEnabled {
+		h.registered = true
+		prom.MustRegister(h.Controller.PrometheusCollectors()...)
+	}
 }
 
 func (h *Handler) Close() {
 	if h.accessLog != nil {
 		h.accessLog.Close()
 		h.accessLog = nil
+	}
+
+	if h.registered {
+		for _, col := range h.Controller.PrometheusCollectors() {
+			prom.Unregister(col)
+		}
+		h.registered = false
 	}
 }
 
@@ -267,6 +281,8 @@ type Statistics struct {
 	RecoveredPanics              int64
 	PromWriteRequests            int64
 	PromReadRequests             int64
+	FluxQueryRequests            int64
+	FluxQueryRequestDuration     int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -296,6 +312,8 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 			statRecoveredPanics:              atomic.LoadInt64(&h.stats.RecoveredPanics),
 			statPromWriteRequest:             atomic.LoadInt64(&h.stats.PromWriteRequests),
 			statPromReadRequest:              atomic.LoadInt64(&h.stats.PromReadRequests),
+			statFluxQueryRequests:            atomic.LoadInt64(&h.stats.FluxQueryRequests),
+			statFluxQueryRequestDuration:     atomic.LoadInt64(&h.stats.FluxQueryRequestDuration),
 		},
 	}}
 }
@@ -1122,6 +1140,11 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 }
 
 func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
+	atomic.AddInt64(&h.stats.FluxQueryRequests, 1)
+	defer func(start time.Time) {
+		atomic.AddInt64(&h.stats.FluxQueryRequestDuration, time.Since(start).Nanoseconds())
+	}(time.Now())
+
 	req, err := decodeQueryRequest(r)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
