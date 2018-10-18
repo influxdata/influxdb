@@ -89,28 +89,32 @@ func (c *Client) findUserResourceMapping(ctx context.Context, tx *bolt.Tx, resou
 
 func (c *Client) CreateUserResourceMapping(ctx context.Context, m *platform.UserResourceMapping) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		unique := c.uniqueUserResourceMapping(ctx, tx, m)
-
-		if !unique {
-			return fmt.Errorf("mapping for user %s already exists", m.UserID.String())
-		}
-
-		v, err := json.Marshal(m)
-		if err != nil {
-			return err
-		}
-
-		key, err := userResourceKey(m)
-		if err != nil {
-			return err
-		}
-
-		if err := tx.Bucket(userResourceMappingBucket).Put(key, v); err != nil {
-			return err
-		}
-
-		return nil
+		return c.createUserResourceMapping(ctx, tx, m)
 	})
+}
+
+func (c *Client) createUserResourceMapping(ctx context.Context, tx *bolt.Tx, m *platform.UserResourceMapping) error {
+	unique := c.uniqueUserResourceMapping(ctx, tx, m)
+
+	if !unique {
+		return fmt.Errorf("mapping for user %s already exists", m.UserID.String())
+	}
+
+	v, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+
+	key, err := userResourceKey(m)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Bucket(userResourceMappingBucket).Put(key, v); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func userResourceKey(m *platform.UserResourceMapping) ([]byte, error) {
@@ -158,20 +162,43 @@ func (c *Client) uniqueUserResourceMapping(ctx context.Context, tx *bolt.Tx, m *
 
 func (c *Client) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.deleteUserResourceMapping(ctx, tx, resourceID, userID)
+		return c.deleteUserResourceMapping(ctx, tx, platform.UserResourceMappingFilter{
+			ResourceID: resourceID,
+			UserID:     userID,
+		})
 	})
 }
 
-func (c *Client) deleteUserResourceMapping(ctx context.Context, tx *bolt.Tx, resourceID platform.ID, userID platform.ID) error {
-	m, err := c.findUserResourceMapping(ctx, tx, resourceID, userID)
+func (c *Client) deleteUserResourceMapping(ctx context.Context, tx *bolt.Tx, filter platform.UserResourceMappingFilter) error {
+	ms, err := c.findUserResourceMappings(ctx, tx, filter)
 	if err != nil {
 		return err
 	}
+	if len(ms) == 0 {
+		return fmt.Errorf("userResource mapping not found")
+	}
 
-	key, err := userResourceKey(m)
+	key, err := userResourceKey(ms[0])
 	if err != nil {
 		return err
 	}
 
 	return tx.Bucket(userResourceMappingBucket).Delete(key)
+}
+
+func (c *Client) deleteUserResourceMappings(ctx context.Context, tx *bolt.Tx, filter platform.UserResourceMappingFilter) error {
+	ms, err := c.findUserResourceMappings(ctx, tx, filter)
+	if err != nil {
+		return err
+	}
+	for _, m := range ms {
+		key, err := userResourceKey(m)
+		if err != nil {
+			return err
+		}
+		if err = tx.Bucket(userResourceMappingBucket).Delete(key); err != nil {
+			return err
+		}
+	}
+	return nil
 }
