@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/influxdata/platform"
@@ -36,9 +37,9 @@ func setupF(cmd *cobra.Command, args []string) {
 		os.Exit(0)
 	}
 
-	or := getOnboardingRequest()
+	req := getOnboardingRequest()
 
-	result, err := s.Generate(context.Background(), or)
+	result, err := s.Generate(context.Background(), req)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -61,25 +62,33 @@ func setupF(cmd *cobra.Command, args []string) {
 	w.Flush()
 }
 
-func getOnboardingRequest() (or *platform.OnboardingRequest) {
+func getOnboardingRequest() (req *platform.OnboardingRequest) {
 	ui := &input.UI{
 		Writer: os.Stdout,
 		Reader: os.Stdin,
 	}
-	or = new(platform.OnboardingRequest)
+	req = new(platform.OnboardingRequest)
 	fmt.Println(promptWithColor(`Welcome to InfluxDB 2.0!`, colorYellow))
-	or.User = getInput(ui, "Please type your primary username", "")
-	or.Password = getPassword(ui)
-	or.Org = getInput(ui, "Please type your primary organization name.", "")
-	or.Bucket = getInput(ui, "Please type your primary bucket name.", "")
+	req.User = getInput(ui, "Please type your primary username", "")
+	req.Password = getPassword(ui)
+	req.Org = getInput(ui, "Please type your primary organization name.", "")
+	req.Bucket = getInput(ui, "Please type your primary bucket name.", "")
+	for {
+		rpStr := getInput(ui, "Please type your retention period in hours (exp 168 for 1 week).\r\nOr press ENTER for infinite.", strconv.Itoa(platform.InfiniteRetention))
+		rp, err := strconv.Atoi(rpStr)
+		if rp >= 0 && err == nil {
+			req.RetentionPeriod = uint(rp)
+			break
+		}
+	}
 
-	if confirmed := getConfirm(ui, or); !confirmed {
+	if confirmed := getConfirm(ui, req); !confirmed {
 		fmt.Println("Setup is canceled.")
 		// user cancel
 		os.Exit(0)
 	}
 
-	return or
+	return req
 }
 
 // vt100EscapeCodes
@@ -103,12 +112,17 @@ func promptWithColor(s string, color []byte) string {
 func getConfirm(ui *input.UI, or *platform.OnboardingRequest) bool {
 	prompt := promptWithColor("Confirm? (y/n)", colorRed)
 	for {
+		rp := "infinite"
+		if or.RetentionPeriod > 0 {
+			rp = fmt.Sprintf("%d hrs", or.RetentionPeriod)
+		}
 		fmt.Print(promptWithColor(fmt.Sprintf(`
 You have entered:
-    Username:      %s
-    Organization:  %s
-    Bucket:        %s
-`, or.User, or.Org, or.Bucket), colorCyan))
+  Username:          %s
+  Organization:      %s
+  Bucket:            %s
+  Retention Period:  %s
+`, or.User, or.Org, or.Bucket, rp), colorCyan))
 		result, err := ui.Ask(prompt, &input.Options{
 			HideOrder: true,
 		})

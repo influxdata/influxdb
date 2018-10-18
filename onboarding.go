@@ -13,10 +13,11 @@ type OnboardingResults struct {
 // OnboardingRequest is the request
 // to setup defaults.
 type OnboardingRequest struct {
-	User     string `json:"username"`
-	Password string `json:"password"`
-	Org      string `json:"org"`
-	Bucket   string `json:"bucket"`
+	User            string `json:"username"`
+	Password        string `json:"password"`
+	Org             string `json:"org"`
+	Bucket          string `json:"bucket"`
+	RetentionPeriod uint   `json:"retentionPeriodHrs,omitempty"`
 }
 
 // OnboardingService represents a service for the first run.
