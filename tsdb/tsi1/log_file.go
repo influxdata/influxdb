@@ -68,6 +68,9 @@ type LogFile struct {
 	// In-memory index.
 	mms logMeasurements
 
+	// In-memory stats
+	stats MeasurementCardinalityStats
+
 	// Filepath to the log file.
 	path string
 }
@@ -78,6 +81,7 @@ func NewLogFile(sfile *tsdb.SeriesFile, path string) *LogFile {
 		sfile: sfile,
 		path:  path,
 		mms:   make(logMeasurements),
+		stats: make(MeasurementCardinalityStats),
 
 		seriesIDSet:          tsdb.NewSeriesIDSet(),
 		tombstoneSeriesIDSet: tsdb.NewSeriesIDSet(),
@@ -732,13 +736,15 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		mm.tagSet[string(k)] = ts
 	}
 
-	// Add/remove from appropriate series id sets.
+	// Add/remove from appropriate series id sets & stats.
 	if !deleted {
 		f.seriesIDSet.Add(e.SeriesID)
 		f.tombstoneSeriesIDSet.Remove(e.SeriesID)
+		f.stats.Inc(name)
 	} else {
 		f.seriesIDSet.Remove(e.SeriesID)
 		f.tombstoneSeriesIDSet.Add(e.SeriesID)
+		f.stats.Dec(name)
 	}
 }
 
@@ -1067,6 +1073,13 @@ func (f *LogFile) seriesSketches() (sketch, tSketch estimator.Sketch, err error)
 		sketch.Add(models.MakeKey(name, keys))
 	})
 	return sketch, tSketch, nil
+}
+
+// MeasurementCardinalityStats returns cardinality stats for this log file.
+func (f *LogFile) MeasurementCardinalityStats() MeasurementCardinalityStats {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.stats.Clone()
 }
 
 // LogEntry represents a single log entry in the write-ahead log.

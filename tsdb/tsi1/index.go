@@ -1080,6 +1080,18 @@ func (i *Index) SetFieldName(measurement []byte, name string) {}
 // Rebuild rebuilds an index. It's a no-op for this index.
 func (i *Index) Rebuild() {}
 
+// MeasurementCardinalityStats returns cardinality stats for all measurements.
+func (i *Index) MeasurementCardinalityStats() MeasurementCardinalityStats {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	stats := NewMeasurementCardinalityStats()
+	for _, p := range i.partitions {
+		stats.Add(p.MeasurementCardinalityStats())
+	}
+	return stats
+}
+
 // IsIndexDir returns true if directory contains at least one partition directory.
 func IsIndexDir(path string) (bool, error) {
 	fis, err := ioutil.ReadDir(path)

@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,8 +34,13 @@ const (
 	CompactingExt = ".compacting"
 )
 
-// ManifestFileName is the name of the index manifest file.
-const ManifestFileName = "MANIFEST"
+const (
+	// ManifestFileName is the name of the index manifest file.
+	ManifestFileName = "MANIFEST"
+
+	// StatsFileName is the name of the file containing cardinality stats.
+	StatsFileName = "STATS"
+)
 
 // Partition represents a collection of layered index files and WAL.
 type Partition struct {
@@ -45,6 +51,9 @@ type Partition struct {
 	activeLogFile *LogFile         // current log file
 	fileSet       *FileSet         // current file set
 	seq           int              // file id sequence
+
+	// Measurement stats
+	stats MeasurementCardinalityStats
 
 	// Fast series lookup of series IDs in the series file that have been present
 	// in this partition. This set tracks both insertions and deletions of a series.
@@ -74,8 +83,9 @@ type Partition struct {
 
 	logger *zap.Logger
 
-	// Current size of MANIFEST. Used to determine partition size.
+	// Current size of MANIFEST & STATS. Used to determine partition size.
 	manifestSize int64
+	statsSize    int64
 
 	// Index's version.
 	version int
@@ -170,6 +180,11 @@ func (p *Partition) Open() error {
 
 	// Check to see if the MANIFEST file is compatible with the current Index.
 	if err := m.Validate(); err != nil {
+		return err
+	}
+
+	// Read stats file.
+	if err := p.readStatsFile(); err != nil {
 		return err
 	}
 
@@ -278,7 +293,7 @@ func (p *Partition) deleteNonManifestFiles(m *Manifest) error {
 	// Loop over all files and remove any not in the manifest.
 	for _, fi := range fis {
 		filename := filepath.Base(fi.Name())
-		if filename == ManifestFileName || m.HasFile(filename) {
+		if filename == ManifestFileName || filename == StatsFileName || m.HasFile(filename) {
 			continue
 		}
 
@@ -398,6 +413,11 @@ func (p *Partition) Manifest() *Manifest {
 	return m
 }
 
+// StatsPath returns the path to the partition's stats file.
+func (p *Partition) StatsPath() string {
+	return filepath.Join(p.path, StatsFileName)
+}
+
 // WithLogger sets the logger for the index.
 func (p *Partition) WithLogger(logger *zap.Logger) {
 	p.logger = logger.With(zap.String("index", "tsi"))
@@ -426,6 +446,11 @@ func (p *Partition) FileN() int { return len(p.fileSet.files) }
 
 // prependActiveLogFile adds a new log file so that the current log file can be compacted.
 func (p *Partition) prependActiveLogFile() error {
+	// Add active stats to total stats.
+	if p.activeLogFile != nil {
+		p.stats.Add(p.activeLogFile.MeasurementCardinalityStats())
+	}
+
 	// Open file and insert it into the first position.
 	f, err := p.openLogFile(filepath.Join(p.path, FormatLogFileName(p.nextSequence())))
 	if err != nil {
@@ -443,6 +468,11 @@ func (p *Partition) prependActiveLogFile() error {
 		return err
 	}
 	p.manifestSize = manifestSize
+
+	// Write new stats.
+	if err := p.writeStatsFile(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -650,11 +680,17 @@ func (p *Partition) createSeriesListIfNotExists(collection *tsdb.SeriesCollectio
 }
 
 func (p *Partition) DropSeries(seriesID tsdb.SeriesID) error {
+	// Ignore if the series is already deleted.
+	if !p.seriesIDSet.Contains(seriesID) {
+		return nil
+	}
+
 	// Delete series from index.
 	if err := p.activeLogFile.DeleteSeriesID(seriesID); err != nil {
 		return err
 	}
 
+	// Update series set.
 	p.seriesIDSet.Remove(seriesID)
 
 	// Swap log file, if necessary.
@@ -982,9 +1018,14 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 			return err
 		}
 		p.manifestSize = manifestSize
+
+		// Write new stats file.
+		if err := p.writeStatsFile(); err != nil {
+			return err
+		}
 		return nil
 	}(); err != nil {
-		log.Error("Cannot write manifest", zap.Error(err))
+		log.Error("Cannot write manifest or stats", zap.Error(err))
 		return
 	}
 
@@ -1122,11 +1163,15 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 			// TODO: Close index if write fails.
 			return err
 		}
-
 		p.manifestSize = manifestSize
+
+		// Write new stats file.
+		if err := p.writeStatsFile(); err != nil {
+			return err
+		}
 		return nil
 	}(); err != nil {
-		log.Error("Cannot update manifest", zap.Error(err))
+		log.Error("Cannot update manifest or stats", zap.Error(err))
 		return
 	}
 
@@ -1145,6 +1190,65 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		log.Error("Cannot remove log file", zap.Error(err))
 		return
 	}
+}
+
+// readStatsFile reads the stats file into memory and updates the stats size.
+func (p *Partition) readStatsFile() error {
+	p.stats = NewMeasurementCardinalityStats()
+
+	f, err := os.Open(p.StatsPath())
+	if os.IsNotExist(err) {
+		p.statsSize = 0
+		return nil
+	} else if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	n, err := p.stats.ReadFrom(bufio.NewReader(f))
+	if err != nil {
+		return err
+	}
+	p.statsSize = n
+
+	return nil
+}
+
+// writeStatsFile writes the stats file and updates the stats size.
+func (p *Partition) writeStatsFile() error {
+	tmpPath := p.StatsPath() + ".tmp"
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	n, err := p.stats.WriteTo(f)
+	if err != nil {
+		return err
+	}
+
+	if err := f.Close(); err != nil {
+		return err
+	} else if err := os.Rename(tmpPath, p.StatsPath()); err != nil {
+		return err
+	}
+
+	p.statsSize = n
+	return nil
+}
+
+// MeasurementCardinalityStats returns cardinality stats for all measurements.
+func (p *Partition) MeasurementCardinalityStats() MeasurementCardinalityStats {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	stats := p.stats.Clone()
+
+	if p.activeLogFile != nil {
+		stats.Add(p.activeLogFile.MeasurementCardinalityStats())
+	}
+	return stats
 }
 
 // unionStringSets returns the union of two sets

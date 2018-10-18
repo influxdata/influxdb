@@ -192,6 +192,20 @@ func (f *SeriesFile) SeriesKey(id SeriesID) []byte {
 	return p.SeriesKey(id)
 }
 
+// SeriesKeyName returns the measurement name for a series id.
+func (f *SeriesFile) SeriesKeyName(id SeriesID) []byte {
+	if id.IsZero() {
+		return nil
+	}
+	data := f.SeriesIDPartition(id).SeriesKey(id)
+	if data == nil {
+		return nil
+	}
+	_, data = ReadSeriesKeyLen(data)
+	name, _ := ReadSeriesKeyMeasurement(data)
+	return name
+}
+
 // SeriesKeys returns a list of series keys from a list of ids.
 func (f *SeriesFile) SeriesKeys(ids []SeriesID) [][]byte {
 	keys := make([][]byte, len(ids))
