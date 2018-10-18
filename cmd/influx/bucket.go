@@ -52,7 +52,7 @@ func init() {
 func bucketCreateF(cmd *cobra.Command, args []string) {
 	if bucketCreateFlags.org != "" && bucketCreateFlags.orgID != "" {
 		fmt.Println("must specify exactly one of org or org-id")
-		cmd.Usage()
+		_ = cmd.Usage()
 		os.Exit(1)
 	}
 
