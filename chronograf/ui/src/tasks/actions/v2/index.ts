@@ -15,12 +15,13 @@ import {
   taskDeleteFailed,
 } from 'src/shared/copy/v2/notifications'
 
-export type Action = SetNewScript | SetTasks
+export type Action = SetNewScript | SetTasks | SetSearchTerm
 type GetStateFunc = () => Promise<AppState>
 
 export enum ActionTypes {
   SetNewScript = 'SET_NEW_SCRIPT',
   SetTasks = 'SET_TASKS',
+  SetSearchTerm = 'SET_TASKS_SEARCH_TERM',
 }
 
 export interface SetNewScript {
@@ -37,14 +38,26 @@ export interface SetTasks {
   }
 }
 
+export interface SetSearchTerm {
+  type: ActionTypes.SetSearchTerm
+  payload: {
+    searchTerm: string
+  }
+}
+
+export const setNewScript = (script: string): SetNewScript => ({
+  type: ActionTypes.SetNewScript,
+  payload: {script},
+})
+
 export const setTasks = (tasks: Task[]): SetTasks => ({
   type: ActionTypes.SetTasks,
   payload: {tasks},
 })
 
-export const setNewScript = (script: string): SetNewScript => ({
-  type: ActionTypes.SetNewScript,
-  payload: {script},
+export const setSearchTerm = (searchTerm: string) => ({
+  type: ActionTypes.SetSearchTerm,
+  payload: {searchTerm},
 })
 
 export const deleteTask = (task: Task) => async (

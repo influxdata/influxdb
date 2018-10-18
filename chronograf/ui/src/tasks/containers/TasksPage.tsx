@@ -9,7 +9,11 @@ import TasksList from 'src/tasks/components/TasksList'
 import {Page} from 'src/pageLayout'
 
 // Actions
-import {populateTasks, deleteTask} from 'src/tasks/actions/v2'
+import {
+  populateTasks,
+  deleteTask,
+  setSearchTerm as setSearchTermAction,
+} from 'src/tasks/actions/v2'
 
 // Types
 import {Task} from 'src/types/v2/tasks'
@@ -23,26 +27,37 @@ interface PassedInProps {
 interface ConnectedDispatchProps {
   populateTasks: typeof populateTasks
   deleteTask: typeof deleteTask
+  setSearchTerm: typeof setSearchTermAction
 }
 
 interface ConnectedStateProps {
   tasks: Task[]
+  searchTerm: string
 }
 
 type Props = ConnectedDispatchProps & PassedInProps & ConnectedStateProps
 
 @ErrorHandling
 class TasksPage extends PureComponent<Props> {
+  constructor(props) {
+    super(props)
+
+    this.props.setSearchTerm('')
+  }
+
   public render(): JSX.Element {
-    const {tasks} = this.props
+    const {setSearchTerm} = this.props
 
     return (
       <Page>
-        <TasksHeader onCreateTask={this.handleCreateTask} />
+        <TasksHeader
+          onCreateTask={this.handleCreateTask}
+          filterTasks={setSearchTerm}
+        />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <TasksList
-              tasks={tasks}
+              tasks={this.filteredTasks}
               onDelete={this.handleDelete}
               onCreate={this.handleCreateTask}
             />
@@ -65,15 +80,26 @@ class TasksPage extends PureComponent<Props> {
 
     router.push('/tasks/new')
   }
+
+  private get filteredTasks(): Task[] {
+    const {tasks, searchTerm} = this.props
+
+    const matchingTasks = tasks.filter(t =>
+      t.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+
+    return matchingTasks
+  }
 }
 
-const mstp = ({tasks: {tasks}}): ConnectedStateProps => {
-  return {tasks}
+const mstp = ({tasks: {tasks, searchTerm}}): ConnectedStateProps => {
+  return {tasks, searchTerm}
 }
 
 const mdtp: ConnectedDispatchProps = {
   populateTasks,
   deleteTask,
+  setSearchTerm: setSearchTermAction,
 }
 
 export default connect<
