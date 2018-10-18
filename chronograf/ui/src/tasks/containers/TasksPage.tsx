@@ -46,7 +46,7 @@ class TasksPage extends PureComponent<Props> {
   }
 
   public render(): JSX.Element {
-    const {setSearchTerm} = this.props
+    const {setSearchTerm, searchTerm} = this.props
 
     return (
       <Page>
@@ -57,6 +57,7 @@ class TasksPage extends PureComponent<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <TasksList
+              searchTerm={searchTerm}
               tasks={this.filteredTasks}
               onDelete={this.handleDelete}
               onCreate={this.handleCreateTask}

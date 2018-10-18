@@ -9,8 +9,6 @@ import {
   Button,
   ComponentColor,
   ComponentSize,
-  EmptyState,
-  IconFont,
 } from 'src/clockface'
 
 // Types
@@ -19,20 +17,25 @@ import {
   IndexListColumn,
   IndexListRow,
 } from 'src/shared/components/index_views/IndexListTypes'
+import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 
 interface Props {
   tasks: Task[]
+  searchTerm: string
   onDelete: (task: Task) => void
   onCreate: () => void
 }
 
 export default class TasksList extends PureComponent<Props> {
   public render() {
+    const {searchTerm, onCreate} = this.props
     return (
       <IndexList
         columns={this.columns}
         rows={this.rows}
-        emptyState={this.emptyState}
+        emptyState={
+          <EmptyTasksList searchTerm={searchTerm} onCreate={onCreate} />
+        }
       />
     )
   }
@@ -109,22 +112,5 @@ export default class TasksList extends PureComponent<Props> {
     const {onDelete} = this.props
 
     onDelete(task)
-  }
-
-  private get emptyState(): JSX.Element {
-    const {onCreate} = this.props
-
-    return (
-      <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text="Looks like you don't have any Tasks, why not create one?" />
-        <Button
-          size={ComponentSize.Small}
-          color={ComponentColor.Primary}
-          icon={IconFont.Plus}
-          text="Create Task"
-          onClick={onCreate}
-        />
-      </EmptyState>
-    )
   }
 }
