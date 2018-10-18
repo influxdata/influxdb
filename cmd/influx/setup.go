@@ -70,12 +70,13 @@ func getOnboardingRequest() (or *platform.OnboardingRequest) {
 	fmt.Println(promptWithColor(`Welcome to InfluxDB 2.0!`, colorYellow))
 	or.User = getInput(ui, "Please type your primary username", "")
 	or.Password = getPassword(ui)
-	or.Org = getInput(ui, "Please type your primary organization name.\r\nOr ENTER to use \"default\"", "default")
-	or.Bucket = getInput(ui, "Please type your primary bucket name.\r\nOr ENTER to use \"default\"", "default")
+	or.Org = getInput(ui, "Please type your primary organization name.", "")
+	or.Bucket = getInput(ui, "Please type your primary bucket name.", "")
 
 	if confirmed := getConfirm(ui, or); !confirmed {
 		fmt.Println("Setup is canceled.")
-		os.Exit(1)
+		// user cancel
+		os.Exit(0)
 	}
 
 	return or
@@ -112,6 +113,7 @@ You have entered:
 			HideOrder: true,
 		})
 		if err != nil {
+			// interrupt
 			os.Exit(1)
 		}
 		switch result {
