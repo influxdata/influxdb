@@ -179,10 +179,6 @@ func NewHandler(c Config) *Handler {
 			"prometheus-read", // Prometheus remote read
 			"POST", "/api/v1/prom/read", true, true, h.servePromRead,
 		},
-		Route{
-			"flux-read",
-			"POST", "/api/v2/query", true, true, h.serveFluxQuery,
-		},
 		Route{ // Ping
 			"ping",
 			"GET", "/ping", false, true, h.servePing,
@@ -204,6 +200,20 @@ func NewHandler(c Config) *Handler {
 			"GET", "/metrics", false, true, promhttp.Handler().ServeHTTP,
 		},
 	}...)
+
+	fluxRoute := Route{
+		"flux-read",
+		"POST", "/api/v2/query", true, true, nil,
+	}
+
+	if !c.FluxEnabled {
+		fluxRoute.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "Flux query service disabled. Verify flux-enabled=true in the [http] section of the InfluxDB config.", http.StatusNotFound)
+		}
+	} else {
+		fluxRoute.HandlerFunc = h.serveFluxQuery
+	}
+	h.AddRoutes(fluxRoute)
 
 	return h
 }
@@ -1112,8 +1122,6 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 }
 
 func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
 	req, err := decodeQueryRequest(r)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
@@ -1121,7 +1129,7 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pr := req.ProxyRequest()
-	q, err := h.Controller.Query(ctx, pr.Compiler)
+	q, err := h.Controller.Query(r.Context(), pr.Compiler)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1148,7 +1156,6 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
 	case "text/csv":
 		fallthrough
 	default:
-
 		if hd, ok := pr.Dialect.(httpDialect); !ok {
 			h.httpError(w, fmt.Sprintf("unsupported dialect over HTTP %T", req.Dialect), http.StatusBadRequest)
 			return
