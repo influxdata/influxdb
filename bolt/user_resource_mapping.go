@@ -162,17 +162,23 @@ func (c *Client) uniqueUserResourceMapping(ctx context.Context, tx *bolt.Tx, m *
 
 func (c *Client) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.deleteUserResourceMapping(ctx, tx, resourceID, userID)
+		return c.deleteUserResourceMapping(ctx, tx, platform.UserResourceMappingFilter{
+			ResourceID: resourceID,
+			UserID:     userID,
+		})
 	})
 }
 
-func (c *Client) deleteUserResourceMapping(ctx context.Context, tx *bolt.Tx, resourceID platform.ID, userID platform.ID) error {
-	m, err := c.findUserResourceMapping(ctx, tx, resourceID, userID)
+func (c *Client) deleteUserResourceMapping(ctx context.Context, tx *bolt.Tx, filter platform.UserResourceMappingFilter) error {
+	ms, err := c.findUserResourceMappings(ctx, tx, filter)
 	if err != nil {
 		return err
 	}
+	if len(ms) == 0 {
+		return fmt.Errorf("userResource mapping not found")
+	}
 
-	key, err := userResourceKey(m)
+	key, err := userResourceKey(ms[0])
 	if err != nil {
 		return err
 	}
