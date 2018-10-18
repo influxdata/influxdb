@@ -374,3 +374,13 @@ func (e *Engine) ApplyFnToSeriesIDSet(fn func(*tsdb.SeriesIDSet)) {
 	}
 	fn(e.index.SeriesIDSet())
 }
+
+// MeasurementCardinalityStats returns cardinality stats for all measurements.
+func (e *Engine) MeasurementCardinalityStats() tsi1.MeasurementCardinalityStats {
+	return e.index.MeasurementCardinalityStats()
+}
+
+// MeasurementStats returns the current measurement stats for the engine.
+func (e *Engine) MeasurementStats() (tsm1.MeasurementStats, error) {
+	return e.engine.MeasurementStats()
+}
