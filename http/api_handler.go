@@ -63,6 +63,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.SessionHandler = NewSessionHandler()
 	h.SessionHandler.BasicAuthService = b.BasicAuthService
 	h.SessionHandler.SessionService = b.SessionService
+	h.SessionHandler.Logger = b.Logger.With(zap.String("handler", "basicAuth"))
 
 	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService)
 	h.BucketHandler.BucketService = b.BucketService
@@ -73,6 +74,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	h.UserHandler = NewUserHandler()
 	h.UserHandler.UserService = b.UserService
+	h.UserHandler.BasicAuthService = b.BasicAuthService
 
 	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService)
 	h.DashboardHandler.DashboardService = b.DashboardService

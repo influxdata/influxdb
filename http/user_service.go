@@ -17,7 +17,8 @@ import (
 // UserHandler represents an HTTP API handler for users.
 type UserHandler struct {
 	*httprouter.Router
-	UserService platform.UserService
+	UserService      platform.UserService
+	BasicAuthService platform.BasicAuthService
 }
 
 // NewUserHandler returns a new instance of UserHandler.
@@ -27,12 +28,66 @@ func NewUserHandler() *UserHandler {
 	}
 
 	h.HandlerFunc("POST", "/api/v2/users", h.handlePostUser)
-	h.HandlerFunc("GET", "/api/v2/me", h.handleGetMe)
 	h.HandlerFunc("GET", "/api/v2/users", h.handleGetUsers)
 	h.HandlerFunc("GET", "/api/v2/users/:id", h.handleGetUser)
 	h.HandlerFunc("PATCH", "/api/v2/users/:id", h.handlePatchUser)
 	h.HandlerFunc("DELETE", "/api/v2/users/:id", h.handleDeleteUser)
+	h.HandlerFunc("PUT", "/api/v2/users/:id/password", h.handlePutPassword)
+
+	h.HandlerFunc("GET", "/api/v2/me", h.handleGetMe)
+	h.HandlerFunc("PUT", "/api/v2/me/password", h.handlePutPassword)
+
 	return h
+}
+
+// handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
+func (h *UserHandler) handlePutPassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodePasswordResetRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	err = h.BasicAuthService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type passwordResetRequest struct {
+	Username    string
+	PasswordOld string
+	PasswordNew string
+}
+
+type passwordResetRequestBody struct {
+	Password string `json:"password"`
+}
+
+func decodePasswordResetRequest(ctx context.Context, r *http.Request) (*passwordResetRequest, error) {
+	u, o, ok := r.BasicAuth()
+	if !ok {
+		return nil, fmt.Errorf("invalid basic auth")
+	}
+
+	pr := new(passwordResetRequestBody)
+	err := json.NewDecoder(r.Body).Decode(pr)
+	if err != nil {
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
+	}
+
+	return &passwordResetRequest{
+		Username:    u,
+		PasswordOld: o,
+		PasswordNew: pr.Password,
+	}, nil
 }
 
 // handlePostUser is the HTTP handler for the POST /api/v2/users route.
