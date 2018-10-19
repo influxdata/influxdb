@@ -1,6 +1,7 @@
 package httpd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -12,7 +13,13 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+type Controller interface {
+	Query(ctx context.Context, compiler flux.Compiler) (flux.Query, error)
+	PrometheusCollectors() []prometheus.Collector
+}
 
 // QueryRequest is a flux query request.
 type QueryRequest struct {
