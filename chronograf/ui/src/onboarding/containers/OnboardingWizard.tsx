@@ -105,7 +105,7 @@ class OnboardingWizard extends PureComponent<Props, State> {
       <WizardProgressHeader
         currentStepIndex={currentStepIndex}
         stepSkippable={this.stepSkippable}
-        onSkip={this.handleExit}
+        onSkip={this.handleSkip}
       >
         <ProgressBar
           currentStepIndex={currentStepIndex}
@@ -140,6 +140,11 @@ class OnboardingWizard extends PureComponent<Props, State> {
     const {router, onCompleteSetup} = this.props
     onCompleteSetup()
     router.push(`/manage-sources`)
+  }
+
+  private handleSkip = () => {
+    const {stepStatuses} = this.props
+    this.setState({currentStepIndex: stepStatuses.length - 1})
   }
 
   private onSetSetupParams = (setupParams: SetupParams): void => {
