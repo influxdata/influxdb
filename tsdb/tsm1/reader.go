@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -370,7 +371,7 @@ func (t *TSMReader) MeasurementStats() (MeasurementStats, error) {
 	defer f.Close()
 
 	stats := make(MeasurementStats)
-	if _, err := stats.ReadFrom(f); err != nil {
+	if _, err := stats.ReadFrom(bufio.NewReader(f)); err != nil {
 		return nil, err
 	}
 	return stats, err
