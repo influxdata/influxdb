@@ -3,6 +3,7 @@ package testing
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
@@ -144,10 +145,11 @@ func Generate(
 			},
 			args: args{
 				request: &platform.OnboardingRequest{
-					User:     "admin",
-					Org:      "org1",
-					Bucket:   "bucket1",
-					Password: "pass1",
+					User:            "admin",
+					Org:             "org1",
+					Bucket:          "bucket1",
+					Password:        "pass1",
+					RetentionPeriod: 24 * 7, // 1 week
 				},
 			},
 			wants: wants{
@@ -162,10 +164,11 @@ func Generate(
 						Name: "org1",
 					},
 					Bucket: &platform.Bucket{
-						ID:             MustIDBase16(threeID),
-						Name:           "bucket1",
-						Organization:   "org1",
-						OrganizationID: MustIDBase16(twoID),
+						ID:              MustIDBase16(threeID),
+						Name:            "bucket1",
+						Organization:    "org1",
+						OrganizationID:  MustIDBase16(twoID),
+						RetentionPeriod: time.Hour * 24 * 7,
 					},
 					Auth: &platform.Authorization{
 						ID:     MustIDBase16(fourID),

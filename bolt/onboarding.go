@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"time"
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
@@ -99,9 +100,10 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 		return nil, err
 	}
 	bucket := &platform.Bucket{
-		Name:           req.Bucket,
-		Organization:   o.Name,
-		OrganizationID: o.ID,
+		Name:            req.Bucket,
+		Organization:    o.Name,
+		OrganizationID:  o.ID,
+		RetentionPeriod: time.Duration(req.RetentionPeriod) * time.Hour,
 	}
 	if err = c.CreateBucket(ctx, bucket); err != nil {
 		return nil, err

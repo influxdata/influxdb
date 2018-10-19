@@ -4638,6 +4638,13 @@ components:
           type: string
         bucket:
           type: string
+        retentionPeriodHrs:
+          type: integer  
+      required:
+        - username
+        - password
+        - org
+        - bucket
     OnboardingResponse:
       type: object
       properties:

@@ -14,6 +14,9 @@ const (
 	BucketTypeLogs = BucketType(iota + 10)
 )
 
+// InfiniteRetention is default infinite retention period.
+const InfiniteRetention = 0
+
 // Bucket is a bucket. 🎉
 type Bucket struct {
 	ID                  ID            `json:"id,omitempty"`
