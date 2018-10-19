@@ -308,7 +308,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 		EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
 		return
 	}
-	ctx = pcontext.SetAuthorization(ctx, auth)
+	ctx = pcontext.SetAuthorizer(ctx, auth)
 
 	req, err := decodeGetLogsRequest(ctx, r, h.OrganizationService)
 	if err != nil {
@@ -382,7 +382,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 		EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
 		return
 	}
-	ctx = pcontext.SetAuthorization(ctx, auth)
+	ctx = pcontext.SetAuthorizer(ctx, auth)
 
 	req, err := decodeGetRunsRequest(ctx, r, h.OrganizationService)
 	if err != nil {
@@ -479,7 +479,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
 		return
 	}
-	ctx = pcontext.SetAuthorization(ctx, auth)
+	ctx = pcontext.SetAuthorizer(ctx, auth)
 
 	req, err := decodeGetRunRequest(ctx, r, h.OrganizationService)
 	if err != nil {

@@ -273,11 +273,7 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 		return 0, err
 	}
 
-	tok, err := pcontext.GetToken(ctx)
-	if err != nil {
-		tok = s.Token
-	}
-	SetToken(tok, hreq)
+	SetToken(s.Token, hreq)
 
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
@@ -333,11 +329,7 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 		return nil, err
 	}
 
-	tok, err := pcontext.GetToken(ctx)
-	if err != nil {
-		tok = s.Token
-	}
-	SetToken(tok, hreq)
+	SetToken(s.Token, hreq)
 
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
