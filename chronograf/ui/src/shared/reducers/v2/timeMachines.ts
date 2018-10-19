@@ -1,3 +1,6 @@
+// Utils
+import {convertView} from 'src/shared/utils/view'
+
 // Constants
 import {
   VEO_TIME_MACHINE_ID,
@@ -140,8 +143,7 @@ const timeMachineReducer = (
 
     case 'SET_VIEW_TYPE': {
       const {type} = action.payload
-      const properties = {...activeTimeMachine.view.properties, type}
-      const view = {...activeTimeMachine.view, properties}
+      const view = convertView(activeTimeMachine.view, type)
 
       newActiveTimeMachine = {...activeTimeMachine, view}
       break

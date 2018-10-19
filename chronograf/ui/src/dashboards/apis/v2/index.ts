@@ -3,7 +3,7 @@ import AJAX from 'src/utils/ajax'
 
 // Types
 import {Dashboard} from 'src/types/v2'
-import {DashboardSwitcherLinks, Cell, NewCell} from 'src/types/v2/dashboards'
+import {DashboardSwitcherLinks, Cell} from 'src/types/v2/dashboards'
 
 // Utils
 import {
@@ -95,7 +95,7 @@ export const loadDashboardLinks = async (
   return dashboardLinks
 }
 
-export const addCell = async (url: string, cell: NewCell): Promise<Cell> => {
+export const addCell = async (url: string, cell: Cell): Promise<Cell> => {
   try {
     const {data} = await AJAX({
       method: 'POST',

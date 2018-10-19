@@ -61,10 +61,10 @@ export interface MarkDownProperties {
   text: string
 }
 
-export interface View {
+export interface View<T extends ViewProperties = ViewProperties> {
   id: string
   name: string
-  properties: ViewProperties
+  properties: T
   links?: ViewLinks
 }
 
@@ -251,8 +251,6 @@ export interface Cell {
     copy: string
   }
 }
-
-export type NewCell = Pick<Cell, Exclude<keyof Cell, 'id' | 'viewID' | 'links'>>
 
 export enum ThresholdType {
   Text = 'text',
