@@ -25,7 +25,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/control"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -117,7 +116,7 @@ type Handler struct {
 	Store Store
 
 	// Flux services
-	Controller       *control.Controller
+	Controller       Controller
 	CompilerMappings flux.CompilerMappings
 	registered       bool
 
