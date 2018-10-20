@@ -151,55 +151,55 @@ func NewHandler(c Config) *Handler {
 	}
 
 	h.AddRoutes([]Route{
-		Route{
+		{
 			"query-options", // Satisfy CORS checks.
 			"OPTIONS", "/query", false, true, h.serveOptions,
 		},
-		Route{
+		{
 			"query", // Query serving route.
 			"GET", "/query", true, true, h.serveQuery,
 		},
-		Route{
+		{
 			"query", // Query serving route.
 			"POST", "/query", true, true, h.serveQuery,
 		},
-		Route{
+		{
 			"write-options", // Satisfy CORS checks.
 			"OPTIONS", "/write", false, true, h.serveOptions,
 		},
-		Route{
+		{
 			"write", // Data-ingest route.
 			"POST", "/write", true, writeLogEnabled, h.serveWrite,
 		},
-		Route{
+		{
 			"prometheus-write", // Prometheus remote write
 			"POST", "/api/v1/prom/write", false, true, h.servePromWrite,
 		},
-		Route{
+		{
 			"prometheus-read", // Prometheus remote read
 			"POST", "/api/v1/prom/read", true, true, h.servePromRead,
 		},
-		Route{
+		{
 			"flux-read", // Prometheus remote read
 			"POST", "/v2/query", true, true, h.serveFluxQuery,
 		},
-		Route{ // Ping
+		{ // Ping
 			"ping",
 			"GET", "/ping", false, true, h.servePing,
 		},
-		Route{ // Ping
+		{ // Ping
 			"ping-head",
 			"HEAD", "/ping", false, true, h.servePing,
 		},
-		Route{ // Ping w/ status
+		{ // Ping w/ status
 			"status",
 			"GET", "/status", false, true, h.serveStatus,
 		},
-		Route{ // Ping w/ status
+		{ // Ping w/ status
 			"status-head",
 			"HEAD", "/status", false, true, h.serveStatus,
 		},
-		Route{
+		{
 			"prometheus-metrics",
 			"GET", "/metrics", false, true, promhttp.Handler().ServeHTTP,
 		},

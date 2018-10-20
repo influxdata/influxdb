@@ -467,7 +467,7 @@ func TestPlus_Error(t *testing.T) {
 func TestPlus_Marshal_Unmarshal_Sparse(t *testing.T) {
 	h, _ := NewPlus(4)
 	h.sparse = true
-	h.tmpSet = map[uint32]struct{}{26: struct{}{}, 40: struct{}{}}
+	h.tmpSet = map[uint32]struct{}{26: {}, 40: {}}
 
 	// Add a bunch of values to the sparse representation.
 	for i := 0; i < 10; i++ {

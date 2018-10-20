@@ -135,7 +135,7 @@ func TestGetColumnIndex(t *testing.T) {
 
 func TestNumberBytes(t *testing.T) {
 	columns := []string{"num_bytes"}
-	values := [][]interface{}{[]interface{}{json.Number("1")}}
+	values := [][]interface{}{{json.Number("1")}}
 	expected := 1
 	got := numberBytes(columns, values)
 	if expected != got {
@@ -145,7 +145,7 @@ func TestNumberBytes(t *testing.T) {
 
 func TestCountSuccesses(t *testing.T) {
 	columns := []string{"status_code"}
-	values := [][]interface{}{[]interface{}{json.Number("200")}}
+	values := [][]interface{}{{json.Number("200")}}
 	expected := 1
 	got := countSuccesses(columns, values)
 	if expected != got {
@@ -155,7 +155,7 @@ func TestCountSuccesses(t *testing.T) {
 
 func TestCountRetries(t *testing.T) {
 	columns := []string{"status_code"}
-	values := [][]interface{}{[]interface{}{json.Number("500")}}
+	values := [][]interface{}{{json.Number("500")}}
 	expected := 1
 	got := countRetries(columns, values)
 	if expected != got {
@@ -165,7 +165,7 @@ func TestCountRetries(t *testing.T) {
 
 func TestResponseTimes(t *testing.T) {
 	columns := []string{"response_time_ns"}
-	values := [][]interface{}{[]interface{}{json.Number("380")}}
+	values := [][]interface{}{{json.Number("380")}}
 	expected := ResponseTimes([]ResponseTime{NewResponseTime(380)})
 	got := responseTimes(columns, values)
 	if expected[0].Value != got[0].Value {

@@ -25,11 +25,11 @@ func TestWALWriter_WriteMulti_Single(t *testing.T) {
 	p5 := tsm1.NewValue(1, ^uint64(0))
 
 	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#float":    []tsm1.Value{p1},
-		"cpu,host=A#!~#int":      []tsm1.Value{p2},
-		"cpu,host=A#!~#bool":     []tsm1.Value{p3},
-		"cpu,host=A#!~#string":   []tsm1.Value{p4},
-		"cpu,host=A#!~#unsigned": []tsm1.Value{p5},
+		"cpu,host=A#!~#float":    {p1},
+		"cpu,host=A#!~#int":      {p2},
+		"cpu,host=A#!~#bool":     {p3},
+		"cpu,host=A#!~#string":   {p4},
+		"cpu,host=A#!~#unsigned": {p5},
 	}
 
 	entry := &tsm1.WriteWALEntry{
@@ -266,7 +266,7 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 
 	p1 := tsm1.NewValue(1, true)
 	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{p1},
+		"cpu,host=A#!~#value": {p1},
 	}
 
 	writeEntry := &tsm1.WriteWALEntry{
@@ -363,7 +363,7 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 	p3 := tsm1.NewValue(3, 3.0)
 
 	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{p1, p2, p3},
+		"cpu,host=A#!~#value": {p1, p2, p3},
 	}
 
 	writeEntry := &tsm1.WriteWALEntry{
@@ -479,7 +479,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 	}
 
 	if _, err := w.WriteMulti(map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{
+		"cpu,host=A#!~#value": {
 			tsm1.NewValue(1, 1.1),
 		},
 	}); err != nil {
@@ -557,7 +557,7 @@ func TestWALWriter_Corrupt(t *testing.T) {
 
 	p1 := tsm1.NewValue(1, 1.1)
 	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#float": []tsm1.Value{p1},
+		"cpu,host=A#!~#float": {p1},
 	}
 
 	entry := &tsm1.WriteWALEntry{
@@ -616,7 +616,7 @@ func TestWALSegmentReader_Corrupt(t *testing.T) {
 	p4 := tsm1.NewValue(1, "string")
 
 	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#string": []tsm1.Value{p4, p4},
+		"cpu,host=A#!~#string": {p4, p4},
 	}
 
 	entry := &tsm1.WriteWALEntry{
@@ -659,11 +659,11 @@ func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
 	p5 := tsm1.NewValue(1, uint64(1))
 
 	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#float":    []tsm1.Value{p1, p1},
-		"cpu,host=A#!~#int":      []tsm1.Value{p2, p2},
-		"cpu,host=A#!~#bool":     []tsm1.Value{p3, p3},
-		"cpu,host=A#!~#string":   []tsm1.Value{p4, p4},
-		"cpu,host=A#!~#unsigned": []tsm1.Value{p5, p5},
+		"cpu,host=A#!~#float":    {p1, p1},
+		"cpu,host=A#!~#int":      {p2, p2},
+		"cpu,host=A#!~#bool":     {p3, p3},
+		"cpu,host=A#!~#string":   {p4, p4},
+		"cpu,host=A#!~#unsigned": {p5, p5},
 	}
 
 	w := &tsm1.WriteWALEntry{

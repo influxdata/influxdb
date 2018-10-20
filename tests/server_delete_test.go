@@ -378,7 +378,7 @@ func NewSeriesTracker(r *rand.Rand, server *LocalServer, db, rp string) *SeriesT
 		tracker.seriesPoints["a"] = append(tracker.seriesPoints["a"], 10000000+(int64(time.Hour)*24*7*int64(i)))
 	}
 	// Map initial series to measurement.
-	tracker.measurementsSeries["a"] = map[string]struct{}{"a": struct{}{}}
+	tracker.measurementsSeries["a"] = map[string]struct{}{"a": {}}
 	return tracker
 }
 
@@ -403,7 +403,7 @@ func (s *SeriesTracker) AddSeries(name string, tags models.Tags) string {
 
 	// Update measurement -> series mapping
 	if _, ok := s.measurementsSeries[name]; !ok {
-		s.measurementsSeries[name] = map[string]struct{}{string(key): struct{}{}}
+		s.measurementsSeries[name] = map[string]struct{}{string(key): {}}
 	} else {
 		s.measurementsSeries[name][string(key)] = struct{}{}
 	}

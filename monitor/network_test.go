@@ -37,7 +37,7 @@ func TestDiagnostics_Network(t *testing.T) {
 	}
 
 	if got, exp := diags.Rows, [][]interface{}{
-		[]interface{}{hostname},
+		{hostname},
 	}; !reflect.DeepEqual(got, exp) {
 		t.Errorf("unexpected rows: got=%v exp=%v", got, exp)
 	}

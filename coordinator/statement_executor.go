@@ -762,7 +762,7 @@ func (e *StatementExecutor) executeShowMeasurementCardinalityStatement(stmt *inf
 		return nil, err
 	}
 
-	return []*models.Row{&models.Row{
+	return []*models.Row{{
 		Columns: []string{"cardinality estimation"},
 		Values:  [][]interface{}{{n}},
 	}}, nil
@@ -833,7 +833,7 @@ func (e *StatementExecutor) executeShowSeriesCardinalityStatement(stmt *influxql
 		return nil, err
 	}
 
-	return []*models.Row{&models.Row{
+	return []*models.Row{{
 		Columns: []string{"cardinality estimation"},
 		Values:  [][]interface{}{{n}},
 	}}, nil

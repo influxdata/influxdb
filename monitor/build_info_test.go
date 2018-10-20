@@ -36,7 +36,7 @@ func TestDiagnostics_BuildInfo(t *testing.T) {
 	}
 
 	if got, exp := diags.Rows, [][]interface{}{
-		[]interface{}{"1.2", "10m30s", "b7bb7e8359642b6e071735b50ae41f5eb343fd42", "1.2.0"},
+		{"1.2", "10m30s", "b7bb7e8359642b6e071735b50ae41f5eb343fd42", "1.2.0"},
 	}; !reflect.DeepEqual(got, exp) {
 		t.Errorf("unexpected rows: got=%v exp=%v", got, exp)
 	}

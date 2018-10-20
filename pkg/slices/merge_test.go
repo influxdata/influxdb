@@ -64,29 +64,29 @@ func TestMergeSortedInts(t *testing.T) {
 		Out    []int64
 	}{
 		{Inputs: [][]int64{}},
-		{Inputs: [][]int64{[]int64{0}}, Out: []int64{0}},
+		{Inputs: [][]int64{{0}}, Out: []int64{0}},
 		{
-			Inputs: [][]int64{[]int64{2}, []int64(nil), []int64{2}},
+			Inputs: [][]int64{{2}, []int64(nil), {2}},
 			Out:    []int64{2},
 		},
 		{
-			Inputs: [][]int64{[]int64{9}, []int64{1, 16, 16}, []int64{5, 10}},
+			Inputs: [][]int64{{9}, {1, 16, 16}, {5, 10}},
 			Out:    []int64{1, 5, 9, 10, 16},
 		},
 		{
-			Inputs: [][]int64{[]int64{20}, []int64{16}, []int64{10}},
+			Inputs: [][]int64{{20}, {16}, {10}},
 			Out:    []int64{10, 16, 20},
 		},
 		{
-			Inputs: [][]int64{[]int64{2, 2, 2, 2, 2, 2, 2, 2}},
+			Inputs: [][]int64{{2, 2, 2, 2, 2, 2, 2, 2}},
 			Out:    []int64{2},
 		},
 		{
-			Inputs: [][]int64{[]int64{2, 2, 2, 2, 2, 2, 2, 2}, []int64(nil), []int64(nil), []int64(nil)},
+			Inputs: [][]int64{{2, 2, 2, 2, 2, 2, 2, 2}, []int64(nil), []int64(nil), []int64(nil)},
 			Out:    []int64{2},
 		},
 		{
-			Inputs: [][]int64{[]int64{1, 2, 3, 4, 5}, []int64{1, 2, 3, 4, 5}, []int64{1, 2, 3, 4, 5}},
+			Inputs: [][]int64{{1, 2, 3, 4, 5}, {1, 2, 3, 4, 5}, {1, 2, 3, 4, 5}},
 			Out:    []int64{1, 2, 3, 4, 5},
 		},
 	}

@@ -139,7 +139,7 @@ func TestService_CheckShards(t *testing.T) {
 
 		deletedShardGroups[fmt.Sprintf("%s.%s.%d", database, policy, id)] = struct{}{}
 		if got, want := deletedShardGroups, map[string]struct{}{
-			"db0.rp0.1": struct{}{},
+			"db0.rp0.1": {},
 		}; reflect.DeepEqual(got, want) {
 			close(done)
 		} else if len(got) > 1 {
@@ -199,8 +199,8 @@ func TestService_CheckShards(t *testing.T) {
 	}
 
 	if got, want := deletedShards, map[uint64]struct{}{
-		2: struct{}{},
-		3: struct{}{},
+		2: {},
+		3: {},
 	}; !reflect.DeepEqual(got, want) {
 		t.Errorf("unexpected deleted shards: got=%#v want=%#v", got, want)
 	}

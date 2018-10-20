@@ -704,7 +704,7 @@ func TestHandler_PromRead(t *testing.T) {
 }
 
 func TestHandler_PromRead_NoResults(t *testing.T) {
-	req := &remote.ReadRequest{Queries: []*remote.Query{&remote.Query{
+	req := &remote.ReadRequest{Queries: []*remote.Query{{
 		Matchers: []*remote.LabelMatcher{
 			{
 				Type:  remote.MatchType_EQUAL,
@@ -740,7 +740,7 @@ func TestHandler_PromRead_NoResults(t *testing.T) {
 }
 
 func TestHandler_PromRead_UnsupportedCursors(t *testing.T) {
-	req := &remote.ReadRequest{Queries: []*remote.Query{&remote.Query{
+	req := &remote.ReadRequest{Queries: []*remote.Query{{
 		Matchers: []*remote.LabelMatcher{
 			{
 				Type:  remote.MatchType_EQUAL,

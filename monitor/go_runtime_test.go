@@ -32,7 +32,7 @@ func TestDiagnostics_GoRuntime(t *testing.T) {
 	}
 
 	if got, exp := diags.Rows, [][]interface{}{
-		[]interface{}{runtime.GOARCH, runtime.GOMAXPROCS(-1), runtime.GOOS, runtime.Version()},
+		{runtime.GOARCH, runtime.GOMAXPROCS(-1), runtime.GOOS, runtime.Version()},
 	}; !reflect.DeepEqual(got, exp) {
 		t.Errorf("unexpected rows: got=%v exp=%v", got, exp)
 	}

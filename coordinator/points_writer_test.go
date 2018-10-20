@@ -69,11 +69,11 @@ func TestPointsWriter_MapShards_AlterShardDuration(t *testing.T) {
 
 	ms.CreateShardGroupIfNotExistsFn = func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 		sg := []meta.ShardGroupInfo{
-			meta.ShardGroupInfo{
+			{
 				Shards:    make([]meta.ShardInfo, 1),
 				StartTime: now, EndTime: now.Add(rp.Duration).Add(-1),
 			},
-			meta.ShardGroupInfo{
+			{
 				Shards:    make([]meta.ShardInfo, 1),
 				StartTime: now.Add(time.Hour), EndTime: now.Add(3 * time.Hour).Add(rp.Duration).Add(-1),
 			},
@@ -644,7 +644,7 @@ func NewRetentionPolicy(name string, duration time.Duration, nodeCount int) *met
 		Duration:           duration,
 		ShardGroupDuration: duration,
 		ShardGroups: []meta.ShardGroupInfo{
-			meta.ShardGroupInfo{
+			{
 				ID:        nextShardID(),
 				StartTime: start,
 				EndTime:   start.Add(duration).Add(-1),
@@ -669,7 +669,7 @@ func AttachShardGroupInfo(rp *meta.RetentionPolicyInfo, owners []meta.ShardOwner
 		StartTime: startTime,
 		EndTime:   endTime,
 		Shards: []meta.ShardInfo{
-			meta.ShardInfo{
+			{
 				ID:     nextShardID(),
 				Owners: owners,
 			},

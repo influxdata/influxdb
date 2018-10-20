@@ -16,8 +16,8 @@ import (
 // Ensure iterator can operate over an in-memory list of elements.
 func TestMeasurementIterator(t *testing.T) {
 	elems := []MeasurementElem{
-		MeasurementElem{name: []byte("cpu"), deleted: true},
-		MeasurementElem{name: []byte("mem")},
+		{name: []byte("cpu"), deleted: true},
+		{name: []byte("mem")},
 	}
 
 	itr := MeasurementIterator{Elems: elems}

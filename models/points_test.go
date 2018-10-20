@@ -160,7 +160,7 @@ func testPoint_cube(t *testing.T, f func(p models.Point)) {
 	// heard of a table-driven test? let's make a cube-driven test...
 	tagList := []models.Tags{nil, {models.NewTag([]byte("foo"), []byte("bar"))}, tags}
 	fieldList := []models.Fields{{"a": 42.0}, {"a": 42, "b": "things"}, fields}
-	timeList := []time.Time{time.Time{}, time.Unix(0, 0), time.Unix(-34526, 0), time.Unix(231845, 0), time.Now()}
+	timeList := []time.Time{{}, time.Unix(0, 0), time.Unix(-34526, 0), time.Unix(231845, 0), time.Now()}
 
 	for _, tagSet := range tagList {
 		for _, fieldSet := range fieldList {

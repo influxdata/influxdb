@@ -52,16 +52,16 @@ func TestParser_ParseStatement(t *testing.T) {
 				TemplateString: "cpu,host=%v,server_id=%v busy=%v,free=%v %v",
 				TagCount:       2,
 				Templates: []*statement.Template{
-					&statement.Template{
+					{
 						Tags: []string{"us-west", "us-east", "eu-north"},
 					},
-					&statement.Template{
+					{
 						Function: &statement.Function{Type: "str", Fn: "rand", Argument: 7, Count: 1000},
 					},
-					&statement.Template{
+					{
 						Function: &statement.Function{Type: "int", Fn: "rand", Argument: 1000, Count: 100},
 					},
-					&statement.Template{
+					{
 						Function: &statement.Function{Type: "float", Fn: "rand", Argument: 10, Count: 0},
 					},
 				},
@@ -79,16 +79,16 @@ func TestParser_ParseStatement(t *testing.T) {
 				TemplateString: "cpu,host=%v,server_id=%v busy=%v,free=%v %v",
 				TagCount:       2,
 				Templates: []*statement.Template{
-					&statement.Template{
+					{
 						Tags: []string{"us-west", "us-east", "eu-north"},
 					},
-					&statement.Template{
+					{
 						Function: &statement.Function{Type: "str", Fn: "rand", Argument: 7, Count: 1000},
 					},
-					&statement.Template{
+					{
 						Function: &statement.Function{Type: "int", Fn: "rand", Argument: 1000, Count: 100},
 					},
-					&statement.Template{
+					{
 						Function: &statement.Function{Type: "float", Fn: "rand", Argument: 10, Count: 0},
 					},
 				},
@@ -106,19 +106,19 @@ func TestParser_ParseStatement(t *testing.T) {
 				TemplateString: "%v,host=%v,server_id=%v,other=x busy=%v,free=%v %v",
 				TagCount:       3,
 				Templates: []*statement.Template{
-					&statement.Template{
+					{
 						Function: &statement.Function{Type: "str", Fn: "rand", Argument: 1000, Count: 10},
 					},
-					&statement.Template{
+					{
 						Tags: []string{"us-west", "us-east", "eu-north"},
 					},
-					&statement.Template{
+					{
 						Function: &statement.Function{Type: "str", Fn: "rand", Argument: 7, Count: 1000},
 					},
-					&statement.Template{
+					{
 						Function: &statement.Function{Type: "int", Fn: "rand", Argument: 1000, Count: 100},
 					},
-					&statement.Template{
+					{
 						Function: &statement.Function{Type: "float", Fn: "rand", Argument: 10, Count: 0},
 					},
 				},
@@ -170,16 +170,16 @@ func TestParser_ParseStatement(t *testing.T) {
 					Name:           "mockCpu",
 					TemplateString: "cpu,host=%v,server_id=%v busy=%v,free=%v %v",
 					Templates: []*statement.Template{
-						&statement.Template{
+						{
 							Tags: []string{"us-west", "us-east", "eu-north"},
 						},
-						&statement.Template{
+						{
 							Function: &statement.Function{Type: "str", Fn: "rand", Argument: 7, Count: 1000},
 						},
-						&statement.Template{
+						{
 							Function: &statement.Function{Type: "int", Fn: "rand", Argument: 1000, Count: 100},
 						},
-						&statement.Template{
+						{
 							Function: &statement.Function{Type: "float", Fn: "rand", Argument: 10, Count: 0},
 						},
 					},

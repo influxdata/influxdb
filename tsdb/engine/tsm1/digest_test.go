@@ -70,7 +70,7 @@ func TestDigest_One(t *testing.T) {
 
 	a1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{a1},
+		"cpu,host=A#!~#value": {a1},
 	}
 	MustWriteTSM(dir, 1, writes)
 
@@ -133,19 +133,19 @@ func TestDigest_TimeFilter(t *testing.T) {
 
 	a1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{a1},
+		"cpu,host=A#!~#value": {a1},
 	}
 	MustWriteTSM(dir, 1, writes)
 
 	a2 := tsm1.NewValue(2, 2.1)
 	writes = map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{a2},
+		"cpu,host=A#!~#value": {a2},
 	}
 	MustWriteTSM(dir, 2, writes)
 
 	a3 := tsm1.NewValue(3, 3.1)
 	writes = map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{a3},
+		"cpu,host=A#!~#value": {a3},
 	}
 	MustWriteTSM(dir, 3, writes)
 
@@ -214,19 +214,19 @@ func TestDigest_KeyFilter(t *testing.T) {
 
 	a1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{a1},
+		"cpu,host=A#!~#value": {a1},
 	}
 	MustWriteTSM(dir, 1, writes)
 
 	a2 := tsm1.NewValue(2, 2.1)
 	writes = map[string][]tsm1.Value{
-		"cpu,host=B#!~#value": []tsm1.Value{a2},
+		"cpu,host=B#!~#value": {a2},
 	}
 	MustWriteTSM(dir, 2, writes)
 
 	a3 := tsm1.NewValue(3, 3.1)
 	writes = map[string][]tsm1.Value{
-		"cpu,host=C#!~#value": []tsm1.Value{a3},
+		"cpu,host=C#!~#value": {a3},
 	}
 	MustWriteTSM(dir, 3, writes)
 
@@ -292,7 +292,7 @@ func TestDigest_Manifest(t *testing.T) {
 	// Create a point to write to the tsm files.
 	a1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{a1},
+		"cpu,host=A#!~#value": {a1},
 	}
 
 	// Write a few tsm files.

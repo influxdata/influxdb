@@ -132,11 +132,11 @@ func TestEngine_Digest(t *testing.T) {
 	}
 
 	exp := []span{
-		span{
+		{
 			key: "cpu,host=A#!~#value",
 			tspan: &tsm1.DigestTimeSpan{
 				Ranges: []tsm1.DigestTimeRange{
-					tsm1.DigestTimeRange{
+					{
 						Min: 1000000000,
 						Max: 1000000000,
 						N:   1,
@@ -145,11 +145,11 @@ func TestEngine_Digest(t *testing.T) {
 				},
 			},
 		},
-		span{
+		{
 			key: "cpu,host=B#!~#value",
 			tspan: &tsm1.DigestTimeSpan{
 				Ranges: []tsm1.DigestTimeRange{
-					tsm1.DigestTimeRange{
+					{
 						Min: 2000000000,
 						Max: 2000000000,
 						N:   1,
@@ -194,7 +194,7 @@ func TestEngine_Digest(t *testing.T) {
 		key: "cpu,host=C#!~#value",
 		tspan: &tsm1.DigestTimeSpan{
 			Ranges: []tsm1.DigestTimeRange{
-				tsm1.DigestTimeRange{
+				{
 					Min: 3000000000,
 					Max: 3000000000,
 					N:   1,

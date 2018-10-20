@@ -694,7 +694,7 @@ func (c *CommandLine) parseInto(stmt string) *client.BatchPoints {
 
 	return &client.BatchPoints{
 		Points: []client.Point{
-			client.Point{Raw: stmt},
+			{Raw: stmt},
 		},
 		Database:         db,
 		RetentionPolicy:  rp,
@@ -714,7 +714,7 @@ func (c *CommandLine) parseInsert(stmt string) (*client.BatchPoints, error) {
 	}
 	return &client.BatchPoints{
 		Points: []client.Point{
-			client.Point{Raw: point},
+			{Raw: point},
 		},
 		Database:         c.Database,
 		RetentionPolicy:  c.RetentionPolicy,

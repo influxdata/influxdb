@@ -142,13 +142,13 @@ func predicateFromMatchers(matchers []*remote.LabelMatcher) (*datatypes.Predicat
 // which matches how Prometheus data is fed into the system
 func fieldNode() *datatypes.Node {
 	children := []*datatypes.Node{
-		&datatypes.Node{
+		{
 			NodeType: datatypes.NodeTypeTagRef,
 			Value: &datatypes.Node_TagRefValue{
 				TagRefValue: fieldTagKey,
 			},
 		},
-		&datatypes.Node{
+		{
 			NodeType: datatypes.NodeTypeLiteral,
 			Value: &datatypes.Node_StringValue{
 				StringValue: fieldName,
