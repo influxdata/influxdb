@@ -28,10 +28,17 @@ install:
  - cd C:\gopath\src\github.com\influxdata\influxdb
  - dep ensure -vendor-only
 
-# To run your custom scripts instead of automatic MSBuild
-build_script:
+before_test:
  - go get -t -v ./...
+ - go get github.com/alecthomas/gometalinter
+ - gometalinter --install
+
+test_script:
+ - gometalinter --disable-all --enable gofmt --tests --vendor ./...
  - go test -timeout 15m -v ./...
+
+# To disable build
+build: off
 
 # To disable deployment
 deploy: off
