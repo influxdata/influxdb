@@ -3,15 +3,23 @@ package tsm1
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/golang/snappy"
 )
 
+var (
+	// ErrDigestManifestAlreadyRead is returned if the client attempts to read
+	// a manifest from a digest more than once on the same reader.
+	ErrDigestManifestAlreadyRead = errors.New("digest manifest already read")
+)
+
 type DigestReader struct {
-	r  io.ReadCloser
-	sr *snappy.Reader
+	r            io.ReadCloser
+	sr           *snappy.Reader
+	manifestRead bool
 }
 
 func NewDigestReader(r io.ReadCloser) (*DigestReader, error) {
@@ -19,6 +27,10 @@ func NewDigestReader(r io.ReadCloser) (*DigestReader, error) {
 }
 
 func (r *DigestReader) ReadManifest() (*DigestManifest, error) {
+	if r.manifestRead {
+		return nil, ErrDigestManifestAlreadyRead
+	}
+
 	var n uint32
 	// Read manifest length.
 	if err := binary.Read(r.sr, binary.BigEndian, &n); err != nil {
@@ -28,10 +40,22 @@ func (r *DigestReader) ReadManifest() (*DigestManifest, error) {
 	lr := io.LimitReader(r.sr, int64(n))
 
 	m := &DigestManifest{}
-	return m, json.NewDecoder(lr).Decode(m)
+	if err := json.NewDecoder(lr).Decode(m); err != nil {
+		return nil, err
+	}
+
+	r.manifestRead = true
+
+	return m, nil
 }
 
 func (r *DigestReader) ReadTimeSpan() (string, *DigestTimeSpan, error) {
+	if !r.manifestRead {
+		if _, err := r.ReadManifest(); err != nil {
+			return "", nil, err
+		}
+	}
+
 	var n uint16
 	if err := binary.Read(r.sr, binary.BigEndian, &n); err != nil {
 		return "", nil, err
