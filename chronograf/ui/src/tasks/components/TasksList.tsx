@@ -3,13 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import IndexList from 'src/shared/components/index_views/IndexList'
-import {
-  ComponentSpacer,
-  Alignment,
-  Button,
-  ComponentColor,
-  ComponentSize,
-} from 'src/clockface'
+import TaskRow from 'src/tasks/components/TaskRow'
 
 // Types
 import {Task} from 'src/types/v2/tasks'
@@ -47,34 +41,10 @@ export default class TasksList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    const {tasks} = this.props
+    const {tasks, onDelete} = this.props
 
     return tasks.map(t => (
-      <IndexList.Row key={`task-id--${t.id}`}>
-        <IndexList.Cell>
-          <a href="#">{t.name}</a>
-        </IndexList.Cell>
-        <IndexList.Cell>
-          <a href="#">{t.organization.name}</a>
-        </IndexList.Cell>
-        <IndexList.Cell>Enabled</IndexList.Cell>
-        <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
-          <ComponentSpacer align={Alignment.Right}>
-            <Button
-              size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Danger}
-              text="Delete"
-              onClick={this.handleDeleteTask(t)}
-            />
-          </ComponentSpacer>
-        </IndexList.Cell>
-      </IndexList.Row>
+      <TaskRow key={`task-id--${t.id}`} task={t} onDelete={onDelete} />
     ))
-  }
-
-  private handleDeleteTask = (task: Task) => (): void => {
-    const {onDelete} = this.props
-
-    onDelete(task)
   }
 }
