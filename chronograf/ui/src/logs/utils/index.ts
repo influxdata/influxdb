@@ -1,11 +1,11 @@
 import moment from 'moment'
-import _ from 'lodash'
 
-import {GetTimeSeriesResult} from 'src/flux/apis/index'
 import {DEFAULT_TIME_FORMAT} from 'src/logs/constants'
-import {TimeSeriesValue} from 'src/types/series'
 
 import {getDeep} from 'src/utils/wrappers'
+
+import {FluxTable} from 'src/types'
+import {TimeSeriesValue} from 'src/types/series'
 
 export interface TableData {
   columns: string[]
@@ -17,11 +17,9 @@ export const formatTime = (time: number): string => {
 }
 
 export const transformFluxLogsResponse = (
-  response: GetTimeSeriesResult,
+  tables: FluxTable[],
   columnNames: string[]
 ): TableData => {
-  const {tables} = response
-
   const values: TimeSeriesValue[][] = []
   const columns: string[] = []
   const indicesToKeep = []
@@ -29,10 +27,11 @@ export const transformFluxLogsResponse = (
   const rows = getDeep<TimeSeriesValue[][]>(tables, '0.data', [])
   const columnNamesRow = getDeep<string[]>(tables, '0.data.0', [])
 
-  for (let i = 0; i < columnNamesRow.length; i++) {
-    if (columnNames.includes(columnNamesRow[i])) {
-      indicesToKeep.push(i)
-      columns.push(columnNamesRow[i])
+  for (let i = 0; i < columnNames.length; i++) {
+    const columnIndex = columnNamesRow.indexOf(columnNames[i])
+    if (columnIndex !== -1) {
+      indicesToKeep.push(columnIndex)
+      columns.push(columnNames[i])
     }
   }
 

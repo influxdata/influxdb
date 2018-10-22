@@ -16,7 +16,7 @@ import {
 } from 'src/dashboards/apis/v2/view'
 import {getSource} from 'src/sources/apis/v2'
 import {getBuckets} from 'src/shared/apis/v2/buckets'
-import {getTimeSeries} from 'src/flux/apis'
+import {executeQueryAsync} from 'src/logs/api/v2'
 
 // Data
 import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
@@ -447,17 +447,14 @@ export const fetchTailAsync = () => async (
     const {
       links: {query: queryLink},
     } = currentSource
-    const response = await getTimeSeries(queryLink, query)
+    const response = await executeQueryAsync(queryLink, query)
 
-    if (
-      _.isEmpty(response.tables) ||
-      getDeep(response, 'tables.0.name', null) === 'Error'
-    ) {
+    if (response.status !== SearchStatus.Loaded) {
       return
     }
     const columnNames: string[] = tableQueryConfig.fields.map(f => f.alias)
     const logSeries: TableData = transformFluxLogsResponse(
-      response,
+      response.tables,
       columnNames
     )
 
