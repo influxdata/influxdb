@@ -1,5 +1,7 @@
 import React, {PureComponent} from 'react'
 
+import {EmptyState, ComponentSpacer,Alignment ComponentSize} from 'src/clockface'
+
 import {SearchStatus} from 'src/types/logs'
 import {formatTime} from 'src/logs/utils'
 
@@ -12,11 +14,18 @@ interface Props {
 class LoadingStatus extends PureComponent<Props> {
   public render() {
     return (
-      <div className="logs-viewer--table-container generic-empty-state">
-        {this.loadingSpinner}
-        <h4>
-          {this.loadingMessage} {this.description}
-        </h4>
+      <div className="logs-viewer--table-container">
+        <EmptyState size={ComponentSize.Large}>
+          {this.loadingSpinner}
+          <h4>
+          <ComponentSpacer align={Alignment.Center}>
+            <>{this.loadingMessage}</>
+            </ComponentSpacer>
+            <ComponentSpacer align={Alignment.Center}>
+            <>{this.description}</>
+          </ComponentSpacer>
+          </h4>
+        </EmptyState>
       </div>
     )
   }
