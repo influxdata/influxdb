@@ -455,7 +455,7 @@ export const fetchTailAsync = () => async (
     ) {
       return
     }
-    const columnNames: string[] = tableQueryConfig.fields.map(f => f.value)
+    const columnNames: string[] = tableQueryConfig.fields.map(f => f.alias)
     const logSeries: TableData = transformFluxLogsResponse(
       response,
       columnNames

@@ -37,7 +37,7 @@ describe('Logs.queryBuilder', () => {
       `pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")`,
       `group(none: true)`,
       `sort(cols: ["_time"])`,
-      `keep(columns: ["severity", "timestamp", "message", "facility", "procid", "appname", "host"])`,
+      `map(fn: (r) => ({time: r._time, severity: r.severity, timestamp: r.timestamp, message: r.message, facility: r.facility, procid: r.procid, appname: r.appname, host: r.host}))`,
     ].join('\n  |> ')
 
     expect(actual).toEqual(expected)
@@ -60,7 +60,7 @@ describe('Logs.queryBuilder', () => {
       `group(none: true)`,
       `filter(fn: (r) => r.severity != "notice")`,
       `sort(cols: ["_time"])`,
-      `keep(columns: ["severity", "timestamp", "message", "facility", "procid", "appname", "host"])`,
+      `map(fn: (r) => ({time: r._time, severity: r.severity, timestamp: r.timestamp, message: r.message, facility: r.facility, procid: r.procid, appname: r.appname, host: r.host}))`,
     ].join('\n  |> ')
 
     expect(actual).toEqual(expected)
@@ -88,7 +88,7 @@ describe('Logs.queryBuilder', () => {
       `group(none: true)`,
       `filter(fn: (r) => r.severity == "notice" and r.appname !~ /beep/ and r.appname =~ /o_trace_id=broken/)`,
       `sort(cols: ["_time"])`,
-      `keep(columns: ["severity", "timestamp", "message", "facility", "procid", "appname", "host"])`,
+      `map(fn: (r) => ({time: r._time, severity: r.severity, timestamp: r.timestamp, message: r.message, facility: r.facility, procid: r.procid, appname: r.appname, host: r.host}))`,
     ].join('\n  |> ')
 
     expect(actual).toEqual(expected)

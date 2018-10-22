@@ -17,6 +17,11 @@ const defaultQueryConfig = {
 
 const tableFields = [
   {
+    alias: 'time',
+    type: 'field',
+    value: '_time',
+  },
+  {
     alias: 'severity',
     type: 'field',
     value: 'severity',
@@ -82,7 +87,7 @@ export function buildInfiniteScrollLogQuery(
   const bucketName = `"${database}/${retentionPolicy}"`
 
   return buildRowsQuery(bucketName, measurement, lower, upper)
-    .concat(buildFilterFunc(filters), SORT_FUNC, buildKeepFieldsFunc(fields))
+    .concat(buildFilterFunc(filters), SORT_FUNC, buildFieldsMapFunc(fields))
     .join(PIPE)
 }
 
@@ -101,10 +106,12 @@ const buildRowsQuery = (
   ]
 }
 
-const buildKeepFieldsFunc = (fields: Field[]): string[] => {
-  const fieldNames = fields.map(field => `"${field.value}"`).join(', ')
+const buildFieldsMapFunc = (fields: Field[]): string[] => {
+  const fieldNames = fields
+    .map(field => `${field.alias}: ${ROW_NAME}.${field.value}`)
+    .join(', ')
 
-  return [`keep(columns: [${fieldNames}])`]
+  return [`map(fn: (${ROW_NAME}) => ({${fieldNames}}))`]
 }
 
 const buildFilterFunc = (filters: Filter[]): string[] => {
