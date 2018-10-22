@@ -38,8 +38,8 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     this.state = {
       username: getDeep(setupParams, 'username', ''),
       password: getDeep(setupParams, 'password', ''),
-      org: getDeep(setupParams, 'org', 'default'),
-      bucket: getDeep(setupParams, 'bucket', 'default'),
+      org: getDeep(setupParams, 'org', ''),
+      bucket: getDeep(setupParams, 'bucket', ''),
       isAlreadySet: !!setupParams,
     }
   }
@@ -88,7 +88,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
               titleText={'Admin Password'}
               size={ComponentSize.Medium}
               icon={icon}
-              placeholder={password}
+              placeholder=""
               status={status}
               disabledTitleText={'Admin password has been set'}
             />
@@ -104,7 +104,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
               titleText={'Default Organization Name'}
               size={ComponentSize.Medium}
               icon={icon}
-              placeholder={org}
+              placeholder="Your organization is where everything you create lives"
               status={status}
               disabledTitleText={'Default organization name has been set'}
             />
@@ -120,7 +120,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
               titleText={'Default Bucket Name'}
               size={ComponentSize.Medium}
               icon={icon}
-              placeholder={bucket}
+              placeholder="Your bucket is where you will store all your data"
               status={status}
               disabledTitleText={'Default bucket name has been set'}
             />
