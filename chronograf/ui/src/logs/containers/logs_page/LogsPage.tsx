@@ -58,6 +58,7 @@ interface DispatchTableConfigProps {
   getConfig: typeof logActions.getLogConfigAsync
   getSources: typeof getSourcesAsync
   addFilter: typeof logActions.addFilter // TODO: update addFilters
+  setConfig: typeof logActions.setConfig
   updateConfig: typeof logActions.updateLogConfigAsync
   createConfig: typeof logActions.createLogConfigAsync
   removeFilter: typeof logActions.removeFilter
@@ -355,7 +356,7 @@ class LogsPage extends Component<Props, State> {
   private handleUpdateTruncation = (isTruncated: boolean) => {
     const {logConfig} = this.props
 
-    this.props.updateConfig({
+    this.props.setConfig({
       ...logConfig,
       isTruncated,
     })
@@ -523,6 +524,7 @@ const mdtp: DispatchProps = {
   changeFilter: logActions.changeFilter,
   clearFilters: logActions.clearFilters,
   getConfig: logActions.getLogConfigAsync,
+  setConfig: logActions.setConfig,
   setSearchStatus: logActions.setSearchStatus,
   setBucketAsync: logActions.setBucketAsync,
   getSourceAndPopulateBuckets: logActions.getSourceAndPopulateBucketsAsync,
