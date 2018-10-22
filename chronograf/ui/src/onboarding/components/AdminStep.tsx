@@ -38,8 +38,8 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     this.state = {
       username: getDeep(setupParams, 'username', ''),
       password: getDeep(setupParams, 'password', ''),
-      org: getDeep(setupParams, 'org', 'default'),
-      bucket: getDeep(setupParams, 'bucket', 'default'),
+      org: getDeep(setupParams, 'org', ''),
+      bucket: getDeep(setupParams, 'bucket', ''),
       isAlreadySet: !!setupParams,
     }
   }
@@ -63,17 +63,16 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
             label="Admin Username"
             colsXS={Columns.Six}
             offsetXS={Columns.Three}
-            errorMessage={''}
+            errorMessage=""
           >
             <Input
               value={username}
               onChange={this.handleUsername}
-              titleText={'Admin Username'}
+              titleText="Admin Username"
               size={ComponentSize.Medium}
               icon={icon}
-              placeholder={username}
               status={status}
-              disabledTitleText={'Admin username has been set'}
+              disabledTitleText="Admin username has been set"
             />
           </Form.Element>
           <Form.Element
@@ -85,12 +84,11 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
               type={InputType.Password}
               value={password}
               onChange={this.handlePassword}
-              titleText={'Admin Password'}
+              titleText="Admin Password"
               size={ComponentSize.Medium}
               icon={icon}
-              placeholder={password}
               status={status}
-              disabledTitleText={'Admin password has been set'}
+              disabledTitleText="Admin password has been set"
             />
           </Form.Element>
           <Form.Element
@@ -101,12 +99,12 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
             <Input
               value={org}
               onChange={this.handleOrg}
-              titleText={'Default Organization Name'}
+              titleText="Default Organization Name"
               size={ComponentSize.Medium}
               icon={icon}
-              placeholder={org}
+              placeholder="Your organization is where everything you create lives"
               status={status}
-              disabledTitleText={'Default organization name has been set'}
+              disabledTitleText="Default organization name has been set"
             />
           </Form.Element>
           <Form.Element
@@ -117,12 +115,12 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
             <Input
               value={bucket}
               onChange={this.handleBucket}
-              titleText={'Default Bucket Name'}
+              titleText="Default Bucket Name"
               size={ComponentSize.Medium}
               icon={icon}
-              placeholder={bucket}
+              placeholder="Your bucket is where you will store all your data"
               status={status}
-              disabledTitleText={'Default bucket name has been set'}
+              disabledTitleText="Default bucket name has been set"
             />
           </Form.Element>
         </Form>
