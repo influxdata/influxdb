@@ -1,6 +1,11 @@
 import React, {PureComponent} from 'react'
 
-import {EmptyState, ComponentSpacer,Alignment ComponentSize} from 'src/clockface'
+import {
+  EmptyState,
+  ComponentSpacer,
+  Alignment,
+  ComponentSize,
+} from 'src/clockface'
 
 import {SearchStatus} from 'src/types/logs'
 import {formatTime} from 'src/logs/utils'
@@ -18,12 +23,12 @@ class LoadingStatus extends PureComponent<Props> {
         <EmptyState size={ComponentSize.Large}>
           {this.loadingSpinner}
           <h4>
-          <ComponentSpacer align={Alignment.Center}>
-            <>{this.loadingMessage}</>
+            <ComponentSpacer align={Alignment.Center}>
+              <>{this.loadingMessage}</>
             </ComponentSpacer>
             <ComponentSpacer align={Alignment.Center}>
-            <>{this.description}</>
-          </ComponentSpacer>
+              <>{this.description}</>
+            </ComponentSpacer>
           </h4>
         </EmptyState>
       </div>
