@@ -39,10 +39,11 @@ const (
 )
 
 // NewTaskHandler returns a new instance of TaskHandler.
-func NewTaskHandler(logger *zap.Logger) *TaskHandler {
+func NewTaskHandler(mappingService platform.UserResourceMappingService, logger *zap.Logger) *TaskHandler {
 	h := &TaskHandler{
-		logger: logger,
-		Router: httprouter.New(),
+		logger:                     logger,
+		Router:                     httprouter.New(),
+		UserResourceMappingService: mappingService,
 	}
 
 	h.HandlerFunc("GET", tasksPath, h.handleGetTasks)

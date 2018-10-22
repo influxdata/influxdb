@@ -64,25 +64,21 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.SessionHandler.BasicAuthService = b.BasicAuthService
 	h.SessionHandler.SessionService = b.SessionService
 
-	h.BucketHandler = NewBucketHandler()
+	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService)
 	h.BucketHandler.BucketService = b.BucketService
-	h.BucketHandler.UserResourceMappingService = b.UserResourceMappingService
 
-	h.OrgHandler = NewOrgHandler()
+	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService)
 	h.OrgHandler.OrganizationService = b.OrganizationService
 	h.OrgHandler.BucketService = b.BucketService
-	h.OrgHandler.UserResourceMappingService = b.UserResourceMappingService
 
 	h.UserHandler = NewUserHandler()
 	h.UserHandler.UserService = b.UserService
 
-	h.DashboardHandler = NewDashboardHandler()
+	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService)
 	h.DashboardHandler.DashboardService = b.DashboardService
-	h.DashboardHandler.UserResourceMappingService = b.UserResourceMappingService
 
-	h.ViewHandler = NewViewHandler()
+	h.ViewHandler = NewViewHandler(b.UserResourceMappingService)
 	h.ViewHandler.ViewService = b.ViewService
-	h.ViewHandler.UserResourceMappingService = b.UserResourceMappingService
 
 	h.MacroHandler = NewMacroHandler()
 	h.MacroHandler.MacroService = b.MacroService
@@ -99,9 +95,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.SetupHandler = NewSetupHandler()
 	h.SetupHandler.OnboardingService = b.OnboardingService
 
-	h.TaskHandler = NewTaskHandler(b.Logger)
+	h.TaskHandler = NewTaskHandler(b.UserResourceMappingService, b.Logger)
 	h.TaskHandler.TaskService = b.TaskService
-	h.TaskHandler.UserResourceMappingService = b.UserResourceMappingService
 
 	h.WriteHandler = NewWriteHandler(b.PointsWriter)
 	h.WriteHandler.AuthorizationService = b.AuthorizationService

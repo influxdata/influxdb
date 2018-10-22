@@ -32,9 +32,10 @@ const (
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.
-func NewOrgHandler() *OrgHandler {
+func NewOrgHandler(mappingService platform.UserResourceMappingService) *OrgHandler {
 	h := &OrgHandler{
-		Router: httprouter.New(),
+		Router:                     httprouter.New(),
+		UserResourceMappingService: mappingService,
 	}
 
 	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
@@ -312,74 +313,6 @@ func decodePatchOrgRequest(ctx context.Context, r *http.Request) (*patchOrgReque
 		Update: upd,
 		OrgID:  i,
 	}, nil
-}
-
-func (h *OrgHandler) handlePostOrgMember(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	req, err := decodePostOrgMemberRequest(ctx, r)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	mapping := &platform.UserResourceMapping{
-		ResourceID: req.OrgID,
-		UserID:     req.MemberID,
-		UserType:   platform.Member,
-	}
-
-	if err := h.UserResourceMappingService.CreateUserResourceMapping(ctx, mapping); err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	if err := encodeResponse(ctx, w, http.StatusCreated, mapping); err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-}
-
-func (h *OrgHandler) handleGetOrgMembers(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	req, err := decodeGetOrgRequest(ctx, r)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	filter := platform.UserResourceMappingFilter{
-		ResourceID: req.OrgID,
-		UserType:   platform.Member,
-	}
-	mappings, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	if err := encodeResponse(ctx, w, http.StatusOK, mappings); err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-}
-
-func (h *OrgHandler) handleDeleteOrgMember(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	req, err := decodeDeleteOrgMemberRequest(ctx, r)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	if err := h.UserResourceMappingService.DeleteUserResourceMapping(ctx, req.OrgID, req.MemberID); err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
 }
 
 const (

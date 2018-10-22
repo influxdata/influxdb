@@ -120,7 +120,8 @@ func TestService_handleGetBuckets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewBucketHandler(mappingService)
 			h.BucketService = tt.fields.BucketService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -232,7 +233,8 @@ func TestService_handleGetBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewBucketHandler(mappingService)
 			h.BucketService = tt.fields.BucketService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -325,7 +327,8 @@ func TestService_handlePostBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewBucketHandler(mappingService)
 			h.BucketService = tt.fields.BucketService
 
 			b, err := json.Marshal(newBucket(tt.args.bucket))
@@ -415,7 +418,8 @@ func TestService_handleDeleteBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewBucketHandler(mappingService)
 			h.BucketService = tt.fields.BucketService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -542,7 +546,8 @@ func TestService_handlePatchBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewBucketHandler(mappingService)
 			h.BucketService = tt.fields.BucketService
 
 			upd := platform.BucketUpdate{}
@@ -607,7 +612,8 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 		}
 	}
 
-	handler := NewBucketHandler()
+	mappingService := mock.NewUserResourceMappingService()
+	handler := NewBucketHandler(mappingService)
 	handler.BucketService = svc
 	server := httptest.NewServer(handler)
 	client := BucketService{
