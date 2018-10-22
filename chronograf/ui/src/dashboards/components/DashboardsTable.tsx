@@ -5,10 +5,6 @@ import _ from 'lodash'
 
 // Types
 import {Alignment} from 'src/clockface'
-import {
-  IndexListColumn,
-  IndexListRow,
-} from 'src/shared/components/index_views/IndexListTypes'
 
 // Components
 import IndexList from 'src/shared/components/index_views/IndexList'
@@ -40,55 +36,30 @@ interface Props {
 class DashboardsTable extends PureComponent<Props & WithRouterProps> {
   public render() {
     return (
-      <IndexList
-        columns={this.columns}
-        rows={this.rows}
-        emptyState={this.emptyState}
-      />
+      <IndexList>
+        <IndexList.Header>
+          <IndexList.HeaderCell columnName="Name" width="50%" />
+          <IndexList.HeaderCell columnName="Owner" width="10%" />
+          <IndexList.HeaderCell columnName="Modified" width="10%" />
+          <IndexList.HeaderCell
+            columnName="Default"
+            width="10%"
+            alignment={Alignment.Center}
+          />
+          <IndexList.HeaderCell
+            columnName=""
+            width="20%"
+            alignment={Alignment.Right}
+          />
+        </IndexList.Header>
+        <IndexList.Body emptyState={this.emptyState} columnCount={5}>
+          {this.rows}
+        </IndexList.Body>
+      </IndexList>
     )
   }
 
-  private get columns(): IndexListColumn[] {
-    return [
-      {
-        key: 'dashboards--name',
-        title: 'Name',
-        size: 500,
-        showOnHover: false,
-        align: Alignment.Left,
-      },
-      {
-        key: 'dashboards--owner',
-        title: 'Owner',
-        size: 100,
-        showOnHover: false,
-        align: Alignment.Left,
-      },
-      {
-        key: 'dashboards--modified',
-        title: 'Last Modified',
-        size: 90,
-        showOnHover: false,
-        align: Alignment.Left,
-      },
-      {
-        key: 'dashboards--default',
-        title: 'Default',
-        size: 90,
-        showOnHover: false,
-        align: Alignment.Center,
-      },
-      {
-        key: 'dashboards--actions',
-        title: '',
-        size: 200,
-        showOnHover: true,
-        align: Alignment.Right,
-      },
-    ]
-  }
-
-  private get rows(): IndexListRow[] {
+  private get rows(): JSX.Element[] {
     const {
       onSetDefaultDashboard,
       defaultDashboardLink,
@@ -97,60 +68,44 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
       onDeleteDashboard,
     } = this.props
 
-    return this.props.dashboards.map(d => ({
-      disabled: false,
-      columns: [
-        {
-          key: 'dashboards--name',
-          contents: (
-            <Link to={`/dashboards/${d.id}?${this.sourceParam}`}>{d.name}</Link>
-          ),
-        },
-        {
-          key: 'dashboards--owner',
-          contents: 'You',
-        },
-        {
-          key: 'dashboards--modified',
-          contents: '12h ago',
-        },
-        {
-          key: 'dashboards--default',
-          contents: (
-            <DefaultToggle
-              dashboardLink={d.links.self}
-              defaultDashboardLink={defaultDashboardLink}
-              onChangeDefault={onSetDefaultDashboard}
+    return this.props.dashboards.map(d => (
+      <IndexList.Row key={`dashboard-id--${d.id}`} disabled={false}>
+        <IndexList.Cell>
+          <Link to={`/dashboards/${d.id}?${this.sourceParam}`}>{d.name}</Link>
+        </IndexList.Cell>
+        <IndexList.Cell>You</IndexList.Cell>
+        <IndexList.Cell>12h Ago</IndexList.Cell>
+        <IndexList.Cell alignment={Alignment.Center}>
+          <DefaultToggle
+            dashboardLink={d.links.self}
+            defaultDashboardLink={defaultDashboardLink}
+            onChangeDefault={onSetDefaultDashboard}
+          />
+        </IndexList.Cell>
+        <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
+          <ComponentSpacer align={Alignment.Right}>
+            <Button
+              size={ComponentSize.ExtraSmall}
+              text="Export"
+              icon={IconFont.Export}
+              onClick={onExportDashboard(d)}
             />
-          ),
-        },
-        {
-          key: 'dashboards--actions',
-          contents: (
-            <ComponentSpacer align={Alignment.Right}>
-              <Button
-                size={ComponentSize.ExtraSmall}
-                text="Export"
-                icon={IconFont.Export}
-                onClick={onExportDashboard(d)}
-              />
-              <Button
-                size={ComponentSize.ExtraSmall}
-                text="Clone"
-                icon={IconFont.Duplicate}
-                onClick={onCloneDashboard(d)}
-              />
-              <Button
-                size={ComponentSize.ExtraSmall}
-                color={ComponentColor.Danger}
-                text="Delete"
-                onClick={onDeleteDashboard(d)}
-              />
-            </ComponentSpacer>
-          ),
-        },
-      ],
-    }))
+            <Button
+              size={ComponentSize.ExtraSmall}
+              text="Clone"
+              icon={IconFont.Duplicate}
+              onClick={onCloneDashboard(d)}
+            />
+            <Button
+              size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Danger}
+              text="Delete"
+              onClick={onDeleteDashboard(d)}
+            />
+          </ComponentSpacer>
+        </IndexList.Cell>
+      </IndexList.Row>
+    ))
   }
 
   private get sourceParam(): string {

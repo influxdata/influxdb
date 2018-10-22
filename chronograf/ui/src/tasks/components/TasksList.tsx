@@ -13,10 +13,6 @@ import {
 
 // Types
 import {Task} from 'src/types/v2/tasks'
-import {
-  IndexListColumn,
-  IndexListRow,
-} from 'src/shared/components/index_views/IndexListTypes'
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 
 interface Props {
@@ -29,83 +25,51 @@ interface Props {
 export default class TasksList extends PureComponent<Props> {
   public render() {
     const {searchTerm, onCreate} = this.props
+
     return (
-      <IndexList
-        columns={this.columns}
-        rows={this.rows}
-        emptyState={
-          <EmptyTasksList searchTerm={searchTerm} onCreate={onCreate} />
-        }
-      />
+      <IndexList>
+        <IndexList.Header>
+          <IndexList.HeaderCell columnName="Name" width="65%" />
+          <IndexList.HeaderCell columnName="Organization" width="15%" />
+          <IndexList.HeaderCell columnName="Status" width="10%" />
+          <IndexList.HeaderCell columnName="" width="10%" />
+        </IndexList.Header>
+        <IndexList.Body
+          emptyState={
+            <EmptyTasksList searchTerm={searchTerm} onCreate={onCreate} />
+          }
+          columnCount={4}
+        >
+          {this.rows}
+        </IndexList.Body>
+      </IndexList>
     )
   }
 
-  private get columns(): IndexListColumn[] {
-    return [
-      {
-        key: 'task--name',
-        title: 'Name',
-        size: 500,
-        showOnHover: false,
-        align: Alignment.Left,
-      },
-      {
-        key: 'task--organization',
-        title: 'Organization',
-        size: 100,
-        showOnHover: false,
-        align: Alignment.Left,
-      },
-      {
-        key: 'task--status',
-        title: 'Status',
-        size: 90,
-        showOnHover: false,
-        align: Alignment.Left,
-      },
-      {
-        key: 'task--actions',
-        title: '',
-        size: 200,
-        showOnHover: true,
-        align: Alignment.Right,
-      },
-    ]
-  }
-
-  private get rows(): IndexListRow[] {
+  private get rows(): JSX.Element[] {
     const {tasks} = this.props
 
-    return tasks.map(t => ({
-      disabled: false,
-      columns: [
-        {
-          key: 'task--name',
-          contents: <a href="#">{t.name}</a>,
-        },
-        {
-          key: 'task--organization',
-          contents: t.organization.name,
-        },
-        {
-          key: 'task--status',
-          contents: 'Enabled',
-        },
-        {
-          key: 'task--actions',
-          contents: (
-            <ComponentSpacer align={Alignment.Right}>
-              <Button
-                size={ComponentSize.ExtraSmall}
-                color={ComponentColor.Danger}
-                text="Delete"
-                onClick={this.handleDeleteTask(t)}
-              />
-            </ComponentSpacer>
-          ),
-        },
-      ],
-    }))
+    return tasks.map(t => (
+      <IndexList.Row key={`task-id--${t.id}`}>
+        <IndexList.Cell>
+          <a href="#">{t.name}</a>
+        </IndexList.Cell>
+        <IndexList.Cell>
+          <a href="#">{t.organization.name}</a>
+        </IndexList.Cell>
+        <IndexList.Cell>Enabled</IndexList.Cell>
+        <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
+          <ComponentSpacer align={Alignment.Right}>
+            <Button
+              size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Danger}
+              text="Delete"
+              onClick={this.handleDeleteTask(t)}
+            />
+          </ComponentSpacer>
+        </IndexList.Cell>
+      </IndexList.Row>
+    ))
   }
 
   private handleDeleteTask = (task: Task) => (): void => {
