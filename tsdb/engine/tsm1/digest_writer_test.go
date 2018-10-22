@@ -9,11 +9,89 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
+// Test that an error is returned if a manifest isn't the first thing written
+// to a digest.
+func TestEngine_DigestManifestNotWritten(t *testing.T) {
+	f := MustTempFile("")
+	w, err := tsm1.NewDigestWriter(f)
+	if err != nil {
+		t.Fatalf("NewDigestWriter: %v", err)
+	}
+	defer w.Close()
+
+	ts := &tsm1.DigestTimeSpan{}
+	ts.Add(1, 2, 3, 4)
+
+	if err := w.WriteTimeSpan("cpu", ts); err != tsm1.ErrNoDigestManifest {
+		t.Fatalf("exp: tsm1.ErrNoDigestManifest, got: %v", err)
+	}
+}
+
+// Test that a digest reader will skip over the manifest without error
+// if needed.
+func TestEngine_DigestReadSkipsManifest(t *testing.T) {
+	f := MustTempFile("")
+	w, err := tsm1.NewDigestWriter(f)
+	if err != nil {
+		t.Fatalf("NewDigestWriter: %v", err)
+	}
+
+	// Write an empty manifest.
+	if err := w.WriteManifest(&tsm1.DigestManifest{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write a time span.
+	ts := &tsm1.DigestTimeSpan{}
+	ts.Add(1, 2, 3, 4)
+
+	if err := w.WriteTimeSpan("cpu", ts); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Open the digest and create a reader.
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	r, err := tsm1.NewDigestReader(f)
+	if err != nil {
+		t.Fatalf("NewDigestReader: %v", err)
+	}
+
+	// Test that we can read the timespan without first reading the manifest.
+	key, ts, err := r.ReadTimeSpan()
+	if err != nil {
+		t.Fatal(err)
+	} else if key != "cpu" {
+		t.Fatalf("exp: cpu, got: %s", key)
+	} else if len(ts.Ranges) != 1 {
+		t.Fatalf("exp: 1, got: %d", len(ts.Ranges))
+	} else if ts.Ranges[0].Min != 1 {
+		t.Fatalf("exp: 1, got: %d", ts.Ranges[0].Min)
+	} else if ts.Ranges[0].Max != 2 {
+		t.Fatalf("exp: 1, got: %d", ts.Ranges[0].Min)
+	} else if ts.Ranges[0].N != 3 {
+		t.Fatalf("exp: 1, got: %d", ts.Ranges[0].N)
+	} else if ts.Ranges[0].CRC != 4 {
+		t.Fatalf("exp: 1, got: %d", ts.Ranges[0].CRC)
+	}
+}
+
 func TestEngine_DigestWriterReader(t *testing.T) {
 	f := MustTempFile("")
 	w, err := tsm1.NewDigestWriter(f)
 	if err != nil {
 		t.Fatalf("NewDigestWriter: %v", err)
+	}
+
+	if err := w.WriteManifest(&tsm1.DigestManifest{}); err != nil {
+		t.Fatal(err)
 	}
 
 	ts := &tsm1.DigestTimeSpan{}
