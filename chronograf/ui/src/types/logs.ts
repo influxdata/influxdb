@@ -230,6 +230,14 @@ export interface TableData {
 
 export type RowHeightHandler = (index: Index) => number
 
+export enum ScrollMode {
+  None = 'None',
+  TailScrolling = 'TailScrolling',
+  TailTop = 'TailTop',
+  TimeSelected = 'TimeSelected',
+  TimeSelectedScrolling = 'TimeSelectedScroll',
+}
+
 // Logs State Getter
 export interface State {
   logs: LogsState

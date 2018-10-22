@@ -39,6 +39,7 @@ import {
   SeverityFormatOptions,
   LogsTableColumn,
   TableData,
+  ScrollMode,
 } from 'src/types/logs'
 
 // Connected Log Config
@@ -91,8 +92,8 @@ type DispatchProps = DispatchTableConfigProps & DispatchTableDataProps
 type Props = StateProps & DispatchProps & WithRouterProps
 
 interface State {
-  liveUpdating: boolean
   isOverlayVisible: boolean
+  scrollMode: ScrollMode
 }
 
 const RELATIVE_TIME = 0
@@ -103,8 +104,8 @@ class LogsPage extends Component<Props, State> {
     super(props)
 
     this.state = {
-      liveUpdating: false,
       isOverlayVisible: false,
+      scrollMode: ScrollMode.None,
     }
   }
 
@@ -140,6 +141,7 @@ class LogsPage extends Component<Props, State> {
       currentTailUpperBound,
       nextTailLowerBound,
     } = this.props
+
     return (
       <>
         <div className="page">
@@ -167,11 +169,11 @@ class LogsPage extends Component<Props, State> {
               isScrolledToTop={false}
               isTruncated={this.isTruncated}
               onTagSelection={this.handleTagSelection}
-              scrollToRow={0}
+              scrollToRow={this.tableScrollToRow}
               tableColumns={this.tableColumns}
               severityFormat={this.severityFormat}
               severityLevelColors={this.severityLevelColors}
-              hasScrolled={false}
+              hasScrolled={this.hasScrolled}
               tableInfiniteData={this.props.tableInfiniteData}
               onChooseCustomTime={this.handleChooseCustomTime}
               notify={notify}
@@ -299,10 +301,9 @@ class LogsPage extends Component<Props, State> {
   }
 
   private handleChangeLiveUpdatingStatus = async (): Promise<void> => {
-    const {liveUpdating} = this.state
-
-    if (liveUpdating === true) {
-      this.setState({liveUpdating: false})
+    if (this.isLiveUpdating) {
+      this.setState({scrollMode: ScrollMode.TailScrolling})
+      this.clearTailInterval()
     } else {
       this.handleChooseRelativeTime(NOW)
     }
@@ -371,7 +372,17 @@ class LogsPage extends Component<Props, State> {
   }
 
   private get isLiveUpdating(): boolean {
-    return !!this.state.liveUpdating
+    return this.state.scrollMode === ScrollMode.TailTop
+  }
+
+  private get hasScrolled(): boolean {
+    switch (this.state.scrollMode) {
+      case ScrollMode.TailScrolling:
+      case ScrollMode.TimeSelectedScrolling:
+        return true
+      default:
+        return false
+    }
   }
 
   private updateTableData = async (searchStatus: SearchStatus) => {
@@ -407,7 +418,7 @@ class LogsPage extends Component<Props, State> {
       DEFAULT_TAIL_CHUNK_DURATION_MS
     )
 
-    this.setState({liveUpdating: true})
+    this.setState({scrollMode: ScrollMode.TailTop})
   }
 
   private flushTailBuffer(): void {
@@ -452,19 +463,40 @@ class LogsPage extends Component<Props, State> {
   /**
    * Handle scrolling to the top and resuming logs tail
    */
-  private handleScrollToTop = () => {}
+  private handleScrollToTop = () => {
+    if (!this.isLiveUpdating && this.shouldLiveUpdate) {
+      this.startLogsTailFetchingInterval()
+    }
+  }
 
   /**
    * Handle pausing logs tail on vertical scroll
    */
-  private handleVerticalScroll = () => {}
+  private handleVerticalScroll = () => {
+    if (this.isLiveUpdating) {
+      this.clearTailInterval()
+    }
+
+    let scrollMode: ScrollMode
+
+    switch (this.state.scrollMode) {
+      case ScrollMode.TailTop:
+        scrollMode = ScrollMode.TailScrolling
+      case ScrollMode.TimeSelected:
+        scrollMode = ScrollMode.TimeSelectedScrolling
+      default:
+        scrollMode = ScrollMode.None
+    }
+
+    this.setState({scrollMode})
+  }
 
   /**
    * Handle choosing a custom time
    * @param time the custom date selected
    */
   private handleChooseCustomTime = async (__: string) => {
-    this.setState({liveUpdating: false})
+    this.setState({scrollMode: ScrollMode.TimeSelected})
     // TODO: handle updating custom time in LogState
   }
 
@@ -474,15 +506,40 @@ class LogsPage extends Component<Props, State> {
    */
   private handleChooseRelativeTime = async (time: number) => {
     if (time === NOW) {
-      this.setState({liveUpdating: true})
+      this.startLogsTailFetchingInterval()
+      this.setState({scrollMode: ScrollMode.TailTop})
     } else {
-      this.setState({liveUpdating: false})
+      this.updateTableData(SearchStatus.UpdatingTimeBounds)
+      this.setState({scrollMode: ScrollMode.TimeSelected})
     }
     // TODO: handle updating time in LogState
   }
 
   private handleToggleOverlay = (): void => {
     this.setState({isOverlayVisible: !this.state.isOverlayVisible})
+  }
+
+  /**
+   * Controls scroll position for new searches
+   */
+  private get tableScrollToRow() {
+    switch (this.state.scrollMode) {
+      case ScrollMode.None:
+      case ScrollMode.TailScrolling:
+      case ScrollMode.TimeSelectedScrolling:
+        return undefined
+      case ScrollMode.TailTop:
+        return 0
+      // Todo: handle scroll pos calc when not live
+    }
+  }
+
+  /**
+   * Checks if logs time is set to now
+   */
+  private get shouldLiveUpdate(): boolean {
+    // Todo: check table time is set to now
+    return true
   }
 }
 
