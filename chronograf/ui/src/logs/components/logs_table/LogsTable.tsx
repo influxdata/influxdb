@@ -10,6 +10,7 @@ import {color} from 'd3-color'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import LoadingStatus from 'src/logs/components/loading_status/LoadingStatus'
 import LogsMessage from 'src/logs/components/logs_message/LogsMessage'
+import ExpandableMessage from 'src/logs/components/expandable_message/ExpandableMessage'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -81,6 +82,7 @@ interface TableInfiniteScrollProps {
 }
 
 interface TableHandlerProps {
+  onExpand: () => void
   onChooseCustomTime: (time: string) => void
   onTagSelection: (selection: {tag: string; key: string}) => void
 }
@@ -663,6 +665,16 @@ class LogsTable extends Component<Props, State> {
    */
   private renderMessage = (formattedValue: string): JSX.Element => {
     const {notify} = this.props
+
+    if (this.props.isTruncated) {
+      return (
+        <ExpandableMessage
+          formattedValue={formattedValue}
+          notify={notify}
+          onExpand={this.props.onExpand}
+        />
+      )
+    }
 
     return <LogsMessage notify={notify} formattedValue={formattedValue} />
   }

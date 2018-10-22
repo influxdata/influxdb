@@ -1,0 +1,75 @@
+/*
+   ExpandableMessage
+   -----------------------------------------------------------------------------
+*/
+
+.expandable--message {
+  min-height: 100%;
+  min-width: 100%;
+  align-items: center;
+  cursor: zoom-in;
+  display: block;
+  
+  > .logs-message {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.expanded--message { 
+  display: block;
+  box-sizing: border-box;
+  position: fixed;
+  white-space: pre-wrap;
+  max-height: 300px;
+  background-color: $g5-pepper;
+  z-index: 100;
+  border: solid $ix-border $c-pool;
+  color: $g19-ghost;
+  border-radius: $radius;
+  cursor: text;
+  transform: translate(-$ix-border, -$ix-border);
+  font-size: 12px;
+  font-family: $code-font;
+}
+
+.expanded--dismiss {
+  position: absolute;
+  z-index: 5000;
+  top: 0;
+  left: 0;
+  transform: translate(-50%,-50%);
+  width: 24px;
+  height: 24px;
+  outline: none;
+  border-radius: 50%;
+  background-color: $c-pool;
+  transition: background-color 0.25s ease;
+  border: 0;
+
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    width: 13px;
+    height: 3px;
+    top: 50%;
+    left: 50%;
+    border-radius: 1px;
+    background-color: $g20-white;
+  }
+
+  &:before {
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  &:after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
+
+  &:hover {
+    background-color: $c-laser;
+    cursor: pointer;
+  }
+}

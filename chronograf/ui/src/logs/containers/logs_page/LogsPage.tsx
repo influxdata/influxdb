@@ -164,6 +164,7 @@ class LogsPage extends Component<Props, State> {
             />
             <LogsTable
               data={this.tableData}
+              onExpand={this.handleExpandMessage}
               onScrollVertical={this.handleVerticalScroll}
               onScrolledToTop={this.handleScrollToTop}
               isScrolledToTop={false}
@@ -184,6 +185,7 @@ class LogsPage extends Component<Props, State> {
           </div>
         </div>
         {this.configOverlay}
+        {this.expandedMessageContainer}
       </>
     )
   }
@@ -219,6 +221,15 @@ class LogsPage extends Component<Props, State> {
           onDismissOverlay={this.handleToggleOverlay}
         />
       </OverlayTechnology>
+    )
+  }
+
+  private get expandedMessageContainer(): JSX.Element {
+    return (
+      <div
+        className="logs-viewer--expanded-message-container"
+        id="expanded-message-container"
+      />
     )
   }
 
@@ -489,6 +500,10 @@ class LogsPage extends Component<Props, State> {
     }
 
     this.setState({scrollMode})
+  }
+
+  private handleExpandMessage = () => {
+    this.handleVerticalScroll()
   }
 
   /**

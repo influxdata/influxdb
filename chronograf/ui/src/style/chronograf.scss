@@ -51,8 +51,9 @@
 @import 'src/shared/components/views/Markdown';
 @import 'src/onboarding/OnboardingWizard.scss';
 
-@import 'src/logs/containers/logs_page/logs-viewer';
-@import 'src/logs/components/loading_status/loading-status';
-@import 'src/logs/components/logs_filter_bar/logs-filter-bar';
-@import 'src/logs/components/options_overlay/logs-viewer-options';
-@import 'src/logs/components/logs_table/logs-table';
+@import 'src/logs/containers/logs_page/LogsPage';
+@import 'src/logs/components/loading_status/LoadingStatus';
+@import 'src/logs/components/logs_filter_bar/LogsFilterBar';
+@import 'src/logs/components/options_overlay/LogsViewerOptions';
+@import 'src/logs/components/logs_table/LogsTable';
+@import 'src/logs/components/expandable_message/ExpandableMessage';
