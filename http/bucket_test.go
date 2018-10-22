@@ -77,7 +77,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "id": "0b501e7e557ab1ed",
       "organizationID": "50f7ba1150f7ba11",
       "name": "hello",
-      "retentionPeriod": "2s"
+	  "retentionRules": [{"type": "expire", "everySeconds": 2}]
     },
     {
       "links": {
@@ -87,7 +87,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "id": "c0175f0077a77005",
       "organizationID": "7e55e118dbabb1ed",
       "name": "example",
-	  "retentionPeriod": "1d"
+	  "retentionRules": [{"type": "expire", "everySeconds": 86400}]
     }
   ]
 }
@@ -208,7 +208,7 @@ func TestService_handleGetBucket(t *testing.T) {
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "hello",
-  "retentionPeriod": "30s"
+  "retentionRules": [{"type": "expire", "everySeconds": 30}]
 }
 `,
 			},
@@ -318,7 +318,7 @@ func TestService_handlePostBucket(t *testing.T) {
   "id": "020f755c3c082000",
   "organizationID": "6f626f7274697320",
   "name": "hello",
-  "retentionPeriod": "0s"
+  "retentionRules": []
 }
 `,
 			},
@@ -477,7 +477,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "update a bucket name and retenion",
+			name: "update a bucket name and retention",
 			fields: fields{
 				&mock.BucketService{
 					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
@@ -506,7 +506,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 			args: args{
 				id:        "020f755c3c082000",
 				name:      "example",
-				retention: 1234,
+				retention: 2 * time.Second,
 			},
 			wants: wants{
 				statusCode:  http.StatusOK,
@@ -520,7 +520,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "example",
-  "retentionPeriod": "1234ns"
+  "retentionRules": [{"type": "expire", "everySeconds": 2}]
 }
 `,
 			},
@@ -540,6 +540,42 @@ func TestService_handlePatchBucket(t *testing.T) {
 			},
 			wants: wants{
 				statusCode: http.StatusNotFound,
+			},
+		},
+		{
+			name: "update a bucket name with invalid retention policy is an error",
+			fields: fields{
+				&mock.BucketService{
+					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							d := &platform.Bucket{
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								Name:           "hello",
+								OrganizationID: platformtesting.MustIDBase16("020f755c3c082000"),
+							}
+
+							if upd.Name != nil {
+								d.Name = *upd.Name
+							}
+
+							if upd.RetentionPeriod != nil {
+								d.RetentionPeriod = *upd.RetentionPeriod
+							}
+
+							return d, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id:        "020f755c3c082000",
+				name:      "example",
+				retention: -10,
+			},
+			wants: wants{
+				statusCode: http.StatusUnprocessableEntity,
 			},
 		},
 	}
@@ -584,7 +620,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 			body, _ := ioutil.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. handlePatchBucket() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+				t.Errorf("%q. handlePatchBucket() = %v, want %v %v", tt.name, res.StatusCode, tt.wants.statusCode, w.Header())
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePatchBucket() = %v, want %v", tt.name, content, tt.wants.contentType)

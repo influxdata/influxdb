@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/influxdata/platform"
 	errors "github.com/influxdata/platform/kit/errors"
@@ -57,12 +58,18 @@ func NewBucketHandler(mappingService platform.UserResourceMappingService) *Bucke
 
 // bucket is used for serialization/deserialization with duration string syntax.
 type bucket struct {
-	ID                  platform.ID `json:"id,omitempty"`
-	OrganizationID      platform.ID `json:"organizationID,omitempty"`
-	Organization        string      `json:"organization,omitempty"`
-	Name                string      `json:"name"`
-	RetentionPolicyName string      `json:"rp,omitempty"` // This to support v1 sources
-	RetentionPeriod     string      `json:"retentionPeriod"`
+	ID                  platform.ID     `json:"id,omitempty"`
+	OrganizationID      platform.ID     `json:"organizationID,omitempty"`
+	Organization        string          `json:"organization,omitempty"`
+	Name                string          `json:"name"`
+	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
+	RetentionRules      []retentionRule `json:"retentionRules"`
+}
+
+// retentionRule is the retention rule action for a bucket.
+type retentionRule struct {
+	Type         string `json:"type"`
+	EverySeconds int64  `json:"everySeconds"`
 }
 
 func (b *bucket) toPlatform() (*platform.Bucket, error) {
@@ -70,9 +77,14 @@ func (b *bucket) toPlatform() (*platform.Bucket, error) {
 		return nil, nil
 	}
 
-	d, err := ParseDuration(b.RetentionPeriod)
-	if err != nil {
-		return nil, err
+	var d time.Duration // zero value implies infinite retention policy
+
+	// Only support a single retention period for the moment
+	if len(b.RetentionRules) > 0 {
+		d = time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
+		if d < time.Second {
+			return nil, errors.InvalidDataf("expiration seconds must be greater than or equal to one second")
+		}
 	}
 
 	return &platform.Bucket{
@@ -90,20 +102,29 @@ func newBucket(pb *platform.Bucket) *bucket {
 		return nil
 	}
 
+	rules := []retentionRule{}
+	rp := int64(pb.RetentionPeriod.Round(time.Second) / time.Second)
+	if rp > 0 {
+		rules = append(rules, retentionRule{
+			Type:         "expire",
+			EverySeconds: rp,
+		})
+	}
+
 	return &bucket{
 		ID:                  pb.ID,
 		OrganizationID:      pb.OrganizationID,
 		Organization:        pb.Organization,
 		Name:                pb.Name,
 		RetentionPolicyName: pb.RetentionPolicyName,
-		RetentionPeriod:     FormatDuration(pb.RetentionPeriod),
+		RetentionRules:      rules,
 	}
 }
 
-// bucketUpdate is used for serialization/deserialization with duration string syntax.
+// bucketUpdate is used for serialization/deserialization with retention rules.
 type bucketUpdate struct {
-	Name            *string `json:"name,omitempty"`
-	RetentionPeriod *string `json:"retentionPeriod,omitempty"`
+	Name           *string         `json:"name,omitempty"`
+	RetentionRules []retentionRule `json:"retentionRules,omitempty"`
 }
 
 func (b *bucketUpdate) toPlatform() (*platform.BucketUpdate, error) {
@@ -114,10 +135,12 @@ func (b *bucketUpdate) toPlatform() (*platform.BucketUpdate, error) {
 	up := &platform.BucketUpdate{
 		Name: b.Name,
 	}
-	if b.RetentionPeriod != nil {
-		d, err := ParseDuration(*b.RetentionPeriod)
-		if err != nil {
-			return nil, err
+
+	// For now, only use a single retention rule.
+	if len(b.RetentionRules) > 0 {
+		d := time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
+		if d < time.Second {
+			return nil, errors.InvalidDataf("expiration seconds must be greater than or equal to one second")
 		}
 		up.RetentionPeriod = &d
 	}
@@ -131,11 +154,16 @@ func newBucketUpdate(pb *platform.BucketUpdate) *bucketUpdate {
 	}
 
 	up := &bucketUpdate{
-		Name: pb.Name,
+		Name:           pb.Name,
+		RetentionRules: []retentionRule{},
 	}
+
 	if pb.RetentionPeriod != nil {
-		d := FormatDuration(*pb.RetentionPeriod)
-		up.RetentionPeriod = &d
+		d := int64((*pb.RetentionPeriod).Round(time.Second) / time.Second)
+		up.RetentionRules = append(up.RetentionRules, retentionRule{
+			Type:         "expire",
+			EverySeconds: d,
+		})
 	}
 	return up
 }
