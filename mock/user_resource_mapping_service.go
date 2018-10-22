@@ -8,6 +8,7 @@ import (
 
 var _ platform.UserResourceMappingService = &UserResourceMappingService{}
 
+// UserResourceMappingService is a mock implementation of platform.UserResourceMappingService
 type UserResourceMappingService struct {
 	FindMappingsFn  func(context.Context, platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error)
 	CreateMappingFn func(context.Context, *platform.UserResourceMapping) error
@@ -26,14 +27,17 @@ func NewUserResourceMappingService() *UserResourceMappingService {
 	}
 }
 
+// FindUserResourceMappings finds mappings that match a given filter.
 func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.UserResourceMapping, int, error) {
 	return s.FindMappingsFn(ctx, filter)
 }
 
+// CreateUserResourceMapping creates a new UserResourceMapping.
 func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Context, m *platform.UserResourceMapping) error {
 	return s.CreateMappingFn(ctx, m)
 }
 
+// DeleteUserResourceMapping removes a UserResourceMapping.
 func (s *UserResourceMappingService) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
 	return s.DeleteMappingFn(ctx, resourceID, userID)
 }
