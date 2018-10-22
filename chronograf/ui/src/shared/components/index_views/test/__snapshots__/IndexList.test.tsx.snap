@@ -1,397 +1,255 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`IndexList matches snapshot when 0 rows exist 1`] = `
-<IndexList
-  columns={
-    Array [
-      Object {
-        "align": "left",
-        "key": "test--fruit",
-        "showOnHover": false,
-        "size": 500,
-        "title": "Fruit",
-      },
-      Object {
-        "align": "left",
-        "key": "test--calories",
-        "showOnHover": false,
-        "size": 500,
-        "title": "Calories",
-      },
-    ]
-  }
-  emptyState={
-    <div>
-      Empty
-    </div>
-  }
-  rows={Array []}
->
+<IndexList>
   <table
     className="index-list"
   >
     <IndexListHeader
-      columns={
-        Array [
-          Object {
-            "align": "left",
-            "key": "test--fruit",
-            "showOnHover": false,
-            "size": 500,
-            "title": "Fruit",
-          },
-          Object {
-            "align": "left",
-            "key": "test--calories",
-            "showOnHover": false,
-            "size": 500,
-            "title": "Calories",
-          },
-        ]
-      }
-      getColumnWidthPercent={[Function]}
+      key="index-header"
     >
       <thead
         className="index-list--header"
       >
         <tr>
-          <th
-            className="index-list--header-cell index-list--align-left"
-            key="test--fruit"
-            style={
-              Object {
-                "width": "50%",
-              }
-            }
+          <IndexListHeaderCell
+            alignment="left"
+            columnName="Fruit"
+            width="50%"
           >
-            Fruit
-          </th>
-          <th
-            className="index-list--header-cell index-list--align-left"
-            key="test--calories"
-            style={
-              Object {
-                "width": "50%",
+            <th
+              className="index-list--header-cell index-list--align-left"
+              style={
+                Object {
+                  "width": "50%",
+                }
               }
-            }
+            >
+              Fruit
+            </th>
+          </IndexListHeaderCell>
+          <IndexListHeaderCell
+            alignment="left"
+            columnName="Calories"
+            width="50%"
           >
-            Calories
-          </th>
+            <th
+              className="index-list--header-cell index-list--align-left"
+              style={
+                Object {
+                  "width": "50%",
+                }
+              }
+            >
+              Calories
+            </th>
+          </IndexListHeaderCell>
         </tr>
       </thead>
     </IndexListHeader>
-    <tbody
-      className="index-list--empty"
+    <IndexListBody
+      columnCount={2}
+      emptyState={
+        <div>
+          Empty
+        </div>
+      }
+      key="index-body"
     >
-      <tr
-        className="index-list--empty-row"
+      <tbody
+        className="index-list--empty"
       >
-        <td
-          colSpan={2}
+        <tr
+          className="index-list--empty-row"
         >
-          <div
-            className="index-list--empty-cell"
-            data-test="empty-state"
+          <td
+            colSpan={2}
           >
-            <div>
-              Empty
+            <div
+              className="index-list--empty-cell"
+              data-test="empty-state"
+            >
+              <div>
+                Empty
+              </div>
             </div>
-          </div>
-        </td>
-      </tr>
-    </tbody>
+          </td>
+        </tr>
+      </tbody>
+    </IndexListBody>
   </table>
 </IndexList>
 `;
 
 exports[`IndexList matches snapshot with minimal props 1`] = `
-<IndexList
-  columns={
-    Array [
-      Object {
-        "align": "left",
-        "key": "test--fruit",
-        "showOnHover": false,
-        "size": 500,
-        "title": "Fruit",
-      },
-      Object {
-        "align": "left",
-        "key": "test--calories",
-        "showOnHover": false,
-        "size": 500,
-        "title": "Calories",
-      },
-    ]
-  }
-  emptyState={
-    <div>
-      Empty
-    </div>
-  }
-  rows={
-    Array [
-      Object {
-        "columns": Array [
-          Object {
-            "contents": "Apple",
-            "key": "test--fruit",
-          },
-          Object {
-            "contents": "500",
-            "key": "test--calories",
-          },
-        ],
-        "disabled": false,
-      },
-      Object {
-        "columns": Array [
-          Object {
-            "contents": "Pear",
-            "key": "test--fruit",
-          },
-          Object {
-            "contents": "1000",
-            "key": "test--calories",
-          },
-        ],
-        "disabled": false,
-      },
-      Object {
-        "columns": Array [
-          Object {
-            "contents": "Banana",
-            "key": "test--fruit",
-          },
-          Object {
-            "contents": "200",
-            "key": "test--calories",
-          },
-        ],
-        "disabled": false,
-      },
-    ]
-  }
->
+<IndexList>
   <table
     className="index-list"
   >
     <IndexListHeader
-      columns={
-        Array [
-          Object {
-            "align": "left",
-            "key": "test--fruit",
-            "showOnHover": false,
-            "size": 500,
-            "title": "Fruit",
-          },
-          Object {
-            "align": "left",
-            "key": "test--calories",
-            "showOnHover": false,
-            "size": 500,
-            "title": "Calories",
-          },
-        ]
-      }
-      getColumnWidthPercent={[Function]}
+      key="index-header"
     >
       <thead
         className="index-list--header"
       >
         <tr>
-          <th
-            className="index-list--header-cell index-list--align-left"
-            key="test--fruit"
-            style={
-              Object {
-                "width": "50%",
-              }
-            }
+          <IndexListHeaderCell
+            alignment="left"
+            columnName="Fruit"
+            width="50%"
           >
-            Fruit
-          </th>
-          <th
-            className="index-list--header-cell index-list--align-left"
-            key="test--calories"
-            style={
-              Object {
-                "width": "50%",
+            <th
+              className="index-list--header-cell index-list--align-left"
+              style={
+                Object {
+                  "width": "50%",
+                }
               }
-            }
+            >
+              Fruit
+            </th>
+          </IndexListHeaderCell>
+          <IndexListHeaderCell
+            alignment="left"
+            columnName="Calories"
+            width="50%"
           >
-            Calories
-          </th>
+            <th
+              className="index-list--header-cell index-list--align-left"
+              style={
+                Object {
+                  "width": "50%",
+                }
+              }
+            >
+              Calories
+            </th>
+          </IndexListHeaderCell>
         </tr>
       </thead>
     </IndexListHeader>
-    <tbody
-      className="index-list--body"
+    <IndexListBody
+      columnCount={2}
+      emptyState={
+        <div>
+          Empty
+        </div>
+      }
+      key="index-body"
     >
-      <IndexListRow
-        disabled={false}
-        getColumnWidthPercent={[Function]}
-        getRowColumnClassName={[Function]}
-        key="index-list--row-0"
-        rowColumns={
-          Array [
-            Object {
-              "contents": "Apple",
-              "key": "test--fruit",
-            },
-            Object {
-              "contents": "500",
-              "key": "test--calories",
-            },
-          ]
-        }
-        rowIndex={0}
+      <tbody
+        className="index-list--body"
       >
-        <tr
-          className="index-list--row"
+        <IndexListRow
+          disabled={false}
         >
-          <td
-            className="index-list--row-cell index-list--align-left"
-            key="index-list--row-0-col-test--fruit"
-            style={
-              Object {
-                "width": "50%",
-              }
-            }
+          <tr
+            className="index-list--row"
           >
-            <div
-              className="index-list--cell"
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
             >
-              Apple
-            </div>
-          </td>
-          <td
-            className="index-list--row-cell index-list--align-left"
-            key="index-list--row-0-col-test--calories"
-            style={
-              Object {
-                "width": "50%",
-              }
-            }
-          >
-            <div
-              className="index-list--cell"
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  Apple
+                </div>
+              </td>
+            </IndexListRowCell>
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
             >
-              500
-            </div>
-          </td>
-        </tr>
-      </IndexListRow>
-      <IndexListRow
-        disabled={false}
-        getColumnWidthPercent={[Function]}
-        getRowColumnClassName={[Function]}
-        key="index-list--row-1"
-        rowColumns={
-          Array [
-            Object {
-              "contents": "Pear",
-              "key": "test--fruit",
-            },
-            Object {
-              "contents": "1000",
-              "key": "test--calories",
-            },
-          ]
-        }
-        rowIndex={1}
-      >
-        <tr
-          className="index-list--row"
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  500
+                </div>
+              </td>
+            </IndexListRowCell>
+          </tr>
+        </IndexListRow>
+        <IndexListRow
+          disabled={false}
         >
-          <td
-            className="index-list--row-cell index-list--align-left"
-            key="index-list--row-1-col-test--fruit"
-            style={
-              Object {
-                "width": "50%",
-              }
-            }
+          <tr
+            className="index-list--row"
           >
-            <div
-              className="index-list--cell"
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
             >
-              Pear
-            </div>
-          </td>
-          <td
-            className="index-list--row-cell index-list--align-left"
-            key="index-list--row-1-col-test--calories"
-            style={
-              Object {
-                "width": "50%",
-              }
-            }
-          >
-            <div
-              className="index-list--cell"
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  Pear
+                </div>
+              </td>
+            </IndexListRowCell>
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
             >
-              1000
-            </div>
-          </td>
-        </tr>
-      </IndexListRow>
-      <IndexListRow
-        disabled={false}
-        getColumnWidthPercent={[Function]}
-        getRowColumnClassName={[Function]}
-        key="index-list--row-2"
-        rowColumns={
-          Array [
-            Object {
-              "contents": "Banana",
-              "key": "test--fruit",
-            },
-            Object {
-              "contents": "200",
-              "key": "test--calories",
-            },
-          ]
-        }
-        rowIndex={2}
-      >
-        <tr
-          className="index-list--row"
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  1000
+                </div>
+              </td>
+            </IndexListRowCell>
+          </tr>
+        </IndexListRow>
+        <IndexListRow
+          disabled={false}
         >
-          <td
-            className="index-list--row-cell index-list--align-left"
-            key="index-list--row-2-col-test--fruit"
-            style={
-              Object {
-                "width": "50%",
-              }
-            }
+          <tr
+            className="index-list--row"
           >
-            <div
-              className="index-list--cell"
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
             >
-              Banana
-            </div>
-          </td>
-          <td
-            className="index-list--row-cell index-list--align-left"
-            key="index-list--row-2-col-test--calories"
-            style={
-              Object {
-                "width": "50%",
-              }
-            }
-          >
-            <div
-              className="index-list--cell"
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  Banana
+                </div>
+              </td>
+            </IndexListRowCell>
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
             >
-              200
-            </div>
-          </td>
-        </tr>
-      </IndexListRow>
-    </tbody>
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  100
+                </div>
+              </td>
+            </IndexListRowCell>
+          </tr>
+        </IndexListRow>
+      </tbody>
+    </IndexListBody>
   </table>
 </IndexList>
 `;

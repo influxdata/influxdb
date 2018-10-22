@@ -5,7 +5,7 @@ import React, {Component} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  children: JSX.Element[] | JSX.Element
+  children?: JSX.Element[] | JSX.Element
   emptyState: JSX.Element
   columnCount: number
 }
