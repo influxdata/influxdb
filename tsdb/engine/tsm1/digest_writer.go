@@ -13,6 +13,10 @@ var (
 	// ErrNoDigestManifest is returned if an attempt is made to write other parts of a
 	// digest before writing the manifest.
 	ErrNoDigestManifest = errors.New("no digest manifest")
+
+	// ErrDigestAlreadyWritten is returned if the client attempts to write more than
+	// one manifest.
+	ErrDigestAlreadyWritten = errors.New("digest manifest already written")
 )
 
 // DigestWriter allows for writing a digest of a shard.  A digest is a condensed
@@ -29,6 +33,10 @@ func NewDigestWriter(w io.WriteCloser) (*DigestWriter, error) {
 }
 
 func (w *DigestWriter) WriteManifest(m *DigestManifest) error {
+	if w.manifestWritten {
+		return ErrDigestAlreadyWritten
+	}
+
 	b, err := json.Marshal(m)
 	if err != nil {
 		return err

@@ -3,10 +3,17 @@ package tsm1
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/golang/snappy"
+)
+
+var (
+	// ErrDigestManifestAlreadyRead is returned if the client attempts to read
+	// a manifest from a digest more than once on the same reader.
+	ErrDigestManifestAlreadyRead = errors.New("digest manifest already read")
 )
 
 type DigestReader struct {
@@ -20,6 +27,10 @@ func NewDigestReader(r io.ReadCloser) (*DigestReader, error) {
 }
 
 func (r *DigestReader) ReadManifest() (*DigestManifest, error) {
+	if r.manifestRead {
+		return nil, ErrDigestManifestAlreadyRead
+	}
+
 	var n uint32
 	// Read manifest length.
 	if err := binary.Read(r.sr, binary.BigEndian, &n); err != nil {
