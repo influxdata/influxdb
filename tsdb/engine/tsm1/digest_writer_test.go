@@ -83,6 +83,65 @@ func TestEngine_DigestReadSkipsManifest(t *testing.T) {
 	}
 }
 
+// Test that we get an error if a digest manifest is written twice.
+func TestEngine_DigestManifestDoubleWrite(t *testing.T) {
+	f := MustTempFile("")
+	w, err := tsm1.NewDigestWriter(f)
+	if err != nil {
+		t.Fatalf("NewDigestWriter: %v", err)
+	}
+	defer w.Close()
+
+	if err := w.WriteManifest(&tsm1.DigestManifest{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.WriteManifest(&tsm1.DigestManifest{}); err != tsm1.ErrDigestAlreadyWritten {
+		t.Fatalf("exp: %s, got: %s", tsm1.ErrDigestAlreadyWritten, err)
+	}
+}
+
+// Test that we get an error if the manifest is read twice.
+func TestEngine_DigestManifestDoubleRead(t *testing.T) {
+	f := MustTempFile("")
+	w, err := tsm1.NewDigestWriter(f)
+	if err != nil {
+		t.Fatalf("NewDigestWriter: %v", err)
+	}
+
+	// Write the manifest.
+	if err := w.WriteManifest(&tsm1.DigestManifest{Dir: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Open the digest and create a reader.
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	r, err := tsm1.NewDigestReader(f)
+	if err != nil {
+		t.Fatalf("NewDigestReader: %v", err)
+	}
+
+	// Read the manifest.
+	if m, err := r.ReadManifest(); err != nil {
+		t.Fatal(err)
+	} else if m.Dir != "test" {
+		t.Fatalf("exp: test, got: %s", m.Dir)
+	}
+
+	// Attempt to read the manifest a second time (should fail).
+	if _, err := r.ReadManifest(); err != tsm1.ErrDigestManifestAlreadyRead {
+		t.Fatalf("exp: digest manifest already read, got: %v", err)
+	}
+}
+
+// Test writing and reading a digest.
 func TestEngine_DigestWriterReader(t *testing.T) {
 	f := MustTempFile("")
 	w, err := tsm1.NewDigestWriter(f)
