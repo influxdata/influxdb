@@ -13,6 +13,12 @@ const (
 	UsageWriteRequestCount UsageMetric = "usage_write_request_count"
 	// UsageWriteRequestBytes is the name of the metrics for tracking the number of write bytes.
 	UsageWriteRequestBytes UsageMetric = "usage_write_request_bytes"
+
+	// UsageValues is the name of the metrics for tracking the number of values.
+	UsageValues UsageMetric = "usage_values"
+	// UsageSeries is the name of the metrics for tracking the number of series written.
+	UsageSeries UsageMetric = "usage_series"
+
 	// UsageQueryRequestCount is the name of the metrics for tracking query request count.
 	UsageQueryRequestCount UsageMetric = "usage_query_request_count"
 	// UsageQueryRequestBytes is the name of the metrics for tracking the number of query bytes.
