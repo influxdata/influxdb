@@ -3,17 +3,25 @@ package tsm1
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"io"
 
 	"github.com/golang/snappy"
+)
+
+var (
+	// ErrNoDigestManifest is returned if an attempt is made to write other parts of a
+	// digest before writing the manifest.
+	ErrNoDigestManifest = errors.New("no digest manifest")
 )
 
 // DigestWriter allows for writing a digest of a shard.  A digest is a condensed
 // representation of the contents of a shard.  It can be scoped to one or more series
 // keys, ranges of times or sets of files.
 type DigestWriter struct {
-	w  io.WriteCloser
-	sw *snappy.Writer
+	w               io.WriteCloser
+	sw              *snappy.Writer
+	manifestWritten bool
 }
 
 func NewDigestWriter(w io.WriteCloser) (*DigestWriter, error) {
@@ -32,11 +40,20 @@ func (w *DigestWriter) WriteManifest(m *DigestManifest) error {
 	}
 
 	// Write manifest.
-	_, err = w.sw.Write(b)
+	if _, err = w.sw.Write(b); err != nil {
+		return err
+	}
+
+	w.manifestWritten = true
+
 	return err
 }
 
 func (w *DigestWriter) WriteTimeSpan(key string, t *DigestTimeSpan) error {
+	if !w.manifestWritten {
+		return ErrNoDigestManifest
+	}
+
 	if err := binary.Write(w.sw, binary.BigEndian, uint16(len(key))); err != nil {
 		return err
 	}
