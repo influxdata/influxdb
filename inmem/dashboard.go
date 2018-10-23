@@ -83,17 +83,21 @@ func (s *Service) PutDashboard(ctx context.Context, o *platform.Dashboard) error
 
 // UpdateDashboard implements platform.DashboardService interface.
 func (s *Service) UpdateDashboard(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
-	o, err := s.FindDashboardByID(ctx, id)
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
+	d, err := s.FindDashboardByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if upd.Name != nil {
-		o.Name = *upd.Name
+	if err := upd.Apply(d); err != nil {
+		return nil, err
 	}
 
-	s.dashboardKV.Store(o.ID.String(), o)
-	return o, nil
+	s.dashboardKV.Store(d.ID.String(), d)
+	return d, nil
 }
 
 // DeleteDashboard implements platform.DashboardService interface.
@@ -105,6 +109,7 @@ func (s *Service) DeleteDashboard(ctx context.Context, id platform.ID) error {
 	return nil
 }
 
+// AddDashboardCell adds a new cell to the dashboard.
 func (s *Service) AddDashboardCell(ctx context.Context, id platform.ID, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
 	d, err := s.FindDashboardByID(ctx, id)
 	if err != nil {
@@ -119,6 +124,7 @@ func (s *Service) AddDashboardCell(ctx context.Context, id platform.ID, cell *pl
 	return s.PutDashboard(ctx, d)
 }
 
+// PutDashboardCell replaces a dashboad cell with the cell contents.
 func (s *Service) PutDashboardCell(ctx context.Context, id platform.ID, cell *platform.Cell) error {
 	d, err := s.FindDashboardByID(ctx, id)
 	if err != nil {
@@ -134,6 +140,7 @@ func (s *Service) PutDashboardCell(ctx context.Context, id platform.ID, cell *pl
 	return s.PutDashboard(ctx, d)
 }
 
+// RemoveDashboardCell removes a dashboard cell from the dashboard.
 func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID platform.ID, cellID platform.ID) error {
 	d, err := s.FindDashboardByID(ctx, dashboardID)
 	if err != nil {
@@ -160,6 +167,7 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID platform.
 
 }
 
+// UpdateDashboardCell will remove a cell from a dashboard.
 func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID platform.ID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
 	d, err := s.FindDashboardByID(ctx, dashboardID)
 	if err != nil {
@@ -190,6 +198,7 @@ func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID platform.
 	return cell, nil
 }
 
+// ReplaceDashboardCells replaces many dashboard cells.
 func (s *Service) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs []*platform.Cell) error {
 	d, err := s.FindDashboardByID(ctx, id)
 	if err != nil {

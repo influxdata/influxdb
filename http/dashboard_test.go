@@ -43,8 +43,9 @@ func TestService_handleGetDashboards(t *testing.T) {
 					FindDashboardsF: func(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
 						return []*platform.Dashboard{
 							{
-								ID:   platformtesting.MustIDBase16("da7aba5e5d81e550"),
-								Name: "hello",
+								ID:          platformtesting.MustIDBase16("da7aba5e5d81e550"),
+								Name:        "hello",
+								Description: "oh hello there!",
 								Cells: []*platform.Cell{
 									{
 										ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
@@ -77,6 +78,7 @@ func TestService_handleGetDashboards(t *testing.T) {
     {
       "id": "da7aba5e5d81e550",
       "name": "hello",
+      "description": "oh hello there!",
       "cells": [
         {
           "id": "da7aba5e5d81e550",
@@ -99,6 +101,7 @@ func TestService_handleGetDashboards(t *testing.T) {
     {
       "id": "0ca2204eca2204e0",
       "name": "example",
+      "description": "",
       "cells": [],
       "links": {
         "self": "/api/v2/dashboards/0ca2204eca2204e0",
@@ -227,6 +230,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 {
   "id": "020f755c3c082000",
   "name": "hello",
+  "description": "",
   "cells": [
     {
       "id": "da7aba5e5d81e550",
@@ -337,8 +341,9 @@ func TestService_handlePostDashboard(t *testing.T) {
 			},
 			args: args{
 				dashboard: &platform.Dashboard{
-					ID:   platformtesting.MustIDBase16("020f755c3c082000"),
-					Name: "hello",
+					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
+					Name:        "hello",
+					Description: "howdy there",
 					Cells: []*platform.Cell{
 						{
 							ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
@@ -358,6 +363,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 {
   "id": "020f755c3c082000",
   "name": "hello",
+  "description": "howdy there",
   "cells": [
     {
       "id": "da7aba5e5d81e550",
@@ -575,6 +581,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 {
   "id": "020f755c3c082000",
   "name": "example",
+  "description": "",
   "cells": [
     {
       "id": "da7aba5e5d81e550",

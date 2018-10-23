@@ -4394,6 +4394,10 @@ components:
           type: string
         name:
           type: string
+          description: user-facing name of the dashboard
+        description:
+          type: string
+          description: user-facing description of the dashboard
         cells:
             $ref: "#/components/schemas/Cells"
     Dashboards:
