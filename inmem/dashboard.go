@@ -42,7 +42,7 @@ func filterDashboardFn(filter platform.DashboardFilter) func(d *platform.Dashboa
 }
 
 // FindDashboards implements platform.DashboardService interface.
-func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
+func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
 	if len(filter.IDs) == 1 {
 		d, err := s.FindDashboardByID(ctx, *filter.IDs[0])
 		if err != nil {
@@ -66,19 +66,29 @@ func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardF
 		}
 		return true
 	})
+
+	platform.SortDashboards(opts.SortBy, ds)
+
 	return ds, len(ds), err
 }
 
 // CreateDashboard implements platform.DashboardService interface.
 func (s *Service) CreateDashboard(ctx context.Context, d *platform.Dashboard) error {
 	d.ID = s.IDGenerator.ID()
-	return s.PutDashboard(ctx, d)
+	d.Meta.CreatedAt = s.time()
+	return s.PutDashboardWithMeta(ctx, d)
 }
 
 // PutDashboard implements platform.DashboardService interface.
 func (s *Service) PutDashboard(ctx context.Context, o *platform.Dashboard) error {
 	s.dashboardKV.Store(o.ID.String(), o)
 	return nil
+}
+
+// PutDashboardWithMeta sets a dashboard while updating the meta field of a dashboard.
+func (s *Service) PutDashboardWithMeta(ctx context.Context, d *platform.Dashboard) error {
+	d.Meta.UpdatedAt = s.time()
+	return s.PutDashboard(ctx, d)
 }
 
 // UpdateDashboard implements platform.DashboardService interface.
@@ -96,7 +106,10 @@ func (s *Service) UpdateDashboard(ctx context.Context, id platform.ID, upd platf
 		return nil, err
 	}
 
-	s.dashboardKV.Store(d.ID.String(), d)
+	if err := s.PutDashboardWithMeta(ctx, d); err != nil {
+		return nil, err
+	}
+
 	return d, nil
 }
 
@@ -121,7 +134,7 @@ func (s *Service) AddDashboardCell(ctx context.Context, id platform.ID, cell *pl
 	}
 
 	d.Cells = append(d.Cells, cell)
-	return s.PutDashboard(ctx, d)
+	return s.PutDashboardWithMeta(ctx, d)
 }
 
 // PutDashboardCell replaces a dashboad cell with the cell contents.
@@ -163,7 +176,7 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID platform.
 	}
 
 	d.Cells = append(d.Cells[:idx], d.Cells[idx+1:]...)
-	return s.PutDashboard(ctx, d)
+	return s.PutDashboardWithMeta(ctx, d)
 
 }
 
@@ -191,7 +204,7 @@ func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID platform.
 
 	cell := d.Cells[idx]
 
-	if err := s.PutDashboard(ctx, d); err != nil {
+	if err := s.PutDashboardWithMeta(ctx, d); err != nil {
 		return nil, err
 	}
 
@@ -227,5 +240,5 @@ func (s *Service) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs 
 
 	d.Cells = cs
 
-	return s.PutDashboard(ctx, d)
+	return s.PutDashboardWithMeta(ctx, d)
 }

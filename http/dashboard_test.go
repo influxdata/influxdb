@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/inmem"
@@ -40,12 +41,16 @@ func TestService_handleGetDashboards(t *testing.T) {
 			name: "get all dashboards",
 			fields: fields{
 				&mock.DashboardService{
-					FindDashboardsF: func(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
+					FindDashboardsF: func(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
 						return []*platform.Dashboard{
 							{
 								ID:          platformtesting.MustIDBase16("da7aba5e5d81e550"),
 								Name:        "hello",
 								Description: "oh hello there!",
+								Meta: platform.DashboardMeta{
+									CreatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+									UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
+								},
 								Cells: []*platform.Cell{
 									{
 										ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
@@ -58,7 +63,11 @@ func TestService_handleGetDashboards(t *testing.T) {
 								},
 							},
 							{
-								ID:   platformtesting.MustIDBase16("0ca2204eca2204e0"),
+								ID: platformtesting.MustIDBase16("0ca2204eca2204e0"),
+								Meta: platform.DashboardMeta{
+									CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
+									UpdatedAt: time.Date(2012, time.November, 10, 24, 0, 0, 0, time.UTC),
+								},
 								Name: "example",
 							},
 						}, 2, nil
@@ -79,6 +88,10 @@ func TestService_handleGetDashboards(t *testing.T) {
       "id": "da7aba5e5d81e550",
       "name": "hello",
       "description": "oh hello there!",
+      "meta": {
+        "createdAt": "2009-11-10T23:00:00Z",
+        "updatedAt": "2009-11-11T00:00:00Z"
+      },
       "cells": [
         {
           "id": "da7aba5e5d81e550",
@@ -102,6 +115,10 @@ func TestService_handleGetDashboards(t *testing.T) {
       "id": "0ca2204eca2204e0",
       "name": "example",
       "description": "",
+      "meta": {
+        "createdAt": "2012-11-10T23:00:00Z",
+        "updatedAt": "2012-11-11T00:00:00Z"
+      },
       "cells": [],
       "links": {
         "self": "/api/v2/dashboards/0ca2204eca2204e0",
@@ -117,7 +134,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 			name: "get all dashboards when there are none",
 			fields: fields{
 				&mock.DashboardService{
-					FindDashboardsF: func(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
+					FindDashboardsF: func(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
 						return []*platform.Dashboard{}, 0, nil
 					},
 				},
@@ -201,7 +218,11 @@ func TestService_handleGetDashboard(t *testing.T) {
 					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*platform.Dashboard, error) {
 						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Dashboard{
-								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
+								ID: platformtesting.MustIDBase16("020f755c3c082000"),
+								Meta: platform.DashboardMeta{
+									CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
+									UpdatedAt: time.Date(2012, time.November, 10, 24, 0, 0, 0, time.UTC),
+								},
 								Name: "hello",
 								Cells: []*platform.Cell{
 									{
@@ -231,6 +252,10 @@ func TestService_handleGetDashboard(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "hello",
   "description": "",
+  "meta": {
+    "createdAt": "2012-11-10T23:00:00Z",
+    "updatedAt": "2012-11-11T00:00:00Z"
+  },
   "cells": [
     {
       "id": "da7aba5e5d81e550",
@@ -335,6 +360,10 @@ func TestService_handlePostDashboard(t *testing.T) {
 				&mock.DashboardService{
 					CreateDashboardF: func(ctx context.Context, c *platform.Dashboard) error {
 						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						c.Meta = platform.DashboardMeta{
+							CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
+							UpdatedAt: time.Date(2012, time.November, 10, 24, 0, 0, 0, time.UTC),
+						}
 						return nil
 					},
 				},
@@ -364,6 +393,10 @@ func TestService_handlePostDashboard(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "hello",
   "description": "howdy there",
+  "meta": {
+    "createdAt": "2012-11-10T23:00:00Z",
+    "updatedAt": "2012-11-11T00:00:00Z"
+  },
   "cells": [
     {
       "id": "da7aba5e5d81e550",
@@ -547,6 +580,10 @@ func TestService_handlePatchDashboard(t *testing.T) {
 							d := &platform.Dashboard{
 								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 								Name: "hello",
+								Meta: platform.DashboardMeta{
+									CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
+									UpdatedAt: time.Date(2012, time.November, 10, 25, 0, 0, 0, time.UTC),
+								},
 								Cells: []*platform.Cell{
 									{
 										ID:     platformtesting.MustIDBase16("da7aba5e5d81e550"),
@@ -582,6 +619,10 @@ func TestService_handlePatchDashboard(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "example",
   "description": "",
+  "meta": {
+    "createdAt": "2012-11-10T23:00:00Z",
+    "updatedAt": "2012-11-11T01:00:00Z"
+  },
   "cells": [
     {
       "id": "da7aba5e5d81e550",
@@ -1032,11 +1073,11 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
-
+	svc.WithTime(f.NowFn)
 	ctx := context.Background()
-	for _, o := range f.Dashboards {
-		if err := svc.PutDashboard(ctx, o); err != nil {
-			t.Fatalf("failed to populate organizations")
+	for _, d := range f.Dashboards {
+		if err := svc.PutDashboard(ctx, d); err != nil {
+			t.Fatalf("failed to populate dashboard")
 		}
 	}
 	for _, b := range f.Views {

@@ -107,7 +107,7 @@ func filterDashboardsFn(filter platform.DashboardFilter) func(d *platform.Dashbo
 }
 
 // FindDashboards retrives all dashboards that match an arbitrary dashboard filter.
-func (c *Client) FindDashboards(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
+func (c *Client) FindDashboards(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
 	if len(filter.IDs) == 1 {
 		d, err := c.FindDashboardByID(ctx, *filter.IDs[0])
 		if err != nil {
@@ -130,6 +130,8 @@ func (c *Client) FindDashboards(ctx context.Context, filter platform.DashboardFi
 	if err != nil {
 		return nil, 0, err
 	}
+
+	platform.SortDashboards(opts.SortBy, ds)
 
 	return ds, len(ds), nil
 }
@@ -165,7 +167,9 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 			}
 		}
 
-		return c.putDashboard(ctx, tx, d)
+		d.Meta.CreatedAt = c.time()
+
+		return c.putDashboardWithMeta(ctx, tx, d)
 	})
 }
 
@@ -231,7 +235,7 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 
 		d.Cells = cs
 
-		return c.putDashboard(ctx, tx, d)
+		return c.putDashboardWithMeta(ctx, tx, d)
 	})
 }
 
@@ -248,7 +252,8 @@ func (c *Client) AddDashboardCell(ctx context.Context, id platform.ID, cell *pla
 		}
 
 		d.Cells = append(d.Cells, cell)
-		return c.putDashboard(ctx, tx, d)
+
+		return c.putDashboardWithMeta(ctx, tx, d)
 	})
 }
 
@@ -276,7 +281,8 @@ func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID, cellID pl
 		}
 
 		d.Cells = append(d.Cells[:idx], d.Cells[idx+1:]...)
-		return c.putDashboard(ctx, tx, d)
+
+		return c.putDashboardWithMeta(ctx, tx, d)
 	})
 }
 
@@ -306,7 +312,7 @@ func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID pl
 
 		cell = d.Cells[idx]
 
-		return c.putDashboard(ctx, tx, d)
+		return c.putDashboardWithMeta(ctx, tx, d)
 	})
 
 	if err != nil {
@@ -336,6 +342,11 @@ func (c *Client) putDashboard(ctx context.Context, tx *bolt.Tx, d *platform.Dash
 		return err
 	}
 	return nil
+}
+
+func (c *Client) putDashboardWithMeta(ctx context.Context, tx *bolt.Tx, d *platform.Dashboard) error {
+	d.Meta.UpdatedAt = c.time()
+	return c.putDashboard(ctx, tx, d)
 }
 
 // forEachDashboard will iterate through all dashboards while fn returns true.
@@ -383,7 +394,7 @@ func (c *Client) updateDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 		return nil, err
 	}
 
-	if err := c.putDashboard(ctx, tx, d); err != nil {
+	if err := c.putDashboardWithMeta(ctx, tx, d); err != nil {
 		return nil, err
 	}
 
