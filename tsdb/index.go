@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/pkg/slices"
 	"go.uber.org/zap"
+	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
 // Available index types.
@@ -732,8 +733,7 @@ func (itr *seriesIDDifferenceIterator) Next() (_ SeriesIDElem, err error) {
 // seriesPointIterator adapts SeriesIterator to an influxql.Iterator.
 type seriesPointIterator struct {
 	once     sync.Once
-	indexSet IndexSet
-	// index    *tsi1.Index
+	index    *tsi1.Index
 	mitr     MeasurementIterator
 	keys     [][]byte
 	opt      query.IteratorOptions
@@ -742,7 +742,7 @@ type seriesPointIterator struct {
 }
 
 // newSeriesPointIterator returns a new instance of seriesPointIterator.
-func NewSeriesPointIterator(indexSet IndexSet, opt query.IteratorOptions) (_ query.Iterator, err error) {
+func NewSeriesPointIterator(index *tsi1.Index, opt query.IteratorOptions) (_ query.Iterator, err error) {
 	// Only equality operators are allowed.
 	influxql.WalkFunc(opt.Condition, func(n influxql.Node) {
 		switch n := n.(type) {
@@ -759,13 +759,13 @@ func NewSeriesPointIterator(indexSet IndexSet, opt query.IteratorOptions) (_ que
 		return nil, err
 	}
 
-	mitr, err := indexSet.MeasurementIterator()
+	mitr, err := index.MeasurementIterator()
 	if err != nil {
 		return nil, err
 	}
 
 	return &seriesPointIterator{
-		indexSet: indexSet,
+		index: index,
 		mitr:     mitr,
 		point: query.FloatPoint{
 			Aux: make([]interface{}, len(opt.Aux)),
@@ -825,7 +825,7 @@ func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
 }
 
 func (itr *seriesPointIterator) readSeriesKeys(name []byte) error {
-	sitr, err := itr.indexSet.MeasurementSeriesByExprIterator(name, itr.opt.Condition)
+	sitr, err := itr.index.MeasurementSeriesByExprIterator(name, itr.opt.Condition)
 	if err != nil {
 		return err
 	} else if sitr == nil {
@@ -852,7 +852,7 @@ func (itr *seriesPointIterator) readSeriesKeys(name []byte) error {
 			}
 		}
 
-		key := itr.indexSet.SeriesFile.SeriesKey(elem.SeriesID)
+		key := itr.index.SeriesFile().SeriesKey(elem.SeriesID)
 		if len(key) == 0 {
 			continue
 		}

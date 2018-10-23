@@ -256,8 +256,7 @@ func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest
 	if e.closing == nil {
 		return nil, ErrEngineClosed
 	}
-	// TODO(edd): remove IndexSet
-	return newSeriesCursor(req, tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}, cond)
+	return newSeriesCursor(req, e.index, cond)
 }
 
 func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error) {

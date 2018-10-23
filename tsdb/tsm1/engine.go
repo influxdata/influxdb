@@ -1514,8 +1514,7 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) deleteMeasurement(name []byte) error {
 	// Attempt to find the series keys.
-	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-	itr, err := indexSet.MeasurementSeriesByExprIterator(name, nil)
+	itr, err := e.index.MeasurementSeriesIDIterator(name)
 	if err != nil {
 		return err
 	} else if itr == nil {
@@ -2049,9 +2048,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 		return query.IteratorCost{}, nil
 	}
 
-	// Determine all of the tag sets for this query.
-	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-	tagSets, err := indexSet.TagSets(e.sfile, []byte(measurement), opt)
+	tagSets, err := e.index.TagSets([]byte(measurement), opt)
 	if err != nil {
 		return query.IteratorCost{}, err
 	}
