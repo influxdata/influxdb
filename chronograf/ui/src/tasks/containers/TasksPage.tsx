@@ -12,6 +12,7 @@ import {Page} from 'src/pageLayout'
 import {
   populateTasks,
   deleteTask,
+  selectTask,
   setSearchTerm as setSearchTermAction,
 } from 'src/tasks/actions/v2'
 
@@ -27,6 +28,7 @@ interface PassedInProps {
 interface ConnectedDispatchProps {
   populateTasks: typeof populateTasks
   deleteTask: typeof deleteTask
+  selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
 }
 
@@ -61,6 +63,7 @@ class TasksPage extends PureComponent<Props> {
               tasks={this.filteredTasks}
               onDelete={this.handleDelete}
               onCreate={this.handleCreateTask}
+              onSelect={this.props.selectTask}
             />
           </div>
         </Page.Contents>
@@ -100,6 +103,7 @@ const mstp = ({tasks: {tasks, searchTerm}}): ConnectedStateProps => {
 const mdtp: ConnectedDispatchProps = {
   populateTasks,
   deleteTask,
+  selectTask,
   setSearchTerm: setSearchTermAction,
 }
 

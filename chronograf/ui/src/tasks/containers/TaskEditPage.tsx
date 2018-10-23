@@ -5,24 +5,33 @@ import {connect} from 'react-redux'
 
 import TaskForm from 'src/tasks/components/TaskForm'
 import TaskHeader from 'src/tasks/components/TaskHeader'
+import {Task} from 'src/types/v2/tasks'
 
 import {Links} from 'src/types/v2/links'
 import {State as TasksState} from 'src/tasks/reducers/v2'
-import {setNewScript, saveNewScript, goToTasks} from 'src/tasks/actions/v2'
+import {
+  updateScript,
+  selectTaskByID,
+  setCurrentScript,
+  cancelUpdateTask,
+} from 'src/tasks/actions/v2'
 
 interface PassedInProps {
   router: InjectedRouter
+  params: {id: string}
 }
 
 interface ConnectStateProps {
-  newScript: string
+  currentTask: Task
+  currentScript: string
   tasksLink: string
 }
 
 interface ConnectDispatchProps {
-  setNewScript: typeof setNewScript
-  saveNewScript: typeof saveNewScript
-  goToTasks: typeof goToTasks
+  setCurrentScript: typeof setCurrentScript
+  updateScript: typeof updateScript
+  cancelUpdateTask: typeof cancelUpdateTask
+  selectTaskByID: typeof selectTaskByID
 }
 
 class TaskPage extends PureComponent<
@@ -32,31 +41,35 @@ class TaskPage extends PureComponent<
     super(props)
   }
 
+  public componentDidMount() {
+    this.props.selectTaskByID(this.props.params.id)
+  }
+
   public render(): JSX.Element {
-    const {newScript} = this.props
+    const {currentScript} = this.props
 
     return (
       <div className="page">
         <TaskHeader
-          title="Create Task"
+          title="Update Task"
           onCancel={this.handleCancel}
           onSave={this.handleSave}
         />
-        <TaskForm script={newScript} onChange={this.handleChange} />
+        <TaskForm script={currentScript} onChange={this.handleChange} />
       </div>
     )
   }
 
   private handleChange = (script: string) => {
-    this.props.setNewScript(script)
+    this.props.setCurrentScript(script)
   }
 
   private handleSave = () => {
-    this.props.saveNewScript()
+    this.props.updateScript()
   }
 
   private handleCancel = () => {
-    this.props.goToTasks()
+    this.props.cancelUpdateTask()
   }
 }
 
@@ -68,15 +81,17 @@ const mstp = ({
   links: Links
 }): ConnectStateProps => {
   return {
-    newScript: tasks.newScript,
+    currentScript: tasks.currentScript,
     tasksLink: links.tasks,
+    currentTask: tasks.currentTask,
   }
 }
 
 const mdtp: ConnectDispatchProps = {
-  setNewScript,
-  saveNewScript,
-  goToTasks,
+  setCurrentScript,
+  updateScript,
+  cancelUpdateTask,
+  selectTaskByID,
 }
 
 export default connect<ConnectStateProps, ConnectDispatchProps, {}>(mstp, mdtp)(

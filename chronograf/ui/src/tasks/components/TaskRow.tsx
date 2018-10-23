@@ -14,6 +14,7 @@ import {Task} from 'src/types/v2/tasks'
 interface Props {
   task: Task
   onDelete: (task: Task) => void
+  onSelect: (task: Task) => void
 }
 
 export default class TaskRow extends PureComponent<Props> {
@@ -23,7 +24,9 @@ export default class TaskRow extends PureComponent<Props> {
     return (
       <IndexList.Row>
         <IndexList.Cell>
-          <a href="#">{task.name}</a>
+          <a href="#" onClick={this.handleClick}>
+            {task.name}
+          </a>
         </IndexList.Cell>
         <IndexList.Cell>
           <a href="#">{task.organization.name}</a>
@@ -41,6 +44,12 @@ export default class TaskRow extends PureComponent<Props> {
         </IndexList.Cell>
       </IndexList.Row>
     )
+  }
+
+  private handleClick = e => {
+    e.preventDefault()
+
+    this.props.onSelect(this.props.task)
   }
 
   private handleDelete = () => {

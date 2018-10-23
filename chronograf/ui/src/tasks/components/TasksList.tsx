@@ -14,6 +14,7 @@ interface Props {
   searchTerm: string
   onDelete: (task: Task) => void
   onCreate: () => void
+  onSelect: (task: Task) => void
 }
 
 export default class TasksList extends PureComponent<Props> {
@@ -41,10 +42,15 @@ export default class TasksList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    const {tasks, onDelete} = this.props
+    const {tasks, onDelete, onSelect} = this.props
 
     return tasks.map(t => (
-      <TaskRow key={`task-id--${t.id}`} task={t} onDelete={onDelete} />
+      <TaskRow
+        key={`task-id--${t.id}`}
+        task={t}
+        onDelete={onDelete}
+        onSelect={onSelect}
+      />
     ))
   }
 }
