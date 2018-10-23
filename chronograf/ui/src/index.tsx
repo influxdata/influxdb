@@ -23,6 +23,7 @@ import TaskPage from 'src/tasks/containers/TaskPage'
 import TasksPage from 'src/tasks/containers/TasksPage'
 import OrganizationsIndex from 'src/organizations/containers/OrganizationsIndex'
 import OrganizationView from 'src/organizations/containers/OrganizationView'
+import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import {SourcePage, ManageSources} from 'src/sources'
@@ -96,6 +97,7 @@ class Root extends PureComponent {
                             component={OrganizationView}
                           />
                           <Route path="tasks/new" component={TaskPage} />
+                          <Route path="tasks/:id" component={TaskEditPage} />
                           <Route path="sources/new" component={SourcePage} />
                           <Route
                             path="data-explorer"

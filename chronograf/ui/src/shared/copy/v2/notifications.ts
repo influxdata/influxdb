@@ -17,6 +17,11 @@ export const taskNotCreated = (): Notification => ({
   message: 'Failed to create new task',
 })
 
+export const taskNotFound = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to find task',
+})
+
 export const tasksFetchFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to get tasks from server',
@@ -25,4 +30,9 @@ export const tasksFetchFailed = (): Notification => ({
 export const taskDeleteFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to delete task',
+})
+
+export const taskUpdateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to update task',
 })
