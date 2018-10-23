@@ -3388,11 +3388,9 @@ components:
           $ref: "#/components/schemas/Owners"
         name:
           type: string
-        retentionPeriods:
+        retentionRules:
           type: array
-          default:
-            type: expire
-            duration: "infinite"
+          description: rules to expire or retain data.  No rules means data never expires.
           items:
             type: object
             properties:
@@ -3401,12 +3399,13 @@ components:
                 default: expire
                 enum:
                   - expire
-              duration:
-                type: string
-                description: durations are an extension of the golang duration syntax
-                example: 1d
-                default: "infinite"
-      required: [organizationID, name, retentionPeriod]
+              everySeconds:
+                type: integer
+                description: duration in seconds for how long data will be kept in the database.
+                example: 86400
+                minimum: 1
+            required: [type, everySeconds]
+      required: [name, retentionRules]
     Buckets:
       type: object
       properties:
