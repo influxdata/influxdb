@@ -753,8 +753,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			}
 
 			// Check that the series still exists in the index
-			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
@@ -785,8 +784,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
-			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			if iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+			if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
 			if iter == nil {
@@ -878,8 +876,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 			}
 
 			// Check that the series still exists in the index
-			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
@@ -910,8 +907,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
-			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			if iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+			if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
 			if iter == nil {
@@ -984,8 +980,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 			}
 
 			// Check that the series still exists in the index
-			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			} else if iter == nil {
@@ -1000,7 +995,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 			}
 
 			// Check that disk series still exists
-			iter, err = indexSet.MeasurementSeriesIDIterator([]byte("disk"))
+			iter, err = e.index.MeasurementSeriesIDIterator([]byte("disk"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			} else if iter == nil {
@@ -1091,8 +1086,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 			}
 
 			// Check that the series still exists in the index
-			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
@@ -1123,8 +1117,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
-			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			if iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+			if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
 			if iter == nil {
