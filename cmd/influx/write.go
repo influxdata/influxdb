@@ -19,7 +19,7 @@ var writeCmd = &cobra.Command{
 	Long: `Write a single line of line protocol to influx db,
 		or add an entire file specified with an @ prefix`,
 	Args: cobra.ExactArgs(1),
-	Run:  fluxWriteF,
+	RunE: fluxWriteF,
 }
 
 var writeFlags struct {
@@ -55,19 +55,17 @@ func init() {
 	}
 }
 
-func fluxWriteF(cmd *cobra.Command, args []string) {
+func fluxWriteF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
 	if writeFlags.Org != "" && writeFlags.OrgID != "" {
-		fmt.Println("must specify exactly one of org or org-id")
 		cmd.Usage()
-		os.Exit(1)
+		return fmt.Errorf("Please specify one of org or org-id")
 	}
 
 	if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
-		fmt.Println("Please specify one of org or org-id")
 		cmd.Usage()
-		os.Exit(1)
+		return fmt.Errorf("Please specify one of bucket or bucket-id")
 	}
 
 	bs := &http.BucketService{
@@ -81,8 +79,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) {
 	if writeFlags.BucketID != "" {
 		filter.ID, err = platform.IDFromString(writeFlags.BucketID)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
 	}
 	if writeFlags.Bucket != "" {
@@ -92,8 +89,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) {
 	if writeFlags.OrgID != "" {
 		filter.OrganizationID, err = platform.IDFromString(writeFlags.OrgID)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
 	}
 	if writeFlags.Org != "" {
@@ -102,13 +98,11 @@ func fluxWriteF(cmd *cobra.Command, args []string) {
 
 	buckets, n, err := bs.FindBuckets(ctx, filter)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	if n == 0 {
-		fmt.Printf("bucket does not exist")
-		os.Exit(1)
+		return fmt.Errorf("bucket does not exist")
 	}
 
 	bucketID, orgID := buckets[0].ID, buckets[0].OrganizationID
@@ -119,8 +113,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) {
 	} else if len(args[0]) > 0 && args[0][0] == '@' {
 		f, err := os.Open(args[0][1:])
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return err
 		}
 		defer f.Close()
 		r = f
@@ -133,8 +126,5 @@ func fluxWriteF(cmd *cobra.Command, args []string) {
 		Token: flags.token,
 	}
 
-	if err = s.Write(ctx, orgID, bucketID, r); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	return s.Write(ctx, orgID, bucketID, r)
 }
