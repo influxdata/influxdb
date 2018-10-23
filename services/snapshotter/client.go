@@ -28,7 +28,7 @@ func NewClient(host string) *Client {
 	return &Client{host: host}
 }
 
-// takes a request object, writes a Base64 encoding to the tcp connection, and then sends the request to the snapshotter service.
+// UpdateMeta takes a request object, writes a Base64 encoding to the tcp connection, and then sends the request to the snapshotter service.
 // returns a mapping of the uploaded metadata shardID's to actual shardID's on the destination system.
 func (c *Client) UpdateMeta(req *Request, upStream io.Reader) (map[uint64]uint64, error) {
 	var err error
@@ -72,7 +72,7 @@ func (c *Client) UpdateMeta(req *Request, upStream io.Reader) (map[uint64]uint64
 	pairs := resp[16:]
 
 	if header != BackupMagicHeader {
-		return nil, fmt.Errorf("Response did not contain the proper header tag.")
+		return nil, fmt.Errorf("Response did not contain the proper header tag")
 	}
 
 	if uint64(len(pairs)) != npairs*16 {
@@ -101,6 +101,8 @@ func decodeUintPair(bits []byte) (uint64, uint64, error) {
 	return v1, v2, nil
 }
 
+// UploadShard takes in the old shardID, new shardID, destinationDatabase, restoreRetention and
+// writes a snapshot for the data to the location specified by destinationDatabase and restoreRetention disk
 func (c *Client) UploadShard(shardID, newShardID uint64, destinationDatabase, restoreRetention string, tr *tar.Reader) error {
 	conn, err := tcp.Dial("tcp", c.host, MuxHeader)
 	if err != nil {
