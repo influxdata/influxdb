@@ -101,8 +101,7 @@ func decodeUintPair(bits []byte) (uint64, uint64, error) {
 	return v1, v2, nil
 }
 
-// UploadShard takes in the old shardID, new shardID, destinationDatabase, restoreRetention and
-// writes a snapshot for the data to the location specified by destinationDatabase and restoreRetention disk
+// UploadShard writes a snapshot of the data to disk at the location specified by destinationDatabase and restoreRetention
 func (c *Client) UploadShard(shardID, newShardID uint64, destinationDatabase, restoreRetention string, tr *tar.Reader) error {
 	conn, err := tcp.Dial("tcp", c.host, MuxHeader)
 	if err != nil {
