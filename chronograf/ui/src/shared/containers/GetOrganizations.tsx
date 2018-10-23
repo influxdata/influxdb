@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 
 import {RemoteDataState} from 'src/types'
 
-import {getOrganizations} from 'src/shared/actions/v2/orgs'
+import {getOrganizations} from 'src/organizations/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface PassedInProps {
@@ -48,6 +48,7 @@ const mdtp = {
   getOrganizations,
 }
 
-export default connect<{}, ConnectDispatchProps, PassedInProps>(null, mdtp)(
-  GetOrganizations
-)
+export default connect<{}, ConnectDispatchProps, PassedInProps>(
+  null,
+  mdtp
+)(GetOrganizations)

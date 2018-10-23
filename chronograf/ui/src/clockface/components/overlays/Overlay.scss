@@ -61,12 +61,13 @@ $overlay-min-height: 150px;
 }
 
 .overlay--container {
-  margin: 0 auto;
+  margin: 40px auto;
+  @include gradient-v($g3-castle, $g2-kevlar);
+  border-radius: $radius;
 }
 
 .overlay--heading {
-  height: $overlay-title-height;
-  background: $g0-obsidian;
+  height: 80px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -95,7 +96,7 @@ $overlay-min-height: 150px;
     content: '';
     position: absolute;
     top: 50%;
-    left: 50%;
+    left: calc(50% + 10px);
     width: 22px;
     height: 2px;
     border-radius: 1px;
@@ -121,7 +122,5 @@ $overlay-min-height: 150px;
 .overlay--body {
   padding: $overlay-gutter;
   padding-top: 18px; 
-  border-radius: 0 0 $radius $radius;
   min-height: $overlay-min-height;
-  @include gradient-v($g2-kevlar, $g0-obsidian);
 }

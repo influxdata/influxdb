@@ -1,10 +1,7 @@
 import _ from 'lodash'
 import AJAX from 'src/utils/ajax'
 
-export interface Organization {
-  name: string
-  id: string
-}
+import {Organization} from 'src/types/v2'
 
 export const getOrganizations = async (
   url: string

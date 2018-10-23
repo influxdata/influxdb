@@ -60,7 +60,8 @@ class ManageSources extends PureComponent<Props> {
   }
 }
 
-const mstp = ({sources, services}) => ({
+const mstp = ({source, sources, services}) => ({
+  source,
   sources,
   services,
 })

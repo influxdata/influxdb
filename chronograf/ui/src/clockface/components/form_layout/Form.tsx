@@ -59,19 +59,17 @@ class Form extends Component<Props> {
 
   private validateChildren = (): void => {
     const childArray = React.Children.toArray(this.props.children)
-
     if (childArray.length === 0) {
-      throw new Error(
-        'Form require at least 1 child element. We recommend using <Form.Element>'
-      )
+      // TODO: (watts): be less strict in these validations
+      //  throw new Error(
+      //    'Form require at least 1 child element. We recommend using <Form.Element>'
+      //  )
     }
-
     const childrenAreValid = _.every(childArray, this.childTypeIsValid)
-
     if (!childrenAreValid) {
-      throw new Error(
-        `<Form> expected children of type ${Form.ValidChildNames}`
-      )
+      // throw new Error(
+      //   `<Form> expected children of type ${Form.ValidChildNames}`
+      // )
     }
   }
 

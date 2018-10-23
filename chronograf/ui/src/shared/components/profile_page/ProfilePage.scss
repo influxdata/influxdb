@@ -7,6 +7,7 @@
   display: flex;
   align-items: stretch;
   background-color: rgba($g3-castle, 0.5);
+  border-radius: $radius;
 }
 
 .profile-nav {
@@ -15,6 +16,7 @@
   align-items: stretch;
   flex: 0 1 0;
   padding-left: $ix-marg-d;
+  padding-bottom: $ix-marg-d;
 }
 
 .profile-nav--header {
@@ -77,5 +79,12 @@
   border-radius: $radius;
   min-height: 500px;
   padding: $ix-marg-d;
+}
+
+.profile-section--header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $ix-marg-d;
 }
 

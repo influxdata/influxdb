@@ -272,4 +272,7 @@ const mdtp = {
   retainRangesDashTimeV1: retainRangesDashTimeV1Action,
 }
 
-export default connect(mstp, mdtp)(DashboardsPage)
+export default connect(
+  mstp,
+  mdtp
+)(DashboardsPage)

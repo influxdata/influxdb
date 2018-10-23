@@ -34,8 +34,8 @@ class DashboardEmpty extends Component<Props & Actions> {
     return (
       <div className="dashboard-empty">
         <p>
-          This Dashboard doesn't have any <strong>Cells</strong>,<br />why not
-          add one?
+          This Dashboard doesn't have any <strong>Cells</strong>,<br />
+          why not add one?
         </p>
         <div className="dashboard-empty--menu">
           {GRAPH_TYPES.map(graphType => (
@@ -56,4 +56,7 @@ const mdtp = {
   addDashboardCell: addCellAsync,
 }
 
-export default connect(null, mdtp)(DashboardEmpty)
+export default connect(
+  null,
+  mdtp
+)(DashboardEmpty)

@@ -17,9 +17,17 @@ export enum InputType {
   Email = 'email',
 }
 
+export enum AutoComplete {
+  On = 'on',
+  Off = 'off',
+}
+
 interface Props {
+  min?: string
+  name?: string
   value?: string
   placeholder?: string
+  autocomplete?: AutoComplete
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void
   onBlur?: (e?: ChangeEvent<HTMLInputElement>) => void
   onFocus?: (e?: ChangeEvent<HTMLInputElement>) => void
@@ -41,9 +49,12 @@ interface Props {
 
 class Input extends Component<Props> {
   public static defaultProps: Partial<Props> = {
+    min: '',
+    name: '',
     value: '',
     placeholder: '',
     titleText: '',
+    autocomplete: AutoComplete.Off,
     disabledTitleText: 'This input is disabled',
     size: ComponentSize.Small,
     status: ComponentStatus.Default,
@@ -54,6 +65,8 @@ class Input extends Component<Props> {
 
   public render() {
     const {
+      min,
+      name,
       status,
       type,
       value,
@@ -67,12 +80,16 @@ class Input extends Component<Props> {
       onKeyUp,
       onKeyDown,
       maxLength,
+      autocomplete,
     } = this.props
 
     return (
       <div className={this.className} style={this.containerStyle}>
         <input
+          min={min}
           title={this.title}
+          autoComplete={autocomplete}
+          name={name}
           type={type}
           value={value}
           placeholder={placeholder}

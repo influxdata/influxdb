@@ -19,7 +19,7 @@ import hoverTimeReducer from 'src/dashboards/reducers/v2/hoverTime'
 import viewsReducer from 'src/dashboards/reducers/v2/views'
 import logsReducer from 'src/logs/reducers'
 import timeMachinesReducer from 'src/shared/reducers/v2/timeMachines'
-import orgsReducer from 'src/shared/reducers/v2/orgs'
+import orgsReducer from 'src/organizations/reducers/orgs'
 import sourceReducer from 'src/shared/reducers/v2/source'
 
 // Types

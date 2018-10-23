@@ -1,5 +1,5 @@
 export interface Bucket {
   name: string
-  retentionPeriod: string
+  retentionPeriod: number // milliseconds
   rp: string
 }

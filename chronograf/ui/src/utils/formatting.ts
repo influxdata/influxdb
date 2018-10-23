@@ -3,6 +3,67 @@ const KMB_LABELS: string[] = ['K', 'M', 'B', 'T', 'Q']
 const KMG2_BIG_LABELS: string[] = ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
 const KMG2_SMALL_LABELS: string[] = ['m', 'u', 'n', 'p', 'f', 'a', 'z', 'y']
 
+export interface Duration {
+  days: number
+  hours: number
+  minutes: number
+  seconds: number
+}
+
+export const durationToMs = ({
+  days,
+  hours,
+  minutes,
+  seconds,
+}: Duration): number => {
+  const msInSecond = 1000
+  const msInMinute = msInSecond * 60
+  const msInHour = msInMinute * 60
+  const msInDay = msInHour * 24
+
+  const msDays = msInDay * days
+  const msHours = msInHour * hours
+  const msMinutes = msInMinute * minutes
+  const msSeconds = msInSecond * seconds
+
+  const retentionPeriod = msDays + msHours + msMinutes + msSeconds
+  return retentionPeriod
+}
+
+export const msToDuration = (millisecond: number): Duration => {
+  let seconds = Math.floor(millisecond / 1000)
+  let minutes = Math.floor(seconds / 60)
+  seconds = seconds % 60
+  let hours = Math.floor(minutes / 60)
+  minutes = minutes % 60
+  const days = Math.floor(hours / 24)
+  hours = hours % 24
+
+  return {
+    days,
+    hours,
+    minutes,
+    seconds,
+  }
+}
+
+export const rpToString = (milliseconds: number): string => {
+  const duration = msToDuration(milliseconds)
+  const rpString = Object.entries(duration).reduce((acc, [k, v]) => {
+    if (!v) {
+      return acc
+    }
+
+    return `${acc} ${v} ${k}`
+  }, '')
+
+  if (!rpString) {
+    return 'forever'
+  }
+
+  return rpString
+}
+
 const pow = (base: number, exp: number): number => {
   if (exp < 0) {
     return 1.0 / Math.pow(base, -exp)

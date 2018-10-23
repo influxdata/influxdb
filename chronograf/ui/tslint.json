@@ -6,15 +6,18 @@
     "tslint-plugin-prettier",
     "tslint-config-prettier"
   ],
-  "jsRules": {
-    "object-literal-sort-keys": false,
-    "ordered-imports": false
-  },
   "rules": {
     "object-literal-sort-keys": false,
     "ordered-imports": false,
-    "interface-name": [true, "never-prefix"],
-    "no-console": [true, "log", "warn"],
+    "interface-name": [
+      true,
+      "never-prefix"
+    ],
+    "no-console": [
+      true,
+      "log",
+      "warn"
+    ],
     "no-empty": false,
     "no-empty-interface": false,
     "prefer-for-of": false,
@@ -29,5 +32,10 @@
     ]
   },
   "rulesDirectory": [],
-  "no-unused-variable": [true, {"ignore-pattern": "^_"}]
+  "no-unused-variable": [
+    true,
+    {
+      "ignore-pattern": "^_"
+    }
+  ]
 }

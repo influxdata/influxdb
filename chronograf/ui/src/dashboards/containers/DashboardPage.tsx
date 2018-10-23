@@ -465,6 +465,7 @@ const mdtp: DispatchProps = {
   onUpdateView: viewActions.updateView,
 }
 
-export default connect(mstp, mdtp)(
-  ManualRefresh<Props>(withRouter<Props>(DashboardPage))
-)
+export default connect(
+  mstp,
+  mdtp
+)(ManualRefresh<Props>(withRouter<Props>(DashboardPage)))

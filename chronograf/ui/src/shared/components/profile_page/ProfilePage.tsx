@@ -5,6 +5,7 @@ import {withRouter, InjectedRouter} from 'react-router'
 // Components
 import ProfilePageSection from 'src/shared/components/profile_page/ProfilePageSection'
 import ProfilePageTab from 'src/shared/components/profile_page/ProfilePageTab'
+import ProfilePageHeader from 'src/shared/components/profile_page/ProfilePageHeader'
 import Avatar from 'src/shared/components/avatar/Avatar'
 
 // Decorators
@@ -23,6 +24,7 @@ interface Props {
 @ErrorHandling
 class ProfilePage extends Component<Props> {
   public static Section = ProfilePageSection
+  public static Header = ProfilePageHeader
 
   constructor(props) {
     super(props)

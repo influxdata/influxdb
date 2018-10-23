@@ -104,3 +104,26 @@
   justify-content: center;
   color: $empty-state-text;
 }
+
+/*
+  Depth Styling
+  ------------------------------------------------------------------------------
+*/
+
+.profile-content {
+  .index-list--cell {
+    background-color: $g4-onyx;
+  }
+  .index-list--row:hover .index-list--cell {
+    background-color: $g5-pepper;
+  }
+  .index-list--row-cell.index-list--row-disabled .index-list--cell {
+    background-color: rgba($g4-onyx, 0.5);
+  }
+  .index-list--row:hover .index-list--row-cell.index-list--row-disabled .index-list--cell {
+    background-color: rgba($g4-onyx, 0.7);
+  }
+  .index-list--empty-cell {
+    background-color: rgba($g4-onyx, 0.5);
+  }
+}
