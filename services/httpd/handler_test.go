@@ -2,6 +2,8 @@ package httpd_test
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +24,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -800,6 +804,174 @@ func TestHandler_PromRead_UnsupportedCursors(t *testing.T) {
 	}
 }
 
+func TestHandler_Flux_DisabledByDefault(t *testing.T) {
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+
+	body := bytes.NewBufferString(`from(bucket:"db/rp") |> range(start:-1h) |> last()`)
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v2/query", body))
+	if got := w.Code; !cmp.Equal(got, http.StatusNotFound) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	exp := "Flux query service disabled. Verify flux-enabled=true in the [http] section of the InfluxDB config.\n"
+	if got := string(w.Body.Bytes()); !cmp.Equal(got, exp) {
+		t.Fatalf("unexpected body -got/+exp\n%s", cmp.Diff(got, exp))
+	}
+}
+
+func TestHandler_Flux_QueryJSON(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+	called := false
+	qry := "foo"
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		if exp := flux.CompilerType(lang.FluxCompilerType); compiler.CompilerType() != exp {
+			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
+		}
+		if c, ok := compiler.(lang.FluxCompiler); !ok {
+			t.Fatal("expected lang.FluxCompiler")
+		} else if exp := qry; c.Query != exp {
+			t.Fatalf("unexpected query -got/+exp\n%s", cmp.Diff(c.Query, exp))
+		}
+		called = true
+		return internal.NewFluxQueryMock(), nil
+	}
+
+	q := httpd.QueryRequest{Query: qry}
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(q); err != nil {
+		t.Fatalf("unexpected JSON encoding error: %q", err.Error())
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", &body)
+	req.Header.Add("content-type", "application/json")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	if !called {
+		t.Fatalf("expected QueryFn to be called")
+	}
+}
+
+func TestHandler_Flux_SpecJSON(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+	called := false
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		if exp := flux.CompilerType(lang.SpecCompilerType); compiler.CompilerType() != exp {
+			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
+		}
+		called = true
+		return internal.NewFluxQueryMock(), nil
+	}
+
+	q := httpd.QueryRequest{Spec: &flux.Spec{}}
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(q); err != nil {
+		t.Fatalf("unexpected JSON encoding error: %q", err.Error())
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", &body)
+	req.Header.Add("content-type", "application/json")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	if !called {
+		t.Fatalf("expected QueryFn to be called")
+	}
+}
+
+func TestHandler_Flux_QueryText(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+	called := false
+	qry := "bar"
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		if exp := flux.CompilerType(lang.FluxCompilerType); compiler.CompilerType() != exp {
+			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
+		}
+		if c, ok := compiler.(lang.FluxCompiler); !ok {
+			t.Fatal("expected lang.FluxCompiler")
+		} else if exp := qry; c.Query != exp {
+			t.Fatalf("unexpected query -got/+exp\n%s", cmp.Diff(c.Query, exp))
+		}
+		called = true
+		return internal.NewFluxQueryMock(), nil
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", bytes.NewBufferString(qry))
+	req.Header.Add("content-type", "application/vnd.flux")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	if !called {
+		t.Fatalf("expected QueryFn to be called")
+	}
+}
+
+func TestHandler_Flux(t *testing.T) {
+
+	queryBytes := func(qs string) io.Reader {
+		var b bytes.Buffer
+		q := &httpd.QueryRequest{Query: qs}
+		if err := json.NewEncoder(&b).Encode(q); err != nil {
+			t.Fatalf("unexpected JSON encoding error: %q", err.Error())
+		}
+		return &b
+	}
+
+	tests := []struct {
+		name    string
+		reqFn   func() *http.Request
+		expCode int
+		expBody string
+	}{
+		{
+			name: "no media type",
+			reqFn: func() *http.Request {
+				return MustNewRequest("POST", "/api/v2/query", nil)
+			},
+			expCode: http.StatusBadRequest,
+			expBody: "{\"error\":\"mime: no media type\"}\n",
+		},
+		{
+			name: "200 OK",
+			reqFn: func() *http.Request {
+				req := MustNewRequest("POST", "/api/v2/query", queryBytes("foo"))
+				req.Header.Add("content-type", "application/json")
+				return req
+			},
+			expCode: http.StatusOK,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, test.reqFn())
+			if got := w.Code; !cmp.Equal(got, test.expCode) {
+				t.Fatalf("unexpected status: %d", got)
+			}
+
+			if test.expBody != "" {
+				if got := string(w.Body.Bytes()); !cmp.Equal(got, test.expBody) {
+					t.Fatalf("unexpected body -got/+exp\n%s", cmp.Diff(got, test.expBody))
+				}
+			}
+		})
+	}
+}
+
 // Ensure the handler handles ping requests correctly.
 // TODO: This should be expanded to verify the MetaClient check in servePing is working correctly
 func TestHandler_Ping(t *testing.T) {
@@ -1169,14 +1341,48 @@ type Handler struct {
 	QueryAuthorizer   HandlerQueryAuthorizer
 	PointsWriter      HandlerPointsWriter
 	Store             *internal.StorageStoreMock
+	Controller        *internal.FluxControllerMock
+}
+
+type configOption func(c *httpd.Config)
+
+func WithAuthentication() configOption {
+	return func(c *httpd.Config) {
+		c.AuthEnabled = true
+		c.SharedSecret = "super secret key"
+	}
+}
+
+func WithFlux() configOption {
+	return func(c *httpd.Config) {
+		c.FluxEnabled = true
+	}
+}
+
+func WithNoLog() configOption {
+	return func(c *httpd.Config) {
+		c.LogEnabled = false
+	}
+}
+
+// NewHandlerConfig returns a new instance of httpd.Config with
+// authentication configured.
+func NewHandlerConfig(opts ...configOption) httpd.Config {
+	config := httpd.NewConfig()
+	for _, opt := range opts {
+		opt(&config)
+	}
+	return config
 }
 
 // NewHandler returns a new instance of Handler.
 func NewHandler(requireAuthentication bool) *Handler {
-	config := httpd.NewConfig()
-	config.AuthEnabled = requireAuthentication
-	config.SharedSecret = "super secret key"
-	return NewHandlerWithConfig(config)
+	var opts []configOption
+	if requireAuthentication {
+		opts = append(opts, WithAuthentication())
+	}
+
+	return NewHandlerWithConfig(NewHandlerConfig(opts...))
 }
 
 func NewHandlerWithConfig(config httpd.Config) *Handler {
@@ -1186,6 +1392,7 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 
 	h.MetaClient = &internal.MetaClientMock{}
 	h.Store = internal.NewStorageStoreMock()
+	h.Controller = internal.NewFluxControllerMock()
 
 	h.Handler.MetaClient = h.MetaClient
 	h.Handler.Store = h.Store
@@ -1195,6 +1402,7 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 	h.Handler.PointsWriter = &h.PointsWriter
 	h.Handler.Version = "0.0.0"
 	h.Handler.BuildType = "OSS"
+	h.Handler.Controller = h.Controller
 
 	if testing.Verbose() {
 		l := logger.New(os.Stdout)
