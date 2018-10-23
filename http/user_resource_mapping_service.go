@@ -171,7 +171,7 @@ func decodeDeleteMemberRequest(ctx context.Context, r *http.Request) (*deleteMem
 		return nil, err
 	}
 
-	id = params.ByName("mid")
+	id = params.ByName("userID")
 	if id == "" {
 		return nil, kerrors.InvalidDataf("url missing member id")
 	}
