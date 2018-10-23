@@ -1605,6 +1605,7 @@ func (r *FloatIntegralReducer) AggregateFloat(p *FloatPoint) {
 			r.window.end, r.window.start = r.opt.Window(p.Time)
 		}
 		r.sum = 0.0
+		r.prev = *p
 	}
 
 	// Normal operation: update the sum using the trapezium rule
