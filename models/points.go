@@ -294,7 +294,7 @@ func ParseKeyBytesWithTags(buf []byte, tags Tags) ([]byte, Tags) {
 	} else {
 		name = buf[:i]
 	}
-	return unescapeMeasurement(name), tags
+	return UnescapeMeasurement(name), tags
 }
 
 func ParseTags(buf []byte) Tags {
@@ -312,7 +312,7 @@ func ParseName(buf []byte) []byte {
 		name = buf[:i]
 	}
 
-	return unescapeMeasurement(name)
+	return UnescapeMeasurement(name)
 }
 
 // ParsePointsWithPrecision is similar to ParsePoints, but allows the
@@ -1231,7 +1231,7 @@ func EscapeMeasurement(in []byte) []byte {
 	return in
 }
 
-func unescapeMeasurement(in []byte) []byte {
+func UnescapeMeasurement(in []byte) []byte {
 	if bytes.IndexByte(in, '\\') == -1 {
 		return in
 	}
@@ -1613,7 +1613,7 @@ func MakeKey(name []byte, tags Tags) []byte {
 func AppendMakeKey(dst []byte, name []byte, tags Tags) []byte {
 	// unescape the name and then re-escape it to avoid double escaping.
 	// The key should always be stored in escaped form.
-	dst = append(dst, EscapeMeasurement(unescapeMeasurement(name))...)
+	dst = append(dst, EscapeMeasurement(UnescapeMeasurement(name))...)
 	dst = tags.AppendHashKey(dst)
 	return dst
 }
