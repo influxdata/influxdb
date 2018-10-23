@@ -14,7 +14,7 @@ import (
 )
 
 var writeCmd = &cobra.Command{
-	Use:   "write [line protocol or @/path/to/points.txt",
+	Use:   "write line protocol or @/path/to/points.txt",
 	Short: "Write points to influxdb",
 	Long: `Write a single line of line protocol to influx db,
 		or add an entire file specified with an @ prefix`,
@@ -50,13 +50,13 @@ func init() {
 
 	writeCmd.PersistentFlags().StringVarP(&writeFlags.Org, "bucket", "b", "", "name of destination bucket")
 	viper.BindEnv("BUCKET_NAME")
-	if h := viper.GetString("BUCKET_NAM"); h != "" {
+	if h := viper.GetString("BUCKET_NAME"); h != "" {
 		writeFlags.Bucket = h
 	}
 }
 
 func fluxWriteF(cmd *cobra.Command, args []string) {
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	if writeFlags.Org != "" && writeFlags.OrgID != "" {
 		fmt.Println("must specify exactly one of org or org-id")
@@ -65,7 +65,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) {
 	}
 
 	if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
-		fmt.Println("must specify exactly one of org or org-id")
+		fmt.Println("Please specify one of org or org-id")
 		cmd.Usage()
 		os.Exit(1)
 	}
@@ -100,9 +100,14 @@ func fluxWriteF(cmd *cobra.Command, args []string) {
 		filter.Organization = &writeFlags.Org
 	}
 
-	buckets, _, err := bs.FindBuckets(ctx, filter)
+	buckets, n, err := bs.FindBuckets(ctx, filter)
 	if err != nil {
 		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if n == 0 {
+		fmt.Printf("bucket does not exist")
 		os.Exit(1)
 	}
 
