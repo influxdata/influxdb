@@ -83,6 +83,10 @@ func (s *Service) PutDashboard(ctx context.Context, o *platform.Dashboard) error
 
 // UpdateDashboard implements platform.DashboardService interface.
 func (s *Service) UpdateDashboard(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
 	d, err := s.FindDashboardByID(ctx, id)
 	if err != nil {
 		return nil, err

@@ -356,6 +356,10 @@ func (c *Client) forEachDashboard(ctx context.Context, tx *bolt.Tx, fn func(*pla
 
 // UpdateDashboard updates a dashboard according the parameters set on upd.
 func (c *Client) UpdateDashboard(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
 	var d *platform.Dashboard
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		dash, err := c.updateDashboard(ctx, tx, id, upd)
