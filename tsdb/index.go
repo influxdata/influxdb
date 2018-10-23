@@ -1189,6 +1189,7 @@ const (
 	TSI1Format IndexFormat = 2
 )
 
+// TODO(@zlc): remove
 // NewIndexFunc creates a new index.
 type NewIndexFunc func(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile *SeriesFile, options EngineOptions) Index
 
@@ -1209,6 +1210,7 @@ func RegisteredIndexes() []string {
 	return []string{TSI1IndexName}
 }
 
+// TODO(@zlc): remove
 // NewIndex returns an instance of an index based on its format.
 // If the path does not exist then the DefaultFormat is used.
 func NewIndex(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile *SeriesFile, options EngineOptions) (Index, error) {

@@ -1497,7 +1497,7 @@ type Engine struct {
 	*tsm1.Engine
 	root      string
 	indexPath string
-	index     tsdb.Index
+	index     *tsi1.Index
 	sfile     *tsdb.SeriesFile
 }
 
@@ -1669,7 +1669,7 @@ func (e *Engine) MustWriteSnapshot() {
 	}
 }
 
-func MustOpenIndex(id uint64, database, path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, options tsdb.EngineOptions) tsdb.Index {
+func MustOpenIndex(id uint64, database, path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, options tsdb.EngineOptions) *tsi1.Index {
 	idx := tsi1.NewIndex(sfile, database, tsi1.NewConfig(), tsi1.WithPath(path))
 	if err := idx.Open(); err != nil {
 		panic(err)

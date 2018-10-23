@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/pkg/limiter"
 	"go.uber.org/zap"
+	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
 var (
@@ -80,7 +81,7 @@ type SeriesIDSets interface {
 }
 
 // NewEngineFunc creates a new engine.
-type NewEngineFunc func(id uint64, i Index, path string, walPath string, sfile *SeriesFile, options EngineOptions) Engine
+type NewEngineFunc func(id uint64, i *tsi1.Index, path string, walPath string, sfile *SeriesFile, options EngineOptions) Engine
 
 // newEngineFuncs is a lookup of engine constructors by name.
 var newEngineFuncs = make(map[string]NewEngineFunc)
@@ -105,7 +106,7 @@ func RegisteredEngines() []string {
 
 // NewEngine returns an instance of an engine based on its format.
 // If the path does not exist then the DefaultFormat is used.
-func NewEngine(id uint64, i Index, path string, sfile *SeriesFile, options EngineOptions) (Engine, error) {
+func NewEngine(id uint64, i *tsi1.Index, path string, sfile *SeriesFile, options EngineOptions) (Engine, error) {
 	// Create a new engine
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		// TODO(jeff): remove walPath argument

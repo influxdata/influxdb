@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/platform/models"
 	"go.uber.org/zap"
+	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
 // SeriesFileDirectory is the name of the directory containing series files for
@@ -32,7 +33,7 @@ type Shard struct {
 
 	mu      sync.RWMutex
 	_engine Engine
-	index   Index
+	index   *tsi1.Index
 	enabled bool
 
 	baseLogger *zap.Logger
@@ -105,15 +106,10 @@ func (s *Shard) Open() error {
 			return nil
 		}
 
-		seriesIDSet := NewSeriesIDSet()
-
 		// Initialize underlying index.
 		ipath := filepath.Join(s.path, "index")
-		idx, err := NewIndex(s.id, "remove-me", ipath, seriesIDSet, s.sfile, s.options)
-		if err != nil {
-			return err
-		}
 
+		idx := tsi1.NewIndex(s.sfile, "remove me", tsi1.NewConfig(), tsi1.WithPath(filepath.Join(ipath, tsi1.DefaultIndexDirectoryName)))
 		idx.WithLogger(s.baseLogger)
 
 		// Open index.
@@ -204,7 +200,7 @@ func (s *Shard) engineNoLock() (Engine, error) {
 
 // Index returns a reference to the underlying index. It returns an error if
 // the index is nil.
-func (s *Shard) Index() (Index, error) {
+func (s *Shard) Index() (*tsi1.Index, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {

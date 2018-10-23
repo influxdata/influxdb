@@ -109,7 +109,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 	// Initialise Engine
 	// TODO(edd): should just be able to use the config values for data/wal.
-	engine := tsm1.NewEngine(0, tsdb.Index(e.index), filepath.Join(path, "data"), filepath.Join(path, "wal"), e.sfile, c.EngineOptions)
+	engine := tsm1.NewEngine(0, e.index, filepath.Join(path, "data"), filepath.Join(path, "wal"), e.sfile, c.EngineOptions)
 
 	// TODO(edd): Once the tsdb.Engine abstraction is gone, this won't be needed.
 	e.engine = engine.(*tsm1.Engine)

@@ -121,7 +121,7 @@ const (
 type Engine struct {
 	mu sync.RWMutex
 
-	index tsdb.Index
+	index *tsi1.Index
 
 	// The following group of fields is used to track the state of level compactions within the
 	// Engine. The WaitGroup is used to monitor the compaction goroutines, the 'done' channel is
@@ -177,7 +177,7 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
+func NewEngine(id uint64, idx *tsi1.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
 	fs := NewFileStore(path)
 	fs.openLimiter = opt.OpenLimiter
 	if opt.FileStoreObserver != nil {
