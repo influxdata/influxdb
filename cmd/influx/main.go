@@ -21,11 +21,12 @@ var influxCmd = &cobra.Command{
 func init() {
 	influxCmd.AddCommand(authorizationCmd)
 	influxCmd.AddCommand(bucketCmd)
-	influxCmd.AddCommand(replCmd)
-	influxCmd.AddCommand(queryCmd)
 	influxCmd.AddCommand(organizationCmd)
-	influxCmd.AddCommand(userCmd)
+	influxCmd.AddCommand(queryCmd)
+	influxCmd.AddCommand(replCmd)
 	influxCmd.AddCommand(setupCmd)
+	influxCmd.AddCommand(taskCmd)
+	influxCmd.AddCommand(userCmd)
 }
 
 // Flags contains all the CLI flag values for influx.

@@ -1,14 +1,19 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/url"
+	"path"
 	"strconv"
 
 	"github.com/influxdata/platform"
 	pcontext "github.com/influxdata/platform/context"
 	kerrors "github.com/influxdata/platform/kit/errors"
+	"github.com/influxdata/platform/task/backend"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -130,10 +135,24 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request) (*getTasksReque
 func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	auth, err := pcontext.GetAuthorizer(ctx)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
 	req, err := decodePostTaskRequest(ctx, r)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
+	}
+
+	if !req.Task.Owner.ID.Valid() {
+		if err != nil {
+			EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
+			return
+		}
+		req.Task.Owner.ID = auth.Identifier()
 	}
 
 	if err := h.TaskService.CreateTask(ctx, req.Task); err != nil {
@@ -298,19 +317,6 @@ func decodeDeleteTaskRequest(ctx context.Context, r *http.Request) (*deleteTaskR
 func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	tok, err := GetToken(r)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	auth, err := h.AuthorizationService.FindAuthorizationByToken(ctx, tok)
-	if err != nil {
-		EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
-		return
-	}
-	ctx = pcontext.SetAuthorizer(ctx, auth)
-
 	req, err := decodeGetLogsRequest(ctx, r, h.OrganizationService)
 	if err != nil {
 		EncodeError(ctx, err, w)
@@ -372,19 +378,6 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	tok, err := GetToken(r)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	auth, err := h.AuthorizationService.FindAuthorizationByToken(ctx, tok)
-	if err != nil {
-		EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
-		return
-	}
-	ctx = pcontext.SetAuthorizer(ctx, auth)
-
 	req, err := decodeGetRunsRequest(ctx, r, h.OrganizationService)
 	if err != nil {
 		EncodeError(ctx, err, w)
@@ -430,6 +423,12 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 		}
 
 		req.filter.Org = &o.ID
+	} else if orgID := qp.Get("orgID"); orgID != "" {
+		oid, err := platform.IDFromString(orgID)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.Org = oid
 	}
 
 	if id := qp.Get("after"); id != "" {
@@ -468,19 +467,6 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 
 func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	tok, err := GetToken(r)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	auth, err := h.AuthorizationService.FindAuthorizationByToken(ctx, tok)
-	if err != nil {
-		EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
-		return
-	}
-	ctx = pcontext.SetAuthorizer(ctx, auth)
 
 	req, err := decodeGetRunRequest(ctx, r, h.OrganizationService)
 	if err != nil {
@@ -574,4 +560,261 @@ func decodeRetryRunRequest(ctx context.Context, r *http.Request) (*retryRunReque
 	return &retryRunRequest{
 		RunID: i,
 	}, nil
+}
+
+type TaskService struct {
+	Addr               string
+	Token              string
+	InsecureSkipVerify bool
+}
+
+func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
+	u, err := newURL(t.Addr, taskIDPath(id))
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		if err.Error() == backend.ErrTaskNotFound.Error() {
+			// ErrTaskNotFound is expected as part of the FindTaskByID contract,
+			// so return that actual error instead of a different error that looks like it.
+			return nil, backend.ErrTaskNotFound
+		}
+		return nil, err
+	}
+
+	var task platform.Task
+	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return &task, nil
+}
+
+func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
+	u, err := newURL(t.Addr, tasksPath)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	val := url.Values{}
+	if filter.After != nil {
+		val.Add("after", filter.After.String())
+	}
+	if filter.Organization != nil {
+		val.Add("organization", filter.Organization.String())
+	}
+	if filter.User != nil {
+		val.Add("user", filter.User.String())
+	}
+
+	u.RawQuery = val.Encode()
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return nil, 0, err
+	}
+
+	var tasks []*platform.Task
+	if err := json.NewDecoder(resp.Body).Decode(&tasks); err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	return tasks, len(tasks), nil
+}
+
+func (t TaskService) CreateTask(ctx context.Context, tsk *platform.Task) error {
+	u, err := newURL(t.Addr, tasksPath)
+	if err != nil {
+		return err
+	}
+
+	taskBytes, err := json.Marshal(tsk)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(taskBytes))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return err
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(tsk); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+	u, err := newURL(t.Addr, taskIDPath(id))
+	if err != nil {
+		return nil, err
+	}
+
+	taskBytes, err := json.Marshal(upd)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(taskBytes))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if err := CheckError(resp); err != nil {
+		return nil, err
+	}
+
+	var task *platform.Task
+	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
+		return nil, err
+	}
+
+	return task, nil
+}
+
+func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
+	u, err := newURL(t.Addr, taskIDPath(id))
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if err := CheckError(resp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
+	return nil, -1, errors.New("not yet implemented")
+}
+
+func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*platform.Run, int, error) {
+	if filter.Task == nil {
+		return nil, 0, errors.New("task ID required")
+	}
+
+	u, err := newURL(t.Addr, taskIDRunsPath(*filter.Task))
+	if err != nil {
+		return nil, 0, err
+	}
+
+	val := url.Values{}
+	if filter.Org != nil {
+		val.Set("orgID", filter.Org.String())
+	}
+	if filter.After != nil {
+		val.Set("after", filter.After.String())
+	}
+	u.RawQuery = val.Encode()
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	if err := CheckError(resp); err != nil {
+		return nil, 0, err
+	}
+
+	var runs []*platform.Run
+	if err := json.NewDecoder(resp.Body).Decode(&runs); err != nil {
+		return nil, 0, err
+	}
+
+	return runs, len(runs), nil
+}
+
+func (t TaskService) FindRunByID(ctx context.Context, orgID, runID platform.ID) (*platform.Run, error) {
+	return nil, errors.New("not yet implemented")
+}
+
+func (t TaskService) RetryRun(ctx context.Context, id platform.ID) (*platform.Run, error) {
+	return nil, errors.New("not yet implemented")
+}
+
+func taskIDPath(id platform.ID) string {
+	return path.Join(tasksPath, id.String())
+}
+
+func taskIDRunsPath(id platform.ID) string {
+	return path.Join(tasksPath, id.String(), "runs")
 }

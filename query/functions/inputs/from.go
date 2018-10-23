@@ -13,7 +13,6 @@ import (
 )
 
 func init() {
-
 	execute.RegisterSource(inputs.FromKind, createFromSource)
 }
 

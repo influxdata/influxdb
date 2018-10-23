@@ -118,6 +118,13 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 		Cron:   opts.Cron,
 	}
 
+	t, err := p.s.FindTaskByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	task.Owner.ID = t.User
+	task.Organization = t.Org
+
 	return task, nil
 }
 

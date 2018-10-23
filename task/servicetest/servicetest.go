@@ -85,6 +85,13 @@ type System struct {
 	// Most callers should leave this nil, in which case the tests will call task.PlatformAdapter.
 	TaskServiceFunc func() platform.TaskService
 
+	// Override for accessing credentials for an individual test.
+	// Callers can leave this nil and the test will create its own random IDs for each test.
+	// However, if the system needs to verify a token, organization, or user,
+	// the caller should set this value and return valid IDs and a token.
+	// It is safe if this returns the same values every time it is called.
+	CredsFunc func() (orgID, userID platform.ID, token string, err error)
+
 	ts platform.TaskService
 }
 
@@ -212,8 +219,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 }
 
 func testTaskRuns(t *testing.T, sys *System) {
-	orgID := idGen.ID()
-	userID := idGen.ID()
+	orgID, userID, _ := creds(t, sys)
 
 	task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
 	if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
@@ -285,8 +291,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 }
 
 func testTaskConcurrency(t *testing.T, sys *System) {
-	orgID := idGen.ID()
-	userID := idGen.ID()
+	orgID, userID, _ := creds(t, sys)
 
 	const numTasks = 300
 	taskCh := make(chan *platform.Task, numTasks)
@@ -424,6 +429,20 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 	close(taskCh)
 	createWg.Wait()
 	extraWg.Wait()
+}
+
+func creds(t *testing.T, s *System) (orgID, userID platform.ID, token string) {
+	t.Helper()
+
+	if s.CredsFunc == nil {
+		return idGen.ID(), idGen.ID(), idGen.ID().String()
+	}
+
+	o, u, tok, err := s.CredsFunc()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return o, u, tok
 }
 
 const scriptFmt = `option task = {

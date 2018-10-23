@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query"
+	_ "github.com/influxdata/platform/query/builtin"
 )
 
 func TestQueryRequest_WithDefaults(t *testing.T) {
@@ -177,7 +178,6 @@ func TestQueryRequest_Validate(t *testing.T) {
 }
 
 func Test_toSpec(t *testing.T) {
-	flux.FinalizeBuiltIns()
 	type args struct {
 		p   *ast.Program
 		now func() time.Time

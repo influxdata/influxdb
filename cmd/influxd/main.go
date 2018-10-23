@@ -9,12 +9,9 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 
-	"github.com/influxdata/flux/control"
-	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/chronograf/server"
@@ -25,7 +22,6 @@ import (
 	"github.com/influxdata/platform/nats"
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
-	pcontrol "github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/source"
 	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/storage/readservice"
@@ -239,21 +235,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		storageQueryService = service
 	}
 
-	var queryService query.QueryService
-	{
-		// TODO(lh): this is temporary until query endpoint is added here.
-		config := control.Config{
-			ExecutorDependencies: make(execute.Dependencies),
-			ConcurrencyQuota:     runtime.NumCPU() * 2,
-			MemoryBytesQuota:     0,
-			Verbose:              false,
-		}
-
-		queryService = query.QueryServiceBridge{
-			AsyncQueryService: pcontrol.New(config),
-		}
-	}
-
+	var queryService query.QueryService = storageQueryService.(query.ProxyQueryServiceBridge).QueryService
 	var taskSvc platform.TaskService
 	{
 		boltStore, err := taskbolt.New(c.DB(), "tasks")
@@ -261,11 +243,11 @@ func platformF(cmd *cobra.Command, args []string) {
 			logger.Fatal("failed opening task bolt", zap.Error(err))
 		}
 
-		executor := taskexecutor.NewQueryServiceExecutor(logger, queryService, boltStore)
+		executor := taskexecutor.NewQueryServiceExecutor(logger.With(zap.String("svc", "task-executor")), queryService, boltStore)
 
 		// TODO(lh): Replace NopLogWriter with real log writer
-		scheduler := taskbackend.NewScheduler(boltStore, executor, taskbackend.NopLogWriter{}, time.Now().UTC().Unix())
-		scheduler.Start(context.Background())
+		scheduler := taskbackend.NewScheduler(boltStore, executor, taskbackend.NopLogWriter{}, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, time.Second), taskbackend.WithLogger(logger))
+		scheduler.Start(ctx)
 
 		// TODO(lh): Replace NopLogReader with real log reader
 		taskSvc = task.PlatformAdapter(coordinator.New(scheduler, boltStore), taskbackend.NopLogReader{})
