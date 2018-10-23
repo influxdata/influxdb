@@ -362,29 +362,29 @@ func (itr *filterUndeletedSeriesIDIterator) Next() (SeriesIDElem, error) {
 }
 
 // seriesIDExprIterator is an iterator that attaches an associated expression.
-type seriesIDExprIterator struct {
+type SeriesIDExprIterator struct {
 	itr  SeriesIDIterator
 	expr influxql.Expr
 }
 
 // newSeriesIDExprIterator returns a new instance of seriesIDExprIterator.
-func newSeriesIDExprIterator(itr SeriesIDIterator, expr influxql.Expr) SeriesIDIterator {
+func NewSeriesIDExprIterator(itr SeriesIDIterator, expr influxql.Expr) SeriesIDIterator {
 	if itr == nil {
 		return nil
 	}
 
-	return &seriesIDExprIterator{
+	return &SeriesIDExprIterator{
 		itr:  itr,
 		expr: expr,
 	}
 }
 
-func (itr *seriesIDExprIterator) Close() error {
+func (itr *SeriesIDExprIterator) Close() error {
 	return itr.itr.Close()
 }
 
 // Next returns the next element in the iterator.
-func (itr *seriesIDExprIterator) Next() (SeriesIDElem, error) {
+func (itr *SeriesIDExprIterator) Next() (SeriesIDElem, error) {
 	elem, err := itr.itr.Next()
 	if err != nil {
 		return SeriesIDElem{}, err
@@ -733,6 +733,7 @@ func (itr *seriesIDDifferenceIterator) Next() (_ SeriesIDElem, err error) {
 type seriesPointIterator struct {
 	once     sync.Once
 	indexSet IndexSet
+	// index    *tsi1.Index
 	mitr     MeasurementIterator
 	keys     [][]byte
 	opt      query.IteratorOptions
@@ -2452,8 +2453,8 @@ func assert(condition bool, msg string, v ...interface{}) {
 	}
 }
 
-type byTagKey []*query.TagSet
+type ByTagKey []*query.TagSet
 
-func (t byTagKey) Len() int           { return len(t) }
-func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
-func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+func (t ByTagKey) Len() int           { return len(t) }
+func (t ByTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
+func (t ByTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
