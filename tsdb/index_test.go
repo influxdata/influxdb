@@ -523,7 +523,7 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 				}
 			} else {
 				ts = func() ([]*query.TagSet, error) {
-					return indexSet.TagSets(idx.sfile, name, opt)
+					return indexSet.TagSets(name, opt)
 				}
 			}
 

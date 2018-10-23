@@ -2372,7 +2372,7 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 		tagSets, err = ts.TagSets([]byte(measurement), opt)
 	} else {
 		indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-		tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
+		tagSets, err = indexSet.TagSets([]byte(measurement), opt)
 	}
 
 	if err != nil {
@@ -2452,7 +2452,7 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 		tagSets, err = ts.TagSets([]byte(measurement), opt)
 	} else {
 		indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-		tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
+		tagSets, err = indexSet.TagSets([]byte(measurement), opt)
 	}
 
 	if err != nil {
@@ -2916,7 +2916,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 
 	// Determine all of the tag sets for this query.
 	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-	tagSets, err := indexSet.TagSets(e.sfile, []byte(measurement), opt)
+	tagSets, err := indexSet.TagSets([]byte(measurement), opt)
 	if err != nil {
 		return query.IteratorCost{}, err
 	}

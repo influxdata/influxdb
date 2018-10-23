@@ -2531,7 +2531,7 @@ func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []b
 
 // TagSets returns an ordered list of tag sets for a measurement by dimension
 // and filtered by an optional conditional expression.
-func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
+func (is IndexSet) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 
@@ -2582,7 +2582,7 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 		}
 
 		// Skip if the series has been tombstoned.
-		key := sfile.SeriesKey(se.SeriesID)
+		key := is.SeriesFile.SeriesKey(se.SeriesID)
 		if len(key) == 0 {
 			continue
 		}
