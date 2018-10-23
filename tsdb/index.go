@@ -4,67 +4,17 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"regexp"
 	"sort"
 	"sync"
 
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/estimator"
-	"go.uber.org/zap"
 	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
 // Available index types.
 const TSI1IndexName = "tsi1"
-
-type Index interface {
-	Open() error            // used by this package
-	Close() error           // used by this package
-	WithLogger(*zap.Logger) // used by this package
-
-	Database() string                                            // used by this package
-	MeasurementExists(name []byte) (bool, error)                 // used by engine
-	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) // used by engine
-	ForEachMeasurementName(fn func(name []byte) error) error     // used by engine
-
-	InitializeSeries(*SeriesCollection) error                                               // used by engine
-	CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ models.FieldType) error // used by engine
-	CreateSeriesListIfNotExists(*SeriesCollection) error                                    // used by engine
-	DropSeries(seriesID SeriesID, key []byte, cascade bool) error                           // used by engine
-	DropMeasurementIfSeriesNotExist(name []byte) error                                      // used by engine
-
-	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) // used by engine
-	SeriesN() int64                                                    // used by engine
-	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)       // used by engine
-	SeriesIDSet() *SeriesIDSet                                         // used by idpe
-
-	HasTagKey(name, key []byte) (bool, error)          // used by this package
-	HasTagValue(name, key, value []byte) (bool, error) // used by this package
-
-	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) // used by this package
-
-	TagKeyCardinality(name, key []byte) int // used by engine
-
-	// InfluxQL system iterators
-	MeasurementIterator() (MeasurementIterator, error)                          // used by this package
-	TagKeyIterator(name []byte) (TagKeyIterator, error)                         // used by this package
-	TagValueIterator(name, key []byte) (TagValueIterator, error)                // used by this package
-	MeasurementSeriesIDIterator(name []byte) (SeriesIDIterator, error)          // used by this package
-	TagKeySeriesIDIterator(name, key []byte) (SeriesIDIterator, error)          // used by this package
-	TagValueSeriesIDIterator(name, key, value []byte) (SeriesIDIterator, error) // used by this package
-
-	// To be removed w/ tsi1.
-	SetFieldName(measurement []byte, name string) // used by this package
-
-	Type() string // used by this package
-	// Returns a unique reference ID to the index instance.
-	// For inmem, returns a reference to the backing Index, not ShardIndex.
-	UniqueReferenceID() uintptr // used by this package
-
-	Rebuild() // used by engine
-}
 
 // SeriesElem represents a generic series element.
 type SeriesElem interface {
@@ -1178,50 +1128,10 @@ func (itr *tagValueMergeIterator) Next() (_ []byte, err error) {
 	return value, nil
 }
 
-// IndexFormat represents the format for an index.
-type IndexFormat int
-
-const (
-	// InMemFormat is the format used by the original in-memory shared index.
-	InMemFormat IndexFormat = 1
-
-	// TSI1Format is the format used by the tsi1 index.
-	TSI1Format IndexFormat = 2
-)
-
-// TODO(@zlc): remove
-// NewIndexFunc creates a new index.
-type NewIndexFunc func(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile *SeriesFile, options EngineOptions) Index
-
-// newIndexFuncs is a lookup of index constructors by name.
-var newIndexFuncs = make(map[string]NewIndexFunc)
-
-// RegisterIndex registers a storage index initializer by name.
-func RegisterIndex(name string, fn NewIndexFunc) {
-	if _, ok := newIndexFuncs[name]; ok {
-		panic("index already registered: " + name)
-	}
-	newIndexFuncs[name] = fn
-}
-
 // RegisteredIndexes returns the slice of currently registered indexes.
 func RegisteredIndexes() []string {
 	// TODO(edd): This can be removed, cleaning up test code in the process.
 	return []string{TSI1IndexName}
-}
-
-// TODO(@zlc): remove
-// NewIndex returns an instance of an index based on its format.
-// If the path does not exist then the DefaultFormat is used.
-func NewIndex(id uint64, database, path string, seriesIDSet *SeriesIDSet, sfile *SeriesFile, options EngineOptions) (Index, error) {
-	// Lookup index by format.
-	fn := newIndexFuncs[TSI1IndexName]
-	if fn == nil {
-		return nil, fmt.Errorf("invalid index format: %q", TSI1IndexName)
-	}
-
-	// TODO(jeff): remove database argument
-	return fn(id, "remove-me", path, seriesIDSet, sfile, options), nil
 }
 
 // assert will panic with a given formatted message if the given condition is false.
