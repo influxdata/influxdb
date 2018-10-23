@@ -45,9 +45,10 @@ type DashboardService interface {
 
 // Dashboard represents all visual and query data for a dashboard
 type Dashboard struct {
-	ID    ID      `json:"id,omitempty"`
-	Name  string  `json:"name"`
-	Cells []*Cell `json:"cells"`
+	ID          ID      `json:"id,omitempty"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Cells       []*Cell `json:"cells"`
 }
 
 // Cell holds positional information about a cell on dashboard and a reference to a cell.
@@ -67,14 +68,8 @@ type DashboardFilter struct {
 
 // DashboardUpdate is the patch structure for a dashboard.
 type DashboardUpdate struct {
-	Name *string `json:"name"`
-}
-
-// AddDashboardCellOptions are options for adding a dashboard.
-type AddDashboardCellOptions struct {
-	// UsingView specifies the view that should be used as a template
-	// for the new cells view.
-	UsingView ID
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
 }
 
 // Apply applies an update to a dashboard.
@@ -83,7 +78,27 @@ func (u DashboardUpdate) Apply(d *Dashboard) error {
 		d.Name = *u.Name
 	}
 
+	if u.Description != nil {
+		d.Description = *u.Description
+	}
+
 	return nil
+}
+
+// Valid returns an error if the dashboard update is invalid.
+func (u DashboardUpdate) Valid() error {
+	if u.Name == nil && u.Description == nil {
+		return fmt.Errorf("must update at least one attribute")
+	}
+
+	return nil
+}
+
+// AddDashboardCellOptions are options for adding a dashboard.
+type AddDashboardCellOptions struct {
+	// UsingView specifies the view that should be used as a template
+	// for the new cells view.
+	UsingView ID
 }
 
 // CellUpdate is the patch structure for a cell.
@@ -115,15 +130,6 @@ func (u CellUpdate) Apply(c *Cell) error {
 
 	if u.ViewID.Valid() {
 		c.ViewID = u.ViewID
-	}
-
-	return nil
-}
-
-// Valid returns an error if the dashboard update is invalid.
-func (u DashboardUpdate) Valid() error {
-	if u.Name == nil {
-		return fmt.Errorf("must update at least one attribute")
 	}
 
 	return nil

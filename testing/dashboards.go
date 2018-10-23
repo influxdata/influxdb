@@ -665,9 +665,9 @@ func UpdateDashboard(
 	t *testing.T,
 ) {
 	type args struct {
-		name      string
-		id        platform.ID
-		retention int
+		name        string
+		description string
+		id          platform.ID
 	}
 	type wants struct {
 		err       error
@@ -705,6 +705,59 @@ func UpdateDashboard(
 				},
 			},
 		},
+		{
+			name: "update description",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+					},
+					{
+						ID:   MustIDBase16(dashTwoID),
+						Name: "dashboard2",
+					},
+				},
+			},
+			args: args{
+				id:          MustIDBase16(dashOneID),
+				description: "changed",
+			},
+			wants: wants{
+				dashboard: &platform.Dashboard{
+					ID:          MustIDBase16(dashOneID),
+					Name:        "dashboard1",
+					Description: "changed",
+				},
+			},
+		},
+		{
+			name: "update description and name",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+					},
+					{
+						ID:   MustIDBase16(dashTwoID),
+						Name: "dashboard2",
+					},
+				},
+			},
+			args: args{
+				id:          MustIDBase16(dashOneID),
+				description: "changed",
+				name:        "changed",
+			},
+			wants: wants{
+				dashboard: &platform.Dashboard{
+					ID:          MustIDBase16(dashOneID),
+					Name:        "changed",
+					Description: "changed",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -716,6 +769,9 @@ func UpdateDashboard(
 			upd := platform.DashboardUpdate{}
 			if tt.args.name != "" {
 				upd.Name = &tt.args.name
+			}
+			if tt.args.description != "" {
+				upd.Description = &tt.args.description
 			}
 
 			dashboard, err := s.UpdateDashboard(ctx, tt.args.id, upd)
