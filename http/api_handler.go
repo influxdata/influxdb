@@ -24,6 +24,7 @@ type APIHandler struct {
 	SourceHandler        *SourceHandler
 	MacroHandler         *MacroHandler
 	TaskHandler          *TaskHandler
+	TelegrafHandler      *TelegrafHandler
 	QueryHandler         *FluxHandler
 	WriteHandler         *WriteHandler
 	SetupHandler         *SetupHandler
@@ -53,6 +54,7 @@ type APIBackend struct {
 	OnboardingService          platform.OnboardingService
 	ProxyQueryService          query.ProxyQueryService
 	TaskService                platform.TaskService
+	TelegrafService            platform.TelegrafConfigStore
 	ScraperTargetStoreService  platform.ScraperTargetStoreService
 	ChronografService          *server.Service
 }
@@ -102,6 +104,9 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.TaskHandler.AuthorizationService = b.AuthorizationService
 	h.TaskHandler.UserResourceMappingService = b.UserResourceMappingService
 
+	h.TelegrafHandler = NewTelegrafHandler(b.UserResourceMappingService)
+	h.TelegrafHandler.TelegrafService = b.TelegrafService
+
 	h.WriteHandler = NewWriteHandler(b.PointsWriter)
 	h.WriteHandler.AuthorizationService = b.AuthorizationService
 	h.WriteHandler.OrganizationService = b.OrganizationService
@@ -134,6 +139,7 @@ var apiLinks = map[string]interface{}{
 	"me":             "/api/v2/me",
 	"tasks":          "/api/v2/tasks",
 	"macros":         "/api/v2/macros",
+	"telegrafs":      "/api/v2/telegrafs",
 	"query": map[string]string{
 		"self":        "/api/v2/query",
 		"ast":         "/api/v2/query/ast",
@@ -228,6 +234,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/tasks") {
 		h.TaskHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v2/telegrafs") {
+		h.TelegrafHandler.ServeHTTP(w, r)
 		return
 	}
 

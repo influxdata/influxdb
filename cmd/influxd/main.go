@@ -196,6 +196,9 @@ func run() error {
 	}
 
 	var storageQueryService query.ProxyQueryService
+
+	var telegrafSvc platform.TelegrafConfigStore = c
+
 	var pointsWriter storage.PointsWriter
 	{
 		config := storage.NewConfig()
@@ -318,6 +321,7 @@ func run() error {
 		OnboardingService:          onboardingSvc,
 		ProxyQueryService:          storageQueryService,
 		TaskService:                taskSvc,
+		TelegrafService:            telegrafSvc,
 		ScraperTargetStoreService:  scraperTargetSvc,
 		ChronografService:          chronografSvc,
 	}

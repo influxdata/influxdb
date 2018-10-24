@@ -10,6 +10,9 @@ type Authorizer interface {
 	// ID returns an identifier used for auditing.
 	Identifier() ID
 
+	// GetUserID returns the user id.
+	GetUserID() ID
+
 	// Kind metadata for auditing.
 	Kind() string
 }
