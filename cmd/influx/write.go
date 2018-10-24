@@ -9,6 +9,8 @@ import (
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
+	"github.com/influxdata/platform/kit/signals"
+	"github.com/influxdata/platform/write"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -121,10 +123,16 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		r = strings.NewReader(args[0])
 	}
 
-	s := &http.WriteService{
-		Addr:  flags.host,
-		Token: flags.token,
+	s := write.Batcher{
+		Service: &http.WriteService{
+			Addr:  flags.host,
+			Token: flags.token,
+		},
 	}
 
-	return s.Write(ctx, orgID, bucketID, r)
+	ctx = signals.WithStandardSignals(ctx)
+	if err := s.Write(ctx, orgID, bucketID, r); err != context.Canceled {
+		return err
+	}
+	return nil
 }
