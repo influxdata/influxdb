@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"path"
@@ -46,8 +47,9 @@ const (
 // NewTaskHandler returns a new instance of TaskHandler.
 func NewTaskHandler(mappingService platform.UserResourceMappingService, logger *zap.Logger) *TaskHandler {
 	h := &TaskHandler{
-		logger:                     logger,
-		Router:                     httprouter.New(),
+		logger: logger,
+		Router: httprouter.New(),
+
 		UserResourceMappingService: mappingService,
 	}
 
@@ -76,6 +78,69 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, logger *
 	return h
 }
 
+type taskResponse struct {
+	Links map[string]string `json:"links"`
+	Task  platform.Task     `json:"task"`
+}
+
+func newTaskResponse(t platform.Task) taskResponse {
+	return taskResponse{
+		Links: map[string]string{
+			"self":    fmt.Sprintf("/api/v2/tasks/%s", t.ID),
+			"members": fmt.Sprintf("/api/v2/tasks/%s/members", t.ID),
+			"owners":  fmt.Sprintf("/api/v2/tasks/%s/owners", t.ID),
+			"runs":    fmt.Sprintf("/api/v2/tasks/%s/runs", t.ID),
+		},
+		Task: t,
+	}
+}
+
+type tasksResponse struct {
+	Links map[string]string `json:"links"`
+	Tasks []*platform.Task  `json:"tasks"`
+}
+
+func newTasksResponse(ts []*platform.Task) tasksResponse {
+	return tasksResponse{
+		Links: map[string]string{
+			"self": tasksPath,
+		},
+		Tasks: ts,
+	}
+}
+
+type runResponse struct {
+	Links map[string]string `json:"links"`
+	Run   platform.Run      `json:"run"`
+}
+
+func newRunResponse(r platform.Run) runResponse {
+	return runResponse{
+		Links: map[string]string{
+			"self":  fmt.Sprintf("/api/v2/tasks/%s/runs/%s", r.TaskID, r.ID),
+			"task":  fmt.Sprintf("/api/v2/tasks/%s", r.TaskID),
+			"logs":  fmt.Sprintf("/api/v2/tasks/%s/runs/%s/logs", r.TaskID, r.ID),
+			"retry": fmt.Sprintf("/api/v2/tasks/%s/runs/%s/retry", r.TaskID, r.ID),
+		},
+		Run: r,
+	}
+}
+
+type runsResponse struct {
+	Links map[string]string `json:"links"`
+	Runs  []*platform.Run   `json:"runs"`
+}
+
+func newRunsResponse(rs []*platform.Run, taskID platform.ID) runsResponse {
+	return runsResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/api/v2/tasks/%s/runs", taskID),
+			"task": fmt.Sprintf("/api/v2/tasks/%s", taskID),
+		},
+		Runs: rs,
+	}
+}
+
 func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -91,7 +156,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, tasks); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(tasks)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -163,7 +228,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, req.Task); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*req.Task)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -198,7 +263,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, task); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -242,7 +307,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, task); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -390,7 +455,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, runs); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newRunsResponse(runs, *req.filter.Task)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -480,7 +545,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, run); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -585,6 +650,7 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
 		if err.Error() == backend.ErrTaskNotFound.Error() {
@@ -595,13 +661,12 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 		return nil, err
 	}
 
-	var task platform.Task
-	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
+	var tr taskResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
-	return &task, nil
+	return &tr.Task, nil
 }
 
 func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
@@ -634,17 +699,18 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	if err != nil {
 		return nil, 0, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
-	var tasks []*platform.Task
-	if err := json.NewDecoder(resp.Body).Decode(&tasks); err != nil {
+	var tr tasksResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
 
+	tasks := tr.Tasks
 	return tasks, len(tasks), nil
 }
 
@@ -673,14 +739,17 @@ func (t TaskService) CreateTask(ctx context.Context, tsk *platform.Task) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
 		return err
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(tsk); err != nil {
+	var tr taskResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
 		return err
 	}
+	*tsk = tr.Task
 
 	return nil
 }
@@ -716,12 +785,12 @@ func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platfor
 		return nil, err
 	}
 
-	var task *platform.Task
-	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
+	var tr taskResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
 		return nil, err
 	}
 
-	return task, nil
+	return &tr.Task, nil
 }
 
 func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
@@ -795,11 +864,12 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 		return nil, 0, err
 	}
 
-	var runs []*platform.Run
-	if err := json.NewDecoder(resp.Body).Decode(&runs); err != nil {
+	var rs runsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&rs); err != nil {
 		return nil, 0, err
 	}
 
+	runs := rs.Runs
 	return runs, len(runs), nil
 }
 
