@@ -248,6 +248,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		Task:            st,
 		RunID:           runID,
 		RunScheduledFor: rc.Created.Now,
+		RequestedAt:     requestedAtUnix,
 	}
 	if err := sys.LW.UpdateRunState(sys.Ctx, rlb, startedAt, backend.RunStarted); err != nil {
 		t.Fatal(err)
@@ -279,8 +280,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		t.Errorf("expected run to be scheduled for %q, got %q", want, r.ScheduledFor)
 	}
 	if want := time.Unix(requestedAtUnix, 0).UTC().Format(time.RFC3339); r.RequestedAt != want {
-		// Not yet expected to match. Change to t.Fatalf as part of addressing https://github.com/influxdata/platform/issues/753.
-		t.Logf("TODO(#753): expected run to be requested at %q, got %q", want, r.RequestedAt)
+		t.Errorf("expected run to be requested at %q, got %q", want, r.RequestedAt)
 	}
 	if r.FinishedAt != "" {
 		t.Errorf("expected run not be finished, got %q", r.FinishedAt)
