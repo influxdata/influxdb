@@ -168,11 +168,11 @@ var _ flux.Result = (*fakeResult)(nil)
 
 func newFakeResult() *fakeResult {
 	meta := []flux.ColMeta{{Label: "x", Type: flux.TInt}}
-	vals := []values.Value{values.NewIntValue(int64(1))}
+	vals := []values.Value{values.NewInt(int64(1))}
 	gk := execute.NewGroupKey(meta, vals)
 	a := &execute.Allocator{Limit: math.MaxInt64}
 	b := execute.NewColListTableBuilder(gk, a)
-	i := b.AddCol(meta[0])
+	i, _ := b.AddCol(meta[0])
 	b.AppendInt(i, int64(1))
 	t, err := b.Table()
 	if err != nil {

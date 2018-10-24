@@ -39,7 +39,7 @@ func (bd *BucketsDecoder) Fetch() (bool, error) {
 
 func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 	kb := execute.NewGroupKeyBuilder(nil)
-	kb.AddKeyValue("organizationID", values.NewStringValue(bd.buckets[0].OrganizationID.String()))
+	kb.AddKeyValue("organizationID", values.NewString(bd.buckets[0].OrganizationID.String()))
 	gk, err := kb.Build()
 	if err != nil {
 		return nil, err
@@ -47,30 +47,42 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 
 	b := execute.NewColListTableBuilder(gk, bd.alloc)
 
-	b.AddCol(flux.ColMeta{
+	if _, err := b.AddCol(flux.ColMeta{
 		Label: "name",
 		Type:  flux.TString,
-	})
-	b.AddCol(flux.ColMeta{
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := b.AddCol(flux.ColMeta{
 		Label: "id",
 		Type:  flux.TString,
-	})
-	b.AddCol(flux.ColMeta{
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := b.AddCol(flux.ColMeta{
 		Label: "organization",
 		Type:  flux.TString,
-	})
-	b.AddCol(flux.ColMeta{
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := b.AddCol(flux.ColMeta{
 		Label: "organizationID",
 		Type:  flux.TString,
-	})
-	b.AddCol(flux.ColMeta{
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := b.AddCol(flux.ColMeta{
 		Label: "retentionPolicy",
 		Type:  flux.TString,
-	})
-	b.AddCol(flux.ColMeta{
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := b.AddCol(flux.ColMeta{
 		Label: "retentionPeriod",
 		Type:  flux.TInt,
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	for _, bucket := range bd.buckets {
 		b.AppendString(0, bucket.Name)

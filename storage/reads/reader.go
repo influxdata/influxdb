@@ -334,7 +334,7 @@ const (
 	valueColIdx = 3
 )
 
-func determineTableColsForSeries(tags models.Tags, typ flux.DataType) ([]flux.ColMeta, [][]byte) {
+func determineTableColsForSeries(tags models.Tags, typ flux.ColType) ([]flux.ColMeta, [][]byte) {
 	cols := make([]flux.ColMeta, 4+len(tags))
 	defs := make([][]byte, 4+len(tags))
 	cols[startColIdx] = flux.ColMeta{
@@ -370,12 +370,12 @@ func groupKeyForSeries(tags models.Tags, readSpec *fstorage.ReadSpec, bnds execu
 		Label: execute.DefaultStartColLabel,
 		Type:  flux.TTime,
 	}
-	vs[0] = values.NewTimeValue(bnds.Start)
+	vs[0] = values.NewTime(bnds.Start)
 	cols[1] = flux.ColMeta{
 		Label: execute.DefaultStopColLabel,
 		Type:  flux.TTime,
 	}
-	vs[1] = values.NewTimeValue(bnds.Stop)
+	vs[1] = values.NewTime(bnds.Stop)
 	switch readSpec.GroupMode {
 	case fstorage.GroupModeBy:
 		// group key in GroupKeys order, including tags in the GroupKeys slice
@@ -387,7 +387,7 @@ func groupKeyForSeries(tags models.Tags, readSpec *fstorage.ReadSpec, bnds execu
 						Label: k,
 						Type:  flux.TString,
 					})
-					vs = append(vs, values.NewStringValue(string(t.Value)))
+					vs = append(vs, values.NewString(string(t.Value)))
 				}
 			}
 		}
@@ -400,13 +400,13 @@ func groupKeyForSeries(tags models.Tags, readSpec *fstorage.ReadSpec, bnds execu
 				Label: string(tags[i].Key),
 				Type:  flux.TString,
 			})
-			vs = append(vs, values.NewStringValue(string(tags[i].Value)))
+			vs = append(vs, values.NewString(string(tags[i].Value)))
 		}
 	}
 	return execute.NewGroupKey(cols, vs)
 }
 
-func determineTableColsForGroup(tagKeys [][]byte, typ flux.DataType) ([]flux.ColMeta, [][]byte) {
+func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType) ([]flux.ColMeta, [][]byte) {
 	cols := make([]flux.ColMeta, 4+len(tagKeys))
 	defs := make([][]byte, 4+len(tagKeys))
 	cols[startColIdx] = flux.ColMeta{
@@ -443,18 +443,18 @@ func groupKeyForGroup(kv [][]byte, readSpec *fstorage.ReadSpec, bnds execute.Bou
 		Label: execute.DefaultStartColLabel,
 		Type:  flux.TTime,
 	}
-	vs[0] = values.NewTimeValue(bnds.Start)
+	vs[0] = values.NewTime(bnds.Start)
 	cols[1] = flux.ColMeta{
 		Label: execute.DefaultStopColLabel,
 		Type:  flux.TTime,
 	}
-	vs[1] = values.NewTimeValue(bnds.Stop)
+	vs[1] = values.NewTime(bnds.Stop)
 	for i := range readSpec.GroupKeys {
 		cols = append(cols, flux.ColMeta{
 			Label: readSpec.GroupKeys[i],
 			Type:  flux.TString,
 		})
-		vs = append(vs, values.NewStringValue(string(kv[i])))
+		vs = append(vs, values.NewString(string(kv[i])))
 	}
 	return execute.NewGroupKey(cols, vs)
 }

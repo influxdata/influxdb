@@ -98,7 +98,7 @@ func (r QueryRequest) Validate() error {
 }
 
 func nowFunc(now time.Time) values.Function {
-	timeVal := values.NewTimeValue(values.ConvertTime(now))
+	timeVal := values.NewTime(values.ConvertTime(now))
 	ftype := semantic.NewFunctionType(semantic.FunctionSignature{
 		ReturnType: semantic.Time,
 	})

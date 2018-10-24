@@ -214,9 +214,9 @@ func (r *queryTable) Key() flux.GroupKey {
 			}
 			cols[j] = colMeta[idx]
 			kvs[j] = "string"
-			v, err := values.NewValue(kvs[j], execute.ConvertToKind(cols[j].Type))
-			if err != nil {
-				panic(err)
+			v := values.New(kvs[j])
+			if v == values.InvalidValue {
+				panic(fmt.Sprintf("unsupported value kind %T", kvs[j]))
 			}
 			vs[j] = v
 		}
