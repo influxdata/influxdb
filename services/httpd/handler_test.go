@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/influxdb/flux/client"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -837,7 +838,7 @@ func TestHandler_Flux_QueryJSON(t *testing.T) {
 		return internal.NewFluxQueryMock(), nil
 	}
 
-	q := httpd.QueryRequest{Query: qry}
+	q := client.QueryRequest{Query: qry}
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(q); err != nil {
 		t.Fatalf("unexpected JSON encoding error: %q", err.Error())
@@ -868,7 +869,7 @@ func TestHandler_Flux_SpecJSON(t *testing.T) {
 		return internal.NewFluxQueryMock(), nil
 	}
 
-	q := httpd.QueryRequest{Spec: &flux.Spec{}}
+	q := client.QueryRequest{Spec: &flux.Spec{}}
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(q); err != nil {
 		t.Fatalf("unexpected JSON encoding error: %q", err.Error())
@@ -923,7 +924,7 @@ func TestHandler_Flux(t *testing.T) {
 
 	queryBytes := func(qs string) io.Reader {
 		var b bytes.Buffer
-		q := &httpd.QueryRequest{Query: qs}
+		q := &client.QueryRequest{Query: qs}
 		if err := json.NewEncoder(&b).Encode(q); err != nil {
 			t.Fatalf("unexpected JSON encoding error: %q", err.Error())
 		}

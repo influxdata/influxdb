@@ -143,8 +143,7 @@ func (c *CommandLine) Run() error {
 	if c.Execute != "" {
 		switch c.Type {
 		case QueryLanguageFlux:
-			// execute Flux query
-			fmt.Println("Execute Flux query")
+			return c.ExecuteFluxQuery(c.Execute)
 		default:
 			// Make the non-interactive mode send everything through the CLI's parser
 			// the same way the interactive mode works
@@ -187,9 +186,7 @@ func (c *CommandLine) Run() error {
 
 		switch c.Type {
 		case QueryLanguageFlux:
-			// execute Flux query
-			fmt.Println("Read STDIN and execute Flux query")
-			return nil
+			return c.ExecuteFluxQuery(string(cmd))
 		default:
 			return c.ExecuteQuery(string(cmd))
 		}
@@ -200,17 +197,6 @@ func (c *CommandLine) Run() error {
 		signal.Notify(c.osSignals, syscall.SIGINT, syscall.SIGTERM)
 	}
 
-	if c.Type == QueryLanguageFlux {
-		// execute Flux repl
-		fmt.Println("Execute Flux REPL")
-		return nil
-	}
-
-	c.Line = liner.NewLiner()
-	defer c.Line.Close()
-
-	c.Line.SetMultiLineMode(true)
-
 	if len(c.ServerVersion) == 0 {
 		fmt.Printf("WARN: Connected to %s, but found no server version.\n", c.Client.Addr())
 		fmt.Printf("Are you sure an InfluxDB server is listening at the given address?\n")
@@ -219,6 +205,20 @@ func (c *CommandLine) Run() error {
 	}
 
 	c.Version()
+
+	if c.Type == QueryLanguageFlux {
+		repl, err := getFluxREPL(c.Host, c.Port, c.Ssl)
+		if err != nil {
+			return err
+		}
+		repl.Run()
+		os.Exit(0)
+	}
+
+	c.Line = liner.NewLiner()
+	defer c.Line.Close()
+
+	c.Line.SetMultiLineMode(true)
 
 	// Only load/write history if HOME environment variable is set.
 	var historyDir string
@@ -1161,6 +1161,12 @@ func (c *CommandLine) gopher() {
 // Version prints the CLI version.
 func (c *CommandLine) Version() {
 	fmt.Println("InfluxDB shell version:", c.ClientVersion)
+	switch c.Type {
+	case QueryLanguageFlux:
+		fmt.Println("Enter a Flux query")
+	default:
+		fmt.Println("Enter an InfluxQL query")
+	}
 }
 
 func (c *CommandLine) exit() {
@@ -1169,6 +1175,31 @@ func (c *CommandLine) exit() {
 	// release line resources
 	c.Line.Close()
 	c.Line = nil
+}
+
+func (c *CommandLine) ExecuteFluxQuery(query string) error {
+	ctx := context.Background()
+	if !c.IgnoreSignals {
+		done := make(chan struct{})
+		defer close(done)
+
+		var cancel func()
+		ctx, cancel = context.WithCancel(ctx)
+		go func() {
+			select {
+			case <-done:
+			case <-c.osSignals:
+				cancel()
+			}
+		}()
+	}
+
+	repl, err := getFluxREPL(c.Host, c.Port, c.Ssl)
+	if err != nil {
+		return err
+	}
+
+	return repl.Input(query)
 }
 
 type QueryLanguage uint8
