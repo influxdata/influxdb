@@ -509,7 +509,7 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				}
 			}
 			fallthrough
-		case "min", "max", "sum", "first", "last", "mean":
+		case "min", "max", "sum", "product", "first", "last", "mean":
 			return b.callIterator(ctx, expr, opt)
 		case "median":
 			opt.Ordered = true

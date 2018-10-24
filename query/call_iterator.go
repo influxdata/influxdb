@@ -47,6 +47,8 @@ func NewCallIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 		return newMaxIterator(input, opt)
 	case "sum":
 		return newSumIterator(input, opt)
+	case "product":
+		return newProductIterator(input, opt)
 	case "first":
 		return newFirstIterator(input, opt)
 	case "last":
@@ -352,6 +354,56 @@ func newFirstIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	default:
 		return nil, fmt.Errorf("unsupported first iterator type: %T", input)
 	}
+}
+
+// newProductIterator returns an iterator for operating on a product() call.
+func newProductIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatFuncReducer(FloatProductReduce, &FloatPoint{Value: 0, Time: ZeroTime})
+			return fn, fn
+		}
+		return newFloatReduceFloatIterator(input, opt, createFn), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerFuncReducer(IntegerProductReduce, &IntegerPoint{Value: 0, Time: ZeroTime})
+			return fn, fn
+		}
+		return newIntegerReduceIntegerIterator(input, opt, createFn), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, UnsignedPointEmitter) {
+			fn := NewUnsignedFuncReducer(UnsignedProductReduce, &UnsignedPoint{Value: 0, Time: ZeroTime})
+			return fn, fn
+		}
+		return newUnsignedReduceUnsignedIterator(input, opt, createFn), nil
+	default:
+		return nil, fmt.Errorf("unsupported product iterator type: %T", input)
+	}
+}
+
+// FloatProductReduce returns the product prev value & curr value.
+func FloatProductReduce(prev, curr *FloatPoint) (int64, float64, []interface{}) {
+	if prev == nil {
+		return ZeroTime, curr.Value, nil
+	}
+	return prev.Time, prev.Value * curr.Value, nil
+}
+
+// IntegerProductReduce returns the product prev value & curr value.
+func IntegerProductReduce(prev, curr *IntegerPoint) (int64, int64, []interface{}) {
+	if prev == nil {
+		return ZeroTime, curr.Value, nil
+	}
+	return prev.Time, prev.Value * curr.Value, nil
+}
+
+// UnsignedProductReduce returns the product prev value & curr value.
+func UnsignedProductReduce(prev, curr *UnsignedPoint) (int64, uint64, []interface{}) {
+	if prev == nil {
+		return ZeroTime, curr.Value, nil
+	}
+	return prev.Time, prev.Value * curr.Value, nil
 }
 
 // FloatFirstReduce returns the first point sorted by time.
