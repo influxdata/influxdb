@@ -41,6 +41,7 @@ type CommandLine struct {
 	Host            string
 	Port            int
 	Database        string
+	Type            QueryLanguage
 	Ssl             bool
 	RetentionPolicy string
 	ClientVersion   string
@@ -140,12 +141,18 @@ func (c *CommandLine) Run() error {
 	c.SetPrecision(c.ClientConfig.Precision)
 
 	if c.Execute != "" {
-		// Make the non-interactive mode send everything through the CLI's parser
-		// the same way the interactive mode works
-		lines := strings.Split(c.Execute, "\n")
-		for _, line := range lines {
-			if err := c.ParseCommand(line); err != nil {
-				return err
+		switch c.Type {
+		case QueryLanguageFlux:
+			// execute Flux query
+			fmt.Println("Execute Flux query")
+		default:
+			// Make the non-interactive mode send everything through the CLI's parser
+			// the same way the interactive mode works
+			lines := strings.Split(c.Execute, "\n")
+			for _, line := range lines {
+				if err := c.ParseCommand(line); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -177,12 +184,26 @@ func (c *CommandLine) Run() error {
 		if err != nil {
 			return err
 		}
-		return c.ExecuteQuery(string(cmd))
+
+		switch c.Type {
+		case QueryLanguageFlux:
+			// execute Flux query
+			fmt.Println("Read STDIN and execute Flux query")
+			return nil
+		default:
+			return c.ExecuteQuery(string(cmd))
+		}
 	}
 
 	if !c.IgnoreSignals {
 		// register OS signals for graceful termination
 		signal.Notify(c.osSignals, syscall.SIGINT, syscall.SIGTERM)
+	}
+
+	if c.Type == QueryLanguageFlux {
+		// execute Flux repl
+		fmt.Println("Execute Flux REPL")
+		return nil
 	}
 
 	c.Line = liner.NewLiner()
@@ -1148,4 +1169,33 @@ func (c *CommandLine) exit() {
 	// release line resources
 	c.Line.Close()
 	c.Line = nil
+}
+
+type QueryLanguage uint8
+
+const (
+	QueryLanguageInfluxQL QueryLanguage = iota
+	QueryLanguageFlux
+)
+
+func (l *QueryLanguage) Set(s string) error {
+	switch s {
+	case "influxql":
+		*l = QueryLanguageInfluxQL
+	case "flux":
+		*l = QueryLanguageFlux
+	default:
+		return fmt.Errorf("%q not supported: specify influxql or flux", s)
+	}
+	return nil
+}
+
+func (l *QueryLanguage) String() string {
+	switch *l {
+	case QueryLanguageInfluxQL:
+		return "influxql"
+	case QueryLanguageFlux:
+		return "flux"
+	}
+	return fmt.Sprintf("QueryLanguage(%d)", uint8(*l))
 }
