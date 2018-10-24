@@ -149,6 +149,14 @@
   version = "v1.3.1"
 
 [[projects]]
+  digest = "1:1659cb76cbd08a29826688d006e7a3d9279d6ca8a12155acb7b20164958987d3"
+  name = "github.com/c-bata/go-prompt"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e99fbc797b795e0a7a94affc8d44f6a0350d85f0"
+  version = "v0.2.1"
+
+[[projects]]
   digest = "1:bf525707b4455ed126b3b091939a3693f608385c73d8dfdeb748e510bcda1338"
   name = "github.com/caarlos0/ctrlc"
   packages = ["."]
@@ -388,7 +396,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:cc977ce9615b1e9e23fe61d1fb36845a971199193c174968fdb017ec58913b79"
+  digest = "1:6be98dfd22bde6335f3a675f01c2498597f02d7940f4789ccf6b1ab0ad36c8d5"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -405,6 +413,7 @@
     "options",
     "parser",
     "plan",
+    "repl",
     "semantic",
     "values",
   ]
@@ -577,6 +586,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:325f68c3bd3044dcf51d46e802136cd239817e1fb130b5f3466a4cec4dd427d3"
+  name = "github.com/mattn/go-tty"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "13ff1204f104d52c3f7645ec027ecbcf9026429e"
+
+[[projects]]
+  branch = "master"
   digest = "1:36aebe90a13cf9128280ac834399b8bebf83685283c78df279d61c46bb2a8d83"
   name = "github.com/mattn/go-zglob"
   packages = [
@@ -665,6 +682,14 @@
   pruneopts = "UT"
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:4f43b3c1b7e44980a5f3c593f8bf0e18844dc44f451a071c93e77e28cf990db6"
+  name = "github.com/pkg/term"
+  packages = ["termios"]
+  pruneopts = "UT"
+  revision = "bffc007b7fd5a70e20e28f5b7649bb84671ef436"
 
 [[projects]]
   digest = "1:70f78dea42b8c0ff38ecf5487eaa79006fa2193fc804fc7c1d7222745d9e2522"
@@ -972,6 +997,7 @@
     "github.com/influxdata/flux/lang",
     "github.com/influxdata/flux/options",
     "github.com/influxdata/flux/plan",
+    "github.com/influxdata/flux/repl",
     "github.com/influxdata/flux/values",
     "github.com/influxdata/influxql",
     "github.com/influxdata/platform/models",
@@ -990,6 +1016,7 @@
     "github.com/paulbellamy/ratecounter",
     "github.com/peterh/liner",
     "github.com/pkg/errors",
+    "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/retailnext/hllpp",
     "github.com/tinylib/msgp/msgp",
