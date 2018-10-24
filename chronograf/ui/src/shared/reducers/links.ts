@@ -2,7 +2,7 @@ import {Action, ActionTypes} from 'src/shared/actions/links'
 import {Links} from 'src/types/v2/links'
 
 const initialState: Links = {
-  auths: '',
+  authorizations: '',
   buckets: '',
   dashboards: '',
   external: {

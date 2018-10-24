@@ -2,7 +2,7 @@
 // links to all other endpoints.
 // see https://github.com/influxdata/platform/blob/db5b20f4eabcc7d2233e54415cbd48945b0b4d0c/http/api_handler.go#L125
 export interface Links {
-  auths: string
+  authorizations: string
   buckets: string
   dashboards: string
   external: {
