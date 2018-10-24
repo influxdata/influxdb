@@ -129,7 +129,7 @@ func (s *inmem) UpdateTask(_ context.Context, req UpdateTaskRequest) (UpdateTask
 	return res, nil
 }
 
-func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTask, error) {
+func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTaskWithMeta, error) {
 	if params.Org.Valid() && params.User.Valid() {
 		return nil, errors.New("ListTasks: org and user filters are mutually exclusive")
 	}
@@ -151,7 +151,7 @@ func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTa
 		lim = defaultPageSize
 	}
 
-	out := make([]StoreTask, 0, lim)
+	out := make([]StoreTaskWithMeta, 0, lim)
 
 	org := params.Org
 	user := params.User
@@ -177,10 +177,15 @@ func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTa
 			continue
 		}
 
-		out = append(out, t)
+		out = append(out, StoreTaskWithMeta{Task: t})
 		if len(out) >= lim {
 			break
 		}
+	}
+
+	for i := range out {
+		id := out[i].Task.ID
+		out[i].Meta = s.runners[id.String()]
 	}
 
 	return out, nil

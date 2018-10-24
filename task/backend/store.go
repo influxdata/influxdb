@@ -151,7 +151,7 @@ type Store interface {
 	UpdateTask(ctx context.Context, req UpdateTaskRequest) (UpdateTaskResult, error)
 
 	// ListTasks lists the tasks in the store that match the search params.
-	ListTasks(ctx context.Context, params TaskSearchParams) ([]StoreTask, error)
+	ListTasks(ctx context.Context, params TaskSearchParams) ([]StoreTaskWithMeta, error)
 
 	// FindTaskByID returns the task with the given ID.
 	// If no task matches the ID, the returned task is nil and ErrTaskNotFound is returned.
@@ -284,6 +284,12 @@ type StoreTask struct {
 
 	// The script content of the task.
 	Script string
+}
+
+// StoreTaskWithMeta is a single struct with a StoreTask and a StoreTaskMeta.
+type StoreTaskWithMeta struct {
+	Task StoreTask
+	Meta StoreTaskMeta
 }
 
 // StoreValidator is a package-level StoreValidation, so that you can write

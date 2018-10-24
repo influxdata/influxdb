@@ -279,7 +279,7 @@ func (s *Store) UpdateTask(ctx context.Context, req backend.UpdateTaskRequest) (
 }
 
 // ListTasks lists the tasks based on a filter.
-func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) ([]backend.StoreTask, error) {
+func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) ([]backend.StoreTaskWithMeta, error) {
 	if params.Org.Valid() && params.User.Valid() {
 		return nil, errors.New("ListTasks: org and user filters are mutually exclusive")
 	}
@@ -299,7 +299,7 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 		lim = defaultPageSize
 	}
 	taskIDs := make([]platform.ID, 0, params.PageSize)
-	var tasks []backend.StoreTask
+	var tasks []backend.StoreTaskWithMeta
 
 	if err := s.db.View(func(tx *bolt.Tx) error {
 		var c *bolt.Cursor
@@ -350,7 +350,7 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 			}
 		}
 
-		tasks = make([]backend.StoreTask, len(taskIDs))
+		tasks = make([]backend.StoreTaskWithMeta, len(taskIDs))
 		for i := range taskIDs {
 			// TODO(docmerlin): optimization: don't check <-ctx.Done() every time though the loop
 			select {
@@ -362,9 +362,9 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 				if err != nil {
 					return err
 				}
-				tasks[i].ID = taskIDs[i]
-				tasks[i].Script = string(b.Bucket(tasksPath).Get(encodedID))
-				tasks[i].Name = string(b.Bucket(nameByTaskID).Get(encodedID))
+				tasks[i].Task.ID = taskIDs[i]
+				tasks[i].Task.Script = string(b.Bucket(tasksPath).Get(encodedID))
+				tasks[i].Task.Name = string(b.Bucket(nameByTaskID).Get(encodedID))
 			}
 		}
 		if params.Org.Valid() {
@@ -377,15 +377,15 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 					if err != nil {
 						return err
 					}
-					tasks[i].Org = params.Org
+					tasks[i].Task.Org = params.Org
 					var userID platform.ID
 					if err := userID.Decode(b.Bucket(userByTaskID).Get(encodedID)); err != nil {
 						return err
 					}
-					tasks[i].User = userID
+					tasks[i].Task.User = userID
 				}
 			}
-			return nil
+			goto POPULATE_META
 		}
 		if params.User.Valid() {
 			for i := range taskIDs {
@@ -397,15 +397,15 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 					if err != nil {
 						return err
 					}
-					tasks[i].User = params.User
+					tasks[i].Task.User = params.User
 					var orgID platform.ID
 					if err := orgID.Decode(b.Bucket(orgByTaskID).Get(encodedID)); err != nil {
 						return err
 					}
-					tasks[i].Org = orgID
+					tasks[i].Task.Org = orgID
 				}
 			}
-			return nil
+			goto POPULATE_META
 		}
 		for i := range taskIDs {
 			select {
@@ -421,13 +421,32 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 				if err := userID.Decode(b.Bucket(userByTaskID).Get(encodedID)); err != nil {
 					return err
 				}
-				tasks[i].User = userID
+				tasks[i].Task.User = userID
 
 				var orgID platform.ID
 				if err := orgID.Decode(b.Bucket(orgByTaskID).Get(encodedID)); err != nil {
 					return err
 				}
-				tasks[i].Org = orgID
+				tasks[i].Task.Org = orgID
+			}
+		}
+
+	POPULATE_META:
+		for i := range taskIDs {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				encodedID, err := taskIDs[i].Encode()
+				if err != nil {
+					return err
+				}
+
+				var stm backend.StoreTaskMeta
+				if err := stm.Unmarshal(b.Bucket(taskMetaPath).Get(encodedID)); err != nil {
+					return err
+				}
+				tasks[i].Meta = stm
 			}
 		}
 		return nil
@@ -481,25 +500,19 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 }
 
 func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*backend.StoreTaskMeta, error) {
-	var stmBytes []byte
+	var stm backend.StoreTaskMeta
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, err
 	}
 	err = s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		stmBytes = b.Bucket(taskMetaPath).Get(encodedID)
+		stmBytes := b.Bucket(taskMetaPath).Get(encodedID)
 		if stmBytes == nil {
 			return backend.ErrTaskNotFound
 		}
-		return nil
+		return stm.Unmarshal(stmBytes)
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	stm := backend.StoreTaskMeta{}
-	err = stm.Unmarshal(stmBytes)
 	if err != nil {
 		return nil, err
 	}

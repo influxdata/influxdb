@@ -286,8 +286,15 @@ from(bucket:"test") |> range(start:-1h)`
 		if len(ts) != 1 {
 			t.Fatalf("expected 1 result, got %d", len(ts))
 		}
-		if ts[0].ID != id {
-			t.Fatalf("got task ID %v, exp %v", ts[0].ID, id)
+		if ts[0].Task.ID != id {
+			t.Fatalf("got task ID %v, exp %v", ts[0].Task.ID, id)
+		}
+		meta, err := s.FindTaskMetaByID(context.Background(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ts[0].Meta.Equal(*meta) {
+			t.Fatalf("exp meta %v, got meta %v", *meta, ts[0].Meta)
 		}
 
 		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{User: userID})
@@ -297,8 +304,15 @@ from(bucket:"test") |> range(start:-1h)`
 		if len(ts) != 1 {
 			t.Fatalf("expected 1 result, got %d", len(ts))
 		}
-		if ts[0].ID != id {
-			t.Fatalf("got task ID %v, exp %v", ts[0].ID, id)
+		if ts[0].Task.ID != id {
+			t.Fatalf("got task ID %v, exp %v", ts[0].Task.ID, id)
+		}
+		meta, err = s.FindTaskMetaByID(context.Background(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ts[0].Meta.Equal(*meta) {
+			t.Fatalf("exp meta %v, got meta %v", *meta, ts[0].Meta)
 		}
 
 		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{Org: platform.ID(123)})
@@ -317,7 +331,7 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("expected no results for bad user ID, got %d result(s)", len(ts))
 		}
 
-		newID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: fmt.Sprintf(scriptFmt, 1)})
+		newID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: fmt.Sprintf(scriptFmt, 1), Status: backend.TaskInactive})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -329,8 +343,15 @@ from(bucket:"test") |> range(start:-1h)`
 		if len(ts) != 1 {
 			t.Fatalf("expected 1 result, got %d", len(ts))
 		}
-		if ts[0].ID != newID {
-			t.Fatalf("got task ID %v, exp %v", ts[0].ID, newID)
+		if ts[0].Task.ID != newID {
+			t.Fatalf("got task ID %v, exp %v", ts[0].Task.ID, newID)
+		}
+		meta, err = s.FindTaskMetaByID(context.Background(), newID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ts[0].Meta.Equal(*meta) {
+			t.Fatalf("exp meta %v, got meta %v", *meta, ts[0].Meta)
 		}
 	})
 
@@ -384,24 +405,24 @@ from(bucket:"test") |> range(start:-1h)`
 			}
 
 			for i, g := range got {
-				if tasks[i].id != g.ID {
-					t.Fatalf("task ID mismatch at index %d: got %x, expected %x", i, g.ID, tasks[i].id)
+				if tasks[i].id != g.Task.ID {
+					t.Fatalf("task ID mismatch at index %d: got %x, expected %x", i, g.Task.ID, tasks[i].id)
 				}
 
-				if orgID != g.Org {
-					t.Fatalf("task org mismatch at index %d: got %x, expected %x", i, g.Org, orgID)
+				if orgID != g.Task.Org {
+					t.Fatalf("task org mismatch at index %d: got %x, expected %x", i, g.Task.Org, orgID)
 				}
 
-				if userID != g.User {
-					t.Fatalf("task user mismatch at index %d: got %x, expected %x", i, g.User, userID)
+				if userID != g.Task.User {
+					t.Fatalf("task user mismatch at index %d: got %x, expected %x", i, g.Task.User, userID)
 				}
 
-				if tasks[i].name != g.Name {
-					t.Fatalf("task name mismatch at index %d: got %q, expected %q", i, g.Name, tasks[i].name)
+				if tasks[i].name != g.Task.Name {
+					t.Fatalf("task name mismatch at index %d: got %q, expected %q", i, g.Task.Name, tasks[i].name)
 				}
 
-				if tasks[i].script != g.Script {
-					t.Fatalf("task script mismatch at index %d: got %q, expected %q", i, g.Script, tasks[i].script)
+				if tasks[i].script != g.Task.Script {
+					t.Fatalf("task script mismatch at index %d: got %q, expected %q", i, g.Task.Script, tasks[i].script)
 				}
 			}
 		}

@@ -205,3 +205,45 @@ func (stm *StoreTaskMeta) ManuallyRunTimeRange(start, end, requestedAt int64) er
 
 	return nil
 }
+
+// Equal returns true if all of stm's fields compare equal to other.
+// Note that this method operates on values, unlike the other methods which operate on pointers.
+//
+// Equal is probably not very useful outside of test.
+func (stm StoreTaskMeta) Equal(other StoreTaskMeta) bool {
+	if stm.MaxConcurrency != other.MaxConcurrency ||
+		stm.LatestCompleted != other.LatestCompleted ||
+		stm.Status != other.Status ||
+		stm.EffectiveCron != other.EffectiveCron ||
+		stm.Delay != other.Delay ||
+		len(stm.CurrentlyRunning) != len(other.CurrentlyRunning) ||
+		len(stm.ManualRuns) != len(other.ManualRuns) {
+		return false
+	}
+
+	for i, o := range other.CurrentlyRunning {
+		s := stm.CurrentlyRunning[i]
+
+		if s.Now != o.Now ||
+			s.Try != o.Try ||
+			s.RunID != o.RunID ||
+			s.RangeStart != o.RangeStart ||
+			s.RangeEnd != o.RangeEnd ||
+			s.RequestedAt != o.RequestedAt {
+			return false
+		}
+	}
+
+	for i, o := range other.ManualRuns {
+		s := stm.ManualRuns[i]
+
+		if s.Start != o.Start ||
+			s.End != o.End ||
+			s.LatestCompleted != o.LatestCompleted ||
+			s.RequestedAt != o.RequestedAt {
+			return false
+		}
+	}
+
+	return true
+}

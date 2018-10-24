@@ -56,7 +56,7 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 
 	pts := make([]*platform.Task, len(ts))
 	for i, t := range ts {
-		pts[i], err = toPlatformTask(t, nil)
+		pts[i], err = toPlatformTask(t.Task, &t.Meta)
 		if err != nil {
 			return nil, 0, err
 		}

@@ -109,7 +109,7 @@ func (c *Coordinator) DeleteOrg(ctx context.Context, orgID platform.ID) error {
 	}
 
 	for _, orgTask := range orgTasks {
-		if err := c.sch.ReleaseTask(orgTask.ID); err != nil {
+		if err := c.sch.ReleaseTask(orgTask.Task.ID); err != nil {
 			return err
 		}
 	}
@@ -126,7 +126,7 @@ func (c *Coordinator) DeleteUser(ctx context.Context, userID platform.ID) error 
 	}
 
 	for _, userTask := range userTasks {
-		if err := c.sch.ReleaseTask(userTask.ID); err != nil {
+		if err := c.sch.ReleaseTask(userTask.Task.ID); err != nil {
 			return err
 		}
 	}
