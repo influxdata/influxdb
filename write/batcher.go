@@ -30,6 +30,9 @@ type Batcher struct {
 
 // Write reads r in batches and sends to the output.
 func (b *Batcher) Write(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	if b.Service == nil {
 		return fmt.Errorf("destination write service required")
 	}
@@ -68,14 +71,13 @@ func (b *Batcher) read(ctx context.Context, r io.Reader, lines chan<- []byte, er
 	scanner := bufio.NewScanner(r)
 	scanner.Split(ScanLines)
 	for scanner.Scan() {
-		lines <- scanner.Bytes()
 		// exit early if the context is done
 		select {
+		case lines <- scanner.Bytes():
 		case <-ctx.Done():
 			close(lines)
 			errC <- ctx.Err()
 			return
-		default:
 		}
 	}
 	close(lines)
