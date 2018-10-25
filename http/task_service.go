@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/influxdata/platform"
 	pcontext "github.com/influxdata/platform/context"
@@ -534,13 +535,13 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, err := decodeGetRunRequest(ctx, r, h.OrganizationService)
+	req, err := decodeGetRunRequest(ctx, r)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	run, err := h.TaskService.FindRunByID(ctx, req.OrgID, req.RunID)
+	run, err := h.TaskService.FindRunByID(ctx, req.TaskID, req.RunID)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -553,36 +554,32 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 }
 
 type getRunRequest struct {
-	OrgID platform.ID
-	RunID platform.ID
+	TaskID platform.ID
+	RunID  platform.ID
 }
 
-func decodeGetRunRequest(ctx context.Context, r *http.Request, orgs platform.OrganizationService) (*getRunRequest, error) {
+func decodeGetRunRequest(ctx context.Context, r *http.Request) (*getRunRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("rid")
-	if id == "" {
+	tid := params.ByName("tid")
+	if tid == "" {
+		return nil, kerrors.InvalidDataf("you must provide a task ID")
+	}
+	rid := params.ByName("rid")
+	if rid == "" {
 		return nil, kerrors.InvalidDataf("you must provide a run ID")
 	}
 
-	qp := r.URL.Query()
-	var orgID platform.ID
-	if orgName := qp.Get("org"); orgName != "" {
-		o, err := orgs.FindOrganization(ctx, platform.OrganizationFilter{Name: &orgName})
-		if err != nil {
-			return nil, err
-		}
-
-		orgID = o.ID
+	var ti, ri platform.ID
+	if err := ti.DecodeFromString(tid); err != nil {
+		return nil, err
 	}
-
-	var i platform.ID
-	if err := i.DecodeFromString(id); err != nil {
+	if err := ri.DecodeFromString(rid); err != nil {
 		return nil, err
 	}
 
 	return &getRunRequest{
-		RunID: i,
-		OrgID: orgID,
+		RunID:  ri,
+		TaskID: ti,
 	}, nil
 }
 
@@ -641,37 +638,56 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 		EncodeError(ctx, err, w)
 		return
 	}
+	if req.RequestedAt == nil {
+		now := time.Now().Unix()
+		req.RequestedAt = &now
+	}
 
-	run, err := h.TaskService.RetryRun(ctx, req.RunID)
-	if err != nil {
+	if err := h.TaskService.RetryRun(ctx, req.TaskID, req.RunID, *req.RequestedAt); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, run); err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type retryRunRequest struct {
-	RunID platform.ID
+	RunID, TaskID platform.ID
+	RequestedAt   *int64
 }
 
 func decodeRetryRunRequest(ctx context.Context, r *http.Request) (*retryRunRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("rid")
-	if id == "" {
+	tid := params.ByName("tid")
+	if tid == "" {
+		return nil, kerrors.InvalidDataf("you must provide a task ID")
+	}
+	rid := params.ByName("rid")
+	if rid == "" {
 		return nil, kerrors.InvalidDataf("you must provide a run ID")
 	}
 
-	var i platform.ID
-	if err := i.DecodeFromString(id); err != nil {
+	var ti, ri platform.ID
+	if err := ti.DecodeFromString(tid); err != nil {
+		return nil, err
+	}
+	if err := ri.DecodeFromString(rid); err != nil {
 		return nil, err
 	}
 
+	var t *int64
+	if ra := r.URL.Query().Get("requestedAt"); ra != "" {
+		tu, err := strconv.ParseInt(ra, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		t = &tu
+	}
+
 	return &retryRunRequest{
-		RunID: i,
+		RunID:       ri,
+		TaskID:      ti,
+		RequestedAt: t,
 	}, nil
 }
 
@@ -927,13 +943,87 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 }
 
 // FindRunByID returns a single run of a specific task.
-func (t TaskService) FindRunByID(ctx context.Context, orgID, runID platform.ID) (*platform.Run, error) {
-	return nil, errors.New("not yet implemented")
+func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+	u, err := newURL(t.Addr, taskIDRunIDPath(taskID, runID))
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if err := CheckError(resp); err != nil {
+		if err.Error() == backend.ErrRunNotFound.Error() {
+			// ErrRunNotFound is expected as part of the FindRunByID contract,
+			// so return that actual error instead of a different error that looks like it.
+			return nil, backend.ErrRunNotFound
+		}
+
+		return nil, err
+	}
+
+	var r runResponse
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return nil, err
+	}
+	return &r.Run, nil
 }
 
 // RetryRun creates and returns a new run (which is a retry of another run).
-func (t TaskService) RetryRun(ctx context.Context, id platform.ID) (*platform.Run, error) {
-	return nil, errors.New("not yet implemented")
+func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID, requestedAt int64) error {
+	p := path.Join(taskIDRunIDPath(taskID, runID), "retry")
+	u, err := newURL(t.Addr, p)
+	if err != nil {
+		return err
+	}
+
+	val := url.Values{}
+	val.Set("requestedAt", strconv.FormatInt(requestedAt, 10))
+	u.RawQuery = val.Encode()
+
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if err := CheckError(resp); err != nil {
+		if err.Error() == backend.ErrRunNotFound.Error() {
+			// ErrRunNotFound is expected as part of the RetryRun contract,
+			// so return that actual error instead of a different error that looks like it.
+			return backend.ErrRunNotFound
+		}
+
+		// RetryAlreadyQueuedError is also part of the contract.
+		if e := backend.ParseRetryAlreadyQueuedError(err.Error()); e != nil {
+			return *e
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 func cancelPath(taskID, runID platform.ID) string {
@@ -974,4 +1064,8 @@ func taskIDPath(id platform.ID) string {
 
 func taskIDRunsPath(id platform.ID) string {
 	return path.Join(tasksPath, id.String(), "runs")
+}
+
+func taskIDRunIDPath(taskID, runID platform.ID) string {
+	return path.Join(tasksPath, taskID.String(), "runs", runID.String())
 }

@@ -195,6 +195,11 @@ func (stm *StoreTaskMeta) ManuallyRunTimeRange(start, end, requestedAt int64) er
 		// Don't roll over in pathological case of starting at minimum int64.
 		lc = start
 	}
+	for _, mr := range stm.ManualRuns {
+		if mr.Start == start && mr.End == end {
+			return RetryAlreadyQueuedError{Start: start, End: end}
+		}
+	}
 	run := &StoreTaskMetaManualRun{
 		Start:           start,
 		End:             end,

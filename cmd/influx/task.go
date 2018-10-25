@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/platform"
@@ -573,9 +574,8 @@ func taskRunFindF(cmd *cobra.Command, args []string) {
 	w.Flush()
 }
 
-// RunRetryFlags define the Delete command
 type RunRetryFlags struct {
-	id string
+	taskID, runID string
 }
 
 var runRetryFlags RunRetryFlags
@@ -587,8 +587,10 @@ func init() {
 		Run:   runRetryF,
 	}
 
-	cmd.Flags().StringVarP(&runRetryFlags.id, "id", "i", "", "task id (required)")
-	cmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&runRetryFlags.taskID, "task-id", "i", "", "task id (required)")
+	cmd.Flags().StringVarP(&runRetryFlags.runID, "run-id", "r", "", "run id (required)")
+	cmd.MarkFlagRequired("task-id")
+	cmd.MarkFlagRequired("run-id")
 
 	taskCmd.AddCommand(cmd)
 }
@@ -599,38 +601,21 @@ func runRetryF(cmd *cobra.Command, args []string) {
 		Token: flags.token,
 	}
 
-	var id platform.ID
-	err := id.DecodeFromString(runRetryFlags.id)
-	if err != nil {
+	var taskID, runID platform.ID
+	if err := taskID.DecodeFromString(runRetryFlags.taskID); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	if err := runID.DecodeFromString(runRetryFlags.runID); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
 	ctx := context.TODO()
-	r, err := s.RetryRun(ctx, id)
-	if err != nil {
+	if err := s.RetryRun(ctx, taskID, runID, time.Now().Unix()); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-		"TaskID",
-		"Status",
-		"ScheduledFor",
-		"StartedAt",
-		"FinishedAt",
-		"RequestedAt",
-	)
-	w.Write(map[string]interface{}{
-		"ID":           r.ID,
-		"TaskID":       r.TaskID,
-		"Status":       r.Status,
-		"ScheduledFor": r.ScheduledFor,
-		"StartedAt":    r.StartedAt,
-		"FinishedAt":   r.FinishedAt,
-		"RequestedAt":  r.RequestedAt,
-	})
-	w.Flush()
+	fmt.Printf("Retry for task %s's run %s queued.\n", taskID, runID)
 }

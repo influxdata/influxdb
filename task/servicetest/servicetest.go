@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/snowflake"
 	"github.com/influxdata/platform/task"
@@ -93,6 +94,8 @@ type System struct {
 	// It is safe if this returns the same values every time it is called.
 	CredsFunc func() (orgID, userID platform.ID, token string, err error)
 
+	// Underlying task service, initialized inside TestTaskService,
+	// either by instantiating a PlatformAdapter directly or by calling TaskServiceFunc.
 	ts platform.TaskService
 }
 
@@ -219,73 +222,195 @@ func testTaskCRUD(t *testing.T, sys *System) {
 func testTaskRuns(t *testing.T, sys *System) {
 	orgID, userID, _ := creds(t, sys)
 
-	task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
-	if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
-		t.Fatal(err)
-	}
+	t.Run("FindRuns and FindRunByID", func(t *testing.T) {
+		t.Parallel()
 
-	const requestedAtUnix = 1000
-	if err := sys.S.ManuallyRunTimeRange(sys.Ctx, task.ID, 60, 300, requestedAtUnix); err != nil {
-		t.Fatal(err)
-	}
+		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
+		// which makes timing of runs somewhat difficult.
+		task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+		if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
+			t.Fatal(err)
+		}
+		st, err := sys.S.FindTaskByID(sys.Ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	// Create a run.
-	rc, err := sys.S.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix+1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rc.Created.TaskID != task.ID {
-		t.Fatalf("unexpected created run: got %s, want %s", rc.Created.TaskID.String(), task.ID.String())
-	}
-	runID := rc.Created.RunID
+		delta := (2 * time.Minute) + time.Second
+		requestedAtUnix := time.Now().Add(delta).UTC().Unix() // This should guarantee we can make two runs.
 
-	// Set the run state to started.
-	st, err := sys.S.FindTaskByID(sys.Ctx, task.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	startedAt := time.Now()
-	rlb := backend.RunLogBase{
-		Task:            st,
-		RunID:           runID,
-		RunScheduledFor: rc.Created.Now,
-		RequestedAt:     requestedAtUnix,
-	}
-	if err := sys.LW.UpdateRunState(sys.Ctx, rlb, startedAt, backend.RunStarted); err != nil {
-		t.Fatal(err)
-	}
+		rc0, err := sys.S.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rc0.Created.TaskID != task.ID {
+			t.Fatalf("wrong task ID on created task: got %s, want %s", rc0.Created.TaskID, task.ID)
+		}
 
-	// Find runs, to see the started run.
-	runs, n, err := sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &orgID, Task: &task.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != len(runs) {
-		t.Fatalf("expected n=%d, got %d", len(runs), n)
-	}
-	if len(runs) != 1 {
-		t.Fatalf("expected 1 run returned, got %d", len(runs))
-	}
+		startedAt := time.Now().UTC()
 
-	r := runs[0]
-	if r.ID != runID {
-		t.Errorf("expected to find run with ID %s, got %s", runID.String(), r.ID.String())
-	}
-	if r.TaskID != task.ID {
-		t.Errorf("expected run to have task ID %s, got %s", task.ID.String(), r.TaskID.String())
-	}
-	if want := startedAt.UTC().Format(time.RFC3339); r.StartedAt != want {
-		t.Errorf("expected run to be started at %q, got %q", want, r.StartedAt)
-	}
-	if want := time.Unix(rc.Created.Now, 0).UTC().Format(time.RFC3339); r.ScheduledFor != want {
-		t.Errorf("expected run to be scheduled for %q, got %q", want, r.ScheduledFor)
-	}
-	if want := time.Unix(requestedAtUnix, 0).UTC().Format(time.RFC3339); r.RequestedAt != want {
-		t.Errorf("expected run to be requested at %q, got %q", want, r.RequestedAt)
-	}
-	if r.FinishedAt != "" {
-		t.Errorf("expected run not be finished, got %q", r.FinishedAt)
-	}
+		// Update the run state to Started; normally the scheduler would do this.
+		rlb0 := backend.RunLogBase{
+			Task:            st,
+			RunID:           rc0.Created.RunID,
+			RunScheduledFor: rc0.Created.Now,
+			RequestedAt:     requestedAtUnix,
+		}
+		if err := sys.LW.UpdateRunState(sys.Ctx, rlb0, startedAt, backend.RunStarted); err != nil {
+			t.Fatal(err)
+		}
+
+		rc1, err := sys.S.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rc1.Created.TaskID != task.ID {
+			t.Fatalf("wrong task ID on created task: got %s, want %s", rc1.Created.TaskID, task.ID)
+		}
+
+		// Update the run state to Started; normally the scheduler would do this.
+		rlb1 := backend.RunLogBase{
+			Task:            st,
+			RunID:           rc1.Created.RunID,
+			RunScheduledFor: rc1.Created.Now,
+			RequestedAt:     requestedAtUnix,
+		}
+		if err := sys.LW.UpdateRunState(sys.Ctx, rlb1, startedAt, backend.RunStarted); err != nil {
+			t.Fatal(err)
+		}
+		// Mark the second run finished.
+		if err := sys.S.FinishRun(sys.Ctx, task.ID, rlb1.RunID); err != nil {
+			t.Fatal(err)
+		}
+		if err := sys.LW.UpdateRunState(sys.Ctx, rlb1, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
+			t.Fatal(err)
+		}
+
+		runs, _, err := sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &orgID, Task: &task.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(runs) != 2 {
+			t.Fatalf("expected 2 runs, got %v", runs)
+		}
+		if runs[0].ID != rc0.Created.RunID {
+			t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
+		}
+		if exp := startedAt.Format(time.RFC3339); runs[0].StartedAt != exp {
+			t.Fatalf("unexpectedStartedAt; want %s, got %s", exp, runs[0].StartedAt)
+		}
+		if runs[0].Status != backend.RunStarted.String() {
+			t.Fatalf("unexpected run status; want %s, got %s", backend.RunStarted.String(), runs[0].Status)
+		}
+		if runs[0].FinishedAt != "" {
+			t.Fatalf("expected empty FinishedAt, got %q", runs[0].FinishedAt)
+		}
+
+		if runs[1].ID != rc1.Created.RunID {
+			t.Fatalf("retrieved wrong run ID; want %s, got %s", rc1.Created.RunID, runs[1].ID)
+		}
+		if runs[1].StartedAt != runs[0].StartedAt {
+			t.Fatalf("unexpected StartedAt; want %s, got %s", runs[0].StartedAt, runs[1].StartedAt)
+		}
+		if runs[1].Status != backend.RunSuccess.String() {
+			t.Fatalf("unexpected run status; want %s, got %s", backend.RunSuccess.String(), runs[0].Status)
+		}
+		if exp := startedAt.Add(time.Second).Format(time.RFC3339); runs[1].FinishedAt != exp {
+			t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[1].FinishedAt)
+		}
+
+		foundRun0, err := sys.ts.FindRunByID(sys.Ctx, task.ID, runs[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(foundRun0, runs[0]); diff != "" {
+			t.Fatalf("difference between listed run and found run: %s", diff)
+		}
+
+		foundRun1, err := sys.ts.FindRunByID(sys.Ctx, task.ID, runs[1].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(foundRun1, runs[1]); diff != "" {
+			t.Fatalf("difference between listed run and found run: %s", diff)
+		}
+	})
+
+	t.Run("RetryRun", func(t *testing.T) {
+		t.Parallel()
+
+		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
+		// which makes timing of runs somewhat difficult.
+		task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+		if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
+			t.Fatal(err)
+		}
+		st, err := sys.S.FindTaskByID(sys.Ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Non-existent ID should return the right error.
+		if err := sys.ts.RetryRun(sys.Ctx, task.ID, platform.ID(math.MaxUint64), 0); err != backend.ErrRunNotFound {
+			t.Errorf("expected retrying run that doesn't exist to return %v, got %v", backend.ErrRunNotFound, err)
+		}
+
+		delta := time.Minute + (2 * time.Second)
+		requestedAtUnix := time.Now().Add(delta).UTC().Unix() // This should guarantee we can make a run.
+
+		rc, err := sys.S.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rc.Created.TaskID != task.ID {
+			t.Fatalf("wrong task ID on created task: got %s, want %s", rc.Created.TaskID, task.ID)
+		}
+
+		startedAt := time.Now().UTC()
+
+		// Update the run state to Started then Failed; normally the scheduler would do this.
+		rlb := backend.RunLogBase{
+			Task:            st,
+			RunID:           rc.Created.RunID,
+			RunScheduledFor: rc.Created.Now,
+			RequestedAt:     requestedAtUnix,
+		}
+		if err := sys.LW.UpdateRunState(sys.Ctx, rlb, startedAt, backend.RunStarted); err != nil {
+			t.Fatal(err)
+		}
+		if err := sys.S.FinishRun(sys.Ctx, task.ID, rlb.RunID); err != nil {
+			t.Fatal(err)
+		}
+		if err := sys.LW.UpdateRunState(sys.Ctx, rlb, startedAt.Add(time.Second), backend.RunFail); err != nil {
+			t.Fatal(err)
+		}
+
+		// Now retry the run.
+		if err := sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix); err != nil {
+			t.Fatal(err)
+		}
+		// Ensure the retry is added on the store task meta.
+		meta, err := sys.S.FindTaskMetaByID(sys.Ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		found := false
+		for _, mr := range meta.ManualRuns {
+			if mr.Start == mr.End && mr.Start == rc.Created.Now && mr.RequestedAt == requestedAtUnix {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("didn't find matching manual run after successful RetryRun call; got: %v", meta.ManualRuns)
+		}
+
+		// Retrying a run which has been queued but not started, should be rejected.
+		if exp, err := (backend.RetryAlreadyQueuedError{Start: rc.Created.Now, End: rc.Created.Now}), sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix); err != exp {
+			t.Fatalf("subsequent retry should have been rejected with %v; got %v", exp, err)
+		}
+	})
 }
 
 func testTaskConcurrency(t *testing.T, sys *System) {

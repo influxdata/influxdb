@@ -11,8 +11,6 @@ import (
 	"github.com/influxdata/platform"
 )
 
-var ErrRunNotFound error = errors.New("run not found")
-
 type runReaderWriter struct {
 	mu       sync.RWMutex
 	byTaskID map[string][]*platform.Run

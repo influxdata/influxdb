@@ -54,13 +54,14 @@ type TaskService interface {
 	FindRuns(ctx context.Context, filter RunFilter) ([]*Run, int, error)
 
 	// FindRunByID returns a single run.
-	FindRunByID(ctx context.Context, orgID, runID ID) (*Run, error)
+	FindRunByID(ctx context.Context, taskID, runID ID) (*Run, error)
 
 	// CancelRun cancels a currently running run.
 	CancelRun(ctx context.Context, taskID, runID ID) error
 
 	// RetryRun creates and returns a new run (which is a retry of another run).
-	RetryRun(ctx context.Context, id ID) (*Run, error)
+	// The requestedAt parameter is the Unix timestamp that will be recorded for the retry.
+	RetryRun(ctx context.Context, taskID, runID ID, requestedAt int64) error
 }
 
 // TaskUpdate represents updates to a task

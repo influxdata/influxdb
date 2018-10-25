@@ -257,4 +257,25 @@ func TestMeta_ManuallyRunTimeRange(t *testing.T) {
 	if len(stm.ManualRuns) != maxQueueSize {
 		t.Fatalf("expected to be unable to exceed queue size of %d; got %d", maxQueueSize, len(stm.ManualRuns))
 	}
+
+	// Reset manual runs.
+	stm.ManualRuns = stm.ManualRuns[:0]
+
+	// Duplicate manual run with single timestamp should be rejected.
+	if err := stm.ManuallyRunTimeRange(1, 1, 2); err != nil {
+		t.Fatal(err)
+	}
+	if exp, err := (backend.RetryAlreadyQueuedError{Start: 1, End: 1}), stm.ManuallyRunTimeRange(1, 1, 3); err != exp {
+		t.Fatalf("expected %v, got %v", exp, err)
+	}
+
+	// Duplicate manual run with time range should be rejected.
+	if err := stm.ManuallyRunTimeRange(100, 200, 201); err != nil {
+		t.Fatal(err)
+	}
+	if exp, err := (backend.RetryAlreadyQueuedError{Start: 100, End: 200}), stm.ManuallyRunTimeRange(100, 200, 202); err != exp {
+		t.Fatalf("expected %v, got %v", exp, err)
+	}
+
+	// Not currently enforcing one way or another when a newly requested time range overlaps with an existing one.
 }

@@ -27,6 +27,12 @@ var (
 
 	// ErrManualQueueFull is returned when a manual run request cannot be completed.
 	ErrManualQueueFull = errors.New("manual queue at capacity")
+
+	// ErrRunNotFound is returned when searching for a run that doesn't exist.
+	ErrRunNotFound = errors.New("run not found")
+
+	// ErrRunNotFinished is returned when a retry is invalid due to the run not being finished yet.
+	ErrRunNotFinished = errors.New("run is still in progress")
 )
 
 type TaskStatus string
@@ -82,6 +88,43 @@ type RunNotYetDueError struct {
 
 func (e RunNotYetDueError) Error() string {
 	return "run not due until " + time.Unix(e.DueAt, 0).UTC().Format(time.RFC3339)
+}
+
+// RetryAlreadyQueuedError is returned when attempting to retry a run which has not yet completed.
+type RetryAlreadyQueuedError struct {
+	// Unix timestamps matching existing request's start and end.
+	Start, End int64
+}
+
+const fmtRetryAlreadyQueued = "previous retry for start=%s end=%s has not yet finished"
+
+func (e RetryAlreadyQueuedError) Error() string {
+	return fmt.Sprintf(fmtRetryAlreadyQueued,
+		time.Unix(e.Start, 0).UTC().Format(time.RFC3339),
+		time.Unix(e.End, 0).UTC().Format(time.RFC3339),
+	)
+}
+
+// ParseRetryAlreadyQueuedError attempts to parse a RetryAlreadyQueuedError from msg.
+// If msg is formatted correctly, the resultant error is returned; otherwise it returns nil.
+func ParseRetryAlreadyQueuedError(msg string) *RetryAlreadyQueuedError {
+	var s, e string
+	n, err := fmt.Sscanf(msg, fmtRetryAlreadyQueued, &s, &e)
+	if err != nil || n != 2 {
+		return nil
+	}
+
+	start, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return nil
+	}
+
+	end, err := time.Parse(time.RFC3339, e)
+	if err != nil {
+		return nil
+	}
+
+	return &RetryAlreadyQueuedError{Start: start.Unix(), End: end.Unix()}
 }
 
 // RunCreation is returned by CreateNextRun.
@@ -233,6 +276,7 @@ type LogReader interface {
 	ListRuns(ctx context.Context, runFilter platform.RunFilter) ([]*platform.Run, error)
 
 	// FindRunByID finds a run given a orgID and runID.
+	// orgID is necessary to look in the correct system bucket.
 	FindRunByID(ctx context.Context, orgID, runID platform.ID) (*platform.Run, error)
 
 	// ListLogs lists logs for a task or a specified run of a task.
