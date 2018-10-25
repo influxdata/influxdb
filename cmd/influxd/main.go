@@ -250,7 +250,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		scheduler.Start(ctx)
 
 		// TODO(lh): Replace NopLogReader with real log reader
-		taskSvc = task.PlatformAdapter(coordinator.New(scheduler, boltStore), taskbackend.NopLogReader{})
+		taskSvc = task.PlatformAdapter(coordinator.New(logger.With(zap.String("svc", "task-coordinator")), scheduler, boltStore), taskbackend.NopLogReader{})
 		// TODO(lh): Add in `taskSvc = task.NewValidator(taskSvc)` once we have Authentication coming in the context.
 		// see issue #563
 	}

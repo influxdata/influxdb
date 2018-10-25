@@ -6,12 +6,14 @@ import (
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
+	"go.uber.org/zap"
 )
 
 type Coordinator struct {
 	backend.Store
 
-	sch backend.Scheduler
+	logger *zap.Logger
+	sch    backend.Scheduler
 
 	limit int
 }
@@ -24,18 +26,44 @@ func WithLimit(i int) Option {
 	}
 }
 
-func New(scheduler backend.Scheduler, st backend.Store, opts ...Option) backend.Store {
+func New(logger *zap.Logger, scheduler backend.Scheduler, st backend.Store, opts ...Option) backend.Store {
 	c := &Coordinator{
-		sch:   scheduler,
-		Store: st,
-		limit: 1000,
+		logger: logger,
+		sch:    scheduler,
+		Store:  st,
+		limit:  1000,
 	}
 
 	for _, opt := range opts {
 		opt(c)
 	}
 
+	go c.ClaimExistingTasks()
+
 	return c
+}
+
+// ClaimExistingTasks on start up, claim all the tasks that still exist.
+func (c *Coordinator) ClaimExistingTasks() {
+	tasks, err := c.Store.ListTasks(context.Background(), backend.TaskSearchParams{})
+	if err != nil {
+		c.logger.Error("failed to list tasks", zap.Error(err))
+	}
+
+	for len(tasks) > 0 {
+		for _, task := range tasks {
+			if err := c.sch.ClaimTask(&task.Task, &task.Meta); err != nil {
+				c.logger.Error("failed claim task", zap.Error(err))
+				continue
+			}
+		}
+		tasks, err = c.Store.ListTasks(context.Background(), backend.TaskSearchParams{
+			After: tasks[len(tasks)-1].Task.ID,
+		})
+		if err != nil {
+			c.logger.Error("failed list additional tasks", zap.Error(err))
+		}
+	}
 }
 
 func (c *Coordinator) CreateTask(ctx context.Context, req backend.CreateTaskRequest) (platform.ID, error) {

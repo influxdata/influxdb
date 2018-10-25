@@ -3,6 +3,7 @@ package coordinator_test
 import (
 	"context"
 	"errors"
+	"go.uber.org/zap/zaptest"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ func TestCoordinator(t *testing.T) {
 	st := backend.NewInMemStore()
 	sched := mock.NewScheduler()
 
-	coord := coordinator.New(sched, st)
+	coord := coordinator.New(zaptest.NewLogger(t), sched, st)
 	createChan := sched.TaskCreateChan()
 	releaseChan := sched.TaskReleaseChan()
 	updateChan := sched.TaskUpdateChan()
@@ -136,7 +137,7 @@ func TestCoordinator_DeleteUnclaimedTask(t *testing.T) {
 	st := backend.NewInMemStore()
 	sched := mock.NewScheduler()
 
-	coord := coordinator.New(sched, st)
+	coord := coordinator.New(zaptest.NewLogger(t), sched, st)
 
 	// Create an isolated task directly through the store so the coordinator doesn't know about it.
 	id, err := st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script})
@@ -151,5 +152,28 @@ func TestCoordinator_DeleteUnclaimedTask(t *testing.T) {
 
 	if _, err := st.FindTaskByID(context.Background(), id); err != backend.ErrTaskNotFound {
 		t.Fatalf("expected deleted task not to be found; got %v", err)
+	}
+}
+
+func TestCoordinator_ClaimExistingTasks(t *testing.T) {
+	st := backend.NewInMemStore()
+	sched := mock.NewScheduler()
+
+	createChan := sched.TaskCreateChan()
+
+	for i := 0; i < 110; i++ {
+		_, err := st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	coordinator.New(zaptest.NewLogger(t), sched, st)
+
+	for i := 0; i < 110; i++ {
+		_, err := timeoutSelector(createChan)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
