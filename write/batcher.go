@@ -99,6 +99,7 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 	}
 
 	buf := make([]byte, 0, maxBytes)
+	r := bytes.NewReader(buf)
 	var line []byte
 	var more = true
 
@@ -111,7 +112,7 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 			}
 			// write if we exceed the max lines OR read routine has finished
 			if len(buf) >= maxBytes || (!more && len(buf) > 0) {
-				r := bytes.NewReader(buf)
+				r.Reset(buf)
 				if err := b.Service.Write(ctx, org, bucket, r); err != nil {
 					errC <- err
 					return
@@ -121,7 +122,7 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 		case <-time.After(flushInterval):
 			// TODO: worry about timer garbage collection
 			if len(buf) > 0 {
-				r := bytes.NewReader(buf)
+				r.Reset(buf)
 				if err := b.Service.Write(ctx, org, bucket, r); err != nil {
 					errC <- err
 					return
