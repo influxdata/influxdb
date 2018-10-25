@@ -9,6 +9,7 @@ v1.7.0 [unreleased]
 
 -	[#9964](https://github.com/influxdata/influxdb/pull/9964): Enable the storage service by default.
 -	[#9996](https://github.com/influxdata/influxdb/pull/9996): Ensure read service regexes get optimised.
+-	[#10408](https://github.com/influxdata/influxdb/pull/10408): Add Flux support to the influx CLI command.
 
 ### Bugfixes
 
