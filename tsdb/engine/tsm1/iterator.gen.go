@@ -196,6 +196,7 @@ type floatIterator struct {
 	statsLock sync.Mutex
 	stats     query.IteratorStats
 	statsBuf  query.IteratorStats
+	valuer    influxql.ValuerEval
 }
 
 func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, cur floatCursor, aux []cursorAt, conds []cursorAt, condNames []string) *floatIterator {
@@ -222,6 +223,13 @@ func newFloatIterator(name string, tags query.Tags, opt query.IteratorOptions, c
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
+
+	itr.valuer = influxql.ValuerEval{
+		Valuer: influxql.MultiValuer(
+			query.MathValuer{},
+			influxql.MapValuer(itr.m),
+		),
+	}
 
 	return itr
 }
@@ -270,13 +278,7 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
+		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
 		}
 
@@ -674,6 +676,7 @@ type integerIterator struct {
 	statsLock sync.Mutex
 	stats     query.IteratorStats
 	statsBuf  query.IteratorStats
+	valuer    influxql.ValuerEval
 }
 
 func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions, cur integerCursor, aux []cursorAt, conds []cursorAt, condNames []string) *integerIterator {
@@ -700,6 +703,13 @@ func newIntegerIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
+
+	itr.valuer = influxql.ValuerEval{
+		Valuer: influxql.MultiValuer(
+			query.MathValuer{},
+			influxql.MapValuer(itr.m),
+		),
+	}
 
 	return itr
 }
@@ -748,13 +758,7 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
+		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
 		}
 
@@ -1152,6 +1156,7 @@ type unsignedIterator struct {
 	statsLock sync.Mutex
 	stats     query.IteratorStats
 	statsBuf  query.IteratorStats
+	valuer    influxql.ValuerEval
 }
 
 func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions, cur unsignedCursor, aux []cursorAt, conds []cursorAt, condNames []string) *unsignedIterator {
@@ -1178,6 +1183,13 @@ func newUnsignedIterator(name string, tags query.Tags, opt query.IteratorOptions
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
+
+	itr.valuer = influxql.ValuerEval{
+		Valuer: influxql.MultiValuer(
+			query.MathValuer{},
+			influxql.MapValuer(itr.m),
+		),
+	}
 
 	return itr
 }
@@ -1226,13 +1238,7 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
+		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
 		}
 
@@ -1630,6 +1636,7 @@ type stringIterator struct {
 	statsLock sync.Mutex
 	stats     query.IteratorStats
 	statsBuf  query.IteratorStats
+	valuer    influxql.ValuerEval
 }
 
 func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, cur stringCursor, aux []cursorAt, conds []cursorAt, condNames []string) *stringIterator {
@@ -1656,6 +1663,13 @@ func newStringIterator(name string, tags query.Tags, opt query.IteratorOptions, 
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
+
+	itr.valuer = influxql.ValuerEval{
+		Valuer: influxql.MultiValuer(
+			query.MathValuer{},
+			influxql.MapValuer(itr.m),
+		),
+	}
 
 	return itr
 }
@@ -1704,13 +1718,7 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
+		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
 		}
 
@@ -2108,6 +2116,7 @@ type booleanIterator struct {
 	statsLock sync.Mutex
 	stats     query.IteratorStats
 	statsBuf  query.IteratorStats
+	valuer    influxql.ValuerEval
 }
 
 func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []cursorAt, condNames []string) *booleanIterator {
@@ -2134,6 +2143,13 @@ func newBooleanIterator(name string, tags query.Tags, opt query.IteratorOptions,
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
+
+	itr.valuer = influxql.ValuerEval{
+		Valuer: influxql.MultiValuer(
+			query.MathValuer{},
+			influxql.MapValuer(itr.m),
+		),
+	}
 
 	return itr
 }
@@ -2182,13 +2198,7 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
+		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
 		}
 
