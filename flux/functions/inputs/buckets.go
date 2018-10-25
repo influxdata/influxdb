@@ -30,7 +30,7 @@ func (bd *BucketsDecoder) Fetch() (bool, error) {
 
 func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 	kb := execute.NewGroupKeyBuilder(nil)
-	kb.AddKeyValue("organizationID", values.NewStringValue("influxdb"))
+	kb.AddKeyValue("organizationID", values.NewString("influxdb"))
 	gk, err := kb.Build()
 	if err != nil {
 		return nil, err

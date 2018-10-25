@@ -237,7 +237,7 @@
   version = "v1.4.0"
 
 [[projects]]
-  digest = "1:5f5294d365235addc741355c640fd47ac30c7317875f95ac1e9a99ebe4f0ab7f"
+  digest = "1:84fa2f03428ad6597620424756169cdb2a47ef1ef6c1fc94100f2de809ea0b72"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
@@ -258,6 +258,7 @@
     "plugin/union",
     "plugin/unmarshal",
     "proto",
+    "protoc-gen-gogo",
     "protoc-gen-gogo/descriptor",
     "protoc-gen-gogo/generator",
     "protoc-gen-gogo/generator/internal/remap",
@@ -396,7 +397,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:6be98dfd22bde6335f3a675f01c2498597f02d7940f4789ccf6b1ab0ad36c8d5"
+  digest = "1:398361e0a4873e5712e3205986178f09cb323c5c6039af1b20fa82cc5b0fdae8"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -418,7 +419,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "59f53657bd7fb74bcfa5af586be28214239d7556"
+  revision = "00b914ca15ebdd5a79a4c2481e2cfabd444d461f"
 
 [[projects]]
   branch = "master"
@@ -433,7 +434,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:a52531fd6b0bc36b4ec92336ed67a5a05a2ee75b3525d721096b47037cd22c88"
+  digest = "1:b5d0d9d09a580808c5932423672ce780988df45a2358876cfc1f046e9987408a"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
@@ -451,13 +452,16 @@
     "query/functions/inputs/storage",
     "storage/reads",
     "storage/reads/datatypes",
+    "telegraf/plugins",
+    "telegraf/plugins/inputs",
+    "telegraf/plugins/outputs",
     "toml",
     "tsdb",
     "tsdb/cursors",
     "tsdb/defaults",
   ]
   pruneopts = "UT"
-  revision = "a005792a8c866fe404c86f2a153978ce74358306"
+  revision = "bbe73b5cc1dceb5826764c8b71feb89dc862ed14"
 
 [[projects]]
   branch = "master"
