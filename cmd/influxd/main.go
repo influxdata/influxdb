@@ -6,7 +6,6 @@ import (
 	nethttp "net/http"
 	_ "net/http/pprof"
 	"os"
-	"os/user"
 	"path/filepath"
 	"sync"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/influxdata/platform/chronograf/server"
 	"github.com/influxdata/platform/gather"
 	"github.com/influxdata/platform/http"
+	"github.com/influxdata/platform/internal/fs"
 	"github.com/influxdata/platform/kit/cli"
 	"github.com/influxdata/platform/kit/prom"
 	"github.com/influxdata/platform/kit/signals"
@@ -43,7 +43,7 @@ import (
 )
 
 func main() {
-	dir, err := influxDir()
+	dir, err := fs.InfluxDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to determine influx directory: %v", err)
 		os.Exit(1)
@@ -107,26 +107,6 @@ var (
 	developerMode   bool
 	enginePath      string
 )
-
-func influxDir() (string, error) {
-	var dir string
-	// By default, store meta and data files in current users home directory
-	u, err := user.Current()
-	if err == nil {
-		dir = u.HomeDir
-	} else if home := os.Getenv("HOME"); home != "" {
-		dir = home
-	} else {
-		wd, err := os.Getwd()
-		if err != nil {
-			return "", err
-		}
-		dir = wd
-	}
-	dir = filepath.Join(dir, ".influxdbv2")
-
-	return dir, nil
-}
 
 func run() error {
 	ctx := context.Background()

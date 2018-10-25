@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/cmd/influx/internal"
 	"github.com/influxdata/platform/http"
+	"github.com/influxdata/platform/internal/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -49,6 +51,26 @@ func init() {
 	bucketCmd.AddCommand(bucketCreateCmd)
 }
 
+func newBucketService(f Flags) (platform.BucketService, error) {
+	if flags.local {
+		boltFile, err := fs.BoltFile()
+		if err != nil {
+			return nil, err
+		}
+		c := bolt.NewClient()
+		c.Path = boltFile
+		if err := c.Open(context.Background()); err != nil {
+			return nil, err
+		}
+
+		return c, nil
+	}
+	return &http.BucketService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}, nil
+}
+
 func bucketCreateF(cmd *cobra.Command, args []string) {
 	if bucketCreateFlags.org != "" && bucketCreateFlags.orgID != "" {
 		fmt.Println("must specify exactly one of org or org-id")
@@ -56,9 +78,10 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	s := &http.BucketService{
-		Addr:  flags.host,
-		Token: flags.token,
+	s, err := newBucketService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	b := &platform.Bucket{
@@ -128,9 +151,10 @@ func init() {
 }
 
 func bucketFindF(cmd *cobra.Command, args []string) {
-	s := &http.BucketService{
-		Addr:  flags.host,
-		Token: flags.token,
+	s, err := newBucketService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	filter := platform.BucketFilter{}
@@ -217,9 +241,10 @@ func init() {
 }
 
 func bucketUpdateF(cmd *cobra.Command, args []string) {
-	s := &http.BucketService{
-		Addr:  flags.host,
-		Token: flags.token,
+	s, err := newBucketService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	var id platform.ID
@@ -268,14 +293,14 @@ type BucketDeleteFlags struct {
 var bucketDeleteFlags BucketDeleteFlags
 
 func bucketDeleteF(cmd *cobra.Command, args []string) {
-	s := &http.BucketService{
-		Addr:  flags.host,
-		Token: flags.token,
+	s, err := newBucketService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	var id platform.ID
-	err := id.DecodeFromString(bucketDeleteFlags.id)
-	if err != nil {
+	if err := id.DecodeFromString(bucketDeleteFlags.id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
