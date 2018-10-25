@@ -1,5 +1,5 @@
 import {Source} from 'src/types/v2/sources'
-import {Bucket} from 'src/types/v2/buckets'
+import {Bucket, RetentionRule, RetentionRuleTypes} from 'src/types/v2/buckets'
 import {RangeState} from 'src/dashboards/reducers/v2/ranges'
 import {ViewsState} from 'src/dashboards/reducers/v2/views'
 import {HoverTimeState} from 'src/dashboards/reducers/v2/hoverTime'
@@ -27,6 +27,7 @@ import {State as TaskState} from 'src/tasks/reducers/v2'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/v2/me'
 import {SourceState} from 'src/shared/reducers/v2/source'
+import {OverlayState} from 'src/types/v2/overlay'
 
 export interface AppState {
   VERSION: string
@@ -52,6 +53,9 @@ export {
   Source,
   Member,
   Bucket,
+  OverlayState,
+  RetentionRule,
+  RetentionRuleTypes,
   Dashboard,
   Links,
   Cell,

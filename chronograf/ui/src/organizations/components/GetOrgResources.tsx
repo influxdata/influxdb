@@ -4,6 +4,9 @@ import {PureComponent} from 'react'
 // Types
 import {RemoteDataState} from 'src/types'
 
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
 interface Props<T> {
   link: string
   fetcher: (link: string) => Promise<T>
@@ -15,6 +18,7 @@ interface State<T> {
   loading: RemoteDataState
 }
 
+@ErrorHandling
 export default class GetOrgResources<T> extends PureComponent<
   Props<T>,
   State<T>

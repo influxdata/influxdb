@@ -132,20 +132,19 @@ func (b *bucketUpdate) toPlatform() (*platform.BucketUpdate, error) {
 		return nil, nil
 	}
 
-	up := &platform.BucketUpdate{
-		Name: b.Name,
-	}
-
 	// For now, only use a single retention rule.
+	var d time.Duration
 	if len(b.RetentionRules) > 0 {
-		d := time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
+		d = time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
 		if d < time.Second {
 			return nil, errors.InvalidDataf("expiration seconds must be greater than or equal to one second")
 		}
-		up.RetentionPeriod = &d
 	}
 
-	return up, nil
+	return &platform.BucketUpdate{
+		Name:            b.Name,
+		RetentionPeriod: &d,
+	}, nil
 }
 
 func newBucketUpdate(pb *platform.BucketUpdate) *bucketUpdate {

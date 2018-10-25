@@ -4,12 +4,16 @@ import React, {Component} from 'react'
 // Types
 import {RemoteDataState} from 'src/types'
 
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
 interface Props {
   loading: RemoteDataState
   children: JSX.Element[] | JSX.Element
 }
 
-class Spinner extends Component<Props> {
+@ErrorHandling
+export default class Spinner extends Component<Props> {
   public render() {
     return <div className="spinner-container">{this.children}</div>
   }
@@ -27,5 +31,3 @@ class Spinner extends Component<Props> {
     return children
   }
 }
-
-export default Spinner

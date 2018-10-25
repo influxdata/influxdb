@@ -14,10 +14,18 @@ describe('Logs.queryBuilder', () => {
 
   beforeEach(() => {
     queryConfig = buildTableQueryConfig({
+      id: '1',
+      organization: 'default',
+      organizationID: '1',
       name: 'telegraf',
       rp: 'autogen',
-      retentionPeriod: 0,
+      retentionRules: [],
+      links: {
+        self: '',
+        org: '',
+      },
     })
+
     filters = []
     lower = '2018-10-10T22:46:24.859Z'
     upper = '2018-10-10T22:46:54.859Z'

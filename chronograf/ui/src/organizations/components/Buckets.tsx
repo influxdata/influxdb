@@ -4,9 +4,10 @@ import _ from 'lodash'
 
 // Components
 import ProfilePage from 'src/shared/components/profile_page/ProfilePage'
-import BucketOverlay from 'src/organizations/components/BucketOverlay'
 import FilterList from 'src/organizations/components/Filter'
-import BucketList, {PrettyBucket} from 'src/organizations/components/BucketList'
+import BucketList from 'src/organizations/components/BucketList'
+import {PrettyBucket} from 'src/organizations/components/BucketRow'
+import CreateBucketOverlay from 'src/organizations/components/CreateBucketOverlay'
 
 import {
   Input,
@@ -19,13 +20,18 @@ import {
 } from 'src/clockface'
 
 // Utils
-import {rpToString} from 'src/utils/formatting'
+import {ruleToString} from 'src/utils/formatting'
 
 // APIs
-import {createBucket} from 'src/organizations/apis'
+import {createBucket, updateBucket} from 'src/organizations/apis'
 
 // Types
-import {Bucket, Organization} from 'src/types/v2'
+import {
+  Bucket,
+  Organization,
+  RetentionRuleTypes,
+  OverlayState,
+} from 'src/types/v2'
 
 interface Props {
   org: Organization
@@ -33,14 +39,9 @@ interface Props {
 }
 
 interface State {
-  buckets: Bucket[]
+  buckets: PrettyBucket[]
   searchTerm: string
-  modalState: ModalState
-}
-
-enum ModalState {
-  Open = 'open',
-  Closed = 'closed',
+  overlayState: OverlayState
 }
 
 // Decorators
@@ -53,14 +54,14 @@ export default class Buckets extends PureComponent<Props, State> {
 
     this.state = {
       searchTerm: '',
-      buckets: this.props.buckets,
-      modalState: ModalState.Closed,
+      overlayState: OverlayState.Closed,
+      buckets: this.prettyBuckets(this.props.buckets),
     }
   }
 
   public render() {
     const {org} = this.props
-    const {searchTerm, modalState} = this.state
+    const {searchTerm, overlayState} = this.state
 
     return (
       <>
@@ -82,13 +83,20 @@ export default class Buckets extends PureComponent<Props, State> {
         </ProfilePage.Header>
         <FilterList<PrettyBucket>
           searchTerm={searchTerm}
-          searchKeys={['name', 'retentionPeriod']}
-          list={this.prettyBuckets}
+          searchKeys={['name', 'ruleString']}
+          list={this.prettyBuckets(this.state.buckets)}
         >
-          {bs => <BucketList buckets={bs} emptyState={this.emptyState} />}
+          {bs => (
+            <BucketList
+              buckets={bs}
+              emptyState={this.emptyState}
+              onUpdateBucket={this.handleUpdateBucket}
+            />
+          )}
         </FilterList>
-        <OverlayTechnology visible={modalState === ModalState.Open}>
-          <BucketOverlay
+        <OverlayTechnology visible={overlayState === OverlayState.Open}>
+          <CreateBucketOverlay
+            org={org}
             link={org.links.buckets}
             onCloseModal={this.handleCloseModal}
             onCreateBucket={this.handleCreateBucket}
@@ -98,22 +106,35 @@ export default class Buckets extends PureComponent<Props, State> {
     )
   }
 
+  private handleUpdateBucket = async (updatedBucket: PrettyBucket) => {
+    const bucket = await updateBucket(updatedBucket)
+    const buckets = this.state.buckets.map(b => {
+      if (b.id === bucket.id) {
+        return bucket
+      }
+
+      return b
+    })
+
+    this.setState({buckets: this.prettyBuckets(buckets)})
+  }
+
   private handleCreateBucket = async (
     link: string,
     bucket: Partial<Bucket>
   ): Promise<void> => {
-    const {buckets} = this.state
     const b = await createBucket(link, bucket)
-    this.setState({buckets: [b, ...buckets]})
+    const buckets = this.prettyBuckets([b, ...this.props.buckets])
+    this.setState({buckets})
     this.handleCloseModal()
   }
 
   private handleOpenModal = (): void => {
-    this.setState({modalState: ModalState.Open})
+    this.setState({overlayState: OverlayState.Open})
   }
 
   private handleCloseModal = (): void => {
-    this.setState({modalState: ModalState.Closed})
+    this.setState({overlayState: OverlayState.Closed})
   }
 
   private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -124,11 +145,24 @@ export default class Buckets extends PureComponent<Props, State> {
     this.setState({searchTerm: e.target.value})
   }
 
-  private get prettyBuckets(): PrettyBucket[] {
-    return this.props.buckets.map(b => ({
-      ...b,
-      retentionPeriod: rpToString(231432430000),
-    }))
+  private prettyBuckets(buckets: Bucket[]): PrettyBucket[] {
+    return buckets.map(b => {
+      const expire = b.retentionRules.find(
+        rule => rule.type === RetentionRuleTypes.Expire
+      )
+
+      if (!expire) {
+        return {
+          ...b,
+          ruleString: 'forever',
+        }
+      }
+
+      return {
+        ...b,
+        ruleString: ruleToString(expire.everySeconds),
+      }
+    })
   }
 
   private get emptyState(): JSX.Element {

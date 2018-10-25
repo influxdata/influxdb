@@ -99,12 +99,27 @@ export const createBucket = async (
     const {data} = await AJAX({
       method: 'POST',
       url,
-      data: {bucket},
+      data: bucket,
     })
 
     return data
   } catch (error) {
     console.error('Could not get buckets for org', error)
+    throw error
+  }
+}
+
+export const updateBucket = async (bucket: Bucket): Promise<Bucket> => {
+  try {
+    const {data} = await AJAX({
+      url: bucket.links.self,
+      method: 'PATCH',
+      data: bucket,
+    })
+
+    return data
+  } catch (error) {
+    console.error('Could not get members for org', error)
     throw error
   }
 }

@@ -535,11 +535,109 @@ func TestService_handlePatchBucket(t *testing.T) {
 				},
 			},
 			args: args{
-				id:   "020f755c3c082000",
-				name: "hello",
+				id:        "020f755c3c082000",
+				name:      "hello",
+				retention: time.Second,
 			},
 			wants: wants{
 				statusCode: http.StatusNotFound,
+			},
+		},
+		{
+			name: "update bucket to no retention and new name",
+			fields: fields{
+				&mock.BucketService{
+					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							d := &platform.Bucket{
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								Name:           "hello",
+								OrganizationID: platformtesting.MustIDBase16("020f755c3c082000"),
+							}
+
+							if upd.Name != nil {
+								d.Name = *upd.Name
+							}
+
+							if upd.RetentionPeriod != nil {
+								d.RetentionPeriod = *upd.RetentionPeriod
+							}
+
+							return d, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id:        "020f755c3c082000",
+				name:      "bucket with no retention",
+				retention: 0,
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "org": "/api/v2/orgs/020f755c3c082000",
+    "self": "/api/v2/buckets/020f755c3c082000"
+  },
+  "id": "020f755c3c082000",
+  "organizationID": "020f755c3c082000",
+  "name": "bucket with no retention",
+  "retentionRules": []
+}
+`,
+			},
+		},
+		{
+			name: "update retention policy to 'nothing'",
+			fields: fields{
+				&mock.BucketService{
+					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							d := &platform.Bucket{
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								Name:           "b1",
+								OrganizationID: platformtesting.MustIDBase16("020f755c3c082000"),
+							}
+
+							if upd.Name != nil {
+								d.Name = *upd.Name
+							}
+
+							if upd.RetentionPeriod != nil {
+								d.RetentionPeriod = *upd.RetentionPeriod
+							}
+
+							return d, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id:        "020f755c3c082000",
+				retention: 0,
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "org": "/api/v2/orgs/020f755c3c082000",
+    "self": "/api/v2/buckets/020f755c3c082000"
+  },
+  "id": "020f755c3c082000",
+  "organizationID": "020f755c3c082000",
+  "name": "b1",
+  "retentionRules": []
+}
+`,
 			},
 		},
 		{
@@ -590,6 +688,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 			if tt.args.name != "" {
 				upd.Name = &tt.args.name
 			}
+
 			if tt.args.retention != 0 {
 				upd.RetentionPeriod = &tt.args.retention
 			}

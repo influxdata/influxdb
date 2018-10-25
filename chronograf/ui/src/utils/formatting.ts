@@ -10,28 +10,24 @@ export interface Duration {
   seconds: number
 }
 
-export const durationToMs = ({
+export const durationToSeconds = ({
   days,
   hours,
   minutes,
   seconds,
 }: Duration): number => {
-  const msInSecond = 1000
-  const msInMinute = msInSecond * 60
-  const msInHour = msInMinute * 60
-  const msInDay = msInHour * 24
+  const sInMinute = 60
+  const sInHour = sInMinute * 60
+  const sInDay = sInHour * 24
 
-  const msDays = msInDay * days
-  const msHours = msInHour * hours
-  const msMinutes = msInMinute * minutes
-  const msSeconds = msInSecond * seconds
+  const sDays = sInDay * days
+  const sHours = sInHour * hours
+  const sMinutes = sInMinute * minutes
 
-  const retentionPeriod = msDays + msHours + msMinutes + msSeconds
-  return retentionPeriod
+  return sDays + sHours + sMinutes + seconds
 }
 
-export const msToDuration = (millisecond: number): Duration => {
-  let seconds = Math.floor(millisecond / 1000)
+export const secondsToDuration = (seconds: number): Duration => {
   let minutes = Math.floor(seconds / 60)
   seconds = seconds % 60
   let hours = Math.floor(minutes / 60)
@@ -47,8 +43,8 @@ export const msToDuration = (millisecond: number): Duration => {
   }
 }
 
-export const rpToString = (milliseconds: number): string => {
-  const duration = msToDuration(milliseconds)
+export const ruleToString = (seconds: number): string => {
+  const duration = secondsToDuration(seconds)
   const rpString = Object.entries(duration).reduce((acc, [k, v]) => {
     if (!v) {
       return acc
