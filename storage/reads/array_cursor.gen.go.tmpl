@@ -39,9 +39,12 @@ func (c *{{$type}}) reset(cur cursors.{{.Name}}ArrayCursor) {
 
 func (c *{{$type}}) Next() {{$arrayType}} {
 	pos := 0
+	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+	c.res.Values = c.res.Values[:cap(c.res.Values)]
+
 	var a {{$arrayType}}
 
-	if a.Len() > 0 {
+	if c.tmp.Len() > 0 {
 		a = c.tmp
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
