@@ -266,5 +266,11 @@ func (c *Client) deleteView(ctx context.Context, tx *bolt.Tx, id platform.ID) er
 	if err != nil {
 		return err
 	}
-	return tx.Bucket(viewBucket).Delete(encodedID)
+	if err := tx.Bucket(viewBucket).Delete(encodedID); err != nil {
+		return err
+	}
+	return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+		ResourceID:   id,
+		ResourceType: platform.ViewResourceType,
+	})
 }

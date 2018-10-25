@@ -422,5 +422,11 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 	if err != nil {
 		return err
 	}
-	return tx.Bucket(dashboardBucket).Delete(encodedID)
+	if err := tx.Bucket(dashboardBucket).Delete(encodedID); err != nil {
+		return err
+	}
+	return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+		ResourceID:   id,
+		ResourceType: platform.DashboardResourceType,
+	})
 }
