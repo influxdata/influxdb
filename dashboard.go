@@ -173,3 +173,12 @@ func (u CellUpdate) Apply(c *Cell) error {
 
 	return nil
 }
+
+// Valid returns an error if the cell update is invalid.
+func (u CellUpdate) Valid() error {
+	if u.H == nil && u.W == nil && u.Y == nil && u.X == nil && !u.ViewID.Valid() {
+		return fmt.Errorf("must update at least one attribute")
+	}
+
+	return nil
+}

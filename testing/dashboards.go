@@ -1038,7 +1038,7 @@ func UpdateDashboardCell(
 		wants  wants
 	}{
 		{
-			name: "basic remove cell",
+			name: "basic update cell",
 			fields: DashboardFields{
 				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 				IDGenerator: &mock.IDGenerator{
@@ -1092,6 +1092,57 @@ func UpdateDashboardCell(
 						},
 					},
 				},
+			},
+		},
+		{
+			name: "invalid cell update",
+			fields: DashboardFields{
+				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return MustIDBase16(dashTwoID)
+					},
+				},
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID:     MustIDBase16(dashTwoID),
+								ViewID: MustIDBase16(dashTwoID),
+							},
+							{
+								ID:     MustIDBase16(dashOneID),
+								ViewID: MustIDBase16(dashOneID),
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				dashboardID: MustIDBase16(dashOneID),
+				cellID:      MustIDBase16(dashTwoID),
+				cellUpdate:  platform.CellUpdate{},
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID:     MustIDBase16(dashTwoID),
+								ViewID: MustIDBase16(dashTwoID),
+							},
+							{
+								ID:     MustIDBase16(dashOneID),
+								ViewID: MustIDBase16(dashOneID),
+							},
+						},
+					},
+				},
+				err: fmt.Errorf("must update at least one attribute"),
 			},
 		},
 	}

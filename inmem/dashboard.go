@@ -182,6 +182,10 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID platform.
 
 // UpdateDashboardCell will remove a cell from a dashboard.
 func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID platform.ID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
 	d, err := s.FindDashboardByID(ctx, dashboardID)
 	if err != nil {
 		return nil, err

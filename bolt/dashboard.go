@@ -288,6 +288,10 @@ func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID, cellID pl
 
 // UpdateDashboardCell udpates a cell on a dashboard.
 func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
 	var cell *platform.Cell
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		d, err := c.findDashboardByID(ctx, tx, dashboardID)

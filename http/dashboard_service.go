@@ -616,6 +616,10 @@ func decodePatchDashboardCellRequest(ctx context.Context, r *http.Request) (*pat
 		return nil, errors.MalformedDataf(err.Error())
 	}
 
+	if err := req.upd.Valid(); err != nil {
+		return nil, errors.InvalidDataf(err.Error())
+	}
+
 	return req, nil
 }
 
@@ -886,12 +890,15 @@ func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID,
 
 // UpdateDashboardCell replaces the dashboard cell with the provided ID.
 func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
 	u, err := newURL(s.Addr, dashboardCellIDPath(dashboardID, cellID))
 	if err != nil {
 		return nil, err
 	}
 
-	// fixme > in case upd does not containa a valid ViewID this errors out
 	b, err := json.Marshal(upd)
 	if err != nil {
 		return nil, err
