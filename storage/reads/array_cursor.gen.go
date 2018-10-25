@@ -40,9 +40,12 @@ func (c *floatArrayFilterCursor) reset(cur cursors.FloatArrayCursor) {
 
 func (c *floatArrayFilterCursor) Next() *cursors.FloatArray {
 	pos := 0
+	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+	c.res.Values = c.res.Values[:cap(c.res.Values)]
+
 	var a *cursors.FloatArray
 
-	if a.Len() > 0 {
+	if c.tmp.Len() > 0 {
 		a = c.tmp
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
@@ -253,9 +256,12 @@ func (c *integerArrayFilterCursor) reset(cur cursors.IntegerArrayCursor) {
 
 func (c *integerArrayFilterCursor) Next() *cursors.IntegerArray {
 	pos := 0
+	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+	c.res.Values = c.res.Values[:cap(c.res.Values)]
+
 	var a *cursors.IntegerArray
 
-	if a.Len() > 0 {
+	if c.tmp.Len() > 0 {
 		a = c.tmp
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
@@ -466,9 +472,12 @@ func (c *unsignedArrayFilterCursor) reset(cur cursors.UnsignedArrayCursor) {
 
 func (c *unsignedArrayFilterCursor) Next() *cursors.UnsignedArray {
 	pos := 0
+	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+	c.res.Values = c.res.Values[:cap(c.res.Values)]
+
 	var a *cursors.UnsignedArray
 
-	if a.Len() > 0 {
+	if c.tmp.Len() > 0 {
 		a = c.tmp
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
@@ -679,9 +688,12 @@ func (c *stringArrayFilterCursor) reset(cur cursors.StringArrayCursor) {
 
 func (c *stringArrayFilterCursor) Next() *cursors.StringArray {
 	pos := 0
+	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+	c.res.Values = c.res.Values[:cap(c.res.Values)]
+
 	var a *cursors.StringArray
 
-	if a.Len() > 0 {
+	if c.tmp.Len() > 0 {
 		a = c.tmp
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
@@ -854,9 +866,12 @@ func (c *booleanArrayFilterCursor) reset(cur cursors.BooleanArrayCursor) {
 
 func (c *booleanArrayFilterCursor) Next() *cursors.BooleanArray {
 	pos := 0
+	c.res.Timestamps = c.res.Timestamps[:cap(c.res.Timestamps)]
+	c.res.Values = c.res.Values[:cap(c.res.Values)]
+
 	var a *cursors.BooleanArray
 
-	if a.Len() > 0 {
+	if c.tmp.Len() > 0 {
 		a = c.tmp
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
