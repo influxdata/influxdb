@@ -206,7 +206,8 @@ func (s *TickScheduler) Tick(now int64) {
 			affected++
 		}
 	}
-	s.logger.Info("Ticked", zap.Int64("now", now), zap.Int("tasks_affected", affected))
+	// TODO(mr): find a way to emit a more useful / less annoying tick message, maybe aggregated over the past 10s or 30s?
+	s.logger.Debug("Ticked", zap.Int64("now", now), zap.Int("tasks_affected", affected))
 }
 
 func (s *TickScheduler) Start(ctx context.Context) {
