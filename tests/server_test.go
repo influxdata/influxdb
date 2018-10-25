@@ -1593,6 +1593,26 @@ func TestServer_Query_Alias(t *testing.T) {
 			command: `SELECT mean(value), max(foo) FROM db0.rp0.cpu`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","mean","max"],"values":[["1970-01-01T00:00:00Z",1.5,null]]}]}]}`,
 		},
+		&Query{
+			name:    "double aggregate product - SELECT product(value), product(steps) FROM db0.rp0.cpu",
+			command: `SELECT product(value), product(steps) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","product","product_1"],"values":[["1970-01-01T00:00:00Z",2,12]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate product reverse order - SELECT product(steps), product(value) FROM db0.rp0.cpu",
+			command: `SELECT product(steps), product(value) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","product","product_1"],"values":[["1970-01-01T00:00:00Z",12,2]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate product with alias - SELECT product(value) as productv, product(steps) as products FROM db0.rp0.cpu",
+			command: `SELECT product(value) as productv, product(steps) as products FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","productv","products"],"values":[["1970-01-01T00:00:00Z",2,12]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate with same value - SELECT product(value), mean(value) FROM db0.rp0.cpu",
+			command: `SELECT product(value), mean(value) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","product","mean"],"values":[["1970-01-01T00:00:00Z",2,1.5]]}]}]}`,
+		},
 	}...)
 
 	if err := test.init(s); err != nil {

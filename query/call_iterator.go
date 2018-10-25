@@ -382,12 +382,27 @@ func newProductIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	}
 }
 
+func SafeFloat(val float64) float64 {
+	if val == 0 {
+		return 1
+	}
+	return val
+}
+
 // FloatProductReduce returns the product prev value & curr value.
 func FloatProductReduce(prev, curr *FloatPoint) (int64, float64, []interface{}) {
 	if prev == nil {
 		return ZeroTime, curr.Value, nil
 	}
-	return prev.Time, prev.Value * curr.Value, nil
+
+	return prev.Time, SafeFloat(prev.Value) * SafeFloat(curr.Value), nil
+}
+
+func SafeInteger(val int64) int64 {
+	if val == 0 {
+		return 1
+	}
+	return val
 }
 
 // IntegerProductReduce returns the product prev value & curr value.
@@ -395,7 +410,14 @@ func IntegerProductReduce(prev, curr *IntegerPoint) (int64, int64, []interface{}
 	if prev == nil {
 		return ZeroTime, curr.Value, nil
 	}
-	return prev.Time, prev.Value * curr.Value, nil
+	return prev.Time, SafeInteger(prev.Value) * SafeInteger(curr.Value), nil
+}
+
+func SafeUnsigned(val uint64) uint64 {
+	if val == 0 {
+		return 1
+	}
+	return val
 }
 
 // UnsignedProductReduce returns the product prev value & curr value.
@@ -403,7 +425,7 @@ func UnsignedProductReduce(prev, curr *UnsignedPoint) (int64, uint64, []interfac
 	if prev == nil {
 		return ZeroTime, curr.Value, nil
 	}
-	return prev.Time, prev.Value * curr.Value, nil
+	return prev.Time, SafeUnsigned(prev.Value) * SafeUnsigned(curr.Value), nil
 }
 
 // FloatFirstReduce returns the first point sorted by time.
