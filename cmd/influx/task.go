@@ -58,8 +58,9 @@ var taskCreateFlags TaskCreateFlags
 
 func init() {
 	taskCreateCmd := &cobra.Command{
-		Use:   "create",
+		Use:   "create [query literal or @/path/to/query.flux]",
 		Short: "Create task",
+		Args:  cobra.ExactArgs(1),
 		Run:   taskCreateF,
 	}
 
