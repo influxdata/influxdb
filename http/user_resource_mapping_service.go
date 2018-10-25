@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path"
 
@@ -27,13 +28,15 @@ type userResourceResponse struct {
 
 func newUserResourceResponse(u *platform.UserResourceMapping) *userResourceResponse {
 	return &userResourceResponse{
-		Links:               map[string]string{},
+		Links: map[string]string{
+			"user":     fmt.Sprintf("/api/v2/users/%s", u.UserID),
+			"resource": fmt.Sprintf("/api/v2/%ss/%s", u.ResourceType, u.ResourceID),
+		},
 		UserResourceMapping: *u,
 	}
 }
 
 type userResourcesResponse struct {
-	Links                map[string]string       `json:"links"`
 	UserResourceMappings []*userResourceResponse `json:"userResourceMappings"`
 }
 
@@ -43,7 +46,6 @@ func newUserResourcesResponse(opt platform.FindOptions, f platform.UserResourceM
 		rs = append(rs, newUserResourceResponse(m))
 	}
 	return &userResourcesResponse{
-		Links:                map[string]string{},
 		UserResourceMappings: rs,
 	}
 }

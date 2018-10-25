@@ -3,7 +3,6 @@ package platform
 import (
 	"context"
 	"errors"
-	"fmt"
 )
 
 type UserType string
@@ -55,7 +54,7 @@ func (m UserResourceMapping) Validate() error {
 	switch m.ResourceType {
 	case DashboardResourceType, BucketResourceType, TaskResourceType, OrgResourceType, ViewResourceType, TelegrafResourceType:
 	default:
-		return fmt.Errorf("a valid resource type is required")
+		return errors.New("a valid resource type is required")
 	}
 	return nil
 }
