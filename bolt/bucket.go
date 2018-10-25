@@ -419,5 +419,11 @@ func (c *Client) deleteBucket(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 	if err != nil {
 		return err
 	}
-	return tx.Bucket(bucketBucket).Delete(encodedID)
+	if err := tx.Bucket(bucketBucket).Delete(encodedID); err != nil {
+		return err
+	}
+	return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+		ResourceID:   id,
+		ResourceType: platform.BucketResourceType,
+	})
 }

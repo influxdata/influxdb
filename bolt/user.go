@@ -318,7 +318,12 @@ func (c *Client) deleteUser(ctx context.Context, tx *bolt.Tx, id platform.ID) er
 	if err := tx.Bucket(userIndex).Delete(userIndexKey(u.Name)); err != nil {
 		return err
 	}
-	return tx.Bucket(userBucket).Delete(encodedID)
+	if err := tx.Bucket(userBucket).Delete(encodedID); err != nil {
+		return err
+	}
+	return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+		UserID: id,
+	})
 }
 
 func (c *Client) deleteUsersAuthorizations(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
