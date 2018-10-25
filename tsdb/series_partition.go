@@ -198,7 +198,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 		}
 		if id.HasType() && id.Type() != iter.Type() {
 			iter.Invalid(fmt.Sprintf(
-				"series type mismatch: already %d but got %d",
+				"series type mismatch: already %s but got %s",
 				id.Type(), iter.Type()))
 			continue
 		}
@@ -252,7 +252,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 		if !id.IsZero() {
 			if id.HasType() && id.Type() != typ {
 				iter.Invalid(fmt.Sprintf(
-					"series type mismatch: already %d but got %d",
+					"series type mismatch: already %s but got %s",
 					id.Type(), iter.Type()))
 				continue
 			}

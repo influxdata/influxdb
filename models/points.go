@@ -162,6 +162,23 @@ const (
 	Unsigned
 )
 
+func (t FieldType) String() string {
+	switch t {
+	case Integer:
+		return "Integer"
+	case Float:
+		return "Float"
+	case Boolean:
+		return "Boolean"
+	case String:
+		return "String"
+	case Empty:
+		return "Empty"
+	default:
+		return "<unknown>"
+	}
+}
+
 // FieldIterator provides a low-allocation interface to iterate through a point's fields.
 type FieldIterator interface {
 	// Next indicates whether there any fields remaining.
