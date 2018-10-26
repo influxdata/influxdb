@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	ErrorHeader     = "X-Influx-Error"
+	// ErrorHeader is the standard location for influx errors to be reported.
+	ErrorHeader = "X-Influx-Error"
+	// ReferenceHeader is the header for the reference error reference code.
 	ReferenceHeader = "X-Influx-Reference"
 
 	errorHeaderMaxLength = 256
