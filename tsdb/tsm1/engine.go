@@ -40,10 +40,6 @@ import (
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
 
-func init() {
-	tsdb.RegisterEngine("tsm1", NewEngine)
-}
-
 var (
 	// Ensure Engine implements the interface.
 	_ tsdb.Engine = &Engine{}

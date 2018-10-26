@@ -3,12 +3,9 @@ package tsdb
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"runtime"
-	"sort"
 	"time"
 
 	"github.com/influxdata/influxql"
@@ -16,7 +13,6 @@ import (
 	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/pkg/limiter"
 	"go.uber.org/zap"
-	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
 var (
@@ -78,67 +74,6 @@ type Engine interface {
 // SeriesIDSets provides access to the total set of series IDs
 type SeriesIDSets interface {
 	ForEach(f func(ids *SeriesIDSet)) error
-}
-
-// NewEngineFunc creates a new engine.
-type NewEngineFunc func(id uint64, i *tsi1.Index, path string, walPath string, sfile *SeriesFile, options EngineOptions) Engine
-
-// newEngineFuncs is a lookup of engine constructors by name.
-var newEngineFuncs = make(map[string]NewEngineFunc)
-
-// RegisterEngine registers a storage engine initializer by name.
-func RegisterEngine(name string, fn NewEngineFunc) {
-	if _, ok := newEngineFuncs[name]; ok {
-		panic("engine already registered: " + name)
-	}
-	newEngineFuncs[name] = fn
-}
-
-// RegisteredEngines returns the slice of currently registered engines.
-func RegisteredEngines() []string {
-	a := make([]string, 0, len(newEngineFuncs))
-	for k := range newEngineFuncs {
-		a = append(a, k)
-	}
-	sort.Strings(a)
-	return a
-}
-
-// NewEngine returns an instance of an engine based on its format.
-// If the path does not exist then the DefaultFormat is used.
-func NewEngine(id uint64, i *tsi1.Index, path string, sfile *SeriesFile, options EngineOptions) (Engine, error) {
-	// Create a new engine
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		// TODO(jeff): remove walPath argument
-		engine := newEngineFuncs[options.EngineVersion](id, i, path, "", sfile, options)
-		if options.OnNewEngine != nil {
-			options.OnNewEngine(engine)
-		}
-		return engine, nil
-	}
-
-	// If it's a dir then it's a tsm1 engine
-	format := DefaultEngine
-	if fi, err := os.Stat(path); err != nil {
-		return nil, err
-	} else if !fi.Mode().IsDir() {
-		return nil, ErrUnknownEngineFormat
-	} else {
-		format = "tsm1"
-	}
-
-	// Lookup engine by format.
-	fn := newEngineFuncs[format]
-	if fn == nil {
-		return nil, fmt.Errorf("invalid engine format: %q", format)
-	}
-
-	// TODO(jeff): remove walPath argument
-	engine := fn(id, i, path, "", sfile, options)
-	if options.OnNewEngine != nil {
-		options.OnNewEngine(engine)
-	}
-	return engine, nil
 }
 
 // EngineOptions represents the options used to initialize the engine.

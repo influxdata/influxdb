@@ -105,17 +105,6 @@ func (c *Config) Validate() error {
 	}
 
 	valid := false
-	for _, e := range RegisteredEngines() {
-		if e == c.Engine {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		return fmt.Errorf("unrecognized engine %s", c.Engine)
-	}
-
-	valid = false
 	for _, e := range RegisteredIndexes() {
 		if e == c.Index {
 			valid = true
