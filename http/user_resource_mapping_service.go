@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path"
 
@@ -18,6 +19,35 @@ type UserResourceMappingService struct {
 	Token              string
 	InsecureSkipVerify bool
 	BasePath           string
+}
+
+type userResourceResponse struct {
+	Links map[string]string `json:"links"`
+	platform.UserResourceMapping
+}
+
+func newUserResourceResponse(u *platform.UserResourceMapping) *userResourceResponse {
+	return &userResourceResponse{
+		Links: map[string]string{
+			"user":     fmt.Sprintf("/api/v2/users/%s", u.UserID),
+			"resource": fmt.Sprintf("/api/v2/%ss/%s", u.ResourceType, u.ResourceID),
+		},
+		UserResourceMapping: *u,
+	}
+}
+
+type userResourcesResponse struct {
+	UserResourceMappings []*userResourceResponse `json:"userResourceMappings"`
+}
+
+func newUserResourcesResponse(opt platform.FindOptions, f platform.UserResourceMappingFilter, ms []*platform.UserResourceMapping) *userResourcesResponse {
+	rs := make([]*userResourceResponse, 0, len(ms))
+	for _, m := range ms {
+		rs = append(rs, newUserResourceResponse(m))
+	}
+	return &userResourcesResponse{
+		UserResourceMappings: rs,
+	}
 }
 
 // newPostMemberHandler returns a handler func for a POST to /members or /owners endpoints
@@ -43,7 +73,7 @@ func newPostMemberHandler(s platform.UserResourceMappingService, resourceType pl
 			return
 		}
 
-		if err := encodeResponse(ctx, w, http.StatusCreated, mapping); err != nil {
+		if err := encodeResponse(ctx, w, http.StatusCreated, newUserResourceResponse(mapping)); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
@@ -97,13 +127,15 @@ func newGetMembersHandler(s platform.UserResourceMappingService, userType platfo
 			ResourceID: req.ResourceID,
 			UserType:   platform.Member,
 		}
+
+		opts := platform.FindOptions{}
 		mappings, _, err := s.FindUserResourceMappings(ctx, filter)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
-		if err := encodeResponse(ctx, w, http.StatusOK, mappings); err != nil {
+		if err := encodeResponse(ctx, w, http.StatusOK, newUserResourcesResponse(opts, filter, mappings)); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
@@ -171,7 +203,7 @@ func decodeDeleteMemberRequest(ctx context.Context, r *http.Request) (*deleteMem
 		return nil, err
 	}
 
-	id = params.ByName("mid")
+	id = params.ByName("userID")
 	if id == "" {
 		return nil, kerrors.InvalidDataf("url missing member id")
 	}
