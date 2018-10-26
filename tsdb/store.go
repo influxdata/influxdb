@@ -1404,10 +1404,20 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 		}
 
 		if is.SeriesFile == nil {
-			is.SeriesFile = shard.sfile
+			sfile, err := shard.SeriesFile()
+			if err != nil {
+				s.mu.RUnlock()
+				return nil, err
+			}
+			is.SeriesFile = sfile
 		}
 
-		is.Indexes = append(is.Indexes, shard.index)
+		index, err := shard.Index()
+		if err != nil {
+			s.mu.RUnlock()
+			return nil, err
+		}
+		is.Indexes = append(is.Indexes, index)
 	}
 	s.mu.RUnlock()
 
@@ -1560,9 +1570,21 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 		}
 
 		if is.SeriesFile == nil {
-			is.SeriesFile = shard.sfile
+			sfile, err := shard.SeriesFile()
+			if err != nil {
+				s.mu.RUnlock()
+				return nil, err
+			}
+			is.SeriesFile = sfile
 		}
-		is.Indexes = append(is.Indexes, shard.index)
+
+		index, err := shard.Index()
+		if err != nil {
+			s.mu.RUnlock()
+			return nil, err
+		}
+
+		is.Indexes = append(is.Indexes, index)
 	}
 	s.mu.RUnlock()
 	is = is.DedupeInmemIndexes()
