@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/kit/signals"
+	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/write"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -25,10 +26,11 @@ var writeCmd = &cobra.Command{
 }
 
 var writeFlags struct {
-	OrgID    string
-	Org      string
-	BucketID string
-	Bucket   string
+	OrgID     string
+	Org       string
+	BucketID  string
+	Bucket    string
+	Precision string
 }
 
 func init() {
@@ -55,6 +57,12 @@ func init() {
 	if h := viper.GetString("BUCKET_NAME"); h != "" {
 		writeFlags.Bucket = h
 	}
+
+	writeCmd.PersistentFlags().StringVarP(&writeFlags.Org, "precision", "p", "ns", "precision of the timestamps of the lines")
+	viper.BindEnv("PRECISION")
+	if p := viper.GetString("PRECISION"); p != "" {
+		writeFlags.Precision = p
+	}
 }
 
 func fluxWriteF(cmd *cobra.Command, args []string) error {
@@ -68,6 +76,11 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
 		cmd.Usage()
 		return fmt.Errorf("Please specify one of bucket or bucket-id")
+	}
+
+	if !models.ValidPrecision(writeFlags.Precision) {
+		cmd.Usage()
+		return fmt.Errorf("invalid precision")
 	}
 
 	bs := &http.BucketService{
@@ -125,8 +138,9 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 
 	s := write.Batcher{
 		Service: &http.WriteService{
-			Addr:  flags.host,
-			Token: flags.token,
+			Addr:      flags.host,
+			Token:     flags.token,
+			Precision: writeFlags.Precision,
 		},
 	}
 

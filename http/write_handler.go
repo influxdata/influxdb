@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/influxdata/platform"
 	pcontext "github.com/influxdata/platform/context"
@@ -74,7 +75,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := decodeWriteRequest(ctx, r)
+	req, err := decodeWriteRequest(ctx, r)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -148,7 +149,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	points, err := models.ParsePoints(data)
+	points, err := models.ParsePointsWithPrecision(data, time.Now(), req.Precision)
 	if err != nil {
 		logger.Info("Error parsing points", zap.Error(err))
 		EncodeError(ctx, err, w)
@@ -170,30 +171,50 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func decodeWriteRequest(ctx context.Context, r *http.Request) *postWriteRequest {
+func decodeWriteRequest(ctx context.Context, r *http.Request) (*postWriteRequest, error) {
 	qp := r.URL.Query()
+	p := qp.Get("precision")
+	if p == "" {
+		p = "ns"
+	}
+
+	if !models.ValidPrecision(p) {
+		return nil, errors.InvalidDataf("invalid precision")
+	}
 
 	return &postWriteRequest{
-		Bucket: qp.Get("bucket"),
-		Org:    qp.Get("org"),
-	}
+		Bucket:    qp.Get("bucket"),
+		Org:       qp.Get("org"),
+		Precision: p,
+	}, nil
 }
 
 type postWriteRequest struct {
-	Org    string
-	Bucket string
+	Org       string
+	Bucket    string
+	Precision string
 }
 
 // WriteService sends data over HTTP to influxdb via line protocol.
 type WriteService struct {
 	Addr               string
 	Token              string
+	Precision          string
 	InsecureSkipVerify bool
 }
 
 var _ platform.WriteService = (*WriteService)(nil)
 
 func (s *WriteService) Write(ctx context.Context, orgID, bucketID platform.ID, r io.Reader) error {
+	precision := s.Precision
+	if precision == "" {
+		precision = "ns"
+	}
+
+	if !models.ValidPrecision(precision) {
+		return fmt.Errorf("invalid precision")
+	}
+
 	u, err := newURL(s.Addr, writePath)
 	if err != nil {
 		return err
@@ -226,6 +247,7 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID platform.ID, r
 	params := req.URL.Query()
 	params.Set("org", string(org))
 	params.Set("bucket", string(bucket))
+	params.Set("precision", string(precision))
 	req.URL.RawQuery = params.Encode()
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)

@@ -315,6 +315,16 @@ func ParseName(buf []byte) []byte {
 	return UnescapeMeasurement(name)
 }
 
+// ValidPrecision checks if the precision is known.
+func ValidPrecision(precision string) bool {
+	switch precision {
+	case "n", "ns", "u", "us", "ms", "s":
+		return true
+	default:
+		return false
+	}
+}
+
 // ParsePointsWithPrecision is similar to ParsePoints, but allows the
 // caller to provide a precision for time.
 //
