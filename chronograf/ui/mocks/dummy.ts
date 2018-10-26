@@ -11,7 +11,7 @@ import {
 import {Links} from 'src/types/v2/links'
 
 export const links: Links = {
-  auths: '/api/v2/authorizations',
+  authorizations: '/api/v2/authorizations',
   buckets: '/api/v2/buckets',
   dashboards: '/api/v2/dashboards',
   external: {
