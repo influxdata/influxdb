@@ -84,11 +84,6 @@ func (s *Service) FindUserResourceMappings(ctx context.Context, filter platform.
 	return mappings, len(mappings), nil
 }
 
-// TODO(jm): remove this once etcd is no longer using it
-func (s *Service) FindManyUserResourceMappings(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.UserResourceMapping, int, error) {
-	return s.FindUserResourceMappings(ctx, filter)
-}
-
 func (s *Service) CreateUserResourceMapping(ctx context.Context, m *platform.UserResourceMapping) error {
 	mapping, _ := s.FindUserResourceBy(ctx, m.ResourceID, m.UserID)
 	if mapping != nil {
