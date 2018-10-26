@@ -423,7 +423,7 @@ func (i *Partition) FieldSet() *tsdb.MeasurementFieldSet {
 func (i *Partition) RetainFileSet() (*FileSet, error) {
 	select {
 	case <-i.closing:
-		return nil, errors.New("index is closing")
+		return nil, tsdb.ErrIndexClosing
 	default:
 		i.mu.RLock()
 		defer i.mu.RUnlock()
