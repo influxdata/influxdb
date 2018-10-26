@@ -397,7 +397,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:398361e0a4873e5712e3205986178f09cb323c5c6039af1b20fa82cc5b0fdae8"
+  digest = "1:7d9a01bd1d7ebbe07f0ba254a0538ced145b2d42ce3288ed5ac2a885047dfbdd"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -406,6 +406,7 @@
     "control",
     "csv",
     "execute",
+    "functions",
     "functions/inputs",
     "functions/transformations",
     "interpreter",
@@ -419,7 +420,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "00b914ca15ebdd5a79a4c2481e2cfabd444d461f"
+  revision = "39f39ce9135326d126c224b8b2b6c8f72a5600d6"
 
 [[projects]]
   branch = "master"
