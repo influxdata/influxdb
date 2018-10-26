@@ -8,8 +8,6 @@ import (
 	"unsafe"
 
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/pkg/estimator"
-	"github.com/influxdata/platform/pkg/estimator/hll"
 	"github.com/influxdata/platform/tsdb"
 )
 
@@ -408,36 +406,6 @@ func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.Serie
 	return tsdb.NewSeriesIDSetIterator(ss), nil
 }
 
-// MeasurementsSketches returns the merged measurement sketches for the FileSet.
-func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	sketch, tSketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	for _, f := range fs.files {
-		if s, t, err := f.MeasurementsSketches(); err != nil {
-			return nil, nil, err
-		} else if err := sketch.Merge(s); err != nil {
-			return nil, nil, err
-		} else if err := tSketch.Merge(t); err != nil {
-			return nil, nil, err
-		}
-	}
-	return sketch, tSketch, nil
-}
-
-// SeriesSketches returns the merged measurement sketches for the FileSet.
-func (fs *FileSet) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	sketch, tSketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	for _, f := range fs.files {
-		if s, t, err := f.SeriesSketches(); err != nil {
-			return nil, nil, err
-		} else if err := sketch.Merge(s); err != nil {
-			return nil, nil, err
-		} else if err := tSketch.Merge(t); err != nil {
-			return nil, nil, err
-		}
-	}
-	return sketch, tSketch, nil
-}
-
 // File represents a log or index file.
 type File interface {
 	Close() error
@@ -460,10 +428,6 @@ type File interface {
 	MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator
 	TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
 	TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesIDSet, error)
-
-	// Sketches for cardinality estimation
-	MeasurementsSketches() (s, t estimator.Sketch, err error)
-	SeriesSketches() (s, t estimator.Sketch, err error)
 
 	// Bitmap series existance.
 	SeriesIDSet() (*tsdb.SeriesIDSet, error)

@@ -18,7 +18,6 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/pkg/bytesutil"
-	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/tsdb"
 	"go.uber.org/zap"
 )
@@ -695,28 +694,6 @@ func (p *Partition) DropSeries(seriesID tsdb.SeriesID) error {
 
 	// Swap log file, if necessary.
 	return p.CheckLogFile()
-}
-
-// MeasurementsSketches returns the two sketches for the partition by merging all
-// instances of the type sketch types in all the index files.
-func (p *Partition) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	fs, err := p.RetainFileSet()
-	if err != nil {
-		return nil, nil, err
-	}
-	defer fs.Release()
-	return fs.MeasurementsSketches()
-}
-
-// SeriesSketches returns the two sketches for the partition by merging all
-// instances of the type sketch types in all the index files.
-func (p *Partition) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	fs, err := p.RetainFileSet()
-	if err != nil {
-		return nil, nil, err
-	}
-	defer fs.Release()
-	return fs.SeriesSketches()
 }
 
 // HasTagKey returns true if tag key exists.

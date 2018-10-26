@@ -9,7 +9,6 @@ import (
 
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/pkg/limiter"
 	"go.uber.org/zap"
 )
@@ -39,8 +38,6 @@ type Engine interface {
 	DeleteSeriesRange(itr SeriesIterator, min, max int64) error
 	DeleteSeriesRangeWithPredicate(itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error
 
-	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
-	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
 
 	MeasurementExists(name []byte) (bool, error)

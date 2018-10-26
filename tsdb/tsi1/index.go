@@ -20,8 +20,6 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/estimator"
-	"github.com/influxdata/platform/pkg/estimator/hll"
 	"github.com/influxdata/platform/pkg/slices"
 	"github.com/influxdata/platform/tsdb"
 	"go.uber.org/zap"
@@ -128,10 +126,6 @@ type Index struct {
 	sfile    *tsdb.SeriesFile // series lookup file
 	database string           // Name of database.
 
-	// Cached sketches.
-	mSketch, mTSketch estimator.Sketch // Measurement sketches
-	sSketch, sTSketch estimator.Sketch // Series sketches
-
 	// Index's version.
 	version int
 
@@ -152,10 +146,6 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, c Config, options ...Inde
 		version:        Version,
 		sfile:          sfile,
 		database:       database,
-		mSketch:        hll.NewDefaultPlus(),
-		mTSketch:       hll.NewDefaultPlus(),
-		sSketch:        hll.NewDefaultPlus(),
-		sTSketch:       hll.NewDefaultPlus(),
 		PartitionN:     DefaultPartitionN,
 	}
 
@@ -182,10 +172,6 @@ func (i *Index) Bytes() int {
 	b += int(unsafe.Sizeof(i.logger))
 	b += int(unsafe.Sizeof(i.sfile))
 	// Do not count SeriesFile because it belongs to the code that constructed this Index.
-	b += int(unsafe.Sizeof(i.mSketch)) + i.mSketch.Bytes()
-	b += int(unsafe.Sizeof(i.mTSketch)) + i.mTSketch.Bytes()
-	b += int(unsafe.Sizeof(i.sSketch)) + i.sSketch.Bytes()
-	b += int(unsafe.Sizeof(i.sTSketch)) + i.sTSketch.Bytes()
 	b += int(unsafe.Sizeof(i.database)) + len(i.database)
 	b += int(unsafe.Sizeof(i.version))
 	b += int(unsafe.Sizeof(i.PartitionN))
@@ -278,13 +264,6 @@ func (i *Index) Open() error {
 		}
 	}
 
-	// Refresh cached sketches.
-	if err := i.updateSeriesSketches(); err != nil {
-		return err
-	} else if err := i.updateMeasurementSketches(); err != nil {
-		return err
-	}
-
 	// Mark opened.
 	i.opened = true
 	i.logger.Info("Index opened", zap.Int("partitions", partitionN))
@@ -362,36 +341,6 @@ func (i *Index) availableThreads() int {
 		return len(i.partitions)
 	}
 	return n
-}
-
-// updateMeasurementSketches rebuilds the cached measurement sketches.
-func (i *Index) updateMeasurementSketches() error {
-	i.mSketch, i.mTSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	for j := 0; j < int(i.PartitionN); j++ {
-		if s, t, err := i.partitions[j].MeasurementsSketches(); err != nil {
-			return err
-		} else if i.mSketch.Merge(s); err != nil {
-			return err
-		} else if i.mTSketch.Merge(t); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// updateSeriesSketches rebuilds the cached series sketches.
-func (i *Index) updateSeriesSketches() error {
-	i.sSketch, i.sTSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	for j := 0; j < int(i.PartitionN); j++ {
-		if s, t, err := i.partitions[j].SeriesSketches(); err != nil {
-			return err
-		} else if i.sSketch.Merge(s); err != nil {
-			return err
-		} else if i.sTSketch.Merge(t); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // ForEachMeasurementName iterates over all measurement names in the index,
@@ -632,12 +581,6 @@ func (i *Index) DropMeasurement(name []byte) error {
 		}
 	}
 
-	// Update sketches.
-	i.mTSketch.Add(name)
-	if err := i.updateSeriesSketches(); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -734,14 +677,6 @@ func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) e
 		}
 	}
 
-	// Update sketches.
-	for _, key := range collection.Keys {
-		i.sSketch.Add(key)
-	}
-	for _, name := range collection.Names {
-		i.mSketch.Add(name)
-	}
-
 	return nil
 }
 
@@ -762,8 +697,6 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ 
 	if err != nil {
 		return err
 	}
-	i.sSketch.Add(key)
-	i.mSketch.Add(name)
 
 	if len(ids) == 0 || ids[0].IsZero() {
 		return nil // No new series, nothing further to update.
@@ -804,9 +737,6 @@ func (i *Index) DropSeries(seriesID tsdb.SeriesID, key []byte, cascade bool) err
 	if err := i.partition(key).DropSeries(seriesID); err != nil {
 		return err
 	}
-
-	// Add sketch tombstone.
-	i.sTSketch.Add(key)
 
 	if !cascade {
 		return nil
@@ -854,16 +784,6 @@ func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
 
 	// If no more series exist in the measurement then delete the measurement.
 	return i.DropMeasurement(name)
-}
-
-// MeasurementsSketches returns the two measurement sketches for the index.
-func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return i.mSketch, i.mTSketch, nil
-}
-
-// SeriesSketches returns the two series sketches for the index.
-func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return i.sSketch, i.sTSketch, nil
 }
 
 // SeriesN returns the series cardinality in the index. It is the sum of all

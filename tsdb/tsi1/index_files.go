@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/influxdata/platform/pkg/bytesutil"
-	"github.com/influxdata/platform/pkg/estimator/hll"
 	"github.com/influxdata/platform/tsdb"
 )
 
@@ -205,21 +204,6 @@ func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64, 
 		return n, err
 	}
 
-	// Generate sketches from series sets.
-	sketch := hll.NewDefaultPlus()
-	seriesIDSet.ForEach(func(id tsdb.SeriesID) {
-		if key := sfile.SeriesKey(id); key != nil {
-			sketch.Add(key)
-		}
-	})
-
-	tSketch := hll.NewDefaultPlus()
-	tombstoneSeriesIDSet.ForEach(func(id tsdb.SeriesID) {
-		if key := sfile.SeriesKey(id); key != nil {
-			tSketch.Add(key)
-		}
-	})
-
 	// Write series set.
 	t.SeriesIDSet.Offset = n
 	nn, err := seriesIDSet.WriteTo(bw)
@@ -235,26 +219,6 @@ func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64, 
 		return n, err
 	}
 	t.TombstoneSeriesIDSet.Size = n - t.TombstoneSeriesIDSet.Offset
-
-	// Write series sketches. TODO(edd): Implement WriterTo on HLL++.
-	t.SeriesSketch.Offset = n
-	data, err := sketch.MarshalBinary()
-	if err != nil {
-		return n, err
-	} else if _, err := bw.Write(data); err != nil {
-		return n, err
-	}
-	t.SeriesSketch.Size = int64(len(data))
-	n += t.SeriesSketch.Size
-
-	t.TombstoneSeriesSketch.Offset = n
-	if data, err = tSketch.MarshalBinary(); err != nil {
-		return n, err
-	} else if _, err := bw.Write(data); err != nil {
-		return n, err
-	}
-	t.TombstoneSeriesSketch.Size = int64(len(data))
-	n += t.TombstoneSeriesSketch.Size
 
 	// Write trailer.
 	nn, err = t.WriteTo(bw)

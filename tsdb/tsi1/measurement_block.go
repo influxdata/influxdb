@@ -8,8 +8,6 @@ import (
 	"sort"
 	"unsafe"
 
-	"github.com/influxdata/platform/pkg/estimator"
-	"github.com/influxdata/platform/pkg/estimator/hll"
 	"github.com/influxdata/platform/pkg/rhh"
 	"github.com/influxdata/platform/tsdb"
 )
@@ -33,8 +31,7 @@ const (
 		2 + // version
 		8 + 8 + // data offset/size
 		8 + 8 + // hash index offset/size
-		8 + 8 + // measurement sketch offset/size
-		8 + 8 // tombstone measurement sketch offset/size
+		8 + 8 + 8 + 8 // legacy sketch info
 
 	// Measurement key block fields.
 	MeasurementNSize      = 8
@@ -53,9 +50,6 @@ var (
 type MeasurementBlock struct {
 	data     []byte
 	hashData []byte
-
-	// Measurement sketch and tombstone sketch for cardinality estimation.
-	sketchData, tSketchData []byte
 
 	version int // block version
 }
@@ -131,10 +125,6 @@ func (blk *MeasurementBlock) UnmarshalBinary(data []byte) error {
 	blk.hashData = data[t.HashIndex.Offset:]
 	blk.hashData = blk.hashData[:t.HashIndex.Size]
 
-	// Initialise sketch data.
-	blk.sketchData = data[t.Sketch.Offset:][:t.Sketch.Size]
-	blk.tSketchData = data[t.TSketch.Offset:][:t.TSketch.Size]
-
 	return nil
 }
 
@@ -154,20 +144,6 @@ func (blk *MeasurementBlock) SeriesIDIterator(name []byte) tsdb.SeriesIDIterator
 		return tsdb.NewSeriesIDSetIterator(e.seriesIDSet)
 	}
 	return &rawSeriesIDIterator{n: e.series.n, data: e.series.data}
-}
-
-// Sketches returns existence and tombstone measurement sketches.
-func (blk *MeasurementBlock) Sketches() (sketch, tSketch estimator.Sketch, err error) {
-	sketch = hll.NewDefaultPlus()
-	if err := sketch.UnmarshalBinary(blk.sketchData); err != nil {
-		return nil, nil, err
-	}
-
-	tSketch = hll.NewDefaultPlus()
-	if err := tSketch.UnmarshalBinary(blk.tSketchData); err != nil {
-		return nil, nil, err
-	}
-	return sketch, tSketch, nil
 }
 
 // blockMeasurementIterator iterates over a list measurements in a block.
@@ -249,18 +225,6 @@ type MeasurementBlockTrailer struct {
 		Offset int64
 		Size   int64
 	}
-
-	// Offset and size of cardinality sketch for measurements.
-	Sketch struct {
-		Offset int64
-		Size   int64
-	}
-
-	// Offset and size of cardinality sketch for tombstoned measurements.
-	TSketch struct {
-		Offset int64
-		Size   int64
-	}
 }
 
 // ReadMeasurementBlockTrailer returns the block trailer from data.
@@ -284,13 +248,8 @@ func ReadMeasurementBlockTrailer(data []byte) (MeasurementBlockTrailer, error) {
 	t.HashIndex.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.HashIndex.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
-	// Read measurement sketch info.
-	t.Sketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.Sketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-
-	// Read tombstone measurement sketch info.
-	t.TSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.TSketch.Size = int64(binary.BigEndian.Uint64(buf[0:8]))
+	// Skip over old sketch info
+	buf = buf[4*8:]
 
 	return t, nil
 }
@@ -311,18 +270,11 @@ func (t *MeasurementBlockTrailer) WriteTo(w io.Writer) (n int64, err error) {
 		return n, err
 	}
 
-	// Write measurement sketch info.
-	if err := writeUint64To(w, uint64(t.Sketch.Offset), &n); err != nil {
-		return n, err
-	} else if err := writeUint64To(w, uint64(t.Sketch.Size), &n); err != nil {
-		return n, err
-	}
-
-	// Write tombstone measurement sketch info.
-	if err := writeUint64To(w, uint64(t.TSketch.Offset), &n); err != nil {
-		return n, err
-	} else if err := writeUint64To(w, uint64(t.TSketch.Size), &n); err != nil {
-		return n, err
+	// Write legacy sketch info.
+	for i := 0; i < 4; i++ {
+		if err := writeUint64To(w, 0, &n); err != nil {
+			return n, err
+		}
 	}
 
 	// Write measurement block version.
@@ -480,17 +432,12 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 type MeasurementBlockWriter struct {
 	buf bytes.Buffer
 	mms map[string]measurement
-
-	// Measurement sketch and tombstoned measurement sketch.
-	sketch, tSketch estimator.Sketch
 }
 
 // NewMeasurementBlockWriter returns a new MeasurementBlockWriter.
 func NewMeasurementBlockWriter() *MeasurementBlockWriter {
 	return &MeasurementBlockWriter{
-		mms:     make(map[string]measurement),
-		sketch:  hll.NewDefaultPlus(),
-		tSketch: hll.NewDefaultPlus(),
+		mms: make(map[string]measurement),
 	}
 }
 
@@ -509,24 +456,11 @@ func (mw *MeasurementBlockWriter) Add(name []byte, deleted bool, offset, size in
 	}
 
 	mw.mms[string(name)] = mm
-
-	if deleted {
-		mw.tSketch.Add(name)
-	} else {
-		mw.sketch.Add(name)
-	}
 }
 
 // WriteTo encodes the measurements to w.
 func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	var t MeasurementBlockTrailer
-
-	// The sketches must be set before calling WriteTo.
-	if mw.sketch == nil {
-		return 0, errors.New("measurement sketch not set")
-	} else if mw.tSketch == nil {
-		return 0, errors.New("measurement tombstone sketch not set")
-	}
 
 	// Sort names.
 	names := make([]string, 0, len(mw.mms))
@@ -589,19 +523,6 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	t.HashIndex.Size = n - t.HashIndex.Offset
 
-	// Write the sketches out.
-	t.Sketch.Offset = n
-	if err := writeSketchTo(w, mw.sketch, &n); err != nil {
-		return n, err
-	}
-	t.Sketch.Size = n - t.Sketch.Offset
-
-	t.TSketch.Offset = n
-	if err := writeSketchTo(w, mw.tSketch, &n); err != nil {
-		return n, err
-	}
-	t.TSketch.Size = n - t.TSketch.Offset
-
 	// Write trailer.
 	nn, err := t.WriteTo(w)
 	n += nn
@@ -653,19 +574,6 @@ func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, m
 
 	nn, err := mw.buf.WriteTo(w)
 	*n += nn
-	return err
-}
-
-// writeSketchTo writes an estimator.Sketch into w, updating the number of bytes
-// written via n.
-func writeSketchTo(w io.Writer, s estimator.Sketch, n *int64) error {
-	data, err := s.MarshalBinary()
-	if err != nil {
-		return err
-	}
-
-	nn, err := w.Write(data)
-	*n += int64(nn)
 	return err
 }
 

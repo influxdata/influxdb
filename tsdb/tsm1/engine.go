@@ -22,7 +22,6 @@ import (
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/bytesutil"
-	"github.com/influxdata/platform/pkg/estimator"
 	"github.com/influxdata/platform/pkg/limiter"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/tsi1"
@@ -462,20 +461,6 @@ func (e *Engine) TagKeyCardinality(name, key []byte) int {
 // SeriesN returns the unique number of series in the index.
 func (e *Engine) SeriesN() int64 {
 	return e.index.SeriesN()
-}
-
-// MeasurementsSketches returns sketches that describe the cardinality of the
-// measurements in this shard and measurements that were in this shard, but have
-// been tombstoned.
-func (e *Engine) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return e.index.MeasurementsSketches()
-}
-
-// SeriesSketches returns sketches that describe the cardinality of the
-// series in this shard and series that were in this shard, but have
-// been tombstoned.
-func (e *Engine) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return e.index.SeriesSketches()
 }
 
 // LastModified returns the time when this shard was last modified.
