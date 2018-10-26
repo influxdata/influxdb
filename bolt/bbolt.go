@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/coreos/bbolt"
@@ -64,6 +65,11 @@ func (c *Client) WithTime(fn func() time.Time) {
 
 // Open / create boltDB file.
 func (c *Client) Open(ctx context.Context) error {
+	// Ensure the required directory structure exists.
+	if err := os.MkdirAll(filepath.Dir(c.Path), 0700); err != nil {
+		return fmt.Errorf("unable to create directory %s: %v", c.Path, err)
+	}
+
 	if _, err := os.Stat(c.Path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
