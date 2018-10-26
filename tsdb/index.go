@@ -2,15 +2,12 @@ package tsdb
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"sort"
 	"sync"
 
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
 // Available index types.
@@ -676,140 +673,6 @@ func (itr *seriesIDDifferenceIterator) Next() (_ SeriesIDElem, err error) {
 			continue
 		}
 	}
-}
-
-// seriesPointIterator adapts SeriesIterator to an influxql.Iterator.
-type seriesPointIterator struct {
-	once     sync.Once
-	index    *tsi1.Index
-	mitr     MeasurementIterator
-	keys     [][]byte
-	opt      query.IteratorOptions
-
-	point query.FloatPoint // reusable point
-}
-
-// newSeriesPointIterator returns a new instance of seriesPointIterator.
-func NewSeriesPointIterator(index *tsi1.Index, opt query.IteratorOptions) (_ query.Iterator, err error) {
-	// Only equality operators are allowed.
-	influxql.WalkFunc(opt.Condition, func(n influxql.Node) {
-		switch n := n.(type) {
-		case *influxql.BinaryExpr:
-			switch n.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX,
-				influxql.OR, influxql.AND:
-			default:
-				err = errors.New("invalid tag comparison operator")
-			}
-		}
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	mitr, err := index.MeasurementIterator()
-	if err != nil {
-		return nil, err
-	}
-
-	return &seriesPointIterator{
-		index: index,
-		mitr:     mitr,
-		point: query.FloatPoint{
-			Aux: make([]interface{}, len(opt.Aux)),
-		},
-		opt: opt,
-	}, nil
-}
-
-// Stats returns stats about the points processed.
-func (itr *seriesPointIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
-
-// Close closes the iterator.
-func (itr *seriesPointIterator) Close() (err error) {
-	itr.once.Do(func() {
-		if itr.mitr != nil {
-			err = itr.mitr.Close()
-		}
-	})
-	return err
-}
-
-// Next emits the next point in the iterator.
-func (itr *seriesPointIterator) Next() (*query.FloatPoint, error) {
-	for {
-		// Read series keys for next measurement if no more keys remaining.
-		// Exit if there are no measurements remaining.
-		if len(itr.keys) == 0 {
-			m, err := itr.mitr.Next()
-			if err != nil {
-				return nil, err
-			} else if m == nil {
-				return nil, nil
-			}
-
-			if err := itr.readSeriesKeys(m); err != nil {
-				return nil, err
-			}
-			continue
-		}
-
-		name, tags := ParseSeriesKey(itr.keys[0])
-		itr.keys = itr.keys[1:]
-
-		// Convert to a key.
-		key := string(models.MakeKey(name, tags))
-
-		// Write auxiliary fields.
-		for i, f := range itr.opt.Aux {
-			switch f.Val {
-			case "key":
-				itr.point.Aux[i] = key
-			}
-		}
-
-		return &itr.point, nil
-	}
-}
-
-func (itr *seriesPointIterator) readSeriesKeys(name []byte) error {
-	sitr, err := itr.index.MeasurementSeriesByExprIterator(name, itr.opt.Condition)
-	if err != nil {
-		return err
-	} else if sitr == nil {
-		return nil
-	}
-	defer sitr.Close()
-
-	// Slurp all series keys.
-	itr.keys = itr.keys[:0]
-	for i := 0; ; i++ {
-		elem, err := sitr.Next()
-		if err != nil {
-			return err
-		} else if elem.SeriesID.IsZero() {
-			break
-		}
-
-		// Periodically check for interrupt.
-		if i&0xFF == 0xFF {
-			select {
-			case <-itr.opt.InterruptCh:
-				return itr.Close()
-			default:
-			}
-		}
-
-		key := itr.index.SeriesFile().SeriesKey(elem.SeriesID)
-		if len(key) == 0 {
-			continue
-		}
-		itr.keys = append(itr.keys, key)
-	}
-
-	// Sort keys.
-	sort.Sort(seriesKeys(itr.keys))
-	return nil
 }
 
 // MeasurementIterator represents a iterator over a list of measurements.
