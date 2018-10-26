@@ -1300,7 +1300,11 @@ func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.E
 
 	// Return filtered list if expression exists.
 	if expr != nil {
-		return is.measurementNamesByExpr(auth, expr)
+		names, err := is.measurementNamesByExpr(auth, expr)
+		if err != nil {
+			return nil, err
+		}
+		return slices.CopyChunkedByteSlices(names, 1000), nil
 	}
 
 	itr, err := is.measurementIterator()
