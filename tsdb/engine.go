@@ -3,7 +3,6 @@ package tsdb
 import (
 	"context"
 	"errors"
-	"io"
 	"regexp"
 	"runtime"
 	"time"
@@ -31,13 +30,6 @@ type Engine interface {
 	ScheduleFullCompaction() error
 
 	WithLogger(*zap.Logger)
-
-	CreateSnapshot() (string, error)
-	Backup(w io.Writer, basePath string, since time.Time) error
-	Export(w io.Writer, basePath string, start time.Time, end time.Time) error
-	Restore(r io.Reader, basePath string) error
-	Import(r io.Reader, basePath string) error
-	Digest() (io.ReadCloser, int64, error)
 
 	CreateCursorIterator(ctx context.Context) (CursorIterator, error)
 	WritePoints(points []models.Point) error
@@ -67,8 +59,6 @@ type Engine interface {
 	DiskSize() int64
 	IsIdle() bool
 	Free() error
-
-	io.WriterTo
 }
 
 // SeriesIDSets provides access to the total set of series IDs
