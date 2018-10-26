@@ -52,13 +52,13 @@ func init() {
 		writeFlags.BucketID = h
 	}
 
-	writeCmd.PersistentFlags().StringVarP(&writeFlags.Org, "bucket", "b", "", "name of destination bucket")
+	writeCmd.PersistentFlags().StringVarP(&writeFlags.Bucket, "bucket", "b", "", "name of destination bucket")
 	viper.BindEnv("BUCKET_NAME")
 	if h := viper.GetString("BUCKET_NAME"); h != "" {
 		writeFlags.Bucket = h
 	}
 
-	writeCmd.PersistentFlags().StringVarP(&writeFlags.Org, "precision", "p", "ns", "precision of the timestamps of the lines")
+	writeCmd.PersistentFlags().StringVarP(&writeFlags.Precision, "precision", "p", "ns", "precision of the timestamps of the lines")
 	viper.BindEnv("PRECISION")
 	if p := viper.GetString("PRECISION"); p != "" {
 		writeFlags.Precision = p
