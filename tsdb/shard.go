@@ -11,10 +11,6 @@ import (
 	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
-// SeriesFileDirectory is the name of the directory containing series files for
-// a database.
-const SeriesFileDirectory = "_series"
-
 var (
 	// Static objects to prevent small allocs.
 	timeBytes = []byte("time")

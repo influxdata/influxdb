@@ -115,7 +115,7 @@ func (cmd *Command) run(dataDir, walDir string) error {
 func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 	cmd.Logger.Info("Rebuilding database", zap.String("name", dbName))
 
-	sfile := tsdb.NewSeriesFile(filepath.Join(dataDir, tsdb.SeriesFileDirectory))
+	sfile := tsdb.NewSeriesFile(filepath.Join(dataDir, tsdb.DefaultSeriesFileDirectory))
 	sfile.Logger = cmd.Logger
 	if err := sfile.Open(); err != nil {
 		return err
@@ -131,7 +131,7 @@ func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 		rpName := fi.Name()
 		if !fi.IsDir() {
 			continue
-		} else if rpName == tsdb.SeriesFileDirectory {
+		} else if rpName == tsdb.DefaultSeriesFileDirectory {
 			continue
 		} else if cmd.retentionFilter != "" && rpName != cmd.retentionFilter {
 			continue

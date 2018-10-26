@@ -1516,7 +1516,7 @@ func NewEngine() (*Engine, error) {
 	}
 
 	// Setup series file.
-	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.SeriesFileDirectory))
+	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.DefaultSeriesFileDirectory))
 	sfile.Logger = logger.New(os.Stdout)
 	if err = sfile.Open(); err != nil {
 		return nil, err

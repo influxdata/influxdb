@@ -26,6 +26,7 @@ const ( // See the defaults package for explanations of what these mean
 	DefaultCompactThroughputBurst         = defaults.DefaultCompactThroughputBurst
 	DefaultMaxPointsPerBlock              = defaults.DefaultMaxPointsPerBlock
 	DefaultMaxConcurrentCompactions       = defaults.DefaultMaxConcurrentCompactions
+	DefaultSeriesFileDirectory            = defaults.DefaultSeriesFileDirectory
 )
 
 // Config holds the configuration for the tsbd package.

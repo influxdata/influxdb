@@ -97,7 +97,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e := &Engine{
 		config: c,
 		path:   path,
-		sfile:  tsdb.NewSeriesFile(filepath.Join(path, tsdb.SeriesFileDirectory)),
+		sfile:  tsdb.NewSeriesFile(filepath.Join(path, tsdb.DefaultSeriesFileDirectory)),
 		logger: zap.NewNop(),
 	}
 

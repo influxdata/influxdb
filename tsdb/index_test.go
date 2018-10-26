@@ -80,7 +80,7 @@ func MustNewIndex(c tsi1.Config) *Index {
 		panic(err)
 	}
 
-	seriesPath, err := ioutil.TempDir(rootPath, tsdb.SeriesFileDirectory)
+	seriesPath, err := ioutil.TempDir(rootPath, tsdb.DefaultSeriesFileDirectory)
 	if err != nil {
 		panic(err)
 	}
