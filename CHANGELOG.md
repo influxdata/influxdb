@@ -93,6 +93,7 @@ v1.6.0 [2018-07-05]
 -	[#10327](https://github.com/influxdata/influxdb/pull/10327): Cleanup failed TSM snapshots.
 -	[#10299](https://github.com/influxdata/influxdb/pull/10299): Fix TSM1 panic on reader error.
 -	[#9884](https://github.com/influxdata/influxdb/pull/9884): Add -series-file flag to dumptsi command help.
+-	[#10423](https://github.com/influxdata/influxdb/pull/10423): Fix panic in IndexSet.
 
 v1.5.4 [2018-06-21]
 -------------------
