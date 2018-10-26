@@ -1,0 +1,27 @@
+/*
+   User Page Styles
+   -----------------------------------------------------------------------------
+*/
+
+@import "../../style/modules";
+
+.user-page {
+  .link-list {
+    padding: 0;
+    list-style: none;
+
+    > li {
+      padding: 0;
+    }
+  }
+}
+
+.link-list.tutorials > li {
+  display: flex;
+  align-items: center;
+  height: 50px;
+  background-color: $g2-kevlar;
+  border-radius: $radius;
+  padding: 0 $ix-marg-c;
+  margin-bottom: $ix-marg-a;
+}

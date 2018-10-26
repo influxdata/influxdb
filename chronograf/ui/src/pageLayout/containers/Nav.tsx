@@ -115,10 +115,10 @@ class SideNav extends PureComponent<Props> {
       {
         type: NavItemType.Avatar,
         title: 'My Profile',
-        link: `/user/settings/${this.sourceParam}`,
+        link: `/user_profile/${this.sourceParam}`,
         image: LeroyJenkins.avatar,
         location: location.pathname,
-        highlightWhen: ['user'],
+        highlightWhen: ['user_profile'],
       },
     ]
   }

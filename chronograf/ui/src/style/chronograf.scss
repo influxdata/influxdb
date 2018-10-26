@@ -4,56 +4,50 @@
 */
 
 // Modules
-@import 'influx-colors';
-@import 'reset';
-@import 'variables';
-@import 'mixins';
-@import 'helpers';
-@import 'grid';
-@import 'typography';
+@import "modules";
 
 // Fonts
-@import 'fonts/fonts';
-@import 'fonts/icon-font';
+@import "fonts/fonts";
+@import "fonts/icon-font";
 
 // Clockface UI Kit
-@import 'src/clockface/styles';
+@import "src/clockface/styles";
 
 // Components
 // TODO: Import these styles into their respective components instead of this stylesheet
-@import 'src/shared/components/color_dropdown/color-dropdown';
-@import 'src/pageLayout/PageLayout';
-@import 'src/shared/components/index_views/IndexList';
-@import 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown';
-@import 'src/shared/components/profile_page/ProfilePage';
-@import 'src/shared/components/avatar/Avatar';
-@import 'src/shared/components/tables/TimeMachineTables';
-@import 'src/shared/components/fancy_scrollbar/FancyScrollbar';
-@import 'src/shared/components/notifications/Notifications';
-@import 'src/shared/components/threesizer/Threesizer';
-@import 'src/shared/components/crosshair/Crosshair';
-@import 'src/shared/components/graph_tips/GraphTips';
-@import 'src/shared/components/page_spinner/PageSpinner';
-@import 'src/shared/components/cells/Cells';
-@import 'src/shared/components/cells/react-grid-layout';
-@import 'src/shared/components/cells/Dashboards';
-@import 'src/shared/components/dygraph/Dygraph';
-@import 'src/shared/components/splash_page/SplashPage';
-@import 'src/shared/components/code_mirror/CodeMirror';
-@import 'src/shared/components/code_mirror/CodeMirrorTheme';
-@import 'src/dashboards/components/rename_dashboard/RenameDashboard';
-@import 'src/dashboards/components/dashboard_empty/DashboardEmpty';
-@import 'src/dashboards/components/VEO';
-@import 'src/shared/components/TimeMachine';
-@import 'src/shared/components/TimeMachineControls';
-@import 'src/shared/components/ViewTypeSelector';
-@import 'src/dataExplorer/components/DataExplorer';
-@import 'src/shared/components/views/Markdown';
-@import 'src/onboarding/OnboardingWizard.scss';
+@import "src/shared/components/color_dropdown/color-dropdown";
+@import "src/pageLayout/PageLayout";
+@import "src/shared/components/index_views/IndexList";
+@import "src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown";
+@import "src/shared/components/profile_page/ProfilePage";
+@import "src/shared/components/avatar/Avatar";
+@import "src/shared/components/tables/TimeMachineTables";
+@import "src/shared/components/fancy_scrollbar/FancyScrollbar";
+@import "src/shared/components/notifications/Notifications";
+@import "src/shared/components/threesizer/Threesizer";
+@import "src/shared/components/crosshair/Crosshair";
+@import "src/shared/components/graph_tips/GraphTips";
+@import "src/shared/components/page_spinner/PageSpinner";
+@import "src/shared/components/cells/Cells";
+@import "src/shared/components/cells/react-grid-layout";
+@import "src/shared/components/cells/Dashboards";
+@import "src/shared/components/dygraph/Dygraph";
+@import "src/shared/components/splash_page/SplashPage";
+@import "src/shared/components/code_mirror/CodeMirror";
+@import "src/shared/components/code_mirror/CodeMirrorTheme";
+@import "src/dashboards/components/rename_dashboard/RenameDashboard";
+@import "src/dashboards/components/dashboard_empty/DashboardEmpty";
+@import "src/dashboards/components/VEO";
+@import "src/shared/components/TimeMachine";
+@import "src/shared/components/TimeMachineControls";
+@import "src/shared/components/ViewTypeSelector";
+@import "src/dataExplorer/components/DataExplorer";
+@import "src/shared/components/views/Markdown";
+@import "src/onboarding/OnboardingWizard.scss";
 
-@import 'src/logs/containers/logs_page/LogsPage';
-@import 'src/logs/components/loading_status/LoadingStatus';
-@import 'src/logs/components/logs_filter_bar/LogsFilterBar';
-@import 'src/logs/components/options_overlay/LogsViewerOptions';
-@import 'src/logs/components/logs_table/LogsTable';
-@import 'src/logs/components/expandable_message/ExpandableMessage';
+@import "src/logs/containers/logs_page/LogsPage";
+@import "src/logs/components/loading_status/LoadingStatus";
+@import "src/logs/components/logs_filter_bar/LogsFilterBar";
+@import "src/logs/components/options_overlay/LogsViewerOptions";
+@import "src/logs/components/logs_table/LogsTable";
+@import "src/logs/components/expandable_message/ExpandableMessage";

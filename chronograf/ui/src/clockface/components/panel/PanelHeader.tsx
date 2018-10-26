@@ -8,7 +8,7 @@ import {ComponentSpacer, Alignment} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  children?: JSX.Element[]
+  children?: JSX.Element[] | JSX.Element
   title: string
 }
 

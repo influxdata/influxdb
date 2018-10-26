@@ -116,7 +116,7 @@ class Root extends PureComponent {
                             path="manage-sources/:id/edit"
                             component={SourcePage}
                           />
-                          <Route path="user/:tab" component={UserPage} />
+                          <Route path="user_profile" component={UserPage} />
                           <Route path="logs" component={LogsPage} />
                         </Route>
                       </Route>

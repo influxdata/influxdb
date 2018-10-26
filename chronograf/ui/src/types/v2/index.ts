@@ -21,6 +21,7 @@ import {Links} from 'src/types/v2/links'
 import {Notification} from 'src/types'
 import {TimeRange} from 'src/types/queries'
 import {LogsState} from 'src/types/logs'
+import {User, UserToken} from 'src/types/v2/user'
 import {TimeMachinesState} from 'src/shared/reducers/v2/timeMachines'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {State as TaskState} from 'src/tasks/reducers/v2'
@@ -50,6 +51,8 @@ export interface AppState {
 }
 
 export {
+  User,
+  UserToken,
   Source,
   Member,
   Bucket,
