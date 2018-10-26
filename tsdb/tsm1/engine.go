@@ -1189,17 +1189,16 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 
 	// Ensure that the index does not compact away the measurement or series we're
 	// going to delete before we're done with them.
-	if tsiIndex, ok := e.index.(*tsi1.Index); ok {
-		tsiIndex.DisableCompactions()
-		defer tsiIndex.EnableCompactions()
-		tsiIndex.Wait()
+	e.index.DisableCompactions()
+	defer e.index.EnableCompactions()
+	e.index.Wait()
 
-		fs, err := tsiIndex.RetainFileSet()
-		if err != nil {
-			return err
-		}
-		defer fs.Release()
+	fs, err := e.index.RetainFileSet()
+	if err != nil {
+		return err
 	}
+	defer fs.Release()
+
 
 	var (
 		sz       int
