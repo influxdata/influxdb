@@ -333,7 +333,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		h.Handler = platformHandler
 
 		httpServer.Handler = h
-		logger.Info("listening", zap.String("transport", "http"), zap.String("addr", httpBindAddress))
+		logger.Info("Listening", zap.String("transport", "http"), zap.String("addr", httpBindAddress))
 		errc <- httpServer.ListenAndServe()
 	}()
 

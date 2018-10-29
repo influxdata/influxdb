@@ -283,7 +283,7 @@ func (i *Index) Open() error {
 
 	// Mark opened.
 	i.opened = true
-	i.logger.Info(fmt.Sprintf("index opened with %d partitions", partitionN))
+	i.logger.Info("Index opened", zap.Int("partitions", partitionN))
 	return nil
 }
 
