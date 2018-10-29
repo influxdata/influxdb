@@ -36,7 +36,7 @@ func (h *SessionHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeSigninRequest(ctx, r)
 	if err != nil {
-		h.Logger.Info("failed to decode request", zap.String("handler", "basicAuth"), zap.Error(err))
+		h.Logger.Info("failed to decode request", zap.Error(err))
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -80,7 +80,7 @@ func (h *SessionHandler) handleSignout(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeSignoutRequest(ctx, r)
 	if err != nil {
-		h.Logger.Info("failed to decode request", zap.String("handler", "basicAuth"), zap.Error(err))
+		h.Logger.Info("failed to decode request", zap.Error(err))
 		EncodeError(ctx, err, w)
 		return
 	}

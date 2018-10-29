@@ -2713,6 +2713,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /me/password:
+    put:
+      tags:
+        - Users
+      summary: Update password
+      security:
+        - basicAuth: []
+      requestBody:
+        description: new password
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetBody"
+      responses:
+        '204':
+          description: password succesfully updated
+        default:
+          description: unsuccessful authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/members':
     get:
       tags:
@@ -2999,6 +3022,29 @@ paths:
           description: user deleted
         default:
           description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/users/{userID}/password':
+    put:
+      tags:
+        - Users
+      summary: Update password
+      security:
+        - basicAuth: []
+      requestBody:
+        description: new password
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetBody"
+      responses:
+        '204':
+          description: password succesfully updated
+        default:
+          description: unsuccessful authentication
           content:
             application/json:
               schema:
@@ -4684,6 +4730,12 @@ components:
           $ref: "#/components/schemas/Bucket"
         auth:
           $ref: "#/components/schemas/Authorization"
+    PasswordResetBody:
+      properties:
+        password:
+          type: string
+      required:
+        - password
     Health:
       type: object
       properties:
