@@ -71,7 +71,7 @@ func (h *ScraperHandler) handleDeleteScraperTarget(w http.ResponseWriter, r *htt
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handlePatchScraperTarget is the HTTP handler for the PATCH /api/v2/scrapertargets/:id route.
@@ -314,7 +314,8 @@ func (s *ScraperService) RemoveTarget(ctx context.Context, id platform.ID) error
 	if err != nil {
 		return err
 	}
-	return CheckError(resp)
+
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 // GetTargetByID returns a single target by ID.

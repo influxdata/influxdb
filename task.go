@@ -31,35 +31,35 @@ type Log string
 
 // TaskService represents a service for managing one-off and recurring tasks.
 type TaskService interface {
-	// Returns a single task
+	// FindTaskByID returns a single task
 	FindTaskByID(ctx context.Context, id ID) (*Task, error)
 
-	// Returns a list of tasks that match a filter (limit 100) and the total count
+	// FindTasks returns a list of tasks that match a filter (limit 100) and the total count
 	// of matching tasks.
 	FindTasks(ctx context.Context, filter TaskFilter) ([]*Task, int, error)
 
-	// Creates a new task
+	// CreateTask creates a new task.
 	CreateTask(ctx context.Context, t *Task) error
 
-	// Updates a single task with changeset
+	// UpdateTask updates a single task with changeset.
 	UpdateTask(ctx context.Context, id ID, upd TaskUpdate) (*Task, error)
 
-	// Removes a task by ID and purges all associated data and scheduled runs
+	// DeleteTask removes a task by ID and purges all associated data and scheduled runs.
 	DeleteTask(ctx context.Context, id ID) error
 
-	// Returns logs for a run.
+	// FindLogs returns logs for a run.
 	FindLogs(ctx context.Context, filter LogFilter) ([]*Log, int, error)
 
-	// Returns a list of runs that match a filter and the total count of returned runs.
+	// FindRuns returns a list of runs that match a filter and the total count of returned runs.
 	FindRuns(ctx context.Context, filter RunFilter) ([]*Run, int, error)
 
-	// Returns a single run
+	// FindRunByID returns a single run.
 	FindRunByID(ctx context.Context, orgID, runID ID) (*Run, error)
 
 	// CancelRun cancels a currently running run.
 	CancelRun(ctx context.Context, taskID, runID ID) error
 
-	// Creates and returns a new run (which is a retry of another run).
+	// RetryRun creates and returns a new run (which is a retry of another run).
 	RetryRun(ctx context.Context, id ID) (*Run, error)
 }
 

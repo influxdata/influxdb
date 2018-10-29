@@ -27,43 +27,48 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 interface State extends SetupParams {
+  confirmPassword: string
   isAlreadySet: boolean
+  isPassMismatched: boolean
 }
 
 @ErrorHandling
 class AdminStep extends PureComponent<OnboardingStepProps, State> {
-  constructor(props) {
+  constructor(props: OnboardingStepProps) {
     super(props)
     const {setupParams} = props
     this.state = {
       username: getDeep(setupParams, 'username', ''),
       password: getDeep(setupParams, 'password', ''),
+      confirmPassword: getDeep(setupParams, 'password', ''),
       org: getDeep(setupParams, 'org', ''),
       bucket: getDeep(setupParams, 'bucket', ''),
       isAlreadySet: !!setupParams,
+      isPassMismatched: false,
     }
   }
+  public componentDidMount() {
+    window.addEventListener('keydown', this.handleKeydown)
+  }
+  public componentWillUnmount() {
+    window.removeEventListener('keydown', this.handleKeydown)
+  }
   public render() {
-    const {username, password, org, bucket, isAlreadySet} = this.state
-    let icon = null
-    let status = ComponentStatus.Default
-    if (isAlreadySet) {
-      icon = IconFont.Checkmark
-      status = ComponentStatus.Disabled
-    }
+    const {username, password, confirmPassword, org, bucket} = this.state
+    const icon = this.InputIcon
+    const status = this.InputStatus
     return (
       <div className="onboarding-step">
         <h3 className="wizard-step--title">Setup Admin User</h3>
         <h5 className="wizard-step--sub-title">
           You will be able to create additional Users, Buckets and Organizations
-          later.
+          later
         </h5>
         <Form className="onboarding--admin-user-form">
           <Form.Element
             label="Admin Username"
             colsXS={Columns.Six}
             offsetXS={Columns.Three}
-            errorMessage=""
           >
             <Input
               value={username}
@@ -73,11 +78,12 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
               icon={icon}
               status={status}
               disabledTitleText="Admin username has been set"
+              autoFocus={true}
             />
           </Form.Element>
           <Form.Element
             label="Admin Password"
-            colsXS={Columns.Six}
+            colsXS={Columns.Three}
             offsetXS={Columns.Three}
           >
             <Input
@@ -88,6 +94,18 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
               size={ComponentSize.Medium}
               icon={icon}
               status={status}
+              disabledTitleText="Admin password has been set"
+            />
+          </Form.Element>
+          <Form.Element label="Confirm Admin Password" colsXS={Columns.Three}>
+            <Input
+              type={InputType.Password}
+              value={confirmPassword}
+              onChange={this.handleConfirmPassword}
+              titleText="Confirm Admin Password"
+              size={ComponentSize.Medium}
+              icon={icon}
+              status={this.passwordStatus}
               disabledTitleText="Admin password has been set"
             />
           </Form.Element>
@@ -102,8 +120,8 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
               titleText="Default Organization Name"
               size={ComponentSize.Medium}
               icon={icon}
+              status={ComponentStatus.Default}
               placeholder="Your organization is where everything you create lives"
-              status={status}
               disabledTitleText="Default organization name has been set"
             />
           </Form.Element>
@@ -118,8 +136,8 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
               titleText="Default Bucket Name"
               size={ComponentSize.Medium}
               icon={icon}
-              placeholder="Your bucket is where you will store all your data"
               status={status}
+              placeholder="Your bucket is where you will store all your data"
               disabledTitleText="Default bucket name has been set"
             />
           </Form.Element>
@@ -149,8 +167,16 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     this.setState({username})
   }
   private handlePassword = (e: ChangeEvent<HTMLInputElement>): void => {
+    const {confirmPassword} = this.state
     const password = e.target.value
-    this.setState({password})
+    const isPassMismatched = confirmPassword && password !== confirmPassword
+    this.setState({password, isPassMismatched})
+  }
+  private handleConfirmPassword = (e: ChangeEvent<HTMLInputElement>): void => {
+    const {password} = this.state
+    const confirmPassword = e.target.value
+    const isPassMismatched = confirmPassword && password !== confirmPassword
+    this.setState({confirmPassword, isPassMismatched})
   }
   private handleOrg = (e: ChangeEvent<HTMLInputElement>): void => {
     const org = e.target.value
@@ -161,20 +187,70 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     this.setState({bucket})
   }
 
+  private handleKeydown = (e: KeyboardEvent): void => {
+    if (
+      e.key === 'Enter' &&
+      this.nextButtonStatus === ComponentStatus.Default
+    ) {
+      this.handleNext()
+    }
+  }
+
   private get nextButtonStatus(): ComponentStatus {
-    const {username, password, org, bucket} = this.state
-    if (username && password && org && bucket) {
+    const {
+      username,
+      password,
+      org,
+      bucket,
+      confirmPassword,
+      isPassMismatched,
+    } = this.state
+    if (
+      username &&
+      password &&
+      confirmPassword &&
+      org &&
+      bucket &&
+      !isPassMismatched
+    ) {
       return ComponentStatus.Default
     }
     return ComponentStatus.Disabled
   }
 
   private get nextButtonTitle(): string {
-    const {username, password, org, bucket} = this.state
-    if (username && password && org && bucket) {
+    const {username, password, org, bucket, confirmPassword} = this.state
+    if (username && password && confirmPassword && org && bucket) {
       return 'Next'
     }
     return 'All fields are required to continue'
+  }
+
+  private get passwordStatus(): ComponentStatus {
+    const {isAlreadySet, isPassMismatched} = this.state
+    if (isAlreadySet) {
+      return ComponentStatus.Disabled
+    }
+    if (isPassMismatched) {
+      return ComponentStatus.Error
+    }
+    return ComponentStatus.Default
+  }
+
+  private get InputStatus(): ComponentStatus {
+    const {isAlreadySet} = this.state
+    if (isAlreadySet) {
+      return ComponentStatus.Disabled
+    }
+    return ComponentStatus.Default
+  }
+
+  private get InputIcon(): IconFont {
+    const {isAlreadySet} = this.state
+    if (isAlreadySet) {
+      return IconFont.Checkmark
+    }
+    return null
   }
 
   private handleNext = async () => {

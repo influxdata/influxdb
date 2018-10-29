@@ -30,12 +30,14 @@ import {
   IconFont,
   Columns,
   Alignment,
+  ButtonType,
 } from './types'
 
 // Fire de lazer
 export {
   Alignment,
   Button,
+  ButtonType,
   ComponentSpacer,
   Dropdown,
   DropdownMode,

@@ -42,6 +42,11 @@ export enum ButtonShape {
   StretchToFit = 'stretch',
 }
 
+export enum ButtonType {
+  Button = 'button',
+  Submit = 'submit',
+}
+
 export enum Greys {
   Obsidian = '#0f0e15',
   Raven = '#1c1c21',

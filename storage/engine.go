@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/tsi1"
@@ -200,8 +201,8 @@ func (e *Engine) runRetentionEnforcer() {
 	}
 
 	interval := time.Duration(e.config.RetentionInterval) * time.Second
-	logger := e.logger.With(zap.String("component", "retention_enforcer"), zap.Duration("check_interval", interval))
-	logger.Info("Starting")
+	l := e.logger.With(zap.String("component", "retention_enforcer"), logger.DurationLiteral("check_interval", interval))
+	l.Info("Starting")
 
 	ticker := time.NewTicker(interval)
 	e.wg.Add(1)
@@ -212,7 +213,7 @@ func (e *Engine) runRetentionEnforcer() {
 			// modified if this goroutine is active.
 			select {
 			case <-e.closing:
-				logger.Info("Stopping")
+				l.Info("Stopping")
 				return
 			case <-ticker.C:
 				e.retentionEnforcer.run()
