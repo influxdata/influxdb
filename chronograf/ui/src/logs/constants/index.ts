@@ -124,7 +124,7 @@ export const defaultTableData: TableData = {
     'facility',
     'procid',
     'appname',
-    'host',
+    'hostname',
   ],
   values: [],
 }

@@ -118,16 +118,6 @@ export const logViewProperties: LogViewerView = {
       ],
     },
     {
-      name: 'host',
-      position: 7,
-      settings: [
-        {
-          type: 'visibility',
-          value: 'visible',
-        },
-      ],
-    },
-    {
       name: 'appname',
       position: 6,
       settings: [
@@ -138,6 +128,26 @@ export const logViewProperties: LogViewerView = {
         {
           type: 'displayName',
           value: 'Application',
+        },
+      ],
+    },
+    {
+      name: 'hostname',
+      position: 7,
+      settings: [
+        {
+          type: 'visibility',
+          value: 'visible',
+        },
+      ],
+    },
+    {
+      name: 'host',
+      position: 8,
+      settings: [
+        {
+          type: 'visibility',
+          value: 'hidden',
         },
       ],
     },
