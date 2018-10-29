@@ -1141,6 +1141,10 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool) (err err
 			return err
 		}
 
+		if minTime > maxTime {
+			return fmt.Errorf("invalid index entry for block. min=%d, max=%d", minTime, maxTime)
+		}
+
 		// Write the key and value
 		if err := w.WriteBlock(key, minTime, maxTime, block); err == ErrMaxBlocksExceeded {
 			if err := w.WriteIndex(); err != nil {
