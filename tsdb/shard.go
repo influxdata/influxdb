@@ -264,6 +264,13 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 	seriesN := engine.SeriesN()
 
 	tags = s.defaultTags.Merge(tags)
+
+	// Set the index type on the tags.  N.B this needs to be checked since it's
+	// only set when the shard is opened.
+	if indexType := s.IndexType(); indexType != "" {
+		tags["indexType"] = indexType
+	}
+
 	statistics := []models.Statistic{{
 		Name: "shard",
 		Tags: tags,
