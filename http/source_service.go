@@ -339,7 +339,7 @@ func (h *SourceHandler) handleDeleteSource(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type deleteSourceRequest struct {
@@ -623,7 +623,7 @@ func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error 
 		return err
 	}
 
-	return CheckError(resp)
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 func sourceIDPath(id platform.ID) string {

@@ -355,7 +355,7 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type deleteTaskRequest struct {
@@ -627,12 +627,14 @@ func decodeRetryRunRequest(ctx context.Context, r *http.Request) (*retryRunReque
 	}, nil
 }
 
+// TaskService connects to Influx via HTTP using tokens to manage tasks.
 type TaskService struct {
 	Addr               string
 	Token              string
 	InsecureSkipVerify bool
 }
 
+// FindTaskByID returns a single task
 func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
 	u, err := newURL(t.Addr, taskIDPath(id))
 	if err != nil {
@@ -669,6 +671,8 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 	return &tr.Task, nil
 }
 
+// FindTasks returns a list of tasks that match a filter (limit 100) and the total count
+// of matching tasks.
 func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
 	u, err := newURL(t.Addr, tasksPath)
 	if err != nil {
@@ -714,6 +718,7 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	return tasks, len(tasks), nil
 }
 
+// CreateTask creates a new task.
 func (t TaskService) CreateTask(ctx context.Context, tsk *platform.Task) error {
 	u, err := newURL(t.Addr, tasksPath)
 	if err != nil {
@@ -754,6 +759,7 @@ func (t TaskService) CreateTask(ctx context.Context, tsk *platform.Task) error {
 	return nil
 }
 
+// UpdateTask updates a single task with changeset.
 func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
 	u, err := newURL(t.Addr, taskIDPath(id))
 	if err != nil {
@@ -793,6 +799,7 @@ func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platfor
 	return &tr.Task, nil
 }
 
+// DeleteTask removes a task by ID and purges all associated data and scheduled runs.
 func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 	u, err := newURL(t.Addr, taskIDPath(id))
 	if err != nil {
@@ -815,17 +822,15 @@ func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
-		return err
-	}
-
-	return nil
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
+// FindLogs returns logs for a run.
 func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
 	return nil, -1, errors.New("not yet implemented")
 }
 
+// FindRuns returns a list of runs that match a filter and the total count of returned runs.
 func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*platform.Run, int, error) {
 	if filter.Task == nil {
 		return nil, 0, errors.New("task ID required")
@@ -873,10 +878,12 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 	return runs, len(runs), nil
 }
 
+// FindRunByID returns a single run of a specific task.
 func (t TaskService) FindRunByID(ctx context.Context, orgID, runID platform.ID) (*platform.Run, error) {
 	return nil, errors.New("not yet implemented")
 }
 
+// RetryRun creates and returns a new run (which is a retry of another run).
 func (t TaskService) RetryRun(ctx context.Context, id platform.ID) (*platform.Run, error) {
 	return nil, errors.New("not yet implemented")
 }

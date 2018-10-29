@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -28,6 +29,19 @@ var ErrNotFound = errors.New("no results found")
 type AuthzError interface {
 	error
 	AuthzError() error
+}
+
+// CheckErrorStatus for status and any error in the response.
+func CheckErrorStatus(code int, res *http.Response) error {
+	if err := CheckError(res); err != nil {
+		return err
+	}
+
+	if res.StatusCode != code {
+		return fmt.Errorf("unexpected status code: %s", res.Status)
+	}
+
+	return nil
 }
 
 // CheckError reads the http.Response and returns an error if one exists.

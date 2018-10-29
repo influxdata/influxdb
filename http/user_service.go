@@ -216,7 +216,7 @@ func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type deleteUserRequest struct {
@@ -574,7 +574,8 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	if err != nil {
 		return err
 	}
-	return CheckError(resp)
+
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 func userIDPath(id platform.ID) string {

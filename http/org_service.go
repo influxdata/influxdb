@@ -240,7 +240,7 @@ func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type deleteOrganizationRequest struct {
@@ -490,7 +490,8 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 	if err != nil {
 		return err
 	}
-	return CheckError(resp)
+
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 func organizationIDPath(id platform.ID) string {
