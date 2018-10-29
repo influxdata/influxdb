@@ -1,3 +1,10 @@
+v1.6.5 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#10425](https://github.com/influxdata/influxdb/pull/10425): Fix panic in IndexSet.
+
 v1.6.4 [2018-10-23]
 -------------------
 
