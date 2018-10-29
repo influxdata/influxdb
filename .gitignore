@@ -17,7 +17,7 @@ influxd.bolt
 /transpilerd
 /bin
 
-chronograf/ui/node_modules
-chronograf/ui/yarn-error.log
-chronograf/ui/build
-chronograf/ui/.cache
+ui/node_modules
+ui/yarn-error.log
+ui/build
+ui/.cache

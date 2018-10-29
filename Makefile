@@ -32,7 +32,7 @@ SOURCES := $(shell find . -name '*.go' -not -name '*_test.go')
 SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -name '*_test.go' -print)
 
 # All assets for chronograf
-UISOURCES := $(shell find chronograf/ui -type f -not \( -path chronograf/ui/build/\* -o -path chronograf/ui/node_modules/\* -o -path chronograf/ui/.cache/\* -o -name Makefile -prune \) )
+UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -o -path ui/.cache/\* -o -name Makefile -prune \) )
 
 # All precanned dashboards
 PRECANNED := $(shell find chronograf/canned -name '*.json')
@@ -48,7 +48,7 @@ CMDS := \
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
 all: GO_ARGS=-tags 'assets $(GO_TAGS)'
-all: node_modules subdirs chronograf/ui generate $(CMDS)
+all: node_modules subdirs ui generate $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
@@ -56,8 +56,8 @@ subdirs: $(SUBDIRS)
 	@for d in $^; do $(MAKE) -C $$d all; done
 
 
-chronograf/ui:
-	$(MAKE) -C chronograf/ui all
+ui:
+	$(MAKE) -C ui all
 
 #
 # Define targets for commands
@@ -69,16 +69,16 @@ $(CMDS): $(SOURCES)
 # Define targets for the web ui
 #
 
-node_modules: chronograf/ui/node_modules
+node_modules: ui/node_modules
 
 chronograf_lint:
-	make -C chronograf/ui lint
+	make -C ui lint
 
-chronograf/ui/node_modules:
-	make -C chronograf/ui node_modules
+ui/node_modules:
+	make -C ui node_modules
 
-chronograf/ui/build:
-	mkdir -p chronograf/ui/build
+ui/build:
+	mkdir -p ui/build
 
 #
 # Define action only targets
@@ -96,7 +96,7 @@ tidy:
 checktidy:
 	./etc/checktidy.sh
 
-chronograf/dist/dist_gen.go: chronograf/ui/build $(UISOURCES)
+chronograf/dist/dist_gen.go: ui/build $(UISOURCES)
 	 $(GO_GENERATE) ./chronograf/dist/...
 
 chronograf/server/swagger_gen.go: chronograf/server/swagger.json
@@ -108,7 +108,7 @@ chronograf/canned/bin_gen.go: $(PRECANNED)
 generate: chronograf/dist/dist_gen.go chronograf/server/swagger_gen.go chronograf/canned/bin_gen.go
 
 test-js: node_modules
-	make -C chronograf/ui test
+	make -C ui test
 
 test-go:
 	$(GO_TEST) ./...
@@ -130,7 +130,7 @@ nightly: all
 # Recursively clean all subdirs
 clean: $(SUBDIRS)
 	@for d in $^; do $(MAKE) -C $$d $(MAKECMDGOALS); done
-	$(MAKE) -C chronograf/ui $(MAKECMDGOALS)
+	$(MAKE) -C ui $(MAKECMDGOALS)
 	rm -rf bin
 
 
@@ -153,4 +153,4 @@ run: chronogiraffe
 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) chronograf/ui run fmt checkfmt tidy checktidy test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe
+.PHONY: all subdirs $(SUBDIRS) ui run fmt checkfmt tidy checktidy test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe

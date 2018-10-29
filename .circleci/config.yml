@@ -13,11 +13,11 @@ jobs:
           keys:
             # Only cache on exact yarn.lock match, as in Circle's yarn example:
             # https://circleci.com/docs/2.0/yarn/
-            - chronograf-yarn-packages-{{ checksum "chronograf/ui/yarn.lock" }}
+            - chronograf-yarn-packages-{{ checksum "ui/yarn.lock" }}
       - run: make node_modules
       - save_cache:
           name: Save Yarn package cache
-          key: chronograf-yarn-packages-{{ checksum "chronograf/ui/yarn.lock" }}
+          key: chronograf-yarn-packages-{{ checksum "ui/yarn.lock" }}
           paths:
             - ~/.cache/yarn
 
@@ -93,7 +93,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn package cache
           keys:
-            - chronograf-yarn-packages-{{ checksum "chronograf/ui/yarn.lock" }}
+            - chronograf-yarn-packages-{{ checksum "ui/yarn.lock" }}
 
       - setup_remote_docker
       - run: |
