@@ -10,7 +10,7 @@ import (
 )
 
 // TimeArrayEncodeAll encodes src into b, returning b and any error encountered.
-// The returned slice may be of a different length and capactity to b.
+// The returned slice may be of a different length and capacity to b.
 //
 // TimeArrayEncodeAll implements batch oriented versions of the three integer
 // encoding types we support: uncompressed, simple8b and RLE.
