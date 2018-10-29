@@ -30,6 +30,7 @@ func init() {
 	if h := viper.GetString("ORG_ID"); h != "" {
 		queryFlags.OrgID = h
 	}
+	queryCmd.MarkPersistentFlagRequired("org-id")
 }
 
 func fluxQueryF(cmd *cobra.Command, args []string) {
