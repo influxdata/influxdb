@@ -74,6 +74,7 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, logger *
 	h.HandlerFunc("GET", tasksIDRunsPath, h.handleGetRuns)
 	h.HandlerFunc("GET", tasksIDRunsIDPath, h.handleGetRun)
 	h.HandlerFunc("POST", tasksIDRunsIDRetryPath, h.handleRetryRun)
+	h.HandlerFunc("DELETE", tasksIDRunsIDPath, h.handleCancelRun)
 
 	return h
 }
@@ -585,6 +586,53 @@ func decodeGetRunRequest(ctx context.Context, r *http.Request, orgs platform.Org
 	}, nil
 }
 
+type cancelRunRequest struct {
+	RunID  platform.ID
+	TaskID platform.ID
+}
+
+func decodeCancelRunRequest(ctx context.Context, r *http.Request) (*cancelRunRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	rid := params.ByName("rid")
+	if rid == "" {
+		return nil, kerrors.InvalidDataf("you must provide a run ID")
+	}
+	tid := params.ByName("tid")
+	if tid == "" {
+		return nil, kerrors.InvalidDataf("you must provide a task ID")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(rid); err != nil {
+		return nil, err
+	}
+	var t platform.ID
+	if err := t.DecodeFromString(tid); err != nil {
+		return nil, err
+	}
+
+	return &cancelRunRequest{
+		RunID:  i,
+		TaskID: t,
+	}, nil
+}
+
+func (h *TaskHandler) handleCancelRun(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeCancelRunRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	err = h.TaskService.CancelRun(ctx, req.TaskID, req.RunID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
 func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -886,6 +934,38 @@ func (t TaskService) FindRunByID(ctx context.Context, orgID, runID platform.ID) 
 // RetryRun creates and returns a new run (which is a retry of another run).
 func (t TaskService) RetryRun(ctx context.Context, id platform.ID) (*platform.Run, error) {
 	return nil, errors.New("not yet implemented")
+}
+
+func cancelPath(taskID, runID platform.ID) string {
+	return path.Join(taskID.String(), runID.String())
+}
+
+func (t TaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
+	u, err := newURL(t.Addr, cancelPath(taskID, runID))
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if err := CheckError(resp); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func taskIDPath(id platform.ID) string {

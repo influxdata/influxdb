@@ -56,6 +56,9 @@ type TaskService interface {
 	// FindRunByID returns a single run.
 	FindRunByID(ctx context.Context, orgID, runID ID) (*Run, error)
 
+	// CancelRun cancels a currently running run.
+	CancelRun(ctx context.Context, taskID, runID ID) error
+
 	// RetryRun creates and returns a new run (which is a retry of another run).
 	RetryRun(ctx context.Context, id ID) (*Run, error)
 }

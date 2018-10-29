@@ -17,6 +17,58 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+func TestScheduler_TestCancelation(t *testing.T) {
+	d := mock.NewDesiredState()
+	e := mock.NewExecutor()
+	e.WithHanging(100 * time.Millisecond)
+	rl := backend.NewInMemRunReaderWriter()
+
+	o := backend.NewScheduler(d, e, rl, 5, backend.WithLogger(zaptest.NewLogger(t)))
+	o.Start(context.Background())
+	defer o.Stop()
+
+	task := &backend.StoreTask{
+		ID: platform.ID(1),
+	}
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency:  1,
+		EffectiveCron:   "@every 1s",
+		LatestCompleted: 4,
+	}
+	d.SetTaskMeta(task.ID, *meta)
+	if err := o.ClaimTask(task, meta); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = o.CancelRun(context.Background(), task.ID, runs[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(10 * time.Millisecond) // we have to do this because the storage system we are using for the logs is eventually consistent.
+	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runs[0].Status != "canceled" {
+		t.Fatalf("Run not logged as canceled, but is %s", runs[0].Status)
+	}
+	// check to make sure it is really canceling, and that the status doesn't get changed to something else after it would have finished
+	time.Sleep(500 * time.Millisecond)
+	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runs[0].Status != "canceled" {
+		t.Fatalf("Run not actually canceled, but is %s", runs[0].Status)
+	}
+	// check for when we cancel something already canceled
+	if err = o.CancelRun(context.Background(), task.ID, runs[0].ID); err != backend.ErrRunNotFound {
+		t.Fatalf("expected ErrRunNotFound but got %s", err)
+	}
+}
+
 func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()

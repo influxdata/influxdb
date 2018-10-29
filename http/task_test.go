@@ -12,6 +12,7 @@ import (
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/task"
 	"github.com/influxdata/platform/task/backend"
+	tmock "github.com/influxdata/platform/task/mock"
 	"github.com/influxdata/platform/task/servicetest"
 	"go.uber.org/zap/zaptest"
 )
@@ -19,10 +20,11 @@ import (
 func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 	store := backend.NewInMemStore()
 	rrw := backend.NewInMemRunReaderWriter()
+	sch := tmock.NewScheduler()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	backingTS := task.PlatformAdapter(store, rrw)
+	backingTS := task.PlatformAdapter(store, rrw, sch)
 
 	i := inmem.NewService()
 

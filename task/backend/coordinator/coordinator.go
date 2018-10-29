@@ -26,7 +26,7 @@ func WithLimit(i int) Option {
 	}
 }
 
-func New(logger *zap.Logger, scheduler backend.Scheduler, st backend.Store, opts ...Option) backend.Store {
+func New(logger *zap.Logger, scheduler backend.Scheduler, st backend.Store, opts ...Option) *Coordinator {
 	c := &Coordinator{
 		logger: logger,
 		sch:    scheduler,
@@ -160,4 +160,8 @@ func (c *Coordinator) DeleteUser(ctx context.Context, userID platform.ID) error 
 	}
 
 	return c.Store.DeleteUser(ctx, userID)
+}
+
+func (c *Coordinator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
+	return c.sch.CancelRun(ctx, taskID, runID)
 }
