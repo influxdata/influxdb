@@ -419,7 +419,9 @@ func (s *Shard) Index() (Index, error) {
 	return s.index, nil
 }
 
-func (s *Shard) seriesFile() (*SeriesFile, error) {
+// SeriesFile returns a reference the underlying series file. If return an error
+// if the series file is nil.
+func (s *Shard) SeriesFile() (*SeriesFile, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if err := s.ready(); err != nil {
@@ -1322,7 +1324,7 @@ func (a Shards) createSeriesIterator(ctx context.Context, opt query.IteratorOpti
 			idxs = append(idxs, idx)
 		}
 		if sfile == nil {
-			sfile, _ = sh.seriesFile()
+			sfile, _ = sh.SeriesFile()
 		}
 	}
 
@@ -1395,7 +1397,7 @@ func (a Shards) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest,
 			idxs = append(idxs, idx)
 		}
 		if sfile == nil {
-			sfile, _ = sh.seriesFile()
+			sfile, _ = sh.SeriesFile()
 		}
 	}
 

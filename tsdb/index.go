@@ -23,6 +23,9 @@ const (
 	TSI1IndexName  = "tsi1"
 )
 
+// ErrIndexClosing can be returned to from an Index method if the index is currently closing.
+var ErrIndexClosing = errors.New("index is closing")
+
 type Index interface {
 	Open() error
 	Close() error

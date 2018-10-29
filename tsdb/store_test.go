@@ -3,6 +3,7 @@ package tsdb_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -16,15 +17,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/tsdb/index/inmem"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
+	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
 )
 
@@ -1529,6 +1530,286 @@ func createTagValues(mname string, kvs map[string][]string) tsdb.TagValues {
 	}
 
 	return out
+}
+
+func TestStore_MeasurementNames_ConcurrentDropShard(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		shardN := 10
+		for i := 0; i < shardN; i++ {
+			// Create new shards with some data
+			s.MustCreateShardWithData("db0", "rp0", i,
+				`cpu,host=serverA value=1 30`,
+				`mem,region=west value=2 40`, // skip: wrong source
+				`cpu,host=serverC value=3 60`,
+			)
+		}
+
+		done := make(chan struct{})
+		errC := make(chan error, 2)
+
+		// Randomly close and open the shards.
+		go func() {
+			for {
+				select {
+				case <-done:
+					errC <- nil
+					return
+				default:
+					i := uint64(rand.Intn(int(shardN)))
+					if sh := s.Shard(i); sh == nil {
+						errC <- errors.New("shard should not be nil")
+						return
+					} else {
+						if err := sh.Close(); err != nil {
+							errC <- err
+							return
+						}
+						time.Sleep(500 * time.Microsecond)
+						if err := sh.Open(); err != nil {
+							errC <- err
+							return
+						}
+					}
+				}
+			}
+		}()
+
+		// Attempt to get tag keys from the shards.
+		go func() {
+			for {
+				select {
+				case <-done:
+					errC <- nil
+					return
+				default:
+					names, err := s.MeasurementNames(nil, "db0", nil)
+					if err == tsdb.ErrIndexClosing || err == tsdb.ErrEngineClosed {
+						continue // These errors are expected
+					}
+
+					if err != nil {
+						errC <- err
+						return
+					}
+
+					if got, exp := names, slices.StringsToBytes("cpu", "mem"); !reflect.DeepEqual(got, exp) {
+						errC <- fmt.Errorf("got keys %v, expected %v", got, exp)
+						return
+					}
+				}
+			}
+		}()
+
+		// Run for 500ms
+		time.Sleep(500 * time.Millisecond)
+		close(done)
+
+		// Check for errors.
+		if err := <-errC; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-errC; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestStore_TagKeys_ConcurrentDropShard(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		shardN := 10
+		for i := 0; i < shardN; i++ {
+			// Create new shards with some data
+			s.MustCreateShardWithData("db0", "rp0", i,
+				`cpu,host=serverA value=1 30`,
+				`mem,region=west value=2 40`, // skip: wrong source
+				`cpu,host=serverC value=3 60`,
+			)
+		}
+
+		done := make(chan struct{})
+		errC := make(chan error, 2)
+
+		// Randomly close and open the shards.
+		go func() {
+			for {
+				select {
+				case <-done:
+					errC <- nil
+					return
+				default:
+					i := uint64(rand.Intn(int(shardN)))
+					if sh := s.Shard(i); sh == nil {
+						errC <- errors.New("shard should not be nil")
+						return
+					} else {
+						if err := sh.Close(); err != nil {
+							errC <- err
+							return
+						}
+						time.Sleep(500 * time.Microsecond)
+						if err := sh.Open(); err != nil {
+							errC <- err
+							return
+						}
+					}
+				}
+			}
+		}()
+
+		// Attempt to get tag keys from the shards.
+		go func() {
+			for {
+				select {
+				case <-done:
+					errC <- nil
+					return
+				default:
+					keys, err := s.TagKeys(nil, []uint64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, nil)
+					if err == tsdb.ErrIndexClosing || err == tsdb.ErrEngineClosed {
+						continue // These errors are expected
+					}
+
+					if err != nil {
+						errC <- err
+						return
+					}
+
+					if got, exp := keys[0].Keys, []string{"host"}; !reflect.DeepEqual(got, exp) {
+						errC <- fmt.Errorf("got keys %v, expected %v", got, exp)
+						return
+					}
+
+					if got, exp := keys[1].Keys, []string{"region"}; !reflect.DeepEqual(got, exp) {
+						errC <- fmt.Errorf("got keys %v, expected %v", got, exp)
+						return
+					}
+				}
+			}
+		}()
+
+		// Run for 500ms
+		time.Sleep(500 * time.Millisecond)
+
+		close(done)
+
+		// Check for errors
+		if err := <-errC; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-errC; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		shardN := 10
+		for i := 0; i < shardN; i++ {
+			// Create new shards with some data
+			s.MustCreateShardWithData("db0", "rp0", i,
+				`cpu,host=serverA value=1 30`,
+				`mem,region=west value=2 40`, // skip: wrong source
+				`cpu,host=serverC value=3 60`,
+			)
+		}
+
+		done := make(chan struct{})
+		errC := make(chan error, 2)
+
+		// Randomly close and open the shards.
+		go func() {
+			for {
+				select {
+				case <-done:
+					errC <- nil
+					return
+				default:
+					i := uint64(rand.Intn(int(shardN)))
+					if sh := s.Shard(i); sh == nil {
+						errC <- errors.New("shard should not be nil")
+						return
+					} else {
+						if err := sh.Close(); err != nil {
+							errC <- err
+							return
+						}
+						time.Sleep(500 * time.Microsecond)
+						if err := sh.Open(); err != nil {
+							errC <- err
+							return
+						}
+					}
+				}
+			}
+		}()
+
+		// Attempt to get tag keys from the shards.
+		go func() {
+			for {
+				select {
+				case <-done:
+					errC <- nil
+					return
+				default:
+					stmt, err := influxql.ParseStatement(`SHOW TAG VALUES WITH KEY = "host"`)
+					if err != nil {
+						t.Fatal(err)
+					}
+					rewrite, err := query.RewriteStatement(stmt)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					cond := rewrite.(*influxql.ShowTagValuesStatement).Condition
+					values, err := s.TagValues(nil, []uint64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, cond)
+					if err == tsdb.ErrIndexClosing || err == tsdb.ErrEngineClosed {
+						continue // These errors are expected
+					}
+
+					if err != nil {
+						errC <- err
+						return
+					}
+
+					exp := tsdb.TagValues{
+						Measurement: "cpu",
+						Values: []tsdb.KeyValue{
+							tsdb.KeyValue{Key: "host", Value: "serverA"},
+							tsdb.KeyValue{Key: "host", Value: "serverC"},
+						},
+					}
+
+					if got := values[0]; !reflect.DeepEqual(got, exp) {
+						errC <- fmt.Errorf("got keys %v, expected %v", got, exp)
+						return
+					}
+				}
+			}
+		}()
+
+		// Run for 500ms
+		time.Sleep(500 * time.Millisecond)
+
+		close(done)
+
+		// Check for errors
+		if err := <-errC; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-errC; err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
