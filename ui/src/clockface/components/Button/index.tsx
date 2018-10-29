@@ -9,6 +9,7 @@ import {
   ComponentSize,
   ButtonShape,
   IconFont,
+  ButtonType,
 } from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -25,6 +26,7 @@ interface Props {
   active?: boolean
   tabIndex?: number
   customClass?: string
+  type?: ButtonType
 }
 
 @ErrorHandling
@@ -35,10 +37,11 @@ class Button extends Component<Props> {
     shape: ButtonShape.Default,
     status: ComponentStatus.Default,
     active: false,
+    type: ButtonType.Submit,
   }
 
   public render() {
-    const {onClick, text, titleText, tabIndex} = this.props
+    const {onClick, text, titleText, tabIndex, type} = this.props
 
     return (
       <button
@@ -47,6 +50,7 @@ class Button extends Component<Props> {
         onClick={onClick}
         title={titleText || text}
         tabIndex={!!tabIndex ? tabIndex : 0}
+        type={type}
       >
         {this.icon}
         {this.text}
