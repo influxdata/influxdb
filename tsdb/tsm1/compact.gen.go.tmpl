@@ -375,6 +375,7 @@ func (k *tsmBatchKeyIterator) chunk{{.Name}}(dst blocks) blocks {
 	if k.merged{{.Name}}Values.Len() > k.size {
 		var values tsdb.{{.Name}}Array
 		values.Timestamps = k.merged{{.Name}}Values.Timestamps[:k.size]
+		minTime, maxTime := values.Timestamps[0], values.Timestamps[len(values.Timestamps)-1]
 		values.Values = k.merged{{.Name}}Values.Values[:k.size]
 
 		cb, err := Encode{{.Name}}ArrayBlock(&values, nil) // TODO(edd): pool this buffer
@@ -384,8 +385,8 @@ func (k *tsmBatchKeyIterator) chunk{{.Name}}(dst blocks) blocks {
 		}
 
 		dst = append(dst, &block{
-			minTime: values.MinTime(),
-			maxTime: values.MaxTime(),
+			minTime: minTime,
+			maxTime: maxTime,
 			key:     k.key,
 			b:       cb,
 		})
@@ -396,6 +397,7 @@ func (k *tsmBatchKeyIterator) chunk{{.Name}}(dst blocks) blocks {
 
 	// Re-encode the remaining values into the last block
 	if k.merged{{.Name}}Values.Len() > 0 {
+		minTime, maxTime := k.merged{{.Name}}Values.Timestamps[0], k.merged{{.Name}}Values.Timestamps[len(k.merged{{.Name}}Values.Timestamps)-1]
 		cb, err := Encode{{.Name}}ArrayBlock(k.merged{{.Name}}Values, nil) // TODO(edd): pool this buffer
 		if err != nil {
 			k.err = err
@@ -403,8 +405,8 @@ func (k *tsmBatchKeyIterator) chunk{{.Name}}(dst blocks) blocks {
 		}
 
 		dst = append(dst, &block{
-			minTime: k.merged{{.Name}}Values.MinTime(),
-			maxTime: k.merged{{.Name}}Values.MaxTime(),
+			minTime: minTime,
+			maxTime: maxTime,
 			key:     k.key,
 			b:       cb,
 		})
