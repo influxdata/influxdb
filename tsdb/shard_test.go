@@ -1841,6 +1841,14 @@ func BenchmarkWritePoints_ExistingSeries_10K_10_1(b *testing.B) {
 	benchmarkWritePointsExistingSeriesEqualBatches(b, 10000, 10, 1, 1)
 }
 
+func BenchmarkWritePoints_ExistingSeries_100K_1_1_Fields(b *testing.B) {
+	benchmarkWritePointsExistingSeriesFields(b, 100000, 1, 1, 1)
+}
+
+func BenchmarkWritePoints_ExistingSeries_10K_10_1_Fields(b *testing.B) {
+	benchmarkWritePointsExistingSeriesFields(b, 10000, 10, 1, 1)
+}
+
 // benchmarkWritePoints benchmarks writing new series to a shard.
 // mCnt - measurement count
 // tkCnt - tag key count
@@ -1897,6 +1905,50 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 		for val := 0.0; val < float64(pntCnt); val++ {
 			p := models.MustNewPoint(s.Measurement, s.Tags, map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
+		}
+	}
+
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	shard, tmpDir, err := openShard(sfile)
+	defer shard.Close()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	chunkedWrite(shard, points)
+
+	// Reset timers and mem-stats before the main benchmark loop.
+	b.ResetTimer()
+
+	// Run the benchmark loop.
+	for n := 0; n < b.N; n++ {
+		b.StopTimer()
+
+		for _, p := range points {
+			p.SetTime(p.Time().Add(time.Second))
+		}
+
+		b.StartTimer()
+		// Call the function being benchmarked.
+		chunkedWrite(shard, points)
+	}
+	os.RemoveAll(tmpDir)
+}
+
+func benchmarkWritePointsExistingSeriesFields(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
+	// Generate test series (measurements + unique tag sets).
+	series := genTestSeries(mCnt, tkCnt, tvCnt)
+	// Generate point data to write to the shard.
+	points := []models.Point{}
+	for _, s := range series {
+		i := 0
+		for val := 0.0; val < float64(pntCnt); val++ {
+			field := fmt.Sprintf("v%d", i%256)
+			p := models.MustNewPoint(s.Measurement, s.Tags, map[string]interface{}{field: val}, time.Now())
+			points = append(points, p)
+			i++
 		}
 	}
 
