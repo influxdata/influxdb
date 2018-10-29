@@ -170,4 +170,7 @@ const mdtp = {
   notify: notifyAction,
 }
 
-export default connect(mstp, mdtp)(withRouter(OnboardingWizard))
+export default connect(
+  mstp,
+  mdtp
+)(withRouter(OnboardingWizard))

@@ -10,6 +10,12 @@ import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 @ErrorHandling
 class CompletionStep extends PureComponent<OnboardingStepProps> {
+  public componentDidMount() {
+    window.addEventListener('keydown', this.handleKeydown)
+  }
+  public componentWillUnmount() {
+    window.removeEventListener('keydown', this.handleKeydown)
+  }
   public render() {
     const {onExit} = this.props
     return (
@@ -38,6 +44,12 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
   private handleDecrement = () => {
     const {handleSetCurrentStep, currentStepIndex} = this.props
     handleSetCurrentStep(currentStepIndex - 1)
+  }
+
+  private handleKeydown = (e: KeyboardEvent): void => {
+    if (e.key === 'Enter') {
+      this.props.onExit()
+    }
   }
 }
 

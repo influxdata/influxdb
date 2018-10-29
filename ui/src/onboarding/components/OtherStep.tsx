@@ -14,6 +14,12 @@ class OtherStep extends PureComponent<OnboardingStepProps, null> {
   constructor(props) {
     super(props)
   }
+  public componentDidMount() {
+    window.addEventListener('keydown', this.handleKeydown)
+  }
+  public componentWillUnmount() {
+    window.removeEventListener('keydown', this.handleKeydown)
+  }
   public render() {
     return (
       <div className="onboarding-step">
@@ -56,6 +62,12 @@ class OtherStep extends PureComponent<OnboardingStepProps, null> {
   private handleDecrement = () => {
     const {handleSetCurrentStep, currentStepIndex} = this.props
     handleSetCurrentStep(currentStepIndex - 1)
+  }
+
+  private handleKeydown = (e: KeyboardEvent): void => {
+    if (e.key === 'Enter') {
+      this.handleNext()
+    }
   }
 }
 
