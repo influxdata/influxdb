@@ -1,6 +1,7 @@
 package outputs
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,10 +10,10 @@ import (
 // InfluxDBV2 is based on telegraf influxdb_v2 output plugin.
 type InfluxDBV2 struct {
 	baseOutput
-	URLs         []string `toml:"urls"`
-	Token        string   `toml:"token"`
-	Organization string   `toml:"organization"`
-	Bucket       string   `toml:"bucket"`
+	URLs         []string `json:"urls"`
+	Token        string   `json:"token"`
+	Organization string   `json:"organization"`
+	Bucket       string   `json:"bucket"`
 }
 
 // PluginName is based on telegraf plugin name.
@@ -43,4 +44,35 @@ func (i *InfluxDBV2) TOML() string {
   ## Destination bucket to write into.
   bucket = "%s"
 `, i.PluginName(), strings.Join(s, ", "), i.Token, i.Organization, i.Bucket)
+}
+
+// UnmarshalTOML decodes the parsed data to the object
+func (i *InfluxDBV2) UnmarshalTOML(data interface{}) error {
+	dataOK, ok := data.(map[string]interface{})
+	if !ok {
+		return errors.New("bad urls for influxdb_v2 output plugin")
+	}
+	urls, ok := dataOK["urls"].([]interface{})
+	if !ok {
+		return errors.New("urls is not an array for influxdb_v2 output plugin")
+	}
+	for _, url := range urls {
+		i.URLs = append(i.URLs, url.(string))
+	}
+
+	i.Token, ok = dataOK["token"].(string)
+	if !ok {
+		return errors.New("token is missing for influxdb_v2 output plugin")
+	}
+
+	i.Organization, ok = dataOK["organization"].(string)
+	if !ok {
+		return errors.New("organization is missing for influxdb_v2 output plugin")
+	}
+
+	i.Bucket, ok = dataOK["bucket"].(string)
+	if !ok {
+		return errors.New("bucket is missing for influxdb_v2 output plugin")
+	}
+	return nil
 }

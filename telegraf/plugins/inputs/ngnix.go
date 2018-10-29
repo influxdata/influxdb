@@ -1,6 +1,7 @@
 package inputs
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,7 +10,7 @@ import (
 // Nginx is based on telegraf nginx plugin.
 type Nginx struct {
 	baseInput
-	URLs []string `json:"urls,omitempty"`
+	URLs []string `json:"urls"`
 }
 
 // PluginName is based on telegraf plugin name.
@@ -28,4 +29,20 @@ func (n *Nginx) TOML() string {
   # exp http://localhost/server_status
   urls = [%s]
 `, n.PluginName(), strings.Join(s, ", "))
+}
+
+// UnmarshalTOML decodes the parsed data to the object
+func (n *Nginx) UnmarshalTOML(data interface{}) error {
+	dataOK, ok := data.(map[string]interface{})
+	if !ok {
+		return errors.New("bad urls for nginx input plugin")
+	}
+	urls, ok := dataOK["urls"].([]interface{})
+	if !ok {
+		return errors.New("urls is not an array for nginx input plugin")
+	}
+	for _, url := range urls {
+		n.URLs = append(n.URLs, url.(string))
+	}
+	return nil
 }

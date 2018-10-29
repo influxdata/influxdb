@@ -19,3 +19,8 @@ func (m *MemStats) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
 `, m.PluginName())
 }
+
+// UnmarshalTOML decodes the parsed data to the object
+func (m *MemStats) UnmarshalTOML(data interface{}) error {
+	return nil
+}

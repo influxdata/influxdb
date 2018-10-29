@@ -19,3 +19,8 @@ func (s *SwapStats) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
 `, s.PluginName())
 }
+
+// UnmarshalTOML decodes the parsed data to the object
+func (s *SwapStats) UnmarshalTOML(data interface{}) error {
+	return nil
+}

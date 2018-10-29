@@ -1,6 +1,7 @@
 package outputs
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -37,4 +38,29 @@ func (f *File) TOML() string {
   ## Files to write to, "stdout" is a specially handled file.
   files = [%s]
 `, f.PluginName(), strings.Join(s, ", "))
+}
+
+// UnmarshalTOML decodes the parsed data to the object
+func (f *File) UnmarshalTOML(data interface{}) error {
+	dataOK, ok := data.(map[string]interface{})
+	if !ok {
+		return errors.New("bad files for file output plugin")
+	}
+	files, ok := dataOK["files"].([]interface{})
+	if !ok {
+		return errors.New("not an array for file output plugin")
+	}
+	for _, fi := range files {
+		fl := fi.(string)
+		if fl == "stdout" {
+			f.Files = append(f.Files, FileConfig{
+				Typ: "stdout",
+			})
+			continue
+		}
+		f.Files = append(f.Files, FileConfig{
+			Path: fl,
+		})
+	}
+	return nil
 }

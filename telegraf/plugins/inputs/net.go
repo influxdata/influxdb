@@ -19,3 +19,8 @@ func (n *NetIOStats) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
 `, n.PluginName())
 }
+
+// UnmarshalTOML decodes the parsed data to the object
+func (n *NetIOStats) UnmarshalTOML(data interface{}) error {
+	return nil
+}
