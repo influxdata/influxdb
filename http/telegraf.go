@@ -69,8 +69,7 @@ type telegrafResponse struct {
 }
 
 type telegrafResponses struct {
-	Sources []*platform.TelegrafConfig `json:"sources"`
-	Links   link                       `json:"links"`
+	TelegrafConfigs []telegrafResponse `json:"configurations"`
 }
 
 func newTelegrafResponse(tc *platform.TelegrafConfig) telegrafResponse {
@@ -83,12 +82,13 @@ func newTelegrafResponse(tc *platform.TelegrafConfig) telegrafResponse {
 }
 
 func newTelegrafResponses(tcs []*platform.TelegrafConfig) telegrafResponses {
-	return telegrafResponses{
-		Sources: tcs,
-		Links: link{
-			Self: telegrafsPath,
-		},
+	resp := telegrafResponses{
+		TelegrafConfigs: make([]telegrafResponse, len(tcs)),
 	}
+	for i, c := range tcs {
+		resp.TelegrafConfigs[i] = newTelegrafResponse(c)
+	}
+	return resp
 }
 
 func decodeGetTelegrafRequest(ctx context.Context, r *http.Request) (i platform.ID, err error) {
