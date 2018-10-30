@@ -136,7 +136,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				errReferenceField = zap.String("reference", errReference)
 			}
 
-			h.Logger.Info("Served http request",
+			h.Logger.Debug("Request",
 				zap.String("handler", h.name),
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),

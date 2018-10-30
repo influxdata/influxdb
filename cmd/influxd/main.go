@@ -35,6 +35,7 @@ import (
 	_ "github.com/influxdata/platform/tsdb/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func main() {
@@ -48,6 +49,12 @@ func main() {
 		Name: "influxd",
 		Run:  run,
 		Opts: []cli.Opt{
+			{
+				DestP:   &logLevel,
+				Flag:    "log-level",
+				Default: "info",
+				Desc:    "supported log levels are debug, info, and error",
+			},
 			{
 				DestP:   &httpBindAddress,
 				Flag:    "http-bind-address",
@@ -96,6 +103,7 @@ const (
 )
 
 var (
+	logLevel          string
 	httpBindAddress   string
 	authorizationPath string
 	boltPath          string
@@ -124,16 +132,26 @@ func influxDir() (string, error) {
 	return dir, nil
 }
 
-func init() {
-}
-
 func run() error {
 	ctx := context.Background()
 	// exit with SIGINT and SIGTERM
 	ctx = signals.WithStandardSignals(ctx)
 
+	var lvl zapcore.Level
+	if err := lvl.Set(logLevel); err != nil {
+		return fmt.Errorf("unknown log level; supported levels are debug, info, and error")
+	}
+
 	// Create top level logger
-	logger := influxlogger.New(os.Stdout)
+	logconf := &influxlogger.Config{
+		Format: "auto",
+		Level:  lvl,
+	}
+	logger, err := logconf.New(os.Stdout)
+	if err != nil {
+		return err
+	}
+	defer logger.Sync()
 
 	reg := prom.NewRegistry()
 	reg.MustRegister(prometheus.NewGoCollector())
@@ -141,7 +159,7 @@ func run() error {
 
 	c := bolt.NewClient()
 	c.Path = boltPath
-	c.WithLogger(logger)
+	c.WithLogger(logger.With(zap.String("service", "bolt")))
 
 	if err := c.Open(ctx); err != nil {
 		logger.Error("failed opening bolt", zap.Error(err))
@@ -149,7 +167,7 @@ func run() error {
 	}
 	defer func(logger *zap.Logger) {
 		logger = logger.With(zap.String("service", "bolt"))
-		logger.Info("stopping")
+		logger.Info("Stopping")
 		if err := c.Close(); err != nil {
 			logger.Info("failed closing bolt", zap.String("service", "bolt"))
 		}
@@ -193,7 +211,7 @@ func run() error {
 			return err
 		}
 		defer func() {
-			logger.Info("stopping", zap.String("service", "storage-engine"))
+			logger.Info("Stopping", zap.String("service", "storage-engine"))
 			if err := engine.Close(); err != nil {
 				logger.Error("failed to close engine", zap.Error(err))
 			}
@@ -226,7 +244,7 @@ func run() error {
 		scheduler := taskbackend.NewScheduler(boltStore, executor, taskbackend.NopLogWriter{}, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, time.Second), taskbackend.WithLogger(logger))
 		scheduler.Start(ctx)
 		defer func() {
-			logger.Info("stopping", zap.String("service", "task"))
+			logger.Info("Stopping", zap.String("service", "task"))
 			scheduler.Stop()
 		}()
 
@@ -243,7 +261,7 @@ func run() error {
 		return err
 	}
 	defer func() {
-		logger.Info("stopping", zap.String("service", "nats"))
+		logger.Info("Stopping", zap.String("service", "nats"))
 		natsServer.Close()
 	}()
 
@@ -274,7 +292,7 @@ func run() error {
 		if err := scraperScheduler.Run(ctx); err != nil {
 			logger.Error("failed scraper service", zap.Error(err))
 		}
-		logger.Info("stopping")
+		logger.Info("Stopping")
 	}(logger)
 
 	httpServer := &nethttp.Server{
@@ -314,6 +332,7 @@ func run() error {
 
 		h := http.NewHandlerFromRegistry("platform", reg)
 		h.Handler = platformHandler
+		h.Logger = logger
 
 		httpServer.Handler = h
 		logger.Info("Listening", zap.String("transport", "http"), zap.String("addr", httpBindAddress))
