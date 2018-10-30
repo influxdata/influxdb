@@ -157,6 +157,11 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
+		// Always create KeyValueLog bucket.
+		if err := c.initializeKeyValueLog(ctx, tx); err != nil {
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		return err
