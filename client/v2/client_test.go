@@ -250,7 +250,7 @@ func TestClientDownstream400WithBody_Query(t *testing.T) {
 	query := Query{}
 	_, err := c.Query(query)
 
-	expected := fmt.Sprintf(`expected json response, got "text/html", with status: %v and response body: %q`, http.StatusForbidden, err403page)
+	expected := fmt.Sprintf(`expected application/json response, got "text/html", with status: %v and response body: %q`, http.StatusForbidden, err403page)
 	if err.Error() != expected {
 		t.Errorf("unexpected error.  expected %v, actual %v", expected, err)
 	}
@@ -269,7 +269,7 @@ func TestClientDownstream400_Query(t *testing.T) {
 	query := Query{}
 	_, err := c.Query(query)
 
-	expected := fmt.Sprintf(`expected json response, got empty body, with status: %v`, http.StatusForbidden)
+	expected := fmt.Sprintf(`expected application/json response, got empty body, with status: %v`, http.StatusForbidden)
 	if err.Error() != expected {
 		t.Errorf("unexpected error.  expected %v, actual %v", expected, err)
 	}
@@ -417,7 +417,7 @@ func TestClientDownstream400WithBody_ChunkedQuery(t *testing.T) {
 	query := Query{Chunked: true}
 	_, err := c.Query(query)
 
-	expected := fmt.Sprintf(`expected json response, got "text/html", with status: %v and response body: %q`, http.StatusForbidden, err403page)
+	expected := fmt.Sprintf(`expected application/json response, got "text/html", with status: %v and response body: %q`, http.StatusForbidden, err403page)
 	if err.Error() != expected {
 		t.Errorf("unexpected error.  expected %v, actual %v", expected, err)
 	}
@@ -436,7 +436,7 @@ func TestClientDownstream400_ChunkedQuery(t *testing.T) {
 	query := Query{Chunked: true}
 	_, err := c.Query(query)
 
-	expected := fmt.Sprintf(`expected json response, got empty body, with status: %v`, http.StatusForbidden)
+	expected := fmt.Sprintf(`expected application/json response, got empty body, with status: %v`, http.StatusForbidden)
 	if err.Error() != expected {
 		t.Errorf("unexpected error.  expected %v, actual %v", expected, err)
 	}

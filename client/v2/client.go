@@ -16,8 +16,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/tinylib/msgp/msgp"
 )
 
 // HTTPConfig is the config data needed to create an HTTP Client.
@@ -48,6 +50,10 @@ type HTTPConfig struct {
 
 	// Proxy configures the Proxy function on the HTTP client.
 	Proxy func(req *http.Request) (*url.URL, error)
+
+	// Encoding specifies the encoding to use.
+	// Values are "json", "msgpack", with "" treated as "json".
+	Encoding string
 }
 
 // BatchPointsConfig is the config data needed to create an instance of the BatchPoints struct.
@@ -80,7 +86,7 @@ type Client interface {
 
 	// QueryAsChunk makes an InfluxDB Query on the database. This will fail if using
 	// the UDP client.
-	QueryAsChunk(q Query) (*ChunkedResponse, error)
+	QueryAsChunk(q Query) (ChunkedResponse, error)
 
 	// Close releases any resources a Client may be using.
 	Close() error
@@ -91,6 +97,17 @@ type Client interface {
 func NewHTTPClient(conf HTTPConfig) (Client, error) {
 	if conf.UserAgent == "" {
 		conf.UserAgent = "InfluxDBClient"
+	}
+	var encoding string
+	switch conf.Encoding {
+	case "", "json":
+		encoding = "application/json"
+	case "msgpack":
+		encoding = "application/x-msgpack"
+	default:
+		m := fmt.Sprintf("Unsupported protocol encoding: %s, must be"+
+			" json or msgpack", conf.Encoding)
+		return nil, errors.New(m)
 	}
 
 	u, err := url.Parse(conf.Addr)
@@ -116,6 +133,7 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 		username:  conf.Username,
 		password:  conf.Password,
 		useragent: conf.UserAgent,
+		encoding:  encoding,
 		httpClient: &http.Client{
 			Timeout:   conf.Timeout,
 			Transport: tr,
@@ -184,6 +202,7 @@ type client struct {
 	username   string
 	password   string
 	useragent  string
+	encoding   string
 	httpClient *http.Client
 	transport  *http.Transport
 }
@@ -518,13 +537,21 @@ func (c *client) Query(q Query) (*Response, error) {
 	}
 	defer resp.Body.Close()
 
-	if err := checkResponse(resp); err != nil {
+	if err := c.checkResponse(resp); err != nil {
 		return nil, err
 	}
 
 	var response Response
 	if q.Chunked {
-		cr := NewChunkedResponse(resp.Body)
+		var cr ChunkedResponse
+		switch c.encoding {
+		case "application/json":
+			cr = NewChunkedJSONResponse(resp.Body)
+		case "application/x-msgpack":
+			cr = NewChunkedMsgpackResponse(resp.Body)
+		default:
+			return nil, fmt.Errorf("impossible case: encoding type '%s' unknown", c.encoding)
+		}
 		for {
 			r, err := cr.NextResponse()
 			if err != nil {
@@ -546,10 +573,17 @@ func (c *client) Query(q Query) (*Response, error) {
 			}
 		}
 	} else {
-		dec := json.NewDecoder(resp.Body)
-		dec.UseNumber()
-		decErr := dec.Decode(&response)
-
+		var decErr error
+		switch c.encoding {
+		case "application/json":
+			dec := json.NewDecoder(resp.Body)
+			dec.UseNumber()
+			decErr = dec.Decode(&response)
+		case "application/x-msgpack":
+			decErr = msgp.Decode(resp.Body, &response)
+		default:
+			decErr = fmt.Errorf("impossible case: encoding type '%s' unknown", c.encoding)
+		}
 		// ignore this error if we got an invalid status code
 		if decErr != nil && decErr.Error() == "EOF" && resp.StatusCode != http.StatusOK {
 			decErr = nil
@@ -569,7 +603,7 @@ func (c *client) Query(q Query) (*Response, error) {
 }
 
 // QueryAsChunk sends a command to the server and returns the Response.
-func (c *client) QueryAsChunk(q Query) (*ChunkedResponse, error) {
+func (c *client) QueryAsChunk(q Query) (ChunkedResponse, error) {
 	req, err := c.createDefaultRequest(q)
 	if err != nil {
 		return nil, err
@@ -585,13 +619,22 @@ func (c *client) QueryAsChunk(q Query) (*ChunkedResponse, error) {
 		return nil, err
 	}
 
-	if err := checkResponse(resp); err != nil {
+	if err := c.checkResponse(resp); err != nil {
 		return nil, err
 	}
-	return NewChunkedResponse(resp.Body), nil
+	var cr ChunkedResponse
+	switch c.encoding {
+	case "application/json":
+		cr = NewChunkedJSONResponse(resp.Body)
+	case "application/x-msgpack":
+		cr = NewChunkedMsgpackResponse(resp.Body)
+	default:
+		return nil, fmt.Errorf("impossible case: encoding type '%s' unknown", c.encoding)
+	}
+	return cr, nil
 }
 
-func checkResponse(resp *http.Response) error {
+func (c *client) checkResponse(resp *http.Response) error {
 	// If we lack a X-Influxdb-Version header, then we didn't get a response from influxdb
 	// but instead some other service. If the error code is also a 500+ code, then some
 	// downstream loadbalancer/proxy/etc had an issue and we should report that.
@@ -606,15 +649,15 @@ func checkResponse(resp *http.Response) error {
 
 	// If we get an unexpected content type, then it is also not from influx direct and therefore
 	// we want to know what we received and what status code was returned for debugging purposes.
-	if cType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); cType != "application/json" {
+	if cType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); cType != c.encoding {
 		// Read up to 1kb of the body to help identify downstream errors and limit the impact of things
 		// like downstream serving a large file
 		body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1024))
 		if err != nil || len(body) == 0 {
-			return fmt.Errorf("expected json response, got empty body, with status: %v", resp.StatusCode)
+			return fmt.Errorf("expected %s response, got empty body, with status: %v", c.encoding, resp.StatusCode)
 		}
 
-		return fmt.Errorf("expected json response, got %q, with status: %v and response body: %q", cType, resp.StatusCode, body)
+		return fmt.Errorf("expected %s response, got %q, with status: %v and response body: %q", c.encoding, cType, resp.StatusCode, body)
 	}
 	return nil
 }
@@ -635,6 +678,7 @@ func (c *client) createDefaultRequest(q Query) (*http.Request, error) {
 
 	req.Header.Set("Content-Type", "")
 	req.Header.Set("User-Agent", c.useragent)
+	req.Header.Set("Accept", c.encoding)
 
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
@@ -677,21 +721,28 @@ func (r *duplexReader) Close() error {
 	return r.r.Close()
 }
 
-// ChunkedResponse represents a response from the server that
+// ChunkedResponse is the general interface for chunked response
+// handlers.
+type ChunkedResponse interface {
+	NextResponse() (*Response, error)
+	Close() error
+}
+
+// ChunkedJSONResponse represents a JSON response from the server that
 // uses chunking to stream the output.
-type ChunkedResponse struct {
+type ChunkedJSONResponse struct {
 	dec    *json.Decoder
 	duplex *duplexReader
 	buf    bytes.Buffer
 }
 
 // NewChunkedResponse reads a stream and produces responses from the stream.
-func NewChunkedResponse(r io.Reader) *ChunkedResponse {
+func NewChunkedJSONResponse(r io.Reader) *ChunkedJSONResponse {
 	rc, ok := r.(io.ReadCloser)
 	if !ok {
 		rc = ioutil.NopCloser(r)
 	}
-	resp := &ChunkedResponse{}
+	resp := &ChunkedJSONResponse{}
 	resp.duplex = &duplexReader{r: rc, w: &resp.buf}
 	resp.dec = json.NewDecoder(resp.duplex)
 	resp.dec.UseNumber()
@@ -699,7 +750,7 @@ func NewChunkedResponse(r io.Reader) *ChunkedResponse {
 }
 
 // NextResponse reads the next line of the stream and returns a response.
-func (r *ChunkedResponse) NextResponse() (*Response, error) {
+func (r *ChunkedJSONResponse) NextResponse() (*Response, error) {
 	var response Response
 	if err := r.dec.Decode(&response); err != nil {
 		if err == io.EOF {
@@ -717,6 +768,296 @@ func (r *ChunkedResponse) NextResponse() (*Response, error) {
 }
 
 // Close closes the response.
-func (r *ChunkedResponse) Close() error {
+func (r *ChunkedJSONResponse) Close() error {
 	return r.duplex.Close()
+}
+
+// ChunkedMsgpackResponse represents a msgpack response from the server that
+// uses chunking to stream the output.
+type ChunkedMsgpackResponse struct {
+	dec    *msgp.Reader
+	duplex *duplexReader
+	buf    bytes.Buffer
+}
+
+// NewChunkedMsgpackResponse reads a stream and produces responses from the stream.
+func NewChunkedMsgpackResponse(r io.Reader) *ChunkedMsgpackResponse {
+	rc, ok := r.(io.ReadCloser)
+	if !ok {
+		rc = ioutil.NopCloser(r)
+	}
+	resp := &ChunkedMsgpackResponse{}
+	resp.duplex = &duplexReader{r: rc, w: &resp.buf}
+	resp.dec = msgp.NewReader(resp.duplex)
+	return resp
+}
+
+// If a buffer contains a bunch of binary data, followed by a textual error
+// message, the textual error message starts after the last non-printing
+// character, or somewhere near there, probably.
+func isBinary(r rune) bool {
+	return !unicode.IsPrint(r)
+}
+
+// Close closes the response.
+func (r *ChunkedMsgpackResponse) Close() error {
+	return r.duplex.Close()
+}
+
+// NextResponse reads the next line of the stream and returns a response.
+func (r *ChunkedMsgpackResponse) NextResponse() (*Response, error) {
+	var response Response
+	if err := response.DecodeMsg(r.dec); err != nil {
+		if err == io.EOF {
+			return nil, nil
+		}
+		// A decoding error happened. This probably means the server crashed
+		// and sent a last-ditch error message to us. Ensure we have read the
+		// entirety of the connection to get any remaining error text.
+		//
+		io.Copy(ioutil.Discard, r.duplex)
+		raw := r.buf.Bytes()
+		lastNonPrinting := bytes.LastIndexFunc(raw, isBinary)
+		if lastNonPrinting != -1 {
+			raw = raw[lastNonPrinting+1:]
+		}
+		return nil, errors.New(strings.TrimSpace(string(raw)))
+	}
+
+	r.buf.Reset()
+	return &response, nil
+}
+
+// DecodeMsg allows Response entries to be decoded from a msgp.Reader.
+// Must be synchronized with the (*msgpackFormatter) WriteResponse method in
+// services/httpd/response_writer.go.
+func (resp *Response) DecodeMsg(rd *msgp.Reader) error {
+	// in fact, the top-level should always be exactly one key which
+	// is either "error" or "results".
+	_, err := rd.ReadMapHeader()
+	if err != nil {
+		return err
+	}
+	s, err := rd.ReadString()
+	if err != nil {
+		return err
+	}
+	switch s {
+	case "error":
+		resp.Err, err = rd.ReadString()
+		if err != nil {
+			return err
+		}
+		return nil
+	case "results":
+		results, err := decodeResults(rd)
+		if err != nil {
+			return err
+		}
+		resp.Results = results
+	default:
+		return fmt.Errorf("unknown response type '%s', expecting error or results", s)
+	}
+	return nil
+}
+
+// decodeResults decodes an array of Result objects from the provided reader.
+
+func decodeResults(rd *msgp.Reader) ([]Result, error) {
+	count, err := rd.ReadArrayHeader()
+	if err != nil {
+		return nil, err
+	}
+	results := make([]Result, 0, count)
+	for i := 0; i < int(count); i++ {
+		result, err := decodeResult(rd)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+// type Result struct {
+//	Series   []models.Row
+//	Messages []*Message
+//	Err      string `json:"error,omitempty"`
+//}
+func decodeResult(rd *msgp.Reader) (Result, error) {
+	var r Result
+	l, err := rd.ReadMapHeader()
+	if err != nil {
+		return r, err
+	}
+	for i := 0; i < int(l); i++ {
+		s, err := rd.ReadString()
+		if err != nil {
+			return r, err
+		}
+		switch s {
+		case "error":
+			e, err := rd.ReadString()
+			if err != nil {
+				return r, err
+			}
+			r.Err = e
+		case "messages":
+			messages, err := decodeMessages(rd)
+			if err != nil {
+				return r, err
+			}
+			r.Messages = messages
+		case "statement_id":
+			// statement ID not used by client
+			_, err := rd.ReadInt()
+			if err != nil {
+				return r, err
+			}
+		case "series":
+			series, err := decodeSeries(rd)
+			if err != nil {
+				return r, err
+			}
+			r.Series = series
+		case "partial":
+			// "partial" flag not used by client
+			_, err := rd.ReadBool()
+			if err != nil {
+				return r, err
+			}
+		}
+	}
+	return r, nil
+}
+
+// decodeMessages decodes an array of *Messages.
+func decodeMessages(rd *msgp.Reader) ([]*Message, error) {
+	count, err := rd.ReadArrayHeader()
+	if err != nil {
+		return nil, err
+	}
+	messages := make([]*Message, 0, count)
+	for i := 0; i < int(count); i++ {
+		m, err := rd.ReadMapHeader()
+		if err != nil {
+			return nil, err
+		}
+		msg := Message{}
+		for j := 0; j < int(m); j++ {
+			key, err := rd.ReadString()
+			if err != nil {
+				return nil, err
+			}
+			value, err := rd.ReadString()
+			if err != nil {
+				return nil, err
+			}
+			switch key {
+			case "level":
+				msg.Level = value
+			case "text":
+				msg.Text = value
+			}
+		}
+		messages = append(messages, &msg)
+	}
+	return messages, nil
+}
+
+// decodeSeries decodes an array of models.Rows.
+func decodeSeries(rd *msgp.Reader) ([]models.Row, error) {
+	count, err := rd.ReadArrayHeader()
+	if err != nil {
+		return nil, err
+	}
+	series := make([]models.Row, 0, count)
+	for i := 0; i < int(count); i++ {
+		s, err := decodeRow(rd)
+		if err != nil {
+			return nil, err
+		}
+		series = append(series, s)
+	}
+	return series, nil
+}
+
+// decodeRow decodes a single models.Row.
+func decodeRow(rd *msgp.Reader) (models.Row, error) {
+	var row models.Row
+	count, err := rd.ReadMapHeader()
+	if err != nil {
+		return row, err
+	}
+	for i := 0; i < int(count); i++ {
+		key, err := rd.ReadString()
+		if err != nil {
+			return row, err
+		}
+		switch key {
+		case "name":
+			s, err := rd.ReadString()
+			if err != nil {
+				return row, err
+			}
+			row.Name = s
+		case "tags":
+			tagCount, err := rd.ReadMapHeader()
+			if err != nil {
+				return row, err
+			}
+			row.Tags = make(map[string]string)
+			for j := 0; j < int(tagCount); j++ {
+				key, err := rd.ReadString()
+				if err != nil {
+					return row, err
+				}
+				value, err := rd.ReadString()
+				if err != nil {
+					return row, err
+				}
+				row.Tags[key] = value
+			}
+		case "columns":
+			colCount, err := rd.ReadArrayHeader()
+			if err != nil {
+				return row, err
+			}
+			row.Columns = make([]string, 0, colCount)
+			for j := 0; j < int(colCount); j++ {
+				col, err := rd.ReadString()
+				if err != nil {
+					return row, err
+				}
+				row.Columns = append(row.Columns, col)
+			}
+		case "values":
+			valCount, err := rd.ReadArrayHeader()
+			if err != nil {
+				return row, err
+			}
+			row.Values = make([][]interface{}, 0, valCount)
+			for j := 0; j < int(valCount); j++ {
+				// ReadIntf will read an array as an
+				// array of interface{} -- in this case,
+				// that's exactly what we want.
+				valIntf, err := rd.ReadIntf()
+				if err != nil {
+					return row, err
+				}
+				vals, ok := valIntf.([]interface{})
+				if !ok {
+					return row, fmt.Errorf("unexpected object of type %T, expecting []interface{}", valIntf)
+				}
+				row.Values = append(row.Values, vals)
+			}
+		case "partial":
+			b, err := rd.ReadBool()
+			if err != nil {
+				return row, err
+			}
+			row.Partial = b
+		}
+	}
+	return row, nil
 }
