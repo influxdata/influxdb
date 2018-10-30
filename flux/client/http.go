@@ -6,6 +6,8 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -101,25 +103,22 @@ func newClient(scheme string, insecure bool) *http.Client {
 // If there is no error, then this returns nil.
 func checkError(resp *http.Response) error {
 	switch resp.StatusCode / 100 {
-	case 4, 5:
+	case 4:
 		// We will attempt to parse this error outside of this block.
-	case 2:
+		msg := "client error"
+		data, _ := ioutil.ReadAll(resp.Body)
+		mt, _, err := mime.ParseMediaType(resp.Header.Get("content-type"))
+		if err == nil && mt == "text/plain" && len(msg) > 0 {
+			msg = string(data)
+		}
+		return errors.Wrap(errors.New(resp.Status), msg)
+	case 1, 2:
 		return nil
-	default:
-		// TODO(jsternberg): Figure out what to do here?
-		//return kerrors.InternalErrorf("unexpected status code: %d %s", resp.StatusCode, resp.Status)
-	}
 
-	// There is no influx error so we need to report that we have some kind
-	// of error from somewhere.
-	// TODO(jsternberg): Try to make this more advance by reading the response
-	// and either decoding a possible json message or just reading the text itself.
-	// This might be good enough though.
-	msg := "unknown server error"
-	if resp.StatusCode/100 == 4 {
-		msg = "client error"
+	default:
+		msg := "unknown server error"
+		return errors.Wrap(errors.New(resp.Status), msg)
 	}
-	return errors.Wrap(errors.New(resp.Status), msg)
 }
 
 func QueryRequestFromProxyRequest(req *ProxyRequest) (*QueryRequest, error) {
