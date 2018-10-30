@@ -76,14 +76,16 @@ func NewScheduler(
 // Run will retrieve scraper targets from the target storage,
 // and publish them to nats job queue for gather.
 func (s *Scheduler) Run(ctx context.Context) error {
-	go func(s *Scheduler) {
+	go func(s *Scheduler, ctx context.Context) {
 		for {
 			select {
-			case <-time.After(s.Interval):
+			case <-ctx.Done():
+				return
+			case <-time.After(s.Interval): // TODO: change to ticker because of garbage collection
 				s.gather <- struct{}{}
 			}
 		}
-	}(s)
+	}(s, ctx)
 	return s.run(ctx)
 }
 
