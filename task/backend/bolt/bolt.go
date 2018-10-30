@@ -24,6 +24,7 @@ import (
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/snowflake"
 	"github.com/influxdata/platform/task/backend"
 	"github.com/influxdata/platform/task/options"
 )
@@ -46,6 +47,7 @@ var ErrNotFound = errors.New("task not found")
 type Store struct {
 	db     *bolt.DB
 	bucket []byte
+	idGen  platform.IDGenerator
 }
 
 const basePath = "/tasks/v1/"
@@ -90,7 +92,7 @@ func New(db *bolt.DB, rootBucket string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Store{db: db, bucket: bucket}, nil
+	return &Store{db: db, bucket: bucket, idGen: snowflake.NewDefaultIDGenerator()}, nil
 }
 
 // CreateTask creates a task in the boltdb task store.
@@ -99,15 +101,12 @@ func (s *Store) CreateTask(ctx context.Context, req backend.CreateTaskRequest) (
 	if err != nil {
 		return platform.InvalidID(), err
 	}
-
-	var id platform.ID
+	// Get ID
+	id := s.idGen.ID()
 	err = s.db.Update(func(tx *bolt.Tx) error {
 		// get the root bucket
 		b := tx.Bucket(s.bucket)
 		name := []byte(o.Name)
-		// Get ID
-		idi, _ := b.NextSequence() // we ignore this err check, because this can't err inside an Update call
-		id = platform.ID(idi)
 		// Encode ID
 		encodedID, err := id.Encode()
 		if err != nil {
@@ -631,21 +630,14 @@ func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 		}
 
 		var stm backend.StoreTaskMeta
-		if err := stm.Unmarshal(stmBytes); err != nil {
+		err := stm.Unmarshal(stmBytes)
+		if err != nil {
 			return err
 		}
 
-		makeID := func() (platform.ID, error) {
-			idi, err := b.Bucket(runIDs).NextSequence()
-			if err != nil {
-				return platform.InvalidID(), err
-			}
-
-			return platform.ID(idi), nil
-		}
-
-		var err error
-		rc, err = stm.CreateNextRun(now, makeID)
+		rc, err = stm.CreateNextRun(now, func() (platform.ID, error) {
+			return s.idGen.ID(), nil
+		})
 		if err != nil {
 			return err
 		}
