@@ -42,6 +42,11 @@ func (s *Session) Kind() string { return "session" }
 // Identifier returns the sessions ID and is used for auditing.
 func (s *Session) Identifier() ID { return s.ID }
 
+// GetUserID returns the user id.
+func (s *Session) GetUserID() ID {
+	return s.UserID
+}
+
 // SessionService represents a service for managing user sessions.
 type SessionService interface {
 	FindSession(ctx context.Context, key string) (*Session, error)

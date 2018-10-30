@@ -180,12 +180,14 @@ func (c *Client) CreateTelegrafConfig(ctx context.Context, tc *platform.Telegraf
 func (c *Client) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *platform.TelegrafConfig, userID platform.ID, now time.Time) (*platform.TelegrafConfig, error) {
 	op := "bolt/update telegraf config"
 	err := c.db.Update(func(tx *bolt.Tx) (err error) {
-		_, pErr := c.findTelegrafConfigByID(ctx, tx, id)
+		oldTc, pErr := c.findTelegrafConfigByID(ctx, tx, id)
 		if pErr != nil {
 			pErr.Op = op
 			err = pErr
+			return err
 		}
 		tc.ID = id
+		tc.Created = oldTc.Created
 		tc.LastMod = now
 		tc.LastModBy = userID
 		pErr = c.putTelegrafConfig(ctx, tx, tc)

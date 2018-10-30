@@ -84,12 +84,18 @@ func TestTelegrafConfigJSON(t *testing.T) {
 						Comment: "comment2",
 						Config:  &inputs.CPUStats{},
 					},
-
 					{
 						Comment: "comment3",
 						Config: &outputs.File{Files: []outputs.FileConfig{
 							{Typ: "stdout"},
 						}},
+					},
+					{
+						Comment: "comment4",
+						Config: &outputs.InfluxDBV2{
+							URLs:  []string{"url1", "url2"},
+							Token: "tok1",
+						},
 					},
 				},
 			},

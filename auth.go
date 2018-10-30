@@ -34,6 +34,11 @@ func (a *Authorization) IsActive() bool {
 	return a.Status == Active
 }
 
+// GetUserID returns the user id.
+func (a *Authorization) GetUserID() ID {
+	return a.UserID
+}
+
 // Kind returns session and is used for auditing.
 func (a *Authorization) Kind() string { return "authorization" }
 

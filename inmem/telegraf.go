@@ -142,11 +142,13 @@ func (s *Service) CreateTelegrafConfig(ctx context.Context, tc *platform.Telegra
 func (s *Service) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *platform.TelegrafConfig, userID platform.ID, now time.Time) (*platform.TelegrafConfig, error) {
 	var err error
 	op := "inmem/update telegraf config"
-	_, pErr := s.findTelegrafConfigByID(ctx, id)
+	oldTc, pErr := s.findTelegrafConfigByID(ctx, id)
 	if pErr != nil {
 		pErr.Op = op
 		err = pErr
+		return nil, err
 	}
+	tc.Created = oldTc.Created
 	tc.ID = id
 	tc.LastMod = now
 	tc.LastModBy = userID
