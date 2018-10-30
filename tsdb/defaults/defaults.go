@@ -52,5 +52,4 @@ const (
 	// DefaultSeriesFileDirectory is the name of the directory containing series files for
 	// a database.
 	DefaultSeriesFileDirectory = "_series"
-
 )
