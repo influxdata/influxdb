@@ -397,7 +397,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:7d9a01bd1d7ebbe07f0ba254a0538ced145b2d42ce3288ed5ac2a885047dfbdd"
+  digest = "1:1a8e415d28f5e7718a41a58b71d66c991bfc524ef538e75bd40c8999b1fabfc3"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -408,7 +408,9 @@
     "execute",
     "functions",
     "functions/inputs",
+    "functions/outputs",
     "functions/transformations",
+    "internal/pkg/syncutil",
     "interpreter",
     "iocounter",
     "lang",
@@ -420,7 +422,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "39f39ce9135326d126c224b8b2b6c8f72a5600d6"
+  revision = "c94a1e57f6788dd0ef736c0d5ac37037e906c932"
 
 [[projects]]
   branch = "master"
@@ -432,6 +434,14 @@
   ]
   pruneopts = "UT"
   revision = "c661ab7db8ad858626cc7a2114e786f4e7463564"
+
+[[projects]]
+  branch = "master"
+  digest = "1:ce365a2909a7ef5c9f9ca3059ba235318977065f1941589246fd111f71c0c62a"
+  name = "github.com/influxdata/line-protocol"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "32c6aa80de5eb09d190ad284a8214a531c6bce57"
 
 [[projects]]
   branch = "master"
@@ -756,6 +766,14 @@
   version = "v1.2.0"
 
 [[projects]]
+  digest = "1:6f22dc7092f07889c9221dee0486231806e5a8adb9653ad53786e9839a228ac7"
+  name = "github.com/segmentio/kafka-go"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c6db9435477f3cb658e2dd0fa93e02118c870251"
+  version = "v0.2.0"
+
+[[projects]]
   digest = "1:eaa6698f44de8f2977e93c9b946e60a8af75f565058658aad2df8032b55c84e5"
   name = "github.com/tinylib/msgp"
   packages = ["msgp"]
@@ -998,6 +1016,7 @@
     "github.com/influxdata/flux/csv",
     "github.com/influxdata/flux/execute",
     "github.com/influxdata/flux/functions/inputs",
+    "github.com/influxdata/flux/functions/outputs",
     "github.com/influxdata/flux/functions/transformations",
     "github.com/influxdata/flux/lang",
     "github.com/influxdata/flux/options",
