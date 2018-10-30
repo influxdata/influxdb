@@ -769,9 +769,8 @@ from(bucket:"test") |> range(start:-1h)`
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		if rc.Created.TaskID != taskID {
-			t.Fatalf("bad created task ID; exp %x got %x", taskID, rc.Created.TaskID)
+			t.Fatalf("bad created task ID; exp %s got %s", taskID, rc.Created.TaskID)
 		}
 		if rc.Created.Now != 60 {
 			t.Fatalf("unexpected time for created run: %d", rc.Created.Now)

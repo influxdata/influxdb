@@ -3,6 +3,7 @@ package mock
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -195,7 +196,9 @@ func (d *DesiredState) SetTaskMeta(taskID platform.ID, meta backend.StoreTaskMet
 func (d *DesiredState) CreateNextRun(_ context.Context, taskID platform.ID, now int64) (backend.RunCreation, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-
+	if !taskID.Valid() {
+		return backend.RunCreation{}, errors.New("Invalid task id")
+	}
 	tid := taskID.String()
 
 	meta, ok := d.meta[tid]
