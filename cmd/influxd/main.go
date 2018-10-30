@@ -250,6 +250,7 @@ func run() error {
 			logger.Info("Stopping", zap.String("service", "task"))
 			scheduler.Stop()
 		}()
+		reg.MustRegister(scheduler.PrometheusCollectors()...)
 
 		// TODO(lh): Replace NopLogReader with real log reader
 		taskSvc = task.PlatformAdapter(coordinator.New(logger.With(zap.String("service", "task-coordinator")), scheduler, boltStore), taskbackend.NopLogReader{}, scheduler)
