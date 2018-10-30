@@ -22,13 +22,13 @@ type SeriesCursorRequest struct {
 
 // seriesCursor is an implementation of SeriesCursor over an tsi1.Index.
 type seriesCursor struct {
-	once     sync.Once
-	index    *tsi1.Index
-	mitr     tsdb.MeasurementIterator
-	keys     [][]byte
-	ofs      int
-	row      SeriesCursorRow
-	cond     influxql.Expr
+	once  sync.Once
+	index *tsi1.Index
+	mitr  tsdb.MeasurementIterator
+	keys  [][]byte
+	ofs   int
+	row   SeriesCursorRow
+	cond  influxql.Expr
 }
 
 type SeriesCursorRow struct {
@@ -63,8 +63,8 @@ func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, cond influxql.E
 
 	return &seriesCursor{
 		index: index,
-		mitr:     mitr,
-		cond:     cond,
+		mitr:  mitr,
+		cond:  cond,
 	}, nil
 }
 

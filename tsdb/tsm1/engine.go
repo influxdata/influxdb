@@ -1199,7 +1199,6 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 	}
 	defer fs.Release()
 
-
 	var (
 		sz       int
 		min, max int64 = math.MinInt64, math.MaxInt64
