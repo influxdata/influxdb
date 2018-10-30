@@ -753,8 +753,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			}
 
 			// Check that the series still exists in the index
-			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
@@ -785,8 +784,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
-			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			if iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+			if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
 			if iter == nil {
@@ -878,8 +876,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 			}
 
 			// Check that the series still exists in the index
-			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
@@ -910,8 +907,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
-			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			if iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+			if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
 			if iter == nil {
@@ -984,8 +980,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 			}
 
 			// Check that the series still exists in the index
-			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			} else if iter == nil {
@@ -1000,7 +995,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 			}
 
 			// Check that disk series still exists
-			iter, err = indexSet.MeasurementSeriesIDIterator([]byte("disk"))
+			iter, err = e.index.MeasurementSeriesIDIterator([]byte("disk"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			} else if iter == nil {
@@ -1091,8 +1086,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 			}
 
 			// Check that the series still exists in the index
-			indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			iter, err := indexSet.MeasurementSeriesIDIterator([]byte("cpu"))
+			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
 			if err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
@@ -1123,8 +1117,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 				t.Fatalf("failed to delete series: %v", err)
 			}
 
-			indexSet = tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-			if iter, err = indexSet.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+			if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
 				t.Fatalf("iterator error: %v", err)
 			}
 			if iter == nil {
@@ -1504,7 +1497,7 @@ type Engine struct {
 	*tsm1.Engine
 	root      string
 	indexPath string
-	index     tsdb.Index
+	index     *tsi1.Index
 	sfile     *tsdb.SeriesFile
 }
 
@@ -1523,7 +1516,7 @@ func NewEngine() (*Engine, error) {
 	}
 
 	// Setup series file.
-	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.SeriesFileDirectory))
+	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.DefaultSeriesFileDirectory))
 	sfile.Logger = logger.New(os.Stdout)
 	if err = sfile.Open(); err != nil {
 		return nil, err
@@ -1676,7 +1669,7 @@ func (e *Engine) MustWriteSnapshot() {
 	}
 }
 
-func MustOpenIndex(id uint64, database, path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, options tsdb.EngineOptions) tsdb.Index {
+func MustOpenIndex(id uint64, database, path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, options tsdb.EngineOptions) *tsi1.Index {
 	idx := tsi1.NewIndex(sfile, database, tsi1.NewConfig(), tsi1.WithPath(path))
 	if err := idx.Open(); err != nil {
 		panic(err)

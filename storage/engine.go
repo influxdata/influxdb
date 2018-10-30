@@ -98,7 +98,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e := &Engine{
 		config: c,
 		path:   path,
-		sfile:  tsdb.NewSeriesFile(filepath.Join(path, tsdb.SeriesFileDirectory)),
+		sfile:  tsdb.NewSeriesFile(filepath.Join(path, tsdb.DefaultSeriesFileDirectory)),
 		logger: zap.NewNop(),
 	}
 
@@ -110,7 +110,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 	// Initialise Engine
 	// TODO(edd): should just be able to use the config values for data/wal.
-	engine := tsm1.NewEngine(0, tsdb.Index(e.index), filepath.Join(path, "data"), filepath.Join(path, "wal"), e.sfile, c.EngineOptions)
+	engine := tsm1.NewEngine(0, e.index, filepath.Join(path, "data"), filepath.Join(path, "wal"), e.sfile, c.EngineOptions)
 
 	// TODO(edd): Once the tsdb.Engine abstraction is gone, this won't be needed.
 	e.engine = engine.(*tsm1.Engine)
@@ -257,8 +257,7 @@ func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest
 	if e.closing == nil {
 		return nil, ErrEngineClosed
 	}
-	// TODO(edd): remove IndexSet
-	return newSeriesCursor(req, tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}, cond)
+	return newSeriesCursor(req, e.index, cond)
 }
 
 func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error) {

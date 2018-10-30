@@ -48,4 +48,9 @@ const (
 	// DefaultMaxConcurrentCompactions is the maximum number of concurrent full and level compactions
 	// that can run at one time.  A value of 0 results in 50% of runtime.GOMAXPROCS(0) used at runtime.
 	DefaultMaxConcurrentCompactions = 0
+
+	// DefaultSeriesFileDirectory is the name of the directory containing series files for
+	// a database.
+	DefaultSeriesFileDirectory = "_series"
+
 )

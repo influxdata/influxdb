@@ -26,6 +26,7 @@ const ( // See the defaults package for explanations of what these mean
 	DefaultCompactThroughputBurst         = defaults.DefaultCompactThroughputBurst
 	DefaultMaxPointsPerBlock              = defaults.DefaultMaxPointsPerBlock
 	DefaultMaxConcurrentCompactions       = defaults.DefaultMaxConcurrentCompactions
+	DefaultSeriesFileDirectory            = defaults.DefaultSeriesFileDirectory
 )
 
 // Config holds the configuration for the tsbd package.
@@ -105,17 +106,6 @@ func (c *Config) Validate() error {
 	}
 
 	valid := false
-	for _, e := range RegisteredEngines() {
-		if e == c.Engine {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		return fmt.Errorf("unrecognized engine %s", c.Engine)
-	}
-
-	valid = false
 	for _, e := range RegisteredIndexes() {
 		if e == c.Index {
 			valid = true

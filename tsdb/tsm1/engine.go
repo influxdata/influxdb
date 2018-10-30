@@ -40,10 +40,6 @@ import (
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
 
-func init() {
-	tsdb.RegisterEngine("tsm1", NewEngine)
-}
-
 var (
 	// Ensure Engine implements the interface.
 	_ tsdb.Engine = &Engine{}
@@ -121,7 +117,7 @@ const (
 type Engine struct {
 	mu sync.RWMutex
 
-	index tsdb.Index
+	index *tsi1.Index
 
 	// The following group of fields is used to track the state of level compactions within the
 	// Engine. The WaitGroup is used to monitor the compaction goroutines, the 'done' channel is
@@ -177,7 +173,7 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
+func NewEngine(id uint64, idx *tsi1.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
 	fs := NewFileStore(path)
 	fs.openLimiter = opt.OpenLimiter
 	if opt.FileStoreObserver != nil {
@@ -1193,17 +1189,16 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 
 	// Ensure that the index does not compact away the measurement or series we're
 	// going to delete before we're done with them.
-	if tsiIndex, ok := e.index.(*tsi1.Index); ok {
-		tsiIndex.DisableCompactions()
-		defer tsiIndex.EnableCompactions()
-		tsiIndex.Wait()
+	e.index.DisableCompactions()
+	defer e.index.EnableCompactions()
+	e.index.Wait()
 
-		fs, err := tsiIndex.RetainFileSet()
-		if err != nil {
-			return err
-		}
-		defer fs.Release()
+	fs, err := e.index.RetainFileSet()
+	if err != nil {
+		return err
 	}
+	defer fs.Release()
+
 
 	var (
 		sz       int
@@ -1514,8 +1509,7 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) deleteMeasurement(name []byte) error {
 	// Attempt to find the series keys.
-	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-	itr, err := indexSet.MeasurementSeriesByExprIterator(name, nil)
+	itr, err := e.index.MeasurementSeriesIDIterator(name)
 	if err != nil {
 		return err
 	} else if itr == nil {
@@ -2049,9 +2043,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 		return query.IteratorCost{}, nil
 	}
 
-	// Determine all of the tag sets for this query.
-	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-	tagSets, err := indexSet.TagSets(e.sfile, []byte(measurement), opt)
+	tagSets, err := e.index.TagSets([]byte(measurement), opt)
 	if err != nil {
 		return query.IteratorCost{}, err
 	}

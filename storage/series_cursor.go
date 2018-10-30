@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
+	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
 type SeriesCursor interface {
@@ -19,10 +20,10 @@ type SeriesCursorRequest struct {
 	Measurements tsdb.MeasurementIterator
 }
 
-// seriesCursor is an implementation of SeriesCursor over an IndexSet.
+// seriesCursor is an implementation of SeriesCursor over an tsi1.Index.
 type seriesCursor struct {
 	once     sync.Once
-	indexSet tsdb.IndexSet
+	index    *tsi1.Index
 	mitr     tsdb.MeasurementIterator
 	keys     [][]byte
 	ofs      int
@@ -36,7 +37,7 @@ type SeriesCursorRow struct {
 }
 
 // newSeriesCursor returns a new instance of SeriesCursor.
-func newSeriesCursor(req SeriesCursorRequest, indexSet tsdb.IndexSet, cond influxql.Expr) (_ SeriesCursor, err error) {
+func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, cond influxql.Expr) (_ SeriesCursor, err error) {
 	// Only equality operators are allowed.
 	influxql.WalkFunc(cond, func(node influxql.Node) {
 		switch n := node.(type) {
@@ -54,14 +55,14 @@ func newSeriesCursor(req SeriesCursorRequest, indexSet tsdb.IndexSet, cond influ
 
 	mitr := req.Measurements
 	if mitr == nil {
-		mitr, err = indexSet.MeasurementIterator()
+		mitr, err = index.MeasurementIterator()
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return &seriesCursor{
-		indexSet: indexSet,
+		index: index,
 		mitr:     mitr,
 		cond:     cond,
 	}, nil
@@ -103,7 +104,7 @@ func (cur *seriesCursor) Next() (*SeriesCursorRow, error) {
 }
 
 func (cur *seriesCursor) readSeriesKeys(name []byte) error {
-	sitr, err := cur.indexSet.MeasurementSeriesByExprIterator(name, cur.cond)
+	sitr, err := cur.index.MeasurementSeriesByExprIterator(name, cur.cond)
 	if err != nil {
 		return err
 	} else if sitr == nil {
@@ -122,7 +123,7 @@ func (cur *seriesCursor) readSeriesKeys(name []byte) error {
 			break
 		}
 
-		key := cur.indexSet.SeriesFile.SeriesKey(elem.SeriesID)
+		key := cur.index.SeriesFile().SeriesKey(elem.SeriesID)
 		if len(key) == 0 {
 			continue
 		}
