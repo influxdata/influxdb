@@ -33,6 +33,11 @@ func (s *Server) Open() error {
 	return nil
 }
 
+// Close stops the embedded NATS server.
+func (s *Server) Close() {
+	s.Server.Shutdown()
+}
+
 // Config is the configuration for the NATS streaming server
 type Config struct {
 	// The directory where nats persists message information

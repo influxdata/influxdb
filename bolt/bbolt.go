@@ -85,7 +85,7 @@ func (c *Client) Open(ctx context.Context) error {
 		return err
 	}
 
-	c.Logger.Info("Opened bolt database", zap.String("path", c.Path))
+	c.Logger.Info("Resources opened", zap.String("path", c.Path))
 	return nil
 }
 
