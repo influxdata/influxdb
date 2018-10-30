@@ -236,8 +236,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatal(err)
 		}
 
-		delta := (2 * time.Minute) + time.Second
-		requestedAtUnix := time.Now().Add(delta).UTC().Unix() // This should guarantee we can make two runs.
+		requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make two runs.
 
 		rc0, err := sys.S.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
 		if err != nil {
@@ -355,8 +354,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Errorf("expected retrying run that doesn't exist to return %v, got %v", backend.ErrRunNotFound, err)
 		}
 
-		delta := time.Minute + (2 * time.Second)
-		requestedAtUnix := time.Now().Add(delta).UTC().Unix() // This should guarantee we can make a run.
+		requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make a run.
 
 		rc, err := sys.S.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
 		if err != nil {
@@ -416,8 +414,14 @@ func testTaskRuns(t *testing.T, sys *System) {
 func testTaskConcurrency(t *testing.T, sys *System) {
 	orgID, userID, _ := creds(t, sys)
 
-	const numTasks = 300
+	const numTasks = 450 // Arbitrarily chosen to get a reasonable count of concurrent creates and deletes.
 	taskCh := make(chan *platform.Task, numTasks)
+
+	// Since this test is run in parallel with other tests,
+	// we need to keep a whitelist of IDs that are okay to delete.
+	// This only matters when the creds function returns an identical user/org from another test.
+	var idMu sync.Mutex
+	taskIDs := make(map[platform.ID]struct{})
 
 	var createWg sync.WaitGroup
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
@@ -428,6 +432,9 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 				if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
 					t.Errorf("error creating task: %v", err)
 				}
+				idMu.Lock()
+				taskIDs[task.ID] = struct{}{}
+				idMu.Unlock()
 			}
 		}()
 	}
@@ -474,15 +481,28 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			default:
 			}
 
-			// Delete the first task we found.
-			if err := sys.ts.DeleteTask(sys.Ctx, tasks[0].ID); err != nil {
-				t.Errorf("error deleting task: %v", err)
-				return
-			}
-			deleted++
+			for _, tsk := range tasks {
+				// Was the retrieved task an ID we're allowed to delete?
+				idMu.Lock()
+				_, ok := taskIDs[tsk.ID]
+				idMu.Unlock()
+				if !ok {
+					continue
+				}
 
-			// Wait just a tiny bit.
-			time.Sleep(time.Millisecond)
+				// Task was in whitelist. Delete it from the TaskService.
+				// We could remove it from the taskIDs map, but this test is short-lived enough
+				// that clearing out the map isn't really worth taking the lock again.
+				if err := sys.ts.DeleteTask(sys.Ctx, tsk.ID); err != nil {
+					t.Errorf("error deleting task: %v", err)
+					return
+				}
+				deleted++
+
+				// Wait just a tiny bit.
+				time.Sleep(time.Millisecond)
+				break
+			}
 		}
 	}()
 
