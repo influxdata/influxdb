@@ -2,10 +2,12 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/pkg/errors"
 )
@@ -96,6 +98,13 @@ func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 	if err == nil {
 		return
 	}
+
+	if pe, ok := err.(*platform.Error); ok {
+		w.WriteHeader(statusCodePlatformError[platform.ErrorCode(pe)])
+		b, _ := json.Marshal(pe)
+		_, _ = w.Write(b)
+		return
+	}
 	e, ok := err.(kerrors.Error)
 	if !ok {
 		e = kerrors.Error{
@@ -103,6 +112,10 @@ func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 			Err:       err.Error(),
 		}
 	}
+	encodeKError(e, w)
+}
+
+func encodeKError(e kerrors.Error, w http.ResponseWriter) {
 	if e.Reference == 0 {
 		e.Reference = kerrors.InternalError
 	}
@@ -140,4 +153,13 @@ func statusCode(e kerrors.Error) int {
 	default:
 		return http.StatusInternalServerError
 	}
+}
+
+// statusCodePlatformError is the map convert platform.Error to error
+var statusCodePlatformError = map[string]int{
+	platform.EInternal:   http.StatusInternalServerError,
+	platform.EInvalid:    http.StatusBadRequest,
+	platform.EEmptyValue: http.StatusBadRequest,
+	platform.EConflict:   http.StatusUnprocessableEntity,
+	platform.ENotFound:   http.StatusNotFound,
 }
