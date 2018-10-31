@@ -33,16 +33,20 @@ export const updateTaskFlux = async (url, id, flux: string): Promise<Task> => {
 export const getUserTasks = async (url, user): Promise<Task[]> => {
   const completeUrl = `${url}?user=${user.id}`
 
-  const {data} = await AJAX({url: completeUrl})
+  const {
+    data: {tasks},
+  } = await AJAX({url: completeUrl})
 
-  return data
+  return tasks
 }
 
 export const getTask = async (url, id): Promise<Task> => {
   const completeUrl = `${url}/${id}`
-  const {data} = await AJAX({url: completeUrl})
+  const {
+    data: {task},
+  } = await AJAX({url: completeUrl})
 
-  return data
+  return task
 }
 
 export const deleteTask = (url: string, taskID: string) => {
