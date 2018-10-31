@@ -156,10 +156,14 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 		}
 		op = t.op("filter", &transformations.FilterOpSpec{
 			Fn: &semantic.FunctionExpression{
-				Params: []*semantic.FunctionParam{
-					{Key: &semantic.Identifier{Name: "r"}},
+				Block: &semantic.FunctionBlock{
+					Parameters: &semantic.FunctionParameters{
+						List: []*semantic.FunctionParameter{
+							{Key: &semantic.Identifier{Name: "r"}},
+						},
+					},
+					Body: expr,
 				},
-				Body: expr,
 			},
 		}, op)
 	}

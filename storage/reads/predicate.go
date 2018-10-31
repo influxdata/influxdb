@@ -155,11 +155,11 @@ func (v *predicateExpressionPrinter) Visit(n *datatypes.Node) NodeVisitor {
 }
 
 func toStoragePredicate(f *semantic.FunctionExpression) (*datatypes.Predicate, error) {
-	if len(f.Params) != 1 {
+	if f.Block.Parameters == nil || len(f.Block.Parameters.List) != 1 {
 		return nil, errors.New("storage predicate functions must have exactly one parameter")
 	}
 
-	root, err := toStoragePredicateHelper(f.Body.(semantic.Expression), f.Params[0].Key.Name)
+	root, err := toStoragePredicateHelper(f.Block.Body.(semantic.Expression), f.Block.Parameters.List[0].Key.Name)
 	if err != nil {
 		return nil, err
 	}

@@ -78,7 +78,7 @@ func FromScript(script string) (Options, error) {
 		return opt, errors.New("missing name in task options")
 	}
 
-	if err := checkKind(nameVal.Type().Kind(), semantic.String); err != nil {
+	if err := checkNature(nameVal.PolyType().Nature(), semantic.String); err != nil {
 		return opt, err
 	}
 	opt.Name = nameVal.Str()
@@ -93,35 +93,35 @@ func FromScript(script string) (Options, error) {
 	}
 
 	if cronOK {
-		if err := checkKind(crVal.Type().Kind(), semantic.String); err != nil {
+		if err := checkNature(crVal.PolyType().Nature(), semantic.String); err != nil {
 			return opt, err
 		}
 		opt.Cron = crVal.Str()
 	}
 
 	if everyOK {
-		if err := checkKind(everyVal.Type().Kind(), semantic.Duration); err != nil {
+		if err := checkNature(everyVal.PolyType().Nature(), semantic.Duration); err != nil {
 			return opt, err
 		}
 		opt.Every = everyVal.Duration().Duration()
 	}
 
 	if delayVal, ok := optObject.Get("delay"); ok {
-		if err := checkKind(delayVal.Type().Kind(), semantic.Duration); err != nil {
+		if err := checkNature(delayVal.PolyType().Nature(), semantic.Duration); err != nil {
 			return opt, err
 		}
 		opt.Delay = delayVal.Duration().Duration()
 	}
 
 	if concurrencyVal, ok := optObject.Get("concurrency"); ok {
-		if err := checkKind(concurrencyVal.Type().Kind(), semantic.Int); err != nil {
+		if err := checkNature(concurrencyVal.PolyType().Nature(), semantic.Int); err != nil {
 			return opt, err
 		}
 		opt.Concurrency = concurrencyVal.Int()
 	}
 
 	if retryVal, ok := optObject.Get("retry"); ok {
-		if err := checkKind(retryVal.Type().Kind(), semantic.Int); err != nil {
+		if err := checkNature(retryVal.PolyType().Nature(), semantic.Int); err != nil {
 			return opt, err
 		}
 		opt.Retry = retryVal.Int()
@@ -204,8 +204,8 @@ func (o *Options) EffectiveCronString() string {
 	return ""
 }
 
-// checkKind returns a clean error of got and expected dont match.
-func checkKind(got, exp semantic.Kind) error {
+// checkNature returns a clean error of got and expected dont match.
+func checkNature(got, exp semantic.Nature) error {
 	if got != exp {
 		return fmt.Errorf("unexpected kind: got %q expected %q", got, exp)
 	}

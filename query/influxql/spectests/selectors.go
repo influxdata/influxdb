@@ -2,11 +2,12 @@ package spectests
 
 import (
 	"fmt"
-	"github.com/influxdata/flux/functions/inputs"
-	"github.com/influxdata/flux/functions/transformations"
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/functions/transformations"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -78,33 +79,37 @@ func init() {
 							ID: "filter0",
 							Spec: &transformations.FilterOpSpec{
 								Fn: &semantic.FunctionExpression{
-									Params: []*semantic.FunctionParam{
-										{Key: &semantic.Identifier{Name: "r"}},
-									},
-									Body: &semantic.LogicalExpression{
-										Operator: ast.AndOperator,
-										Left: &semantic.BinaryExpression{
-											Operator: ast.EqualOperator,
-											Left: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
-												},
-												Property: "_measurement",
-											},
-											Right: &semantic.StringLiteral{
-												Value: "cpu",
+									Block: &semantic.FunctionBlock{
+										Parameters: &semantic.FunctionParameters{
+											List: []*semantic.FunctionParameter{
+												{Key: &semantic.Identifier{Name: "r"}},
 											},
 										},
-										Right: &semantic.BinaryExpression{
-											Operator: ast.EqualOperator,
-											Left: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
+										Body: &semantic.LogicalExpression{
+											Operator: ast.AndOperator,
+											Left: &semantic.BinaryExpression{
+												Operator: ast.EqualOperator,
+												Left: &semantic.MemberExpression{
+													Object: &semantic.IdentifierExpression{
+														Name: "r",
+													},
+													Property: "_measurement",
 												},
-												Property: "_field",
+												Right: &semantic.StringLiteral{
+													Value: "cpu",
+												},
 											},
-											Right: &semantic.StringLiteral{
-												Value: "value",
+											Right: &semantic.BinaryExpression{
+												Operator: ast.EqualOperator,
+												Left: &semantic.MemberExpression{
+													Object: &semantic.IdentifierExpression{
+														Name: "r",
+													},
+													Property: "_field",
+												},
+												Right: &semantic.StringLiteral{
+													Value: "value",
+												},
 											},
 										},
 									},
@@ -122,27 +127,31 @@ func init() {
 							ID: "map0",
 							Spec: &transformations.MapOpSpec{
 								Fn: &semantic.FunctionExpression{
-									Params: []*semantic.FunctionParam{{
-										Key: &semantic.Identifier{Name: "r"},
-									}},
-									Body: &semantic.ObjectExpression{
-										Properties: []*semantic.Property{
-											{
-												Key: &semantic.Identifier{Name: "_time"},
-												Value: &semantic.MemberExpression{
-													Object: &semantic.IdentifierExpression{
-														Name: "r",
+									Block: &semantic.FunctionBlock{
+										Parameters: &semantic.FunctionParameters{
+											List: []*semantic.FunctionParameter{{
+												Key: &semantic.Identifier{Name: "r"},
+											}},
+										},
+										Body: &semantic.ObjectExpression{
+											Properties: []*semantic.Property{
+												{
+													Key: &semantic.Identifier{Name: "_time"},
+													Value: &semantic.MemberExpression{
+														Object: &semantic.IdentifierExpression{
+															Name: "r",
+														},
+														Property: "_time",
 													},
-													Property: "_time",
 												},
-											},
-											{
-												Key: &semantic.Identifier{Name: string(selector.Spec.Kind())},
-												Value: &semantic.MemberExpression{
-													Object: &semantic.IdentifierExpression{
-														Name: "r",
+												{
+													Key: &semantic.Identifier{Name: string(selector.Spec.Kind())},
+													Value: &semantic.MemberExpression{
+														Object: &semantic.IdentifierExpression{
+															Name: "r",
+														},
+														Property: "_value",
 													},
-													Property: "_value",
 												},
 											},
 										},

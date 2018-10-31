@@ -36,20 +36,13 @@ func init() {
 						ID: "filter0",
 						Spec: &transformations.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{
-									{Key: &semantic.Identifier{Name: "r"}},
-								},
-								Body: &semantic.LogicalExpression{
-									Operator: ast.OrOperator,
-									Left: &semantic.BinaryExpression{
-										Operator: ast.EqualOperator,
-										Left: &semantic.MemberExpression{
-											Object:   &semantic.IdentifierExpression{Name: "r"},
-											Property: "_measurement",
+								Block: &semantic.FunctionBlock{
+									Parameters: &semantic.FunctionParameters{
+										List: []*semantic.FunctionParameter{
+											{Key: &semantic.Identifier{Name: "r"}},
 										},
-										Right: &semantic.StringLiteral{Value: "cpu"},
 									},
-									Right: &semantic.LogicalExpression{
+									Body: &semantic.LogicalExpression{
 										Operator: ast.OrOperator,
 										Left: &semantic.BinaryExpression{
 											Operator: ast.EqualOperator,
@@ -57,15 +50,26 @@ func init() {
 												Object:   &semantic.IdentifierExpression{Name: "r"},
 												Property: "_measurement",
 											},
-											Right: &semantic.StringLiteral{Value: "mem"},
+											Right: &semantic.StringLiteral{Value: "cpu"},
 										},
-										Right: &semantic.BinaryExpression{
-											Operator: ast.EqualOperator,
-											Left: &semantic.MemberExpression{
-												Object:   &semantic.IdentifierExpression{Name: "r"},
-												Property: "_measurement",
+										Right: &semantic.LogicalExpression{
+											Operator: ast.OrOperator,
+											Left: &semantic.BinaryExpression{
+												Operator: ast.EqualOperator,
+												Left: &semantic.MemberExpression{
+													Object:   &semantic.IdentifierExpression{Name: "r"},
+													Property: "_measurement",
+												},
+												Right: &semantic.StringLiteral{Value: "mem"},
 											},
-											Right: &semantic.StringLiteral{Value: "gpu"},
+											Right: &semantic.BinaryExpression{
+												Operator: ast.EqualOperator,
+												Left: &semantic.MemberExpression{
+													Object:   &semantic.IdentifierExpression{Name: "r"},
+													Property: "_measurement",
+												},
+												Right: &semantic.StringLiteral{Value: "gpu"},
+											},
 										},
 									},
 								},

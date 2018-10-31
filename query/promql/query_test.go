@@ -370,21 +370,37 @@ func TestBuild(t *testing.T) {
 						ID: "where",
 						Spec: &transformations.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
-								Body: &semantic.LogicalExpression{
-									Operator: ast.AndOperator,
-									Left: &semantic.LogicalExpression{
+								Block: &semantic.FunctionBlock{
+									Parameters: &semantic.FunctionParameters{
+										List: []*semantic.FunctionParameter{{Key: &semantic.Identifier{Name: "r"}}},
+									},
+									Body: &semantic.LogicalExpression{
 										Operator: ast.AndOperator,
-										Left: &semantic.BinaryExpression{
-											Operator: ast.EqualOperator,
-											Left: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
+										Left: &semantic.LogicalExpression{
+											Operator: ast.AndOperator,
+											Left: &semantic.BinaryExpression{
+												Operator: ast.EqualOperator,
+												Left: &semantic.MemberExpression{
+													Object: &semantic.IdentifierExpression{
+														Name: "r",
+													},
+													Property: "_metric",
 												},
-												Property: "_metric",
+												Right: &semantic.StringLiteral{
+													Value: "node_cpu",
+												},
 											},
-											Right: &semantic.StringLiteral{
-												Value: "node_cpu",
+											Right: &semantic.BinaryExpression{
+												Operator: ast.EqualOperator,
+												Left: &semantic.MemberExpression{
+													Object: &semantic.IdentifierExpression{
+														Name: "r",
+													},
+													Property: "mode",
+												},
+												Right: &semantic.StringLiteral{
+													Value: "user",
+												},
 											},
 										},
 										Right: &semantic.BinaryExpression{
@@ -393,23 +409,11 @@ func TestBuild(t *testing.T) {
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
 												},
-												Property: "mode",
+												Property: "cpu",
 											},
 											Right: &semantic.StringLiteral{
-												Value: "user",
+												Value: "cpu2",
 											},
-										},
-									},
-									Right: &semantic.BinaryExpression{
-										Operator: ast.EqualOperator,
-										Left: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
-											},
-											Property: "cpu",
-										},
-										Right: &semantic.StringLiteral{
-											Value: "cpu2",
 										},
 									},
 								},
@@ -451,31 +455,35 @@ func TestBuild(t *testing.T) {
 						ID: "where",
 						Spec: &transformations.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
-								Body: &semantic.LogicalExpression{
-									Operator: ast.AndOperator,
-									Left: &semantic.BinaryExpression{
-										Operator: ast.EqualOperator,
-										Left: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
-											},
-											Property: "_metric",
-										},
-										Right: &semantic.StringLiteral{
-											Value: "node_cpu",
-										},
+								Block: &semantic.FunctionBlock{
+									Parameters: &semantic.FunctionParameters{
+										List: []*semantic.FunctionParameter{{Key: &semantic.Identifier{Name: "r"}}},
 									},
-									Right: &semantic.BinaryExpression{
-										Operator: ast.EqualOperator,
-										Left: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
+									Body: &semantic.LogicalExpression{
+										Operator: ast.AndOperator,
+										Left: &semantic.BinaryExpression{
+											Operator: ast.EqualOperator,
+											Left: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_metric",
 											},
-											Property: "mode",
+											Right: &semantic.StringLiteral{
+												Value: "node_cpu",
+											},
 										},
-										Right: &semantic.StringLiteral{
-											Value: "user",
+										Right: &semantic.BinaryExpression{
+											Operator: ast.EqualOperator,
+											Left: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "mode",
+											},
+											Right: &semantic.StringLiteral{
+												Value: "user",
+											},
 										},
 									},
 								},
@@ -515,31 +523,35 @@ func TestBuild(t *testing.T) {
 						ID: "where",
 						Spec: &transformations.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
-								Body: &semantic.LogicalExpression{
-									Operator: ast.AndOperator,
-									Left: &semantic.BinaryExpression{
-										Operator: ast.EqualOperator,
-										Left: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
-											},
-											Property: "_metric",
-										},
-										Right: &semantic.StringLiteral{
-											Value: "node_cpu",
-										},
+								Block: &semantic.FunctionBlock{
+									Parameters: &semantic.FunctionParameters{
+										List: []*semantic.FunctionParameter{{Key: &semantic.Identifier{Name: "r"}}},
 									},
-									Right: &semantic.BinaryExpression{
-										Operator: ast.EqualOperator,
-										Left: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
+									Body: &semantic.LogicalExpression{
+										Operator: ast.AndOperator,
+										Left: &semantic.BinaryExpression{
+											Operator: ast.EqualOperator,
+											Left: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_metric",
 											},
-											Property: "_measurement",
+											Right: &semantic.StringLiteral{
+												Value: "node_cpu",
+											},
 										},
-										Right: &semantic.StringLiteral{
-											Value: "m0",
+										Right: &semantic.BinaryExpression{
+											Operator: ast.EqualOperator,
+											Left: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_measurement",
+											},
+											Right: &semantic.StringLiteral{
+												Value: "m0",
+											},
 										},
 									},
 								},
