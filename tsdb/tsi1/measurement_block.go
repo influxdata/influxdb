@@ -31,7 +31,10 @@ const (
 		2 + // version
 		8 + 8 + // data offset/size
 		8 + 8 + // hash index offset/size
-		8 + 8 + 8 + 8 // legacy sketch info
+		// legacy sketch info. we used to have HLL sketches, but they were
+		// removed. we keep the offset and length bytes in the trailer so
+		// that we don't have to do a migration, but they are unused.
+		8 + 8 + 8 + 8
 
 	// Measurement key block fields.
 	MeasurementNSize      = 8

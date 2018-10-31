@@ -30,7 +30,10 @@ const (
 		8 + 8 + // measurement block offset + size
 		8 + 8 + // series id set offset + size
 		8 + 8 + // tombstone series id set offset + size
-		8 + 8 + 8 + 8 + // legacy sketch info
+		// legacy sketch info. we used to have HLL sketches, but they were
+		// removed. we keep the offset and length bytes in the trailer so
+		// that we don't have to do a migration, but they are unused.
+		8 + 8 + 8 + 8 +
 		0
 )
 
