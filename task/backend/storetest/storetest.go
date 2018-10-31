@@ -80,11 +80,11 @@ from(bucket:"test") |> range(start:-1h)`
 	defer destroy(t, s)
 
 	for _, args := range []struct {
-		caseName     string
-		org, user    platform.ID
-		name, script string
-		status       backend.TaskStatus
-		noerr        bool
+		caseName  string
+		org, user platform.ID
+		script    string
+		status    backend.TaskStatus
+		noerr     bool
 	}{
 		{caseName: "happy path", org: platform.ID(1), user: platform.ID(2), script: script, noerr: true},
 		{caseName: "missing org", org: platform.ID(0), user: platform.ID(2), script: script},
@@ -127,12 +127,6 @@ from(bucket:"x") |> range(start:-1h)`
 		name: "a task2",
 		cron: "* * * * *",
 	}
-
-from(bucket:"y") |> range(start:-1h)`
-	const script3 = `option task = {
-	name: "a task3",
-	cron: "* * * * *",
-}
 
 from(bucket:"y") |> range(start:-1h)`
 	const scriptNoName = `option task = {

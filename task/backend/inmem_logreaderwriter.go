@@ -141,8 +141,7 @@ func (r *runReaderWriter) FindRunByID(ctx context.Context, orgID, runID platform
 		return nil, ErrRunNotFound
 	}
 
-	var rtnRun platform.Run
-	rtnRun = *run
+	rtnRun := *run
 	return &rtnRun, nil
 }
 
