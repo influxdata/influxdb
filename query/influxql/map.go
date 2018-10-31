@@ -69,11 +69,15 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 	}
 	id := t.op("map", &transformations.MapOpSpec{
 		Fn: &semantic.FunctionExpression{
-			Params: []*semantic.FunctionParam{{
-				Key: &semantic.Identifier{Name: "r"},
-			}},
-			Body: &semantic.ObjectExpression{
-				Properties: properties,
+			Block: &semantic.FunctionBlock{
+				Parameters: &semantic.FunctionParameters{
+					List: []*semantic.FunctionParameter{{
+						Key: &semantic.Identifier{Name: "r"},
+					}},
+				},
+				Body: &semantic.ObjectExpression{
+					Properties: properties,
+				},
 			},
 		},
 		MergeKey: true,

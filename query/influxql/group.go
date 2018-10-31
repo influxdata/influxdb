@@ -208,10 +208,14 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		}
 		id := t.op("filter", &transformations.FilterOpSpec{
 			Fn: &semantic.FunctionExpression{
-				Params: []*semantic.FunctionParam{{
-					Key: &semantic.Identifier{Name: "r"},
-				}},
-				Body: expr,
+				Block: &semantic.FunctionBlock{
+					Parameters: &semantic.FunctionParameters{
+						List: []*semantic.FunctionParameter{{
+							Key: &semantic.Identifier{Name: "r"},
+						}},
+					},
+					Body: expr,
+				},
 			},
 		}, cur.ID())
 		cur = &opCursor{id: id, cursor: cur}

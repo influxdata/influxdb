@@ -100,7 +100,7 @@ func (r QueryRequest) Validate() error {
 func nowFunc(now time.Time) values.Function {
 	timeVal := values.NewTime(values.ConvertTime(now))
 	ftype := semantic.NewFunctionType(semantic.FunctionSignature{
-		ReturnType: semantic.Time,
+		Return: semantic.Time,
 	})
 	call := func(args values.Object) (values.Value, error) {
 		return timeVal, nil
@@ -112,8 +112,7 @@ func nowFunc(now time.Time) values.Function {
 func toSpec(p *ast.Program, now func() time.Time) (*flux.Spec, error) {
 	itrp := flux.NewInterpreter()
 	itrp.SetOption("now", nowFunc(now()))
-	_, decl := flux.BuiltIns()
-	semProg, err := semantic.New(p, decl)
+	semProg, err := semantic.New(p)
 	if err != nil {
 		return nil, err
 	}

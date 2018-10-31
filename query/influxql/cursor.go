@@ -77,26 +77,30 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 
 	id := t.op("filter", &transformations.FilterOpSpec{
 		Fn: &semantic.FunctionExpression{
-			Params: []*semantic.FunctionParam{
-				{Key: &semantic.Identifier{Name: "r"}},
-			},
-			Body: &semantic.LogicalExpression{
-				Operator: ast.AndOperator,
-				Left: &semantic.BinaryExpression{
-					Operator: ast.EqualOperator,
-					Left: &semantic.MemberExpression{
-						Object:   &semantic.IdentifierExpression{Name: "r"},
-						Property: "_measurement",
+			Block: &semantic.FunctionBlock{
+				Parameters: &semantic.FunctionParameters{
+					List: []*semantic.FunctionParameter{
+						{Key: &semantic.Identifier{Name: "r"}},
 					},
-					Right: &semantic.StringLiteral{Value: mm.Name},
 				},
-				Right: &semantic.BinaryExpression{
-					Operator: ast.EqualOperator,
-					Left: &semantic.MemberExpression{
-						Object:   &semantic.IdentifierExpression{Name: "r"},
-						Property: "_field",
+				Body: &semantic.LogicalExpression{
+					Operator: ast.AndOperator,
+					Left: &semantic.BinaryExpression{
+						Operator: ast.EqualOperator,
+						Left: &semantic.MemberExpression{
+							Object:   &semantic.IdentifierExpression{Name: "r"},
+							Property: "_measurement",
+						},
+						Right: &semantic.StringLiteral{Value: mm.Name},
 					},
-					Right: &semantic.StringLiteral{Value: ref.Val},
+					Right: &semantic.BinaryExpression{
+						Operator: ast.EqualOperator,
+						Left: &semantic.MemberExpression{
+							Object:   &semantic.IdentifierExpression{Name: "r"},
+							Property: "_field",
+						},
+						Right: &semantic.StringLiteral{Value: ref.Val},
+					},
 				},
 			},
 		},

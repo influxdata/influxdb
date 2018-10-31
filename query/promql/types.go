@@ -258,8 +258,12 @@ func NewWhereOperation(metricName string, labels []*LabelMatcher) (*flux.Operati
 		ID: "where", // TODO: Change this to a UUID
 		Spec: &transformations.FilterOpSpec{
 			Fn: &semantic.FunctionExpression{
-				Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
-				Body:   node,
+				Block: &semantic.FunctionBlock{
+					Parameters: &semantic.FunctionParameters{
+						List: []*semantic.FunctionParameter{{Key: &semantic.Identifier{Name: "r"}}},
+					},
+					Body: node,
+				},
 			},
 		},
 	}, nil
