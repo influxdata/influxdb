@@ -150,6 +150,16 @@ type TSMFile interface {
 	MeasurementStats() (MeasurementStats, error)
 }
 
+// FileStoreObserver is passed notifications before the file store adds or deletes files. In this way, it can
+// be sure to observe every file that is added or removed even in the presence of process death.
+type FileStoreObserver interface {
+	// FileFinishing is called before a file is renamed to it's final name.
+	FileFinishing(path string) error
+
+	// FileUnlinking is called before a file is unlinked.
+	FileUnlinking(path string) error
+}
+
 // Statistics gathered by the FileStore.
 const (
 	statFileStoreBytes = "diskBytes"
@@ -195,7 +205,7 @@ type FileStore struct {
 
 	parseFileName ParseFileNameFunc
 
-	obs tsdb.FileStoreObserver
+	obs FileStoreObserver
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -245,7 +255,10 @@ func NewFileStore(dir string) *FileStore {
 }
 
 // WithObserver sets the observer for the file store.
-func (f *FileStore) WithObserver(obs tsdb.FileStoreObserver) {
+func (f *FileStore) WithObserver(obs FileStoreObserver) {
+	if obs == nil {
+		obs = noFileStoreObserver{}
+	}
 	f.obs = obs
 }
 

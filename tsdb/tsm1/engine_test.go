@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -717,21 +716,15 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 
 	// Generate temporary file.
 	dir, _ := ioutil.TempDir("", "tsm")
-	walPath := filepath.Join(dir, "wal")
-	os.MkdirAll(walPath, 0777)
 	defer os.RemoveAll(dir)
 
 	// Create a tsm1 engine.
-	db := path.Base(dir)
-	opt := tsdb.NewEngineOptions()
-
-	idx := MustOpenIndex(1, db, filepath.Join(dir, "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
+	idx := MustOpenIndex(filepath.Join(dir, "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile)
 	defer idx.Close()
 
-	e := tsm1.NewEngine(1, idx, dir, walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
-
-	// mock the planner so compactions don't run during the test
-	e.CompactionPlan = &mockPlanner{}
+	config := tsm1.NewConfig()
+	config.Compaction.PlannerCreator = newMockPlanner
+	e := tsm1.NewEngine(filepath.Join(dir, "data"), idx, config)
 
 	e.SetEnabled(false)
 	if err := e.Open(); err != nil {
@@ -935,31 +928,19 @@ func NewEngine() (*Engine, error) {
 		panic(err)
 	}
 
-	db := "db0"
-	dbPath := filepath.Join(root, "data", db)
-
-	if err := os.MkdirAll(dbPath, os.ModePerm); err != nil {
-		return nil, err
-	}
-
 	// Setup series file.
-	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.DefaultSeriesFileDirectory))
+	sfile := tsdb.NewSeriesFile(filepath.Join(root, tsdb.SeriesFileDirectory))
 	sfile.Logger = logger.New(os.Stdout)
 	if err = sfile.Open(); err != nil {
 		return nil, err
 	}
 
-	opt := tsdb.NewEngineOptions()
+	idxPath := filepath.Join(root, "index")
+	idx := MustOpenIndex(idxPath, tsdb.NewSeriesIDSet(), sfile)
 
-	// Initialise series id sets. Need to do this as it's normally done at the
-	// store level.
-	seriesIDs := tsdb.NewSeriesIDSet()
-	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDs})
-
-	idxPath := filepath.Join(dbPath, "index")
-	idx := MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)
-
-	tsm1Engine := tsm1.NewEngine(1, idx, filepath.Join(root, "data"), filepath.Join(root, "wal"), sfile, opt).(*tsm1.Engine)
+	config := tsm1.NewConfig()
+	config.Compaction.PlannerCreator = newMockPlanner
+	tsm1Engine := tsm1.NewEngine(filepath.Join(root, "data"), idx, config)
 
 	return &Engine{
 		Engine:    tsm1Engine,
@@ -1018,18 +999,13 @@ func (e *Engine) Reopen() error {
 		return err
 	}
 
-	db := path.Base(e.root)
-	opt := tsdb.NewEngineOptions()
-
-	// Re-initialise the series id set
-	seriesIDSet := tsdb.NewSeriesIDSet()
-	opt.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{seriesIDSet})
-
 	// Re-open index.
-	e.index = MustOpenIndex(1, db, e.indexPath, seriesIDSet, e.sfile, opt)
+	e.index = MustOpenIndex(e.indexPath, tsdb.NewSeriesIDSet(), e.sfile)
 
 	// Re-initialize engine.
-	e.Engine = tsm1.NewEngine(1, e.index, filepath.Join(e.root, "data"), filepath.Join(e.root, "wal"), e.sfile, opt).(*tsm1.Engine)
+	config := tsm1.NewConfig()
+	config.Compaction.PlannerCreator = newMockPlanner
+	e.Engine = tsm1.NewEngine(filepath.Join(e.root, "data"), e.index, config)
 
 	// Reopen engine
 	if err := e.Engine.Open(); err != nil {
@@ -1096,8 +1072,8 @@ func (e *Engine) MustWriteSnapshot() {
 	}
 }
 
-func MustOpenIndex(id uint64, database, path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, options tsdb.EngineOptions) *tsi1.Index {
-	idx := tsi1.NewIndex(sfile, database, tsi1.NewConfig(), tsi1.WithPath(path))
+func MustOpenIndex(path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile) *tsi1.Index {
+	idx := tsi1.NewIndex(sfile, tsi1.NewConfig(), tsi1.WithPath(path))
 	if err := idx.Open(); err != nil {
 		panic(err)
 	}
@@ -1148,6 +1124,10 @@ func MustParsePointsString(buf string) []models.Point {
 func MustParsePointString(buf string) models.Point { return MustParsePointsString(buf)[0] }
 
 type mockPlanner struct{}
+
+func newMockPlanner(*tsm1.FileStore, tsm1.CompactionConfig) tsm1.CompactionPlanner {
+	return &mockPlanner{}
+}
 
 func (m *mockPlanner) Plan(lastWrite time.Time) []tsm1.CompactionGroup { return nil }
 func (m *mockPlanner) PlanLevel(level int) []tsm1.CompactionGroup      { return nil }

@@ -407,7 +407,7 @@ func NewIndex(partitionN uint64, c tsi1.Config) *Index {
 		Config:     tsi1.NewConfig(),
 		SeriesFile: NewSeriesFile(),
 	}
-	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", idx.Config, tsi1.WithPath(MustTempDir()))
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, idx.Config, tsi1.WithPath(MustTempDir()))
 	idx.Index.PartitionN = partitionN
 	return idx
 }
@@ -451,7 +451,7 @@ func (idx *Index) Reopen() error {
 	}
 
 	partitionN := idx.Index.PartitionN // Remember how many partitions to use.
-	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", idx.Config, tsi1.WithPath(idx.Index.Path()))
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, idx.Config, tsi1.WithPath(idx.Index.Path()))
 	idx.Index.PartitionN = partitionN
 	return idx.Open()
 }

@@ -98,22 +98,17 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e := &Engine{
 		config: c,
 		path:   path,
-		sfile:  tsdb.NewSeriesFile(filepath.Join(path, tsdb.DefaultSeriesFileDirectory)),
+		sfile:  tsdb.NewSeriesFile(filepath.Join(path, tsdb.SeriesFileDirectory)),
 		logger: zap.NewNop(),
 	}
 
 	// Initialise index.
-	index := tsi1.NewIndex(e.sfile, "remove me", c.Index,
-		tsi1.WithPath(filepath.Join(path, tsi1.DefaultIndexDirectoryName)),
-	)
+	index := tsi1.NewIndex(e.sfile, c.Index,
+		tsi1.WithPath(filepath.Join(path, tsi1.DefaultIndexDirectoryName)))
 	e.index = index
 
 	// Initialise Engine
-	// TODO(edd): should just be able to use the config values for data/wal.
-	engine := tsm1.NewEngine(0, e.index, filepath.Join(path, "data"), filepath.Join(path, "wal"), e.sfile, c.EngineOptions)
-
-	// TODO(edd): Once the tsdb.Engine abstraction is gone, this won't be needed.
-	e.engine = engine.(*tsm1.Engine)
+	e.engine = tsm1.NewEngine(path, e.index, c.Engine)
 
 	// Apply options.
 	for _, option := range options {
@@ -190,17 +185,16 @@ func (e *Engine) Open() error {
 // ability to reschedule the retention enforcement if there are not enough
 // resources available.
 func (e *Engine) runRetentionEnforcer() {
-	if e.config.RetentionInterval == 0 {
+	interval := time.Duration(e.config.RetentionInterval)
+
+	if interval == 0 {
 		e.logger.Info("Retention enforcer disabled")
 		return // Enforcer disabled.
-	}
-
-	if e.config.RetentionInterval < 0 {
-		e.logger.Error("Negative retention interval", zap.Int64("interval", e.config.RetentionInterval))
+	} else if interval < 0 {
+		e.logger.Error("Negative retention interval", logger.DurationLiteral("check_interval", interval))
 		return
 	}
 
-	interval := time.Duration(e.config.RetentionInterval) * time.Second
 	l := e.logger.With(zap.String("component", "retention_enforcer"), logger.DurationLiteral("check_interval", interval))
 	l.Info("Starting")
 

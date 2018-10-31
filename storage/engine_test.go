@@ -190,9 +190,6 @@ type Engine struct {
 func NewEngine(c storage.Config) *Engine {
 	path, _ := ioutil.TempDir("", "storage_engine_test")
 
-	// TODO(edd) clean this up...
-	c.EngineOptions.Config = c.Config
-
 	engine := storage.NewEngine(path, c)
 	return &Engine{
 		path:   path,

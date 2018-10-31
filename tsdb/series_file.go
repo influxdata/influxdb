@@ -28,6 +28,10 @@ const SeriesIDSize = 8
 const (
 	// SeriesFilePartitionN is the number of partitions a series file is split into.
 	SeriesFilePartitionN = 8
+
+	// SeriesFileDirectory is the name of the directory containing series files for
+	// a database.
+	SeriesFileDirectory = "_series"
 )
 
 // SeriesFile represents the section of the index that holds series data.

@@ -28,17 +28,14 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl engine.gen.go.tmpl array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
+//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/influxdata/platform/tools/tmpl -i -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
 //go:generate env GO111MODULE=on go run github.com/influxdata/platform/tools/tmpl -i -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
 
-var (
-	// Ensure Engine implements the interface.
-	_ tsdb.Engine = &Engine{}
-	// Static objects to prevent small allocs.
+var ( // Static objects to prevent small allocs.
 	keyFieldSeparatorBytes = []byte(keyFieldSeparator)
 	emptyBytes             = []byte{}
 )
@@ -68,6 +65,9 @@ const (
 
 	// deleteFlushThreshold is the size in bytes of a batch of series keys to delete.
 	deleteFlushThreshold = 50 * 1024 * 1024
+
+	// MaxPointsPerBlock is the maximum number of points in an encoded block in a TSM file
+	MaxPointsPerBlock = 1000
 )
 
 // Statistics gathered by the engine.
@@ -129,7 +129,6 @@ type Engine struct {
 	snapDone chan struct{}   // channel to signal snapshot compactions to stop
 	snapWG   *sync.WaitGroup // waitgroup for running snapshot compactions
 
-	id           uint64
 	path         string
 	sfile        *tsdb.SeriesFile
 	logger       *zap.Logger // Logger to be used for important messages
@@ -168,37 +167,37 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(id uint64, idx *tsi1.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
+func NewEngine(path string, idx *tsi1.Index, config Config) *Engine {
 	fs := NewFileStore(path)
-	fs.openLimiter = opt.OpenLimiter
-	if opt.FileStoreObserver != nil {
-		fs.WithObserver(opt.FileStoreObserver)
-	}
-	fs.tsmMMAPWillNeed = opt.Config.TSMWillNeed
+	fs.openLimiter = limiter.NewFixed(config.MaxConcurrentOpens)
+	fs.WithObserver(config.FileStoreObserver)
+	fs.tsmMMAPWillNeed = config.MADVWillNeed
 
-	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
+	cache := NewCache(uint64(config.Cache.MaxMemorySize))
 
 	c := NewCompactor()
 	c.Dir = path
 	c.FileStore = fs
-	c.RateLimit = opt.CompactionThroughputLimiter
+	c.RateLimit = limiter.NewRate(
+		int(config.Compaction.Throughput),
+		int(config.Compaction.ThroughputBurst))
 
-	var planner CompactionPlanner = NewDefaultPlanner(fs, time.Duration(opt.Config.CompactFullWriteColdDuration))
-	if opt.CompactionPlannerCreator != nil {
-		planner = opt.CompactionPlannerCreator(opt.Config).(CompactionPlanner)
-		planner.SetFileStore(fs)
+	var planner CompactionPlanner
+	if config.Compaction.PlannerCreator != nil {
+		planner = config.Compaction.PlannerCreator(fs, config.Compaction)
+	} else {
+		planner = NewDefaultPlanner(fs, time.Duration(config.Compaction.FullWriteColdDuration))
 	}
 
 	logger := zap.NewNop()
 	stats := &EngineStatistics{}
 	e := &Engine{
-		id:           id,
 		path:         path,
 		index:        idx,
-		sfile:        sfile,
+		sfile:        idx.SeriesFile(),
 		logger:       logger,
 		traceLogger:  logger,
-		traceLogging: opt.Config.TraceLoggingEnabled,
+		traceLogging: config.TraceLoggingEnabled,
 
 		WAL:   NopWAL{},
 		Cache: cache,
@@ -207,18 +206,22 @@ func NewEngine(id uint64, idx *tsi1.Index, path string, walPath string, sfile *t
 		Compactor:      c,
 		CompactionPlan: planner,
 
-		CacheFlushMemorySizeThreshold: uint64(opt.Config.CacheSnapshotMemorySize),
-		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
+		CacheFlushMemorySizeThreshold: uint64(config.Cache.SnapshotMemorySize),
+		CacheFlushWriteColdDuration:   time.Duration(config.Cache.SnapshotWriteColdDuration),
 		enableCompactionsOnOpen:       true,
 		formatFileName:                DefaultFormatFileName,
 		stats:                         stats,
-		compactionLimiter:             opt.CompactionLimiter,
-		scheduler:                     newScheduler(stats, opt.CompactionLimiter.Capacity()),
+		compactionLimiter:             limiter.NewFixed(config.Compaction.MaxConcurrent),
+		scheduler:                     newScheduler(stats, config.Compaction.MaxConcurrent),
 	}
 
-	if opt.WALEnabled {
+	if config.WAL.Enabled {
+		walPath := config.WAL.Path
+		if len(walPath) > 0 && walPath[0] == '.' {
+			walPath = filepath.Join(path, walPath)
+		}
 		wal := NewWAL(walPath)
-		wal.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
+		wal.syncDelay = time.Duration(config.WAL.FsyncDelay)
 		e.WAL = wal
 	}
 

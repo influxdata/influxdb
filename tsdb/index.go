@@ -10,9 +10,6 @@ import (
 	"github.com/influxdata/platform/models"
 )
 
-// Available index types.
-const TSI1IndexName = "tsi1"
-
 // SeriesElem represents a generic series element.
 type SeriesElem interface {
 	Name() []byte

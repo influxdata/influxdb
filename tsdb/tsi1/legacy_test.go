@@ -21,7 +21,7 @@ func TestLegacyOpen(t *testing.T) {
 	}
 	defer sfile.Close()
 
-	index := NewIndex(sfile, "db", NewConfig(), WithPath("testdata/index-file-index"))
+	index := NewIndex(sfile, NewConfig(), WithPath("testdata/index-file-index"))
 	if err := index.Open(); err != nil {
 		t.Fatal(err)
 	}
