@@ -164,8 +164,8 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 
 func decodeUserResourceMappingFilter(ctx context.Context, r *http.Request) (*platform.UserResourceMappingFilter, error) {
 	urm := new(platform.UserResourceMappingFilter)
-	_ = json.NewDecoder(r.Body).Decode(urm)
-	return urm, nil
+	err := json.NewDecoder(r.Body).Decode(urm)
+	return urm, err
 }
 
 func decodePostTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
