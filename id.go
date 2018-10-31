@@ -111,6 +111,14 @@ func (i ID) String() string {
 	return string(enc)
 }
 
+// GoString formats the ID the same as the String method.
+// Without this, when using the %#v verb, an ID would be printed as a uint64,
+// so you would see e.g. 0x2def021097c6000 instead of 02def021097c6000
+// (note the leading 0x, which means the former doesn't show up in searches for the latter).
+func (i ID) GoString() string {
+	return `"` + i.String() + `"`
+}
+
 // UnmarshalJSON implements JSON unmarshaller for IDs.
 func (i *ID) UnmarshalJSON(b []byte) error {
 	if b[0] == '"' {

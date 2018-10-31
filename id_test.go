@@ -3,6 +3,7 @@ package platform_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -190,6 +191,24 @@ func TestValid(t *testing.T) {
 
 	if platform.InvalidID() != 0 {
 		t.Errorf("expecting invalid ID to return a zero ID, thus invalid")
+	}
+}
+
+func TestID_GoString(t *testing.T) {
+	type idGoStringTester struct {
+		ID platform.ID
+	}
+	var x idGoStringTester
+
+	const idString = "02def021097c6000"
+	if err := x.ID.DecodeFromString(idString); err != nil {
+		t.Fatal(err)
+	}
+
+	sharpV := fmt.Sprintf("%#v", x)
+	want := `platform_test.idGoStringTester{ID:"` + idString + `"}`
+	if sharpV != want {
+		t.Fatalf("bad GoString: got %q, want %q", sharpV, want)
 	}
 }
 
