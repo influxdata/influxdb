@@ -4,6 +4,7 @@ package reads
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
@@ -31,35 +32,41 @@ type table struct {
 
 	err error
 
-	empty bool
-	more  bool
+	cancelled int32
 }
 
 func newTable(
+	done chan struct{},
 	bounds execute.Bounds,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	defs [][]byte,
 ) table {
 	return table{
+		done:    done,
 		bounds:  bounds,
 		key:     key,
 		tags:    make([][]byte, len(cols)),
 		defs:    defs,
 		colBufs: make([]interface{}, len(cols)),
 		cols:    cols,
-		done:    make(chan struct{}),
-		empty:   true,
 	}
 }
 
-func (t *table) Done() chan struct{}  { return t.done }
 func (t *table) Key() flux.GroupKey   { return t.key }
 func (t *table) Cols() []flux.ColMeta { return t.cols }
 func (t *table) RefCount(n int)       {}
 func (t *table) Err() error           { return t.err }
-func (t *table) Empty() bool          { return t.empty }
+func (t *table) Empty() bool          { return t.l == 0 }
 func (t *table) Len() int             { return t.l }
+
+func (t *table) Cancel() {
+	atomic.StoreInt32(&t.cancelled, 1)
+}
+
+func (t *table) isCancelled() bool {
+	return atomic.LoadInt32(&t.cancelled) != 0
+}
 
 func (t *table) Bools(j int) []bool {
 	execute.CheckColType(t.cols[j], flux.TBool)
@@ -150,6 +157,13 @@ func (t *table) appendBounds() {
 	}
 }
 
+func (t *table) closeDone() {
+	if t.done != nil {
+		close(t.done)
+		t.done = nil
+	}
+}
+
 // hasPoints returns true if the next block from cur has data. If cur is not
 // nil, it will be closed.
 func hasPoints(cur cursors.Cursor) bool {
@@ -186,6 +200,7 @@ type tableNoPoints struct {
 }
 
 func newTableNoPoints(
+	done chan struct{},
 	bounds execute.Bounds,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -193,23 +208,21 @@ func newTableNoPoints(
 	defs [][]byte,
 ) *tableNoPoints {
 	t := &tableNoPoints{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 	}
 	t.readTags(tags)
 
 	return t
 }
 
-func (t *tableNoPoints) Close() {
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
-}
+func (t *tableNoPoints) Close() {}
 
 func (t *tableNoPoints) Do(f func(flux.ColReader) error) error {
+	if t.isCancelled() {
+		return nil
+	}
 	t.err = f(t)
-	t.Close()
+	t.closeDone()
 	return t.err
 }
 
@@ -218,27 +231,26 @@ type groupTableNoPoints struct {
 }
 
 func newGroupTableNoPoints(
+	done chan struct{},
 	bounds execute.Bounds,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	defs [][]byte,
 ) *groupTableNoPoints {
 	t := &groupTableNoPoints{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 	}
 
 	return t
 }
 
-func (t *groupTableNoPoints) Close() {
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
-}
+func (t *groupTableNoPoints) Close() {}
 
 func (t *groupTableNoPoints) Do(f func(flux.ColReader) error) error {
+	if t.isCancelled() {
+		return nil
+	}
 	t.err = f(t)
-	t.Close()
+	t.closeDone()
 	return t.err
 }

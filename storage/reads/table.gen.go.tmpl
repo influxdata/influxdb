@@ -1,6 +1,8 @@
 package reads
 
 import (
+	"sync"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/platform/models"
@@ -14,11 +16,13 @@ import (
 
 type {{.name}}Table struct {
 	table
-	cur    cursors.{{.Name}}ArrayCursor
 	valBuf []{{.Type}}
+	mu     sync.Mutex
+	cur    cursors.{{.Name}}ArrayCursor
 }
 
 func new{{.Name}}Table(
+	done chan struct{},
 	cur cursors.{{.Name}}ArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -27,32 +31,34 @@ func new{{.Name}}Table(
 	defs [][]byte,
 ) *{{.name}}Table {
 	t := &{{.name}}Table{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *{{.name}}Table) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *{{.name}}Table) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -88,7 +94,6 @@ func (t *{{.name}}Table) advance() bool {
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 
@@ -96,12 +101,14 @@ func (t *{{.name}}Table) advance() bool {
 
 type {{.name}}GroupTable struct {
 	table
+	valBuf []{{.Type}}
+	mu     sync.Mutex
 	gc     GroupCursor
 	cur    cursors.{{.Name}}ArrayCursor
-	valBuf []{{.Type}}
 }
 
 func new{{.Name}}GroupTable(
+	done chan struct{},
 	gc GroupCursor,
 	cur cursors.{{.Name}}ArrayCursor,
 	bounds execute.Bounds,
@@ -111,17 +118,18 @@ func new{{.Name}}GroupTable(
 	defs [][]byte,
 ) *{{.name}}GroupTable {
 	t := &{{.name}}GroupTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		gc:    gc,
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *{{.name}}GroupTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
@@ -130,18 +138,19 @@ func (t *{{.name}}GroupTable) Close() {
 		t.gc.Close()
 		t.gc = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *{{.name}}GroupTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -182,7 +191,6 @@ RETRY:
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 

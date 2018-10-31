@@ -7,6 +7,8 @@
 package reads
 
 import (
+	"sync"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/platform/models"
@@ -20,11 +22,13 @@ import (
 
 type floatTable struct {
 	table
-	cur    cursors.FloatArrayCursor
 	valBuf []float64
+	mu     sync.Mutex
+	cur    cursors.FloatArrayCursor
 }
 
 func newFloatTable(
+	done chan struct{},
 	cur cursors.FloatArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -33,32 +37,34 @@ func newFloatTable(
 	defs [][]byte,
 ) *floatTable {
 	t := &floatTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *floatTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *floatTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -94,7 +100,6 @@ func (t *floatTable) advance() bool {
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 
@@ -102,12 +107,14 @@ func (t *floatTable) advance() bool {
 
 type floatGroupTable struct {
 	table
+	valBuf []float64
+	mu     sync.Mutex
 	gc     GroupCursor
 	cur    cursors.FloatArrayCursor
-	valBuf []float64
 }
 
 func newFloatGroupTable(
+	done chan struct{},
 	gc GroupCursor,
 	cur cursors.FloatArrayCursor,
 	bounds execute.Bounds,
@@ -117,17 +124,18 @@ func newFloatGroupTable(
 	defs [][]byte,
 ) *floatGroupTable {
 	t := &floatGroupTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		gc:    gc,
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *floatGroupTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
@@ -136,18 +144,19 @@ func (t *floatGroupTable) Close() {
 		t.gc.Close()
 		t.gc = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *floatGroupTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -188,7 +197,6 @@ RETRY:
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 
@@ -221,11 +229,13 @@ func (t *floatGroupTable) advanceCursor() bool {
 
 type integerTable struct {
 	table
-	cur    cursors.IntegerArrayCursor
 	valBuf []int64
+	mu     sync.Mutex
+	cur    cursors.IntegerArrayCursor
 }
 
 func newIntegerTable(
+	done chan struct{},
 	cur cursors.IntegerArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -234,32 +244,34 @@ func newIntegerTable(
 	defs [][]byte,
 ) *integerTable {
 	t := &integerTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *integerTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *integerTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -295,7 +307,6 @@ func (t *integerTable) advance() bool {
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 
@@ -303,12 +314,14 @@ func (t *integerTable) advance() bool {
 
 type integerGroupTable struct {
 	table
+	valBuf []int64
+	mu     sync.Mutex
 	gc     GroupCursor
 	cur    cursors.IntegerArrayCursor
-	valBuf []int64
 }
 
 func newIntegerGroupTable(
+	done chan struct{},
 	gc GroupCursor,
 	cur cursors.IntegerArrayCursor,
 	bounds execute.Bounds,
@@ -318,17 +331,18 @@ func newIntegerGroupTable(
 	defs [][]byte,
 ) *integerGroupTable {
 	t := &integerGroupTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		gc:    gc,
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *integerGroupTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
@@ -337,18 +351,19 @@ func (t *integerGroupTable) Close() {
 		t.gc.Close()
 		t.gc = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *integerGroupTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -389,7 +404,6 @@ RETRY:
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 
@@ -422,11 +436,13 @@ func (t *integerGroupTable) advanceCursor() bool {
 
 type unsignedTable struct {
 	table
-	cur    cursors.UnsignedArrayCursor
 	valBuf []uint64
+	mu     sync.Mutex
+	cur    cursors.UnsignedArrayCursor
 }
 
 func newUnsignedTable(
+	done chan struct{},
 	cur cursors.UnsignedArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -435,32 +451,34 @@ func newUnsignedTable(
 	defs [][]byte,
 ) *unsignedTable {
 	t := &unsignedTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *unsignedTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *unsignedTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -496,7 +514,6 @@ func (t *unsignedTable) advance() bool {
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 
@@ -504,12 +521,14 @@ func (t *unsignedTable) advance() bool {
 
 type unsignedGroupTable struct {
 	table
+	valBuf []uint64
+	mu     sync.Mutex
 	gc     GroupCursor
 	cur    cursors.UnsignedArrayCursor
-	valBuf []uint64
 }
 
 func newUnsignedGroupTable(
+	done chan struct{},
 	gc GroupCursor,
 	cur cursors.UnsignedArrayCursor,
 	bounds execute.Bounds,
@@ -519,17 +538,18 @@ func newUnsignedGroupTable(
 	defs [][]byte,
 ) *unsignedGroupTable {
 	t := &unsignedGroupTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		gc:    gc,
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *unsignedGroupTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
@@ -538,18 +558,19 @@ func (t *unsignedGroupTable) Close() {
 		t.gc.Close()
 		t.gc = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *unsignedGroupTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -590,7 +611,6 @@ RETRY:
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 
@@ -623,11 +643,13 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 
 type stringTable struct {
 	table
-	cur    cursors.StringArrayCursor
 	valBuf []string
+	mu     sync.Mutex
+	cur    cursors.StringArrayCursor
 }
 
 func newStringTable(
+	done chan struct{},
 	cur cursors.StringArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -636,32 +658,34 @@ func newStringTable(
 	defs [][]byte,
 ) *stringTable {
 	t := &stringTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *stringTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *stringTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -697,7 +721,6 @@ func (t *stringTable) advance() bool {
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 
@@ -705,12 +728,14 @@ func (t *stringTable) advance() bool {
 
 type stringGroupTable struct {
 	table
+	valBuf []string
+	mu     sync.Mutex
 	gc     GroupCursor
 	cur    cursors.StringArrayCursor
-	valBuf []string
 }
 
 func newStringGroupTable(
+	done chan struct{},
 	gc GroupCursor,
 	cur cursors.StringArrayCursor,
 	bounds execute.Bounds,
@@ -720,17 +745,18 @@ func newStringGroupTable(
 	defs [][]byte,
 ) *stringGroupTable {
 	t := &stringGroupTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		gc:    gc,
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *stringGroupTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
@@ -739,18 +765,19 @@ func (t *stringGroupTable) Close() {
 		t.gc.Close()
 		t.gc = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *stringGroupTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -791,7 +818,6 @@ RETRY:
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 
@@ -824,11 +850,13 @@ func (t *stringGroupTable) advanceCursor() bool {
 
 type booleanTable struct {
 	table
-	cur    cursors.BooleanArrayCursor
 	valBuf []bool
+	mu     sync.Mutex
+	cur    cursors.BooleanArrayCursor
 }
 
 func newBooleanTable(
+	done chan struct{},
 	cur cursors.BooleanArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -837,32 +865,34 @@ func newBooleanTable(
 	defs [][]byte,
 ) *booleanTable {
 	t := &booleanTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *booleanTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *booleanTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -898,7 +928,6 @@ func (t *booleanTable) advance() bool {
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 
@@ -906,12 +935,14 @@ func (t *booleanTable) advance() bool {
 
 type booleanGroupTable struct {
 	table
+	valBuf []bool
+	mu     sync.Mutex
 	gc     GroupCursor
 	cur    cursors.BooleanArrayCursor
-	valBuf []bool
 }
 
 func newBooleanGroupTable(
+	done chan struct{},
 	gc GroupCursor,
 	cur cursors.BooleanArrayCursor,
 	bounds execute.Bounds,
@@ -921,17 +952,18 @@ func newBooleanGroupTable(
 	defs [][]byte,
 ) *booleanGroupTable {
 	t := &booleanGroupTable{
-		table: newTable(bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs),
 		gc:    gc,
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.more = t.advance()
+	t.advance()
 
 	return t
 }
 
 func (t *booleanGroupTable) Close() {
+	t.mu.Lock()
 	if t.cur != nil {
 		t.cur.Close()
 		t.cur = nil
@@ -940,18 +972,19 @@ func (t *booleanGroupTable) Close() {
 		t.gc.Close()
 		t.gc = nil
 	}
-	if t.done != nil {
-		close(t.done)
-		t.done = nil
-	}
+	t.mu.Unlock()
 }
 
 func (t *booleanGroupTable) Do(f func(flux.ColReader) error) error {
-	defer t.Close()
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
 
-	if t.more {
+	if !t.Empty() {
 		t.err = f(t)
-		for t.err == nil && t.advance() {
+		for !t.isCancelled() && t.err == nil && t.advance() {
 			t.err = f(t)
 		}
 	}
@@ -992,7 +1025,6 @@ RETRY:
 	t.colBufs[valueColIdx] = t.valBuf
 	t.appendTags()
 	t.appendBounds()
-	t.empty = false
 	return true
 }
 

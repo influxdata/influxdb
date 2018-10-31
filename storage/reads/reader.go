@@ -19,7 +19,7 @@ import (
 type storageTable interface {
 	flux.Table
 	Close()
-	Done() chan struct{}
+	Cancel()
 }
 
 type storeReader struct {
@@ -151,23 +151,23 @@ READ:
 		}
 
 		key := groupKeyForSeries(rs.Tags(), &bi.readSpec, bi.bounds)
-
+		done := make(chan struct{})
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TInt)
-			table = newIntegerTable(typedCur, bi.bounds, key, cols, rs.Tags(), defs)
+			table = newIntegerTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs)
 		case cursors.FloatArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TFloat)
-			table = newFloatTable(typedCur, bi.bounds, key, cols, rs.Tags(), defs)
+			table = newFloatTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs)
 		case cursors.UnsignedArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TUInt)
-			table = newUnsignedTable(typedCur, bi.bounds, key, cols, rs.Tags(), defs)
+			table = newUnsignedTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs)
 		case cursors.BooleanArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TBool)
-			table = newBooleanTable(typedCur, bi.bounds, key, cols, rs.Tags(), defs)
+			table = newBooleanTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs)
 		case cursors.StringArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
-			table = newStringTable(typedCur, bi.bounds, key, cols, rs.Tags(), defs)
+			table = newStringTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
 		}
@@ -175,10 +175,6 @@ READ:
 		cur = nil
 
 		if !table.Empty() {
-			// Evaluate table.Done early to avoid a data race if table.Close() is run on another goroutine
-			// and reassigns the underlying channel.
-			done := table.Done()
-
 			if err := f(table); err != nil {
 				table.Close()
 				table = nil
@@ -187,6 +183,7 @@ READ:
 			select {
 			case <-done:
 			case <-bi.ctx.Done():
+				table.Cancel()
 				break READ
 			}
 		}
@@ -217,12 +214,9 @@ READ:
 		}
 
 		key := groupKeyForSeries(rs.Tags(), &bi.readSpec, bi.bounds)
+		done := make(chan struct{})
 		cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
-		table = newTableNoPoints(bi.bounds, key, cols, rs.Tags(), defs)
-
-		// Evaluate table.Done early to avoid a data race if table.Close() is run on another goroutine
-		// and reassigns the underlying channel.
-		done := table.Done()
+		table = newTableNoPoints(done, bi.bounds, key, cols, rs.Tags(), defs)
 
 		if err := f(table); err != nil {
 			table.Close()
@@ -232,6 +226,7 @@ READ:
 		select {
 		case <-done:
 		case <-bi.ctx.Done():
+			table.Cancel()
 			break READ
 		}
 
@@ -279,22 +274,23 @@ READ:
 		}
 
 		key := groupKeyForGroup(gc.PartitionKeyVals(), &bi.readSpec, bi.bounds)
+		done := make(chan struct{})
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt)
-			table = newIntegerGroupTable(gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs)
+			table = newIntegerGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs)
 		case cursors.FloatArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TFloat)
-			table = newFloatGroupTable(gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs)
+			table = newFloatGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs)
 		case cursors.UnsignedArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TUInt)
-			table = newUnsignedGroupTable(gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs)
+			table = newUnsignedGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs)
 		case cursors.BooleanArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TBool)
-			table = newBooleanGroupTable(gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs)
+			table = newBooleanGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs)
 		case cursors.StringArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
-			table = newStringGroupTable(gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs)
+			table = newStringGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
 		}
@@ -303,19 +299,15 @@ READ:
 		cur = nil
 		gc = nil
 
-		// Evaluate table.Done early to avoid a data race if table.Close() is run on another goroutine
-		// and reassigns the underlying channel.
-		done := table.Done()
-
 		if err := f(table); err != nil {
 			table.Close()
 			table = nil
 			return err
 		}
-		// Wait until the table has been read.
 		select {
 		case <-done:
 		case <-bi.ctx.Done():
+			table.Cancel()
 			break READ
 		}
 
@@ -348,25 +340,21 @@ func (bi *tableIterator) handleGroupReadNoPoints(f func(flux.Table) error, rs Gr
 READ:
 	for gc != nil {
 		key := groupKeyForGroup(gc.PartitionKeyVals(), &bi.readSpec, bi.bounds)
+		done := make(chan struct{})
 		cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
-		table = newGroupTableNoPoints(bi.bounds, key, cols, defs)
+		table = newGroupTableNoPoints(done, bi.bounds, key, cols, defs)
 		gc.Close()
 		gc = nil
-
-		// Evaluate table.Done early to avoid a data race if table.Close() is run on another goroutine
-		// and reassigns the underlying channel.
-		done := table.Done()
 
 		if err := f(table); err != nil {
 			table.Close()
 			table = nil
 			return err
 		}
-
-		// Wait until the table has been read.
 		select {
 		case <-done:
 		case <-bi.ctx.Done():
+			table.Cancel()
 			break READ
 		}
 
