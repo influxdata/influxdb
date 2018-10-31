@@ -150,6 +150,8 @@ func (t *table) appendBounds() {
 	}
 }
 
+// hasPoints returns true if the next block from cur has data. If cur is not
+// nil, it will be closed.
 func hasPoints(cur cursors.Cursor) bool {
 	if cur == nil {
 		return false
