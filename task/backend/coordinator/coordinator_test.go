@@ -3,15 +3,16 @@ package coordinator_test
 import (
 	"context"
 	"errors"
-	"go.uber.org/zap/zaptest"
 	"testing"
 	"time"
 
+	"github.com/influxdata/platform"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/task/backend"
 	"github.com/influxdata/platform/task/backend/coordinator"
 	"github.com/influxdata/platform/task/mock"
 	platformtesting "github.com/influxdata/platform/testing"
+	"go.uber.org/zap/zaptest"
 )
 
 func timeoutSelector(ch <-chan *mock.Task) (*mock.Task, error) {
@@ -161,19 +162,29 @@ func TestCoordinator_ClaimExistingTasks(t *testing.T) {
 
 	createChan := sched.TaskCreateChan()
 
-	for i := 0; i < 110; i++ {
-		_, err := st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script})
+	const numTasks = 110 // One page of listed tasks should be 100, so pick more than that.
+
+	createdIDs := make([]platform.ID, numTasks)
+	for i := 0; i < numTasks; i++ {
+		id, err := st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script})
+		if err != nil {
+			t.Fatal(err)
+		}
+		createdIDs[i] = id
+	}
+
+	coordinator.New(zaptest.NewLogger(t), sched, st)
+
+	for i := 0; i < numTasks; i++ {
+		_, err := timeoutSelector(createChan)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	coordinator.New(zaptest.NewLogger(t), sched, st)
-
-	for i := 0; i < 110; i++ {
-		_, err := timeoutSelector(createChan)
-		if err != nil {
-			t.Fatal(err)
+	for _, id := range createdIDs {
+		if task := sched.TaskFor(id); task == nil {
+			t.Fatalf("did not find created task with ID %s", id)
 		}
 	}
 }

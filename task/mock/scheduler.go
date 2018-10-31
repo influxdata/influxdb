@@ -129,6 +129,8 @@ func (s *Scheduler) ReleaseTask(taskID platform.ID) error {
 }
 
 func (s *Scheduler) TaskFor(id platform.ID) *Task {
+	s.Lock()
+	defer s.Unlock()
 	return s.claims[id.String()]
 }
 

@@ -60,7 +60,8 @@ var _ backend.RunPromise = (*syncRunPromise)(nil)
 
 func newSyncRunPromise(ctx context.Context, qr backend.QueuedRun, e *queryServiceExecutor, t *backend.StoreTask) *syncRunPromise {
 	ctx, cancel := context.WithCancel(ctx)
-	log, logEnd := logger.NewOperation(e.logger, "Executing task", "execute")
+	opLogger := e.logger.With(zap.Stringer("task_id", qr.TaskID), zap.Stringer("run_id", qr.RunID))
+	log, logEnd := logger.NewOperation(opLogger, "Executing task", "execute")
 	rp := &syncRunPromise{
 		qr:     qr,
 		svc:    e.svc,
@@ -215,7 +216,8 @@ type asyncRunPromise struct {
 var _ backend.RunPromise = (*asyncRunPromise)(nil)
 
 func newAsyncRunPromise(qr backend.QueuedRun, q flux.Query, e *asyncQueryServiceExecutor) *asyncRunPromise {
-	log, logEnd := logger.NewOperation(e.logger, "Executing task", "execute")
+	opLogger := e.logger.With(zap.Stringer("task_id", qr.TaskID), zap.Stringer("run_id", qr.RunID))
+	log, logEnd := logger.NewOperation(opLogger, "Executing task", "execute")
 
 	p := &asyncRunPromise{
 		qr:    qr,

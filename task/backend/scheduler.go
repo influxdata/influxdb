@@ -283,18 +283,18 @@ func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err err
 		return err
 	}
 
-	if len(meta.CurrentlyRunning) != 0 {
-		if err := ts.WorkCurrentlyRunning(meta); err != nil {
-			return err
-		}
-	}
-
 	_, ok := s.taskSchedulers[task.ID]
 	if ok {
 		return ErrTaskAlreadyClaimed
 	}
 
 	s.taskSchedulers[task.ID] = ts
+
+	if len(meta.CurrentlyRunning) > 0 {
+		if err := ts.WorkCurrentlyRunning(meta); err != nil {
+			return err
+		}
+	}
 
 	next, hasQueue := ts.NextDue()
 	if now := atomic.LoadInt64(&s.now); now >= next || hasQueue {

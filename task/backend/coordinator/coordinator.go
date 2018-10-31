@@ -38,21 +38,23 @@ func New(logger *zap.Logger, scheduler backend.Scheduler, st backend.Store, opts
 		opt(c)
 	}
 
-	go c.ClaimExistingTasks()
+	go c.claimExistingTasks()
 
 	return c
 }
 
-// ClaimExistingTasks on start up, claim all the tasks that still exist.
-func (c *Coordinator) ClaimExistingTasks() {
+// claimExistingTasks is called on startup to claim all tasks in the store.
+func (c *Coordinator) claimExistingTasks() {
 	tasks, err := c.Store.ListTasks(context.Background(), backend.TaskSearchParams{})
 	if err != nil {
 		c.logger.Error("failed to list tasks", zap.Error(err))
+		return
 	}
 
 	for len(tasks) > 0 {
 		for _, task := range tasks {
-			if err := c.sch.ClaimTask(&task.Task, &task.Meta); err != nil {
+			t := task // Copy to avoid mistaken closure around task value.
+			if err := c.sch.ClaimTask(&t.Task, &t.Meta); err != nil {
 				c.logger.Error("failed claim task", zap.Error(err))
 				continue
 			}
@@ -62,6 +64,7 @@ func (c *Coordinator) ClaimExistingTasks() {
 		})
 		if err != nil {
 			c.logger.Error("failed list additional tasks", zap.Error(err))
+			return
 		}
 	}
 }
