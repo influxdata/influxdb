@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/influxdata/platform"
@@ -144,7 +145,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 	switch contentType {
 	case "application/octet-stream":
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.toml\"", tc.Name))
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.toml\"", strings.Replace(strings.TrimSpace(tc.Name), " ", "_", -1)))
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(tc.TOML()))
 	case "application/toml":
