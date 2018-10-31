@@ -271,6 +271,8 @@ func (m *Main) run(ctx context.Context) (err error) {
 			m.logger.Error("failed to open engine", zap.Error(err))
 			return err
 		}
+		// The Engine's metrics must be registered after it opens.
+		reg.MustRegister(engine.PrometheusCollectors()...)
 
 		pointsWriter = m.engine
 
