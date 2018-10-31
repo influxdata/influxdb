@@ -49,7 +49,7 @@ func (CallTypeMapper) CallType(name string, args []influxql.DataType) (influxql.
 		return influxql.Float, nil
 	case "count":
 		return influxql.Integer, nil
-	case "min", "max", "sum", "procuct", "first", "last":
+	case "min", "max", "sum", "product", "first", "last":
 		// TODO(jsternberg): Verify the input type.
 		return args[0], nil
 	}
