@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -170,14 +169,8 @@ func decodeUserResourceMappingFilter(ctx context.Context, r *http.Request) (*pla
 
 func decodePostTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
 	tc := new(platform.TelegrafConfig)
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(r.Body)
-	defer r.Body.Close()
-	if err := json.Unmarshal(buf.Bytes(), tc); err != nil {
-		return nil, err
-	}
-
-	return tc, nil
+	err := json.NewDecoder(r.Body).Decode(tc)
+	return tc, err
 }
 
 func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
