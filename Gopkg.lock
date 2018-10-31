@@ -397,7 +397,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1a8e415d28f5e7718a41a58b71d66c991bfc524ef538e75bd40c8999b1fabfc3"
+  digest = "1:4df2f46b36de5d5448e43a13b5ac8da18d4f7507311d912592149c25f6208593"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -422,7 +422,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "c94a1e57f6788dd0ef736c0d5ac37037e906c932"
+  revision = "7f42a18e060658c61eb131b03cae427ef26856f8"
 
 [[projects]]
   branch = "master"
@@ -445,7 +445,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:b5d0d9d09a580808c5932423672ce780988df45a2358876cfc1f046e9987408a"
+  digest = "1:69d97d6d8f8cfa4a287c5a687bb06c1154fe942e933947898672470e08953a5f"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
@@ -458,7 +458,6 @@
     "pkg/limiter",
     "pkg/mmap",
     "pkg/rhh",
-    "pkg/slices",
     "pkg/snowflake",
     "query/functions/inputs/storage",
     "storage/reads",
@@ -472,7 +471,7 @@
     "tsdb/defaults",
   ]
   pruneopts = "UT"
-  revision = "bbe73b5cc1dceb5826764c8b71feb89dc862ed14"
+  revision = "952c1440b98212605193b2b9c0e8c8de48849b23"
 
 [[projects]]
   branch = "master"
