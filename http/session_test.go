@@ -23,7 +23,6 @@ func TestBasicAuthHandler_handleSignin(t *testing.T) {
 	}
 	type wants struct {
 		cookie string
-		err    error
 		code   int
 	}
 

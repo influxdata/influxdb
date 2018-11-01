@@ -27,7 +27,6 @@ type TelegrafHandler struct {
 const (
 	telegrafsPath            = "/api/v2/telegrafs"
 	telegrafsIDPath          = "/api/v2/telegrafs/:id"
-	telegrafsIDMembersPath   = "/api/v2/telegrafs/:id/members"
 	telegrafsIDMembersIDPath = "/api/v2/telegrafs/:id/members/:userID"
 	telegrafsIDOwnersPath    = "/api/v2/telegrafs/:id/owners"
 	telegrafsIDOwnersIDPath  = "/api/v2/telegrafs/:id/owners/:userID"
@@ -40,7 +39,8 @@ func NewTelegrafHandler(
 	telegrafSvc platform.TelegrafConfigStore,
 ) *TelegrafHandler {
 	h := &TelegrafHandler{
-		Router:                     httprouter.New(),
+		Router: httprouter.New(),
+
 		UserResourceMappingService: mappingService,
 		TelegrafService:            telegrafSvc,
 		Logger:                     logger,
@@ -60,11 +60,6 @@ func NewTelegrafHandler(
 	h.HandlerFunc("DELETE", telegrafsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	return h
-}
-
-type telegrafLinks struct {
-	Self  string `json:"self"`
-	Cells string `json:"cells"`
 }
 
 type link struct {

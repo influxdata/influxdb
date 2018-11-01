@@ -60,7 +60,7 @@ func (s *Service) Query(ctx context.Context, req *query.Request) (flux.ResultIte
 	if err != nil {
 		return nil, err
 	}
-	hreq.WithContext(ctx)
+	hreq = hreq.WithContext(ctx)
 	hreq.SetBasicAuth(endpoint.Username, endpoint.Password)
 
 	// Perform the request and look at the status code.

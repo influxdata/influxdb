@@ -17,7 +17,6 @@ const (
 	defaultSourceOrganizationID = "50616e67652c206c"
 	sourceOneID                 = "020f755c3c082001"
 	sourceTwoID                 = "020f755c3c082002"
-	sourceThreeID               = "020f755c3c082003"
 	sourceOrgOneID              = "61726920617a696f"
 )
 

@@ -84,7 +84,6 @@ func CreateAuthorization(
 ) {
 	type args struct {
 		authorization *platform.Authorization
-		user          string
 	}
 	type wants struct {
 		err            error

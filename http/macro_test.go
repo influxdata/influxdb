@@ -427,8 +427,7 @@ func TestMacroService_handleDeleteMacro(t *testing.T) {
 		id string
 	}
 	type wants struct {
-		statusCode  int
-		contentType string
+		statusCode int
 	}
 
 	tests := []struct {

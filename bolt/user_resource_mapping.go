@@ -64,29 +64,6 @@ func (c *Client) findUserResourceMappings(ctx context.Context, tx *bolt.Tx, filt
 	return ms, nil
 }
 
-func (c *Client) findUserResourceMapping(ctx context.Context, tx *bolt.Tx, resourceID platform.ID, userID platform.ID) (*platform.UserResourceMapping, error) {
-	var m platform.UserResourceMapping
-
-	key, err := userResourceKey(&platform.UserResourceMapping{
-		ResourceID: resourceID,
-		UserID:     userID,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	v := tx.Bucket(userResourceMappingBucket).Get(key)
-	if len(v) == 0 {
-		return nil, fmt.Errorf("userResource mapping not found")
-	}
-
-	if err := json.Unmarshal(v, &m); err != nil {
-		return nil, err
-	}
-
-	return &m, nil
-}
-
 func (c *Client) CreateUserResourceMapping(ctx context.Context, m *platform.UserResourceMapping) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		return c.createUserResourceMapping(ctx, tx, m)

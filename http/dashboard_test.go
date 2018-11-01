@@ -557,7 +557,6 @@ func TestService_handlePatchDashboard(t *testing.T) {
 	type args struct {
 		id    string
 		name  string
-		cells []*platform.Cell
 	}
 	type wants struct {
 		statusCode  int

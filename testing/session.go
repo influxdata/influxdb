@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	sessionOneID   = "020f755c3c082000"
-	sessionTwoID   = "020f755c3c082001"
-	sessionThreeID = "020f755c3c082002"
+	sessionOneID = "020f755c3c082000"
+	sessionTwoID = "020f755c3c082001"
 )
 
 var sessionCmpOptions = cmp.Options{

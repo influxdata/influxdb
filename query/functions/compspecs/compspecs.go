@@ -6,10 +6,9 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/semantic/semantictest"
@@ -17,16 +16,7 @@ import (
 	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query/influxql"
 	platformtesting "github.com/influxdata/platform/testing"
-
-	"github.com/google/go-cmp/cmp"
-	"golang.org/x/text/unicode/norm"
 )
-
-func normalizeString(s string) []byte {
-	result := norm.NFC.String(strings.TrimSpace(s))
-	re := regexp.MustCompile(`\r?\n`)
-	return []byte(re.ReplaceAllString(result, "\r\n"))
-}
 
 func printUsage() {
 	fmt.Println("usage: prepcsvtests /path/to/testfiles [testname]")

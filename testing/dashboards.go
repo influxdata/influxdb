@@ -434,7 +434,6 @@ func FindDashboards(
 ) {
 	type args struct {
 		IDs         []*platform.ID
-		name        string
 		findOptions platform.FindOptions
 	}
 

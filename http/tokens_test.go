@@ -6,14 +6,6 @@ import (
 	"testing"
 )
 
-func tokenRequest(token string) *http.Request {
-	req := httptest.NewRequest("GET", "/", nil)
-	if token != "" {
-		SetToken(token, req)
-	}
-	return req
-}
-
 func TestGetToken(t *testing.T) {
 	type args struct {
 		header string
