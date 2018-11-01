@@ -12,11 +12,13 @@ import (
 	pctx "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // TelegrafHandler is the handler for the telegraf service
 type TelegrafHandler struct {
 	*httprouter.Router
+	Logger *zap.Logger
 
 	TelegrafService            platform.TelegrafConfigStore
 	UserResourceMappingService platform.UserResourceMappingService
@@ -32,10 +34,16 @@ const (
 )
 
 // NewTelegrafHandler returns a new instance of TelegrafHandler.
-func NewTelegrafHandler(mappingService platform.UserResourceMappingService) *TelegrafHandler {
+func NewTelegrafHandler(
+	logger *zap.Logger,
+	mappingService platform.UserResourceMappingService,
+	telegrafSvc platform.TelegrafConfigStore,
+) *TelegrafHandler {
 	h := &TelegrafHandler{
 		Router:                     httprouter.New(),
 		UserResourceMappingService: mappingService,
+		TelegrafService:            telegrafSvc,
+		Logger:                     logger,
 	}
 	h.HandlerFunc("POST", telegrafsPath, h.handlePostTelegraf)
 	h.HandlerFunc("GET", telegrafsPath, h.handleGetTelegrafs)
@@ -108,6 +116,7 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	filter, err := decodeUserResourceMappingFilter(ctx, r)
 	if err != nil {
+		h.Logger.Debug("failed to decode request", zap.Error(err))
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -161,9 +170,26 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 }
 
 func decodeUserResourceMappingFilter(ctx context.Context, r *http.Request) (*platform.UserResourceMappingFilter, error) {
-	urm := new(platform.UserResourceMappingFilter)
-	err := json.NewDecoder(r.Body).Decode(urm)
-	return urm, err
+	q := r.URL.Query()
+	f := &platform.UserResourceMappingFilter{
+		ResourceType: platform.TelegrafResourceType,
+	}
+	if idStr := q.Get("resourceId"); idStr != "" {
+		id, err := platform.IDFromString(idStr)
+		if err != nil {
+			return nil, err
+		}
+		f.ResourceID = *id
+	}
+
+	if idStr := q.Get("userId"); idStr != "" {
+		id, err := platform.IDFromString(idStr)
+		if err != nil {
+			return nil, err
+		}
+		f.UserID = *id
+	}
+	return f, nil
 }
 
 func decodePostTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
@@ -195,6 +221,7 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	tc, err := decodePostTelegrafRequest(ctx, r)
 	if err != nil {
+		h.Logger.Debug("failed to decode request", zap.Error(err))
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -221,6 +248,7 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	tc, err := decodePutTelegrafRequest(ctx, r)
 	if err != nil {
+		h.Logger.Debug("failed to decode request", zap.Error(err))
 		EncodeError(ctx, err, w)
 		return
 	}

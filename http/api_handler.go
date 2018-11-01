@@ -104,8 +104,11 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.TaskHandler.AuthorizationService = b.AuthorizationService
 	h.TaskHandler.UserResourceMappingService = b.UserResourceMappingService
 
-	h.TelegrafHandler = NewTelegrafHandler(b.UserResourceMappingService)
-	h.TelegrafHandler.TelegrafService = b.TelegrafService
+	h.TelegrafHandler = NewTelegrafHandler(
+		b.Logger.With(zap.String("handler", "telegraf")),
+		b.UserResourceMappingService,
+		b.TelegrafService,
+	)
 
 	h.WriteHandler = NewWriteHandler(b.PointsWriter)
 	h.WriteHandler.AuthorizationService = b.AuthorizationService
