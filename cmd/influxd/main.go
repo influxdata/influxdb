@@ -95,21 +95,13 @@ func main() {
 	}
 }
 
-const (
-	// IngressSubject is the subject that subscribers and publishers use for writing and consuming line protocol
-	IngressSubject = "ingress"
-	// IngressGroup is the Nats Streaming Subscriber group, allowing multiple subscribers to distribute work
-	IngressGroup = "ingress"
-)
-
 var (
-	logLevel          string
-	httpBindAddress   string
-	authorizationPath string
-	boltPath          string
-	natsPath          string
-	developerMode     bool
-	enginePath        string
+	logLevel        string
+	httpBindAddress string
+	boltPath        string
+	natsPath        string
+	developerMode   bool
+	enginePath      string
 )
 
 func influxDir() (string, error) {

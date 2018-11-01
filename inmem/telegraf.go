@@ -98,7 +98,7 @@ func (s *Service) FindTelegrafConfigs(ctx context.Context, filter platform.UserR
 		pErr.Op = op
 		err = pErr
 	}
-	return tcs, len(tcs), err
+	return tcs, n, err
 }
 
 func (s *Service) putTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig) *platform.Error {

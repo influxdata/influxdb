@@ -17,10 +17,8 @@ func ExampleWithSignals() {
 		syscall.Kill(syscall.Getpid(), syscall.SIGUSR1)
 	}()
 
-	select {
-	case <-ctx.Done():
-		fmt.Println("finished")
-	}
+	<-ctx.Done()
+	fmt.Println("finished")
 	// Output:
 	// finished
 }
@@ -36,10 +34,8 @@ func Example_withUnregisteredSignals() {
 		syscall.Kill(syscall.Getpid(), syscall.SIGUSR2)
 	}()
 
-	select {
-	case <-ctx.Done():
-		fmt.Println("finished")
-	}
+	<-ctx.Done()
+	fmt.Println("finished")
 	// Output:
 	// finished
 }

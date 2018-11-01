@@ -406,6 +406,9 @@ func TestOrganizationsStore_Update(t *testing.T) {
 
 		if tt.addFirst {
 			tt.args.initial, err = s.Add(tt.args.ctx, tt.args.initial)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 
 		if tt.args.updates.Name != "" {

@@ -209,8 +209,7 @@ var operatorLookup = map[MatchKind]ast.OperatorKind{
 }
 
 func NewWhereOperation(metricName string, labels []*LabelMatcher) (*flux.Operation, error) {
-	var node semantic.Expression
-	node = &semantic.BinaryExpression{
+	var node semantic.Expression = &semantic.BinaryExpression{
 		Operator: ast.EqualOperator,
 		Left: &semantic.MemberExpression{
 			Object: &semantic.IdentifierExpression{

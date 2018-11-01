@@ -32,7 +32,6 @@ func TestDashboards_All(t *testing.T) {
 		args    args
 		fields  fields
 		want    []chronograf.Dashboard
-		wantRaw []chronograf.Dashboard
 		wantErr bool
 	}{
 		{
@@ -147,6 +146,9 @@ func TestDashboards_Add(t *testing.T) {
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, d.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if diff := cmp.Diff(got, tt.want, dashboardCmpOptions...); diff != "" {
 			t.Errorf("%q. DashboardsStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
@@ -166,7 +168,6 @@ func TestDashboards_Delete(t *testing.T) {
 		name     string
 		fields   fields
 		args     args
-		want     []chronograf.Dashboard
 		addFirst bool
 		wantErr  bool
 	}{
@@ -219,12 +220,11 @@ func TestDashboards_Get(t *testing.T) {
 		dashboard    chronograf.Dashboard
 	}
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     chronograf.Dashboard
-		addFirst bool
-		wantErr  bool
+		name    string
+		fields  fields
+		args    args
+		want    chronograf.Dashboard
+		wantErr bool
 	}{
 		{
 			name: "Get Dashboard",
@@ -332,6 +332,9 @@ func TestDashboards_Update(t *testing.T) {
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, tt.args.dashboard.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if diff := cmp.Diff(got, tt.want, dashboardCmpOptions...); diff != "" {
 			t.Errorf("%q. DashboardsStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}

@@ -287,7 +287,7 @@ func TestScheduler_UpdateTask(t *testing.T) {
 	}
 
 	s.Tick(3061)
-	p, err = e.PollForNumberRunning(task.ID, 0)
+	_, err = e.PollForNumberRunning(task.ID, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

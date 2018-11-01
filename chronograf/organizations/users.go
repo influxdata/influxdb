@@ -152,7 +152,7 @@ func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.U
 	// If the user being added already existed in a previous organization, and was already a SuperAdmin,
 	// then this ensures that they retain their SuperAdmin status. And if they weren't a SuperAdmin, and
 	// the user being added has been granted SuperAdmin status, they will be promoted
-	if u.SuperAdmin == true {
+	if u.SuperAdmin {
 		usr.SuperAdmin = true
 	}
 

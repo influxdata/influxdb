@@ -320,8 +320,6 @@ func toComparisonOperator(o ast.OperatorKind) (datatypes.Node_Comparison, error)
 	}
 }
 
-var measurementRemap = map[string]string{"_measurement": "_name"}
-
 // NodeToExpr transforms a predicate node to an influxql.Expr.
 func NodeToExpr(node *datatypes.Node, remap map[string]string) (influxql.Expr, error) {
 	v := &nodeToExprVisitor{remap: remap}

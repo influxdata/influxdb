@@ -98,7 +98,7 @@ func TestSourceStore(t *testing.T) {
 
 	if actual, err := s.Get(ctx, srcs[0].ID); err != nil {
 		t.Fatal(err)
-	} else if actual.Default == true {
+	} else if actual.Default {
 		t.Fatal("Able to set two default sources when only one should be permitted")
 	}
 

@@ -301,7 +301,7 @@ func (s *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	// If the user being updated is the user making the request and they are
 	// changing their SuperAdmin status, return an unauthorized error
-	if ctxUser.ID == u.ID && u.SuperAdmin == true && req.SuperAdmin == false {
+	if ctxUser.ID == u.ID && u.SuperAdmin && !req.SuperAdmin {
 		Error(w, http.StatusUnauthorized, "user cannot modify their own SuperAdmin status", s.Logger)
 		return
 	}

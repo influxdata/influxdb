@@ -12,7 +12,7 @@ const (
 	seriesIDValueMask = 0xFFFFFFFF                // series ids numerically are 32 bits
 	seriesIDTypeShift = 32                        // we put the type right after the value info
 	seriesIDTypeMask  = 0xFF << seriesIDTypeShift // a mask for the type byte
-	seriesIDSize      = 8
+	seriesIDSize      = 8                         //lint:ignore U1000 This const is used in a discarded compile-time type assertion.
 )
 
 // SeriesID is the type of a series id. It is logically a uint64, but encoded as a struct so

@@ -212,7 +212,6 @@ func Test_Service_DashboardCells(t *testing.T) {
 			t.Parallel()
 
 			// setup context with params
-			ctx := context.Background()
 			params := httprouter.Params{}
 			for k, v := range test.ctxParams {
 				params = append(params, httprouter.Param{
@@ -220,8 +219,8 @@ func Test_Service_DashboardCells(t *testing.T) {
 					Value: v,
 				})
 			}
-			ctx = context.WithValue(
-				context.TODO(),
+			ctx := context.WithValue(
+				context.Background(),
 				httprouter.ParamsKey,
 				params,
 			)

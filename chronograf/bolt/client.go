@@ -287,7 +287,3 @@ func (c *Client) backup(ctx context.Context, build chronograf.BuildInfo) error {
 
 	return c.copy(ctx, lastBuild.Version)
 }
-
-func bucket(b []byte, org string) []byte {
-	return []byte(path.Join(string(b), org))
-}

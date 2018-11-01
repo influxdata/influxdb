@@ -111,8 +111,6 @@ func TestMappingStore_All(t *testing.T) {
 	type fields struct {
 		mappings []*chronograf.Mapping
 	}
-	type args struct {
-	}
 	type wants struct {
 		mappings []chronograf.Mapping
 		err      error
@@ -120,7 +118,6 @@ func TestMappingStore_All(t *testing.T) {
 	tests := []struct {
 		name   string
 		fields fields
-		args   args
 		wants  wants
 	}{
 		{

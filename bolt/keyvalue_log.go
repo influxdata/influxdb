@@ -39,8 +39,6 @@ func (b *keyValueLogBounds) update(t time.Time) {
 	} else if b.Stop < now {
 		b.Stop = now
 	}
-
-	return
 }
 
 // StartTime retrieves the start value of a bounds as a time.Time

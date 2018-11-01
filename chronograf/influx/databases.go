@@ -99,7 +99,7 @@ func (c *Client) UpdateRP(ctx context.Context, db string, rp string, upd *chrono
 	if len(upd.ShardDuration) > 0 {
 		buffer.WriteString(" SHARD DURATION " + upd.ShardDuration)
 	}
-	if upd.Default == true {
+	if upd.Default {
 		buffer.WriteString(" DEFAULT")
 	}
 	queryRes, err := c.Query(ctx, chronograf.Query{

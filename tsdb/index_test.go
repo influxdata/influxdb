@@ -220,8 +220,7 @@ func BenchmarkIndex_TagSets(b *testing.B) {
 			name := []byte("m4")
 			opt := query.IteratorOptions{Condition: influxql.MustParseExpr(`"tag5"::tag = 'value0'`)}
 
-			var ts func() ([]*query.TagSet, error)
-			ts = func() ([]*query.TagSet, error) {
+			ts := func() ([]*query.TagSet, error) {
 				return idx.Index.TagSets(name, opt)
 			}
 

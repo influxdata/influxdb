@@ -29,7 +29,7 @@ jobs:
       - image: circleci/golang:1.11
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGs: "-mod=readonly"
+      GOFLAGS: "-mod=readonly"
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
@@ -56,8 +56,13 @@ jobs:
       # - run: make test-go-race # This doesn't use the test cache, and will not complete quickly.
       # TODO add these checks to the Makefile
       # - run: go get -v -t -d ./...
-      # - run: go get honnef.co/go/tools/cmd/megacheck
-      # - run: megacheck ./...
+
+      # TODO(#544): fix the remaining static check in the generated promql file, and enable exit-non-zero.
+      # Not yet sure if that's a bug in staticcheck or if we need to submit a patch to pigeon to fix the generator.
+      - run: GO111MODULE=on go mod vendor # megacheck isn't module-aware yet, so install module dependencies to vendor.
+      - run: GO111MODULE=on go install honnef.co/go/tools/cmd/megacheck # Install megacheck from the version we specify in go.mod.
+      - run: megacheck -staticcheck.exit-non-zero=false ./...
+
       - save_cache:
           name: Saving GOCACHE
           key: platform-gocache-{{ .Branch }}-{{ .Revision }}
@@ -76,7 +81,7 @@ jobs:
       - image: circleci/golang:1.11-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGs: "-mod=readonly"
+      GOFLAGS: "-mod=readonly"
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout

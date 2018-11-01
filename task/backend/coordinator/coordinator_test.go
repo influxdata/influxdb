@@ -74,7 +74,7 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	task, err = timeoutSelector(createChan)
+	_, err = timeoutSelector(createChan)
 	if err != nil {
 		t.Fatal(err)
 	}

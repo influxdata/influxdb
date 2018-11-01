@@ -95,7 +95,6 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	ForbiddenError(ctx, fmt.Errorf("unauthorized"), w)
-	return
 }
 
 func (h *AuthenticationHandler) extractAuthorization(ctx context.Context, r *http.Request) (context.Context, error) {

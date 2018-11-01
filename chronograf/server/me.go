@@ -153,7 +153,7 @@ func (s *Service) UpdateMe(auth oauth2.Authenticator) func(http.ResponseWriter, 
 				return
 			}
 
-			if u.SuperAdmin == false {
+			if !u.SuperAdmin {
 				// Since a user is not a part of this organization and not a super admin,
 				// we should tell them that they are Forbidden (403) from accessing this resource
 				Error(w, http.StatusForbidden, chronograf.ErrUserNotFound.Error(), s.Logger)
@@ -398,14 +398,4 @@ func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([
 	})
 
 	return orgs, nil
-}
-
-func hasRoleInDefaultOrganization(u *chronograf.User, orgID string) bool {
-	for _, role := range u.Roles {
-		if role.Organization == orgID {
-			return true
-		}
-	}
-
-	return false
 }

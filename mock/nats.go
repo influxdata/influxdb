@@ -14,11 +14,6 @@ type NatsServer struct {
 	queue map[string]chan io.Reader
 }
 
-type natsJob struct {
-	subject string
-	r       io.Reader
-}
-
 // create an empty channel for a subject
 func (s *NatsServer) initSubject(subject string) (chan io.Reader, error) {
 	s.Lock()
@@ -71,14 +66,12 @@ func (s *NatsSubscriber) Subscribe(subject, group string, handler nats.Handler) 
 	}
 
 	go func(s *NatsSubscriber, subject string, handler nats.Handler) {
-		for {
-			select {
-			case r := <-ch:
-				handler.Process(&natsSubscription{subject: subject},
-					&natsMessage{
-						r: r,
-					})
-			}
+		for r := range ch {
+			handler.Process(&natsSubscription{subject: subject},
+				&natsMessage{
+					r: r,
+				},
+			)
 		}
 	}(s, subject, handler)
 	return nil

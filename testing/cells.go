@@ -226,8 +226,7 @@ func FindViews(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   platform.ID
-		name string
+		ID platform.ID
 	}
 
 	type wants struct {

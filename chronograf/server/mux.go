@@ -448,16 +448,6 @@ func paramID(key string, r *http.Request) (int, error) {
 	return id, nil
 }
 
-func paramInt64(key string, r *http.Request) (int64, error) {
-	ctx := r.Context()
-	param := jhttprouter.ParamsFromContext(ctx).ByName(key)
-	v, err := strconv.ParseInt(param, 10, 64)
-	if err != nil {
-		return -1, fmt.Errorf("Error converting parameter %s", param)
-	}
-	return v, nil
-}
-
 func paramStr(key string, r *http.Request) (string, error) {
 	ctx := r.Context()
 	param := jhttprouter.ParamsFromContext(ctx).ByName(key)

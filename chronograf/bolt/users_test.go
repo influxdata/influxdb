@@ -83,10 +83,8 @@ func TestUsersStore_GetWithID(t *testing.T) {
 
 func TestUsersStore_GetWithNameProviderScheme(t *testing.T) {
 	type args struct {
-		ctx      context.Context
-		name     string
-		provider string
-		usr      *chronograf.User
+		ctx context.Context
+		usr *chronograf.User
 	}
 	tests := []struct {
 		name     string

@@ -21,7 +21,7 @@ func ToQueryConfig(query string) chronograf.QueryConfig {
 		GroupBy: chronograf.GroupBy{
 			Tags: []string{},
 		},
-		Tags: make(map[string][]string, 0),
+		Tags: make(map[string][]string),
 	}
 }
 

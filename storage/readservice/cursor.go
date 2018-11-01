@@ -17,7 +17,6 @@ import (
 type indexSeriesCursor struct {
 	sqry         storage.SeriesCursor
 	err          error
-	tags         models.Tags
 	cond         influxql.Expr
 	row          reads.SeriesRow
 	eof          bool

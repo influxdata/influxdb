@@ -59,5 +59,5 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID 
 }
 
 func (s *DashboardService) CopyDashboardCell(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*platform.Cell, error) {
-	return s.CopyDashboardCell(ctx, dashboardID, cellID)
+	return s.CopyDashboardCellF(ctx, dashboardID, cellID)
 }

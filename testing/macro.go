@@ -16,7 +16,6 @@ import (
 const (
 	idA = "020f755c3c082000"
 	idB = "020f755c3c082001"
-	idC = "020f755c3c082002"
 )
 
 var macroCmpOptions = cmp.Options{

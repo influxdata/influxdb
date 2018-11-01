@@ -33,7 +33,6 @@ func TestServers_All(t *testing.T) {
 		args    args
 		fields  fields
 		want    []chronograf.Server
-		wantRaw []chronograf.Server
 		wantErr bool
 	}{
 		{
@@ -148,6 +147,9 @@ func TestServers_Add(t *testing.T) {
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, d.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if diff := cmp.Diff(got, tt.want, serverCmpOptions...); diff != "" {
 			t.Errorf("%q. ServersStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
@@ -167,7 +169,6 @@ func TestServers_Delete(t *testing.T) {
 		name     string
 		fields   fields
 		args     args
-		want     []chronograf.Server
 		addFirst bool
 		wantErr  bool
 	}{
@@ -220,12 +221,11 @@ func TestServers_Get(t *testing.T) {
 		server       chronograf.Server
 	}
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     chronograf.Server
-		addFirst bool
-		wantErr  bool
+		name    string
+		fields  fields
+		args    args
+		want    chronograf.Server
+		wantErr bool
 	}{
 		{
 			name: "Get Server",
@@ -333,6 +333,9 @@ func TestServers_Update(t *testing.T) {
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, tt.args.server.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if diff := cmp.Diff(got, tt.want, serverCmpOptions...); diff != "" {
 			t.Errorf("%q. ServersStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}

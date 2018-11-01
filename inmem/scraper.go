@@ -27,21 +27,6 @@ func (s *Service) loadScraperTarget(id platform.ID) (*platform.ScraperTarget, er
 	return &b, nil
 }
 
-func (s *Service) forEachScraperTarget(ctx context.Context, fn func(b platform.ScraperTarget) bool) error {
-	var err error
-	s.scraperTargetKV.Range(func(k, v interface{}) bool {
-		o, ok := v.(platform.ScraperTarget)
-		if !ok {
-			err = fmt.Errorf("type %T is not a scraper target", v)
-			return false
-		}
-
-		return fn(o)
-	})
-
-	return err
-}
-
 // ListTargets will list all scrape targets.
 func (s *Service) ListTargets(ctx context.Context) (list []platform.ScraperTarget, err error) {
 	list = make([]platform.ScraperTarget, 0)
@@ -77,13 +62,12 @@ func (s *Service) UpdateTarget(ctx context.Context, update *platform.ScraperTarg
 	if !update.ID.Valid() {
 		return nil, errors.New("update scraper: id is invalid")
 	}
-	target, err = s.loadScraperTarget(update.ID)
+	_, err = s.loadScraperTarget(update.ID)
 	if err != nil {
 		return nil, err
 	}
-	target = update
 	err = s.PutTarget(ctx, update)
-	return target, err
+	return update, err
 }
 
 // GetTargetByID retrieves a scraper target by id.

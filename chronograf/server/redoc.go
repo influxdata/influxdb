@@ -35,6 +35,5 @@ func Redoc(swagger string) http.HandlerFunc {
 		rw.WriteHeader(http.StatusOK)
 
 		_, _ = rw.Write([]byte(fmt.Sprintf(index, swagger)))
-		return
 	})
 }

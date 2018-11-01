@@ -52,7 +52,6 @@ func (t *Transpiler) Transpile(ctx context.Context, txt string) (*flux.Spec, err
 }
 
 type transpilerState struct {
-	id             int
 	stmt           *influxql.SelectStatement
 	config         Config
 	spec           *flux.Spec

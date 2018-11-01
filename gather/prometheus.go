@@ -67,7 +67,7 @@ func (p *prometheusScraper) parse(r io.Reader, header http.Header) ([]Metrics, e
 			// reading tags
 			tags := makeLabels(m)
 			// reading fields
-			fields := make(map[string]interface{})
+			var fields map[string]interface{}
 			switch family.GetType() {
 			case dto.MetricType_SUMMARY:
 				// summary metric

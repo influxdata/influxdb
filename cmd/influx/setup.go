@@ -93,16 +93,11 @@ func getOnboardingRequest() (req *platform.OnboardingRequest) {
 
 // vt100EscapeCodes
 var (
-	keyEscape    = byte(27)
-	colorBlack   = []byte{keyEscape, '[', '3', '0', 'm'}
-	colorRed     = []byte{keyEscape, '[', '3', '1', 'm'}
-	colorGreen   = []byte{keyEscape, '[', '3', '2', 'm'}
-	colorYellow  = []byte{keyEscape, '[', '3', '3', 'm'}
-	colorBlue    = []byte{keyEscape, '[', '3', '4', 'm'}
-	colorMagenta = []byte{keyEscape, '[', '3', '5', 'm'}
-	colorCyan    = []byte{keyEscape, '[', '3', '6', 'm'}
-	colorWhite   = []byte{keyEscape, '[', '3', '7', 'm'}
-	keyReset     = []byte{keyEscape, '[', '0', 'm'}
+	keyEscape   = byte(27)
+	colorRed    = []byte{keyEscape, '[', '3', '1', 'm'}
+	colorYellow = []byte{keyEscape, '[', '3', '3', 'm'}
+	colorCyan   = []byte{keyEscape, '[', '3', '6', 'm'}
+	keyReset    = []byte{keyEscape, '[', '0', 'm'}
 )
 
 func promptWithColor(s string, color []byte) string {
@@ -180,7 +175,7 @@ enterPasswd:
 		case input.ErrInterrupted:
 			os.Exit(1)
 		case nil:
-			break
+			// Nothing.
 		default:
 			fmt.Println(promptWithColor("Passwords do not match!", colorRed))
 			goto enterPasswd
