@@ -56,8 +56,12 @@ jobs:
       # - run: make test-go-race # This doesn't use the test cache, and will not complete quickly.
       # TODO add these checks to the Makefile
       # - run: go get -v -t -d ./...
-      # - run: go get honnef.co/go/tools/cmd/megacheck
-      # - run: megacheck ./...
+
+      # TODO(#544): fix all the megacheck errors, and drop the exit-non-zero flags so that megacheck failures break the build.
+      - run: GO111MODULE=on go mod vendor # This seems to be necessary to get megacheck to work with modules.
+      - run: go get honnef.co/go/tools/cmd/megacheck
+      - run: megacheck -simple.exit-non-zero=false -staticcheck.exit-non-zero=false -unused.exit-non-zero=false ./...
+
       - save_cache:
           name: Saving GOCACHE
           key: platform-gocache-{{ .Branch }}-{{ .Revision }}
