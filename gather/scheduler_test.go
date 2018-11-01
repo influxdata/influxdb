@@ -51,7 +51,7 @@ func TestScheduler(t *testing.T) {
 	go func() {
 		err = scheduler.run(ctx)
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 	}()
 

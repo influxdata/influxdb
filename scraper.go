@@ -38,10 +38,6 @@ const (
 	PrometheusScraperType = "prometheus"
 )
 
-var validScraperTypes = map[ScraperType]bool{
-	PrometheusScraperType: false,
-}
-
 // ValidScraperType returns true is the type string is valid
 func ValidScraperType(s string) bool {
 	switch s {

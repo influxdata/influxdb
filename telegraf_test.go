@@ -62,7 +62,6 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		name string
 		cfg  *TelegrafConfig
 		err  error
-		json string
 	}{
 		{
 			name: "regular config",

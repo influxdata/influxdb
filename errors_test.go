@@ -132,7 +132,6 @@ func TestJSON(t *testing.T) {
 	cases := []struct {
 		name string
 		err  *platform.Error
-		json string
 	}{
 		{
 			name: "simple error",
