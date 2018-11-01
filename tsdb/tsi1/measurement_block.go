@@ -251,8 +251,9 @@ func ReadMeasurementBlockTrailer(data []byte) (MeasurementBlockTrailer, error) {
 	t.HashIndex.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.HashIndex.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
-	// Skip over old sketch info
-	buf = buf[4*8:]
+	// We would advance past old sketch info, but that's unused now.
+	_ = buf
+	// buf = buf[4*8:]
 
 	return t, nil
 }

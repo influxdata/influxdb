@@ -641,48 +641,6 @@ func (e *Engine) Free() error {
 	return e.FileStore.Free()
 }
 
-// addToIndexFromKey will pull the measurement names, series keys, and field
-// names from composite keys, and add them to the database index and measurement
-// fields.
-func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType) error {
-	collection := &tsdb.SeriesCollection{
-		Keys:  keys,
-		Names: make([][]byte, 0, len(keys)),
-		Tags:  make([]models.Tags, 0, len(keys)),
-		Types: make([]models.FieldType, 0, len(keys)),
-	}
-
-	for i := 0; i < len(keys); i++ {
-		// Replace tsm key format with index key format.
-		collection.Keys[i], _ = SeriesAndFieldFromCompositeKey(collection.Keys[i])
-		name := models.ParseName(collection.Keys[i])
-		collection.Names = append(collection.Names, name)
-		collection.Tags = append(collection.Tags, models.ParseTags(keys[i]))
-		collection.Types = append(collection.Types, fieldTypeFromDataType(fieldTypes[i]))
-	}
-
-	if err := e.index.CreateSeriesListIfNotExists(collection); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func fieldTypeFromDataType(dataType influxql.DataType) models.FieldType {
-	switch dataType {
-	case influxql.Float:
-		return models.Float
-	case influxql.Integer:
-		return models.Integer
-	case influxql.String:
-		return models.String
-	case influxql.Boolean:
-		return models.Boolean
-	default:
-		return models.Empty
-	}
-}
-
 // WritePoints writes metadata and point data into the engine.
 // It returns an error if new points are added to an existing key.
 func (e *Engine) WritePoints(points []models.Point) error {

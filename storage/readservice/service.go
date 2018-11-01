@@ -2,6 +2,7 @@ package readservice
 
 import (
 	"context"
+
 	"github.com/influxdata/platform/query/functions/outputs"
 
 	"github.com/influxdata/flux"
@@ -17,7 +18,7 @@ import (
 )
 
 func NewProxyQueryService(engine *storage.Engine, bucketSvc platform.BucketService, orgSvc platform.OrganizationService, logger *zap.Logger) (query.ProxyQueryService, error) {
-	var ( // flux
+	var (
 		concurrencyQuota = 10
 		memoryBytesQuota = 1e6
 	)

@@ -513,12 +513,4 @@ func SeriesKeySize(name []byte, tags models.Tags) int {
 	return n
 }
 
-type seriesKeys [][]byte
-
-func (a seriesKeys) Len() int      { return len(a) }
-func (a seriesKeys) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a seriesKeys) Less(i, j int) bool {
-	return CompareSeriesKeys(a[i], a[j]) == -1
-}
-
 func nop() {}
