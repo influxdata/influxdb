@@ -397,7 +397,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4df2f46b36de5d5448e43a13b5ac8da18d4f7507311d912592149c25f6208593"
+  digest = "1:83da867ca6aeb2caf90e2c1fef1d72405e2aa994d6aa4920b0ee6e21a4c9d3e8"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -426,14 +426,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ac08c9f0449762095e72fcf636b8b2cfd1e16fea10d4f69776efddc95dc3a7be"
+  digest = "1:488639be850ddc33969609e08f783d3e9d129c7a0f6f2c4186b11475bb94c29d"
   name = "github.com/influxdata/influxql"
   packages = [
     ".",
     "internal",
   ]
   pruneopts = "UT"
-  revision = "c661ab7db8ad858626cc7a2114e786f4e7463564"
+  revision = "1cbfca8e56b6eaa120f5b5161e4f0d5edcc9e513"
 
 [[projects]]
   branch = "master"
