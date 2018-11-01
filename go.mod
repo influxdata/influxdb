@@ -5,14 +5,10 @@ require (
 	github.com/Masterminds/semver v1.4.2 // indirect
 	github.com/NYTimes/gziphandler v1.0.1
 	github.com/RoaringBitmap/roaring v0.4.16
-	github.com/alecthomas/kingpin v2.2.6+incompatible // indirect
-	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
-	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
 	github.com/apex/log v1.1.0 // indirect
 	github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da // indirect
 	github.com/aws/aws-sdk-go v1.15.59 // indirect
-	github.com/blakesmith/ar v0.0.0-20150311145944-8bd4349a67f2 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/bouk/httprouter v0.0.0-20160817010721-ee8b3818a7f5
 	github.com/caarlos0/ctrlc v1.0.0 // indirect
@@ -35,7 +31,7 @@ require (
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 // indirect
 	github.com/goreleaser/goreleaser v0.91.1
-	github.com/goreleaser/nfpm v0.9.5 // indirect
+	github.com/goreleaser/nfpm v0.9.7 // indirect
 	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
 	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
 	github.com/hashicorp/raft v1.0.0 // indirect

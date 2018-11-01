@@ -2,6 +2,7 @@ package readservice
 
 import (
 	"context"
+	"github.com/influxdata/platform/query/functions/outputs"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/control"
@@ -29,17 +30,28 @@ func NewProxyQueryService(engine *storage.Engine, bucketSvc platform.BucketServi
 		Verbose:              false,
 	}
 
-	lookupSvc := query.FromBucketService(bucketSvc)
+	bucketLookupSvc := query.FromBucketService(bucketSvc)
+	orgLookupSvc := query.FromOrganizationService(orgSvc)
 	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, fstorage.Dependencies{
 		Reader:             reads.NewReader(newStore(engine)),
-		BucketLookup:       lookupSvc,
-		OrganizationLookup: query.FromOrganizationService(orgSvc),
+		BucketLookup:       bucketLookupSvc,
+		OrganizationLookup: orgLookupSvc,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	err = inputs.InjectBucketDependencies(cc.ExecutorDependencies, lookupSvc)
+	if err := inputs.InjectBucketDependencies(cc.ExecutorDependencies, bucketLookupSvc); err != nil {
+		return nil, err
+	}
+
+	if err := outputs.InjectToDependencies(cc.ExecutorDependencies, outputs.ToDependencies{
+		BucketLookup:       bucketLookupSvc,
+		OrganizationLookup: orgLookupSvc,
+		PointsWriter:       engine,
+	}); err != nil {
+		return nil, err
+	}
 
 	return query.ProxyQueryServiceBridge{
 		QueryService: query.QueryServiceBridge{
