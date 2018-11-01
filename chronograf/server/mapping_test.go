@@ -19,8 +19,6 @@ func TestMappings_All(t *testing.T) {
 	type fields struct {
 		MappingsStore chronograf.MappingsStore
 	}
-	type args struct {
-	}
 	type wants struct {
 		statusCode  int
 		contentType string
@@ -30,7 +28,6 @@ func TestMappings_All(t *testing.T) {
 	tests := []struct {
 		name   string
 		fields fields
-		args   args
 		wants  wants
 	}{
 		{

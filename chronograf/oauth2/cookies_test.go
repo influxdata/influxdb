@@ -3,7 +3,6 @@ package oauth2
 import (
 	"context"
 	"fmt"
-	gojwt "github.com/dgrijalva/jwt-go"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	gojwt "github.com/dgrijalva/jwt-go"
 )
 
 type MockTokenizer struct {
@@ -78,7 +79,7 @@ func TestCookieAuthorize(t *testing.T) {
 			continue
 		}
 
-		cookies := w.HeaderMap["Set-Cookie"]
+		cookies := w.Header()["Set-Cookie"]
 
 		if len(cookies) == 0 {
 			t.Fatal("Expected some cookies but got zero")
@@ -275,12 +276,12 @@ func TestCookieExtend(t *testing.T) {
 				t.Errorf("cookie.Extend() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if tt.wantErr == false {
+			if !tt.wantErr {
 				if !reflect.DeepEqual(got, tt.want) {
 					t.Errorf("cookie.Extend() = %v, want %v", got, tt.want)
 				}
 
-				cookies := tt.args.w.HeaderMap["Set-Cookie"]
+				cookies := tt.args.w.Header()["Set-Cookie"]
 				if len(cookies) == 0 {
 					t.Fatal("Expected some cookies but got zero")
 				}

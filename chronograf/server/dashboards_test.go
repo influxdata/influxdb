@@ -277,7 +277,7 @@ func Test_newDashboardResponse(t *testing.T) {
 										GroupBy: chronograf.GroupBy{
 											Tags: []string{},
 										},
-										Tags:            make(map[string][]string, 0),
+										Tags:            make(map[string][]string),
 										AreTagsAccepted: false,
 										Shifts: []chronograf.TimeShift{
 											{
@@ -339,7 +339,7 @@ func Test_newDashboardResponse(t *testing.T) {
 										GroupBy: chronograf.GroupBy{
 											Tags: []string{},
 										},
-										Tags:            make(map[string][]string, 0),
+										Tags:            make(map[string][]string),
 										AreTagsAccepted: false,
 										Range: &chronograf.DurationRange{
 											Lower: "now() - 15m",

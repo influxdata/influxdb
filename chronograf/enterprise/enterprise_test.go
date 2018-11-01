@@ -34,7 +34,7 @@ func Test_Enterprise_FetchesDataNodes(t *testing.T) {
 		t.Fatal("Unexpected error while creating enterprise client. err:", err)
 	}
 
-	if showClustersCalled != true {
+	if !showClustersCalled {
 		t.Fatal("Expected request to meta node but none was issued")
 	}
 }
@@ -68,7 +68,7 @@ func Test_Enterprise_IssuesQueries(t *testing.T) {
 		t.Fatal("Unexpected error while querying data node: err:", err)
 	}
 
-	if called == false {
+	if !called {
 		t.Fatal("Expected request to data node but none was received")
 	}
 }

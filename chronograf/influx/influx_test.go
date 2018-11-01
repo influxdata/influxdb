@@ -58,7 +58,7 @@ func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 		t.Fatal("Expected no error but was", err)
 	}
 
-	if called == false {
+	if !called {
 		t.Error("Expected http request to Influx but there was none")
 	}
 }
@@ -164,6 +164,9 @@ func Test_Influx_AuthorizationBearerCtx(t *testing.T) {
 		URL:                ts.URL,
 		InsecureSkipVerify: true,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	query := chronograf.Query{
 		Command: "show databases",
@@ -226,10 +229,9 @@ func Test_Influx_HTTPS_Failure(t *testing.T) {
 		t.Error("Expected error but was successful")
 	}
 
-	if called == true {
+	if called {
 		t.Error("Expected http request to fail, but, succeeded")
 	}
-
 }
 
 func Test_Influx_HTTPS_InsecureSkipVerify(t *testing.T) {
@@ -271,7 +273,7 @@ func Test_Influx_HTTPS_InsecureSkipVerify(t *testing.T) {
 		t.Fatal("Expected no error but was", err)
 	}
 
-	if called == false {
+	if !called {
 		t.Error("Expected http request to Influx but there was none")
 	}
 	called = false
@@ -284,7 +286,7 @@ func Test_Influx_HTTPS_InsecureSkipVerify(t *testing.T) {
 		t.Fatal("Expected no error but was", err)
 	}
 
-	if called == false {
+	if !called {
 		t.Error("Expected http request to Influx but there was none")
 	}
 

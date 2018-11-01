@@ -17,8 +17,6 @@ import (
 	"github.com/influxdata/platform/chronograf/roles"
 )
 
-type MockUsers struct{}
-
 func TestService_Me(t *testing.T) {
 	type fields struct {
 		UsersStore               chronograf.UsersStore

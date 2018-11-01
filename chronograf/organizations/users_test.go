@@ -24,7 +24,6 @@ func TestUsersStore_Get(t *testing.T) {
 	}
 	type args struct {
 		ctx    context.Context
-		usr    *chronograf.User
 		userID uint64
 		orgID  string
 	}
@@ -149,10 +148,9 @@ func TestUsersStore_Add(t *testing.T) {
 		UsersStore chronograf.UsersStore
 	}
 	type args struct {
-		ctx      context.Context
-		u        *chronograf.User
-		orgID    string
-		uInitial *chronograf.User
+		ctx   context.Context
+		u     *chronograf.User
+		orgID string
 	}
 	tests := []struct {
 		name    string
@@ -576,7 +574,6 @@ func TestUsersStore_Delete(t *testing.T) {
 		fields  fields
 		args    args
 		wantErr bool
-		wantRaw *chronograf.User
 	}{
 		{
 			name: "No such user",
@@ -672,7 +669,6 @@ func TestUsersStore_Update(t *testing.T) {
 		fields  fields
 		args    args
 		want    *chronograf.User
-		wantRaw *chronograf.User
 		wantErr bool
 	}{
 		{

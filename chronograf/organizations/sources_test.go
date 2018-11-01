@@ -33,7 +33,6 @@ func TestSources_All(t *testing.T) {
 		args    args
 		fields  fields
 		want    []chronograf.Source
-		wantRaw []chronograf.Source
 		wantErr bool
 	}{
 		{
@@ -148,6 +147,9 @@ func TestSources_Add(t *testing.T) {
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, d.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if diff := cmp.Diff(got, tt.want, sourceCmpOptions...); diff != "" {
 			t.Errorf("%q. SourcesStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
@@ -167,7 +169,6 @@ func TestSources_Delete(t *testing.T) {
 		name     string
 		fields   fields
 		args     args
-		want     []chronograf.Source
 		addFirst bool
 		wantErr  bool
 	}{
@@ -220,12 +221,11 @@ func TestSources_Get(t *testing.T) {
 		source       chronograf.Source
 	}
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     chronograf.Source
-		addFirst bool
-		wantErr  bool
+		name    string
+		fields  fields
+		args    args
+		want    chronograf.Source
+		wantErr bool
 	}{
 		{
 			name: "Get Source",
@@ -333,6 +333,9 @@ func TestSources_Update(t *testing.T) {
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, tt.args.source.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if diff := cmp.Diff(got, tt.want, sourceCmpOptions...); diff != "" {
 			t.Errorf("%q. SourcesStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}

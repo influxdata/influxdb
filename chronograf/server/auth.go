@@ -52,7 +52,6 @@ func AuthorizedToken(auth oauth2.Authenticator, logger chronograf.Logger, next h
 		// Send the principal to the next handler
 		ctx = context.WithValue(ctx, oauth2.PrincipalKey, principal)
 		next.ServeHTTP(w, r.WithContext(ctx))
-		return
 	})
 }
 
@@ -210,7 +209,6 @@ func AuthorizedUser(
 		}
 
 		Error(w, http.StatusForbidden, "User is not authorized", logger)
-		return
 	})
 }
 

@@ -95,13 +95,13 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 		GroupBy: chronograf.GroupBy{
 			Tags: []string{},
 		},
-		Tags: make(map[string][]string, 0),
+		Tags: make(map[string][]string),
 	}
 	qc := chronograf.QueryConfig{
 		GroupBy: chronograf.GroupBy{
 			Tags: []string{},
 		},
-		Tags: make(map[string][]string, 0),
+		Tags: make(map[string][]string),
 	}
 
 	if len(query.Statements) != 1 {
@@ -286,8 +286,6 @@ func Convert(influxQL string) (chronograf.QueryConfig, error) {
 			qc.Range = &chronograf.DurationRange{
 				Lower: "now() - " + shortDur(dur),
 			}
-		} else {
-			strings.Replace(influxQL, "now() - 15m", ":dashboardTime:", 1)
 		}
 	}
 

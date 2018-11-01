@@ -1069,7 +1069,7 @@ func Test_validLogViewerConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := validLogViewerConfig(tt.args.LogViewer)
 
-			if (tt.wantErr == true && got == nil) || (tt.wantErr == false && got != nil) {
+			if (tt.wantErr && got == nil) || (!tt.wantErr && got != nil) {
 				t.Errorf("%q. validLogViewerConfig().\ngot: %v\nwantErr: %v", tt.name, got, tt.wantErr)
 			}
 		})

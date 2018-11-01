@@ -71,10 +71,6 @@ func (r *rpResponse) WithLinks(srcID int, db string) {
 	}
 }
 
-type rpsResponse struct {
-	RetentionPolicies []rpResponse `json:"retentionPolicies"`
-}
-
 type measurementLinks struct {
 	Self  string `json:"self"`
 	First string `json:"first"`

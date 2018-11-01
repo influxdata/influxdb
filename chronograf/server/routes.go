@@ -116,9 +116,7 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		routes.Logout = &a.LogoutLink
 	}
 
-	for i, route := range a.AuthRoutes {
-		routes.Auth[i] = route
-	}
+	copy(routes.Auth, a.AuthRoutes)
 
 	encodeJSON(w, http.StatusOK, routes, a.Logger)
 }

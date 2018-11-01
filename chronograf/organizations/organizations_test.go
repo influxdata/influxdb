@@ -32,7 +32,6 @@ func TestOrganizations_All(t *testing.T) {
 		args    args
 		fields  fields
 		want    []chronograf.Organization
-		wantRaw []chronograf.Organization
 		wantErr bool
 	}{
 		{
@@ -161,6 +160,9 @@ func TestOrganizations_Add(t *testing.T) {
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, chronograf.OrganizationQuery{ID: &d.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if diff := cmp.Diff(got, tt.want, organizationCmpOptions...); diff != "" {
 			t.Errorf("%q. OrganizationsStore.Add():\n-got/+want\ndiff %s", tt.name, diff)
 		}
@@ -180,7 +182,6 @@ func TestOrganizations_Delete(t *testing.T) {
 		name     string
 		fields   fields
 		args     args
-		want     []chronograf.Organization
 		addFirst bool
 		wantErr  bool
 	}{
@@ -231,12 +232,11 @@ func TestOrganizations_Get(t *testing.T) {
 		organization   *chronograf.Organization
 	}
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     *chronograf.Organization
-		addFirst bool
-		wantErr  bool
+		name    string
+		fields  fields
+		args    args
+		want    *chronograf.Organization
+		wantErr bool
 	}{
 		{
 			name: "Get Organization",
@@ -338,6 +338,9 @@ func TestOrganizations_Update(t *testing.T) {
 			continue
 		}
 		got, err := s.Get(tt.args.ctx, chronograf.OrganizationQuery{ID: &tt.args.organization.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if diff := cmp.Diff(got, tt.want, organizationCmpOptions...); diff != "" {
 			t.Errorf("%q. OrganizationsStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
 		}

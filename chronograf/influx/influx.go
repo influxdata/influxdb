@@ -349,7 +349,6 @@ func (c *Client) write(ctx context.Context, u *url.URL, db, rp, lp string) error
 		}
 
 		errChan <- errors.New(response.Err)
-		return
 	}()
 
 	select {

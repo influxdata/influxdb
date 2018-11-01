@@ -220,10 +220,9 @@ func TestService_UpdateOrganization(t *testing.T) {
 		Logger             chronograf.Logger
 	}
 	type args struct {
-		w      *httptest.ResponseRecorder
-		r      *http.Request
-		org    *organizationRequest
-		setPtr bool
+		w   *httptest.ResponseRecorder
+		r   *http.Request
+		org *organizationRequest
 	}
 	tests := []struct {
 		name            string
@@ -520,7 +519,6 @@ func TestService_NewOrganization(t *testing.T) {
 		name            string
 		fields          fields
 		args            args
-		id              string
 		wantStatus      int
 		wantContentType string
 		wantBody        string

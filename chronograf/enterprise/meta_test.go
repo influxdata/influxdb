@@ -19,9 +19,7 @@ import (
 func TestMetaClient_ShowCluster(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	tests := []struct {
 		name    string
@@ -112,7 +110,7 @@ func TestMetaClient_ShowCluster(t *testing.T) {
 		if tt.wantErr {
 			continue
 		}
-		reqs := tt.fields.client.(*MockClient).Requests
+		reqs := tt.fields.client.Requests
 		if len(reqs) != 1 {
 			t.Errorf("%q. MetaClient.ShowCluster() expected 1 but got %d", tt.name, len(reqs))
 			continue
@@ -130,9 +128,7 @@ func TestMetaClient_ShowCluster(t *testing.T) {
 func TestMetaClient_Users(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx  context.Context
@@ -267,9 +263,7 @@ func TestMetaClient_Users(t *testing.T) {
 func TestMetaClient_User(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx  context.Context
@@ -368,9 +362,7 @@ func TestMetaClient_User(t *testing.T) {
 func TestMetaClient_CreateUser(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx    context.Context
@@ -417,7 +409,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 		if tt.wantErr {
 			continue
 		}
-		reqs := tt.fields.client.(*MockClient).Requests
+		reqs := tt.fields.client.Requests
 		if len(reqs) != 1 {
 			t.Errorf("%q. MetaClient.CreateUser() expected 1 but got %d", tt.name, len(reqs))
 			continue
@@ -439,9 +431,7 @@ func TestMetaClient_CreateUser(t *testing.T) {
 func TestMetaClient_ChangePassword(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx    context.Context
@@ -489,7 +479,7 @@ func TestMetaClient_ChangePassword(t *testing.T) {
 		if tt.wantErr {
 			continue
 		}
-		reqs := tt.fields.client.(*MockClient).Requests
+		reqs := tt.fields.client.Requests
 		if len(reqs) != 1 {
 			t.Errorf("%q. MetaClient.ChangePassword() expected 1 but got %d", tt.name, len(reqs))
 			continue
@@ -511,9 +501,7 @@ func TestMetaClient_ChangePassword(t *testing.T) {
 func TestMetaClient_DeleteUser(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx  context.Context
@@ -558,7 +546,7 @@ func TestMetaClient_DeleteUser(t *testing.T) {
 		if tt.wantErr {
 			continue
 		}
-		reqs := tt.fields.client.(*MockClient).Requests
+		reqs := tt.fields.client.Requests
 		if len(reqs) != 1 {
 			t.Errorf("%q. MetaClient.DeleteUser() expected 1 but got %d", tt.name, len(reqs))
 			continue
@@ -580,9 +568,7 @@ func TestMetaClient_DeleteUser(t *testing.T) {
 func TestMetaClient_SetUserPerms(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx   context.Context
@@ -655,7 +641,7 @@ func TestMetaClient_SetUserPerms(t *testing.T) {
 		if tt.wantErr {
 			continue
 		}
-		reqs := tt.fields.client.(*MockClient).Requests
+		reqs := tt.fields.client.Requests
 		if len(reqs) < 2 {
 			t.Errorf("%q. MetaClient.SetUserPerms() expected 2 but got %d", tt.name, len(reqs))
 			continue
@@ -701,9 +687,7 @@ func TestMetaClient_SetUserPerms(t *testing.T) {
 func TestMetaClient_Roles(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx  context.Context
@@ -800,9 +784,7 @@ func TestMetaClient_Roles(t *testing.T) {
 func TestMetaClient_Role(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx  context.Context
@@ -883,9 +865,7 @@ func TestMetaClient_Role(t *testing.T) {
 func TestMetaClient_UserRoles(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx  context.Context
@@ -987,9 +967,7 @@ func TestMetaClient_UserRoles(t *testing.T) {
 func TestMetaClient_CreateRole(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx  context.Context
@@ -1031,7 +1009,7 @@ func TestMetaClient_CreateRole(t *testing.T) {
 		if err := m.CreateRole(tt.args.ctx, tt.args.name); (err != nil) != tt.wantErr {
 			t.Errorf("%q. MetaClient.CreateRole() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 		}
-		reqs := tt.fields.client.(*MockClient).Requests
+		reqs := tt.fields.client.Requests
 		if len(reqs) != 1 {
 			t.Errorf("%q. MetaClient.CreateRole() expected 1 but got %d", tt.name, len(reqs))
 			continue
@@ -1053,9 +1031,7 @@ func TestMetaClient_CreateRole(t *testing.T) {
 func TestMetaClient_DeleteRole(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx  context.Context
@@ -1100,7 +1076,7 @@ func TestMetaClient_DeleteRole(t *testing.T) {
 		if tt.wantErr {
 			continue
 		}
-		reqs := tt.fields.client.(*MockClient).Requests
+		reqs := tt.fields.client.Requests
 		if len(reqs) != 1 {
 			t.Errorf("%q. MetaClient.DeleteRole() expected 1 but got %d", tt.name, len(reqs))
 			continue
@@ -1122,9 +1098,7 @@ func TestMetaClient_DeleteRole(t *testing.T) {
 func TestMetaClient_SetRolePerms(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx   context.Context
@@ -1197,7 +1171,7 @@ func TestMetaClient_SetRolePerms(t *testing.T) {
 		if tt.wantErr {
 			continue
 		}
-		reqs := tt.fields.client.(*MockClient).Requests
+		reqs := tt.fields.client.Requests
 		if len(reqs) < 2 {
 			t.Errorf("%q. MetaClient.SetRolePerms() expected 2 but got %d", tt.name, len(reqs))
 			continue
@@ -1243,9 +1217,7 @@ func TestMetaClient_SetRolePerms(t *testing.T) {
 func TestMetaClient_SetRoleUsers(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
-		client interface {
-			Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error)
-		}
+		client *MockClient
 	}
 	type args struct {
 		ctx   context.Context
@@ -1315,7 +1287,7 @@ func TestMetaClient_SetRoleUsers(t *testing.T) {
 		if tt.wantErr {
 			continue
 		}
-		reqs := tt.fields.client.(*MockClient).Requests
+		reqs := tt.fields.client.Requests
 		if len(reqs) != len(tt.wants)+1 {
 			t.Errorf("%q. MetaClient.SetRoleUsers() expected %d but got %d", tt.name, len(tt.wants)+1, len(reqs))
 			continue

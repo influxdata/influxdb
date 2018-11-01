@@ -13,7 +13,7 @@ import (
 // OrgExt is the the file extension searched for in the directory for org files
 const OrgExt = ".org"
 
-var _ chronograf.OrganizationsStore = &Organizations{}
+var _ chronograf.OrganizationsStore = (*Organizations)(nil)
 
 // Organizations are JSON orgs stored in the filesystem
 type Organizations struct {
@@ -31,11 +31,6 @@ func NewOrganizations(dir string, logger chronograf.Logger) chronograf.Organizat
 		ReadDir: ioutil.ReadDir,
 		Logger:  logger,
 	}
-}
-
-func orgFile(dir string, org chronograf.Organization) string {
-	base := fmt.Sprintf("%s%s", org.Name, OrgExt)
-	return path.Join(dir, base)
 }
 
 // All returns all orgs from the directory

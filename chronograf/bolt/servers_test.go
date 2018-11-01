@@ -90,7 +90,7 @@ func TestServerStore(t *testing.T) {
 
 	if actual, err := s.Get(ctx, srcs[0].ID); err != nil {
 		t.Fatal(err)
-	} else if actual.Active == true {
+	} else if actual.Active {
 		t.Fatal("Able to set two active servers when only one should be permitted")
 	}
 
