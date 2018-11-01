@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/platform/snowflake"
+	"github.com/opentracing/opentracing-go"
 	nethttp "net/http"
 	_ "net/http/pprof"
 	"os"
@@ -33,6 +35,7 @@ import (
 	taskexecutor "github.com/influxdata/platform/task/backend/executor"
 	_ "github.com/influxdata/platform/tsdb/tsi1"
 	_ "github.com/influxdata/platform/tsdb/tsm1"
+	pzap "github.com/influxdata/platform/zap"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -144,6 +147,12 @@ func run() error {
 		return err
 	}
 	defer logger.Sync()
+
+	// set tracing
+	tracer := new(pzap.Tracer)
+	tracer.Logger = logger
+	tracer.IDGenerator = snowflake.NewIDGenerator()
+	opentracing.SetGlobalTracer(tracer)
 
 	reg := prom.NewRegistry()
 	reg.MustRegister(prometheus.NewGoCollector())
@@ -330,6 +339,7 @@ func run() error {
 		h := http.NewHandlerFromRegistry("platform", reg)
 		h.Handler = platformHandler
 		h.Logger = logger
+		h.Tracer = opentracing.GlobalTracer()
 
 		httpServer.Handler = h
 		logger.Info("Listening", zap.String("transport", "http"), zap.String("addr", httpBindAddress))
