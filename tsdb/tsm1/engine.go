@@ -2,12 +2,10 @@
 package tsm1 // import "github.com/influxdata/platform/tsdb/tsm1"
 
 import (
-	"archive/tar"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -19,14 +17,11 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/pkg/metrics"
-	intar "github.com/influxdata/influxdb/pkg/tar"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/bytesutil"
-	"github.com/influxdata/platform/pkg/estimator"
-	"github.com/influxdata/platform/pkg/file"
 	"github.com/influxdata/platform/pkg/limiter"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/tsi1"
@@ -244,91 +239,6 @@ func (e *Engine) WithFormatFileNameFunc(formatFileNameFunc FormatFileNameFunc) {
 func (e *Engine) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 	e.FileStore.WithParseFileNameFunc(parseFileNameFunc)
 	e.Compactor.WithParseFileNameFunc(parseFileNameFunc)
-}
-
-// Digest returns a reader for the shard's digest.
-func (e *Engine) Digest() (io.ReadCloser, int64, error) {
-	log, logEnd := logger.NewOperation(e.logger, "Engine digest", "tsm1_digest")
-	defer logEnd()
-
-	log.Info("Starting digest", zap.String("tsm1_path", e.path))
-
-	digestPath := filepath.Join(e.path, DigestFilename)
-
-	// Get a list of tsm file paths from the FileStore.
-	files := e.FileStore.Files()
-	tsmfiles := make([]string, 0, len(files))
-	for _, f := range files {
-		tsmfiles = append(tsmfiles, f.Path())
-	}
-
-	// See if there's a fresh digest cached on disk.
-	fresh, reason := DigestFresh(e.path, tsmfiles, e.LastModified())
-	if fresh {
-		f, err := os.Open(digestPath)
-		if err == nil {
-			fi, err := f.Stat()
-			if err != nil {
-				log.Info("Digest aborted, couldn't stat digest file", logger.Shard(e.id), zap.Error(err))
-				return nil, 0, err
-			}
-
-			log.Info("Digest is fresh", logger.Shard(e.id), zap.String("path", digestPath))
-
-			// Return the cached digest.
-			return f, fi.Size(), nil
-		}
-	}
-
-	log.Info("Digest stale", logger.Shard(e.id), zap.String("reason", reason))
-
-	// Either no digest existed or the existing one was stale
-	// so generate a new digest.
-
-	// Make sure the directory exists, in case it was deleted for some reason.
-	if err := os.MkdirAll(e.path, 0777); err != nil {
-		log.Info("Digest aborted, problem creating shard directory path", zap.Error(err))
-		return nil, 0, err
-	}
-
-	// Create a tmp file to write the digest to.
-	tf, err := os.Create(digestPath + ".tmp")
-	if err != nil {
-		log.Info("Digest aborted, problem creating tmp digest", zap.Error(err))
-		return nil, 0, err
-	}
-
-	// Write the new digest to the tmp file.
-	if err := Digest(e.path, tsmfiles, tf); err != nil {
-		log.Info("Digest aborted, problem writing tmp digest", zap.Error(err))
-		tf.Close()
-		os.Remove(tf.Name())
-		return nil, 0, err
-	}
-
-	// Rename the temporary digest file to the actual digest file.
-	if err := file.RenameFile(tf.Name(), digestPath); err != nil {
-		log.Info("Digest aborted, problem renaming tmp digest", zap.Error(err))
-		return nil, 0, err
-	}
-
-	// Create and return a reader for the new digest file.
-	f, err := os.Open(digestPath)
-	if err != nil {
-		log.Info("Digest aborted, opening new digest", zap.Error(err))
-		return nil, 0, err
-	}
-
-	fi, err := f.Stat()
-	if err != nil {
-		log.Info("Digest aborted, can't stat new digest", zap.Error(err))
-		f.Close()
-		return nil, 0, err
-	}
-
-	log.Info("Digest written", zap.String("tsm1_digest_path", digestPath), zap.Int64("size", fi.Size()))
-
-	return f, fi.Size(), nil
 }
 
 // SetEnabled sets whether the engine is enabled.
@@ -553,20 +463,6 @@ func (e *Engine) SeriesN() int64 {
 	return e.index.SeriesN()
 }
 
-// MeasurementsSketches returns sketches that describe the cardinality of the
-// measurements in this shard and measurements that were in this shard, but have
-// been tombstoned.
-func (e *Engine) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return e.index.MeasurementsSketches()
-}
-
-// SeriesSketches returns sketches that describe the cardinality of the
-// series in this shard and series that were in this shard, but have
-// been tombstoned.
-func (e *Engine) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return e.index.SeriesSketches()
-}
-
 // LastModified returns the time when this shard was last modified.
 func (e *Engine) LastModified() time.Time {
 	fsTime := e.FileStore.LastModified()
@@ -743,325 +639,6 @@ func (e *Engine) IsIdle() bool {
 func (e *Engine) Free() error {
 	e.Cache.Free()
 	return e.FileStore.Free()
-}
-
-// Backup writes a tar archive of any TSM files modified since the passed
-// in time to the passed in writer. The basePath will be prepended to the names
-// of the files in the archive. It will force a snapshot of the WAL first
-// then perform the backup with a read lock against the file store. This means
-// that new TSM files will not be able to be created in this shard while the
-// backup is running. For shards that are still acively getting writes, this
-// could cause the WAL to backup, increasing memory usage and evenutally rejecting writes.
-func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
-	path, err := e.CreateSnapshot()
-	if err != nil {
-		return err
-	}
-	// Remove the temporary snapshot dir
-	defer os.RemoveAll(path)
-
-	return intar.Stream(w, path, basePath, intar.SinceFilterTarFile(since))
-}
-
-func (e *Engine) timeStampFilterTarFile(start, end time.Time) func(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
-	return func(fi os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
-		if !strings.HasSuffix(fi.Name(), ".tsm") {
-			return intar.StreamFile(fi, shardRelativePath, fullPath, tw)
-		}
-
-		var tombstonePath string
-		f, err := os.Open(fullPath)
-		if err != nil {
-			return err
-		}
-		r, err := NewTSMReader(f)
-		if err != nil {
-			return err
-		}
-
-		// Grab the tombstone file if one exists.
-		if r.HasTombstones() {
-			tombstonePath = filepath.Base(r.TombstoneFiles()[0].Path)
-			return intar.StreamFile(fi, shardRelativePath, tombstonePath, tw)
-		}
-
-		min, max := r.TimeRange()
-		stun := start.UnixNano()
-		eun := end.UnixNano()
-
-		// We overlap time ranges, we need to filter the file
-		if min >= stun && min <= eun && max > eun || // overlap to the right
-			max >= stun && max <= eun && min < stun || // overlap to the left
-			min <= stun && max >= eun { // TSM file has a range LARGER than the boundary
-			err := e.filterFileToBackup(r, fi, shardRelativePath, fullPath, start.UnixNano(), end.UnixNano(), tw)
-			if err != nil {
-				if err := r.Close(); err != nil {
-					return err
-				}
-				return err
-			}
-
-		}
-
-		// above is the only case where we need to keep the reader open.
-		if err := r.Close(); err != nil {
-			return err
-		}
-
-		// the TSM file is 100% inside the range, so we can just write it without scanning each block
-		if min >= start.UnixNano() && max <= end.UnixNano() {
-			if err := intar.StreamFile(fi, shardRelativePath, fullPath, tw); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-}
-
-func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.Time) error {
-	path, err := e.CreateSnapshot()
-	if err != nil {
-		return err
-	}
-	// Remove the temporary snapshot dir
-	defer os.RemoveAll(path)
-
-	return intar.Stream(w, path, basePath, e.timeStampFilterTarFile(start, end))
-}
-
-func (e *Engine) filterFileToBackup(r *TSMReader, fi os.FileInfo, shardRelativePath, fullPath string, start, end int64, tw *tar.Writer) error {
-	path := fullPath + ".tmp"
-	out, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(path)
-
-	w, err := NewTSMWriter(out)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	// implicit else: here we iterate over the blocks and only keep the ones we really want.
-	bi := r.BlockIterator()
-
-	for bi.Next() {
-		// not concerned with typ or checksum since we are just blindly writing back, with no decoding
-		key, minTime, maxTime, _, _, buf, err := bi.Read()
-		if err != nil {
-			return err
-		}
-		if minTime >= start && minTime <= end ||
-			maxTime >= start && maxTime <= end ||
-			minTime <= start && maxTime >= end {
-			err := w.WriteBlock(key, minTime, maxTime, buf)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	if err := bi.Err(); err != nil {
-		return err
-	}
-
-	err = w.WriteIndex()
-	if err != nil {
-		return err
-	}
-
-	// make sure the whole file is out to disk
-	if err := w.Flush(); err != nil {
-		return err
-	}
-
-	tmpFi, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-
-	return intar.StreamRenameFile(tmpFi, fi.Name(), shardRelativePath, path, tw)
-}
-
-// Restore reads a tar archive generated by Backup().
-// Only files that match basePath will be copied into the directory. This obtains
-// a write lock so no operations can be performed while restoring.
-func (e *Engine) Restore(r io.Reader, basePath string) error {
-	return e.overlay(r, basePath, false)
-}
-
-// Import reads a tar archive generated by Backup() and adds each
-// file matching basePath as a new TSM file.  This obtains
-// a write lock so no operations can be performed while Importing.
-// If the import is successful, a full compaction is scheduled.
-func (e *Engine) Import(r io.Reader, basePath string) error {
-	if err := e.overlay(r, basePath, true); err != nil {
-		return err
-	}
-	return e.ScheduleFullCompaction()
-}
-
-// overlay reads a tar archive generated by Backup() and adds each file
-// from the archive matching basePath to the shard.
-// If asNew is true, each file will be installed as a new TSM file even if an
-// existing file with the same name in the backup exists.
-func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
-	// Copy files from archive while under lock to prevent reopening.
-	newFiles, err := func() ([]string, error) {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-
-		var newFiles []string
-		tr := tar.NewReader(r)
-		for {
-			if fileName, err := e.readFileFromBackup(tr, basePath, asNew); err == io.EOF {
-				break
-			} else if err != nil {
-				return nil, err
-			} else if fileName != "" {
-				newFiles = append(newFiles, fileName)
-			}
-		}
-
-		if err := file.SyncDir(e.path); err != nil {
-			return nil, err
-		}
-
-		// The filestore will only handle tsm files. Other file types will be ignored.
-		if err := e.FileStore.Replace(nil, newFiles); err != nil {
-			return nil, err
-		}
-		return newFiles, nil
-	}()
-
-	if err != nil {
-		return err
-	}
-
-	// Load any new series keys to the index
-	tsmFiles := make([]TSMFile, 0, len(newFiles))
-	defer func() {
-		for _, r := range tsmFiles {
-			r.Close()
-		}
-	}()
-
-	ext := fmt.Sprintf(".%s", TmpTSMFileExtension)
-	for _, f := range newFiles {
-		// If asNew is true, the files created from readFileFromBackup will be new ones
-		// having a temp extension.
-		f = strings.TrimSuffix(f, ext)
-		if !strings.HasSuffix(f, TSMFileExtension) {
-			// This isn't a .tsm file.
-			continue
-		}
-
-		fd, err := os.Open(f)
-		if err != nil {
-			return err
-		}
-
-		r, err := NewTSMReader(fd)
-		if err != nil {
-			return err
-		}
-		tsmFiles = append(tsmFiles, r)
-	}
-
-	// Merge and dedup all the series keys across each reader to reduce
-	// lock contention on the index.
-	keys := make([][]byte, 0, 10000)
-	fieldTypes := make([]influxql.DataType, 0, 10000)
-
-	ki := newMergeKeyIterator(tsmFiles, nil)
-	for ki.Next() {
-		key, typ := ki.Read()
-		fieldType := BlockTypeToInfluxQLDataType(typ)
-		if fieldType == influxql.Unknown {
-			return fmt.Errorf("unknown block type: %v", typ)
-		}
-
-		keys = append(keys, key)
-		fieldTypes = append(fieldTypes, fieldType)
-
-		if len(keys) == cap(keys) {
-			// Send batch of keys to the index.
-			if err := e.addToIndexFromKey(keys, fieldTypes); err != nil {
-				return err
-			}
-
-			// Reset buffers.
-			keys, fieldTypes = keys[:0], fieldTypes[:0]
-		}
-	}
-
-	if len(keys) > 0 {
-		// Add remaining partial batch.
-		if err := e.addToIndexFromKey(keys, fieldTypes); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// readFileFromBackup copies the next file from the archive into the shard.
-// The file is skipped if it does not have a matching shardRelativePath prefix.
-// If asNew is true, each file will be installed as a new TSM file even if an
-// existing file with the same name in the backup exists.
-func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, asNew bool) (string, error) {
-	// Read next archive file.
-	hdr, err := tr.Next()
-	if err != nil {
-		return "", err
-	}
-
-	if !strings.HasSuffix(hdr.Name, TSMFileExtension) {
-		// This isn't a .tsm file.
-		return "", nil
-	}
-
-	nativeFileName := filepath.FromSlash(hdr.Name)
-	// Skip file if it does not have a matching prefix.
-	if !strings.HasPrefix(nativeFileName, shardRelativePath) {
-		return "", nil
-	}
-	filename, err := filepath.Rel(shardRelativePath, nativeFileName)
-	if err != nil {
-		return "", err
-	}
-
-	// If this is a directory entry (usually just `index` for tsi), create it an move on.
-	if hdr.Typeflag == tar.TypeDir {
-		if err := os.MkdirAll(filepath.Join(e.path, filename), os.FileMode(hdr.Mode).Perm()); err != nil {
-			return "", err
-		}
-		return "", nil
-	}
-
-	if asNew {
-		filename = e.formatFileName(e.FileStore.NextGeneration(), 1) + "." + TSMFileExtension
-	}
-
-	tmp := fmt.Sprintf("%s.%s", filepath.Join(e.path, filename), TmpTSMFileExtension)
-	// Create new file on disk.
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	// Copy from archive to the file.
-	if _, err := io.CopyN(f, tr, hdr.Size); err != nil {
-		return "", err
-	}
-
-	// Sync to disk & close.
-	if err := f.Sync(); err != nil {
-		return "", err
-	}
-
-	return tmp, nil
 }
 
 // addToIndexFromKey will pull the measurement names, series keys, and field
@@ -1531,9 +1108,6 @@ func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ
 	return e.index.CreateSeriesIfNotExists(key, name, tags, typ)
 }
 
-// WriteTo is not implemented.
-func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
-
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
 func (e *Engine) WriteSnapshot() error {
 	// Lock and grab the cache snapshot along with all the closed WAL
@@ -1587,24 +1161,6 @@ func (e *Engine) WriteSnapshot() error {
 		zap.Duration("duration", time.Since(dedup)))
 
 	return e.writeSnapshotAndCommit(log, closedFiles, snapshot)
-}
-
-// CreateSnapshot will create a temp directory that holds
-// temporary hardlinks to the underylyng shard files.
-func (e *Engine) CreateSnapshot() (string, error) {
-	if err := e.WriteSnapshot(); err != nil {
-		return "", err
-	}
-
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	path, err := e.FileStore.CreateSnapshot()
-	if err != nil {
-		return "", err
-	}
-
-	// Generate a snapshot of the index.
-	return path, nil
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments.

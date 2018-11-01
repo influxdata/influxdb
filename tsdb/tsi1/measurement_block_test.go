@@ -18,18 +18,16 @@ func TestReadMeasurementBlockTrailer(t *testing.T) {
 		blockversion               = uint16(1)
 		blockOffset, blockSize     = uint64(1), uint64(2500)
 		hashIdxOffset, hashIdxSize = uint64(2501), uint64(1000)
-		sketchOffset, sketchSize   = uint64(3501), uint64(250)
-		tsketchOffset, tsketchSize = uint64(3751), uint64(250)
 	)
 
 	binary.BigEndian.PutUint64(data[0:], blockOffset)
 	binary.BigEndian.PutUint64(data[8:], blockSize)
 	binary.BigEndian.PutUint64(data[16:], hashIdxOffset)
 	binary.BigEndian.PutUint64(data[24:], hashIdxSize)
-	binary.BigEndian.PutUint64(data[32:], sketchOffset)
-	binary.BigEndian.PutUint64(data[40:], sketchSize)
-	binary.BigEndian.PutUint64(data[48:], tsketchOffset)
-	binary.BigEndian.PutUint64(data[56:], tsketchSize)
+	binary.BigEndian.PutUint64(data[32:], 0)
+	binary.BigEndian.PutUint64(data[40:], 0)
+	binary.BigEndian.PutUint64(data[48:], 0)
+	binary.BigEndian.PutUint64(data[56:], 0)
 	binary.BigEndian.PutUint16(data[64:], blockversion)
 
 	trailer, err := tsi1.ReadMeasurementBlockTrailer(data)
@@ -43,11 +41,7 @@ func TestReadMeasurementBlockTrailer(t *testing.T) {
 		trailer.Data.Offset == int64(blockOffset) &&
 		trailer.Data.Size == int64(blockSize) &&
 		trailer.HashIndex.Offset == int64(hashIdxOffset) &&
-		trailer.HashIndex.Size == int64(hashIdxSize) &&
-		trailer.Sketch.Offset == int64(sketchOffset) &&
-		trailer.Sketch.Size == int64(sketchSize) &&
-		trailer.TSketch.Offset == int64(tsketchOffset) &&
-		trailer.TSketch.Size == int64(tsketchSize)
+		trailer.HashIndex.Size == int64(hashIdxSize)
 
 	if !ok {
 		t.Fatalf("got %v\nwhich does not match expected", trailer)
@@ -65,14 +59,6 @@ func TestMeasurementBlockTrailer_WriteTo(t *testing.T) {
 			Offset int64
 			Size   int64
 		}{Offset: 3, Size: 4},
-		Sketch: struct {
-			Offset int64
-			Size   int64
-		}{Offset: 5, Size: 6},
-		TSketch: struct {
-			Offset int64
-			Size   int64
-		}{Offset: 7, Size: 8},
 	}
 
 	var buf bytes.Buffer
@@ -91,10 +77,10 @@ func TestMeasurementBlockTrailer_WriteTo(t *testing.T) {
 		"0000000000000002" + // data size
 		"0000000000000003" + // hash index offset
 		"0000000000000004" + // hash index size
-		"0000000000000005" + // sketch offset
-		"0000000000000006" + // sketch size
-		"0000000000000007" + // tsketch offset
-		"0000000000000008" + // tsketch size
+		"0000000000000000" + // legacy sketch offset
+		"0000000000000000" + // legacy sketch size
+		"0000000000000000" + // legacy tsketch offset
+		"0000000000000000" + // legacy tsketch size
 		"0001" // version
 
 	if got, exp := fmt.Sprintf("%x", buf.String()), exp; got != exp {

@@ -75,11 +75,8 @@ The series block stores raw series keys in sorted order. It also provides hash
 indexes so that series can be looked up quickly. Hash indexes are inserted
 periodically so that memory size is limited at write time. Once all the series
 and hash indexes have been written then a list of index entries are written
-so that hash indexes can be looked up via binary search.
-
-The end of the block contains two HyperLogLog++ sketches which track the
-estimated number of created series and deleted series. After the sketches is
-a trailer which contains metadata about the block.
+so that hash indexes can be looked up via binary search. After the entries
+is a trailer which contains metadata about the block.
 
 	┏━━━━━━━SeriesBlock━━━━━━━━┓
 	┃ ┌──────────────────────┐ ┃
@@ -104,8 +101,6 @@ a trailer which contains metadata about the block.
 	┃ │                      │ ┃
 	┃ ├──────────────────────┤ ┃
 	┃ │    Index Entries     │ ┃
-	┃ ├──────────────────────┤ ┃
-	┃ │     HLL Sketches     │ ┃
 	┃ ├──────────────────────┤ ┃
 	┃ │       Trailer        │ ┃
 	┃ └──────────────────────┘ ┃
@@ -167,9 +162,6 @@ series offsets, and the offset to their tag block. This allows all series for
 a measurement to be traversed quickly and it allows fast direct lookups of
 measurements and their tags.
 
-This block also contains HyperLogLog++ sketches for new and deleted
-measurements.
-
 	┏━━━━Measurement Block━━━━━┓
 	┃ ┌──────────────────────┐ ┃
 	┃ │     Measurement      │ ┃
@@ -181,8 +173,6 @@ measurements.
 	┃ │                      │ ┃
 	┃ │      Hash Index      │ ┃
 	┃ │                      │ ┃
-	┃ ├──────────────────────┤ ┃
-	┃ │     HLL Sketches     │ ┃
 	┃ ├──────────────────────┤ ┃
 	┃ │       Trailer        │ ┃
 	┃ └──────────────────────┘ ┃

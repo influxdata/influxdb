@@ -16,8 +16,6 @@ import (
 
 	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/estimator"
-	"github.com/influxdata/platform/pkg/estimator/hll"
 	"github.com/influxdata/platform/pkg/mmap"
 	"github.com/influxdata/platform/tsdb"
 )
@@ -876,32 +874,6 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 	}
 	t.TombstoneSeriesIDSet.Size = n - t.TombstoneSeriesIDSet.Offset
 
-	// Build series sketches.
-	sSketch, sTSketch, err := f.seriesSketches()
-	if err != nil {
-		return n, err
-	}
-
-	// Write series sketches.
-	t.SeriesSketch.Offset = n
-	data, err := sSketch.MarshalBinary()
-	if err != nil {
-		return n, err
-	} else if _, err := bw.Write(data); err != nil {
-		return n, err
-	}
-	t.SeriesSketch.Size = int64(len(data))
-	n += t.SeriesSketch.Size
-
-	t.TombstoneSeriesSketch.Offset = n
-	if data, err = sTSketch.MarshalBinary(); err != nil {
-		return n, err
-	} else if _, err := bw.Write(data); err != nil {
-		return n, err
-	}
-	t.TombstoneSeriesSketch.Size = int64(len(data))
-	n += t.TombstoneSeriesSketch.Size
-
 	// Write trailer.
 	nn, err = t.WriteTo(bw)
 	n += nn
@@ -1032,47 +1004,6 @@ func newLogFileCompactInfo() *logFileCompactInfo {
 type logFileMeasurementCompactInfo struct {
 	offset int64
 	size   int64
-}
-
-// MeasurementsSketches returns sketches for existing and tombstoned measurement names.
-func (f *LogFile) MeasurementsSketches() (sketch, tSketch estimator.Sketch, err error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	return f.measurementsSketches()
-}
-
-func (f *LogFile) measurementsSketches() (sketch, tSketch estimator.Sketch, err error) {
-	sketch, tSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	for _, mm := range f.mms {
-		if mm.deleted {
-			tSketch.Add(mm.name)
-		} else {
-			sketch.Add(mm.name)
-		}
-	}
-	return sketch, tSketch, nil
-}
-
-// SeriesSketches returns sketches for existing and tombstoned series.
-func (f *LogFile) SeriesSketches() (sketch, tSketch estimator.Sketch, err error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	return f.seriesSketches()
-}
-
-func (f *LogFile) seriesSketches() (sketch, tSketch estimator.Sketch, err error) {
-	sketch = hll.NewDefaultPlus()
-	f.seriesIDSet.ForEach(func(id tsdb.SeriesID) {
-		name, keys := f.sfile.Series(id)
-		sketch.Add(models.MakeKey(name, keys))
-	})
-
-	tSketch = hll.NewDefaultPlus()
-	f.tombstoneSeriesIDSet.ForEach(func(id tsdb.SeriesID) {
-		name, keys := f.sfile.Series(id)
-		sketch.Add(models.MakeKey(name, keys))
-	})
-	return sketch, tSketch, nil
 }
 
 // MeasurementCardinalityStats returns cardinality stats for this log file.

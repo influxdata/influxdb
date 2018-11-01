@@ -10,8 +10,6 @@ import (
 	"unsafe"
 
 	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/estimator"
-	"github.com/influxdata/platform/pkg/estimator/hll"
 	"github.com/influxdata/platform/pkg/mmap"
 	"github.com/influxdata/platform/tsdb"
 )
@@ -32,8 +30,10 @@ const (
 		8 + 8 + // measurement block offset + size
 		8 + 8 + // series id set offset + size
 		8 + 8 + // tombstone series id set offset + size
-		8 + 8 + // series sketch offset + size
-		8 + 8 + // tombstone series sketch offset + size
+		// legacy sketch info. we used to have HLL sketches, but they were
+		// removed. we keep the offset and length bytes in the trailer so
+		// that we don't have to do a migration, but they are unused.
+		8 + 8 + 8 + 8 +
 		0
 )
 
@@ -56,9 +56,6 @@ type IndexFile struct {
 	// Raw series set data.
 	seriesIDSetData          []byte
 	tombstoneSeriesIDSetData []byte
-
-	// Series sketch data.
-	sketchData, tSketchData []byte
 
 	// Sortable identifier & filepath to the log file.
 	level int
@@ -180,10 +177,6 @@ func (f *IndexFile) UnmarshalBinary(data []byte) error {
 	if err != nil {
 		return err
 	}
-
-	// Slice series sketch data.
-	f.sketchData = data[t.SeriesSketch.Offset : t.SeriesSketch.Offset+t.SeriesSketch.Size]
-	f.tSketchData = data[t.TombstoneSeriesSketch.Offset : t.TombstoneSeriesSketch.Offset+t.TombstoneSeriesSketch.Size]
 
 	// Slice series set data.
 	f.seriesIDSetData = data[t.SeriesIDSet.Offset : t.SeriesIDSet.Offset+t.SeriesIDSet.Size]
@@ -382,25 +375,6 @@ func (f *IndexFile) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterat
 	return f.mblk.SeriesIDIterator(name)
 }
 
-// MeasurementsSketches returns existence and tombstone sketches for measurements.
-func (f *IndexFile) MeasurementsSketches() (sketch, tSketch estimator.Sketch, err error) {
-	return f.mblk.Sketches()
-}
-
-// SeriesSketches returns existence and tombstone sketches for series.
-func (f *IndexFile) SeriesSketches() (sketch, tSketch estimator.Sketch, err error) {
-	sketch = hll.NewDefaultPlus()
-	if err := sketch.UnmarshalBinary(f.sketchData); err != nil {
-		return nil, nil, err
-	}
-
-	tSketch = hll.NewDefaultPlus()
-	if err := tSketch.UnmarshalBinary(f.tSketchData); err != nil {
-		return nil, nil, err
-	}
-	return sketch, tSketch, nil
-}
-
 // ReadIndexFileTrailer returns the index file trailer from data.
 func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
 	var t IndexFileTrailer
@@ -426,13 +400,8 @@ func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
 	t.TombstoneSeriesIDSet.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.TombstoneSeriesIDSet.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
-	// Read series sketch set info.
-	t.SeriesSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.SeriesSketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-
-	// Read series tombstone sketch info.
-	t.TombstoneSeriesSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.TombstoneSeriesSketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	// Skip over any legacy sketch data.
+	buf = buf[8*4:]
 
 	if len(buf) != 2 { // Version field still in buffer.
 		return t, fmt.Errorf("unread %d bytes left unread in trailer", len(buf)-2)
@@ -455,16 +424,6 @@ type IndexFileTrailer struct {
 	}
 
 	TombstoneSeriesIDSet struct {
-		Offset int64
-		Size   int64
-	}
-
-	SeriesSketch struct {
-		Offset int64
-		Size   int64
-	}
-
-	TombstoneSeriesSketch struct {
 		Offset int64
 		Size   int64
 	}
@@ -493,18 +452,11 @@ func (t *IndexFileTrailer) WriteTo(w io.Writer) (n int64, err error) {
 		return n, err
 	}
 
-	// Write series sketch info.
-	if err := writeUint64To(w, uint64(t.SeriesSketch.Offset), &n); err != nil {
-		return n, err
-	} else if err := writeUint64To(w, uint64(t.SeriesSketch.Size), &n); err != nil {
-		return n, err
-	}
-
-	// Write series tombstone sketch info.
-	if err := writeUint64To(w, uint64(t.TombstoneSeriesSketch.Offset), &n); err != nil {
-		return n, err
-	} else if err := writeUint64To(w, uint64(t.TombstoneSeriesSketch.Size), &n); err != nil {
-		return n, err
+	// Write legacy sketch info.
+	for i := 0; i < 4; i++ {
+		if err := writeUint64To(w, 0, &n); err != nil {
+			return n, err
+		}
 	}
 
 	// Write index file encoding version.
