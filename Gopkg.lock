@@ -1021,7 +1021,6 @@
     "github.com/influxdata/flux/options",
     "github.com/influxdata/flux/plan",
     "github.com/influxdata/flux/repl",
-    "github.com/influxdata/flux/internal/pkg/syncutil",
     "github.com/influxdata/flux/values",
     "github.com/influxdata/influxql",
     "github.com/influxdata/platform/models",
