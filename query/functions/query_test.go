@@ -22,6 +22,8 @@ import (
 	"github.com/andreyvit/diff"
 )
 
+const generatedInfluxQLDataDir = "random"
+
 var dbrpMappingSvc = mock.NewDBRPMappingService()
 
 func init() {
@@ -76,6 +78,26 @@ func withEachFluxFile(t testing.TB, fn func(prefix, caseName string)) {
 	}
 }
 
+func withEachInfluxQLFile(t testing.TB, fn func(prefix, caseName string)) {
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, generatedInfluxQLDataDir)
+
+	influxqlFiles, err := filepath.Glob(filepath.Join(path, "*.influxql"))
+	if err != nil {
+		t.Fatalf("error searching for influxQL files: %s", err)
+	}
+
+	for _, influxqlFile := range influxqlFiles {
+		ext := filepath.Ext(influxqlFile)
+		prefix := influxqlFile[0 : len(influxqlFile)-len(ext)]
+		_, caseName := filepath.Split(prefix)
+		fn(prefix, caseName)
+	}
+}
+
 func Test_QueryEndToEnd(t *testing.T) {
 	withEachFluxFile(t, func(prefix, caseName string) {
 		reason, skip := skipTests[caseName]
@@ -93,6 +115,15 @@ func Test_QueryEndToEnd(t *testing.T) {
 				t.Skip(reason)
 			}
 			testInfluxQL(t, querier, prefix, ".influxql")
+		})
+	})
+}
+
+func Test_GeneratedInfluxQLQueries(t *testing.T) {
+	withEachInfluxQLFile(t, func(prefix, caseName string) {
+		influxqlName := caseName + ".influxql"
+		t.Run(influxqlName, func(t *testing.T) {
+			testGeneratedInfluxQL(t, querier, prefix, ".influxql")
 		})
 	})
 }
@@ -196,6 +227,37 @@ func testInfluxQL(t testing.TB, querier *querytest.Querier, prefix, queryExt str
 			t.Fatal(err)
 		}
 		t.Skip("influxql expected json is missing")
+	}
+	QueryTestCheckSpec(t, querier, req, string(jsonOut))
+}
+
+func testGeneratedInfluxQL(t testing.TB, querier *querytest.Querier, prefix, queryExt string) {
+	q, err := ioutil.ReadFile(prefix + queryExt)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		t.Skip("influxql query is missing")
+	}
+
+	jsonInFileName := prefix + ".in.json"
+	jsonOut, err := ioutil.ReadFile(prefix + ".out.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	compiler := influxql.NewCompiler(dbrpMappingSvc)
+	compiler.Cluster = "cluster"
+	compiler.DB = "db0"
+	compiler.Query = string(q)
+	req := &query.ProxyRequest{
+		Request: query.Request{
+			Compiler: querytest.FromInfluxJSONCompiler{
+				Compiler:  compiler,
+				InputFile: jsonInFileName,
+			},
+		},
+		Dialect: new(influxql.Dialect),
 	}
 	QueryTestCheckSpec(t, querier, req, string(jsonOut))
 }

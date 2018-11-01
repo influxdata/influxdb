@@ -131,7 +131,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (i
 						}
 					case flux.TTime:
 						for i, v := range cr.Times(idx) {
-							values[i][j] = v.Time().Format(time.RFC3339)
+							values[i][j] = v.Time().Format(time.RFC3339Nano)
 						}
 					default:
 						return fmt.Errorf("unsupported column type: %s", c.Type)

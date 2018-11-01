@@ -37,7 +37,7 @@ require (
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/influxdata/flux v0.7.0
+	github.com/influxdata/flux v0.0.0-20181101181147-ad320b7fd3f6
 	github.com/influxdata/influxdb v0.0.0-20181017211453-9520b8d95606
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
