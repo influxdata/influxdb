@@ -55,6 +55,7 @@ v1.6.0 [2018-07-05]
 -	[#10215](https://github.com/influxdata/influxdb/pull/10215): Switch digests to use snappy compression.
 -	[#10321](https://github.com/influxdata/influxdb/pull/10321): Changes /ping route to return status code 200 instead of 204 when verbose is set.
 -	[#10300](https://github.com/influxdata/influxdb/pull/10300): Improve Compaction Performance.
+-	[#10278](https://github.com/influxdata/influxdb/pull/10278): Remove TSI1 HLL sketches from heap.
 
 ### Bugfixes
 
@@ -95,6 +96,9 @@ v1.6.0 [2018-07-05]
 -	[#10299](https://github.com/influxdata/influxdb/pull/10299): Fix TSM1 panic on reader error.
 -	[#9884](https://github.com/influxdata/influxdb/pull/9884): Add -series-file flag to dumptsi command help.
 -	[#10423](https://github.com/influxdata/influxdb/pull/10423): Fix panic in IndexSet.
+-	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation.
+-	[#10246](https://github.com/influxdata/influxdb/pull/10246): Fix the inherited interval for derivative and others.
+-	[#10310](https://github.com/influxdata/influxdb/pull/10310): Fix TSI1 Sketch Locking.
 
 v1.5.4 [2018-06-21]
 -------------------

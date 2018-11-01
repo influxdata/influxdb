@@ -422,7 +422,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "7f42a18e060658c61eb131b03cae427ef26856f8"
+  revision = "ad320b7fd3f6f3c83f5d034be952673a2e419b09"
 
 [[projects]]
   branch = "master"
@@ -433,7 +433,7 @@
     "internal",
   ]
   pruneopts = "UT"
-  revision = "c661ab7db8ad858626cc7a2114e786f4e7463564"
+  revision = "1cbfca8e56b6eaa120f5b5161e4f0d5edcc9e513"
 
 [[projects]]
   branch = "master"
