@@ -122,9 +122,9 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 		t.Fatalf("expected 1 runs queued, but got %d", len(x))
 	}
 
-	rps := e.RunningFor(task.ID)
-	if n := len(rps); n != 2 {
-		t.Fatalf("expected 2 run in progress: got %d", n)
+	rps, err := e.PollForNumberRunning(task.ID, 2)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	for _, rp := range rps {
@@ -138,8 +138,8 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 		t.Fatalf("expected 1 runs queued, but got %d", len(x))
 	}
 
-	if rps := e.RunningFor(task.ID); len(rps) != 0 {
-		t.Fatalf("expected 0 running: got %d", len(rps))
+	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
+		t.Fatal(err)
 	}
 }
 
