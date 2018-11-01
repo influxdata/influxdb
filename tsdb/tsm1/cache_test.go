@@ -138,9 +138,9 @@ func TestCache_WriteMulti_Stats(t *testing.T) {
 	}
 
 	// Write stats updated
-	if got, exp := c.stats.WriteDropped, int64(1); got != exp {
+	if got, exp := atomic.LoadUint64(&c.cacheTracker.writesDropped), uint64(1); got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
-	} else if got, exp := c.stats.WriteErr, int64(1); got != exp {
+	} else if got, exp := atomic.LoadUint64(&c.cacheTracker.writesErr), uint64(1); got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 }
@@ -190,11 +190,11 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 	c.DeleteRange([][]byte{[]byte("bar")}, 2, math.MaxInt64)
 
 	if exp, keys := [][]byte{[]byte("bar"), []byte("foo")}, c.Keys(); !reflect.DeepEqual(keys, exp) {
-		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+		t.Fatalf("cache keys incorrect after delete, exp %v, got %v", exp, keys)
 	}
 
 	if got, exp := c.Size(), valuesSize+uint64(v0.Size())+6; exp != got {
-		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
+		t.Fatalf("cache size incorrect after delete, exp %d, got %d", exp, got)
 	}
 
 	if got, exp := len(c.Values([]byte("bar"))), 1; got != exp {
@@ -479,7 +479,7 @@ func TestCache_Snapshot_Stats(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, exp := c.stats.MemSizeBytes, int64(16)+3; got != exp {
+	if got, exp := atomic.LoadUint64(&c.cacheTracker.memSizeBytes), uint64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
@@ -494,11 +494,11 @@ func TestCache_Snapshot_Stats(t *testing.T) {
 	}
 
 	// Cached bytes should have been increased.
-	if got, exp := c.stats.CachedBytes, int64(16)+3; got != exp {
+	if got, exp := atomic.LoadUint64(&c.cacheTracker.snapshottedBytes), uint64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
-	if got, exp := c.stats.MemSizeBytes, int64(16)+3; got != exp {
+	if got, exp := atomic.LoadUint64(&c.cacheTracker.memSizeBytes), uint64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 }

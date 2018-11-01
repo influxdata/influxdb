@@ -501,6 +501,7 @@ func (e *Engine) Open() error {
 	// Propagate prometheus metrics down into trackers.
 	e.compactionTracker = newCompactionTracker(e.blockMetrics.compactionMetrics)
 	e.FileStore.fileTracker = newFileTracker(e.blockMetrics.fileMetrics)
+	e.Cache.cacheTracker = newCacheTracker(e.blockMetrics.cacheMetrics)
 
 	e.scheduler.setCompactionTracker(e.compactionTracker)
 
@@ -554,7 +555,6 @@ func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
 	metrics = append(metrics, e.blockMetrics.PrometheusCollectors()...)
 
-	// TODO(edd): Add Cache metrics
 	// TODO(edd): Add WAL metrics
 	return metrics
 }
@@ -1161,7 +1161,6 @@ func (e *Engine) WriteSnapshot() error {
 	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "tsm1_cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
-		e.Cache.UpdateCompactTime(elapsed)
 		log.Info("Snapshot for path written",
 			zap.String("path", e.path),
 			zap.Duration("duration", elapsed))

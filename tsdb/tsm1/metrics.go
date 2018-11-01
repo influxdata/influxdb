@@ -10,14 +10,16 @@ import (
 // namespace is the leading part of all published metrics for the Storage service.
 const namespace = "storage"
 
-const compactionSubsystem = "compactions" // sub-system associated with metrics for compactions
-const fileStoreSubsystem = "tsm_files"    // sub-system associated with metrics for compactions
+const compactionSubsystem = "compactions" // sub-system associated with metrics for compactions.
+const fileStoreSubsystem = "tsm_files"    // sub-system associated with metrics for TSM files.
+const cacheSubsystem = "cache"            // sub-system associated with metrics for the cache.
 
 // blockMetrics are a set of metrics concerned with tracking data about block storage.
 type blockMetrics struct {
 	labels prometheus.Labels
 	*compactionMetrics
 	*fileMetrics
+	*cacheMetrics
 }
 
 // newBlockMetrics initialises the prometheus metrics for the block subsystem.
@@ -26,6 +28,7 @@ func newBlockMetrics(labels prometheus.Labels) *blockMetrics {
 		labels:            labels,
 		compactionMetrics: newCompactionMetrics(labels),
 		fileMetrics:       newFileMetrics(labels),
+		cacheMetrics:      newCacheMetrics(labels),
 	}
 }
 
@@ -34,16 +37,20 @@ func (m *blockMetrics) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
 	metrics = append(metrics, m.compactionMetrics.PrometheusCollectors()...)
 	metrics = append(metrics, m.fileMetrics.PrometheusCollectors()...)
+	metrics = append(metrics, m.cacheMetrics.PrometheusCollectors()...)
 	return metrics
 }
 
 // compactionMetrics are a set of metrics concerned with tracking data about compactions.
 type compactionMetrics struct {
-	labels             prometheus.Labels // Read Only
-	Compactions        *prometheus.CounterVec
+	labels prometheus.Labels // Read Only
+
 	CompactionsActive  *prometheus.GaugeVec
 	CompactionDuration *prometheus.HistogramVec
 	CompactionQueue    *prometheus.GaugeVec
+
+	// The following metrics include a ``"status" = {ok, error, dropped}` label
+	Compactions *prometheus.CounterVec
 }
 
 // newCompactionMetrics initialises the prometheus metrics for compactions.
@@ -153,5 +160,100 @@ func (m *fileMetrics) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		m.DiskSize,
 		m.Files,
+	}
+}
+
+// cacheMetrics are a set of metrics concerned with tracking data about the TSM Cache.
+type cacheMetrics struct {
+	labels prometheus.Labels // Read Only
+
+	MemSize          *prometheus.GaugeVec
+	DiskSize         *prometheus.GaugeVec
+	SnapshotsActive  *prometheus.GaugeVec
+	Age              *prometheus.GaugeVec
+	SnapshottedBytes *prometheus.CounterVec
+
+	// The following metrics include a ``"status" = {ok, error, dropped}` label
+	WrittenBytes *prometheus.CounterVec
+	Writes       *prometheus.CounterVec
+}
+
+// newCacheMetrics initialises the prometheus metrics for compactions.
+func newCacheMetrics(labels prometheus.Labels) *cacheMetrics {
+	var names []string
+	for k := range labels {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+
+	writeNames := append(names, "status")
+	sort.Strings(writeNames)
+
+	return &cacheMetrics{
+		labels: labels,
+		MemSize: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: cacheSubsystem,
+			Name:      "inuse_bytes",
+			Help:      "In-memory size of cache.",
+		}, names),
+		DiskSize: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: cacheSubsystem,
+			Name:      "disk_bytes",
+			Help:      "Number of bytes on disk used by snapshot data.",
+		}, names),
+		SnapshotsActive: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: cacheSubsystem,
+			Name:      "snapshots_active",
+			Help:      "Number of active concurrent snapshots (>1 when splitting the cache).",
+		}, names),
+		Age: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: cacheSubsystem,
+			Name:      "age",
+			Help:      "Age of the current cache (time since last snapshot or initialisation).",
+		}, names),
+		SnapshottedBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: cacheSubsystem,
+			Name:      "snapshot_bytes",
+			Help:      "Number of bytes snapshotted.",
+		}, names),
+		WrittenBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: cacheSubsystem,
+			Name:      "written_bytes",
+			Help:      "Number of bytes successfully written to the Cache.",
+		}, writeNames),
+		Writes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: cacheSubsystem,
+			Name:      "writes",
+			Help:      "Number of writes to the Cache.",
+		}, writeNames),
+	}
+}
+
+// Labels returns a copy of labels for use with cache metrics.
+func (m *cacheMetrics) Labels() prometheus.Labels {
+	l := make(map[string]string, len(m.labels))
+	for k, v := range m.labels {
+		l[k] = v
+	}
+	return l
+}
+
+// PrometheusCollectors satisfies the prom.PrometheusCollector interface.
+func (m *cacheMetrics) PrometheusCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		m.MemSize,
+		m.DiskSize,
+		m.SnapshotsActive,
+		m.Age,
+		m.SnapshottedBytes,
+		m.WrittenBytes,
+		m.Writes,
 	}
 }

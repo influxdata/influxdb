@@ -13,8 +13,9 @@ type scheduler struct {
 
 func newScheduler(maxConcurrency int) *scheduler {
 	return &scheduler{
-		maxConcurrency: maxConcurrency,
-		weights:        defaultWeights,
+		maxConcurrency:    maxConcurrency,
+		weights:           defaultWeights,
+		compactionTracker: newCompactionTracker(newCompactionMetrics(nil)),
 	}
 }
 
