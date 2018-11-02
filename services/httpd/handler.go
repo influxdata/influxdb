@@ -1710,7 +1710,6 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 // Store describes the behaviour of the storage packages Store type.
 type Store interface {
 	Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error)
-	WithLogger(log *zap.Logger)
 }
 
 // Response represents a list of statement results.

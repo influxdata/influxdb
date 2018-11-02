@@ -33,6 +33,7 @@ import (
 	"github.com/influxdata/influxdb/services/udp"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/platform/storage/reads"
 	client "github.com/influxdata/usage-client/v1"
 	"go.uber.org/zap"
 
@@ -289,7 +290,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.BuildType = "OSS"
 	ss := storage.NewStore(s.TSDBStore, s.MetaClient)
 	srv.Handler.Store = ss
-	srv.Handler.Controller = control.NewController(ss, s.Logger)
+	srv.Handler.Controller = control.NewController(s.MetaClient, reads.NewReader(ss), s.Logger)
 
 	s.Services = append(s.Services, srv)
 }

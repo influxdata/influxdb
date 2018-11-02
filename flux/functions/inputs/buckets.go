@@ -2,12 +2,13 @@ package inputs
 
 import (
 	"fmt"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/services/storage"
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/pkg/errors"
 )
 
@@ -63,8 +64,7 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 		Type:  flux.TInt,
 	})
 
-	for _, database := range bd.deps.TSDBStore.Databases() {
-		bucket := bd.deps.MetaClient.Database(database)
+	for _, bucket := range bd.deps.Databases() {
 		rp := bucket.RetentionPolicy(bucket.DefaultRetentionPolicy)
 		b.AppendString(0, bucket.Name)
 		b.AppendString(1, "")
@@ -93,7 +93,11 @@ func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a ex
 
 }
 
-type BucketDependencies *storage.Store
+type MetaClient interface {
+	Databases() []meta.DatabaseInfo
+}
+
+type BucketDependencies MetaClient
 
 func InjectBucketDependencies(depsMap execute.Dependencies, deps BucketDependencies) error {
 	if deps == nil {
