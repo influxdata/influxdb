@@ -110,6 +110,7 @@ func TestTo_Process(t *testing.T) {
 	bid, _ := (mockBucketLookup{}).Lookup(oid, "my-bucket")
 	type wanted struct {
 		result *mock.PointsWriter
+		tables []*executetest.Table
 	}
 	testCases := []struct {
 		name string
@@ -152,6 +153,23 @@ b _value=1.0 21
 a _value=3.0 31
 c _value=4.0 41`),
 				},
+				tables: []*executetest.Table{{
+					ColMeta: []flux.ColMeta{
+						{Label: "_start", Type: flux.TTime},
+						{Label: "_stop", Type: flux.TTime},
+						{Label: "_time", Type: flux.TTime},
+						{Label: "_measurement", Type: flux.TString},
+						{Label: "_field", Type: flux.TString},
+						{Label: "_value", Type: flux.TFloat},
+					},
+					Data: [][]interface{}{
+						{execute.Time(0), execute.Time(100), execute.Time(11), "a", "_value", 2.0},
+						{execute.Time(0), execute.Time(100), execute.Time(21), "a", "_value", 2.0},
+						{execute.Time(0), execute.Time(100), execute.Time(21), "b", "_value", 1.0},
+						{execute.Time(0), execute.Time(100), execute.Time(31), "a", "_value", 3.0},
+						{execute.Time(0), execute.Time(100), execute.Time(41), "c", "_value", 4.0},
+					},
+				}},
 			},
 		},
 		{
@@ -188,6 +206,22 @@ b,tag2=cc _value=1.0 21
 a,tag2=dd _value=3.0 31
 c,tag2=ee _value=4.0 41`),
 				},
+				tables: []*executetest.Table{{
+					ColMeta: []flux.ColMeta{
+						{Label: "_time", Type: flux.TTime},
+						{Label: "tag1", Type: flux.TString},
+						{Label: "tag2", Type: flux.TString},
+						{Label: "_field", Type: flux.TString},
+						{Label: "_value", Type: flux.TFloat},
+					},
+					Data: [][]interface{}{
+						{execute.Time(11), "a", "aa", "_value", 2.0},
+						{execute.Time(21), "a", "bb", "_value", 2.0},
+						{execute.Time(21), "b", "cc", "_value", 1.0},
+						{execute.Time(31), "a", "dd", "_value", 3.0},
+						{execute.Time(41), "c", "ee", "_value", 4.0},
+					},
+				}},
 			},
 		},
 		{
@@ -226,6 +260,23 @@ m,tag1=b,tag2=cc _value=1.0 21
 m,tag1=a,tag2=dd _value=3.0 31
 m,tag1=c,tag2=ee _value=4.0 41`),
 				},
+				tables: []*executetest.Table{{
+					ColMeta: []flux.ColMeta{
+						{Label: "_time", Type: flux.TTime},
+						{Label: "_measurement", Type: flux.TString},
+						{Label: "_field", Type: flux.TString},
+						{Label: "_value", Type: flux.TFloat},
+						{Label: "tag1", Type: flux.TString},
+						{Label: "tag2", Type: flux.TString},
+					},
+					Data: [][]interface{}{
+						{execute.Time(11), "m", "_value", 2.0, "a", "aa"},
+						{execute.Time(21), "m", "_value", 2.0, "a", "bb"},
+						{execute.Time(21), "m", "_value", 1.0, "b", "cc"},
+						{execute.Time(31), "m", "_value", 3.0, "a", "dd"},
+						{execute.Time(41), "m", "_value", 4.0, "c", "ee"},
+					},
+				}},
 			},
 		},
 		{
@@ -282,6 +333,20 @@ b temperature=1.0 21
 a temperature=3.0 31
 c temperature=4.0 41`),
 				},
+				tables: []*executetest.Table{{
+					ColMeta: []flux.ColMeta{
+						{Label: "_time", Type: flux.TTime},
+						{Label: "_measurement", Type: flux.TString},
+						{Label: "temperature", Type: flux.TFloat},
+					},
+					Data: [][]interface{}{
+						{execute.Time(11), "a", 2.0},
+						{execute.Time(21), "a", 2.0},
+						{execute.Time(21), "b", 1.0},
+						{execute.Time(31), "a", 3.0},
+						{execute.Time(41), "c", 4.0},
+					},
+				}},
 			},
 		},
 		{
@@ -368,6 +433,22 @@ b day="Wednesday",humidity=4.0,ratio=0.25,temperature=1.0 21
 a day="Thursday",humidity=3.0,ratio=1.0,temperature=3.0 31
 c day="Friday",humidity=5.0,ratio=0.8,temperature=4.0 41`),
 				},
+				tables: []*executetest.Table{{
+					ColMeta: []flux.ColMeta{
+						{Label: "_time", Type: flux.TTime},
+						{Label: "day", Type: flux.TString},
+						{Label: "tag", Type: flux.TString},
+						{Label: "temperature", Type: flux.TFloat},
+						{Label: "humidity", Type: flux.TFloat},
+					},
+					Data: [][]interface{}{
+						{execute.Time(11), "Monday", "a", 2.0, 1.0},
+						{execute.Time(21), "Tuesday", "a", 2.0, 2.0},
+						{execute.Time(21), "Wednesday", "b", 1.0, 4.0},
+						{execute.Time(31), "Thursday", "a", 3.0, 3.0},
+						{execute.Time(41), "Friday", "c", 4.0, 5.0},
+					},
+				}},
 			},
 		},
 		{
@@ -438,6 +519,26 @@ b,tag2=d humidity=50i,temperature=1.0 21
 a,tag2=e humidity=60i,temperature=3.0 31
 c,tag2=e humidity=65i,temperature=4.0 41`),
 				},
+				tables: []*executetest.Table{{
+					ColMeta: []flux.ColMeta{
+						{Label: "_start", Type: flux.TTime},
+						{Label: "_stop", Type: flux.TTime},
+						{Label: "_time", Type: flux.TTime},
+						{Label: "tag1", Type: flux.TString},
+						{Label: "tag2", Type: flux.TString},
+						{Label: "other-string-column", Type: flux.TString},
+						{Label: "temperature", Type: flux.TFloat},
+						{Label: "humidity", Type: flux.TInt},
+						{Label: "other-value-column", Type: flux.TFloat},
+					},
+					Data: [][]interface{}{
+						{execute.Time(0), execute.Time(100), execute.Time(11), "a", "d", "misc", 2.0, int64(50), 1.0},
+						{execute.Time(0), execute.Time(100), execute.Time(21), "a", "d", "misc", 2.0, int64(50), 1.0},
+						{execute.Time(0), execute.Time(100), execute.Time(21), "b", "d", "misc", 1.0, int64(50), 1.0},
+						{execute.Time(0), execute.Time(100), execute.Time(31), "a", "e", "misc", 3.0, int64(60), 1.0},
+						{execute.Time(0), execute.Time(100), execute.Time(41), "c", "e", "misc", 4.0, int64(65), 1.0},
+					},
+				}},
 			},
 		},
 	}
@@ -449,7 +550,7 @@ c,tag2=e humidity=65i,temperature=4.0 41`),
 			executetest.ProcessTestHelper(
 				t,
 				tc.data,
-				nil,
+				tc.want.tables,
 				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					newT, _ := outputs.NewToTransformation(d, c, tc.spec, deps)

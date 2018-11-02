@@ -66,7 +66,7 @@ func init() {
 		[]string{},
 	)
 
-	flux.RegisterFunction(ToKind, createToOpSpec, toSignature)
+	flux.RegisterFunctionWithSideEffect(ToKind, createToOpSpec, toSignature)
 	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
 	execute.RegisterTransformation(ToKind, createToTransformation)
@@ -398,6 +398,33 @@ func (d ToDependencies) Validate() error {
 	return nil
 }
 
+type Stats struct {
+	NRows    int
+	Latest   time.Time
+	Earliest time.Time
+	NFields  int
+	NTags    int
+}
+
+func (s Stats) Update(o Stats) {
+	s.NRows += o.NRows
+	if s.Latest.IsZero() || o.Latest.Unix() > s.Latest.Unix() {
+		s.Latest = o.Latest
+	}
+
+	if s.Earliest.IsZero() || o.Earliest.Unix() < s.Earliest.Unix() {
+		s.Earliest = o.Earliest
+	}
+
+	if o.NFields > s.NFields {
+		s.NFields = o.NFields
+	}
+
+	if o.NTags > s.NTags {
+		s.NTags = o.NTags
+	}
+}
+
 func writeTable(t *ToTransformation, tbl flux.Table) error {
 	var bucketID, orgID *platform.ID
 	var err error
@@ -454,6 +481,14 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 
 	}
 
+	builder, new := t.cache.TableBuilder(tbl.Key())
+	if new {
+		if err := execute.AddTableCols(tbl, builder); err != nil {
+			return err
+		}
+	}
+
+	measurementStats := make(map[string]Stats)
 	measurementName := ""
 	return tbl.Do(func(er flux.ColReader) error {
 		var pointTime time.Time
@@ -513,11 +548,28 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 				}
 			})
 
+			mstats := Stats{
+				NRows:    1,
+				Latest:   pointTime,
+				Earliest: pointTime,
+				NFields:  len(fields),
+				NTags:    len(tags),
+			}
+			_, ok := measurementStats[measurementName]
+			if !ok {
+				measurementStats[measurementName] = mstats
+			} else {
+				measurementStats[measurementName].Update(mstats)
+			}
+
 			pt, err := models.NewPoint(measurementName, tags, fields, pointTime)
 			if err != nil {
 				return err
 			}
 			points = append(points, pt)
+			if err := execute.AppendRecord(i, er, builder); err != nil {
+				return err
+			}
 		}
 		points, err = tsdb.ExplodePoints(*orgID, *bucketID, points)
 		return d.PointsWriter.WritePoints(points)
