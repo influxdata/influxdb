@@ -39,24 +39,28 @@ type APIBackend struct {
 	NewBucketService func(*platform.Source) (platform.BucketService, error)
 	NewQueryService  func(*platform.Source) (query.ProxyQueryService, error)
 
-	PointsWriter               storage.PointsWriter
-	AuthorizationService       platform.AuthorizationService
-	BucketService              platform.BucketService
-	SessionService             platform.SessionService
-	UserService                platform.UserService
-	OrganizationService        platform.OrganizationService
-	UserResourceMappingService platform.UserResourceMappingService
-	DashboardService           platform.DashboardService
-	ViewService                platform.ViewService
-	SourceService              platform.SourceService
-	MacroService               platform.MacroService
-	BasicAuthService           platform.BasicAuthService
-	OnboardingService          platform.OnboardingService
-	ProxyQueryService          query.ProxyQueryService
-	TaskService                platform.TaskService
-	TelegrafService            platform.TelegrafConfigStore
-	ScraperTargetStoreService  platform.ScraperTargetStoreService
-	ChronografService          *server.Service
+	PointsWriter                    storage.PointsWriter
+	AuthorizationService            platform.AuthorizationService
+	BucketService                   platform.BucketService
+	SessionService                  platform.SessionService
+	UserService                     platform.UserService
+	OrganizationService             platform.OrganizationService
+	UserResourceMappingService      platform.UserResourceMappingService
+	DashboardService                platform.DashboardService
+	DashboardOperationLogService    platform.DashboardOperationLogService
+	BucketOperationLogService       platform.BucketOperationLogService
+	UserOperationLogService         platform.UserOperationLogService
+	OrganizationOperationLogService platform.OrganizationOperationLogService
+	ViewService                     platform.ViewService
+	SourceService                   platform.SourceService
+	MacroService                    platform.MacroService
+	BasicAuthService                platform.BasicAuthService
+	OnboardingService               platform.OnboardingService
+	ProxyQueryService               query.ProxyQueryService
+	TaskService                     platform.TaskService
+	TelegrafService                 platform.TelegrafConfigStore
+	ScraperTargetStoreService       platform.ScraperTargetStoreService
+	ChronografService               *server.Service
 }
 
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
@@ -69,17 +73,21 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService)
 	h.BucketHandler.BucketService = b.BucketService
+	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
 
 	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService)
 	h.OrgHandler.OrganizationService = b.OrganizationService
 	h.OrgHandler.BucketService = b.BucketService
+	h.OrgHandler.OrganizationOperationLogService = b.OrganizationOperationLogService
 
 	h.UserHandler = NewUserHandler()
 	h.UserHandler.UserService = b.UserService
 	h.UserHandler.BasicAuthService = b.BasicAuthService
+	h.UserHandler.UserOperationLogService = b.UserOperationLogService
 
 	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService)
 	h.DashboardHandler.DashboardService = b.DashboardService
+	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
 
 	h.ViewHandler = NewViewHandler(b.UserResourceMappingService)
 	h.ViewHandler.ViewService = b.ViewService

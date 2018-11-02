@@ -5,16 +5,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
+	platformcontext "github.com/influxdata/platform/context"
 )
 
 var (
 	dashboardBucket = []byte("dashboardsv2")
 )
 
+// TODO(desa): what do we want these to be?
+const (
+	dashboardCreatedEvent = "Dashboard Created"
+	dashboardUpdatedEvent = "Dashboard Updated"
+
+	dashboardCellsReplacedEvent = "Dashboard Cells Replaced"
+	dashboardCellAddedEvent     = "Dashboard Cell Added"
+	dashboardCellRemovedEvent   = "Dashboard Cell Removed"
+	dashboardCellUpdatedEvent   = "Dashboard Cell Updated"
+)
+
 var _ platform.DashboardService = (*Client)(nil)
+var _ platform.DashboardOperationLogService = (*Client)(nil)
 
 func (c *Client) initializeDashboards(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(dashboardBucket)); err != nil {
@@ -167,6 +181,11 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 			}
 		}
 
+		if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardCreatedEvent); err != nil {
+			return err
+		}
+
+		// TODO(desa): don't populate this here. use the first/last methods of the oplog to get meta fields.
 		d.Meta.CreatedAt = c.time()
 
 		return c.putDashboardWithMeta(ctx, tx, d)
@@ -205,7 +224,7 @@ func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *p
 	return nil
 }
 
-// ReplaceDashboardCells creates a platform dashboard and sets d.ID.
+// ReplaceDashboardCells updates the positions of each cell in a dashboard concurrently.
 func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs []*platform.Cell) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		d, err := c.findDashboardByID(ctx, tx, id)
@@ -234,6 +253,9 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 		}
 
 		d.Cells = cs
+		if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardCellsReplacedEvent); err != nil {
+			return err
+		}
 
 		return c.putDashboardWithMeta(ctx, tx, d)
 	})
@@ -252,6 +274,10 @@ func (c *Client) AddDashboardCell(ctx context.Context, id platform.ID, cell *pla
 		}
 
 		d.Cells = append(d.Cells, cell)
+
+		if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardCellAddedEvent); err != nil {
+			return err
+		}
 
 		return c.putDashboardWithMeta(ctx, tx, d)
 	})
@@ -281,6 +307,10 @@ func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID, cellID pl
 		}
 
 		d.Cells = append(d.Cells[:idx], d.Cells[idx+1:]...)
+
+		if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardCellRemovedEvent); err != nil {
+			return err
+		}
 
 		return c.putDashboardWithMeta(ctx, tx, d)
 	})
@@ -316,6 +346,10 @@ func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID pl
 
 		cell = d.Cells[idx]
 
+		if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardCellUpdatedEvent); err != nil {
+			return err
+		}
+
 		return c.putDashboardWithMeta(ctx, tx, d)
 	})
 
@@ -349,6 +383,7 @@ func (c *Client) putDashboard(ctx context.Context, tx *bolt.Tx, d *platform.Dash
 }
 
 func (c *Client) putDashboardWithMeta(ctx context.Context, tx *bolt.Tx, d *platform.Dashboard) error {
+	// TODO(desa): don't populate this here. use the first/last methods of the oplog to get meta fields.
 	d.Meta.UpdatedAt = c.time()
 	return c.putDashboard(ctx, tx, d)
 }
@@ -382,6 +417,7 @@ func (c *Client) UpdateDashboard(ctx context.Context, id platform.ID, upd platfo
 			return err
 		}
 		d = dash
+
 		return nil
 	})
 
@@ -395,6 +431,10 @@ func (c *Client) updateDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 	}
 
 	if err := upd.Apply(d); err != nil {
+		return nil, err
+	}
+
+	if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardUpdatedEvent); err != nil {
 		return nil, err
 	}
 
@@ -429,8 +469,76 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 	if err := tx.Bucket(dashboardBucket).Delete(encodedID); err != nil {
 		return err
 	}
+	// TODO(desa): add DeleteKeyValueLog method and use it here.
 	return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
 		ResourceID:   id,
 		ResourceType: platform.DashboardResourceType,
 	})
+}
+
+const dashboardOperationLogKeyPrefix = "dashboard"
+
+func encodeDashboardOperationLogKey(id platform.ID) ([]byte, error) {
+	buf, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(dashboardOperationLogKeyPrefix), buf...), nil
+}
+
+// GetDashboardOperationLog retrieves a dashboards operation log.
+func (c *Client) GetDashboardOperationLog(ctx context.Context, id platform.ID, opts platform.FindOptions) ([]*platform.OperationLogEntry, int, error) {
+	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
+	log := []*platform.OperationLogEntry{}
+
+	err := c.db.View(func(tx *bolt.Tx) error {
+		key, err := encodeDashboardOperationLogKey(id)
+		if err != nil {
+			return err
+		}
+
+		return c.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
+			e := &platform.OperationLogEntry{}
+			if err := json.Unmarshal(v, e); err != nil {
+				return err
+			}
+			e.Time = t
+
+			log = append(log, e)
+
+			return nil
+		})
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return log, len(log), nil
+}
+
+func (c *Client) appendDashboardEventToLog(ctx context.Context, tx *bolt.Tx, id platform.ID, s string) error {
+	e := &platform.OperationLogEntry{
+		Description: s,
+	}
+	// TODO(desa): this is fragile and non explicit since it requires an authorizer to be on context. It should be
+	//             replaced with a higher level transaction so that adding to the log can take place in the http handler
+	//             where the userID will exist explicitly.
+	a, err := platformcontext.GetAuthorizer(ctx)
+	if err == nil {
+		// Add the user to the log if you can, but don't error if its not there.
+		e.UserID = a.GetUserID()
+	}
+
+	v, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+
+	k, err := encodeDashboardOperationLogKey(id)
+	if err != nil {
+		return err
+	}
+
+	return c.addLogEntry(ctx, tx, k, v, c.time())
 }

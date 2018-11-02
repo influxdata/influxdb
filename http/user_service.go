@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strconv"
 
 	"github.com/influxdata/platform"
 	platcontext "github.com/influxdata/platform/context"
@@ -17,8 +18,9 @@ import (
 // UserHandler represents an HTTP API handler for users.
 type UserHandler struct {
 	*httprouter.Router
-	UserService      platform.UserService
-	BasicAuthService platform.BasicAuthService
+	UserService             platform.UserService
+	UserOperationLogService platform.UserOperationLogService
+	BasicAuthService        platform.BasicAuthService
 }
 
 // NewUserHandler returns a new instance of UserHandler.
@@ -30,6 +32,7 @@ func NewUserHandler() *UserHandler {
 	h.HandlerFunc("POST", "/api/v2/users", h.handlePostUser)
 	h.HandlerFunc("GET", "/api/v2/users", h.handleGetUsers)
 	h.HandlerFunc("GET", "/api/v2/users/:id", h.handleGetUser)
+	h.HandlerFunc("GET", "/api/v2/users/:id/log", h.handleGetUserLog)
 	h.HandlerFunc("PATCH", "/api/v2/users/:id", h.handlePatchUser)
 	h.HandlerFunc("DELETE", "/api/v2/users/:id", h.handleDeleteUser)
 	h.HandlerFunc("PUT", "/api/v2/users/:id/password", h.handlePutUserPassword)
@@ -317,6 +320,7 @@ func newUserResponse(u *platform.User) *userResponse {
 	return &userResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
+			"log":  fmt.Sprintf("/api/v2/users/%s/log", u.ID),
 		},
 		User: *u,
 	}
@@ -636,4 +640,82 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 
 func userIDPath(id platform.ID) string {
 	return path.Join(userPath, id.String())
+}
+
+// hanldeGetUserLog retrieves a user log by the users ID.
+func (h *UserHandler) handleGetUserLog(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetUserLogRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	log, _, err := h.UserOperationLogService.GetUserOperationLog(ctx, req.UserID, req.opts)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newUserLogResponse(req.UserID, log)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type getUserLogRequest struct {
+	UserID platform.ID
+	opts   platform.FindOptions
+}
+
+func decodeGetUserLogRequest(ctx context.Context, r *http.Request) (*getUserLogRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	opts := platform.DefaultOperationLogFindOptions
+	qp := r.URL.Query()
+	if v := qp.Get("desc"); v == "false" {
+		opts.Descending = false
+	}
+	if v := qp.Get("limit"); v != "" {
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts.Limit = i
+	}
+	if v := qp.Get("offset"); v != "" {
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts.Offset = i
+	}
+
+	return &getUserLogRequest{
+		UserID: i,
+		opts:   opts,
+	}, nil
+}
+
+func newUserLogResponse(id platform.ID, es []*platform.OperationLogEntry) *operationLogResponse {
+	log := make([]*operationLogEntryResponse, 0, len(es))
+	for _, e := range es {
+		log = append(log, newOperationLogEntryResponse(e))
+	}
+	return &operationLogResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/api/v2/users/%s/log", id),
+		},
+		Log: log,
+	}
 }

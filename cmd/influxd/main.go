@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/platform/snowflake"
-	"github.com/opentracing/opentracing-go"
 	nethttp "net/http"
 	_ "net/http/pprof"
 	"os"
@@ -12,6 +10,9 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/influxdata/platform/snowflake"
+	"github.com/opentracing/opentracing-go"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
@@ -175,19 +176,23 @@ func run() error {
 	}(logger)
 
 	var (
-		orgSvc           platform.OrganizationService        = c
-		authSvc          platform.AuthorizationService       = c
-		userSvc          platform.UserService                = c
-		viewSvc          platform.ViewService                = c
-		macroSvc         platform.MacroService               = c
-		bucketSvc        platform.BucketService              = c
-		sourceSvc        platform.SourceService              = c
-		sessionSvc       platform.SessionService             = c
-		basicAuthSvc     platform.BasicAuthService           = c
-		dashboardSvc     platform.DashboardService           = c
-		onboardingSvc    platform.OnboardingService          = c
-		userResourceSvc  platform.UserResourceMappingService = c
-		scraperTargetSvc platform.ScraperTargetStoreService  = c
+		orgSvc           platform.OrganizationService             = c
+		authSvc          platform.AuthorizationService            = c
+		userSvc          platform.UserService                     = c
+		viewSvc          platform.ViewService                     = c
+		macroSvc         platform.MacroService                    = c
+		bucketSvc        platform.BucketService                   = c
+		sourceSvc        platform.SourceService                   = c
+		sessionSvc       platform.SessionService                  = c
+		basicAuthSvc     platform.BasicAuthService                = c
+		dashboardSvc     platform.DashboardService                = c
+		dashboardLogSvc  platform.DashboardOperationLogService    = c
+		userLogSvc       platform.UserOperationLogService         = c
+		bucketLogSvc     platform.BucketOperationLogService       = c
+		orgLogSvc        platform.OrganizationOperationLogService = c
+		onboardingSvc    platform.OnboardingService               = c
+		userResourceSvc  platform.UserResourceMappingService      = c
+		scraperTargetSvc platform.ScraperTargetStoreService       = c
 	)
 
 	chronografSvc, err := server.NewServiceV2(ctx, c.DB())
@@ -305,27 +310,31 @@ func run() error {
 	}
 
 	handlerConfig := &http.APIBackend{
-		Logger:                     logger,
-		NewBucketService:           source.NewBucketService,
-		NewQueryService:            source.NewQueryService,
-		PointsWriter:               pointsWriter,
-		AuthorizationService:       authSvc,
-		BucketService:              bucketSvc,
-		SessionService:             sessionSvc,
-		UserService:                userSvc,
-		OrganizationService:        orgSvc,
-		UserResourceMappingService: userResourceSvc,
-		DashboardService:           dashboardSvc,
-		ViewService:                viewSvc,
-		SourceService:              sourceSvc,
-		MacroService:               macroSvc,
-		BasicAuthService:           basicAuthSvc,
-		OnboardingService:          onboardingSvc,
-		ProxyQueryService:          storageQueryService,
-		TaskService:                taskSvc,
-		TelegrafService:            telegrafSvc,
-		ScraperTargetStoreService:  scraperTargetSvc,
-		ChronografService:          chronografSvc,
+		Logger:                          logger,
+		NewBucketService:                source.NewBucketService,
+		NewQueryService:                 source.NewQueryService,
+		PointsWriter:                    pointsWriter,
+		AuthorizationService:            authSvc,
+		BucketService:                   bucketSvc,
+		SessionService:                  sessionSvc,
+		UserService:                     userSvc,
+		OrganizationService:             orgSvc,
+		UserResourceMappingService:      userResourceSvc,
+		DashboardService:                dashboardSvc,
+		DashboardOperationLogService:    dashboardLogSvc,
+		BucketOperationLogService:       bucketLogSvc,
+		UserOperationLogService:         userLogSvc,
+		OrganizationOperationLogService: orgLogSvc,
+		ViewService:                     viewSvc,
+		SourceService:                   sourceSvc,
+		MacroService:                    macroSvc,
+		BasicAuthService:                basicAuthSvc,
+		OnboardingService:               onboardingSvc,
+		ProxyQueryService:               storageQueryService,
+		TaskService:                     taskSvc,
+		TelegrafService:                 telegrafSvc,
+		ScraperTargetStoreService:       scraperTargetSvc,
+		ChronografService:               chronografSvc,
 	}
 
 	// HTTP server

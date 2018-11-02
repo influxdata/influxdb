@@ -45,7 +45,7 @@ type DashboardService interface {
 	ReplaceDashboardCells(ctx context.Context, id ID, c []*Cell) error
 }
 
-// Dashboard represents all visual and query data for a dashboard
+// Dashboard represents all visual and query data for a dashboard.
 type Dashboard struct {
 	ID          ID            `json:"id,omitempty"`
 	Name        string        `json:"name"`
