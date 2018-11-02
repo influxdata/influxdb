@@ -397,7 +397,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:83da867ca6aeb2caf90e2c1fef1d72405e2aa994d6aa4920b0ee6e21a4c9d3e8"
+  digest = "1:db259befab0f4a14c66cacffd6a9e95df0353681173f8213334812384e4886fb"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -410,6 +410,7 @@
     "functions/inputs",
     "functions/outputs",
     "functions/transformations",
+    "influxql",
     "internal/pkg/syncutil",
     "interpreter",
     "iocounter",
@@ -422,7 +423,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "7f42a18e060658c61eb131b03cae427ef26856f8"
+  revision = "ad320b7fd3f6f3c83f5d034be952673a2e419b09"
 
 [[projects]]
   branch = "master"
@@ -445,7 +446,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:69d97d6d8f8cfa4a287c5a687bb06c1154fe942e933947898672470e08953a5f"
+  digest = "1:57ecd8b98585a91397d7f1da30c9f19fc3f64e1fe46fb2de72f068e8bf04875e"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
@@ -454,7 +455,6 @@
     "pkg/binaryutil",
     "pkg/bytesutil",
     "pkg/escape",
-    "pkg/estimator",
     "pkg/limiter",
     "pkg/mmap",
     "pkg/rhh",
@@ -471,7 +471,7 @@
     "tsdb/defaults",
   ]
   pruneopts = "UT"
-  revision = "952c1440b98212605193b2b9c0e8c8de48849b23"
+  revision = "34ab06634f2f9263a1a502724028b3a2bbc24a15"
 
 [[projects]]
   branch = "master"
@@ -530,6 +530,17 @@
   pruneopts = "UT"
   revision = "06af60a4461b70d84a2b173d92f9f425d78baf55"
   version = "v3.11.0"
+
+[[projects]]
+  digest = "1:15ec2166e33ef6c60b344a04d050eec79193517e7f5082b6233b2d09ef0d10b8"
+  name = "github.com/kisielk/gotool"
+  packages = [
+    ".",
+    "internal/load",
+  ]
+  pruneopts = "UT"
+  revision = "80517062f582ea3340cd4baf70e86d539ae7d84d"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:d5f48855170be8f523ecb23af1886a6b142b44ec64015fa91a03bd02076ceff4"
@@ -925,6 +936,20 @@
   revision = "fbb02b2291d28baffd63558aa44b4b56f178d650"
 
 [[projects]]
+  branch = "master"
+  digest = "1:ef14d82562109d84ffea95e11945c59bb5547e0ef8e4933fac5e3ac6be3a662e"
+  name = "golang.org/x/tools"
+  packages = [
+    "go/ast/astutil",
+    "go/buildutil",
+    "go/internal/cgo",
+    "go/loader",
+    "go/types/typeutil",
+  ]
+  pruneopts = "UT"
+  revision = "45ff765b4815d34d8b80220fd05c79063b185ce1"
+
+[[projects]]
   digest = "1:4b8f3d164fcba1aed1e5ec63edb518b7d436b001f01e06c7f9c2335498b4c5a3"
   name = "google.golang.org/appengine"
   packages = [
@@ -990,6 +1015,30 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+
+[[projects]]
+  digest = "1:6eaf68fa53735d0b557c7a4d5411d3ad97d98d0afdb0969252d6506e67600285"
+  name = "honnef.co/go/tools"
+  packages = [
+    "callgraph",
+    "callgraph/static",
+    "cmd/megacheck",
+    "deprecated",
+    "functions",
+    "internal/sharedcheck",
+    "lint",
+    "lint/lintutil",
+    "simple",
+    "ssa",
+    "ssa/ssautil",
+    "staticcheck",
+    "staticcheck/vrp",
+    "unused",
+    "version",
+  ]
+  pruneopts = "UT"
+  revision = "d73ab98e7c39fdcf9ba65062e43d34310f198353"
+  version = "2017.2.2"
 
 [solve-meta]
   analyzer-name = "dep"
