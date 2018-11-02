@@ -22,6 +22,12 @@ type OnboardingRequest struct {
 
 // OnboardingService represents a service for the first run.
 type OnboardingService interface {
+	BasicAuthService
+	BucketService
+	OrganizationService
+	UserService
+	AuthorizationService
+
 	// IsOnboarding determine if onboarding request is allowed.
 	IsOnboarding(ctx context.Context) (bool, error)
 	// Generate OnboardingResults.

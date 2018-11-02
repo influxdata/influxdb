@@ -10,6 +10,7 @@ type User struct {
 
 // UserService represents a service for managing user data.
 type UserService interface {
+
 	// Returns a single user by ID.
 	FindUserByID(ctx context.Context, id ID) (*User, error)
 

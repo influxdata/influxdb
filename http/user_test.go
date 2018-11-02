@@ -28,6 +28,7 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 	client := UserService{
 		Addr: server.URL,
 	}
+
 	done := server.Close
 
 	return &client, done
