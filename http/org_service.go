@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strconv"
 
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
@@ -17,18 +18,20 @@ import (
 type OrgHandler struct {
 	*httprouter.Router
 
-	OrganizationService        platform.OrganizationService
-	BucketService              platform.BucketService
-	UserResourceMappingService platform.UserResourceMappingService
+	OrganizationService             platform.OrganizationService
+	OrganizationOperationLogService platform.OrganizationOperationLogService
+	BucketService                   platform.BucketService
+	UserResourceMappingService      platform.UserResourceMappingService
 }
 
 const (
 	organizationsPath            = "/api/v2/orgs"
 	organizationsIDPath          = "/api/v2/orgs/:id"
+	organizationsIDLogPath       = "/api/v2/orgs/:id/log"
 	organizationsIDMembersPath   = "/api/v2/orgs/:id/members"
-	organizationsIDMembersIDPath = "/api/v2/orgs/:id/members/:userID"
+	organizationsIDMembersIDPath = "/api/v2/orgs/:id/members/:organizationID"
 	organizationsIDOwnersPath    = "/api/v2/orgs/:id/owners"
-	organizationsIDOwnersIDPath  = "/api/v2/orgs/:id/owners/:userID"
+	organizationsIDOwnersIDPath  = "/api/v2/orgs/:id/owners/:organizationID"
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.
@@ -41,6 +44,7 @@ func NewOrgHandler(mappingService platform.UserResourceMappingService) *OrgHandl
 	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
 	h.HandlerFunc("GET", organizationsPath, h.handleGetOrgs)
 	h.HandlerFunc("GET", organizationsIDPath, h.handleGetOrg)
+	h.HandlerFunc("GET", organizationsIDLogPath, h.handleGetOrgLog)
 	h.HandlerFunc("PATCH", organizationsIDPath, h.handlePatchOrg)
 	h.HandlerFunc("DELETE", organizationsIDPath, h.handleDeleteOrg)
 
@@ -90,6 +94,7 @@ func newOrgResponse(o *platform.Organization) *orgResponse {
 	return &orgResponse{
 		Links: map[string]string{
 			"self":       fmt.Sprintf("/api/v2/orgs/%s", o.ID),
+			"log":        fmt.Sprintf("/api/v2/orgs/%s/log", o.ID),
 			"members":    fmt.Sprintf("/api/v2/orgs/%s/members", o.ID),
 			"buckets":    fmt.Sprintf("/api/v2/buckets?org=%s", o.Name),
 			"tasks":      fmt.Sprintf("/api/v2/tasks?org=%s", o.Name),
@@ -496,4 +501,82 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 
 func organizationIDPath(id platform.ID) string {
 	return path.Join(organizationPath, id.String())
+}
+
+// hanldeGetOrganizationLog retrieves a organization log by the organizations ID.
+func (h *OrgHandler) handleGetOrgLog(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetOrganizationLogRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	log, _, err := h.OrganizationOperationLogService.GetOrganizationOperationLog(ctx, req.OrganizationID, req.opts)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrganizationLogResponse(req.OrganizationID, log)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type getOrganizationLogRequest struct {
+	OrganizationID platform.ID
+	opts           platform.FindOptions
+}
+
+func decodeGetOrganizationLogRequest(ctx context.Context, r *http.Request) (*getOrganizationLogRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	opts := platform.DefaultOperationLogFindOptions
+	qp := r.URL.Query()
+	if v := qp.Get("desc"); v == "false" {
+		opts.Descending = false
+	}
+	if v := qp.Get("limit"); v != "" {
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts.Limit = i
+	}
+	if v := qp.Get("offset"); v != "" {
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts.Offset = i
+	}
+
+	return &getOrganizationLogRequest{
+		OrganizationID: i,
+		opts:           opts,
+	}, nil
+}
+
+func newOrganizationLogResponse(id platform.ID, es []*platform.OperationLogEntry) *operationLogResponse {
+	log := make([]*operationLogEntryResponse, 0, len(es))
+	for _, e := range es {
+		log = append(log, newOperationLogEntryResponse(e))
+	}
+	return &operationLogResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/api/v2/organizations/%s/log", id),
+		},
+		Log: log,
+	}
 }

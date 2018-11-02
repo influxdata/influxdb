@@ -108,7 +108,8 @@ func TestService_handleGetDashboards(t *testing.T) {
       ],
       "links": {
         "self": "/api/v2/dashboards/da7aba5e5d81e550",
-        "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells"
+        "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells",
+        "log": "/api/v2/dashboards/da7aba5e5d81e550/log"
       }
     },
     {
@@ -122,6 +123,7 @@ func TestService_handleGetDashboards(t *testing.T) {
       "cells": [],
       "links": {
         "self": "/api/v2/dashboards/0ca2204eca2204e0",
+        "log": "/api/v2/dashboards/0ca2204eca2204e0/log",
         "cells": "/api/v2/dashboards/0ca2204eca2204e0/cells"
       }
     }
@@ -272,6 +274,7 @@ func TestService_handleGetDashboard(t *testing.T) {
   ],
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000",
+    "log": "/api/v2/dashboards/020f755c3c082000/log",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells"
   }
 }
@@ -413,6 +416,7 @@ func TestService_handlePostDashboard(t *testing.T) {
   ],
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000",
+    "log": "/api/v2/dashboards/020f755c3c082000/log",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells"
   }
 }
@@ -555,8 +559,8 @@ func TestService_handlePatchDashboard(t *testing.T) {
 		DashboardService platform.DashboardService
 	}
 	type args struct {
-		id    string
-		name  string
+		id   string
+		name string
 	}
 	type wants struct {
 		statusCode  int
@@ -638,6 +642,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
   ],
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000",
+    "log": "/api/v2/dashboards/020f755c3c082000/log",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells"
   }
 }

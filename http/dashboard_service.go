@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
+	"strconv"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
@@ -18,8 +19,9 @@ import (
 type DashboardHandler struct {
 	*httprouter.Router
 
-	DashboardService           platform.DashboardService
-	UserResourceMappingService platform.UserResourceMappingService
+	DashboardService             platform.DashboardService
+	DashboardOperationLogService platform.DashboardOperationLogService
+	UserResourceMappingService   platform.UserResourceMappingService
 }
 
 const (
@@ -28,6 +30,7 @@ const (
 	dashboardsIDCellsPath     = "/api/v2/dashboards/:id/cells"
 	dashboardsIDCellsIDPath   = "/api/v2/dashboards/:id/cells/:cellID"
 	dashboardsIDMembersPath   = "/api/v2/dashboards/:id/members"
+	dashboardsIDLogPath       = "/api/v2/dashboards/:id/log"
 	dashboardsIDMembersIDPath = "/api/v2/dashboards/:id/members/:userID"
 	dashboardsIDOwnersPath    = "/api/v2/dashboards/:id/owners"
 	dashboardsIDOwnersIDPath  = "/api/v2/dashboards/:id/owners/:userID"
@@ -43,6 +46,7 @@ func NewDashboardHandler(mappingService platform.UserResourceMappingService) *Da
 	h.HandlerFunc("POST", dashboardsPath, h.handlePostDashboard)
 	h.HandlerFunc("GET", dashboardsPath, h.handleGetDashboards)
 	h.HandlerFunc("GET", dashboardsIDPath, h.handleGetDashboard)
+	h.HandlerFunc("GET", dashboardsIDLogPath, h.handleGetDashboardLog)
 	h.HandlerFunc("DELETE", dashboardsIDPath, h.handleDeleteDashboard)
 	h.HandlerFunc("PATCH", dashboardsIDPath, h.handlePatchDashboard)
 
@@ -64,6 +68,7 @@ func NewDashboardHandler(mappingService platform.UserResourceMappingService) *Da
 type dashboardLinks struct {
 	Self  string `json:"self"`
 	Cells string `json:"cells"`
+	Log   string `json:"log"`
 }
 
 type dashboardResponse struct {
@@ -90,6 +95,7 @@ func newDashboardResponse(d *platform.Dashboard) dashboardResponse {
 		Links: dashboardLinks{
 			Self:  fmt.Sprintf("/api/v2/dashboards/%s", d.ID),
 			Cells: fmt.Sprintf("/api/v2/dashboards/%s/cells", d.ID),
+			Log:   fmt.Sprintf("/api/v2/dashboards/%s/log", d.ID),
 		},
 		Dashboard: *d,
 		Cells:     []dashboardCellResponse{},
@@ -139,6 +145,40 @@ func newDashboardCellsResponse(dashboardID platform.ID, cs []*platform.Cell) das
 	}
 
 	return res
+}
+
+type operationLogResponse struct {
+	Links map[string]string            `json:"links"`
+	Log   []*operationLogEntryResponse `json:"log"`
+}
+
+func newDashboardLogResponse(id platform.ID, es []*platform.OperationLogEntry) *operationLogResponse {
+	log := make([]*operationLogEntryResponse, 0, len(es))
+	for _, e := range es {
+		log = append(log, newOperationLogEntryResponse(e))
+	}
+	return &operationLogResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/api/v2/dashboards/%s/log", id),
+		},
+		Log: log,
+	}
+}
+
+type operationLogEntryResponse struct {
+	Links map[string]string `json:"links"`
+	*platform.OperationLogEntry
+}
+
+func newOperationLogEntryResponse(e *platform.OperationLogEntry) *operationLogEntryResponse {
+	links := map[string]string{}
+	if e.UserID.Valid() {
+		links["user"] = fmt.Sprintf("/api/v2/users/%s", e.UserID)
+	}
+	return &operationLogEntryResponse{
+		Links:             links,
+		OperationLogEntry: e,
+	}
 }
 
 // handleGetDashboards returns all dashboards within the store.
@@ -324,6 +364,71 @@ func decodeGetDashboardRequest(ctx context.Context, r *http.Request) (*getDashbo
 
 	return &getDashboardRequest{
 		DashboardID: i,
+	}, nil
+}
+
+// hanldeGetDashboardLog retrieves a dashboard log by the dashboards ID.
+func (h *DashboardHandler) handleGetDashboardLog(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetDashboardLogRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	log, _, err := h.DashboardOperationLogService.GetDashboardOperationLog(ctx, req.DashboardID, req.opts)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardLogResponse(req.DashboardID, log)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type getDashboardLogRequest struct {
+	DashboardID platform.ID
+	opts        platform.FindOptions
+}
+
+func decodeGetDashboardLogRequest(ctx context.Context, r *http.Request) (*getDashboardLogRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, errors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	opts := platform.DefaultOperationLogFindOptions
+	qp := r.URL.Query()
+	if v := qp.Get("desc"); v == "false" {
+		opts.Descending = false
+	}
+	if v := qp.Get("limit"); v != "" {
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts.Limit = i
+	}
+	if v := qp.Get("offset"); v != "" {
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts.Offset = i
+	}
+
+	return &getDashboardLogRequest{
+		DashboardID: i,
+		opts:        opts,
 	}, nil
 }
 

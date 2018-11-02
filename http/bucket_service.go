@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,12 +21,14 @@ type BucketHandler struct {
 	*httprouter.Router
 
 	BucketService              platform.BucketService
+	BucketOperationLogService  platform.BucketOperationLogService
 	UserResourceMappingService platform.UserResourceMappingService
 }
 
 const (
 	bucketsPath            = "/api/v2/buckets"
 	bucketsIDPath          = "/api/v2/buckets/:id"
+	bucketsIDLogPath       = "/api/v2/buckets/:id/log"
 	bucketsIDMembersPath   = "/api/v2/buckets/:id/members"
 	bucketsIDMembersIDPath = "/api/v2/buckets/:id/members/:userID"
 	bucketsIDOwnersPath    = "/api/v2/buckets/:id/owners"
@@ -42,6 +45,7 @@ func NewBucketHandler(mappingService platform.UserResourceMappingService) *Bucke
 	h.HandlerFunc("POST", bucketsPath, h.handlePostBucket)
 	h.HandlerFunc("GET", bucketsPath, h.handleGetBuckets)
 	h.HandlerFunc("GET", bucketsIDPath, h.handleGetBucket)
+	h.HandlerFunc("GET", bucketsIDLogPath, h.handleGetBucketLog)
 	h.HandlerFunc("PATCH", bucketsIDPath, h.handlePatchBucket)
 	h.HandlerFunc("DELETE", bucketsIDPath, h.handleDeleteBucket)
 
@@ -176,6 +180,7 @@ func newBucketResponse(b *platform.Bucket) *bucketResponse {
 	return &bucketResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/buckets/%s", b.ID),
+			"log":  fmt.Sprintf("/api/v2/buckets/%s/log", b.ID),
 			"org":  fmt.Sprintf("/api/v2/orgs/%s", b.OrganizationID),
 		},
 		bucket: *newBucket(b),
@@ -684,4 +689,82 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 
 func bucketIDPath(id platform.ID) string {
 	return path.Join(bucketPath, id.String())
+}
+
+// hanldeGetBucketLog retrieves a bucket log by the buckets ID.
+func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetBucketLogRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	log, _, err := h.BucketOperationLogService.GetBucketOperationLog(ctx, req.BucketID, req.opts)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newBucketLogResponse(req.BucketID, log)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type getBucketLogRequest struct {
+	BucketID platform.ID
+	opts     platform.FindOptions
+}
+
+func decodeGetBucketLogRequest(ctx context.Context, r *http.Request) (*getBucketLogRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, errors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	opts := platform.DefaultOperationLogFindOptions
+	qp := r.URL.Query()
+	if v := qp.Get("desc"); v == "false" {
+		opts.Descending = false
+	}
+	if v := qp.Get("limit"); v != "" {
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts.Limit = i
+	}
+	if v := qp.Get("offset"); v != "" {
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts.Offset = i
+	}
+
+	return &getBucketLogRequest{
+		BucketID: i,
+		opts:     opts,
+	}, nil
+}
+
+func newBucketLogResponse(id platform.ID, es []*platform.OperationLogEntry) *operationLogResponse {
+	log := make([]*operationLogEntryResponse, 0, len(es))
+	for _, e := range es {
+		log = append(log, newOperationLogEntryResponse(e))
+	}
+	return &operationLogResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/api/v2/buckets/%s/log", id),
+		},
+		Log: log,
+	}
 }

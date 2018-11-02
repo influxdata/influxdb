@@ -4,15 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
+	platformcontext "github.com/influxdata/platform/context"
 )
 
 var (
 	bucketBucket = []byte("bucketsv1")
 	bucketIndex  = []byte("bucketindexv1")
 )
+
+var _ platform.BucketService = (*Client)(nil)
+var _ platform.BucketOperationLogService = (*Client)(nil)
 
 func (c *Client) initializeBuckets(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(bucketBucket)); err != nil {
@@ -272,6 +277,11 @@ func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 		}
 
 		b.ID = c.IDGenerator.ID()
+
+		if err := c.appendBucketEventToLog(ctx, tx, b.ID, bucketCreatedEvent); err != nil {
+			return err
+		}
+
 		return c.putBucket(ctx, tx, b)
 	})
 }
@@ -384,6 +394,10 @@ func (c *Client) updateBucket(ctx context.Context, tx *bolt.Tx, id platform.ID, 
 		b.Name = *upd.Name
 	}
 
+	if err := c.appendBucketEventToLog(ctx, tx, b.ID, bucketUpdatedEvent); err != nil {
+		return nil, err
+	}
+
 	if err := c.putBucket(ctx, tx, b); err != nil {
 		return nil, err
 	}
@@ -426,4 +440,77 @@ func (c *Client) deleteBucket(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 		ResourceID:   id,
 		ResourceType: platform.BucketResourceType,
 	})
+}
+
+const bucketOperationLogKeyPrefix = "bucket"
+
+func encodeBucketOperationLogKey(id platform.ID) ([]byte, error) {
+	buf, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(bucketOperationLogKeyPrefix), buf...), nil
+}
+
+// GetBucketOperationLog retrieves a buckets operation log.
+func (c *Client) GetBucketOperationLog(ctx context.Context, id platform.ID, opts platform.FindOptions) ([]*platform.OperationLogEntry, int, error) {
+	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
+	log := []*platform.OperationLogEntry{}
+
+	err := c.db.View(func(tx *bolt.Tx) error {
+		key, err := encodeBucketOperationLogKey(id)
+		if err != nil {
+			return err
+		}
+
+		return c.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
+			e := &platform.OperationLogEntry{}
+			if err := json.Unmarshal(v, e); err != nil {
+				return err
+			}
+			e.Time = t
+
+			log = append(log, e)
+
+			return nil
+		})
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return log, len(log), nil
+}
+
+// TODO(desa): what do we want these to be?
+const (
+	bucketCreatedEvent = "Bucket Created"
+	bucketUpdatedEvent = "Bucket Updated"
+)
+
+func (c *Client) appendBucketEventToLog(ctx context.Context, tx *bolt.Tx, id platform.ID, s string) error {
+	e := &platform.OperationLogEntry{
+		Description: s,
+	}
+	// TODO(desa): this is fragile and non explicit since it requires an authorizer to be on context. It should be
+	//             replaced with a higher level transaction so that adding to the log can take place in the http handler
+	//             where the userID will exist explicitly.
+	a, err := platformcontext.GetAuthorizer(ctx)
+	if err == nil {
+		// Add the user to the log if you can, but don't error if its not there.
+		e.UserID = a.GetUserID()
+	}
+
+	v, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+
+	k, err := encodeBucketOperationLogKey(id)
+	if err != nil {
+		return err
+	}
+
+	return c.addLogEntry(ctx, tx, k, v, c.time())
 }

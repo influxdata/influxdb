@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
+	platformcontext "github.com/influxdata/platform/context"
 )
 
 var (
@@ -15,6 +17,7 @@ var (
 )
 
 var _ platform.OrganizationService = (*Client)(nil)
+var _ platform.OrganizationOperationLogService = (*Client)(nil)
 
 func (c *Client) initializeOrganizations(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(organizationBucket)); err != nil {
@@ -199,6 +202,9 @@ func (c *Client) CreateOrganization(ctx context.Context, o *platform.Organizatio
 		}
 
 		o.ID = c.IDGenerator.ID()
+		if err := c.appendOrganizationEventToLog(ctx, tx, o.ID, organizationCreatedEvent); err != nil {
+			return err
+		}
 
 		return c.putOrganization(ctx, tx, o)
 	})
@@ -281,6 +287,10 @@ func (c *Client) updateOrganization(ctx context.Context, tx *bolt.Tx, id platfor
 		o.Name = *upd.Name
 	}
 
+	if err := c.appendOrganizationEventToLog(ctx, tx, o.ID, organizationUpdatedEvent); err != nil {
+		return nil, err
+	}
+
 	if err := c.putOrganization(ctx, tx, o); err != nil {
 		return nil, err
 	}
@@ -327,4 +337,75 @@ func (c *Client) deleteOrganizationsBuckets(ctx context.Context, tx *bolt.Tx, id
 		}
 	}
 	return nil
+}
+
+// GeOrganizationOperationLog retrieves a organization operation log.
+func (c *Client) GetOrganizationOperationLog(ctx context.Context, id platform.ID, opts platform.FindOptions) ([]*platform.OperationLogEntry, int, error) {
+	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
+	log := []*platform.OperationLogEntry{}
+
+	err := c.db.View(func(tx *bolt.Tx) error {
+		key, err := encodeBucketOperationLogKey(id)
+		if err != nil {
+			return err
+		}
+
+		return c.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
+			e := &platform.OperationLogEntry{}
+			if err := json.Unmarshal(v, e); err != nil {
+				return err
+			}
+			e.Time = t
+
+			log = append(log, e)
+
+			return nil
+		})
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return log, len(log), nil
+}
+
+// TODO(desa): what do we want these to be?
+const (
+	organizationCreatedEvent = "Organization Created"
+	organizationUpdatedEvent = "Organization Updated"
+)
+
+func encodeOrganizationOperationLogKey(id platform.ID) ([]byte, error) {
+	buf, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(bucketOperationLogKeyPrefix), buf...), nil
+}
+
+func (c *Client) appendOrganizationEventToLog(ctx context.Context, tx *bolt.Tx, id platform.ID, s string) error {
+	e := &platform.OperationLogEntry{
+		Description: s,
+	}
+	// TODO(desa): this is fragile and non explicit since it requires an authorizer to be on context. It should be
+	//             replaced with a higher level transaction so that adding to the log can take place in the http handler
+	//             where the organizationID will exist explicitly.
+	a, err := platformcontext.GetAuthorizer(ctx)
+	if err == nil {
+		// Add the organization to the log if you can, but don't error if its not there.
+		e.UserID = a.GetUserID()
+	}
+
+	v, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+
+	k, err := encodeOrganizationOperationLogKey(id)
+	if err != nil {
+		return err
+	}
+
+	return c.addLogEntry(ctx, tx, k, v, c.time())
 }
