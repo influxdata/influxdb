@@ -100,7 +100,11 @@ func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 	}
 
 	if pe, ok := err.(*platform.Error); ok {
-		w.WriteHeader(statusCodePlatformError[platform.ErrorCode(pe)])
+		httpCode, ok := statusCodePlatformError[platform.ErrorCode(pe)]
+		if !ok {
+			httpCode = http.StatusBadRequest
+		}
+		w.WriteHeader(httpCode)
 		b, _ := json.Marshal(pe)
 		_, _ = w.Write(b)
 		return
