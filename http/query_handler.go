@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/flux/complete"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/platform"
 	pcontext "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/kit/errors"
@@ -50,6 +51,7 @@ func NewFluxHandler() *FluxHandler {
 
 	h.HandlerFunc("POST", fluxPath, h.handlePostQuery)
 	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
+	h.HandlerFunc("POST", "/api/v2/query/plan", h.postFluxPlan)
 	h.HandlerFunc("POST", "/api/v2/query/spec", h.postFluxSpec)
 	h.HandlerFunc("GET", "/api/v2/query/suggestions", h.getFluxSuggestions)
 	h.HandlerFunc("GET", "/api/v2/query/suggestions/:name", h.getFluxSuggestion)
@@ -123,7 +125,7 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 
 	ast, err := parser.NewAST(request.Query)
 	if err != nil {
-		EncodeError(ctx, errors.InvalidDataf("invalid json: %v", err), w)
+		EncodeError(ctx, errors.InvalidDataf("invalid AST: %v", err), w)
 		return
 	}
 
@@ -154,7 +156,7 @@ func (h *FluxHandler) postFluxSpec(w http.ResponseWriter, r *http.Request) {
 
 	spec, err := flux.Compile(ctx, req.Query, h.Now())
 	if err != nil {
-		EncodeError(ctx, errors.InvalidDataf("invalid json: %v", err), w)
+		EncodeError(ctx, errors.InvalidDataf("invalid spec: %v", err), w)
 		return
 	}
 
@@ -166,6 +168,103 @@ func (h *FluxHandler) postFluxSpec(w http.ResponseWriter, r *http.Request) {
 		EncodeError(ctx, err, w)
 		return
 	}
+}
+
+type fluxPlan struct {
+	Roots     []plan.PlanNode         `json:"roots"`
+	Resources flux.ResourceManagement `json:"resources"`
+	Now       time.Time               `json:"now"`
+}
+
+func newFluxPlan(p *plan.PlanSpec) *fluxPlan {
+	res := &fluxPlan{
+		Roots:     []plan.PlanNode{},
+		Resources: p.Resources,
+		Now:       p.Now,
+	}
+
+	for node := range p.Roots {
+		res.Roots = append(res.Roots, node)
+	}
+
+	return res
+}
+
+type postFluxPlanResponse struct {
+	Spec     *flux.Spec `json:"spec"`
+	Logical  *fluxPlan  `json:"logical"`
+	Physical *fluxPlan  `json:"physical"`
+}
+
+type postPlanRequest struct {
+	Query string     `json:"query,omitempty"`
+	Spec  *flux.Spec `json:"spec,omityempty"`
+}
+
+// Valid check if the plan request has a query or spec defined, but not both.
+func (p *postPlanRequest) Valid() error {
+	if p.Query == "" && p.Spec == nil {
+		return errors.MalformedDataf("query or spec required")
+	}
+
+	if p.Query != "" && p.Spec != nil {
+		return errors.MalformedDataf("cannot request both query and spec")
+	}
+	return nil
+}
+
+// postFluxPlan returns a flux plan for provided flux string
+func (h *FluxHandler) postFluxPlan(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	req, err := decodePostPlanRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	var spec *flux.Spec = req.Spec
+	if req.Query != "" {
+		spec, err = flux.Compile(ctx, req.Query, h.Now())
+		if err != nil {
+			EncodeError(ctx, errors.InvalidDataf("invalid spec: %v", err), w)
+			return
+		}
+	}
+
+	logical := plan.NewLogicalPlanner()
+	log, err := logical.Plan(spec)
+	if err != nil {
+		EncodeError(ctx, errors.InvalidDataf("invalid logical plan: %v", err), w)
+		return
+	}
+
+	physical := plan.NewPhysicalPlanner()
+	phys, err := physical.Plan(log)
+	if err != nil {
+		EncodeError(ctx, errors.InvalidDataf("invalid physical plan: %v", err), w)
+		return
+	}
+
+	res := postFluxPlanResponse{
+		Logical:  newFluxPlan(log),
+		Physical: newFluxPlan(phys),
+		Spec:     spec,
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+func decodePostPlanRequest(ctx context.Context, r *http.Request) (*postPlanRequest, error) {
+	req := &postPlanRequest{}
+	err := json.NewDecoder(r.Body).Decode(req)
+	if err != nil {
+		return nil, errors.MalformedDataf("invalid json: %v", err)
+	}
+
+	return req, req.Valid()
 }
 
 // fluxParams contain flux funciton parameters as defined by the semantic graph

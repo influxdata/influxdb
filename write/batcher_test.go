@@ -398,7 +398,6 @@ func TestBatcher_Write(t *testing.T) {
 }
 
 func TestBatcher_WriteTimeout(t *testing.T) {
-
 	// mocking the write service here to either return an error
 	// or get back all the bytes from the reader.
 	var got string
