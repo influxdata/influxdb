@@ -32,30 +32,72 @@ func NewUserHandler() *UserHandler {
 	h.HandlerFunc("GET", "/api/v2/users/:id", h.handleGetUser)
 	h.HandlerFunc("PATCH", "/api/v2/users/:id", h.handlePatchUser)
 	h.HandlerFunc("DELETE", "/api/v2/users/:id", h.handleDeleteUser)
-	h.HandlerFunc("PUT", "/api/v2/users/:id/password", h.handlePutPassword)
+	h.HandlerFunc("PUT", "/api/v2/users/:id/password", h.handlePutUserPassword)
 
 	h.HandlerFunc("GET", "/api/v2/me", h.handleGetMe)
-	h.HandlerFunc("PUT", "/api/v2/me/password", h.handlePutPassword)
+	h.HandlerFunc("PUT", "/api/v2/me/password", h.handlePutMePassword)
 
 	return h
 }
 
-// handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
-func (h *UserHandler) handlePutPassword(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r *http.Request) (username string, err error) {
 
 	req, err := decodePasswordResetRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
-		return
+		return "", err
 	}
 
 	err = h.BasicAuthService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
 	if err != nil {
+		return "", err
+	}
+	return req.Username, nil
+}
+
+// handlePutMePassword is the HTTP handler for the PUT /api/v2/users/:id/password
+func (h *UserHandler) handlePutMePassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	username, err := h.putPassword(ctx, w, r)
+	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	filter := platform.UserFilter{
+		Name: &username,
+	}
+	b, err := h.UserService.FindUser(ctx, filter)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newMeResponse(b)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+// handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
+func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	username, err := h.putPassword(ctx, w, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+	filter := platform.UserFilter{
+		Name: &username,
+	}
+	b, err := h.UserService.FindUser(ctx, filter)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
 }
 
 type passwordResetRequest struct {
@@ -105,7 +147,7 @@ func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, req.User); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newUserResponse(req.User)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -150,7 +192,7 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newMeResponse(b)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -172,7 +214,7 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -280,6 +322,20 @@ func newUserResponse(u *platform.User) *userResponse {
 	}
 }
 
+type meResponse struct {
+	Links map[string]string `json:"links"`
+	Me    platform.User     `json:"me"`
+}
+
+func newMeResponse(u *platform.User) *meResponse {
+	return &meResponse{
+		Links: map[string]string{
+			"self": "/api/v2/me",
+		},
+		Me: *u,
+	}
+}
+
 // handleGetUsers is the HTTP handler for the GET /api/v2/users route.
 func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -342,7 +398,7 @@ func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -406,13 +462,13 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 		return nil, err
 	}
 
-	var b platform.User
-	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
+	var res userResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	return &b, nil
+	return &res.User, nil
 }
 
 // FindUser returns the first user that matches filter.
@@ -547,13 +603,13 @@ func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platfo
 		return nil, err
 	}
 
-	var u platform.User
-	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
+	var res userResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	return &u, nil
+	return &res.User, nil
 }
 
 // DeleteUser removes a user by ID.

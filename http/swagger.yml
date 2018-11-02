@@ -2939,7 +2939,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/UserResponse"
         default:
           description: unexpected error
           content:
@@ -2964,7 +2964,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/UserResponse"
         default:
           description: unexpected error
           content:
@@ -3037,8 +3037,12 @@ paths:
             schema:
               $ref: "#/components/schemas/PasswordResetBody"
       responses:
-        '204':
-          description: password succesfully updated
+        '200':
+          description: user details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
         default:
           description: unsuccessful authentication
           content:
@@ -3645,6 +3649,17 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/Task"
+    UserResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+              format: uri
     User:
       properties:
         id:
@@ -3661,9 +3676,18 @@ components:
             - inactive
       required: [name]
     Users:
-      type: array
-      items:
-        $ref: "#/components/schemas/User"
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+              format: uri
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserResponse"
     FluxSuggestions:
       type: object
       properties:
