@@ -5,12 +5,13 @@ import (
 	"github.com/influxdata/flux/execute"
 	_ "github.com/influxdata/influxdb/flux/builtin"
 	"github.com/influxdata/influxdb/flux/functions/inputs"
-	"github.com/influxdata/influxdb/services/storage"
-	"github.com/influxdata/platform/storage/reads"
+	fstorage "github.com/influxdata/platform/query/functions/inputs/storage"
 	"go.uber.org/zap"
 )
 
-func NewController(s *storage.Store, logger *zap.Logger) *control.Controller {
+type MetaClient = inputs.MetaClient
+
+func NewController(mc MetaClient, reader fstorage.Reader, logger *zap.Logger) *control.Controller {
 	// flux
 	var (
 		concurrencyQuota = 10
@@ -25,12 +26,12 @@ func NewController(s *storage.Store, logger *zap.Logger) *control.Controller {
 		Verbose:              false,
 	}
 
-	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, inputs.Dependencies{Reader: reads.NewReader(s)})
+	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, inputs.Dependencies{Reader: reader})
 	if err != nil {
 		panic(err)
 	}
 
-	err = inputs.InjectBucketDependencies(cc.ExecutorDependencies, s)
+	err = inputs.InjectBucketDependencies(cc.ExecutorDependencies, mc)
 	if err != nil {
 		panic(err)
 	}

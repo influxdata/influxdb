@@ -1408,7 +1408,6 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 	if testing.Verbose() {
 		l := logger.New(os.Stdout)
 		h.Handler.Logger = l
-		h.Handler.Store.WithLogger(l)
 	}
 
 	return h
