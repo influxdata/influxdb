@@ -178,7 +178,7 @@ type fluxPlan struct {
 
 func newFluxPlan(p *plan.PlanSpec) *fluxPlan {
 	res := &fluxPlan{
-		Roots:     []plan.PlanNode{},
+		Roots:     make([]plan.PlanNode, 0, len(p.Roots)),
 		Resources: p.Resources,
 		Now:       p.Now,
 	}
