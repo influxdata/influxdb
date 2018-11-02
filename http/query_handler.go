@@ -201,6 +201,18 @@ type postPlanRequest struct {
 	Spec  *flux.Spec `json:"spec,omityempty"`
 }
 
+// Valid check if the plan request has a query or spec defined, but not both.
+func (p *postPlanRequest) Valid() error {
+	if p.Query == "" && p.Spec == nil {
+		return errors.MalformedDataf("query or spec required")
+	}
+
+	if p.Query != "" && p.Spec != nil {
+		return errors.MalformedDataf("cannot request both query and spec")
+	}
+	return nil
+}
+
 // postFluxPlan returns a flux plan for provided flux string
 func (h *FluxHandler) postFluxPlan(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -252,15 +264,7 @@ func decodePostPlanRequest(ctx context.Context, r *http.Request) (*postPlanReque
 		return nil, errors.MalformedDataf("invalid json: %v", err)
 	}
 
-	if req.Query == "" && req.Spec == nil {
-		return nil, errors.MalformedDataf("query or spec required")
-	}
-
-	if req.Query != "" && req.Spec != nil {
-		return nil, errors.MalformedDataf("cannot request both query and spec")
-	}
-
-	return req, nil
+	return req, req.Valid()
 }
 
 // fluxParams contain flux funciton parameters as defined by the semantic graph

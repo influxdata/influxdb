@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/platform"
@@ -340,4 +341,55 @@ var crlfPattern = regexp.MustCompile(`\r?\n`)
 
 func toCRLF(data string) string {
 	return crlfPattern.ReplaceAllString(data, "\r\n")
+}
+
+func Test_postPlanRequest_Valid(t *testing.T) {
+	type fields struct {
+		Query string
+		Spec  *flux.Spec
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		{
+			name:    "no query nor spec is an error",
+			fields:  fields{},
+			wantErr: true,
+		},
+		{
+			name: "both query and spec is an error",
+			fields: fields{
+				Query: "from()|>last()",
+				Spec:  &flux.Spec{},
+			},
+			wantErr: true,
+		},
+		{
+
+			name: "request with query is valid",
+			fields: fields{
+				Query: `from(bucket:"telegraf")|> range(start: -5000h)|> filter(fn: (r) => r._measurement == "mem" AND r._field == "used_percent")|> group(by:["host"])|> mean()`,
+			},
+		},
+		{
+
+			name: "request with spec is valid",
+			fields: fields{
+				Spec: &flux.Spec{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &postPlanRequest{
+				Query: tt.fields.Query,
+				Spec:  tt.fields.Spec,
+			}
+			if err := p.Valid(); (err != nil) != tt.wantErr {
+				t.Errorf("postPlanRequest.Valid() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 }
