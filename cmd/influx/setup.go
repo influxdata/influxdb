@@ -64,6 +64,9 @@ func setupF(cmd *cobra.Command, args []string) {
 		"Bucket":       result.Bucket.Name,
 		"Token":        result.Auth.Token,
 	})
+
+	writeTokenToPath(result.Auth.Token, defaultTokenPath())
+
 	w.Flush()
 }
 
