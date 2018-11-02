@@ -41,6 +41,11 @@ func init() {
 }
 
 func replF(cmd *cobra.Command, args []string) {
+	if flags.local {
+		fmt.Println("Local flag not supported for repl command")
+		os.Exit(1)
+	}
+
 	if replFlags.OrgID == "" && replFlags.Org == "" {
 		fmt.Fprintln(os.Stderr, "must specify exactly one of org or org-id")
 		_ = cmd.Usage()

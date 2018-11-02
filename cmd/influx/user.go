@@ -6,8 +6,10 @@ import (
 	"os"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/cmd/influx/internal"
 	"github.com/influxdata/platform/http"
+	"github.com/influxdata/platform/internal/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -41,10 +43,51 @@ func init() {
 	userCmd.AddCommand(userUpdateCmd)
 }
 
-func userUpdateF(cmd *cobra.Command, args []string) {
-	s := &http.UserService{
+func newUserService(f Flags) (platform.UserService, error) {
+	if flags.local {
+		boltFile, err := fs.BoltFile()
+		if err != nil {
+			return nil, err
+		}
+		c := bolt.NewClient()
+		c.Path = boltFile
+		if err := c.Open(context.Background()); err != nil {
+			return nil, err
+		}
+
+		return c, nil
+	}
+	return &http.UserService{
 		Addr:  flags.host,
 		Token: flags.token,
+	}, nil
+}
+
+func newUserResourceMappingService(f Flags) (platform.UserResourceMappingService, error) {
+	if flags.local {
+		boltFile, err := fs.BoltFile()
+		if err != nil {
+			return nil, err
+		}
+		c := bolt.NewClient()
+		c.Path = boltFile
+		if err := c.Open(context.Background()); err != nil {
+			return nil, err
+		}
+
+		return c, nil
+	}
+	return &http.UserResourceMappingService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}, nil
+}
+
+func userUpdateF(cmd *cobra.Command, args []string) {
+	s, err := newUserService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	var id platform.ID
@@ -97,9 +140,10 @@ func init() {
 }
 
 func userCreateF(cmd *cobra.Command, args []string) {
-	s := &http.UserService{
-		Addr:  flags.host,
-		Token: flags.token,
+	s, err := newUserService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	user := &platform.User{
@@ -145,9 +189,10 @@ func init() {
 }
 
 func userFindF(cmd *cobra.Command, args []string) {
-	s := &http.UserService{
-		Addr:  flags.host,
-		Token: flags.token,
+	s, err := newUserService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	filter := platform.UserFilter{}
@@ -204,9 +249,10 @@ func init() {
 }
 
 func userDeleteF(cmd *cobra.Command, args []string) {
-	s := &http.UserService{
-		Addr:  flags.host,
-		Token: flags.token,
+	s, err := newUserService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	var id platform.ID

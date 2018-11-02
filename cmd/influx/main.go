@@ -34,6 +34,7 @@ func init() {
 type Flags struct {
 	token string
 	host  string
+	local bool
 }
 
 var flags Flags
@@ -52,6 +53,8 @@ func init() {
 	if h := viper.GetString("HOST"); h != "" {
 		flags.host = h
 	}
+
+	influxCmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
 }
 
 func influxF(cmd *cobra.Command, args []string) {

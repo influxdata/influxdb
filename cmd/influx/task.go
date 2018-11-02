@@ -21,6 +21,11 @@ var taskCmd = &cobra.Command{
 }
 
 func taskF(cmd *cobra.Command, args []string) {
+	if flags.local {
+		fmt.Println("Local flag not supported for task command")
+		os.Exit(1)
+	}
+
 	cmd.Usage()
 }
 

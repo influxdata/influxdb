@@ -34,6 +34,11 @@ func init() {
 }
 
 func fluxQueryF(cmd *cobra.Command, args []string) {
+	if flags.local {
+		fmt.Println("Local flag not supported for query command")
+		os.Exit(1)
+	}
+
 	q, err := repl.LoadQuery(args[0])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

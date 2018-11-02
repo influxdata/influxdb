@@ -22,6 +22,11 @@ var setupCmd = &cobra.Command{
 }
 
 func setupF(cmd *cobra.Command, args []string) {
+	if flags.local {
+		fmt.Println("Local flag not supported for setup command")
+		os.Exit(1)
+	}
+
 	// check if setup is allowed
 	s := &http.SetupService{
 		Addr: flags.host,
