@@ -29,7 +29,7 @@ jobs:
       - image: circleci/golang:1.11
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly"
+      GOFLAGS: "-mod=readonly -p=8" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
@@ -81,7 +81,7 @@ jobs:
       - image: circleci/golang:1.11-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
-      GOFLAGS: "-mod=readonly"
+      GOFLAGS: "-mod=readonly -p=8" # Go on Circle thinks 32 CPUs are available, but there aren't.
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
