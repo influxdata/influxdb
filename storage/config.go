@@ -9,11 +9,8 @@ import (
 )
 
 const (
-	// TODO(jeff): document
 	DefaultRetentionInterval = 1 * time.Hour
-
-	// TODO(jeff): document
-	DefaultValidateKeys = false
+	DefaultValidateKeys      = false
 )
 
 // Config holds the configuration for an Engine.
@@ -21,7 +18,7 @@ type Config struct {
 	// Frequency of retention in seconds.
 	RetentionInterval toml.Duration `toml:"retention-interval"`
 
-	// TODO(jeff): document
+	// Enables unicode validation on series keys on write.
 	ValidateKeys bool `toml:"validate-keys"`
 
 	Engine tsm1.Config `toml:"engine"`
