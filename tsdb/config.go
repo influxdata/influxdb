@@ -2,8 +2,6 @@ package tsdb
 
 import (
 	"errors"
-	"fmt"
-
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/platform/toml"
@@ -104,18 +102,6 @@ func (c *Config) Validate() error {
 	if c.MaxConcurrentCompactions < 0 {
 		return errors.New("max-concurrent-compactions must be greater than 0")
 	}
-
-	valid := false
-	for _, e := range RegisteredIndexes() {
-		if e == c.Index {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		return fmt.Errorf("unrecognized index %s", c.Index)
-	}
-
 	return nil
 }
 

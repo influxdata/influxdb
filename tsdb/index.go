@@ -991,12 +991,6 @@ func (itr *tagValueMergeIterator) Next() (_ []byte, err error) {
 	return value, nil
 }
 
-// RegisteredIndexes returns the slice of currently registered indexes.
-func RegisteredIndexes() []string {
-	// TODO(edd): This can be removed, cleaning up test code in the process.
-	return []string{TSI1IndexName}
-}
-
 // assert will panic with a given formatted message if the given condition is false.
 func assert(condition bool, msg string, v ...interface{}) {
 	if !condition {
