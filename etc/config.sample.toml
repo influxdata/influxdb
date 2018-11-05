@@ -232,6 +232,9 @@
   # Determines whether HTTP endpoint is enabled.
   # enabled = true
 
+  # Determines whether the Flux query endpoint is enabled.
+  # flux-enabled = false
+
   # The bind address used by the HTTP service.
   # bind-address = ":8086"
 
