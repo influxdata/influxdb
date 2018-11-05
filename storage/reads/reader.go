@@ -516,6 +516,9 @@ func groupKeyForGroup(kv [][]byte, readSpec *fstorage.ReadSpec, bnds execute.Bou
 	}
 	vs[1] = values.NewTime(bnds.Stop)
 	for i := range readSpec.GroupKeys {
+		if readSpec.GroupKeys[i] == execute.DefaultStartColLabel || readSpec.GroupKeys[i] == execute.DefaultStopColLabel {
+			continue
+		}
 		cols = append(cols, flux.ColMeta{
 			Label: readSpec.GroupKeys[i],
 			Type:  flux.TString,
