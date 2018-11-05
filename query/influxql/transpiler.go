@@ -173,11 +173,11 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 	var keyValues transformations.KeyValuesOpSpec
 	switch expr := stmt.TagKeyExpr.(type) {
 	case *influxql.ListLiteral:
-		keyValues.KeyCols = expr.Vals
+		keyValues.KeyColumns = expr.Vals
 	case *influxql.StringLiteral:
 		switch stmt.Op {
 		case influxql.EQ:
-			keyValues.KeyCols = []string{expr.Val}
+			keyValues.KeyColumns = []string{expr.Val}
 		case influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 			return "", fmt.Errorf("unimplemented: tag key operand: %s", stmt.Op)
 		default:
@@ -191,7 +191,7 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 	// Group by the measurement and key, find distinct values, then group by the measurement
 	// to join all of the different keys together. Finish by renaming the columns. This is static.
 	return t.op("rename", &transformations.RenameOpSpec{
-		Cols: map[string]string{
+		Columns: map[string]string{
 			"_key":   "key",
 			"_value": "value",
 		},

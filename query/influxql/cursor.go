@@ -68,11 +68,11 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 	}
 
 	range_ := t.op("range", &transformations.RangeOpSpec{
-		Start:    flux.Time{Absolute: tr.MinTime()},
-		Stop:     flux.Time{Absolute: tr.MaxTime()},
-		TimeCol:  execute.DefaultTimeColLabel,
-		StartCol: execute.DefaultStartColLabel,
-		StopCol:  execute.DefaultStopColLabel,
+		Start:       flux.Time{Absolute: tr.MinTime()},
+		Stop:        flux.Time{Absolute: tr.MaxTime()},
+		TimeColumn:  execute.DefaultTimeColLabel,
+		StartColumn: execute.DefaultStartColLabel,
+		StopColumn:  execute.DefaultStopColLabel,
 	}, from)
 
 	id := t.op("filter", &transformations.FilterOpSpec{
