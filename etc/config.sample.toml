@@ -309,24 +309,6 @@
   # Setting this to 0 or setting max-concurrent-write-limit to 0 disables the limit.
   # enqueued-write-timeout = 0
 
-
-###
-### [ifql]
-###
-### Configures the ifql RPC API.
-###
-
-[ifql]
-  # Determines whether the RPC service is enabled.
-  # enabled = true
-
-  # Determines whether additional logging is enabled.
-  # log-enabled = true
-
-  # The bind address used by the ifql RPC service.
-  # bind-address = ":8082"
-
-
 ###
 ### [logging]
 ###

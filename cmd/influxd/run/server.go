@@ -295,17 +295,6 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendStorageService(c storage.Config) {
-	if !c.Enabled {
-		return
-	}
-	srv := storage.NewService(c)
-	srv.MetaClient = s.MetaClient
-	srv.TSDBStore = s.TSDBStore
-
-	s.Services = append(s.Services, srv)
-}
-
 func (s *Server) appendCollectdService(c collectd.Config) {
 	if !c.Enabled {
 		return
@@ -402,7 +391,6 @@ func (s *Server) Open() error {
 	s.appendSnapshotterService()
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
-	s.appendStorageService(s.config.Storage)
 	s.appendRetentionPolicyService(s.config.Retention)
 	for _, i := range s.config.GraphiteInputs {
 		if err := s.appendGraphiteService(i); err != nil {
