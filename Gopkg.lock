@@ -397,7 +397,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:56ad93cdfc2bd30f0e32af141e8911d901b63f96a2d47112617de99f5e710e47"
+  digest = "1:03b6e6c0b34c00ee44302750f21aaae6049885baa84cf09a90c0afdd84fd7989"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -423,7 +423,7 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "5cebe1642917ee482384527d0493094cad2ab84a"
+  revision = "813a9d40082e2e5456866f0f34949bd5aaceb643"
 
 [[projects]]
   branch = "master"
@@ -446,7 +446,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d24506c07c1be50e3634574a91de80e9150856e590f1ce6ff9e9c624b3ef86be"
+  digest = "1:393cd839a950f0cd97ebae7c1c8e3b1e9dc53a4280ebce129ceceec3951ebeb4"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
@@ -471,7 +471,7 @@
     "tsdb/defaults",
   ]
   pruneopts = "UT"
-  revision = "a1df0f2f17aa257f91a89e58b118e465ebbcf8be"
+  revision = "e95fb9cc9ace5478a2dd80cbdc3e10256f33f333"
 
 [[projects]]
   branch = "master"
@@ -666,11 +666,10 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:f97482f69f8d8e853db82a02f036dfad1ba6250d29d870fdebca4683deaa117c"
+  digest = "1:c48feb65fcd3ba2f41af6d7b91a7543aa4524de0e03f275f437161478a588b17"
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
-    "ext",
     "log",
   ]
   pruneopts = "UT"
@@ -1084,7 +1083,6 @@
     "github.com/klauspost/pgzip",
     "github.com/mattn/go-isatty",
     "github.com/opentracing/opentracing-go",
-    "github.com/opentracing/opentracing-go/ext",
     "github.com/paulbellamy/ratecounter",
     "github.com/peterh/liner",
     "github.com/pkg/errors",
