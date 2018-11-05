@@ -18,6 +18,10 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	ErrMissingReadSource = errors.New("missing ReadSource")
+)
+
 func getReadSource(req *datatypes.ReadRequest) (*ReadSource, error) {
 	if req.ReadSource == nil {
 		return nil, ErrMissingReadSource
@@ -28,6 +32,11 @@ func getReadSource(req *datatypes.ReadRequest) (*ReadSource, error) {
 		return nil, err
 	}
 	return &source, nil
+}
+
+type MetaClient interface {
+	Database(name string) *meta.DatabaseInfo
+	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 }
 
 type Store struct {
