@@ -6,27 +6,26 @@ import (
 	"github.com/influxdata/platform/tsdb/tsm1"
 )
 
-// Old Config structure
+// Config matches the old toml layout from the influxdb repo, so that we can read
+// in those files and convert them to the new config layout.
 type Config struct {
-	Dir string `toml:"dir"` // This doesn't exist in the new config
-
-	WALDir        string        `toml:"wal-dir"`
-	WALFsyncDelay toml.Duration `toml:"wal-fsync-delay"`
-	ValidateKeys  bool          `toml:"validate-keys"`
-
+	Dir                            string        `toml:"dir"`
+	WALDir                         string        `toml:"wal-dir"`
+	WALFsyncDelay                  toml.Duration `toml:"wal-fsync-delay"`
+	ValidateKeys                   bool          `toml:"validate-keys"`
 	CacheMaxMemorySize             toml.Size     `toml:"cache-max-memory-size"`
 	CacheSnapshotMemorySize        toml.Size     `toml:"cache-snapshot-memory-size"`
 	CacheSnapshotWriteColdDuration toml.Duration `toml:"cache-snapshot-write-cold-duration"`
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
 	CompactThroughput              toml.Size     `toml:"compact-throughput"`
 	CompactThroughputBurst         toml.Size     `toml:"compact-throughput-burst"`
-
-	MaxConcurrentCompactions int  `toml:"max-concurrent-compactions"`
-	TraceLoggingEnabled      bool `toml:"trace-logging-enabled"`
-	TSMWillNeed              bool `toml:"tsm-use-madv-willneed"`
+	MaxConcurrentCompactions       int           `toml:"max-concurrent-compactions"`
+	TraceLoggingEnabled            bool          `toml:"trace-logging-enabled"`
+	TSMWillNeed                    bool          `toml:"tsm-use-madv-willneed"`
 }
 
-func Create() Config {
+// NewConfig constructs an old Config struct with appropriate defaults for a new Config.
+func NewConfig() Config {
 	return Config{
 		WALDir:                         tsm1.DefaultWALPath,
 		WALFsyncDelay:                  toml.Duration(tsm1.DefaultWALFsyncDelay),
@@ -43,7 +42,9 @@ func Create() Config {
 	}
 }
 
-func Convert(oldConfig Config) storage.Config {
+// Convert takes an old Config and converts it into a new Config. It also returns the value
+// of the Dir key so that it can be passed through appropriately.
+func Convert(oldConfig Config) (string, storage.Config) {
 	newConfig := storage.NewConfig()
 	newConfig.ValidateKeys = oldConfig.ValidateKeys
 	newConfig.Engine.MADVWillNeed = oldConfig.TSMWillNeed
@@ -57,5 +58,5 @@ func Convert(oldConfig Config) storage.Config {
 	newConfig.Engine.Compaction.MaxConcurrent = oldConfig.MaxConcurrentCompactions
 	newConfig.Engine.WAL.Path = oldConfig.WALDir
 	newConfig.Engine.WAL.FsyncDelay = oldConfig.WALFsyncDelay
-	return newConfig
+	return oldConfig.Dir, newConfig
 }
