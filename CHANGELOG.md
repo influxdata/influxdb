@@ -42,7 +42,7 @@ v1.6.2 [2018-08-27]
 
 ### Features
 
--	[#10191](https://github.com/influxdata/influxdb/pull/10191): Code Issues 759 Pull requests 37 Projects 0 Wiki Insights Settings Reduce allocations in TSI TagSets implementation.
+-	[#10191](https://github.com/influxdata/influxdb/pull/10191): Reduce allocations in TSI TagSets implementation.
 
 ### Bugfixes
 
