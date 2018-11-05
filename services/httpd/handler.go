@@ -120,11 +120,12 @@ type Handler struct {
 	CompilerMappings flux.CompilerMappings
 	registered       bool
 
-	Config    *Config
-	Logger    *zap.Logger
-	CLFLogger *log.Logger
-	accessLog *os.File
-	stats     *Statistics
+	Config           *Config
+	Logger           *zap.Logger
+	CLFLogger        *log.Logger
+	accessLog        *os.File
+	accessLogFilters StatusFilters
+	stats            *Statistics
 
 	requestTracker *RequestTracker
 	writeThrottler *Throttler
@@ -235,6 +236,7 @@ func (h *Handler) Open() {
 		}
 		h.Logger.Info("opened HTTP access log", zap.String("path", path))
 	}
+	h.accessLogFilters = StatusFilters(h.Config.AccessLogStatusFilters)
 
 	if h.Config.FluxEnabled {
 		h.registered = true
@@ -246,6 +248,7 @@ func (h *Handler) Close() {
 	if h.accessLog != nil {
 		h.accessLog.Close()
 		h.accessLog = nil
+		h.accessLogFilters = nil
 	}
 
 	if h.registered {
@@ -1651,7 +1654,10 @@ func (h *Handler) logging(inner http.Handler, name string) http.Handler {
 		start := time.Now()
 		l := &responseLogger{w: w}
 		inner.ServeHTTP(l, r)
-		h.CLFLogger.Println(buildLogLine(l, r, start))
+
+		if h.accessLogFilters.Match(l.Status()) {
+			h.CLFLogger.Println(buildLogLine(l, r, start))
+		}
 
 		// Log server errors.
 		if l.Status()/100 == 5 {
