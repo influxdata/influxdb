@@ -21,14 +21,13 @@ import {
 
 // Types
 import {Cell} from 'src/types/v2'
-import {Template, TimeRange} from 'src/types'
+import {TimeRange} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   cells: Cell[]
   timeRange: TimeRange
-  templates: Template[]
   autoRefresh: number
   manualRefresh: number
   onZoom: (range: TimeRange) => void
@@ -59,7 +58,6 @@ class Cells extends Component<Props & WithRouterProps, State> {
       onDeleteCell,
       onCloneCell,
       timeRange,
-      templates,
       autoRefresh,
       manualRefresh,
     } = this.props
@@ -84,7 +82,6 @@ class Cells extends Component<Props & WithRouterProps, State> {
               cell={cell}
               onZoom={onZoom}
               isEditable={true}
-              templates={templates}
               autoRefresh={autoRefresh}
               manualRefresh={manualRefresh}
               timeRange={timeRange}

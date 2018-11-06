@@ -30,12 +30,7 @@ import {cellAddFailed} from 'src/shared/copy/notifications'
 import {loadDashboardLinks} from 'src/dashboards/apis/v2'
 
 // Constants
-import {
-  interval,
-  DASHBOARD_LAYOUT_ROW_HEIGHT,
-  TEMP_VAR_DASHBOARD_TIME,
-  TEMP_VAR_UPPER_DASHBOARD_TIME,
-} from 'src/shared/constants'
+import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
 
@@ -49,7 +44,7 @@ import {
   TimeRange,
   DashboardSwitcherLinks,
 } from 'src/types/v2'
-import {Template, RemoteDataState} from 'src/types'
+import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
@@ -203,7 +198,6 @@ class DashboardPage extends Component<Props, State> {
             dashboard={dashboard}
             timeRange={timeRange}
             autoRefresh={autoRefresh}
-            templates={this.templates}
             manualRefresh={manualRefresh}
             setScrollTop={this.setScrollTop}
             onCloneCell={this.handleCloneCell}
@@ -360,56 +354,6 @@ class DashboardPage extends Component<Props, State> {
     } catch (error) {
       console.error(error)
     }
-  }
-
-  private get templates(): Template[] {
-    const {
-      dashboard,
-      timeRange: {lower, upper},
-      zoomedTimeRange: {lower: zoomedLower, upper: zoomedUpper},
-    } = this.props
-
-    const low = zoomedLower || lower
-    const up = zoomedUpper || upper
-
-    const lowerType = low && low.includes(':') ? 'timeStamp' : 'constant'
-    const upperType = up && up.includes(':') ? 'timeStamp' : 'constant'
-    const dashboardTime = {
-      id: 'dashtime',
-      tempVar: TEMP_VAR_DASHBOARD_TIME,
-      type: lowerType,
-      values: [
-        {
-          value: low,
-          type: lowerType,
-          selected: true,
-          localSelected: true,
-        },
-      ],
-    }
-
-    const upperDashboardTime = {
-      id: 'upperdashtime',
-      tempVar: TEMP_VAR_UPPER_DASHBOARD_TIME,
-      type: upperType,
-      values: [
-        {
-          value: up || 'now()',
-          type: upperType,
-          selected: true,
-          localSelected: true,
-        },
-      ],
-    }
-
-    let templatesIncludingDashTime
-    if (dashboard) {
-      templatesIncludingDashTime = [dashboardTime, upperDashboardTime, interval]
-    } else {
-      templatesIncludingDashTime = []
-    }
-
-    return templatesIncludingDashTime
   }
 
   private handleWindowResize = (): void => {

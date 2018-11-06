@@ -21,7 +21,7 @@ import {emptyGraphCopy} from 'src/shared/copy/cell'
 import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 
 // Types
-import {TimeRange, Template} from 'src/types'
+import {TimeRange} from 'src/types'
 import {AppState} from 'src/types/v2'
 import {DashboardQuery} from 'src/types/v2/dashboards'
 import {
@@ -33,7 +33,6 @@ import {
 
 interface OwnProps {
   timeRange: TimeRange
-  templates: Template[]
   viewID: string
   inView: boolean
   timeFormat: string
@@ -66,7 +65,6 @@ class RefreshingView extends PureComponent<Props> {
       onZoom,
       viewID,
       timeRange,
-      templates,
       properties,
       manualRefresh,
       handleSetHoverTime,
@@ -85,7 +83,6 @@ class RefreshingView extends PureComponent<Props> {
         link={link}
         inView={inView}
         queries={this.queries}
-        templates={templates}
         key={manualRefresh}
       >
         {({tables, loading}) => {

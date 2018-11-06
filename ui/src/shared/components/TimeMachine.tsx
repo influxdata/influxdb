@@ -81,7 +81,6 @@ class TimeMachine extends PureComponent<Props> {
             <ViewComponent
               view={view}
               onZoom={noop}
-              templates={[]}
               timeRange={timeRange}
               autoRefresh={0}
               manualRefresh={0}

@@ -9,7 +9,7 @@ import RefreshingView from 'src/shared/components/RefreshingView'
 import {text} from 'src/shared/components/views/gettingsStarted'
 
 // Types
-import {TimeRange, Template} from 'src/types'
+import {TimeRange} from 'src/types'
 import {View, ViewType, ViewShape} from 'src/types/v2'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -17,7 +17,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   view: View
   timeRange: TimeRange
-  templates: Template[]
   autoRefresh: number
   manualRefresh: number
   onZoom: (range: TimeRange) => void
@@ -31,14 +30,7 @@ class ViewComponent extends Component<Props> {
   }
 
   public render() {
-    const {
-      view,
-      onZoom,
-      timeRange,
-      autoRefresh,
-      manualRefresh,
-      templates,
-    } = this.props
+    const {view, onZoom, timeRange, autoRefresh, manualRefresh} = this.props
 
     switch (view.properties.type) {
       case ViewShape.Empty:
@@ -52,7 +44,6 @@ class ViewComponent extends Component<Props> {
             viewID={view.id}
             onZoom={onZoom}
             timeRange={timeRange}
-            templates={templates}
             autoRefresh={autoRefresh}
             properties={view.properties}
             manualRefresh={manualRefresh}

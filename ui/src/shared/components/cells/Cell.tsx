@@ -13,7 +13,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {readView} from 'src/dashboards/actions/v2/views'
 
 // Types
-import {DashboardQuery, RemoteDataState, Template, TimeRange} from 'src/types'
+import {DashboardQuery, RemoteDataState, TimeRange} from 'src/types'
 import {Cell, View, AppState} from 'src/types/v2'
 
 interface StateProps {
@@ -28,7 +28,6 @@ interface DispatchProps {
 interface PassedProps {
   cell: Cell
   timeRange: TimeRange
-  templates: Template[]
   autoRefresh: number
   manualRefresh: number
   onDeleteCell: (cell: Cell) => void
@@ -86,7 +85,6 @@ class CellComponent extends Component<Props> {
 
   private get view(): JSX.Element {
     const {
-      templates,
       timeRange,
       autoRefresh,
       manualRefresh,
@@ -104,7 +102,6 @@ class CellComponent extends Component<Props> {
       <ViewComponent
         view={view}
         onZoom={onZoom}
-        templates={templates}
         timeRange={timeRange}
         autoRefresh={autoRefresh}
         manualRefresh={manualRefresh}
@@ -141,4 +138,7 @@ const mdtp: DispatchProps = {
   onReadView: readView,
 }
 
-export default connect(mstp, mdtp)(CellComponent) as ComponentClass<PassedProps>
+export default connect(
+  mstp,
+  mdtp
+)(CellComponent) as ComponentClass<PassedProps>

@@ -3,14 +3,15 @@ import React, {Component} from 'react'
 import _ from 'lodash'
 
 // API
-import {fetchTimeSeries} from 'src/shared/apis/v2/timeSeries'
+import {executeQueries} from 'src/shared/apis/v2/query'
 
 // Types
-import {Template, RemoteDataState, FluxTable} from 'src/types'
+import {RemoteDataState, FluxTable} from 'src/types'
 import {DashboardQuery} from 'src/types/v2/dashboards'
 
 // Utils
 import AutoRefresh from 'src/utils/AutoRefresh'
+import {parseResponse} from 'src/shared/parsing/flux/response'
 
 export const DEFAULT_TIME_SERIES = [{response: {results: []}}]
 
@@ -23,7 +24,6 @@ interface Props {
   link: string
   queries: DashboardQuery[]
   inView?: boolean
-  templates?: Template[]
   children: (r: RenderProps) => JSX.Element
 }
 
@@ -36,11 +36,11 @@ interface State {
 class TimeSeries extends Component<Props, State> {
   public static defaultProps = {
     inView: true,
-    templates: [],
   }
 
   constructor(props: Props) {
     super(props)
+
     this.state = {
       loading: RemoteDataState.NotStarted,
       isFirstFetch: false,
@@ -67,7 +67,7 @@ class TimeSeries extends Component<Props, State> {
   }
 
   public executeQueries = async (isFirstFetch: boolean = false) => {
-    const {link, inView, queries, templates} = this.props
+    const {link, inView, queries} = this.props
 
     if (!inView) {
       return
@@ -79,10 +79,9 @@ class TimeSeries extends Component<Props, State> {
 
     this.setState({loading: RemoteDataState.Loading, isFirstFetch})
 
-    const TEMP_RES = 300
-
     try {
-      const tables = await fetchTimeSeries(link, queries, TEMP_RES, templates)
+      const results = await executeQueries(link, queries)
+      const tables = _.flatten(results.map(r => parseResponse(r.csv)))
 
       this.setState({
         tables,
@@ -126,7 +125,6 @@ class TimeSeries extends Component<Props, State> {
     return (
       this.props.inView !== nextProps.inView ||
       !!this.queryDifference(this.props.queries, nextProps.queries).length ||
-      !_.isEqual(this.props.templates, nextProps.templates) ||
       isSourceDifferent
     )
   }
