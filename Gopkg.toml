@@ -71,5 +71,5 @@
   unused-packages = true
 
 [[constraint]]
-  branch = "master"
   name = "github.com/influxdata/flux"
+  version = "0.7.0"
