@@ -47,13 +47,8 @@ func init() {
 }
 
 var skipTests = map[string]string{
-	"derivative":                "derivative not supported by influxql (https://github.com/influxdata/platform/issues/93)",
-	"filter_by_tags":            "arbitrary filtering not supported by influxql (https://github.com/influxdata/platform/issues/94)",
-	"window_group_mean_ungroup": "error in influxql: failed to run query: timeValue column \"_start\" does not exist (https://github.com/influxdata/platform/issues/97)",
-	"string_max":                "error: invalid use of function: *functions.MaxSelector has no implementation for type string (https://github.com/influxdata/platform/issues/224)",
-	"null_as_value":             "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
-	"difference_panic":          "difference() panics when no table is supplied",
-	"string_interp":             "string interpolation not working as expected in flux (https://github.com/influxdata/platform/issues/404)",
+	"hardcoded_literal_1": "transpiler count query is off by 1 (https://github.com/influxdata/platform/issues/1278)",
+	"hardcoded_literal_3": "transpiler count query is off by 1 (https://github.com/influxdata/platform/issues/1278)",
 }
 
 var querier = querytest.NewQuerier()
@@ -121,8 +116,12 @@ func Test_QueryEndToEnd(t *testing.T) {
 
 func Test_GeneratedInfluxQLQueries(t *testing.T) {
 	withEachInfluxQLFile(t, func(prefix, caseName string) {
+		reason, skip := skipTests[caseName]
 		influxqlName := caseName + ".influxql"
 		t.Run(influxqlName, func(t *testing.T) {
+			if skip {
+				t.Skip(reason)
+			}
 			testGeneratedInfluxQL(t, querier, prefix, ".influxql")
 		})
 	})
