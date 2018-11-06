@@ -8,7 +8,6 @@ type NotificationExcludingMessage = Pick<
 >
 
 import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
-import {MAX_RESPONSE_BYTES} from 'src/flux/constants'
 
 const defaultErrorNotification: NotificationExcludingMessage = {
   type: 'error',
@@ -683,13 +682,3 @@ export const fluxTimeSeriesError = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Could not get data: ${message}`,
 })
-
-export const fluxResponseTruncatedError = (): Notification => {
-  const BYTES_TO_MB = 1 / 1e6
-  const APPROX_MAX_RESPONSE_MB = +(MAX_RESPONSE_BYTES * BYTES_TO_MB).toFixed(2)
-
-  return {
-    ...defaultErrorNotification,
-    message: `Large response truncated to first ${APPROX_MAX_RESPONSE_MB} MB`,
-  }
-}

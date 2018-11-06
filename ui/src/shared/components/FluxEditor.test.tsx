@@ -1,5 +1,5 @@
 import React from 'react'
-import FluxEditor from 'src/flux/components/v2/FluxEditor'
+import FluxEditor from 'src/shared/components/FluxEditor'
 import {shallow} from 'enzyme'
 
 const setup = (override?) => {

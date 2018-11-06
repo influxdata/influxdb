@@ -10,7 +10,7 @@ import StepPlot from 'src/shared/components/StepPlot'
 import Stacked from 'src/shared/components/Stacked'
 import GaugeChart from 'src/shared/components/GaugeChart'
 import SingleStat from 'src/shared/components/SingleStat'
-import TimeSeries from 'src/shared/components/time_series/TimeSeries'
+import TimeSeries from 'src/shared/components/TimeSeries'
 import SingleStatTransform from 'src/shared/components/SingleStatTransform'
 import TimeMachineTables from 'src/shared/components/tables/TimeMachineTables'
 
@@ -211,6 +211,7 @@ const mdtp = {
   handleSetHoverTime: setHoverTime,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(
-  withRouter(RefreshingView)
-)
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(withRouter(RefreshingView))

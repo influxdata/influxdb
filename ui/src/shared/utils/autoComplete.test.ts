@@ -1,4 +1,4 @@
-import {getSuggestionsHelper} from 'src/flux/helpers/autoComplete'
+import {getSuggestionsHelper} from 'src/shared/utils/autoComplete'
 
 const ALL_SUGGESTIONS = [
   {name: 'filter', params: {foo: 'function', bux: 'string'}},

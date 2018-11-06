@@ -1,9 +1,9 @@
 import React, {SFC} from 'react'
 
-const NoResult: SFC = () => (
+const NoResults: SFC = () => (
   <div className="graph-empty">
     <p>No Results</p>
   </div>
 )
 
-export default NoResult
+export default NoResults

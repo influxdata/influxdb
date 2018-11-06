@@ -9,10 +9,10 @@ import 'src/external/codemirror'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Constants
-import {EXCLUDED_KEYS} from 'src/flux/constants/editor'
+import {EXCLUDED_KEYS} from 'src/shared/constants/fluxEditor'
 
 // Utils
-import {getSuggestions} from 'src/flux/helpers/autoComplete'
+import {getSuggestions} from 'src/shared/utils/autoComplete'
 
 // Types
 import {OnChangeScript, OnSubmitScript, Suggestion} from 'src/types/flux'

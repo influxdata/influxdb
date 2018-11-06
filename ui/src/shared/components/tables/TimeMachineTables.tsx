@@ -3,9 +3,9 @@ import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
 
 // Components
-import TableSidebar from 'src/flux/components/TableSidebar'
+import TableSidebar from 'src/shared/components/tables/TableSidebar'
 import {FluxTable} from 'src/types'
-import NoResults from 'src/flux/components/NoResults'
+import NoResults from 'src/shared/components/NoResults'
 import TableGraph from 'src/shared/components/tables/TableGraph'
 import TableGraphTransform from 'src/shared/components/tables/TableGraphTransform'
 

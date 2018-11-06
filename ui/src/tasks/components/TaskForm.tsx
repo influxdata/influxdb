@@ -2,7 +2,7 @@ import _ from 'lodash'
 import React, {PureComponent} from 'react'
 
 import {Form, Columns} from 'src/clockface'
-import FluxEditor from 'src/flux/components/v2/FluxEditor'
+import FluxEditor from 'src/shared/components/FluxEditor'
 
 interface Props {
   script: string
