@@ -78,9 +78,9 @@ func TestFrom_NewQuery(t *testing.T) {
 								Relative:   -2 * time.Hour,
 								IsRelative: true,
 							},
-							TimeCol:  "_time",
-							StartCol: "_start",
-							StopCol:  "_stop",
+							TimeColumn:  "_time",
+							StartColumn: "_start",
+							StopColumn:  "_stop",
 						},
 					},
 					{

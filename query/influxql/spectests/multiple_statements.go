@@ -29,11 +29,11 @@ func init() {
 					{
 						ID: "range0",
 						Spec: &transformations.RangeOpSpec{
-							Start:    flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
-							Stop:     flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
-							TimeCol:  execute.DefaultTimeColLabel,
-							StartCol: execute.DefaultStartColLabel,
-							StopCol:  execute.DefaultStopColLabel,
+							Start:       flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
+							Stop:        flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+							TimeColumn:  execute.DefaultTimeColLabel,
+							StartColumn: execute.DefaultStartColLabel,
+							StopColumn:  execute.DefaultStopColLabel,
 						},
 					},
 					{
@@ -94,8 +94,8 @@ func init() {
 					{
 						ID: "duplicate0",
 						Spec: &transformations.DuplicateOpSpec{
-							Col: execute.DefaultStartColLabel,
-							As:  execute.DefaultTimeColLabel,
+							Column: execute.DefaultStartColLabel,
+							As:     execute.DefaultTimeColLabel,
 						},
 					},
 					{
@@ -150,11 +150,11 @@ func init() {
 					{
 						ID: "range1",
 						Spec: &transformations.RangeOpSpec{
-							Start:    flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
-							Stop:     flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
-							TimeCol:  execute.DefaultTimeColLabel,
-							StartCol: execute.DefaultStartColLabel,
-							StopCol:  execute.DefaultStopColLabel,
+							Start:       flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
+							Stop:        flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+							TimeColumn:  execute.DefaultTimeColLabel,
+							StartColumn: execute.DefaultStartColLabel,
+							StopColumn:  execute.DefaultStopColLabel,
 						},
 					},
 					{

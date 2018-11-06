@@ -234,12 +234,12 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 	if normalize {
 		if influxql.IsSelector(call) {
 			cur.id = t.op("drop", &transformations.DropOpSpec{
-				Cols: []string{execute.DefaultTimeColLabel},
+				Columns: []string{execute.DefaultTimeColLabel},
 			}, cur.id)
 		}
 		cur.id = t.op("duplicate", &transformations.DuplicateOpSpec{
-			Col: execute.DefaultStartColLabel,
-			As:  execute.DefaultTimeColLabel,
+			Column: execute.DefaultStartColLabel,
+			As:     execute.DefaultTimeColLabel,
 		}, cur.id)
 	}
 	return cur, nil

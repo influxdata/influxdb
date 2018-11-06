@@ -31,11 +31,11 @@ func init() {
 						{
 							ID: "range0",
 							Spec: &transformations.RangeOpSpec{
-								Start:    flux.Time{Absolute: Now().Add(-10 * time.Minute)},
-								Stop:     flux.Time{Absolute: Now()},
-								TimeCol:  execute.DefaultTimeColLabel,
-								StartCol: execute.DefaultStartColLabel,
-								StopCol:  execute.DefaultStopColLabel,
+								Start:       flux.Time{Absolute: Now().Add(-10 * time.Minute)},
+								Stop:        flux.Time{Absolute: Now()},
+								TimeColumn:  execute.DefaultTimeColLabel,
+								StartColumn: execute.DefaultStartColLabel,
+								StopColumn:  execute.DefaultStopColLabel,
 							},
 						},
 						{
@@ -88,29 +88,29 @@ func init() {
 						{
 							ID: "window0",
 							Spec: &transformations.WindowOpSpec{
-								Every:         flux.Duration(time.Minute),
-								Period:        flux.Duration(time.Minute),
-								TimeCol:       execute.DefaultTimeColLabel,
-								StartColLabel: execute.DefaultStartColLabel,
-								StopColLabel:  execute.DefaultStopColLabel,
+								Every:       flux.Duration(time.Minute),
+								Period:      flux.Duration(time.Minute),
+								TimeColumn:  execute.DefaultTimeColLabel,
+								StartColumn: execute.DefaultStartColLabel,
+								StopColumn:  execute.DefaultStopColLabel,
 							},
 						},
 						&aggregate,
 						{
 							ID: "duplicate0",
 							Spec: &transformations.DuplicateOpSpec{
-								Col: execute.DefaultStartColLabel,
-								As:  execute.DefaultTimeColLabel,
+								Column: execute.DefaultStartColLabel,
+								As:     execute.DefaultTimeColLabel,
 							},
 						},
 						{
 							ID: "window1",
 							Spec: &transformations.WindowOpSpec{
-								Every:         flux.Duration(math.MaxInt64),
-								Period:        flux.Duration(math.MaxInt64),
-								TimeCol:       execute.DefaultTimeColLabel,
-								StartColLabel: execute.DefaultStartColLabel,
-								StopColLabel:  execute.DefaultStopColLabel,
+								Every:       flux.Duration(math.MaxInt64),
+								Period:      flux.Duration(math.MaxInt64),
+								TimeColumn:  execute.DefaultTimeColLabel,
+								StartColumn: execute.DefaultStartColLabel,
+								StopColumn:  execute.DefaultStopColLabel,
 							},
 						},
 						{

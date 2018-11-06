@@ -79,7 +79,7 @@ func init() {
 					{
 						ID: "keyValues0",
 						Spec: &transformations.KeyValuesOpSpec{
-							KeyCols: []string{"host"},
+							KeyColumns: []string{"host"},
 						},
 					},
 					{
@@ -103,7 +103,7 @@ func init() {
 					{
 						ID: "rename0",
 						Spec: &transformations.RenameOpSpec{
-							Cols: map[string]string{
+							Columns: map[string]string{
 								"_key":   "key",
 								"_value": "value",
 							},
