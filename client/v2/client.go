@@ -161,7 +161,7 @@ func (c *client) Ping(timeout time.Duration) (time.Duration, string, error) {
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
-		var err = fmt.Errorf(string(body))
+		var err = errors.New(string(body))
 		return 0, "", err
 	}
 
@@ -411,7 +411,7 @@ func (c *client) Write(bp BatchPoints) error {
 	}
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		var err = fmt.Errorf(string(body))
+		var err = errors.New(string(body))
 		return err
 	}
 
@@ -475,11 +475,11 @@ type Response struct {
 // It returns nil if no errors occurred on any statements.
 func (r *Response) Error() error {
 	if r.Err != "" {
-		return fmt.Errorf(r.Err)
+		return errors.New(r.Err)
 	}
 	for _, result := range r.Results {
 		if result.Err != "" {
-			return fmt.Errorf(result.Err)
+			return errors.New(result.Err)
 		}
 	}
 	return nil

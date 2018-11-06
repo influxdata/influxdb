@@ -208,7 +208,6 @@ func (s *Service) Close() error {
 func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "httpd"))
 	s.Handler.Logger = s.Logger
-	s.Handler.Store.WithLogger(s.Logger)
 }
 
 // Err returns a channel for fatal errors that occur on the listener.

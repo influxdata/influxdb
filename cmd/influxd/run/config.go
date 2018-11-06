@@ -24,7 +24,6 @@ import (
 	"github.com/influxdata/influxdb/services/opentsdb"
 	"github.com/influxdata/influxdb/services/precreator"
 	"github.com/influxdata/influxdb/services/retention"
-	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
 	itoml "github.com/influxdata/influxdb/toml"
@@ -50,7 +49,6 @@ type Config struct {
 	Subscriber     subscriber.Config `toml:"subscriber"`
 	HTTPD          httpd.Config      `toml:"http"`
 	Logging        logger.Config     `toml:"logging"`
-	Storage        storage.Config    `toml:"flux"`
 	GraphiteInputs []graphite.Config `toml:"graphite"`
 	CollectdInputs []collectd.Config `toml:"collectd"`
 	OpenTSDBInputs []opentsdb.Config `toml:"opentsdb"`
@@ -80,7 +78,6 @@ func NewConfig() *Config {
 	c.Subscriber = subscriber.NewConfig()
 	c.HTTPD = httpd.NewConfig()
 	c.Logging = logger.NewConfig()
-	c.Storage = storage.NewConfig()
 
 	c.GraphiteInputs = []graphite.Config{graphite.NewConfig()}
 	c.CollectdInputs = []collectd.Config{collectd.NewConfig()}

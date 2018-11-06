@@ -11,6 +11,7 @@ v1.7.0 [unreleased]
 -	[#9996](https://github.com/influxdata/influxdb/pull/9996): Ensure read service regexes get optimised.
 -	[#10408](https://github.com/influxdata/influxdb/pull/10408): Add Flux support to the influx CLI command.
 -	[#10257](https://github.com/influxdata/influxdb/issues/10257): Add chunked query into the Go client v2.
+-	[#9509](https://github.com/influxdata/influxdb/pull/9509): Add an access log filter for the access log.
 
 ### Bugfixes
 

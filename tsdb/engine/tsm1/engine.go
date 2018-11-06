@@ -1289,7 +1289,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 						continue
 					}
 
-					// Doesn't exsts, so try to insert
+					// Doesn't exist, so try to insert
 					vv, ok := e.seriesTypeMap.Insert(keyBuf, int(iter.Type()))
 
 					// We didn't insert and the type that exists isn't what we tried to insert, so

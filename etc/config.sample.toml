@@ -232,6 +232,9 @@
   # Determines whether HTTP endpoint is enabled.
   # enabled = true
 
+  # Determines whether the Flux query endpoint is enabled.
+  # flux-enabled = false
+
   # The bind address used by the HTTP service.
   # bind-address = ":8086"
 
@@ -254,6 +257,12 @@
   # If influxd is unable to access the specified path, it will log an error and fall back to writing
   # the request log to stderr.
   # access-log-path = ""
+
+  # Filters which requests should be logged. Each filter is of the pattern NNN, NNX, or NXX where N is
+  # a number and X is a wildcard for any number. To filter all 5xx responses, use the string 5xx.
+  # If multiple filters are used, then only one has to match. The default is to have no filters which
+  # will cause every request to be printed.
+  # access-log-status-filters = []
 
   # Determines whether detailed write logging is enabled.
   # write-tracing = false
@@ -305,24 +314,6 @@
   # The maximum duration for a write to wait in the queue to be processed.
   # Setting this to 0 or setting max-concurrent-write-limit to 0 disables the limit.
   # enqueued-write-timeout = 0
-
-
-###
-### [ifql]
-###
-### Configures the ifql RPC API.
-###
-
-[ifql]
-  # Determines whether the RPC service is enabled.
-  # enabled = true
-
-  # Determines whether additional logging is enabled.
-  # log-enabled = true
-
-  # The bind address used by the ifql RPC service.
-  # bind-address = ":8082"
-
 
 ###
 ### [logging]
