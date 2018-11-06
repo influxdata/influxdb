@@ -3,7 +3,7 @@ import AJAX from 'src/utils/ajax'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Types
-import {InfluxLanguages} from 'src/types/v2/dashboards'
+import {InfluxLanguage} from 'src/types/v2/dashboards'
 import {FluxTable} from 'src/types'
 import {SearchStatus} from 'src/types/logs'
 
@@ -27,7 +27,7 @@ export const executeQueryAsync = async (
       method: 'POST',
       url: link,
       data: {
-        type: InfluxLanguages.Flux,
+        type: InfluxLanguage.Flux,
         query,
         dialect,
       },

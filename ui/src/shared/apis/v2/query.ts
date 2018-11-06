@@ -1,6 +1,6 @@
 import Deferred from 'src/utils/Deferred'
 
-import {InfluxLanguages} from 'src/types/v2/dashboards'
+import {InfluxLanguage} from 'src/types/v2/dashboards'
 import {DashboardQuery} from 'src/types/v2/dashboards'
 
 const CHECK_LIMIT_INTERVAL = 200
@@ -19,7 +19,7 @@ interface XHRError extends Error {
 export const executeQuery = async (
   url: string,
   query: string,
-  language: InfluxLanguages = InfluxLanguages.Flux
+  language: InfluxLanguage = InfluxLanguage.Flux
 ): Promise<ExecuteFluxQueryResult> => {
   // We're using `XMLHttpRequest` directly here rather than through `axios` so
   // that we can poll the response size as it comes back. If the response size

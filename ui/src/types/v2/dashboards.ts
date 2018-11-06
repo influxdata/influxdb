@@ -35,14 +35,14 @@ export interface Axes {
   y2?: Axis
 }
 
-export enum InfluxLanguages {
+export enum InfluxLanguage {
   InfluxQL = 'influxql',
   Flux = 'flux',
 }
 
 export interface DashboardQuery {
   text: string
-  type: InfluxLanguages
+  type: InfluxLanguage
   source: string
 }
 

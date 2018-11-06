@@ -17,7 +17,7 @@ import {
   FieldOption,
   DecimalPlaces,
   DashboardQuery,
-  InfluxLanguages,
+  InfluxLanguage,
 } from 'src/types/v2/dashboards'
 import {Color} from 'src/types/colors'
 
@@ -136,7 +136,7 @@ export const queryConfig: QueryConfig = {
 export const query: DashboardQuery = {
   text:
     'SELECT mean("usage_idle") AS "mean_usage_idle", mean("usage_user") AS "mean_usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)',
-  type: InfluxLanguages.InfluxQL,
+  type: InfluxLanguage.InfluxQL,
   source: '',
 }
 

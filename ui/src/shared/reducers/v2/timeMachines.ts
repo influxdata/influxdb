@@ -10,7 +10,7 @@ import {
 // Types
 import {View, TimeRange, ViewType, ViewShape} from 'src/types/v2'
 import {Action} from 'src/shared/actions/v2/timeMachines'
-import {InfluxLanguages} from 'src/types/v2/dashboards'
+import {InfluxLanguage} from 'src/types/v2/dashboards'
 
 interface TimeMachineState {
   view: View
@@ -35,7 +35,7 @@ const initialStateHelper = (): TimeMachineState => ({
         {
           text:
             'SELECT mean("usage_user") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(10s) FILL(0)',
-          type: InfluxLanguages.InfluxQL,
+          type: InfluxLanguage.InfluxQL,
           source: 'v1',
         },
       ],
