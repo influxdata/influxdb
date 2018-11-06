@@ -57,6 +57,7 @@ v1.6.0 [2018-07-05]
 -	[#10321](https://github.com/influxdata/influxdb/pull/10321): Changes /ping route to return status code 200 instead of 204 when verbose is set.
 -	[#10300](https://github.com/influxdata/influxdb/pull/10300): Improve Compaction Performance.
 -	[#10278](https://github.com/influxdata/influxdb/pull/10278): Remove TSI1 HLL sketches from heap.
+-	[#9509](https://github.com/influxdata/influxdb/pull/9509): Add an access log filter for the access log.
 
 ### Bugfixes
 
