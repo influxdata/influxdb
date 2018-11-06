@@ -1,0 +1,1 @@
+SELECT f2::float FROM m

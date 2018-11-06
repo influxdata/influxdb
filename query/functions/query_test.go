@@ -22,6 +22,8 @@ import (
 	"github.com/andreyvit/diff"
 )
 
+const generatedInfluxQLDataDir = "random"
+
 var dbrpMappingSvc = mock.NewDBRPMappingService()
 
 func init() {
@@ -45,13 +47,8 @@ func init() {
 }
 
 var skipTests = map[string]string{
-	"derivative":                "derivative not supported by influxql (https://github.com/influxdata/platform/issues/93)",
-	"filter_by_tags":            "arbitrary filtering not supported by influxql (https://github.com/influxdata/platform/issues/94)",
-	"window_group_mean_ungroup": "error in influxql: failed to run query: timeValue column \"_start\" does not exist (https://github.com/influxdata/platform/issues/97)",
-	"string_max":                "error: invalid use of function: *functions.MaxSelector has no implementation for type string (https://github.com/influxdata/platform/issues/224)",
-	"null_as_value":             "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
-	"difference_panic":          "difference() panics when no table is supplied",
-	"string_interp":             "string interpolation not working as expected in flux (https://github.com/influxdata/platform/issues/404)",
+	"hardcoded_literal_1": "transpiler count query is off by 1 (https://github.com/influxdata/platform/issues/1278)",
+	"hardcoded_literal_3": "transpiler count query is off by 1 (https://github.com/influxdata/platform/issues/1278)",
 }
 
 var querier = querytest.NewQuerier()
@@ -76,6 +73,26 @@ func withEachFluxFile(t testing.TB, fn func(prefix, caseName string)) {
 	}
 }
 
+func withEachInfluxQLFile(t testing.TB, fn func(prefix, caseName string)) {
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, generatedInfluxQLDataDir)
+
+	influxqlFiles, err := filepath.Glob(filepath.Join(path, "*.influxql"))
+	if err != nil {
+		t.Fatalf("error searching for influxQL files: %s", err)
+	}
+
+	for _, influxqlFile := range influxqlFiles {
+		ext := filepath.Ext(influxqlFile)
+		prefix := influxqlFile[0 : len(influxqlFile)-len(ext)]
+		_, caseName := filepath.Split(prefix)
+		fn(prefix, caseName)
+	}
+}
+
 func Test_QueryEndToEnd(t *testing.T) {
 	withEachFluxFile(t, func(prefix, caseName string) {
 		reason, skip := skipTests[caseName]
@@ -93,6 +110,19 @@ func Test_QueryEndToEnd(t *testing.T) {
 				t.Skip(reason)
 			}
 			testInfluxQL(t, querier, prefix, ".influxql")
+		})
+	})
+}
+
+func Test_GeneratedInfluxQLQueries(t *testing.T) {
+	withEachInfluxQLFile(t, func(prefix, caseName string) {
+		reason, skip := skipTests[caseName]
+		influxqlName := caseName + ".influxql"
+		t.Run(influxqlName, func(t *testing.T) {
+			if skip {
+				t.Skip(reason)
+			}
+			testGeneratedInfluxQL(t, querier, prefix, ".influxql")
 		})
 	})
 }
@@ -196,6 +226,37 @@ func testInfluxQL(t testing.TB, querier *querytest.Querier, prefix, queryExt str
 			t.Fatal(err)
 		}
 		t.Skip("influxql expected json is missing")
+	}
+	QueryTestCheckSpec(t, querier, req, string(jsonOut))
+}
+
+func testGeneratedInfluxQL(t testing.TB, querier *querytest.Querier, prefix, queryExt string) {
+	q, err := ioutil.ReadFile(prefix + queryExt)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		t.Skip("influxql query is missing")
+	}
+
+	jsonInFileName := prefix + ".in.json"
+	jsonOut, err := ioutil.ReadFile(prefix + ".out.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	compiler := influxql.NewCompiler(dbrpMappingSvc)
+	compiler.Cluster = "cluster"
+	compiler.DB = "db0"
+	compiler.Query = string(q)
+	req := &query.ProxyRequest{
+		Request: query.Request{
+			Compiler: querytest.FromInfluxJSONCompiler{
+				Compiler:  compiler,
+				InputFile: jsonInFileName,
+			},
+		},
+		Dialect: new(influxql.Dialect),
 	}
 	QueryTestCheckSpec(t, querier, req, string(jsonOut))
 }
