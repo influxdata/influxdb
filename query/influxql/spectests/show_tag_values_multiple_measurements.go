@@ -30,6 +30,7 @@ func init() {
 								Relative:   -time.Hour,
 								IsRelative: true,
 							},
+							Stop: flux.Now,
 						},
 					},
 					{

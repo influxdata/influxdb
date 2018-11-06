@@ -121,6 +121,7 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 			Relative:   -time.Hour,
 			IsRelative: true,
 		},
+		Stop: flux.Now,
 	}, op)
 
 	// If we have a list of sources, look through it and add each of the measurement names.
