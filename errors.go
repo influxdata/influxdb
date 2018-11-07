@@ -16,6 +16,7 @@ const (
 	EInvalid     = "invalid"  // validation failed
 	EEmptyValue  = "empty value"
 	EUnavailable = "unavailable"
+	EForbidden   = "forbidden"
 )
 
 // Error is the error struct of platform.
@@ -85,6 +86,8 @@ func ErrorCode(err error) string {
 		return ""
 	} else if e, ok := err.(*Error); ok && e.Code != "" {
 		return e.Code
+	} else if ok && e.Err != nil {
+		return ErrorCode(e.Err)
 	}
 	return EInternal
 }
@@ -93,6 +96,8 @@ func ErrorCode(err error) string {
 func ErrorOp(err error) string {
 	if e, ok := err.(*Error); ok && e.Op != "" {
 		return e.Op
+	} else if ok && e.Err != nil {
+		return ErrorOp(e.Err)
 	}
 	return ""
 }

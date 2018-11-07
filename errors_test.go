@@ -117,6 +117,11 @@ func TestErrorOp(t *testing.T) {
 			want: "op1",
 		},
 		{
+			name: "embeded error without op in root level",
+			err:  &platform.Error{Err: &platform.Error{Code: platform.EInvalid, Op: "op2"}},
+			want: "op2",
+		},
+		{
 			name: "default error",
 			err:  errors.New("s"),
 			want: "",
@@ -146,6 +151,11 @@ func TestErrorCode(t *testing.T) {
 			name: "embeded error",
 			err:  &platform.Error{Code: platform.ENotFound, Err: &platform.Error{Code: platform.EInvalid}},
 			want: platform.ENotFound,
+		},
+		{
+			name: "embeded error with root level code",
+			err:  &platform.Error{Err: &platform.Error{Code: platform.EInvalid}},
+			want: platform.EInvalid,
 		},
 		{
 			name: "default error",

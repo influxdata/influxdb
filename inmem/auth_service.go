@@ -2,8 +2,6 @@ package inmem
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 
 	"github.com/influxdata/platform"
 )
@@ -58,9 +56,9 @@ func (s *Service) PutAuthorization(ctx context.Context, a *platform.Authorizatio
 }
 
 // FindAuthorizationByID returns an authorization given an ID.
-func (s *Service) FindAuthorizationByID(ctx context.Context, id platform.ID) (a *platform.Authorization, err error) {
-	var pe *platform.Error
-	a, pe = s.loadAuthorization(ctx, id)
+func (s *Service) FindAuthorizationByID(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
+	var err error
+	a, pe := s.loadAuthorization(ctx, id)
 	if pe != nil {
 		pe.Op = OpPrefix + platform.OpFindAuthorizationByID
 		err = pe
@@ -69,20 +67,23 @@ func (s *Service) FindAuthorizationByID(ctx context.Context, id platform.ID) (a 
 }
 
 // FindAuthorizationByToken returns an authorization given a token.
-func (s *Service) FindAuthorizationByToken(ctx context.Context, t string) (a *platform.Authorization, err error) {
+func (s *Service) FindAuthorizationByToken(ctx context.Context, t string) (*platform.Authorization, error) {
+	var err error
 	op := OpPrefix + platform.OpFindAuthorizationByToken
 	var n int
 	var as []*platform.Authorization
 	as, n, err = s.FindAuthorizations(ctx, platform.AuthorizationFilter{Token: &t})
 	if err != nil {
-		fmt.Println(err, reflect.TypeOf(err).String(), err == nil)
-		err.(*platform.Error).Op = op
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+			Op:  op,
+		}
 	}
 	if n < 1 {
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
 			Msg:  "authorization not found",
+			Op:   op,
 		}
 	}
 	return as[0], nil
@@ -116,8 +117,10 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 	if filter.ID != nil {
 		a, err := s.FindAuthorizationByID(ctx, *filter.ID)
 		if err != nil {
-			err.(*platform.Error).Op = op
-			return nil, 0, err
+			return nil, 0, &platform.Error{
+				Err: err,
+				Op:  op,
+			}
 		}
 
 		return []*platform.Authorization{a}, 1, nil
@@ -142,11 +145,13 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 			err = &platform.Error{
 				Code: platform.EInternal,
 				Msg:  "value found in map is not an authorization",
+				Op:   op,
 			}
 			return false
 		}
 
 		if pe := s.setUserOnAuthorization(ctx, &a); pe != nil {
+			pe.Op = op
 			err = pe
 			return false
 		}
@@ -167,11 +172,13 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 
 // CreateAuthorization sets a.Token and a.ID and creates an platform.Authorization
 func (s *Service) CreateAuthorization(ctx context.Context, a *platform.Authorization) error {
+	op := OpPrefix + platform.OpCreateAuthorization
 	if !a.UserID.Valid() {
 		u, err := s.findUserByName(ctx, a.User)
 		if err != nil {
 			return &platform.Error{
 				Err: err,
+				Op:  op,
 			}
 		}
 		a.UserID = u.ID
@@ -179,7 +186,10 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *platform.Authoriza
 	var err error
 	a.Token, err = s.TokenGenerator.Token()
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+			Op:  op,
+		}
 	}
 	a.ID = s.IDGenerator.ID()
 	a.Status = platform.Active
@@ -188,10 +198,11 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *platform.Authoriza
 
 // DeleteAuthorization deletes an authorization associated with id.
 func (s *Service) DeleteAuthorization(ctx context.Context, id platform.ID) error {
-	op := OpPrefix + platform.OpDeleteAuthorization
 	if _, err := s.FindAuthorizationByID(ctx, id); err != nil {
-		err.(*platform.Error).Op = op
-		return err
+		return &platform.Error{
+			Err: err,
+			Op:  OpPrefix + platform.OpDeleteAuthorization,
+		}
 	}
 
 	s.authorizationKV.Delete(id.String())
@@ -200,6 +211,7 @@ func (s *Service) DeleteAuthorization(ctx context.Context, id platform.ID) error
 
 // SetAuthorizationStatus updates the status of an authorization associated with id.
 func (s *Service) SetAuthorizationStatus(ctx context.Context, id platform.ID, status platform.Status) error {
+	op := OpPrefix + platform.OpSetAuthorizationStatus
 	a, err := s.FindAuthorizationByID(ctx, id)
 	if err != nil {
 		return err
@@ -208,7 +220,10 @@ func (s *Service) SetAuthorizationStatus(ctx context.Context, id platform.ID, st
 	switch status {
 	case platform.Active, platform.Inactive:
 	default:
-		return fmt.Errorf("unknown authorization status")
+		return &platform.Error{
+			Msg: "unknown authorization status",
+			Op:  op,
+		}
 	}
 
 	if a.Status == status {

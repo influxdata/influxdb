@@ -13,6 +13,8 @@ import (
 )
 
 const (
+	// PlatformErrorCodeHeader shows the error code of platform error.
+	PlatformErrorCodeHeader = "X-Platform-Error-Code"
 	// ErrorHeader is the standard location for influx errors to be reported.
 	ErrorHeader = "X-Influx-Error"
 	// ReferenceHeader is the header for the reference error reference code.
@@ -56,7 +58,7 @@ func CheckErrorStatus(code int, res *http.Response, isPlatformError ...bool) err
 // be determined in that way, it will create a generic error message.
 //
 // If there is no error, then this returns nil.
-// Add an optional isPlatformError, to do decode with platform.Error
+// THIS IS TEMPORARY. ADD AN OPTIONAL isPlatformError, TO DECODE platform.Error
 func CheckError(resp *http.Response, isPlatformError ...bool) (err error) {
 	switch resp.StatusCode / 100 {
 	case 4, 5:
@@ -113,10 +115,12 @@ func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 	}
 
 	if pe, ok := err.(*platform.Error); ok {
-		httpCode, ok := statusCodePlatformError[platform.ErrorCode(pe)]
+		code := platform.ErrorCode(pe)
+		httpCode, ok := statusCodePlatformError[code]
 		if !ok {
 			httpCode = http.StatusBadRequest
 		}
+		w.Header().Set(PlatformErrorCodeHeader, code)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(httpCode)
 		b, _ := json.Marshal(pe)
@@ -181,4 +185,5 @@ var statusCodePlatformError = map[string]int{
 	platform.EConflict:    http.StatusUnprocessableEntity,
 	platform.ENotFound:    http.StatusNotFound,
 	platform.EUnavailable: http.StatusServiceUnavailable,
+	platform.EForbidden:   http.StatusForbidden,
 }

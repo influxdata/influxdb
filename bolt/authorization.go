@@ -38,13 +38,14 @@ func (c *Client) setUserOnAuthorization(ctx context.Context, tx *bolt.Tx, a *pla
 }
 
 // FindAuthorizationByID retrieves a authorization by id.
-func (c *Client) FindAuthorizationByID(ctx context.Context, id platform.ID) (a *platform.Authorization, err error) {
-	op := OpPrefix + platform.OpFindAuthorizationByID
+func (c *Client) FindAuthorizationByID(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
+	var a *platform.Authorization
+	var err error
 	err = c.db.View(func(tx *bolt.Tx) error {
 		var pe *platform.Error
 		a, pe = c.findAuthorizationByID(ctx, tx, id)
 		if pe != nil {
-			pe.Op = op
+			pe.Op = OpPrefix + platform.OpFindAuthorizationByID
 			err = pe
 		}
 		return err
@@ -85,13 +86,14 @@ func (c *Client) findAuthorizationByID(ctx context.Context, tx *bolt.Tx, id plat
 }
 
 // FindAuthorizationByToken returns a authorization by token for a particular authorization.
-func (c *Client) FindAuthorizationByToken(ctx context.Context, n string) (a *platform.Authorization, err error) {
-	op := OpPrefix + platform.OpFindAuthorizationByToken
+func (c *Client) FindAuthorizationByToken(ctx context.Context, n string) (*platform.Authorization, error) {
+	var a *platform.Authorization
+	var err error
 	err = c.db.View(func(tx *bolt.Tx) error {
 		var pe *platform.Error
 		a, pe = c.findAuthorizationByToken(ctx, tx, n)
 		if pe != nil {
-			pe.Op = op
+			pe.Op = OpPrefix + platform.OpFindAuthorizationByToken
 			err = pe
 		}
 		return err
@@ -211,9 +213,8 @@ func (c *Client) CreateAuthorization(ctx context.Context, a *platform.Authorizat
 			u, err := c.findUserByName(ctx, tx, a.User)
 			if err != nil && platform.ErrorCode(err) != platform.ENotFound {
 				return &platform.Error{
-					Code: platform.ErrorCode(err),
-					Msg:  platform.ErrorMessage(err),
-					Op:   op,
+					Err: err,
+					Op:  op,
 				}
 			}
 			a.UserID = u.ID
@@ -225,6 +226,7 @@ func (c *Client) CreateAuthorization(ctx context.Context, a *platform.Authorizat
 			return &platform.Error{
 				Code: platform.EConflict,
 				Msg:  "token already exists",
+				Op:   op,
 			}
 		}
 
@@ -339,13 +341,11 @@ func (c *Client) uniqueAuthorizationToken(ctx context.Context, tx *bolt.Tx, a *p
 }
 
 // DeleteAuthorization deletes a authorization and prunes it from the index.
-func (c *Client) DeleteAuthorization(ctx context.Context, id platform.ID) (err error) {
-	op := OpPrefix + platform.OpDeleteAuthorization
-	err = c.db.Update(func(tx *bolt.Tx) (err error) {
-		var pe *platform.Error
-		pe = c.deleteAuthorization(ctx, tx, id)
+func (c *Client) DeleteAuthorization(ctx context.Context, id platform.ID) error {
+	err := c.db.Update(func(tx *bolt.Tx) (err error) {
+		pe := c.deleteAuthorization(ctx, tx, id)
 		if pe != nil {
-			pe.Op = op
+			pe.Op = OpPrefix + platform.OpDeleteAuthorization
 			err = pe
 		}
 		return err
