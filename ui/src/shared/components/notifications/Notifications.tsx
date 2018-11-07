@@ -18,7 +18,9 @@ class Notifications extends PureComponent<Props> {
 
     return (
       <div className={this.className}>
-        {notifications.map(n => <Notification key={n.id} notification={n} />)}
+        {notifications.map(n => (
+          <Notification key={n.id} notification={n} />
+        ))}
       </div>
     )
   }
@@ -44,4 +46,7 @@ const mapStateToProps = ({
   inPresentationMode,
 })
 
-export default connect(mapStateToProps, null)(Notifications)
+export default connect(
+  mapStateToProps,
+  null
+)(Notifications)

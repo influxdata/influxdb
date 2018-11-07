@@ -66,4 +66,7 @@ const mstp = ({hoverTime}: AppState) => ({
   hoverTime: +hoverTime,
 })
 
-export default connect<StateProps, {}, OwnProps>(mstp, null)(Crosshair)
+export default connect<StateProps, {}, OwnProps>(
+  mstp,
+  null
+)(Crosshair)

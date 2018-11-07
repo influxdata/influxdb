@@ -282,4 +282,7 @@ const mapStateToProps = (state: AppState) => ({
   hoverTime: +state.hoverTime,
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(DygraphLegend)
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(DygraphLegend)

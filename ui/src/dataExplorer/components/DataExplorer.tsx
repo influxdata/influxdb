@@ -50,7 +50,7 @@ const mdtp: DispatchProps = {
   onSetActiveTimeMachineID: setActiveTimeMachineID,
 }
 
-export default connect(null, mdtp)(DataExplorer) as ComponentClass<
-  PassedProps,
-  State
->
+export default connect(
+  null,
+  mdtp
+)(DataExplorer) as ComponentClass<PassedProps, State>

@@ -52,6 +52,7 @@ const mdtp: DispatchProps = {
   onSetTimeRange: setTimeRange,
 }
 
-export default connect(mstp, mdtp)(TimeMachineControls) as ComponentClass<
-  PassedProps
->
+export default connect(
+  mstp,
+  mdtp
+)(TimeMachineControls) as ComponentClass<PassedProps>

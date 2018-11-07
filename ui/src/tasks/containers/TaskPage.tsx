@@ -79,6 +79,7 @@ const mdtp: ConnectDispatchProps = {
   goToTasks,
 }
 
-export default connect<ConnectStateProps, ConnectDispatchProps, {}>(mstp, mdtp)(
-  TaskPage
-)
+export default connect<ConnectStateProps, ConnectDispatchProps, {}>(
+  mstp,
+  mdtp
+)(TaskPage)

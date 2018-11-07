@@ -40,7 +40,8 @@ class LoadingStatus extends PureComponent<Props> {
       case SearchStatus.SourceError:
         return (
           <>
-            Try changing your <strong>Source</strong> or <strong>Bucket</strong>.
+            Try changing your <strong>Source</strong> or <strong>Bucket</strong>
+            .
           </>
         )
       case SearchStatus.NoResults:

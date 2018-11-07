@@ -482,4 +482,7 @@ const mdtp = {
   onSetHoverTime: setHoverTimeAction,
 }
 
-export default connect(mstp, mdtp)(TableGraph)
+export default connect(
+  mstp,
+  mdtp
+)(TableGraph)

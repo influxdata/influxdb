@@ -255,4 +255,7 @@ const mstp = ({links, sources}) => ({
   sources,
 })
 
-export default connect(mstp, mdtp)(withRouter(SourcePage))
+export default connect(
+  mstp,
+  mdtp
+)(withRouter(SourcePage))

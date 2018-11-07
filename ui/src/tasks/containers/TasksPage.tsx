@@ -111,4 +111,7 @@ export default connect<
   ConnectedStateProps,
   ConnectedDispatchProps,
   PassedInProps
->(mstp, mdtp)(TasksPage)
+>(
+  mstp,
+  mdtp
+)(TasksPage)

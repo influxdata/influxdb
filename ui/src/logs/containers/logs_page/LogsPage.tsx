@@ -606,6 +606,7 @@ const mdtp: DispatchProps = {
   clearSearchData: logActions.clearSearchData,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(
-  withRouter(LogsPage)
-)
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(withRouter(LogsPage))

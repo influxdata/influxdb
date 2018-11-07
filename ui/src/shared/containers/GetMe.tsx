@@ -48,6 +48,7 @@ const mdtp = {
   getMe,
 }
 
-export default connect<{}, ConnectDispatchProps, PassedInProps>(null, mdtp)(
-  GetMe
-)
+export default connect<{}, ConnectDispatchProps, PassedInProps>(
+  null,
+  mdtp
+)(GetMe)

@@ -84,4 +84,7 @@ const mdtp = {
   notify: notifyAction,
 }
 
-export default connect(mstp, mdtp)(Setup)
+export default connect(
+  mstp,
+  mdtp
+)(Setup)

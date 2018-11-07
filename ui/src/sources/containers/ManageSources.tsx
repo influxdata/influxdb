@@ -71,4 +71,7 @@ const mdtp = {
   removeAndLoadSources: sourcesActions.removeAndLoadSources,
 }
 
-export default connect(mstp, mdtp)(ManageSources)
+export default connect(
+  mstp,
+  mdtp
+)(ManageSources)

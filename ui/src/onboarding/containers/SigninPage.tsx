@@ -125,4 +125,7 @@ const mdtp = {
   notify: notifyAction,
 }
 
-export default connect(mstp, mdtp)(SigninPage)
+export default connect(
+  mstp,
+  mdtp
+)(SigninPage)

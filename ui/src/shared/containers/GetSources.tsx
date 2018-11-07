@@ -44,4 +44,7 @@ const mdtp = {
   getSources: getSourcesAsync,
 }
 
-export default connect(null, mdtp)(GetSources)
+export default connect(
+  null,
+  mdtp
+)(GetSources)

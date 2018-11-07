@@ -126,4 +126,7 @@ const mdtp = {
   onUpdateType: setType,
 }
 
-export default connect(mstp, mdtp)(TimeMachine) as ComponentClass<PassedProps>
+export default connect(
+  mstp,
+  mdtp
+)(TimeMachine) as ComponentClass<PassedProps>

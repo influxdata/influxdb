@@ -94,6 +94,7 @@ const mdtp: ConnectDispatchProps = {
   selectTaskByID,
 }
 
-export default connect<ConnectStateProps, ConnectDispatchProps, {}>(mstp, mdtp)(
-  TaskPage
-)
+export default connect<ConnectStateProps, ConnectDispatchProps, {}>(
+  mstp,
+  mdtp
+)(TaskPage)

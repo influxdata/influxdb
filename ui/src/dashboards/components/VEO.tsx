@@ -109,4 +109,7 @@ const mdtp: DispatchProps = {
   onSetActiveTimeMachineID: setActiveTimeMachineID,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(VEO)
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(VEO)
