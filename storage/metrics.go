@@ -29,6 +29,7 @@ func newRetentionMetrics(labels prometheus.Labels) *retentionMetrics {
 	sort.Strings(names)
 
 	return &retentionMetrics{
+		labels: labels,
 		Checks: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: retentionSubsystem,

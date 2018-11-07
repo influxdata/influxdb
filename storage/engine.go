@@ -149,7 +149,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	}
 
 	if e.engineID != nil {
-		fields = append(fields, zap.Int("engine_id", *e.nodeID))
+		fields = append(fields, zap.Int("engine_id", *e.engineID))
 	}
 	fields = append(fields, zap.String("service", "storage-engine"))
 
