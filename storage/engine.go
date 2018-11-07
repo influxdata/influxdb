@@ -39,6 +39,8 @@ type Engine struct {
 	wal               *tsm1.WAL
 	retentionEnforcer *retentionEnforcer
 
+	defaultMetricLabels prometheus.Labels
+
 	// Tracks all goroutines started by the Engine.
 	wg sync.WaitGroup
 
@@ -61,6 +63,7 @@ func WithTSMFilenameFormatter(fn tsm1.FormatFileNameFunc) Option {
 func WithEngineID(id int) Option {
 	return func(e *Engine) {
 		e.engineID = &id
+		e.defaultMetricLabels["engine_id"] = fmt.Sprint(*e.engineID)
 	}
 }
 
@@ -69,6 +72,7 @@ func WithEngineID(id int) Option {
 func WithNodeID(id int) Option {
 	return func(e *Engine) {
 		e.nodeID = &id
+		e.defaultMetricLabels["node_id"] = fmt.Sprint(*e.nodeID)
 	}
 }
 
@@ -78,17 +82,6 @@ func WithNodeID(id int) Option {
 func WithRetentionEnforcer(finder BucketFinder) Option {
 	return func(e *Engine) {
 		e.retentionEnforcer = newRetentionEnforcer(e, finder)
-
-		if e.engineID != nil {
-			e.retentionEnforcer.defaultMetricLabels["engine_id"] = fmt.Sprint(*e.engineID)
-		}
-
-		if e.nodeID != nil {
-			e.retentionEnforcer.defaultMetricLabels["node_id"] = fmt.Sprint(*e.nodeID)
-		}
-
-		// As new labels may have been set, set the new metrics on the enforcer.
-		e.retentionEnforcer.retentionMetrics = newRetentionMetrics(e.retentionEnforcer.defaultMetricLabels)
 	}
 }
 
@@ -110,9 +103,11 @@ func WithCompactionPlanner(planner tsm1.CompactionPlanner) Option {
 // TSM engine.
 func NewEngine(path string, c Config, options ...Option) *Engine {
 	e := &Engine{
-		config: c,
-		path:   path,
-		logger: zap.NewNop(),
+		config:              c,
+		path:                path,
+		sfile:               tsdb.NewSeriesFile(c.GetSeriesFilePath(path)),
+		defaultMetricLabels: prometheus.Labels{},
+		logger:              zap.NewNop(),
 	}
 
 	// Initialize series file.
@@ -140,6 +135,9 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	for _, option := range options {
 		option(e)
 	}
+	// Set default metrics labels.
+	e.engine.WithDefaultMetricLabels(e.defaultMetricLabels)
+
 	return e
 }
 
@@ -197,6 +195,7 @@ func (e *Engine) Open() error {
 	e.engine.SetCompactionsEnabled(true) // TODO(edd):is this needed?
 
 	e.closing = make(chan struct{})
+
 	// TODO(edd) background tasks will be run in priority order via a scheduler.
 	// For now we will just run on an interval as we only have the retention
 	// policy enforcer.
@@ -219,6 +218,11 @@ func (e *Engine) runRetentionEnforcer() {
 	} else if interval < 0 {
 		e.logger.Error("Negative retention interval", logger.DurationLiteral("check_interval", interval))
 		return
+	}
+
+	if e.retentionEnforcer != nil {
+		// Set default metric labels on retention enforcer.
+		e.retentionEnforcer.metrics = newRetentionMetrics(e.defaultMetricLabels)
 	}
 
 	l := e.logger.With(zap.String("component", "retention_enforcer"), logger.DurationLiteral("check_interval", interval))

@@ -250,6 +250,12 @@ func (e *Engine) WithCompactionPlanner(planner CompactionPlanner) {
 	e.CompactionPlan = planner
 }
 
+// WithDefaultMetricLabels sets the default labels for metrics on the engine.
+// It must be called before the Engine is opened.
+func (e *Engine) WithDefaultMetricLabels(labels prometheus.Labels) {
+	e.defaultMetricLabels = labels
+}
+
 // SetEnabled sets whether the engine is enabled.
 func (e *Engine) SetEnabled(enabled bool) {
 	e.enableCompactionsOnOpen = enabled

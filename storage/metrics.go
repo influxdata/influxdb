@@ -1,6 +1,10 @@
 package storage
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"sort"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // namespace is the leading part of all published metrics for the Storage service.
 const namespace = "storage"
@@ -9,6 +13,7 @@ const retentionSubsystem = "retention" // sub-system associated with metrics for
 
 // retentionMetrics is a set of metrics concerned with tracking data about retention policies.
 type retentionMetrics struct {
+	labels        prometheus.Labels
 	Checks        *prometheus.CounterVec
 	CheckDuration *prometheus.HistogramVec
 	Unprocessable *prometheus.CounterVec
@@ -20,6 +25,8 @@ func newRetentionMetrics(labels prometheus.Labels) *retentionMetrics {
 	for k := range labels {
 		names = append(names, k)
 	}
+	names = append(names, "status") // All metrics include status
+	sort.Strings(names)
 
 	return &retentionMetrics{
 		Checks: prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -52,6 +59,15 @@ func newRetentionMetrics(labels prometheus.Labels) *retentionMetrics {
 			Help:      "Number of series that a delete was applied to.",
 		}, names),
 	}
+}
+
+// Labels returns a copy of labels for use with retention metrics.
+func (m *retentionMetrics) Labels() prometheus.Labels {
+	l := make(map[string]string, len(m.labels))
+	for k, v := range m.labels {
+		l[k] = v
+	}
+	return l
 }
 
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.

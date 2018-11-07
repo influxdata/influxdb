@@ -48,8 +48,7 @@ type retentionEnforcer struct {
 
 	logger *zap.Logger
 
-	retentionMetrics    *retentionMetrics
-	defaultMetricLabels prometheus.Labels // N.B this must not be mutated after Open is called.
+	metrics *retentionMetrics
 }
 
 // newRetentionEnforcer returns a new enforcer that ensures expired data is
@@ -57,22 +56,12 @@ type retentionEnforcer struct {
 // disabling the service.
 func newRetentionEnforcer(engine Deleter, bucketService BucketFinder) *retentionEnforcer {
 	s := &retentionEnforcer{
-		Engine:              engine,
-		BucketService:       bucketService,
-		logger:              zap.NewNop(),
-		defaultMetricLabels: prometheus.Labels{"status": ""},
+		Engine:        engine,
+		BucketService: bucketService,
+		logger:        zap.NewNop(),
 	}
-	s.retentionMetrics = newRetentionMetrics(s.defaultMetricLabels)
+	s.metrics = newRetentionMetrics(nil)
 	return s
-}
-
-// metricLabels returns a new copy of the default metric labels.
-func (s *retentionEnforcer) metricLabels() prometheus.Labels {
-	labels := make(map[string]string, len(s.defaultMetricLabels))
-	for k, v := range s.defaultMetricLabels {
-		labels[k] = v
-	}
-	return labels
 }
 
 // WithLogger sets the logger l on the service. It must be called before Open.
@@ -96,15 +85,15 @@ func (s *retentionEnforcer) run() {
 	}
 
 	now := time.Now().UTC()
-	labels := s.metricLabels()
+	labels := s.metrics.Labels()
 	labels["status"] = "ok"
 
 	if err := s.expireData(rpByBucketID, now); err != nil {
 		log.Error("Deletion not successful", zap.Error(err))
 		labels["status"] = "error"
 	}
-	s.retentionMetrics.CheckDuration.With(labels).Observe(time.Since(now).Seconds())
-	s.retentionMetrics.Checks.With(labels).Inc()
+	s.metrics.CheckDuration.With(labels).Observe(time.Since(now).Seconds())
+	s.metrics.Checks.With(labels).Inc()
 }
 
 // expireData runs a delete operation on the storage engine.
@@ -162,21 +151,21 @@ func (s *retentionEnforcer) expireData(rpByBucketID map[platform.ID]time.Duratio
 	}
 
 	defer func() {
-		if s.retentionMetrics == nil {
+		if s.metrics == nil {
 			return
 		}
-		labels := s.metricLabels()
+		labels := s.metrics.Labels()
 		labels["status"] = "bad_measurement"
-		s.retentionMetrics.Unprocessable.With(labels).Add(float64(len(badMSketch)))
+		s.metrics.Unprocessable.With(labels).Add(float64(len(badMSketch)))
 
 		labels["status"] = "missing_bucket"
-		s.retentionMetrics.Unprocessable.With(labels).Add(float64(len(missingBSketch)))
+		s.metrics.Unprocessable.With(labels).Add(float64(len(missingBSketch)))
 
 		labels["status"] = "ok"
-		s.retentionMetrics.Series.With(labels).Add(float64(atomic.LoadUint64(&seriesDeleted)))
+		s.metrics.Series.With(labels).Add(float64(atomic.LoadUint64(&seriesDeleted)))
 
 		labels["status"] = "skipped"
-		s.retentionMetrics.Series.With(labels).Add(float64(atomic.LoadUint64(&seriesSkipped)))
+		s.metrics.Series.With(labels).Add(float64(atomic.LoadUint64(&seriesSkipped)))
 	}()
 
 	return s.Engine.DeleteSeriesRangeWithPredicate(newSeriesIteratorAdapter(cur), fn)
@@ -200,7 +189,7 @@ func (s *retentionEnforcer) getRetentionPeriodPerBucket() (map[platform.ID]time.
 
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (s *retentionEnforcer) PrometheusCollectors() []prometheus.Collector {
-	return s.retentionMetrics.PrometheusCollectors()
+	return s.metrics.PrometheusCollectors()
 }
 
 // A BucketService is an platform.BucketService that the retentionEnforcer can open,
