@@ -21,7 +21,7 @@ lint: node_modules $(UISOURCES)
 ifndef YARN
 	$(error Please install yarn 0.19.1+)
 else
-	yarn run tsc
+	yarn run lint
 endif
 
 

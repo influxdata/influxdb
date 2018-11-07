@@ -18,7 +18,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch",
-    "lint": "yarn run tslint; yarn run tsc",
+    "lint": "yarn run tslint && yarn run tsc",
     "tslint": "tslint -c ./tslint.json '{src,test}/**/*.ts?(x)'",
     "tslint:fix": "tslint --fix -c ./tslint.json '{src,test}/**/*.ts?(x)'",
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty",
