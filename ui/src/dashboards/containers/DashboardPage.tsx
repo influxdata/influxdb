@@ -23,14 +23,17 @@ import * as viewActions from 'src/dashboards/actions/v2/views'
 import {getDeep} from 'src/utils/wrappers'
 import {updateDashboardLinks} from 'src/dashboards/utils/dashboardSwitcherLinks'
 import AutoRefresh from 'src/utils/AutoRefresh'
-import {getNewView} from 'src/dashboards/utils/cellGetters'
+import {createView} from 'src/shared/utils/view'
 import {cellAddFailed} from 'src/shared/copy/notifications'
 
 // APIs
 import {loadDashboardLinks} from 'src/dashboards/apis/v2'
 
 // Constants
-import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
+import {
+  DASHBOARD_LAYOUT_ROW_HEIGHT,
+  TEMPORARY_DEFAULT_QUERY,
+} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
 
@@ -41,9 +44,11 @@ import {
   Dashboard,
   Cell,
   View,
+  ViewType,
   TimeRange,
   DashboardSwitcherLinks,
 } from 'src/types/v2'
+import {LineView} from 'src/types/v2/dashboards'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
@@ -265,7 +270,10 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleAddCell = async (): Promise<void> => {
-    const newView = getNewView()
+    // TODO: We should revisit our polymorphic `View` type
+    const newView = createView(ViewType.Line) as View<LineView>
+
+    newView.properties.queries = [TEMPORARY_DEFAULT_QUERY]
 
     this.setState({
       isShowingVEO: true,
@@ -283,12 +291,13 @@ class DashboardPage extends Component<Props, State> {
     const {dashboard, onCreateCellWithView, onUpdateView, notify} = this.props
 
     try {
-      if (view.id === '') {
-        await onCreateCellWithView(dashboard, view)
-      } else {
+      if (view.id) {
         await onUpdateView(view.links.self, view)
+      } else {
+        await onCreateCellWithView(dashboard, view)
       }
-    } catch {
+    } catch (error) {
+      console.error(error)
       notify(cellAddFailed())
     }
   }

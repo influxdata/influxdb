@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import TimeMachine from 'src/shared/components/TimeMachine'
 
 // Actions
-import {setActiveTimeMachineID} from 'src/shared/actions/v2/timeMachines'
+import {setActiveTimeMachine} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
 import {DE_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
@@ -15,7 +15,7 @@ import {TimeMachineTab} from 'src/types/v2/timeMachine'
 interface StateProps {}
 
 interface DispatchProps {
-  onSetActiveTimeMachineID: typeof setActiveTimeMachineID
+  onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
 
 interface PassedProps {
@@ -27,10 +27,10 @@ interface State {}
 type Props = StateProps & DispatchProps & PassedProps
 
 class DataExplorer extends PureComponent<Props, State> {
-  public componentDidMount() {
-    const {onSetActiveTimeMachineID} = this.props
+  constructor(props: Props) {
+    super(props)
 
-    onSetActiveTimeMachineID(DE_TIME_MACHINE_ID)
+    props.onSetActiveTimeMachine(DE_TIME_MACHINE_ID)
   }
 
   public render() {
@@ -47,7 +47,7 @@ class DataExplorer extends PureComponent<Props, State> {
 }
 
 const mdtp: DispatchProps = {
-  onSetActiveTimeMachineID: setActiveTimeMachineID,
+  onSetActiveTimeMachine: setActiveTimeMachine,
 }
 
 export default connect(

@@ -6,7 +6,7 @@ export interface Axis {
   suffix: string
   base: string
   scale: string
-  bounds?: [string, string]
+  bounds: [string, string]
 }
 
 export type TimeSeriesValue = string | number | null | undefined
@@ -62,7 +62,7 @@ export interface MarkDownProperties {
 }
 
 export interface View<T extends ViewProperties = ViewProperties> {
-  id: string
+  id?: string
   name: string
   properties: T
   links?: ViewLinks
@@ -239,8 +239,8 @@ interface DashboardFileMetaSection {
 }
 
 export interface Cell {
-  id: string
-  viewID: string
+  id?: string
+  viewID?: string
   x: number
   y: number
   w: number

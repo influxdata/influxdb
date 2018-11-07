@@ -20,6 +20,7 @@
     ],
     "no-empty": false,
     "no-empty-interface": false,
+    "no-shadowed-variable": false,
     "prefer-for-of": false,
     "prettier": [
       true,

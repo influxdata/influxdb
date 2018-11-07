@@ -7,10 +7,7 @@ import VEOHeader from 'src/dashboards/components/VEOHeader'
 import TimeMachine from 'src/shared/components/TimeMachine'
 
 // Actions
-import {
-  setName,
-  setActiveTimeMachineID,
-} from 'src/shared/actions/v2/timeMachines'
+import {setName, setActiveTimeMachine} from 'src/shared/actions/v2/timeMachines'
 
 // Constants
 import {VEO_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
@@ -21,12 +18,12 @@ import {View} from 'src/types/v2/dashboards'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 
 interface StateProps {
-  name: string
+  draftView: View
 }
 
 interface DispatchProps {
   onSetName: typeof setName
-  onSetActiveTimeMachineID: typeof setActiveTimeMachineID
+  onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
 
 interface OwnProps {
@@ -52,26 +49,20 @@ class VEO extends PureComponent<Props, State> {
   }
 
   public componentDidMount() {
-    const {onSetActiveTimeMachineID, onSetName, view} = this.props
+    const {onSetActiveTimeMachine, view} = this.props
 
-    onSetActiveTimeMachineID(VEO_TIME_MACHINE_ID)
-
-    // TODO: Collect other view attributes here and set the time
-    // machine state in Redux with them. Make this a single action
-    const name = view.name || ''
-
-    onSetName(name)
+    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
   }
 
   public render() {
-    const {name, onSetName, onHide} = this.props
+    const {draftView, onSetName, onHide} = this.props
     const {activeTab} = this.state
 
     return (
       <div className="veo">
         <VEOHeader
-          key={name}
-          name={name}
+          key={draftView.name}
+          name={draftView.name}
           onSetName={onSetName}
           activeTab={activeTab}
           onSetActiveTab={this.handleSetActiveTab}
@@ -88,25 +79,22 @@ class VEO extends PureComponent<Props, State> {
   }
 
   private handleSave = (): void => {
-    const {view, name, onSave} = this.props
+    const {draftView, onSave} = this.props
 
-    // TODO: Collect draft view state from Redux here
-    const newView = {...view, name}
-
-    onSave(newView)
+    onSave(draftView)
   }
 }
 
 const mstp = (state: AppState): StateProps => {
   const {activeTimeMachineID, timeMachines} = state.timeMachines
-  const {name} = timeMachines[activeTimeMachineID].view
+  const draftView = timeMachines[activeTimeMachineID].view
 
-  return {name}
+  return {draftView}
 }
 
 const mdtp: DispatchProps = {
   onSetName: setName,
-  onSetActiveTimeMachineID: setActiveTimeMachineID,
+  onSetActiveTimeMachine: setActiveTimeMachine,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

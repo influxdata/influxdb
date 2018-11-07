@@ -1,21 +1,26 @@
+import {TimeMachineState} from 'src/shared/reducers/v2/timeMachines'
 import {TimeRange, ViewType} from 'src/types/v2'
 
 export type Action =
-  | SetActiveTimeMachineIDAction
+  | SetActiveTimeMachineAction
   | SetNameAction
   | SetTimeRangeAction
   | SetTypeAction
 
-interface SetActiveTimeMachineIDAction {
-  type: 'SET_ACTIVE_TIME_MACHINE_ID'
-  payload: {activeTimeMachineID: string}
+interface SetActiveTimeMachineAction {
+  type: 'SET_ACTIVE_TIME_MACHINE'
+  payload: {
+    activeTimeMachineID: string
+    initialState: Partial<TimeMachineState>
+  }
 }
 
-export const setActiveTimeMachineID = (
-  activeTimeMachineID: string
-): SetActiveTimeMachineIDAction => ({
-  type: 'SET_ACTIVE_TIME_MACHINE_ID',
-  payload: {activeTimeMachineID},
+export const setActiveTimeMachine = (
+  activeTimeMachineID: string,
+  initialState: Partial<TimeMachineState> = {}
+): SetActiveTimeMachineAction => ({
+  type: 'SET_ACTIVE_TIME_MACHINE',
+  payload: {activeTimeMachineID, initialState},
 })
 
 interface SetNameAction {

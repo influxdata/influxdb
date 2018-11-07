@@ -1,5 +1,5 @@
 // Utils
-import {convertView} from 'src/shared/utils/view'
+import {convertView, createView} from 'src/shared/utils/view'
 
 // Constants
 import {
@@ -8,11 +8,10 @@ import {
 } from 'src/shared/constants/timeMachine'
 
 // Types
-import {View, TimeRange, ViewType, ViewShape} from 'src/types/v2'
+import {View, TimeRange} from 'src/types/v2'
 import {Action} from 'src/shared/actions/v2/timeMachines'
-import {InfluxLanguage} from 'src/types/v2/dashboards'
 
-interface TimeMachineState {
+export interface TimeMachineState {
   view: View
   timeRange: TimeRange
 }
@@ -26,76 +25,7 @@ export interface TimeMachinesState {
 
 const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
-  view: {
-    id: '1',
-    name: 'CELLL YO',
-    properties: {
-      shape: ViewShape.ChronografV2,
-      queries: [
-        {
-          text:
-            'SELECT mean("usage_user") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 15m GROUP BY time(10s) FILL(0)',
-          type: InfluxLanguage.InfluxQL,
-          source: 'v1',
-        },
-      ],
-      axes: {
-        x: {
-          bounds: ['', ''],
-          label: '',
-          prefix: '',
-          suffix: '',
-          base: '10',
-          scale: 'linear',
-        },
-        y: {
-          bounds: ['', ''],
-          label: '',
-          prefix: '',
-          suffix: '',
-          base: '10',
-          scale: 'linear',
-        },
-        y2: {
-          bounds: ['', ''],
-          label: '',
-          prefix: '',
-          suffix: '',
-          base: '10',
-          scale: 'linear',
-        },
-      },
-      type: ViewType.Line,
-      colors: [
-        {
-          id: '63b61e02-7649-4d88-84bd-97722e2a2514',
-          type: 'scale',
-          hex: '#31C0F6',
-          name: 'Nineteen Eighty Four',
-          value: '0',
-        },
-        {
-          id: 'd77c12d4-d257-48e1-8ba5-7bee8e3df593',
-          type: 'scale',
-          hex: '#A500A5',
-          name: 'Nineteen Eighty Four',
-          value: '0',
-        },
-        {
-          id: 'cd6948ad-7ae6-40d3-bc37-3aec32f7fe98',
-          type: 'scale',
-          hex: '#FF7E27',
-          name: 'Nineteen Eighty Four',
-          value: '0',
-        },
-      ],
-      legend: {},
-      decimalPlaces: {
-        isEnforced: false,
-        digits: 3,
-      },
-    },
-  },
+  view: createView(),
 })
 
 const INITIAL_STATE: TimeMachinesState = {
@@ -110,8 +40,20 @@ const timeMachineReducer = (
   state = INITIAL_STATE,
   action: Action
 ): TimeMachinesState => {
-  if (action.type === 'SET_ACTIVE_TIME_MACHINE_ID') {
-    return {...state, activeTimeMachineID: action.payload.activeTimeMachineID}
+  if (action.type === 'SET_ACTIVE_TIME_MACHINE') {
+    const {activeTimeMachineID, initialState} = action.payload
+
+    return {
+      ...state,
+      activeTimeMachineID,
+      timeMachines: {
+        ...state.timeMachines,
+        [activeTimeMachineID]: {
+          ...state.timeMachines[activeTimeMachineID],
+          ...initialState,
+        },
+      },
+    }
   }
 
   // All other actions act upon whichever single `TimeMachineState` is

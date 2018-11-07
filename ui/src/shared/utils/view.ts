@@ -13,7 +13,6 @@ import {
 
 function defaultView() {
   return {
-    id: '',
     name: 'Untitled',
   }
 }
@@ -29,6 +28,7 @@ function defaultLineViewProperties() {
     legend: {},
     axes: {
       x: {
+        bounds: ['', ''] as [string, string],
         label: '',
         prefix: '',
         suffix: '',
@@ -36,6 +36,15 @@ function defaultLineViewProperties() {
         scale: 'linear',
       },
       y: {
+        bounds: ['', ''] as [string, string],
+        label: '',
+        prefix: '',
+        suffix: '',
+        base: '10',
+        scale: 'linear',
+      },
+      y2: {
+        bounds: ['', ''] as [string, string],
         label: '',
         prefix: '',
         suffix: '',
@@ -150,6 +159,16 @@ const NEW_VIEW_CREATORS = {
       text: '',
     },
   }),
+}
+
+export function createView(viewType: ViewType = ViewType.Line): View {
+  const creator = NEW_VIEW_CREATORS[viewType]
+
+  if (!creator) {
+    throw new Error(`no view creator implemented for view of type ${viewType}`)
+  }
+
+  return creator()
 }
 
 // To convert from a view with `ViewType` `T` to a view with `ViewType` `R`,
