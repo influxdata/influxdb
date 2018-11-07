@@ -503,6 +503,11 @@ func (e *Engine) Open() error {
 	e.FileStore.fileTracker = newFileTracker(e.blockMetrics.fileMetrics)
 	e.Cache.cacheTracker = newCacheTracker(e.blockMetrics.cacheMetrics)
 
+	// Set default metrics on WAL if enabled.
+	if wal, ok := e.WAL.(*WAL); ok {
+		wal.tracker = newWALTracker(e.blockMetrics.walMetrics)
+	}
+
 	e.scheduler.setCompactionTracker(e.compactionTracker)
 
 	if err := os.MkdirAll(e.path, 0777); err != nil {

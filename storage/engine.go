@@ -166,7 +166,6 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 // the engine and its components.
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
-	// TODO(edd): Get prom metrics for TSM.
 	// TODO(edd): Get prom metrics for index.
 	// TODO(edd): Get prom metrics for series file.
 	metrics = append(metrics, e.engine.PrometheusCollectors()...)
