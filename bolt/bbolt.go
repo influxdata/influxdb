@@ -25,6 +25,9 @@ const (
 	ErrUnableToMigrate = "Unable to migrate boltdb:  %v"
 )
 
+// OpPrefix is the prefix for bolt ops
+const OpPrefix = "bolt/"
+
 // Client is a client for the boltDB data store.
 type Client struct {
 	Path   string

@@ -523,7 +523,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 		return nil, 0, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, 0, err
 	}
 
@@ -635,7 +635,7 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 		return err
 	}
 
-	return CheckErrorStatus(http.StatusNoContent, resp)
+	return CheckErrorStatus(http.StatusNoContent, resp, true)
 }
 
 func userIDPath(id platform.ID) string {

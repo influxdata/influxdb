@@ -8,7 +8,7 @@ import (
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.T) (platform.AuthorizationService, func()) {
+func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.T) (platform.AuthorizationService, string, func()) {
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
 	s.TokenGenerator = f.TokenGenerator
@@ -23,25 +23,9 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 			t.Fatalf("failed to populate authorizations")
 		}
 	}
-	return s, func() {}
+	return s, OpPrefix, func() {}
 }
 
-func TestAuthorizationService_CreateAuthorization(t *testing.T) {
-	platformtesting.CreateAuthorization(initAuthorizationService, t)
-}
-
-func TestAuthorizationService_FindAuthorizationByID(t *testing.T) {
-	platformtesting.FindAuthorizationByID(initAuthorizationService, t)
-}
-
-func TestAuthorizationService_FindAuthorizationByToken(t *testing.T) {
-	platformtesting.FindAuthorizationByToken(initAuthorizationService, t)
-}
-
-func TestAuthorizationService_FindAuthorizations(t *testing.T) {
-	platformtesting.FindAuthorizations(initAuthorizationService, t)
-}
-
-func TestAuthorizationService_DeleteAuthorization(t *testing.T) {
-	platformtesting.DeleteAuthorization(initAuthorizationService, t)
+func TestAuthorizationService(t *testing.T) {
+	platformtesting.AuthorizationService(initAuthorizationService, t)
 }

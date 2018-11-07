@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/bolt"
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.T) (platform.AuthorizationService, func()) {
+func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.T) (platform.AuthorizationService, string, func()) {
 	c, closeFn, err := NewTestClient()
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
@@ -23,10 +24,10 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 	for _, a := range f.Authorizations {
 		if err := c.PutAuthorization(ctx, a); err != nil {
-			t.Fatalf("failed to populate authorizations")
+			t.Fatalf("failed to populate authorizations %s", err)
 		}
 	}
-	return c, func() {
+	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, u := range f.Users {
 			if err := c.DeleteUser(ctx, u.ID); err != nil {
@@ -41,22 +42,6 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 }
 
-func TestAuthorizationService_CreateAuthorization(t *testing.T) {
-	platformtesting.CreateAuthorization(initAuthorizationService, t)
-}
-
-func TestAuthorizationService_FindAuthorizationByID(t *testing.T) {
-	platformtesting.FindAuthorizationByID(initAuthorizationService, t)
-}
-
-func TestAuthorizationService_FindAuthorizationByToken(t *testing.T) {
-	platformtesting.FindAuthorizationByToken(initAuthorizationService, t)
-}
-
-func TestAuthorizationService_FindAuthorizations(t *testing.T) {
-	platformtesting.FindAuthorizations(initAuthorizationService, t)
-}
-
-func TestAuthorizationService_DeleteAuthorization(t *testing.T) {
-	platformtesting.DeleteAuthorization(initAuthorizationService, t)
+func TestAuthorizationService(t *testing.T) {
+	platformtesting.AuthorizationService(initAuthorizationService, t)
 }

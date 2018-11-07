@@ -89,6 +89,14 @@ func ErrorCode(err error) string {
 	return EInternal
 }
 
+// ErrorOp returns the op of the error, if available; otherwise return empty string.
+func ErrorOp(err error) string {
+	if e, ok := err.(*Error); ok && e.Op != "" {
+		return e.Op
+	}
+	return ""
+}
+
 // ErrorMessage returns the human-readable message of the error, if available.
 // Otherwise returns a generic error message.
 func ErrorMessage(err error) string {

@@ -445,17 +445,3 @@ func DeleteMacro(init func(MacroFields, *testing.T) (platform.MacroService, func
 		}
 	}
 }
-
-func diffErrors(actual, expected error, t *testing.T) {
-	if expected == nil && actual != nil {
-		t.Fatalf("unexpected error %q", actual.Error())
-	}
-
-	if expected != nil && actual == nil {
-		t.Fatalf("expected error %q but received nil", expected.Error())
-	}
-
-	if expected != nil && actual != nil && expected.Error() != actual.Error() {
-		t.Fatalf("expected error %q but received error %q", expected.Error(), actual.Error())
-	}
-}

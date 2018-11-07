@@ -214,7 +214,10 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			fields: fields{
 				&mock.AuthorizationService{
 					FindAuthorizationByIDFn: func(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
-						return nil, fmt.Errorf("authorization not found")
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "authorization not found",
+						}
 					},
 				},
 			},
@@ -397,7 +400,10 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			fields: fields{
 				&mock.AuthorizationService{
 					DeleteAuthorizationFn: func(ctx context.Context, id platform.ID) error {
-						return fmt.Errorf("authorization not found")
+						return &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "authorization not found",
+						}
 					},
 				},
 			},
@@ -448,7 +454,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 	}
 }
 
-func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.T) (platform.AuthorizationService, func()) {
+func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.T) (platform.AuthorizationService, string, func()) {
 	t.Helper()
 	if t.Name() == "TestAuthorizationService_FindAuthorizations/find_authorization_by_token" {
 		/*
@@ -482,7 +488,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 	done := server.Close
 
-	return &client, done
+	return &client, inmem.OpPrefix, done
 }
 
 func TestAuthorizationService_CreateAuthorization(t *testing.T) {

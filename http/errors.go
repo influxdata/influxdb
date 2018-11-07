@@ -34,8 +34,12 @@ type AuthzError interface {
 }
 
 // CheckErrorStatus for status and any error in the response.
-func CheckErrorStatus(code int, res *http.Response) error {
-	if err := CheckError(res); err != nil {
+func CheckErrorStatus(code int, res *http.Response, isPlatformError ...bool) error {
+	err := CheckError(res)
+	if len(isPlatformError) > 0 && isPlatformError[0] {
+		err = CheckError(res, true)
+	}
+	if err != nil {
 		return err
 	}
 
@@ -113,6 +117,7 @@ func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 		if !ok {
 			httpCode = http.StatusBadRequest
 		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(httpCode)
 		b, _ := json.Marshal(pe)
 		_, _ = w.Write(b)

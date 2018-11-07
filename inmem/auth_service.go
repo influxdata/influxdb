@@ -3,23 +3,26 @@ package inmem
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/influxdata/platform"
 )
 
-var (
-	errTokenNotFound = fmt.Errorf("authorization not found")
-)
-
-func (s *Service) loadAuthorization(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
+func (s *Service) loadAuthorization(ctx context.Context, id platform.ID) (*platform.Authorization, *platform.Error) {
 	i, ok := s.authorizationKV.Load(id.String())
 	if !ok {
-		return nil, errTokenNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "authorization not found",
+		}
 	}
 
 	a, ok := i.(platform.Authorization)
 	if !ok {
-		return nil, fmt.Errorf("value found in map is not an authorization")
+		return nil, &platform.Error{
+			Code: platform.EInternal,
+			Msg:  "value found in map is not an authorization",
+		}
 	}
 
 	if a.Status == "" {
@@ -33,10 +36,12 @@ func (s *Service) loadAuthorization(ctx context.Context, id platform.ID) (*platf
 	return &a, nil
 }
 
-func (s *Service) setUserOnAuthorization(ctx context.Context, a *platform.Authorization) error {
+func (s *Service) setUserOnAuthorization(ctx context.Context, a *platform.Authorization) *platform.Error {
 	u, err := s.loadUser(a.UserID)
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 
 	a.User = u.Name
@@ -53,18 +58,32 @@ func (s *Service) PutAuthorization(ctx context.Context, a *platform.Authorizatio
 }
 
 // FindAuthorizationByID returns an authorization given an ID.
-func (s *Service) FindAuthorizationByID(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
-	return s.loadAuthorization(ctx, id)
+func (s *Service) FindAuthorizationByID(ctx context.Context, id platform.ID) (a *platform.Authorization, err error) {
+	var pe *platform.Error
+	a, pe = s.loadAuthorization(ctx, id)
+	if pe != nil {
+		pe.Op = OpPrefix + platform.OpFindAuthorizationByID
+		err = pe
+	}
+	return a, err
 }
 
 // FindAuthorizationByToken returns an authorization given a token.
-func (s *Service) FindAuthorizationByToken(ctx context.Context, t string) (*platform.Authorization, error) {
-	as, n, err := s.FindAuthorizations(ctx, platform.AuthorizationFilter{Token: &t})
+func (s *Service) FindAuthorizationByToken(ctx context.Context, t string) (a *platform.Authorization, err error) {
+	op := OpPrefix + platform.OpFindAuthorizationByToken
+	var n int
+	var as []*platform.Authorization
+	as, n, err = s.FindAuthorizations(ctx, platform.AuthorizationFilter{Token: &t})
 	if err != nil {
+		fmt.Println(err, reflect.TypeOf(err).String(), err == nil)
+		err.(*platform.Error).Op = op
 		return nil, err
 	}
 	if n < 1 {
-		return nil, errTokenNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "authorization not found",
+		}
 	}
 	return as[0], nil
 }
@@ -93,9 +112,11 @@ func filterAuthorizationsFn(filter platform.AuthorizationFilter) func(a *platfor
 
 // FindAuthorizations returns all authorizations matching the filter.
 func (s *Service) FindAuthorizations(ctx context.Context, filter platform.AuthorizationFilter, opt ...platform.FindOptions) ([]*platform.Authorization, int, error) {
+	op := OpPrefix + platform.OpFindAuthorizations
 	if filter.ID != nil {
 		a, err := s.FindAuthorizationByID(ctx, *filter.ID)
 		if err != nil {
+			err.(*platform.Error).Op = op
 			return nil, 0, err
 		}
 
@@ -106,7 +127,10 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 	if filter.User != nil {
 		u, err := s.findUserByName(ctx, *filter.User)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, &platform.Error{
+				Op:  op,
+				Err: err,
+			}
 		}
 		filter.UserID = &u.ID
 	}
@@ -115,11 +139,15 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 	s.authorizationKV.Range(func(k, v interface{}) bool {
 		a, ok := v.(platform.Authorization)
 		if !ok {
-			err = fmt.Errorf("value found in map is not an authorization")
+			err = &platform.Error{
+				Code: platform.EInternal,
+				Msg:  "value found in map is not an authorization",
+			}
 			return false
 		}
 
-		if err = s.setUserOnAuthorization(ctx, &a); err != nil {
+		if pe := s.setUserOnAuthorization(ctx, &a); pe != nil {
+			err = pe
 			return false
 		}
 
@@ -142,7 +170,9 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *platform.Authoriza
 	if !a.UserID.Valid() {
 		u, err := s.findUserByName(ctx, a.User)
 		if err != nil {
-			return err
+			return &platform.Error{
+				Err: err,
+			}
 		}
 		a.UserID = u.ID
 	}
@@ -158,7 +188,9 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *platform.Authoriza
 
 // DeleteAuthorization deletes an authorization associated with id.
 func (s *Service) DeleteAuthorization(ctx context.Context, id platform.ID) error {
+	op := OpPrefix + platform.OpDeleteAuthorization
 	if _, err := s.FindAuthorizationByID(ctx, id); err != nil {
+		err.(*platform.Error).Op = op
 		return err
 	}
 

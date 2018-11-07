@@ -96,6 +96,38 @@ func TestErrorMessage(t *testing.T) {
 		}
 	}
 }
+
+func TestErrorOp(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "nil error",
+		},
+		{
+			name: "simple error",
+			err:  &platform.Error{Op: "op1"},
+			want: "op1",
+		},
+		{
+			name: "embeded error",
+			err:  &platform.Error{Op: "op1", Err: &platform.Error{Code: platform.EInvalid}},
+			want: "op1",
+		},
+		{
+			name: "default error",
+			err:  errors.New("s"),
+			want: "",
+		},
+	}
+	for _, c := range cases {
+		if result := platform.ErrorOp(c.err); c.want != result {
+			t.Fatalf("%s failed, want %s, got %s", c.name, c.want, result)
+		}
+	}
+}
 func TestErrorCode(t *testing.T) {
 	cases := []struct {
 		name string

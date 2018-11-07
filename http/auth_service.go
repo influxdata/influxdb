@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"path"
-	"strings"
 
 	"go.uber.org/zap"
 
@@ -128,10 +127,6 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 	opts := platform.FindOptions{}
 	as, _, err := h.AuthorizationService.FindAuthorizations(ctx, req.filter, opts)
 	if err != nil {
-		// TODO(desa): fix this when using real errors library
-		if strings.Contains(err.Error(), "not found") {
-			err = kerrors.New(err.Error(), kerrors.NotFound)
-		}
 		// Don't log here, it should already be handled by the service
 		EncodeError(ctx, err, w)
 		return
@@ -192,10 +187,6 @@ func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *
 
 	a, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
 	if err != nil {
-		// TODO(desa): fix this when using real errors library
-		if strings.Contains(err.Error(), "not found") {
-			err = kerrors.New(err.Error(), kerrors.NotFound)
-		}
 		// Don't log here, it should already be handled by the service
 		EncodeError(ctx, err, w)
 		return
@@ -242,10 +233,6 @@ func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWrite
 
 	a, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
 	if err != nil {
-		// TODO(desa): fix this when using real errors library
-		if strings.Contains(err.Error(), "not found") {
-			err = kerrors.New(err.Error(), kerrors.NotFound)
-		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -311,10 +298,6 @@ func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, 
 	}
 
 	if err := h.AuthorizationService.DeleteAuthorization(ctx, req.ID); err != nil {
-		// TODO(desa): fix this when using real errors library
-		if strings.Contains(err.Error(), "not found") {
-			err = kerrors.New(err.Error(), kerrors.NotFound)
-		}
 		// Don't log here, it should already be handled by the service
 		EncodeError(ctx, err, w)
 		return
@@ -372,7 +355,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -426,7 +409,7 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 		return nil, 0, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, 0, err
 	}
 
@@ -476,7 +459,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	}
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
@@ -520,7 +503,7 @@ func (s *AuthorizationService) SetAuthorizationStatus(ctx context.Context, id pl
 		return err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
@@ -545,7 +528,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	if err != nil {
 		return err
 	}
-	return CheckError(resp)
+	return CheckError(resp, true)
 }
 
 func authorizationIDPath(id platform.ID) string {
