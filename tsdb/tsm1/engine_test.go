@@ -929,7 +929,7 @@ func NewEngine() (*Engine, error) {
 	}
 
 	// Setup series file.
-	sfile := tsdb.NewSeriesFile(filepath.Join(root, tsdb.SeriesFileDirectory))
+	sfile := tsdb.NewSeriesFile(filepath.Join(root, "_series"))
 	sfile.Logger = logger.New(os.Stdout)
 	if err = sfile.Open(); err != nil {
 		return nil, err
@@ -1162,13 +1162,4 @@ func (itr *seriesIterator) Next() (tsdb.SeriesElem, error) {
 	s := series{name: name, tags: tags}
 	itr.keys = itr.keys[1:]
 	return s, nil
-}
-
-type seriesIDSets []*tsdb.SeriesIDSet
-
-func (a seriesIDSets) ForEach(f func(ids *tsdb.SeriesIDSet)) error {
-	for _, v := range a {
-		f(v)
-	}
-	return nil
 }

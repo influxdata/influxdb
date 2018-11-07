@@ -19,6 +19,13 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	DefaultSeriesFileDirectoryName = "_series"
+	DefaultIndexDirectoryName      = "index"
+	DefaultWALDirectoryName        = "wal"
+	DefaultEngineDirectoryName     = "data"
+)
+
 // Static objects to prevent small allocs.
 var timeBytes = []byte("time")
 
@@ -105,14 +112,14 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	// Initialize series file.
 	sfilePath := c.SeriesFilePath
 	if sfilePath == "" {
-		sfilePath = filepath.Join(path, tsdb.SeriesFileDirectory)
+		sfilePath = filepath.Join(path, DefaultSeriesFileDirectoryName)
 	}
 	e.sfile = tsdb.NewSeriesFile(sfilePath)
 
 	// Initialise index.
 	indexPath := c.IndexPath
 	if indexPath == "" {
-		indexPath = filepath.Join(path, tsi1.DefaultIndexDirectoryName)
+		indexPath = filepath.Join(path, DefaultIndexDirectoryName)
 	}
 	e.index = tsi1.NewIndex(e.sfile, c.Index,
 		tsi1.WithPath(indexPath))
@@ -121,7 +128,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	if c.WAL.Enabled {
 		walPath := c.WALPath
 		if walPath == "" {
-			walPath = filepath.Join(path, tsm1.DefaultWALDirectoryName)
+			walPath = filepath.Join(path, DefaultWALDirectoryName)
 		}
 		e.wal = tsm1.NewWAL(walPath)
 		e.wal.WithFsyncDelay(time.Duration(c.WAL.FsyncDelay))
@@ -131,7 +138,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	// Initialise Engine
 	enginePath := c.EnginePath
 	if enginePath == "" {
-		enginePath = path
+		enginePath = filepath.Join(path, DefaultEngineDirectoryName)
 	}
 	e.engine = tsm1.NewEngine(enginePath, e.index, c.Engine,
 		tsm1.WithWAL(e.wal),

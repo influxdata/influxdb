@@ -112,12 +112,6 @@ const (
 // an Engine.
 type EngineOption func(i *Engine)
 
-var WithPath = func(path string) EngineOption {
-	return func(e *Engine) {
-
-	}
-}
-
 // WithWAL sets the WAL for the Engine
 var WithWAL = func(wal Log) EngineOption {
 	return func(e *Engine) {

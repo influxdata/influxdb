@@ -42,9 +42,6 @@ type Log interface {
 }
 
 const (
-	// DefaultWALDirectoruName is the default name of the directory containing WAL files.
-	DefaultWALDirectoryName = "wal"
-
 	// DefaultSegmentSize of 10MB is the size at which segment files will be rolled over.
 	DefaultSegmentSize = 10 * 1024 * 1024
 

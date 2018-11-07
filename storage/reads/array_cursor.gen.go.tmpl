@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	// DefaultMaxPointsPerBlock is the maximum number of points in an encoded
-	// block in a TSM file. It should match the value in the tsm1 package.
-	DefaultMaxPointsPerBlock = 1000
+	// MaxPointsPerBlock is the maximum number of points in an encoded
+	// block in a TSM file. It should match the value in the tsm1
+	// package, but we don't want to import it.
+	MaxPointsPerBlock = 1000
 )
 
 {{range .}}
@@ -32,7 +33,7 @@ func new{{.Name}}FilterArrayCursor(cond expression) *{{$type}} {
 	return &{{$type}}{
 		cond: cond,
 		m:    &singleValue{},
-		res:  cursors.New{{.Name}}ArrayLen(DefaultMaxPointsPerBlock),
+		res:  cursors.New{{.Name}}ArrayLen(MaxPointsPerBlock),
 		tmp:  &cursors.{{.Name}}Array{},
 	}
 }
@@ -65,7 +66,7 @@ LOOP:
 				c.res.Timestamps[pos] = a.Timestamps[i]
 				c.res.Values[pos] = v
 				pos++
-				if pos >= DefaultMaxPointsPerBlock {
+				if pos >= MaxPointsPerBlock {
 					c.tmp.Timestamps = a.Timestamps[i+1:]
 					c.tmp.Values = a.Values[i+1:]
 					break LOOP

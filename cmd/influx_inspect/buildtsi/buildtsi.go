@@ -16,6 +16,7 @@ import (
 
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/toml"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/tsi1"
@@ -115,7 +116,7 @@ func (cmd *Command) run(dataDir, walDir string) error {
 func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 	cmd.Logger.Info("Rebuilding database", zap.String("name", dbName))
 
-	sfile := tsdb.NewSeriesFile(filepath.Join(dataDir, tsdb.SeriesFileDirectory))
+	sfile := tsdb.NewSeriesFile(filepath.Join(dataDir, storage.DefaultSeriesFileDirectoryName))
 	sfile.Logger = cmd.Logger
 	if err := sfile.Open(); err != nil {
 		return err
@@ -131,7 +132,7 @@ func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 		rpName := fi.Name()
 		if !fi.IsDir() {
 			continue
-		} else if rpName == tsdb.SeriesFileDirectory {
+		} else if rpName == storage.DefaultSeriesFileDirectoryName {
 			continue
 		} else if cmd.retentionFilter != "" && rpName != cmd.retentionFilter {
 			continue
