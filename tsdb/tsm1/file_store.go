@@ -191,8 +191,8 @@ type FileStore struct {
 	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
 
-	fileTracker *fileTracker
-	purger      *purger
+	tracker *fileTracker
+	purger  *purger
 
 	currentTempDirID int
 
@@ -241,7 +241,7 @@ func NewFileStore(dir string) *FileStore {
 		},
 		obs:           noFileStoreObserver{},
 		parseFileName: DefaultParseFileName,
-		fileTracker:   newFileTracker(newFileMetrics(nil)),
+		tracker:       newFileTracker(newFileMetrics(nil)),
 	}
 	fs.purger.fileStore = fs
 	return fs
@@ -611,7 +611,7 @@ func (f *FileStore) Open() error {
 		for _, ts := range res.r.TombstoneFiles() {
 			totalSize += uint64(ts.Size)
 		}
-		f.fileTracker.AddBytes(totalSize)
+		f.tracker.AddBytes(totalSize)
 
 		// Re-initialize the lastModified time for the file store
 		if res.r.LastModified() > lm {
@@ -623,7 +623,7 @@ func (f *FileStore) Open() error {
 	close(readerC)
 
 	sort.Sort(tsmReaders(f.files))
-	f.fileTracker.SetFileCount(uint64(len(f.files)))
+	f.tracker.SetFileCount(uint64(len(f.files)))
 	return nil
 }
 
@@ -636,7 +636,7 @@ func (f *FileStore) Close() error {
 
 	f.lastFileStats = nil
 	f.files = nil
-	f.fileTracker.SetFileCount(uint64(0))
+	f.tracker.SetFileCount(uint64(0))
 
 	// Let other methods access this closed object while we do the actual closing.
 	f.mu.Unlock()
@@ -652,7 +652,7 @@ func (f *FileStore) Close() error {
 }
 
 // DiskSizeBytes returns the total number of bytes consumed by the files in the FileStore.
-func (f *FileStore) DiskSizeBytes() int64 { return int64(f.fileTracker.Bytes()) }
+func (f *FileStore) DiskSizeBytes() int64 { return int64(f.tracker.Bytes()) }
 
 // Read returns the slice of values for the given key and the given timestamp,
 // if any file matches those constraints.
@@ -904,7 +904,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	f.lastFileStats = nil
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
-	f.fileTracker.SetFileCount(uint64(len(f.files)))
+	f.tracker.SetFileCount(uint64(len(f.files)))
 
 	// Recalculate the disk size stat
 	var totalSize uint64
@@ -915,7 +915,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		}
 
 	}
-	f.fileTracker.SetBytes(totalSize)
+	f.tracker.SetBytes(totalSize)
 
 	return nil
 }

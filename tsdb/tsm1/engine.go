@@ -500,8 +500,8 @@ func (e *Engine) Open() error {
 
 	// Propagate prometheus metrics down into trackers.
 	e.compactionTracker = newCompactionTracker(e.blockMetrics.compactionMetrics)
-	e.FileStore.fileTracker = newFileTracker(e.blockMetrics.fileMetrics)
-	e.Cache.cacheTracker = newCacheTracker(e.blockMetrics.cacheMetrics)
+	e.FileStore.tracker = newFileTracker(e.blockMetrics.fileMetrics)
+	e.Cache.tracker = newCacheTracker(e.blockMetrics.cacheMetrics)
 
 	// Set default metrics on WAL if enabled.
 	if wal, ok := e.WAL.(*WAL); ok {

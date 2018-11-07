@@ -170,7 +170,7 @@ type Cache struct {
 	snapshot     *Cache
 	snapshotting bool
 
-	cacheTracker  *cacheTracker
+	tracker       *cacheTracker
 	lastSnapshot  time.Time
 	lastWriteTime time.Time
 
@@ -187,7 +187,7 @@ func NewCache(maxSize uint64) *Cache {
 		maxSize:      maxSize,
 		store:        emptyStore{},
 		lastSnapshot: time.Now(),
-		cacheTracker: newCacheTracker(newCacheMetrics(nil)),
+		tracker:      newCacheTracker(newCacheMetrics(nil)),
 	}
 	c.initialize.Store(&sync.Once{})
 	return c
@@ -227,15 +227,15 @@ func (c *Cache) Write(key []byte, values []Value) error {
 	n := c.Size() + addedSize
 
 	if limit > 0 && n > limit {
-		c.cacheTracker.IncWritesErr()
-		c.cacheTracker.AddWrittenBytesDrop(uint64(addedSize))
+		c.tracker.IncWritesErr()
+		c.tracker.AddWrittenBytesDrop(uint64(addedSize))
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
 	}
 
 	newKey, err := c.store.write(key, values)
 	if err != nil {
-		c.cacheTracker.IncWritesErr()
-		c.cacheTracker.AddWrittenBytesErr(uint64(addedSize))
+		c.tracker.IncWritesErr()
+		c.tracker.AddWrittenBytesErr(uint64(addedSize))
 		return err
 	}
 
@@ -243,10 +243,10 @@ func (c *Cache) Write(key []byte, values []Value) error {
 		addedSize += uint64(len(key))
 	}
 	// Update the cache size and the memory size stat.
-	c.cacheTracker.IncCacheSize(addedSize)
-	c.cacheTracker.AddMemBytes(addedSize)
-	c.cacheTracker.AddWrittenBytesOK(uint64(addedSize))
-	c.cacheTracker.IncWritesOK()
+	c.tracker.IncCacheSize(addedSize)
+	c.tracker.AddMemBytes(addedSize)
+	c.tracker.AddWrittenBytesOK(uint64(addedSize))
+	c.tracker.IncWritesOK()
 
 	return nil
 }
@@ -267,8 +267,8 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	limit := c.maxSize // maxSize is safe for reading without a lock.
 	n := c.Size() + addedSize
 	if limit > 0 && n > limit {
-		c.cacheTracker.IncWritesErr()
-		c.cacheTracker.AddWrittenBytesDrop(uint64(addedSize))
+		c.tracker.IncWritesErr()
+		c.tracker.AddWrittenBytesDrop(uint64(addedSize))
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
 	}
 
@@ -297,16 +297,16 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	// Some points in the batch were dropped.  An error is returned so
 	// error stat is incremented as well.
 	if werr != nil {
-		c.cacheTracker.IncWritesErr()
-		c.cacheTracker.IncWritesDrop()
-		c.cacheTracker.AddWrittenBytesErr(bytesWrittenErr)
+		c.tracker.IncWritesErr()
+		c.tracker.IncWritesDrop()
+		c.tracker.AddWrittenBytesErr(bytesWrittenErr)
 	}
 
 	// Update the memory size stat
-	c.cacheTracker.IncCacheSize(addedSize)
-	c.cacheTracker.AddMemBytes(addedSize)
-	c.cacheTracker.IncWritesOK()
-	c.cacheTracker.AddWrittenBytesOK(addedSize)
+	c.tracker.IncCacheSize(addedSize)
+	c.tracker.AddMemBytes(addedSize)
+	c.tracker.IncWritesOK()
+	c.tracker.AddWrittenBytesOK(addedSize)
 
 	c.mu.Lock()
 	c.lastWriteTime = time.Now()
@@ -328,7 +328,7 @@ func (c *Cache) Snapshot() (*Cache, error) {
 	}
 
 	c.snapshotting = true
-	c.cacheTracker.IncSnapshotsActive() // increment the number of times we tried to do this
+	c.tracker.IncSnapshotsActive() // increment the number of times we tried to do this
 
 	// If no snapshot exists, create a new one, otherwise update the existing snapshot
 	if c.snapshot == nil {
@@ -337,10 +337,10 @@ func (c *Cache) Snapshot() (*Cache, error) {
 			return nil, err
 		}
 
-		newMetrics := newCacheMetrics(c.cacheTracker.metrics.Labels())
+		newMetrics := newCacheMetrics(c.tracker.metrics.Labels())
 		c.snapshot = &Cache{
-			store:        store,
-			cacheTracker: newCacheTracker(newMetrics),
+			store:   store,
+			tracker: newCacheTracker(newMetrics),
 		}
 	}
 
@@ -353,17 +353,17 @@ func (c *Cache) Snapshot() (*Cache, error) {
 	c.snapshot.store, c.store = c.store, c.snapshot.store
 	snapshotSize := c.Size()
 
-	c.snapshot.cacheTracker.SetSnapshotSize(snapshotSize) // Save the size of the snapshot on the snapshot cache
-	c.cacheTracker.SetSnapshotSize(snapshotSize)          // Save the size of the snapshot on the live cache
+	c.snapshot.tracker.SetSnapshotSize(snapshotSize) // Save the size of the snapshot on the snapshot cache
+	c.tracker.SetSnapshotSize(snapshotSize)          // Save the size of the snapshot on the live cache
 
 	// Reset the cache's store.
 	c.store.reset()
-	c.cacheTracker.SetCacheSize(0)
+	c.tracker.SetCacheSize(0)
 	c.lastSnapshot = time.Now()
 
-	c.cacheTracker.AddSnapshottedBytes(snapshotSize) // increment the number of bytes added to the snapshot
-	c.cacheTracker.SetDiskBytes(0)
-	c.cacheTracker.SetSnapshotsActive(0)
+	c.tracker.AddSnapshottedBytes(snapshotSize) // increment the number of bytes added to the snapshot
+	c.tracker.SetDiskBytes(0)
+	c.tracker.SetSnapshotsActive(0)
 
 	return c.snapshot, nil
 }
@@ -400,26 +400,26 @@ func (c *Cache) ClearSnapshot(success bool) {
 	c.snapshotting = false
 
 	if success {
-		snapshotSize := c.cacheTracker.SnapshotSize()
-		c.cacheTracker.SetSnapshotsActive(0)
-		c.cacheTracker.SubMemBytes(snapshotSize) // decrement the number of bytes in cache
+		snapshotSize := c.tracker.SnapshotSize()
+		c.tracker.SetSnapshotsActive(0)
+		c.tracker.SubMemBytes(snapshotSize) // decrement the number of bytes in cache
 
 		// Reset the snapshot to a fresh Cache.
-		newMetrics := newCacheMetrics(c.cacheTracker.metrics.Labels())
+		newMetrics := newCacheMetrics(c.tracker.metrics.Labels())
 		c.snapshot = &Cache{
-			store:        c.snapshot.store,
-			cacheTracker: newCacheTracker(newMetrics),
+			store:   c.snapshot.store,
+			tracker: newCacheTracker(newMetrics),
 		}
 
-		c.cacheTracker.SetSnapshotSize(0)
-		c.cacheTracker.SetDiskBytes(0)
-		c.cacheTracker.SetSnapshotsActive(0)
+		c.tracker.SetSnapshotSize(0)
+		c.tracker.SetDiskBytes(0)
+		c.tracker.SetSnapshotsActive(0)
 	}
 }
 
 // Size returns the number of point-calcuated bytes the cache currently uses.
 func (c *Cache) Size() uint64 {
-	return c.cacheTracker.CacheSize() + c.cacheTracker.SnapshotSize()
+	return c.tracker.CacheSize() + c.tracker.SnapshotSize()
 }
 
 // MaxSize returns the maximum number of bytes the cache may consume.
@@ -589,8 +589,8 @@ func (c *Cache) DeleteRange(keys [][]byte, min, max int64) {
 		// Just update what is being deleted by the size of the filtered entries.
 		total -= uint64(e.size())
 	}
-	c.cacheTracker.DecCacheSize(total) // Decrease the live cache size.
-	c.cacheTracker.SetMemBytes(uint64(c.Size()))
+	c.tracker.DecCacheSize(total) // Decrease the live cache size.
+	c.tracker.SetMemBytes(uint64(c.Size()))
 }
 
 // SetMaxSize updates the memory limit of the cache.
@@ -721,7 +721,7 @@ func (c *Cache) LastWriteTime() time.Time {
 func (c *Cache) UpdateAge() {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	c.cacheTracker.SetAge(time.Since(c.lastSnapshot))
+	c.tracker.SetAge(time.Since(c.lastSnapshot))
 }
 
 // cacheTracker tracks writes to the cache and snapshots.

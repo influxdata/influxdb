@@ -138,9 +138,9 @@ func TestCache_WriteMulti_Stats(t *testing.T) {
 	}
 
 	// Write stats updated
-	if got, exp := atomic.LoadUint64(&c.cacheTracker.writesDropped), uint64(1); got != exp {
+	if got, exp := atomic.LoadUint64(&c.tracker.writesDropped), uint64(1); got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
-	} else if got, exp := atomic.LoadUint64(&c.cacheTracker.writesErr), uint64(1); got != exp {
+	} else if got, exp := atomic.LoadUint64(&c.tracker.writesErr), uint64(1); got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 }
@@ -479,7 +479,7 @@ func TestCache_Snapshot_Stats(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, exp := atomic.LoadUint64(&c.cacheTracker.memSizeBytes), uint64(16)+3; got != exp {
+	if got, exp := atomic.LoadUint64(&c.tracker.memSizeBytes), uint64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
@@ -494,11 +494,11 @@ func TestCache_Snapshot_Stats(t *testing.T) {
 	}
 
 	// Cached bytes should have been increased.
-	if got, exp := atomic.LoadUint64(&c.cacheTracker.snapshottedBytes), uint64(16)+3; got != exp {
+	if got, exp := atomic.LoadUint64(&c.tracker.snapshottedBytes), uint64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
-	if got, exp := atomic.LoadUint64(&c.cacheTracker.memSizeBytes), uint64(16)+3; got != exp {
+	if got, exp := atomic.LoadUint64(&c.tracker.memSizeBytes), uint64(16)+3; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 }
