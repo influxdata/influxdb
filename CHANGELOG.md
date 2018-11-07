@@ -28,74 +28,73 @@ v1.6.5 [unreleased]
 
 ### Bugfixes
 
--       [#10425](https://github.com/influxdata/influxdb/pull/10425): Fix panic in IndexSet.
+-	[#10425](https://github.com/influxdata/influxdb/pull/10425): Fix panic in IndexSet.
 
 v1.6.4 [2018-10-23]
 -------------------
 
 ### Features
 
--       [#10347](https://github.com/influxdata/influxdb/pull/10347): Set cache size when building TSI index.
+-	[#10347](https://github.com/influxdata/influxdb/pull/10347): Set cache size when building TSI index.
 
 ### Bugfixes
 
--       [#10320](https://github.com/influxdata/influxdb/pull/10320): Fix tsi1 sketch locking.
--       [#10334](https://github.com/influxdata/influxdb/pull/10334): Fix subquery functionality when a function references a tag from the subquery.
--       [#10334](https://github.com/influxdata/influxdb/pull/10334): Strip tags from a subquery when the outer query does not group by that tag.
--       [#10316](https://github.com/influxdata/influxdb/pull/10316): Add -series-file flag to dumptsi command help.
--       [#10348](https://github.com/influxdata/influxdb/pull/10348): Cleanup failed TSM snapshots.
--       [#10355](https://github.com/influxdata/influxdb/pull/10355): Fix TSM1 panic on reader error.
--       [#10356](https://github.com/influxdata/influxdb/pull/10356): Fix series file tombstoning.
--       [#10364](https://github.com/influxdata/influxdb/pull/10364): Fixing the stream iterator to not ignore the error.
--       [#10371](https://github.com/influxdata/influxdb/pull/10371): Do not panic when a series id iterator is nil.
--       [#10343](https://github.com/influxdata/influxdb/pull/10343): Fix append of possible nil iterator.
+-	[#10320](https://github.com/influxdata/influxdb/pull/10320): Fix tsi1 sketch locking.
+-	[#10334](https://github.com/influxdata/influxdb/pull/10334): Fix subquery functionality when a function references a tag from the subquery.
+-	[#10334](https://github.com/influxdata/influxdb/pull/10334): Strip tags from a subquery when the outer query does not group by that tag.
+-	[#10316](https://github.com/influxdata/influxdb/pull/10316): Add -series-file flag to dumptsi command help.
+-	[#10348](https://github.com/influxdata/influxdb/pull/10348): Cleanup failed TSM snapshots.
+-	[#10355](https://github.com/influxdata/influxdb/pull/10355): Fix TSM1 panic on reader error.
+-	[#10356](https://github.com/influxdata/influxdb/pull/10356): Fix series file tombstoning.
+-	[#10364](https://github.com/influxdata/influxdb/pull/10364): Fixing the stream iterator to not ignore the error.
+-	[#10371](https://github.com/influxdata/influxdb/pull/10371): Do not panic when a series id iterator is nil.
+-	[#10343](https://github.com/influxdata/influxdb/pull/10343): Fix append of possible nil iterator.
 
 v1.6.3 [2018-09-14]
 -------------------
 
 ### Features
 
--       [#10280](https://github.com/influxdata/influxdb/pull/10280): Remove TSI1 HLL sketches from heap.
+-	[#10280](https://github.com/influxdata/influxdb/pull/10280): Remove TSI1 HLL sketches from heap.
 
 ### Bugfixes
 
--       [#10251](https://github.com/influxdata/influxdb/pull/10251): Fix the inherited interval for derivative and others.
--       [#10273](https://github.com/influxdata/influxdb/pull/10273): Fix the derivative and others time ranges for aggregate data.
+-	[#10251](https://github.com/influxdata/influxdb/pull/10251): Fix the inherited interval for derivative and others.
+-	[#10273](https://github.com/influxdata/influxdb/pull/10273): Fix the derivative and others time ranges for aggregate data.
 
 v1.6.2 [2018-08-27]
 -------------------
 
 ### Features
 
--       [#10191](https://github.com/influxdata/influxdb/pull/10191): Reduce allocations in TSI TagSets implementation
+-	[#10191](https://github.com/influxdata/influxdb/pull/10191): Reduce allocations in TSI TagSets implementation
 
 ### Bugfixes
 
--       [#10219](https://github.com/influxdata/influxdb/pull/10219): Ensure orhpaned series cleaned up with shard drop.
-
+-	[#10219](https://github.com/influxdata/influxdb/pull/10219): Ensure orhpaned series cleaned up with shard drop.
 
 v1.6.1 [2018-08-03]
 -------------------
 
 ### Features
 
--       [#10078](https://github.com/influxdata/influxdb/pull/10078): Improve LogFile performance with bitset iterator.
--       [#10077](https://github.com/influxdata/influxdb/pull/10077): Add TSI index cardinality report to influx_inspect.
--       [#10079](https://github.com/influxdata/influxdb/pull/10079): Update to Go 1.10.
--       [#10080](https://github.com/influxdata/influxdb/pull/10080): Improve performance of buildtsi and TSI planning.
--       [#10099](https://github.com/influxdata/influxdb/pull/10099): Improve performance of read service for single measurements.
--       [#10103](https://github.com/influxdata/influxdb/pull/10103): Remove max concurrent compaction limit.
--       [#10154](https://github.com/influxdata/influxdb/pull/10154): Provide configurable TLS options.
--       [#10155](https://github.com/influxdata/influxdb/pull/10155): Add option to hint MADV_WILLNEED to kernel.
+-	[#10078](https://github.com/influxdata/influxdb/pull/10078): Improve LogFile performance with bitset iterator.
+-	[#10077](https://github.com/influxdata/influxdb/pull/10077): Add TSI index cardinality report to influx_inspect.
+-	[#10079](https://github.com/influxdata/influxdb/pull/10079): Update to Go 1.10.
+-	[#10080](https://github.com/influxdata/influxdb/pull/10080): Improve performance of buildtsi and TSI planning.
+-	[#10099](https://github.com/influxdata/influxdb/pull/10099): Improve performance of read service for single measurements.
+-	[#10103](https://github.com/influxdata/influxdb/pull/10103): Remove max concurrent compaction limit.
+-	[#10154](https://github.com/influxdata/influxdb/pull/10154): Provide configurable TLS options.
+-	[#10155](https://github.com/influxdata/influxdb/pull/10155): Add option to hint MADV_WILLNEED to kernel.
 
 ### Bugfixes
 
--       [#10012](https://github.com/influxdata/influxdb/pull/10012): Improve series segment recovery.
--       [#10076](https://github.com/influxdata/influxdb/pull/10076): Fix windows mmap on zero length file.
--       [#10037](https://github.com/influxdata/influxdb/pull/10037): Ensure Filter iterators executed as late as possible.
--       [#10061](https://github.com/influxdata/influxdb/pull/10061): Document UDP precision setting in config.
--       [#10091](https://github.com/influxdata/influxdb/pull/10091): Allow tag keys to contain underscores.
--       [#10095](https://github.com/influxdata/influxdb/pull/10095): Fix a panic when matching on a specific type of regular expression.
+-	[#10012](https://github.com/influxdata/influxdb/pull/10012): Improve series segment recovery.
+-	[#10076](https://github.com/influxdata/influxdb/pull/10076): Fix windows mmap on zero length file.
+-	[#10037](https://github.com/influxdata/influxdb/pull/10037): Ensure Filter iterators executed as late as possible.
+-	[#10061](https://github.com/influxdata/influxdb/pull/10061): Document UDP precision setting in config.
+-	[#10091](https://github.com/influxdata/influxdb/pull/10091): Allow tag keys to contain underscores.
+-	[#10095](https://github.com/influxdata/influxdb/pull/10095): Fix a panic when matching on a specific type of regular expression.
 
 v1.6.0 [2018-07-05]
 -------------------
