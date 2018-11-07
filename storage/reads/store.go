@@ -26,6 +26,8 @@ type ResultSet interface {
 
 	// Err returns the first error encountered by the ResultSet.
 	Err() error
+
+	Stats() cursors.CursorStats
 }
 
 type GroupResultSet interface {
@@ -68,6 +70,8 @@ type GroupCursor interface {
 
 	// Err returns the first error encountered by the GroupCursor.
 	Err() error
+
+	Stats() cursors.CursorStats
 }
 
 type Store interface {

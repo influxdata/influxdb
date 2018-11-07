@@ -17,7 +17,7 @@ type responseIterator struct {
 	resultIdx int
 }
 
-// NewresponseIterator constructs a responseIterator from a flux.ResultIterator.
+// NewResponseIterator constructs a flux.ResultIterator from a Response.
 func NewResponseIterator(r *Response) flux.ResultIterator {
 	return &responseIterator{
 		response: r,

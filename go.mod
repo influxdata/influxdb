@@ -37,7 +37,7 @@ require (
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/influxdata/flux v0.7.1-0.20181121233512-f499ec2a251b
+	github.com/influxdata/flux v0.7.1-0.20181121233512-adb2411fee9c
 	github.com/influxdata/influxdb v0.0.0-20181017211453-9520b8d95606
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
@@ -87,7 +87,6 @@ require (
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
 	golang.org/x/sys v0.0.0-20181023152157-44b849a8bc13
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
-	golang.org/x/tools v0.0.0-20181023010539-40a48ad93fbe // indirect
 	google.golang.org/api v0.0.0-20181021000519-a2651947f503
 	google.golang.org/genproto v0.0.0-20181016170114-94acd270e44e // indirect
 	google.golang.org/grpc v1.15.0

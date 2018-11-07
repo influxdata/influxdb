@@ -11,6 +11,7 @@ type mergedResultSet struct {
 	heap  resultSetHeap
 	err   error
 	first bool
+	stats cursors.CursorStats
 }
 
 func NewMergedResultSet(results []ResultSet) ResultSet {
@@ -53,6 +54,8 @@ func (r *mergedResultSet) Next() bool {
 			r.Close()
 		}
 
+		r.stats.Add(top.Stats())
+
 		return len(r.heap.items) > 0
 	}
 
@@ -66,6 +69,10 @@ func (r *mergedResultSet) Cursor() cursors.Cursor {
 
 func (r *mergedResultSet) Tags() models.Tags {
 	return r.heap.items[0].Tags()
+}
+
+func (r *mergedResultSet) Stats() cursors.CursorStats {
+	return r.stats
 }
 
 type resultSetHeap struct {

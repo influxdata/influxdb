@@ -33,6 +33,8 @@ type table struct {
 	err error
 
 	cancelled int32
+
+	stats flux.Statistics
 }
 
 func newTable(
@@ -221,6 +223,8 @@ func newTableNoPoints(
 
 func (t *tableNoPoints) Close() {}
 
+func (t *tableNoPoints) Statistics() flux.Statistics { return flux.Statistics{} }
+
 func (t *tableNoPoints) Do(f func(flux.ColReader) error) error {
 	if t.isCancelled() {
 		return nil
@@ -258,3 +262,5 @@ func (t *groupTableNoPoints) Do(f func(flux.ColReader) error) error {
 	t.closeDone()
 	return t.err
 }
+
+func (t *groupTableNoPoints) Statistics() flux.Statistics { return flux.Statistics{} }

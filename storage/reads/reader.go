@@ -57,7 +57,10 @@ type tableIterator struct {
 	s         Store
 	readSpec  fstorage.ReadSpec
 	predicate *datatypes.Predicate
+	stats     flux.Statistics
 }
+
+func (bi *tableIterator) Statistics() flux.Statistics { return bi.stats }
 
 func (bi *tableIterator) Do(f func(flux.Table) error) error {
 	src, err := bi.s.GetSource(bi.readSpec)
@@ -189,6 +192,7 @@ READ:
 		}
 
 		table.Close()
+		bi.stats = bi.stats.Add(table.Statistics())
 		table = nil
 	}
 	return rs.Err()

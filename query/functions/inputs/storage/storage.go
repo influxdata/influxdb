@@ -75,6 +75,8 @@ type source struct {
 
 	currentTime execute.Time
 	overflow    bool
+
+	stats flux.Statistics
 }
 
 func NewSource(id execute.DatasetID, r Reader, readSpec ReadSpec, bounds execute.Bounds, w execute.Window, currentTime execute.Time) execute.Source {
@@ -118,6 +120,7 @@ func (s *source) run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		s.stats = s.stats.Add(tables.Statistics())
 		for _, t := range s.ts {
 			if err := t.UpdateWatermark(s.id, mark); err != nil {
 				return err
@@ -158,6 +161,10 @@ func (s *source) next(ctx context.Context) (flux.TableIterator, execute.Time, bo
 		return nil, 0, false
 	}
 	return bi, stop, true
+}
+
+func (s *source) Statistics() flux.Statistics {
+	return s.stats
 }
 
 type GroupMode int

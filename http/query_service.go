@@ -17,7 +17,7 @@ import (
 const (
 	queryPath = "/api/v2/querysvc"
 
-	statsTrailer = "Influx-Query-Statistics"
+	queryStatisticsTrailer = "Influx-Query-Statistics"
 )
 
 type QueryHandler struct {
@@ -73,7 +73,7 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	// Setup headers
 	stats, hasStats := results.(flux.Statisticser)
 	if hasStats {
-		w.Header().Set("Trailer", statsTrailer)
+		w.Header().Set("Trailer", queryStatisticsTrailer)
 	}
 
 	// NOTE: We do not write out the headers here.
@@ -109,7 +109,7 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Write statisitcs trailer
-		w.Header().Set(statsTrailer, string(data))
+		w.Header().Set(queryStatisticsTrailer, string(data))
 	}
 }
 
@@ -229,7 +229,7 @@ func (s *statsResultIterator) Statistics() flux.Statistics {
 
 // readStats reads the query statisitcs off the response trailers.
 func (s *statsResultIterator) readStats() {
-	data := s.resp.Trailer.Get(statsTrailer)
+	data := s.resp.Trailer.Get(queryStatisticsTrailer)
 	if data != "" {
 		s.err = json.Unmarshal([]byte(data), &s.statisitcs)
 	}

@@ -2,7 +2,9 @@ package query
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"net/http"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/platform"
@@ -32,8 +34,29 @@ func (b ProxyQueryServiceBridge) Query(ctx context.Context, w io.Writer, req *Pr
 		return 0, err
 	}
 	defer results.Release()
+
+	// Setup headers
+	stats, hasStats := results.(flux.Statisticser)
+	if hasStats {
+		if w, ok := w.(http.ResponseWriter); ok {
+			w.Header().Set("Trailer", "Influx-Query-Statistics")
+		}
+	}
+
 	encoder := req.Dialect.Encoder()
-	return encoder.Encode(w, results)
+	n, err := encoder.Encode(w, results)
+	if err != nil {
+		return n, err
+	}
+
+	if w, ok := w.(http.ResponseWriter); ok {
+		if hasStats {
+			data, _ := json.Marshal(stats.Statistics())
+			w.Header().Set("Influx-Query-Statistics", string(data))
+		}
+	}
+
+	return n, nil
 }
 
 // REPLQuerier implements the repl.Querier interface while consuming a QueryService
