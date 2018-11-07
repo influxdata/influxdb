@@ -431,7 +431,7 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 		req.filter.Org = &o.ID
 	}
 
-	if runID := params.ByName("rid"); id != "" {
+	if runID := params.ByName("rid"); runID != "" {
 		id, err := platform.IDFromString(runID)
 		if err != nil {
 			return nil, err
