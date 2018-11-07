@@ -12,6 +12,7 @@ import {DashboardQuery} from 'src/types/v2/dashboards'
 // Utils
 import AutoRefresh from 'src/utils/AutoRefresh'
 import {parseResponse} from 'src/shared/parsing/flux/response'
+import {restartable, CancellationError} from 'src/utils/restartable'
 
 export const DEFAULT_TIME_SERIES = [{response: {results: []}}]
 
@@ -38,6 +39,8 @@ class TimeSeries extends Component<Props, State> {
     inView: true,
   }
 
+  private executeQueries = restartable(executeQueries)
+
   constructor(props: Props) {
     super(props)
 
@@ -50,7 +53,7 @@ class TimeSeries extends Component<Props, State> {
 
   public async componentDidMount() {
     const isFirstFetch = true
-    this.executeQueries(isFirstFetch)
+    this.reload(isFirstFetch)
     AutoRefresh.subscribe(this.executeQueries)
   }
 
@@ -63,10 +66,10 @@ class TimeSeries extends Component<Props, State> {
       return
     }
 
-    this.executeQueries()
+    this.reload()
   }
 
-  public executeQueries = async (isFirstFetch: boolean = false) => {
+  public reload = async (isFirstFetch: boolean = false) => {
     const {link, inView, queries} = this.props
 
     if (!inView) {
@@ -80,7 +83,7 @@ class TimeSeries extends Component<Props, State> {
     this.setState({loading: RemoteDataState.Loading, isFirstFetch})
 
     try {
-      const results = await executeQueries(link, queries)
+      const results = await this.executeQueries(link, queries)
       const tables = _.flatten(results.map(r => parseResponse(r.csv)))
 
       this.setState({
@@ -88,6 +91,10 @@ class TimeSeries extends Component<Props, State> {
         loading: RemoteDataState.Done,
       })
     } catch (err) {
+      if (err instanceof CancellationError) {
+        return
+      }
+
       console.error(err)
     }
   }
