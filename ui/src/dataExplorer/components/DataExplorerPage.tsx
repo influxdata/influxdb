@@ -27,7 +27,7 @@ class DataExplorerPage extends PureComponent<null, State> {
 
     return (
       <Page>
-        <Page.Header>
+        <Page.Header fullWidth={true}>
           <Page.Header.Left>
             <Page.Title title="Data Explorer" />
           </Page.Header.Left>
