@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	DefaultRetentionInterval = 1 * time.Hour
-	DefaultValidateKeys      = false
+	DefaultRetentionInterval   = 1 * time.Hour
+	DefaultValidateKeys        = false
+	DefaultTraceLoggingEnabled = false
 )
 
 // Config holds the configuration for an Engine.
@@ -21,16 +22,34 @@ type Config struct {
 	// Enables unicode validation on series keys on write.
 	ValidateKeys bool `toml:"validate-keys"`
 
-	Engine tsm1.Config `toml:"engine"`
-	Index  tsi1.Config `toml:"index"`
+	// Enables trace logging for the engine.
+	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
+
+	// Series file config.
+	SeriesFilePath string `toml:"series-file-path"` // Overrides the default path.
+
+	// WAL config.
+	WAL     tsm1.WALConfig `toml:"wal"`
+	WALPath string         `toml:"wal-path"` // Overrides the default path.
+
+	// Engine config.
+	Engine     tsm1.Config `toml:"engine"`
+	EnginePath string      `toml:"engine-path"` // Overrides the default path.
+
+	// Index config.
+	Index     tsi1.Config `toml:"index"`
+	IndexPath string      `toml:"index-path"` // Overrides the default path.
 }
 
 // NewConfig initialises a new config for an Engine.
 func NewConfig() Config {
 	return Config{
-		RetentionInterval: toml.Duration(DefaultRetentionInterval),
-		ValidateKeys:      DefaultValidateKeys,
-		Engine:            tsm1.NewConfig(),
-		Index:             tsi1.NewConfig(),
+		RetentionInterval:   toml.Duration(DefaultRetentionInterval),
+		ValidateKeys:        DefaultValidateKeys,
+		TraceLoggingEnabled: DefaultTraceLoggingEnabled,
+
+		WAL:    tsm1.NewWALConfig(),
+		Engine: tsm1.NewConfig(),
+		Index:  tsi1.NewConfig(),
 	}
 }

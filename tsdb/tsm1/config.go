@@ -10,13 +10,13 @@ import (
 var DefaultMaxConcurrentOpens = runtime.GOMAXPROCS(0)
 
 const (
-	DefaultMADVWillNeed        = false
-	DefaultTraceLoggingEnabled = false
+	DefaultMADVWillNeed = false
 )
 
 // Config contains all of the configuration necessary to run a tsm1 engine.
 type Config struct {
-	// TODO(jeff): document
+	// MacConcurrentOpens controls the concurrency of opening tsm files during
+	// engine opening.
 	MaxConcurrentOpens int `toml:"max-concurrent-opens"`
 
 	// MADVWillNeed controls whether we hint to the kernel that we intend to page
@@ -25,23 +25,19 @@ type Config struct {
 	// slow disks.
 	MADVWillNeed bool `toml:"use-madv-willneed"`
 
-	// TODO(jeff): document
-	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
-
-	// TODO(jeff): document
+	// FileStoreObserver if set will receive notifications about all of the tsm
+	// and tombstone files that are created and removed.
 	FileStoreObserver FileStoreObserver `toml:"-"`
 
 	Compaction CompactionConfig `toml:"compaction"`
 	Cache      CacheConfig      `toml:"cache"`
-	WAL        WALConfig        `toml:"wal"`
 }
 
 // NewConfig constructs a Config with the default values.
 func NewConfig() Config {
 	return Config{
-		MaxConcurrentOpens:  DefaultMaxConcurrentOpens,
-		MADVWillNeed:        DefaultMADVWillNeed,
-		TraceLoggingEnabled: DefaultTraceLoggingEnabled,
+		MaxConcurrentOpens: DefaultMaxConcurrentOpens,
+		MADVWillNeed:       DefaultMADVWillNeed,
 
 		Cache: CacheConfig{
 			MaxMemorySize:             toml.Size(DefaultCacheMaxMemorySize),
@@ -53,11 +49,6 @@ func NewConfig() Config {
 			Throughput:            toml.Size(DefaultCompactThroughput),
 			ThroughputBurst:       toml.Size(DefaultCompactThroughputBurst),
 			MaxConcurrent:         DefaultCompactMaxConcurrent,
-		},
-		WAL: WALConfig{
-			Enabled:    DefaultWALEnabled,
-			Path:       DefaultWALPath,
-			FsyncDelay: toml.Duration(DefaultWALFsyncDelay),
 		},
 	}
 }
@@ -120,21 +111,24 @@ type CacheConfig struct {
 
 const (
 	DefaultWALEnabled    = true
-	DefaultWALPath       = "../wal"
 	DefaultWALFsyncDelay = time.Duration(0)
 )
 
 // WALConfig holds all of the configuration about the WAL.
 type WALConfig struct {
-	// TODO(jeff): document
+	// Enabled controls if the WAL is enabled.
 	Enabled bool `toml:"enabled"`
-
-	// TODO(jeff): document
-	Path string `toml:"path"`
 
 	// WALFsyncDelay is the amount of time that a write will wait before fsyncing.  A
 	// duration greater than 0 can be used to batch up multiple fsync calls.  This is
 	// useful for slower disks or when WAL write contention is seen.  A value of 0 fsyncs
 	// every write to the WAL.
 	FsyncDelay toml.Duration `toml:"fsync-delay"`
+}
+
+func NewWALConfig() WALConfig {
+	return WALConfig{
+		Enabled:    DefaultWALEnabled,
+		FsyncDelay: toml.Duration(DefaultWALFsyncDelay),
+	}
 }

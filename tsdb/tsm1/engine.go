@@ -108,6 +108,29 @@ const (
 	statTSMFullCompactionQueue    = "tsmFullCompactionQueue"
 )
 
+// An EngineOption is a functional option for changing the configuration of
+// an Engine.
+type EngineOption func(i *Engine)
+
+var WithPath = func(path string) EngineOption {
+	return func(e *Engine) {
+
+	}
+}
+
+// WithWAL sets the WAL for the Engine
+var WithWAL = func(wal Log) EngineOption {
+	return func(e *Engine) {
+		e.WAL = wal
+	}
+}
+
+var WithTraceLogging = func(logging bool) EngineOption {
+	return func(e *Engine) {
+		e.FileStore.enableTraceLogging(logging)
+	}
+}
+
 // Engine represents a storage engine with compressed blocks.
 type Engine struct {
 	mu sync.RWMutex
@@ -167,7 +190,7 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(path string, idx *tsi1.Index, config Config) *Engine {
+func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOption) *Engine {
 	fs := NewFileStore(path)
 	fs.openLimiter = limiter.NewFixed(config.MaxConcurrentOpens)
 	fs.WithObserver(config.FileStoreObserver)
@@ -192,12 +215,11 @@ func NewEngine(path string, idx *tsi1.Index, config Config) *Engine {
 	logger := zap.NewNop()
 	stats := &EngineStatistics{}
 	e := &Engine{
-		path:         path,
-		index:        idx,
-		sfile:        idx.SeriesFile(),
-		logger:       logger,
-		traceLogger:  logger,
-		traceLogging: config.TraceLoggingEnabled,
+		path:        path,
+		index:       idx,
+		sfile:       idx.SeriesFile(),
+		logger:      logger,
+		traceLogger: logger,
 
 		WAL:   NopWAL{},
 		Cache: cache,
@@ -215,22 +237,10 @@ func NewEngine(path string, idx *tsi1.Index, config Config) *Engine {
 		scheduler:                     newScheduler(stats, config.Compaction.MaxConcurrent),
 	}
 
-	if config.WAL.Enabled {
-		walPath := config.WAL.Path
-		if len(walPath) > 0 && walPath[0] == '.' {
-			walPath = filepath.Join(path, walPath)
-		}
-		wal := NewWAL(walPath)
-		wal.syncDelay = time.Duration(config.WAL.FsyncDelay)
-		e.WAL = wal
+	for _, option := range options {
+		option(e)
 	}
 
-	if e.traceLogging {
-		fs.enableTraceLogging(true)
-		if wal, ok := e.WAL.(*WAL); ok {
-			wal.enableTraceLogging(true)
-		}
-	}
 	return e
 }
 

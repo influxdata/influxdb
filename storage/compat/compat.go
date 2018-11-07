@@ -27,7 +27,6 @@ type Config struct {
 // NewConfig constructs an old Config struct with appropriate defaults for a new Config.
 func NewConfig() Config {
 	return Config{
-		WALDir:                         tsm1.DefaultWALPath,
 		WALFsyncDelay:                  toml.Duration(tsm1.DefaultWALFsyncDelay),
 		ValidateKeys:                   storage.DefaultValidateKeys,
 		CacheMaxMemorySize:             toml.Size(tsm1.DefaultCacheMaxMemorySize),
@@ -37,18 +36,18 @@ func NewConfig() Config {
 		CompactThroughput:              toml.Size(tsm1.DefaultCompactThroughput),
 		CompactThroughputBurst:         toml.Size(tsm1.DefaultCompactThroughputBurst),
 		MaxConcurrentCompactions:       tsm1.DefaultCompactMaxConcurrent,
-		TraceLoggingEnabled:            tsm1.DefaultTraceLoggingEnabled,
+		TraceLoggingEnabled:            storage.DefaultTraceLoggingEnabled,
 		TSMWillNeed:                    tsm1.DefaultMADVWillNeed,
 	}
 }
 
 // Convert takes an old Config and converts it into a new Config. It also returns the value
-// of the Dir key so that it can be passed through appropriately.
+// of the Dir key so that it can be passed through appropriately to the storage engine constructor.
 func Convert(oldConfig Config) (string, storage.Config) {
 	newConfig := storage.NewConfig()
+	newConfig.TraceLoggingEnabled = oldConfig.TraceLoggingEnabled
 	newConfig.ValidateKeys = oldConfig.ValidateKeys
 	newConfig.Engine.MADVWillNeed = oldConfig.TSMWillNeed
-	newConfig.Engine.TraceLoggingEnabled = oldConfig.TraceLoggingEnabled
 	newConfig.Engine.Cache.MaxMemorySize = oldConfig.CacheMaxMemorySize
 	newConfig.Engine.Cache.SnapshotMemorySize = oldConfig.CacheSnapshotMemorySize
 	newConfig.Engine.Cache.SnapshotWriteColdDuration = oldConfig.CacheSnapshotWriteColdDuration
@@ -56,7 +55,7 @@ func Convert(oldConfig Config) (string, storage.Config) {
 	newConfig.Engine.Compaction.Throughput = oldConfig.CompactThroughput
 	newConfig.Engine.Compaction.ThroughputBurst = oldConfig.CompactThroughputBurst
 	newConfig.Engine.Compaction.MaxConcurrent = oldConfig.MaxConcurrentCompactions
-	newConfig.Engine.WAL.Path = oldConfig.WALDir
-	newConfig.Engine.WAL.FsyncDelay = oldConfig.WALFsyncDelay
+	newConfig.WALPath = oldConfig.WALDir
+	newConfig.WAL.FsyncDelay = oldConfig.WALFsyncDelay
 	return oldConfig.Dir, newConfig
 }

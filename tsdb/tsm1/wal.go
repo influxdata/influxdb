@@ -42,6 +42,9 @@ type Log interface {
 }
 
 const (
+	// DefaultWALDirectoruName is the default name of the directory containing WAL files.
+	DefaultWALDirectoryName = "wal"
+
 	// DefaultSegmentSize of 10MB is the size at which segment files will be rolled over.
 	DefaultSegmentSize = 10 * 1024 * 1024
 
@@ -150,12 +153,17 @@ func NewWAL(path string) *WAL {
 	}
 }
 
-// enableTraceLogging must be called before the WAL is opened.
-func (l *WAL) enableTraceLogging(enabled bool) {
+// EnableTraceLogging must be called before the WAL is opened.
+func (l *WAL) EnableTraceLogging(enabled bool) {
 	l.traceLogging = enabled
 	if enabled {
 		l.traceLogger = l.logger
 	}
+}
+
+// WithFsyncDelay sets the fsync delay and should be called before the WAL is opened.
+func (l *WAL) WithFsyncDelay(delay time.Duration) {
+	l.syncDelay = delay
 }
 
 // WithLogger sets the WAL's logger.

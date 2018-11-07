@@ -37,6 +37,7 @@ type Engine struct {
 	index             *tsi1.Index
 	sfile             *tsdb.SeriesFile
 	engine            *tsm1.Engine
+	wal               *tsm1.WAL
 	retentionEnforcer *retentionEnforcer
 
 	// Tracks all goroutines started by the Engine.
@@ -98,17 +99,43 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e := &Engine{
 		config: c,
 		path:   path,
-		sfile:  tsdb.NewSeriesFile(filepath.Join(path, tsdb.SeriesFileDirectory)),
 		logger: zap.NewNop(),
 	}
 
+	// Initialize series file.
+	sfilePath := c.SeriesFilePath
+	if sfilePath == "" {
+		sfilePath = filepath.Join(path, tsdb.SeriesFileDirectory)
+	}
+	e.sfile = tsdb.NewSeriesFile(sfilePath)
+
 	// Initialise index.
-	index := tsi1.NewIndex(e.sfile, c.Index,
-		tsi1.WithPath(filepath.Join(path, tsi1.DefaultIndexDirectoryName)))
-	e.index = index
+	indexPath := c.IndexPath
+	if indexPath == "" {
+		indexPath = filepath.Join(path, tsi1.DefaultIndexDirectoryName)
+	}
+	e.index = tsi1.NewIndex(e.sfile, c.Index,
+		tsi1.WithPath(indexPath))
+
+	// Initialize WAL
+	if c.WAL.Enabled {
+		walPath := c.WALPath
+		if walPath == "" {
+			walPath = filepath.Join(path, tsm1.DefaultWALDirectoryName)
+		}
+		e.wal = tsm1.NewWAL(walPath)
+		e.wal.WithFsyncDelay(time.Duration(c.WAL.FsyncDelay))
+		e.wal.EnableTraceLogging(c.TraceLoggingEnabled)
+	}
 
 	// Initialise Engine
-	e.engine = tsm1.NewEngine(path, e.index, c.Engine)
+	enginePath := c.EnginePath
+	if enginePath == "" {
+		enginePath = path
+	}
+	e.engine = tsm1.NewEngine(enginePath, e.index, c.Engine,
+		tsm1.WithWAL(e.wal),
+		tsm1.WithTraceLogging(c.TraceLoggingEnabled))
 
 	// Apply options.
 	for _, option := range options {
