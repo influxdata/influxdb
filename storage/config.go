@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"path/filepath"
 	"time"
 
 	"github.com/influxdata/platform/toml"
@@ -52,4 +53,39 @@ func NewConfig() Config {
 		Engine: tsm1.NewConfig(),
 		Index:  tsi1.NewConfig(),
 	}
+}
+
+const (
+	DefaultSeriesFileDirectoryName = "_series"
+	DefaultIndexDirectoryName      = "index"
+	DefaultWALDirectoryName        = "wal"
+	DefaultEngineDirectoryName     = "data"
+)
+
+func (c Config) GetSeriesFilePath(base string) string {
+	if c.SeriesFilePath != "" {
+		return c.SeriesFilePath
+	}
+	return filepath.Join(base, DefaultSeriesFileDirectoryName)
+}
+
+func (c Config) GetIndexPath(base string) string {
+	if c.IndexPath != "" {
+		return c.IndexPath
+	}
+	return filepath.Join(base, DefaultIndexDirectoryName)
+}
+
+func (c Config) GetWALPath(base string) string {
+	if c.WALPath != "" {
+		return c.WALPath
+	}
+	return filepath.Join(base, DefaultWALDirectoryName)
+}
+
+func (c Config) GetEnginePath(base string) string {
+	if c.EnginePath != "" {
+		return c.EnginePath
+	}
+	return filepath.Join(base, DefaultEngineDirectoryName)
 }

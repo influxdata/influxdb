@@ -187,7 +187,6 @@ type Engine struct {
 func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOption) *Engine {
 	fs := NewFileStore(path)
 	fs.openLimiter = limiter.NewFixed(config.MaxConcurrentOpens)
-	fs.WithObserver(config.FileStoreObserver)
 	fs.tsmMMAPWillNeed = config.MADVWillNeed
 
 	cache := NewCache(uint64(config.Cache.MaxMemorySize))
@@ -246,6 +245,10 @@ func (e *Engine) WithFormatFileNameFunc(formatFileNameFunc FormatFileNameFunc) {
 func (e *Engine) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 	e.FileStore.WithParseFileNameFunc(parseFileNameFunc)
 	e.Compactor.WithParseFileNameFunc(parseFileNameFunc)
+}
+
+func (e *Engine) WithFileStoreObserver(obs FileStoreObserver) {
+	e.FileStore.WithObserver(obs)
 }
 
 // SetEnabled sets whether the engine is enabled.

@@ -25,10 +25,6 @@ type Config struct {
 	// slow disks.
 	MADVWillNeed bool `toml:"use-madv-willneed"`
 
-	// FileStoreObserver if set will receive notifications about all of the tsm
-	// and tombstone files that are created and removed.
-	FileStoreObserver FileStoreObserver `toml:"-"`
-
 	Compaction CompactionConfig `toml:"compaction"`
 	Cache      CacheConfig      `toml:"cache"`
 }

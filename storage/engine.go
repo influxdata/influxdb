@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -17,13 +16,6 @@ import (
 	"github.com/influxdata/platform/tsdb/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
-)
-
-const (
-	DefaultSeriesFileDirectoryName = "_series"
-	DefaultIndexDirectoryName      = "index"
-	DefaultWALDirectoryName        = "wal"
-	DefaultEngineDirectoryName     = "data"
 )
 
 // Static objects to prevent small allocs.
@@ -58,7 +50,7 @@ type Option func(*Engine)
 
 // WithTSMFilenameFormatter sets a function on the underlying tsm1.Engine to specify
 // how TSM files are named.
-var WithTSMFilenameFormatter = func(fn tsm1.FormatFileNameFunc) Option {
+func WithTSMFilenameFormatter(fn tsm1.FormatFileNameFunc) Option {
 	return func(e *Engine) {
 		e.engine.WithFormatFileNameFunc(fn)
 	}
@@ -66,7 +58,7 @@ var WithTSMFilenameFormatter = func(fn tsm1.FormatFileNameFunc) Option {
 
 // WithEngineID sets an engine id, which can be useful for logging when multiple
 // engines are in use.
-var WithEngineID = func(id int) Option {
+func WithEngineID(id int) Option {
 	return func(e *Engine) {
 		e.engineID = &id
 	}
@@ -74,7 +66,7 @@ var WithEngineID = func(id int) Option {
 
 // WithNodeID sets a node id on the engine, which can be useful for logging
 // when a system has engines running on multiple nodes.
-var WithNodeID = func(id int) Option {
+func WithNodeID(id int) Option {
 	return func(e *Engine) {
 		e.nodeID = &id
 	}
@@ -83,7 +75,7 @@ var WithNodeID = func(id int) Option {
 // WithRetentionEnforcer initialises a retention enforcer on the engine.
 // WithRetentionEnforcer must be called after other options to ensure that all
 // metrics are labelled correctly.
-var WithRetentionEnforcer = func(finder BucketFinder) Option {
+func WithRetentionEnforcer(finder BucketFinder) Option {
 	return func(e *Engine) {
 		e.retentionEnforcer = newRetentionEnforcer(e, finder)
 
@@ -100,6 +92,13 @@ var WithRetentionEnforcer = func(finder BucketFinder) Option {
 	}
 }
 
+// WithFileStoreObserver makes the engine have the provided file store observer.
+func WithFileStoreObserver(obs tsm1.FileStoreObserver) Option {
+	return func(e *Engine) {
+		e.engine.WithFileStoreObserver(obs)
+	}
+}
+
 // NewEngine initialises a new storage engine, including a series file, index and
 // TSM engine.
 func NewEngine(path string, c Config, options ...Option) *Engine {
@@ -110,37 +109,21 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	}
 
 	// Initialize series file.
-	sfilePath := c.SeriesFilePath
-	if sfilePath == "" {
-		sfilePath = filepath.Join(path, DefaultSeriesFileDirectoryName)
-	}
-	e.sfile = tsdb.NewSeriesFile(sfilePath)
+	e.sfile = tsdb.NewSeriesFile(c.GetSeriesFilePath(path))
 
 	// Initialise index.
-	indexPath := c.IndexPath
-	if indexPath == "" {
-		indexPath = filepath.Join(path, DefaultIndexDirectoryName)
-	}
 	e.index = tsi1.NewIndex(e.sfile, c.Index,
-		tsi1.WithPath(indexPath))
+		tsi1.WithPath(c.GetIndexPath(path)))
 
 	// Initialize WAL
 	if c.WAL.Enabled {
-		walPath := c.WALPath
-		if walPath == "" {
-			walPath = filepath.Join(path, DefaultWALDirectoryName)
-		}
-		e.wal = tsm1.NewWAL(walPath)
+		e.wal = tsm1.NewWAL(c.GetWALPath(path))
 		e.wal.WithFsyncDelay(time.Duration(c.WAL.FsyncDelay))
 		e.wal.EnableTraceLogging(c.TraceLoggingEnabled)
 	}
 
 	// Initialise Engine
-	enginePath := c.EnginePath
-	if enginePath == "" {
-		enginePath = filepath.Join(path, DefaultEngineDirectoryName)
-	}
-	e.engine = tsm1.NewEngine(enginePath, e.index, c.Engine,
+	e.engine = tsm1.NewEngine(c.GetEnginePath(path), e.index, c.Engine,
 		tsm1.WithWAL(e.wal),
 		tsm1.WithTraceLogging(c.TraceLoggingEnabled))
 
