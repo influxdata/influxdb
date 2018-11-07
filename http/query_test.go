@@ -53,7 +53,7 @@ func TestQueryRequest_WithDefaults(t *testing.T) {
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
 				Dialect: tt.fields.Dialect,
-				org:     tt.fields.org,
+				Org:     tt.fields.org,
 			}
 			if got := r.WithDefaults(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("QueryRequest.WithDefaults() = %v, want %v", got, tt.want)
@@ -168,7 +168,7 @@ func TestQueryRequest_Validate(t *testing.T) {
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
 				Dialect: tt.fields.Dialect,
-				org:     tt.fields.org,
+				Org:     tt.fields.org,
 			}
 			if err := r.Validate(); (err != nil) != tt.wantErr {
 				t.Errorf("QueryRequest.Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -266,7 +266,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 						Query: "howdy",
 					},
 				},
-				Dialect: csv.Dialect{
+				Dialect: &csv.Dialect{
 					ResultEncoderConfig: csv.ResultEncoderConfig{
 						NoHeader:  false,
 						Delimiter: ',',
@@ -294,7 +294,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 						},
 					},
 				},
-				Dialect: csv.Dialect{
+				Dialect: &csv.Dialect{
 					ResultEncoderConfig: csv.ResultEncoderConfig{
 						NoHeader:  false,
 						Delimiter: ',',
@@ -323,7 +323,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 						},
 					},
 				},
-				Dialect: csv.Dialect{
+				Dialect: &csv.Dialect{
 					ResultEncoderConfig: csv.ResultEncoderConfig{
 						NoHeader:  false,
 						Delimiter: ',',
@@ -340,7 +340,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
 				Dialect: tt.fields.Dialect,
-				org:     tt.fields.org,
+				Org:     tt.fields.org,
 			}
 			got, err := r.proxyRequest(tt.now)
 			if (err != nil) != tt.wantErr {
@@ -348,7 +348,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("QueryRequest.ProxyRequest() = %v, want %v", got, tt.want)
+				t.Errorf("QueryRequest.ProxyRequest() = %#v, want %#v", got, tt.want)
 			}
 		})
 	}
@@ -386,7 +386,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 					DateTimeFormat: "RFC3339",
 					Header:         func(x bool) *bool { return &x }(true),
 				},
-				org: &platform.Organization{
+				Org: &platform.Organization{
 					ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 				},
 			},
@@ -452,7 +452,7 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 						Query: "from()",
 					},
 				},
-				Dialect: csv.Dialect{
+				Dialect: &csv.Dialect{
 					ResultEncoderConfig: csv.ResultEncoderConfig{
 						NoHeader:  false,
 						Delimiter: ',',

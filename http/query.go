@@ -27,7 +27,7 @@ type QueryRequest struct {
 	Type    string       `json:"type"`
 	Dialect QueryDialect `json:"dialect"`
 
-	org *platform.Organization
+	Org *platform.Organization `json:"-"`
 }
 
 // QueryDialect is the formatting options for the query response.
@@ -164,10 +164,10 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	// once they are supported.
 	return &query.ProxyRequest{
 		Request: query.Request{
-			OrganizationID: r.org.ID,
+			OrganizationID: r.Org.ID,
 			Compiler:       compiler,
 		},
-		Dialect: csv.Dialect{
+		Dialect: &csv.Dialect{
 			ResultEncoderConfig: csv.ResultEncoderConfig{
 				NoHeader:    noHeader,
 				Delimiter:   delimiter,
@@ -218,7 +218,7 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.Organ
 		return nil, err
 	}
 
-	req.org, err = queryOrganization(ctx, r, svc)
+	req.Org, err = queryOrganization(ctx, r, svc)
 	return &req, err
 }
 
