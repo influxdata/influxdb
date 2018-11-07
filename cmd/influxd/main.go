@@ -287,13 +287,13 @@ func (m *Main) run(ctx context.Context) (err error) {
 
 		executor := taskexecutor.NewQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), queryService, boltStore)
 
-		// TODO(lh): Replace NopLogWriter with real log writer
-		m.scheduler = taskbackend.NewScheduler(boltStore, executor, taskbackend.NopLogWriter{}, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, time.Second), taskbackend.WithLogger(m.logger))
+		lw := taskbackend.NewPointLogWriter(pointsWriter)
+		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, time.Second), taskbackend.WithLogger(m.logger))
 		m.scheduler.Start(ctx)
 		reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
-		// TODO(lh): Replace NopLogReader with real log reader
-		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), taskbackend.NopLogReader{}, m.scheduler)
+		lr := taskbackend.NewQueryLogReader(queryService)
+		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler)
 		// TODO(lh): Add in `taskSvc = task.NewValidator(taskSvc)` once we have Authentication coming in the context.
 		// see issue #563
 	}

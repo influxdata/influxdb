@@ -138,6 +138,7 @@ func (p *syncRunPromise) doQuery() {
 		p.finish(nil, err)
 		return
 	}
+	defer it.Release()
 
 	// Drain the result iterator.
 	for it.More() {

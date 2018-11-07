@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -25,7 +24,7 @@ func (r *runReaderWriter) UpdateRunState(ctx context.Context, rlb RunLogBase, wh
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	timeSetter := func(r *platform.Run) {
-		whenStr := when.UTC().Format(time.RFC3339)
+		whenStr := when.UTC().Format(time.RFC3339Nano)
 		switch status {
 		case RunStarted:
 			r.StartedAt = whenStr
@@ -62,7 +61,7 @@ func (r *runReaderWriter) UpdateRunState(ctx context.Context, rlb RunLogBase, wh
 func (r *runReaderWriter) AddRunLog(ctx context.Context, rlb RunLogBase, when time.Time, log string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	log = fmt.Sprintf("%s: %s", when.Format(time.RFC3339), log)
+	log = fmt.Sprintf("%s: %s", when.Format(time.RFC3339Nano), log)
 	ridStr := rlb.RunID.String()
 	existingRun, ok := r.byRunID[ridStr]
 	if !ok {
@@ -84,51 +83,37 @@ func (r *runReaderWriter) ListRuns(ctx context.Context, runFilter platform.RunFi
 		return nil, errors.New("task is required")
 	}
 
-	_, ok := r.byTaskID[runFilter.Task.String()]
+	ex, ok := r.byTaskID[runFilter.Task.String()]
 	if !ok {
 		return nil, ErrRunNotFound
 	}
 
-	runs := make([]*platform.Run, len(r.byTaskID[runFilter.Task.String()]))
-	copy(runs, r.byTaskID[runFilter.Task.String()])
-
-	sort.Slice(runs, func(i int, j int) bool {
-		return runs[i].ScheduledFor < runs[j].ScheduledFor
-	})
-
-	beforeCheck := runFilter.BeforeTime != ""
-	afterCheck := runFilter.AfterTime != ""
-
-	afterIndex := 0
-	beforeIndex := len(runs)
-
-	for i, run := range runs {
-		if afterIndex == 0 && runFilter.After != nil && runFilter.After.String() == run.ID.String() {
-			afterIndex = i
+	afterID := ""
+	if runFilter.After != nil {
+		afterID = runFilter.After.String()
+	}
+	runs := make([]*platform.Run, 0, len(ex))
+	for _, r := range ex {
+		// Skip this entry if we would be filtering it out.
+		if runFilter.BeforeTime != "" && runFilter.BeforeTime <= r.ScheduledFor {
+			continue
+		}
+		if runFilter.AfterTime != "" && runFilter.AfterTime >= r.ScheduledFor {
+			continue
+		}
+		if r.ID.String() <= afterID {
+			continue
 		}
 
-		if run.ScheduledFor != "" {
-			if afterCheck && afterIndex == 0 && run.ScheduledFor > runFilter.AfterTime {
-				afterIndex = i
-			}
+		// Copy the element, to avoid a data race if the original Run is modified in UpdateRunState or AddRunLog.
+		r := *r
+		runs = append(runs, &r)
 
-			if beforeCheck && beforeIndex == len(runs) && runFilter.BeforeTime < run.ScheduledFor {
-				beforeIndex = i
-				break
-			}
+		if runFilter.Limit > 0 && len(runs) >= runFilter.Limit {
+			break
 		}
 	}
 
-	if runFilter.Limit != 0 && beforeIndex-afterIndex > runFilter.Limit {
-		beforeIndex = afterIndex + runFilter.Limit
-	}
-
-	runs = runs[afterIndex:beforeIndex]
-	for i := range runs {
-		// Copy every element, to avoid a data race if the original Run is modified in UpdateRunState or AddRunLog.
-		r := *runs[i]
-		runs[i] = &r
-	}
 	return runs, nil
 }
 

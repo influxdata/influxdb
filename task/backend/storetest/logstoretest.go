@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
+	pcontext "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/task/backend"
 	platformtesting "github.com/influxdata/platform/testing"
 )
@@ -19,19 +20,28 @@ type DestroyRunStoreFunc func(*testing.T, backend.LogWriter, backend.LogReader)
 func NewRunStoreTest(name string, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			t.Run("UpdateRunState", func(t *testing.T) {
+				t.Parallel()
 				updateRunState(t, crf, drf)
 			})
 			t.Run("RunLog", func(t *testing.T) {
+				t.Parallel()
 				runLogTest(t, crf, drf)
 			})
 			t.Run("ListRuns", func(t *testing.T) {
+				if testing.Short() {
+					t.Skip("Skipping test in short mode.")
+				}
+				t.Parallel()
 				listRunsTest(t, crf, drf)
 			})
 			t.Run("FindRunByID", func(t *testing.T) {
+				t.Parallel()
 				findRunByIDTest(t, crf, drf)
 			})
 			t.Run("ListLogs", func(t *testing.T) {
+				t.Parallel()
 				listLogsTest(t, crf, drf)
 			})
 		})
@@ -42,11 +52,13 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
+	now := time.Now().UTC()
+
 	task := &backend.StoreTask{
 		ID:  platformtesting.MustIDBase16("ab01ab01ab01ab01"),
 		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
-	scheduledFor := time.Unix(1, 0).UTC()
+	scheduledFor := now.Add(-3 * time.Second)
 	run := platform.Run{
 		ID:           platformtesting.MustIDBase16("2c20766972747573"),
 		TaskID:       task.ID,
@@ -56,39 +68,41 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	rlb := backend.RunLogBase{
 		Task:            task,
 		RunID:           run.ID,
-		RunScheduledFor: 1,
+		RunScheduledFor: scheduledFor.Unix(),
 	}
 
-	startAt := time.Unix(2, 0).UTC()
-	if err := writer.UpdateRunState(context.Background(), rlb, startAt, backend.RunStarted); err != nil {
+	ctx := pcontext.SetAuthorizer(context.Background(), new(platform.Authorization))
+
+	startAt := now.Add(-2 * time.Second)
+	if err := writer.UpdateRunState(ctx, rlb, startAt, backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 	run.StartedAt = startAt.Format(time.RFC3339Nano)
 	run.Status = "started"
 
-	returnedRun, err := reader.FindRunByID(context.Background(), task.Org, run.ID)
+	returnedRun, err := reader.FindRunByID(ctx, task.Org, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(run, *returnedRun) {
-		t.Fatalf("expected: %+v, got: %+v", run, returnedRun)
+	if diff := cmp.Diff(run, *returnedRun); diff != "" {
+		t.Fatalf("unexpected run found: -want/+got: %s", diff)
 	}
 
-	endAt := time.Unix(3, 0).UTC()
-	if err := writer.UpdateRunState(context.Background(), rlb, endAt, backend.RunSuccess); err != nil {
+	endAt := now.Add(-1 * time.Second)
+	if err := writer.UpdateRunState(ctx, rlb, endAt, backend.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 	run.FinishedAt = endAt.Format(time.RFC3339Nano)
 	run.Status = "success"
 
-	returnedRun, err = reader.FindRunByID(context.Background(), task.Org, run.ID)
+	returnedRun, err = reader.FindRunByID(ctx, task.Org, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(run, *returnedRun) {
-		t.Fatalf("expected: %+v, got: %+v, \n diff: %+v", run, *returnedRun, cmp.Diff(run, *returnedRun))
+	if diff := cmp.Diff(run, *returnedRun); diff != "" {
+		t.Fatalf("unexpected run found: -want/+got: %s", diff)
 	}
 }
 
@@ -102,13 +116,13 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 	}
 
 	sf := time.Now().UTC()
-	sa := sf.Add(time.Second)
+	sa := sf.Add(-10 * time.Second)
 	run := platform.Run{
 		ID:           platformtesting.MustIDBase16("2c20766972747573"),
 		TaskID:       task.ID,
 		Status:       "started",
 		ScheduledFor: sf.Format(time.RFC3339),
-		StartedAt:    sa.Format(time.RFC3339),
+		StartedAt:    sa.Format(time.RFC3339Nano),
 	}
 	rlb := backend.RunLogBase{
 		Task:            task,
@@ -116,37 +130,35 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 		RunScheduledFor: sf.Unix(),
 	}
 
-	logTime := time.Now().UTC()
+	ctx := pcontext.SetAuthorizer(context.Background(), new(platform.Authorization))
 
-	if err := writer.AddRunLog(context.Background(), rlb, logTime, "bad"); err == nil {
-		t.Fatal("shouldn't be able to log against non existing run")
+	if err := writer.UpdateRunState(ctx, rlb, sa, backend.RunStarted); err != nil {
+		t.Fatal(err)
 	}
 
-	err := writer.UpdateRunState(context.Background(), rlb, sa, backend.RunStarted)
+	if err := writer.AddRunLog(ctx, rlb, sa.Add(time.Second), "first"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.AddRunLog(ctx, rlb, sa.Add(2*time.Second), "second"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.AddRunLog(ctx, rlb, sa.Add(3*time.Second), "third"); err != nil {
+		t.Fatal(err)
+	}
+
+	run.Log = platform.Log(fmt.Sprintf(
+		"%s: first\n%s: second\n%s: third",
+		sa.Add(time.Second).Format(time.RFC3339Nano),
+		sa.Add(2*time.Second).Format(time.RFC3339Nano),
+		sa.Add(3*time.Second).Format(time.RFC3339Nano),
+	))
+	returnedRun, err := reader.FindRunByID(ctx, task.Org, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := writer.AddRunLog(context.Background(), rlb, logTime, "first"); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := writer.AddRunLog(context.Background(), rlb, logTime, "second"); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.AddRunLog(context.Background(), rlb, logTime, "third"); err != nil {
-		t.Fatal(err)
-	}
-
-	fmtLogTime := logTime.UTC().Format(time.RFC3339)
-	run.Log = platform.Log(fmt.Sprintf("%s: first\n%s: second\n%s: third", fmtLogTime, fmtLogTime, fmtLogTime))
-	returnedRun, err := reader.FindRunByID(context.Background(), task.Org, run.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(run, *returnedRun) {
-		t.Fatalf("expected: %+v, got: %+v,\n\ndiff: %+v", run, *returnedRun, cmp.Diff(run, *returnedRun))
+	if diff := cmp.Diff(run, *returnedRun); diff != "" {
+		t.Fatalf("unexpected run found: -want/+got: %s", diff)
 	}
 }
 
@@ -159,13 +171,18 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
 
-	if _, err := reader.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID}); err == nil {
+	ctx := pcontext.SetAuthorizer(context.Background(), new(platform.Authorization))
+
+	if _, err := reader.ListRuns(ctx, platform.RunFilter{Task: &task.ID}); err == nil {
 		t.Fatal("failed to error on bad id")
 	}
 
-	runs := make([]platform.Run, 200)
+	now := time.Now().UTC()
+	const nRuns = 150
+	runs := make([]platform.Run, nRuns)
 	for i := 0; i < len(runs); i++ {
-		scheduledFor := time.Unix(int64(i), 0).UTC()
+		// Scheduled for times ascending with IDs.
+		scheduledFor := now.Add(time.Duration(-2*(nRuns-i)) * time.Second)
 		id := platform.ID(i + 1)
 		runs[i] = platform.Run{
 			ID:           id,
@@ -178,19 +195,20 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 			RunScheduledFor: scheduledFor.Unix(),
 		}
 
-		err := writer.UpdateRunState(context.Background(), rlb, scheduledFor.Add(time.Second), backend.RunStarted)
+		err := writer.UpdateRunState(ctx, rlb, scheduledFor.Add(time.Second), backend.RunStarted)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	_, err := reader.ListRuns(context.Background(), platform.RunFilter{})
-	if err == nil {
+	if _, err := reader.ListRuns(ctx, platform.RunFilter{}); err == nil {
 		t.Fatal("failed to error without any filter")
 	}
 
-	listRuns, err := reader.ListRuns(context.Background(), platform.RunFilter{
-		Task: &task.ID,
+	listRuns, err := reader.ListRuns(ctx, platform.RunFilter{
+		Task:  &task.ID,
+		Org:   &task.Org,
+		Limit: 2 * nRuns,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -200,20 +218,24 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), len(runs))
 	}
 
-	listRuns, err = reader.ListRuns(context.Background(), platform.RunFilter{
+	const afterIDIdx = 20
+	listRuns, err = reader.ListRuns(ctx, platform.RunFilter{
 		Task:  &task.ID,
-		After: &runs[20].ID,
+		Org:   &task.Org,
+		After: &runs[afterIDIdx].ID,
+		Limit: 2 * nRuns,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(listRuns) != len(runs)-20 {
-		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), len(runs)-20)
+	if len(listRuns) != len(runs)-(afterIDIdx+1) {
+		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), len(runs)-(afterIDIdx+1))
 	}
 
-	listRuns, err = reader.ListRuns(context.Background(), platform.RunFilter{
+	listRuns, err = reader.ListRuns(ctx, platform.RunFilter{
 		Task:  &task.ID,
+		Org:   &task.Org,
 		Limit: 30,
 	})
 	if err != nil {
@@ -224,30 +246,35 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), 30)
 	}
 
-	scheduledFor, _ := time.Parse(time.RFC3339, runs[34].ScheduledFor)
-	listRuns, err = reader.ListRuns(context.Background(), platform.RunFilter{
+	const afterTimeIdx = 34
+	scheduledFor, _ := time.Parse(time.RFC3339, runs[afterTimeIdx].ScheduledFor)
+	listRuns, err = reader.ListRuns(ctx, platform.RunFilter{
 		Task:      &task.ID,
-		AfterTime: scheduledFor.Add(-time.Second).Format(time.RFC3339),
+		Org:       &task.Org,
+		AfterTime: scheduledFor.Format(time.RFC3339),
+		Limit:     2 * nRuns,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(listRuns) != len(runs)-34 {
-		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), len(runs)-34)
+	if len(listRuns) != len(runs)-(afterTimeIdx+1) {
+		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), len(runs)-(afterTimeIdx+1))
 	}
 
-	scheduledFor, _ = time.Parse(time.RFC3339, runs[34].ScheduledFor)
-	listRuns, err = reader.ListRuns(context.Background(), platform.RunFilter{
+	const beforeTimeIdx = 34
+	scheduledFor, _ = time.Parse(time.RFC3339, runs[beforeTimeIdx].ScheduledFor)
+	listRuns, err = reader.ListRuns(ctx, platform.RunFilter{
 		Task:       &task.ID,
-		BeforeTime: scheduledFor.Add(time.Nanosecond).Format(time.RFC3339),
+		Org:        &task.Org,
+		BeforeTime: scheduledFor.Add(time.Millisecond).Format(time.RFC3339),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(listRuns) != 35 {
-		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), 34)
+	if len(listRuns) != beforeTimeIdx {
+		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), beforeTimeIdx)
 	}
 }
 
@@ -263,7 +290,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 		ID:  platformtesting.MustIDBase16("ab01ab01ab01ab01"),
 		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
-	sf := time.Now().UTC()
+	sf := time.Now().UTC().Add(-10 * time.Second)
 	sa := sf.Add(time.Second)
 
 	run := platform.Run{
@@ -271,7 +298,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 		TaskID:       task.ID,
 		Status:       "started",
 		ScheduledFor: sf.Format(time.RFC3339),
-		StartedAt:    sa.Format(time.RFC3339),
+		StartedAt:    sa.Format(time.RFC3339Nano),
 	}
 	rlb := backend.RunLogBase{
 		Task:            task,
@@ -279,11 +306,12 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 		RunScheduledFor: sf.Unix(),
 	}
 
-	if err := writer.UpdateRunState(context.Background(), rlb, sa, backend.RunStarted); err != nil {
+	ctx := pcontext.SetAuthorizer(context.Background(), new(platform.Authorization))
+	if err := writer.UpdateRunState(ctx, rlb, sa, backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
-	returnedRun, err := reader.FindRunByID(context.Background(), task.Org, run.ID)
+	returnedRun, err := reader.FindRunByID(ctx, task.Org, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +322,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 
 	returnedRun.Log = "cows"
 
-	rr2, err := reader.FindRunByID(context.Background(), task.Org, run.ID)
+	rr2, err := reader.FindRunByID(ctx, task.Org, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,16 +341,20 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
 
-	if _, err := reader.ListLogs(context.Background(), platform.LogFilter{}); err == nil {
+	ctx := pcontext.SetAuthorizer(context.Background(), new(platform.Authorization))
+
+	if _, err := reader.ListLogs(ctx, platform.LogFilter{}); err == nil {
 		t.Fatal("failed to error with no filter")
 	}
-	if _, err := reader.ListLogs(context.Background(), platform.LogFilter{Run: &task.ID}); err == nil {
-		t.Fatal("failed to error with no filter")
+	if _, err := reader.ListLogs(ctx, platform.LogFilter{Run: &task.ID}); err == nil {
+		t.Fatal("failed to error with a non-run-ID")
 	}
 
-	runs := make([]platform.Run, 20)
+	now := time.Now().UTC()
+	const nRuns = 20
+	runs := make([]platform.Run, nRuns)
 	for i := 0; i < len(runs); i++ {
-		sf := time.Unix(int64(i), 0)
+		sf := now.Add(time.Duration(i-nRuns) * time.Second)
 		id := platform.ID(i + 1)
 		runs[i] = platform.Run{
 			ID:           id,
@@ -335,25 +367,29 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 			RunScheduledFor: sf.Unix(),
 		}
 
-		err := writer.UpdateRunState(context.Background(), rlb, time.Now(), backend.RunStarted)
+		err := writer.UpdateRunState(ctx, rlb, sf.Add(time.Millisecond), backend.RunStarted)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		writer.AddRunLog(context.Background(), rlb, time.Unix(int64(i), 0), fmt.Sprintf("log%d", i))
+		writer.AddRunLog(ctx, rlb, sf.Add(2*time.Millisecond), fmt.Sprintf("log%d", i))
 	}
 
-	logs, err := reader.ListLogs(context.Background(), platform.LogFilter{Run: &runs[4].ID})
+	const targetRun = 4
+	logs, err := reader.ListLogs(ctx, platform.LogFilter{Run: &runs[targetRun].ID, Org: &task.Org})
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	fmtTimelog := time.Unix(int64(4), 0).Format(time.RFC3339)
-	if fmtTimelog+": log4" != string(logs[0]) {
-		t.Fatalf("expected: %+v, got: %+v", fmtTimelog+": log4", string(logs[0]))
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 log, got %d", len(logs))
 	}
 
-	logs, err = reader.ListLogs(context.Background(), platform.LogFilter{Task: &task.ID})
+	fmtTimelog := now.Add(time.Duration(targetRun-nRuns)*time.Second + 2*time.Millisecond).Format(time.RFC3339Nano)
+	if fmtTimelog+": log4" != string(logs[0]) {
+		t.Fatalf("expected: %q, got: %q", fmtTimelog+": log4", string(logs[0]))
+	}
+
+	logs, err = reader.ListLogs(ctx, platform.LogFilter{Task: &task.ID, Org: &task.Org})
 	if err != nil {
 		t.Fatal(err)
 	}
