@@ -723,8 +723,8 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	defer idx.Close()
 
 	config := tsm1.NewConfig()
-	config.Compaction.PlannerCreator = newMockPlanner
-	e := tsm1.NewEngine(filepath.Join(dir, "data"), idx, config)
+	e := tsm1.NewEngine(filepath.Join(dir, "data"), idx, config,
+		tsm1.WithCompactionPlanner(newMockPlanner()))
 
 	e.SetEnabled(false)
 	if err := e.Open(); err != nil {
@@ -939,8 +939,8 @@ func NewEngine() (*Engine, error) {
 	idx := MustOpenIndex(idxPath, tsdb.NewSeriesIDSet(), sfile)
 
 	config := tsm1.NewConfig()
-	config.Compaction.PlannerCreator = newMockPlanner
-	tsm1Engine := tsm1.NewEngine(filepath.Join(root, "data"), idx, config)
+	tsm1Engine := tsm1.NewEngine(filepath.Join(root, "data"), idx, config,
+		tsm1.WithCompactionPlanner(newMockPlanner()))
 
 	return &Engine{
 		Engine:    tsm1Engine,
@@ -1004,8 +1004,8 @@ func (e *Engine) Reopen() error {
 
 	// Re-initialize engine.
 	config := tsm1.NewConfig()
-	config.Compaction.PlannerCreator = newMockPlanner
-	e.Engine = tsm1.NewEngine(filepath.Join(e.root, "data"), e.index, config)
+	e.Engine = tsm1.NewEngine(filepath.Join(e.root, "data"), e.index, config,
+		tsm1.WithCompactionPlanner(newMockPlanner()))
 
 	// Reopen engine
 	if err := e.Engine.Open(); err != nil {
@@ -1125,7 +1125,7 @@ func MustParsePointString(buf string) models.Point { return MustParsePointsStrin
 
 type mockPlanner struct{}
 
-func newMockPlanner(*tsm1.FileStore, tsm1.CompactionConfig) tsm1.CompactionPlanner {
+func newMockPlanner() tsm1.CompactionPlanner {
 	return &mockPlanner{}
 }
 

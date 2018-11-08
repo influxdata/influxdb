@@ -1,3 +1,10 @@
+// package compat helps with migrating toml files from influxdb.
+//
+// Platform has a different config layout that doesn't match the
+// layout in the old toml files. Since we may want the ability to
+// load those old files and still have them apply their relevant
+// settings, this package allows one to convert from an old config
+// struct to a new one.
 package compat
 
 import (

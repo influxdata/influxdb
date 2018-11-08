@@ -77,9 +77,6 @@ type CompactionConfig struct {
 	// MaxConcurrent is the maximum number of concurrent full and level compactions that can
 	// run at one time.  A value of 0 results in 50% of runtime.GOMAXPROCS(0) used at runtime.
 	MaxConcurrent int `toml:"max-concurrent"`
-
-	// TODO(jeff): document
-	PlannerCreator func(*FileStore, CompactionConfig) CompactionPlanner `toml:"-"`
 }
 
 const (

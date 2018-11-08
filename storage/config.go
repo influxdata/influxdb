@@ -13,6 +13,11 @@ const (
 	DefaultRetentionInterval   = 1 * time.Hour
 	DefaultValidateKeys        = false
 	DefaultTraceLoggingEnabled = false
+
+	DefaultSeriesFileDirectoryName = "_series"
+	DefaultIndexDirectoryName      = "index"
+	DefaultWALDirectoryName        = "wal"
+	DefaultEngineDirectoryName     = "data"
 )
 
 // Config holds the configuration for an Engine.
@@ -55,13 +60,7 @@ func NewConfig() Config {
 	}
 }
 
-const (
-	DefaultSeriesFileDirectoryName = "_series"
-	DefaultIndexDirectoryName      = "index"
-	DefaultWALDirectoryName        = "wal"
-	DefaultEngineDirectoryName     = "data"
-)
-
+// GetSeriesFilePath returns the path to the series file.
 func (c Config) GetSeriesFilePath(base string) string {
 	if c.SeriesFilePath != "" {
 		return c.SeriesFilePath
@@ -69,6 +68,7 @@ func (c Config) GetSeriesFilePath(base string) string {
 	return filepath.Join(base, DefaultSeriesFileDirectoryName)
 }
 
+// GetIndexPath returns the path to the index.
 func (c Config) GetIndexPath(base string) string {
 	if c.IndexPath != "" {
 		return c.IndexPath
@@ -76,6 +76,7 @@ func (c Config) GetIndexPath(base string) string {
 	return filepath.Join(base, DefaultIndexDirectoryName)
 }
 
+// GetWALPath returns the path to the WAL.
 func (c Config) GetWALPath(base string) string {
 	if c.WALPath != "" {
 		return c.WALPath
@@ -83,6 +84,7 @@ func (c Config) GetWALPath(base string) string {
 	return filepath.Join(base, DefaultWALDirectoryName)
 }
 
+// GetEnginePath returns the path to the engine.
 func (c Config) GetEnginePath(base string) string {
 	if c.EnginePath != "" {
 		return c.EnginePath

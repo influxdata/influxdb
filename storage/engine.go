@@ -99,6 +99,13 @@ func WithFileStoreObserver(obs tsm1.FileStoreObserver) Option {
 	}
 }
 
+// WithCompactionPlanner makes the engine have the provided compaction planner.
+func WithCompactionPlanner(planner tsm1.CompactionPlanner) Option {
+	return func(e *Engine) {
+		e.engine.WithCompactionPlanner(planner)
+	}
+}
+
 // NewEngine initialises a new storage engine, including a series file, index and
 // TSM engine.
 func NewEngine(path string, c Config, options ...Option) *Engine {

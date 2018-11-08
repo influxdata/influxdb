@@ -119,9 +119,18 @@ var WithWAL = func(wal Log) EngineOption {
 	}
 }
 
+// WithTraceLogging sets if trace logging is enabled for the engine.
 var WithTraceLogging = func(logging bool) EngineOption {
 	return func(e *Engine) {
 		e.FileStore.enableTraceLogging(logging)
+	}
+}
+
+// WithCompactionPlanner sets the compaction planner for the engine.
+var WithCompactionPlanner = func(planner CompactionPlanner) EngineOption {
+	return func(e *Engine) {
+		planner.SetFileStore(e.FileStore)
+		e.CompactionPlan = planner
 	}
 }
 
@@ -198,13 +207,6 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 		int(config.Compaction.Throughput),
 		int(config.Compaction.ThroughputBurst))
 
-	var planner CompactionPlanner
-	if config.Compaction.PlannerCreator != nil {
-		planner = config.Compaction.PlannerCreator(fs, config.Compaction)
-	} else {
-		planner = NewDefaultPlanner(fs, time.Duration(config.Compaction.FullWriteColdDuration))
-	}
-
 	logger := zap.NewNop()
 	stats := &EngineStatistics{}
 	e := &Engine{
@@ -217,9 +219,10 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 		WAL:   NopWAL{},
 		Cache: cache,
 
-		FileStore:      fs,
-		Compactor:      c,
-		CompactionPlan: planner,
+		FileStore: fs,
+		Compactor: c,
+		CompactionPlan: NewDefaultPlanner(fs,
+			time.Duration(config.Compaction.FullWriteColdDuration)),
 
 		CacheFlushMemorySizeThreshold: uint64(config.Cache.SnapshotMemorySize),
 		CacheFlushWriteColdDuration:   time.Duration(config.Cache.SnapshotWriteColdDuration),
@@ -249,6 +252,11 @@ func (e *Engine) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 
 func (e *Engine) WithFileStoreObserver(obs FileStoreObserver) {
 	e.FileStore.WithObserver(obs)
+}
+
+func (e *Engine) WithCompactionPlanner(planner CompactionPlanner) {
+	planner.SetFileStore(e.FileStore)
+	e.CompactionPlan = planner
 }
 
 // SetEnabled sets whether the engine is enabled.
