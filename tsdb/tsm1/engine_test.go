@@ -24,728 +24,690 @@ import (
 
 // Test that series id set gets updated and returned appropriately.
 func TestIndex_SeriesIDSet(t *testing.T) {
-	test := func(index string) error {
-		engine := MustOpenEngine()
-		defer engine.Close()
+	engine := MustOpenEngine()
+	defer engine.Close()
 
-		// Add some series.
-		engine.MustAddSeries("cpu", map[string]string{"host": "a", "region": "west"})
-		engine.MustAddSeries("cpu", map[string]string{"host": "b", "region": "west"})
-		engine.MustAddSeries("cpu", map[string]string{"host": "b"})
-		engine.MustAddSeries("gpu", nil)
-		engine.MustAddSeries("gpu", map[string]string{"host": "b"})
-		engine.MustAddSeries("mem", map[string]string{"host": "z"})
+	// Add some series.
+	engine.MustAddSeries("cpu", map[string]string{"host": "a", "region": "west"})
+	engine.MustAddSeries("cpu", map[string]string{"host": "b", "region": "west"})
+	engine.MustAddSeries("cpu", map[string]string{"host": "b"})
+	engine.MustAddSeries("gpu", nil)
+	engine.MustAddSeries("gpu", map[string]string{"host": "b"})
+	engine.MustAddSeries("mem", map[string]string{"host": "z"})
 
-		// Collect series IDs.
-		seriesIDMap := map[string]tsdb.SeriesID{}
-		var e tsdb.SeriesIDElem
-		var err error
+	// Collect series IDs.
+	seriesIDMap := map[string]tsdb.SeriesID{}
+	var e tsdb.SeriesIDElem
+	var err error
 
-		itr := engine.sfile.SeriesIDIterator()
-		for e, err = itr.Next(); ; e, err = itr.Next() {
-			if err != nil {
-				return err
-			} else if e.SeriesID.IsZero() {
-				break
-			}
-
-			name, tags := tsdb.ParseSeriesKey(engine.sfile.SeriesKey(e.SeriesID))
-			key := fmt.Sprintf("%s%s", name, tags.HashKey())
-			seriesIDMap[key] = e.SeriesID
+	itr := engine.sfile.SeriesIDIterator()
+	for e, err = itr.Next(); ; e, err = itr.Next() {
+		if err != nil {
+			t.Fatal(err)
+		} else if e.SeriesID.IsZero() {
+			break
 		}
 
-		for _, id := range seriesIDMap {
-			if !engine.SeriesIDSet().Contains(id) {
-				return fmt.Errorf("bitmap does not contain ID: %d", id)
-			}
-		}
-
-		// Drop all the series for the gpu measurement and they should no longer
-		// be in the series ID set.
-		if err := engine.DeleteMeasurement([]byte("gpu")); err != nil {
-			return err
-		}
-
-		if engine.SeriesIDSet().Contains(seriesIDMap["gpu"]) {
-			return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["gpu"], "gpu")
-		} else if engine.SeriesIDSet().Contains(seriesIDMap["gpu,host=b"]) {
-			return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["gpu,host=b"], "gpu,host=b")
-		}
-		delete(seriesIDMap, "gpu")
-		delete(seriesIDMap, "gpu,host=b")
-
-		// Drop the specific mem series
-		ditr := &seriesIterator{keys: [][]byte{[]byte("mem,host=z")}}
-		if err := engine.DeleteSeriesRange(ditr, math.MinInt64, math.MaxInt64); err != nil {
-			return err
-		}
-
-		if engine.SeriesIDSet().Contains(seriesIDMap["mem,host=z"]) {
-			return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["mem,host=z"], "mem,host=z")
-		}
-		delete(seriesIDMap, "mem,host=z")
-
-		// The rest of the keys should still be in the set.
-		for key, id := range seriesIDMap {
-			if !engine.SeriesIDSet().Contains(id) {
-				return fmt.Errorf("bitmap does not contain ID: %d for key %s, but should", id, key)
-			}
-		}
-
-		// Reopen the engine, and the series should be re-added to the bitmap.
-		if err := engine.Reopen(); err != nil {
-			panic(err)
-		}
-
-		// Check bitset is expected.
-		expected := tsdb.NewSeriesIDSet()
-		for _, id := range seriesIDMap {
-			expected.Add(id)
-		}
-
-		if !engine.SeriesIDSet().Equals(expected) {
-			return fmt.Errorf("got bitset %s, expected %s", engine.SeriesIDSet().String(), expected.String())
-		}
-		return nil
+		name, tags := tsdb.ParseSeriesKey(engine.sfile.SeriesKey(e.SeriesID))
+		key := fmt.Sprintf("%s%s", name, tags.HashKey())
+		seriesIDMap[key] = e.SeriesID
 	}
 
-	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) {
-			if err := test(index); err != nil {
-				t.Error(err)
-			}
-		})
+	for _, id := range seriesIDMap {
+		if !engine.SeriesIDSet().Contains(id) {
+			t.Fatalf("bitmap does not contain ID: %d", id)
+		}
+	}
+
+	// Drop all the series for the gpu measurement and they should no longer
+	// be in the series ID set.
+	if err := engine.DeleteMeasurement([]byte("gpu")); err != nil {
+		t.Fatal(err)
+	}
+
+	if engine.SeriesIDSet().Contains(seriesIDMap["gpu"]) {
+		t.Fatalf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["gpu"], "gpu")
+	} else if engine.SeriesIDSet().Contains(seriesIDMap["gpu,host=b"]) {
+		t.Fatalf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["gpu,host=b"], "gpu,host=b")
+	}
+	delete(seriesIDMap, "gpu")
+	delete(seriesIDMap, "gpu,host=b")
+
+	// Drop the specific mem series
+	ditr := &seriesIterator{keys: [][]byte{[]byte("mem,host=z")}}
+	if err := engine.DeleteSeriesRange(ditr, math.MinInt64, math.MaxInt64); err != nil {
+		t.Fatal(err)
+	}
+
+	if engine.SeriesIDSet().Contains(seriesIDMap["mem,host=z"]) {
+		t.Fatalf("bitmap does not contain ID: %d for key %s, but should", seriesIDMap["mem,host=z"], "mem,host=z")
+	}
+	delete(seriesIDMap, "mem,host=z")
+
+	// The rest of the keys should still be in the set.
+	for key, id := range seriesIDMap {
+		if !engine.SeriesIDSet().Contains(id) {
+			t.Fatalf("bitmap does not contain ID: %d for key %s, but should", id, key)
+		}
+	}
+
+	// Reopen the engine, and the series should be re-added to the bitmap.
+	if err := engine.Reopen(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check bitset is expected.
+	expected := tsdb.NewSeriesIDSet()
+	for _, id := range seriesIDMap {
+		expected.Add(id)
+	}
+
+	if !engine.SeriesIDSet().Equals(expected) {
+		t.Fatalf("got bitset %s, expected %s", engine.SeriesIDSet().String(), expected.String())
 	}
 }
 
 // Ensures that deleting series from TSM files with multiple fields removes all the
 /// series
 func TestEngine_DeleteSeries(t *testing.T) {
-	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) {
-			// Create a few points.
-			p1 := MustParsePointString("cpu,host=A value=1.1 1000000000")
-			p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
-			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
+	// Create a few points.
+	p1 := MustParsePointString("cpu,host=A value=1.1 1000000000")
+	p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
+	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
-			e, err := NewEngine()
-			if err != nil {
-				t.Fatal(err)
-			}
+	e, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-			// mock the planner so compactions don't run during the test
-			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
-				t.Fatal(err)
-			}
-			defer e.Close()
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+	if err := e.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
 
-			if err := e.writePoints(p1, p2, p3); err != nil {
-				t.Fatalf("failed to write points: %s", err.Error())
-			}
-			if err := e.WriteSnapshot(); err != nil {
-				t.Fatalf("failed to snapshot: %s", err.Error())
-			}
+	if err := e.writePoints(p1, p2, p3); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
 
-			keys := e.FileStore.Keys()
-			if exp, got := 3, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	keys := e.FileStore.Keys()
+	if exp, got := 3, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+	itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+	if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
 
-			keys = e.FileStore.Keys()
-			if exp, got := 1, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	keys = e.FileStore.Keys()
+	if exp, got := 1, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			exp := "cpu,host=B#!~#value"
-			if _, ok := keys[exp]; !ok {
-				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
-			}
-		})
+	exp := "cpu,host=B#!~#value"
+	if _, ok := keys[exp]; !ok {
+		t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
 	}
 }
 
 func TestEngine_DeleteSeriesRange(t *testing.T) {
-	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) {
-			// Create a few points.
-			p1 := MustParsePointString("cpu,host=0 value=1.1 6000000000") // Should not be deleted
-			p2 := MustParsePointString("cpu,host=A value=1.2 2000000000")
-			p3 := MustParsePointString("cpu,host=A value=1.3 3000000000")
-			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000") // Should not be deleted
-			p5 := MustParsePointString("cpu,host=B value=1.3 5000000000") // Should not be deleted
-			p6 := MustParsePointString("cpu,host=C value=1.3 1000000000")
-			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")  // Should not be deleted
-			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
+	// Create a few points.
+	p1 := MustParsePointString("cpu,host=0 value=1.1 6000000000") // Should not be deleted
+	p2 := MustParsePointString("cpu,host=A value=1.2 2000000000")
+	p3 := MustParsePointString("cpu,host=A value=1.3 3000000000")
+	p4 := MustParsePointString("cpu,host=B value=1.3 4000000000") // Should not be deleted
+	p5 := MustParsePointString("cpu,host=B value=1.3 5000000000") // Should not be deleted
+	p6 := MustParsePointString("cpu,host=C value=1.3 1000000000")
+	p7 := MustParsePointString("mem,host=C value=1.3 1000000000")  // Should not be deleted
+	p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
 
-			e, err := NewEngine()
-			if err != nil {
-				t.Fatal(err)
-			}
+	e, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-			// mock the planner so compactions don't run during the test
-			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
-				t.Fatal(err)
-			}
-			defer e.Close()
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+	if err := e.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
 
-			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
-					t.Fatalf("create series index error: %v", err)
-				}
-			}
+	for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
+		if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
+			t.Fatalf("create series index error: %v", err)
+		}
+	}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
-				t.Fatalf("failed to write points: %s", err.Error())
-			}
-			if err := e.WriteSnapshot(); err != nil {
-				t.Fatalf("failed to snapshot: %s", err.Error())
-			}
+	if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
 
-			keys := e.FileStore.Keys()
-			if exp, got := 6, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	keys := e.FileStore.Keys()
+	if exp, got := 6, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 3000000000); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+	itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C")}}
+	if err := e.DeleteSeriesRange(itr, 0, 3000000000); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
 
-			keys = e.FileStore.Keys()
-			if exp, got := 4, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	keys = e.FileStore.Keys()
+	if exp, got := 4, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			exp := "cpu,host=B#!~#value"
-			if _, ok := keys[exp]; !ok {
-				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
-			}
+	exp := "cpu,host=B#!~#value"
+	if _, ok := keys[exp]; !ok {
+		t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
+	}
 
-			// Check that the series still exists in the index
-			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
-			if err != nil {
-				t.Fatalf("iterator error: %v", err)
-			}
-			defer iter.Close()
+	// Check that the series still exists in the index
+	iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
+	if err != nil {
+		t.Fatalf("iterator error: %v", err)
+	}
+	defer iter.Close()
 
-			elem, err := iter.Next()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if elem.SeriesID.IsZero() {
-				t.Fatalf("series index mismatch: EOF, exp 2 series")
-			}
+	elem, err := iter.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elem.SeriesID.IsZero() {
+		t.Fatalf("series index mismatch: EOF, exp 2 series")
+	}
 
-			// Lookup series.
-			name, tags := e.sfile.Series(elem.SeriesID)
-			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
+	// Lookup series.
+	name, tags := e.sfile.Series(elem.SeriesID)
+	if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
+		t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+	}
 
-			if !tags.Equal(models.NewTags(map[string]string{"host": "0"})) && !tags.Equal(models.NewTags(map[string]string{"host": "B"})) {
-				t.Fatalf(`series mismatch: got %s, exp either "host=0" or "host=B"`, tags)
-			}
-			iter.Close()
+	if !tags.Equal(models.NewTags(map[string]string{"host": "0"})) && !tags.Equal(models.NewTags(map[string]string{"host": "B"})) {
+		t.Fatalf(`series mismatch: got %s, exp either "host=0" or "host=B"`, tags)
+	}
+	iter.Close()
 
-			// Deleting remaining series should remove them from the series.
-			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=B")}}
-			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+	// Deleting remaining series should remove them from the series.
+	itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=0"), []byte("cpu,host=B")}}
+	if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
 
-			if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
-				t.Fatalf("iterator error: %v", err)
-			}
-			if iter == nil {
-				return
-			}
+	if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+		t.Fatalf("iterator error: %v", err)
+	}
+	if iter == nil {
+		return
+	}
 
-			defer iter.Close()
-			if elem, err = iter.Next(); err != nil {
-				t.Fatal(err)
-			}
-			if !elem.SeriesID.IsZero() {
-				t.Fatalf("got an undeleted series id, but series should be dropped from index")
-			}
-		})
+	defer iter.Close()
+	if elem, err = iter.Next(); err != nil {
+		t.Fatal(err)
+	}
+	if !elem.SeriesID.IsZero() {
+		t.Fatalf("got an undeleted series id, but series should be dropped from index")
 	}
 }
 
 func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
-	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) {
-			// Create a few points.
-			p1 := MustParsePointString("cpu,host=A value=1.1 6000000000") // Should not be deleted
-			p2 := MustParsePointString("cpu,host=A value=1.2 2000000000") // Should not be deleted
-			p3 := MustParsePointString("cpu,host=B value=1.3 3000000000")
-			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000")
-			p5 := MustParsePointString("cpu,host=C value=1.3 5000000000") // Should not be deleted
-			p6 := MustParsePointString("mem,host=B value=1.3 1000000000")
-			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
-			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
+	// Create a few points.
+	p1 := MustParsePointString("cpu,host=A value=1.1 6000000000") // Should not be deleted
+	p2 := MustParsePointString("cpu,host=A value=1.2 2000000000") // Should not be deleted
+	p3 := MustParsePointString("cpu,host=B value=1.3 3000000000")
+	p4 := MustParsePointString("cpu,host=B value=1.3 4000000000")
+	p5 := MustParsePointString("cpu,host=C value=1.3 5000000000") // Should not be deleted
+	p6 := MustParsePointString("mem,host=B value=1.3 1000000000")
+	p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
+	p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
 
-			e, err := NewEngine()
-			if err != nil {
-				t.Fatal(err)
-			}
+	e, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-			// mock the planner so compactions don't run during the test
-			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
-				t.Fatal(err)
-			}
-			defer e.Close()
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+	if err := e.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
 
-			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
-					t.Fatalf("create series index error: %v", err)
-				}
-			}
+	for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
+		if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
+			t.Fatalf("create series index error: %v", err)
+		}
+	}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
-				t.Fatalf("failed to write points: %s", err.Error())
-			}
-			if err := e.WriteSnapshot(); err != nil {
-				t.Fatalf("failed to snapshot: %s", err.Error())
-			}
+	if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
 
-			keys := e.FileStore.Keys()
-			if exp, got := 6, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	keys := e.FileStore.Keys()
+	if exp, got := 6, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C"), []byte("mem,host=B"), []byte("mem,host=C")}}
-			predicate := func(name []byte, tags models.Tags) (int64, int64, bool) {
-				if bytes.Equal(name, []byte("mem")) {
+	itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C"), []byte("mem,host=B"), []byte("mem,host=C")}}
+	predicate := func(name []byte, tags models.Tags) (int64, int64, bool) {
+		if bytes.Equal(name, []byte("mem")) {
+			return math.MinInt64, math.MaxInt64, true
+		}
+		if bytes.Equal(name, []byte("cpu")) {
+			for _, tag := range tags {
+				if bytes.Equal(tag.Key, []byte("host")) && bytes.Equal(tag.Value, []byte("B")) {
 					return math.MinInt64, math.MaxInt64, true
 				}
-				if bytes.Equal(name, []byte("cpu")) {
-					for _, tag := range tags {
-						if bytes.Equal(tag.Key, []byte("host")) && bytes.Equal(tag.Value, []byte("B")) {
-							return math.MinInt64, math.MaxInt64, true
-						}
-					}
-				}
-				return math.MinInt64, math.MaxInt64, false
 			}
-			if err := e.DeleteSeriesRangeWithPredicate(itr, predicate); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+		}
+		return math.MinInt64, math.MaxInt64, false
+	}
+	if err := e.DeleteSeriesRangeWithPredicate(itr, predicate); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
 
-			keys = e.FileStore.Keys()
-			if exp, got := 3, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	keys = e.FileStore.Keys()
+	if exp, got := 3, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			exps := []string{"cpu,host=A#!~#value", "cpu,host=C#!~#value", "disk,host=C#!~#value"}
-			for _, exp := range exps {
-				if _, ok := keys[exp]; !ok {
-					t.Fatalf("wrong series deleted: exp %v, got %v", exps, keys)
-				}
-			}
+	exps := []string{"cpu,host=A#!~#value", "cpu,host=C#!~#value", "disk,host=C#!~#value"}
+	for _, exp := range exps {
+		if _, ok := keys[exp]; !ok {
+			t.Fatalf("wrong series deleted: exp %v, got %v", exps, keys)
+		}
+	}
 
-			// Check that the series still exists in the index
-			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
-			if err != nil {
-				t.Fatalf("iterator error: %v", err)
-			}
-			defer iter.Close()
+	// Check that the series still exists in the index
+	iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
+	if err != nil {
+		t.Fatalf("iterator error: %v", err)
+	}
+	defer iter.Close()
 
-			elem, err := iter.Next()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if elem.SeriesID.IsZero() {
-				t.Fatalf("series index mismatch: EOF, exp 2 series")
-			}
+	elem, err := iter.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elem.SeriesID.IsZero() {
+		t.Fatalf("series index mismatch: EOF, exp 2 series")
+	}
 
-			// Lookup series.
-			name, tags := e.sfile.Series(elem.SeriesID)
-			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
+	// Lookup series.
+	name, tags := e.sfile.Series(elem.SeriesID)
+	if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
+		t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+	}
 
-			if !tags.Equal(models.NewTags(map[string]string{"host": "A"})) && !tags.Equal(models.NewTags(map[string]string{"host": "C"})) {
-				t.Fatalf(`series mismatch: got %s, exp either "host=A" or "host=C"`, tags)
-			}
-			iter.Close()
+	if !tags.Equal(models.NewTags(map[string]string{"host": "A"})) && !tags.Equal(models.NewTags(map[string]string{"host": "C"})) {
+		t.Fatalf(`series mismatch: got %s, exp either "host=A" or "host=C"`, tags)
+	}
+	iter.Close()
 
-			// Deleting remaining series should remove them from the series.
-			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+	// Deleting remaining series should remove them from the series.
+	itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=C")}}
+	if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
 
-			if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
-				t.Fatalf("iterator error: %v", err)
-			}
-			if iter == nil {
-				return
-			}
+	if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+		t.Fatalf("iterator error: %v", err)
+	}
+	if iter == nil {
+		return
+	}
 
-			defer iter.Close()
-			if elem, err = iter.Next(); err != nil {
-				t.Fatal(err)
-			}
-			if !elem.SeriesID.IsZero() {
-				t.Fatalf("got an undeleted series id, but series should be dropped from index")
-			}
-		})
+	defer iter.Close()
+	if elem, err = iter.Next(); err != nil {
+		t.Fatal(err)
+	}
+	if !elem.SeriesID.IsZero() {
+		t.Fatalf("got an undeleted series id, but series should be dropped from index")
 	}
 }
 
 // Tests that a nil predicate deletes all values returned from the series iterator.
 func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
-	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) {
-			// Create a few points.
-			p1 := MustParsePointString("cpu,host=A value=1.1 6000000000") // Should not be deleted
-			p2 := MustParsePointString("cpu,host=A value=1.2 2000000000") // Should not be deleted
-			p3 := MustParsePointString("cpu,host=B value=1.3 3000000000")
-			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000")
-			p5 := MustParsePointString("cpu,host=C value=1.3 5000000000") // Should not be deleted
-			p6 := MustParsePointString("mem,host=B value=1.3 1000000000")
-			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
-			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
+	// Create a few points.
+	p1 := MustParsePointString("cpu,host=A value=1.1 6000000000") // Should not be deleted
+	p2 := MustParsePointString("cpu,host=A value=1.2 2000000000") // Should not be deleted
+	p3 := MustParsePointString("cpu,host=B value=1.3 3000000000")
+	p4 := MustParsePointString("cpu,host=B value=1.3 4000000000")
+	p5 := MustParsePointString("cpu,host=C value=1.3 5000000000") // Should not be deleted
+	p6 := MustParsePointString("mem,host=B value=1.3 1000000000")
+	p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
+	p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
 
-			e, err := NewEngine()
-			if err != nil {
-				t.Fatal(err)
-			}
+	e, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-			// mock the planner so compactions don't run during the test
-			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
-				t.Fatal(err)
-			}
-			defer e.Close()
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+	if err := e.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
 
-			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
-					t.Fatalf("create series index error: %v", err)
-				}
-			}
+	for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
+		if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
+			t.Fatalf("create series index error: %v", err)
+		}
+	}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
-				t.Fatalf("failed to write points: %s", err.Error())
-			}
-			if err := e.WriteSnapshot(); err != nil {
-				t.Fatalf("failed to snapshot: %s", err.Error())
-			}
+	if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
 
-			keys := e.FileStore.Keys()
-			if exp, got := 6, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	keys := e.FileStore.Keys()
+	if exp, got := 6, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C"), []byte("mem,host=B"), []byte("mem,host=C")}}
-			if err := e.DeleteSeriesRangeWithPredicate(itr, nil); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+	itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C"), []byte("mem,host=B"), []byte("mem,host=C")}}
+	if err := e.DeleteSeriesRangeWithPredicate(itr, nil); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
 
-			keys = e.FileStore.Keys()
-			if exp, got := 1, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	keys = e.FileStore.Keys()
+	if exp, got := 1, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			// Check that the series still exists in the index
-			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
-			if err != nil {
-				t.Fatalf("iterator error: %v", err)
-			} else if iter == nil {
-				return
-			}
-			defer iter.Close()
+	// Check that the series still exists in the index
+	iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
+	if err != nil {
+		t.Fatalf("iterator error: %v", err)
+	} else if iter == nil {
+		return
+	}
+	defer iter.Close()
 
-			if elem, err := iter.Next(); err != nil {
-				t.Fatal(err)
-			} else if !elem.SeriesID.IsZero() {
-				t.Fatalf("got an undeleted series id, but series should be dropped from index")
-			}
+	if elem, err := iter.Next(); err != nil {
+		t.Fatal(err)
+	} else if !elem.SeriesID.IsZero() {
+		t.Fatalf("got an undeleted series id, but series should be dropped from index")
+	}
 
-			// Check that disk series still exists
-			iter, err = e.index.MeasurementSeriesIDIterator([]byte("disk"))
-			if err != nil {
-				t.Fatalf("iterator error: %v", err)
-			} else if iter == nil {
-				return
-			}
-			defer iter.Close()
+	// Check that disk series still exists
+	iter, err = e.index.MeasurementSeriesIDIterator([]byte("disk"))
+	if err != nil {
+		t.Fatalf("iterator error: %v", err)
+	} else if iter == nil {
+		return
+	}
+	defer iter.Close()
 
-			if elem, err := iter.Next(); err != nil {
-				t.Fatal(err)
-			} else if elem.SeriesID.IsZero() {
-				t.Fatalf("got an undeleted series id, but series should be dropped from index")
-			}
-		})
+	if elem, err := iter.Next(); err != nil {
+		t.Fatal(err)
+	} else if elem.SeriesID.IsZero() {
+		t.Fatalf("got an undeleted series id, but series should be dropped from index")
 	}
 }
+
 func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
-	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) {
-			// Create a few points.
-			p1 := MustParsePointString("cpu,host=A value=1.1 6000000000") // Should not be deleted
-			p2 := MustParsePointString("cpu,host=A value=1.2 2000000000") // Should not be deleted
-			p3 := MustParsePointString("cpu,host=B value=1.3 3000000000")
-			p4 := MustParsePointString("cpu,host=B value=1.3 4000000000")
-			p5 := MustParsePointString("cpu,host=C value=1.3 5000000000") // Should not be deleted
-			p6 := MustParsePointString("mem,host=B value=1.3 1000000000")
-			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
-			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
+	// Create a few points.
+	p1 := MustParsePointString("cpu,host=A value=1.1 6000000000") // Should not be deleted
+	p2 := MustParsePointString("cpu,host=A value=1.2 2000000000") // Should not be deleted
+	p3 := MustParsePointString("cpu,host=B value=1.3 3000000000")
+	p4 := MustParsePointString("cpu,host=B value=1.3 4000000000")
+	p5 := MustParsePointString("cpu,host=C value=1.3 5000000000") // Should not be deleted
+	p6 := MustParsePointString("mem,host=B value=1.3 1000000000")
+	p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
+	p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
 
-			e, err := NewEngine()
-			if err != nil {
-				t.Fatal(err)
-			}
+	e, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-			// mock the planner so compactions don't run during the test
-			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
-				t.Fatal(err)
-			}
-			defer e.Close()
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+	if err := e.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
 
-			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
-					t.Fatalf("create series index error: %v", err)
+	for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
+		if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
+			t.Fatalf("create series index error: %v", err)
+		}
+	}
+
+	if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
+
+	keys := e.FileStore.Keys()
+	if exp, got := 6, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
+
+	itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C"), []byte("mem,host=B"), []byte("mem,host=C")}}
+	predicate := func(name []byte, tags models.Tags) (int64, int64, bool) {
+		if bytes.Equal(name, []byte("mem")) {
+			return 1000000000, 1000000000, true
+		}
+
+		if bytes.Equal(name, []byte("cpu")) {
+			for _, tag := range tags {
+				if bytes.Equal(tag.Key, []byte("host")) && bytes.Equal(tag.Value, []byte("B")) {
+					return 3000000000, 4000000000, true
 				}
 			}
+		}
+		return math.MinInt64, math.MaxInt64, false
+	}
+	if err := e.DeleteSeriesRangeWithPredicate(itr, predicate); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
-				t.Fatalf("failed to write points: %s", err.Error())
-			}
-			if err := e.WriteSnapshot(); err != nil {
-				t.Fatalf("failed to snapshot: %s", err.Error())
-			}
+	keys = e.FileStore.Keys()
+	if exp, got := 3, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			keys := e.FileStore.Keys()
-			if exp, got := 6, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	exps := []string{"cpu,host=A#!~#value", "cpu,host=C#!~#value", "disk,host=C#!~#value"}
+	for _, exp := range exps {
+		if _, ok := keys[exp]; !ok {
+			t.Fatalf("wrong series deleted: exp %v, got %v", exps, keys)
+		}
+	}
 
-			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=B"), []byte("cpu,host=C"), []byte("mem,host=B"), []byte("mem,host=C")}}
-			predicate := func(name []byte, tags models.Tags) (int64, int64, bool) {
-				if bytes.Equal(name, []byte("mem")) {
-					return 1000000000, 1000000000, true
-				}
+	// Check that the series still exists in the index
+	iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
+	if err != nil {
+		t.Fatalf("iterator error: %v", err)
+	}
+	defer iter.Close()
 
-				if bytes.Equal(name, []byte("cpu")) {
-					for _, tag := range tags {
-						if bytes.Equal(tag.Key, []byte("host")) && bytes.Equal(tag.Value, []byte("B")) {
-							return 3000000000, 4000000000, true
-						}
-					}
-				}
-				return math.MinInt64, math.MaxInt64, false
-			}
-			if err := e.DeleteSeriesRangeWithPredicate(itr, predicate); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+	elem, err := iter.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elem.SeriesID.IsZero() {
+		t.Fatalf("series index mismatch: EOF, exp 2 series")
+	}
 
-			keys = e.FileStore.Keys()
-			if exp, got := 3, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	// Lookup series.
+	name, tags := e.sfile.Series(elem.SeriesID)
+	if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
+		t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+	}
 
-			exps := []string{"cpu,host=A#!~#value", "cpu,host=C#!~#value", "disk,host=C#!~#value"}
-			for _, exp := range exps {
-				if _, ok := keys[exp]; !ok {
-					t.Fatalf("wrong series deleted: exp %v, got %v", exps, keys)
-				}
-			}
+	if !tags.Equal(models.NewTags(map[string]string{"host": "A"})) && !tags.Equal(models.NewTags(map[string]string{"host": "C"})) {
+		t.Fatalf(`series mismatch: got %s, exp either "host=A" or "host=C"`, tags)
+	}
+	iter.Close()
 
-			// Check that the series still exists in the index
-			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
-			if err != nil {
-				t.Fatalf("iterator error: %v", err)
-			}
-			defer iter.Close()
+	// Deleting remaining series should remove them from the series.
+	itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=C")}}
+	if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
 
-			elem, err := iter.Next()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if elem.SeriesID.IsZero() {
-				t.Fatalf("series index mismatch: EOF, exp 2 series")
-			}
+	if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+		t.Fatalf("iterator error: %v", err)
+	}
+	if iter == nil {
+		return
+	}
 
-			// Lookup series.
-			name, tags := e.sfile.Series(elem.SeriesID)
-			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
-
-			if !tags.Equal(models.NewTags(map[string]string{"host": "A"})) && !tags.Equal(models.NewTags(map[string]string{"host": "C"})) {
-				t.Fatalf(`series mismatch: got %s, exp either "host=A" or "host=C"`, tags)
-			}
-			iter.Close()
-
-			// Deleting remaining series should remove them from the series.
-			itr = &seriesIterator{keys: [][]byte{[]byte("cpu,host=A"), []byte("cpu,host=C")}}
-			if err := e.DeleteSeriesRange(itr, 0, 9000000000); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
-
-			if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
-				t.Fatalf("iterator error: %v", err)
-			}
-			if iter == nil {
-				return
-			}
-
-			defer iter.Close()
-			if elem, err = iter.Next(); err != nil {
-				t.Fatal(err)
-			}
-			if !elem.SeriesID.IsZero() {
-				t.Fatalf("got an undeleted series id, but series should be dropped from index")
-			}
-		})
+	defer iter.Close()
+	if elem, err = iter.Next(); err != nil {
+		t.Fatal(err)
+	}
+	if !elem.SeriesID.IsZero() {
+		t.Fatalf("got an undeleted series id, but series should be dropped from index")
 	}
 }
 
 func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
-	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) {
-			// Create a few points.
-			p1 := MustParsePointString("cpu,host=A value=1.1 1000000000") // Should not be deleted
+	// Create a few points.
+	p1 := MustParsePointString("cpu,host=A value=1.1 1000000000") // Should not be deleted
 
-			e, err := NewEngine()
-			if err != nil {
-				t.Fatal(err)
-			}
+	e, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-			// mock the planner so compactions don't run during the test
-			e.CompactionPlan = &mockPlanner{}
-			if err := e.Open(); err != nil {
-				t.Fatal(err)
-			}
-			defer e.Close()
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+	if err := e.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
 
-			for _, p := range []models.Point{p1} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
-					t.Fatalf("create series index error: %v", err)
-				}
-			}
+	for _, p := range []models.Point{p1} {
+		if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
+			t.Fatalf("create series index error: %v", err)
+		}
+	}
 
-			if err := e.WritePoints([]models.Point{p1}); err != nil {
-				t.Fatalf("failed to write points: %s", err.Error())
-			}
-			if err := e.WriteSnapshot(); err != nil {
-				t.Fatalf("failed to snapshot: %s", err.Error())
-			}
+	if err := e.WritePoints([]models.Point{p1}); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
 
-			keys := e.FileStore.Keys()
-			if exp, got := 1, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	keys := e.FileStore.Keys()
+	if exp, got := 1, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, 0, 0); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+	itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+	if err := e.DeleteSeriesRange(itr, 0, 0); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
 
-			keys = e.FileStore.Keys()
-			if exp, got := 1, len(keys); exp != got {
-				t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
-			}
+	keys = e.FileStore.Keys()
+	if exp, got := 1, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
 
-			exp := "cpu,host=A#!~#value"
-			if _, ok := keys[exp]; !ok {
-				t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
-			}
+	exp := "cpu,host=A#!~#value"
+	if _, ok := keys[exp]; !ok {
+		t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
+	}
 
-			// Check that the series still exists in the index
-			iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
-			if err != nil {
-				t.Fatalf("iterator error: %v", err)
-			}
-			defer iter.Close()
+	// Check that the series still exists in the index
+	iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
+	if err != nil {
+		t.Fatalf("iterator error: %v", err)
+	}
+	defer iter.Close()
 
-			elem, err := iter.Next()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if elem.SeriesID.IsZero() {
-				t.Fatalf("series index mismatch: EOF, exp 1 series")
-			}
+	elem, err := iter.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elem.SeriesID.IsZero() {
+		t.Fatalf("series index mismatch: EOF, exp 1 series")
+	}
 
-			// Lookup series.
-			name, tags := e.sfile.Series(elem.SeriesID)
-			if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
+	// Lookup series.
+	name, tags := e.sfile.Series(elem.SeriesID)
+	if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
+		t.Fatalf("series mismatch: got %s, exp %s", got, exp)
+	}
 
-			if got, exp := tags, models.NewTags(map[string]string{"host": "A"}); !got.Equal(exp) {
-				t.Fatalf("series mismatch: got %s, exp %s", got, exp)
-			}
-		})
+	if got, exp := tags, models.NewTags(map[string]string{"host": "A"}); !got.Equal(exp) {
+		t.Fatalf("series mismatch: got %s, exp %s", got, exp)
 	}
 }
 
 func TestEngine_LastModified(t *testing.T) {
-	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) {
-			// Create a few points.
-			p1 := MustParsePointString("cpu,host=A value=1.1 1000000000")
-			p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
-			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
+	// Create a few points.
+	p1 := MustParsePointString("cpu,host=A value=1.1 1000000000")
+	p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
+	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
-			e, err := NewEngine()
-			if err != nil {
-				t.Fatal(err)
-			}
+	e, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-			// mock the planner so compactions don't run during the test
-			e.CompactionPlan = &mockPlanner{}
-			e.SetEnabled(false)
-			if err := e.Open(); err != nil {
-				t.Fatal(err)
-			}
-			defer e.Close()
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+	e.SetEnabled(false)
+	if err := e.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
 
-			if err := e.writePoints(p1, p2, p3); err != nil {
-				t.Fatalf("failed to write points: %s", err.Error())
-			}
+	if err := e.writePoints(p1, p2, p3); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
 
-			lm := e.LastModified()
-			if lm.IsZero() {
-				t.Fatalf("expected non-zero time, got %v", lm.UTC())
-			}
-			e.SetEnabled(true)
+	lm := e.LastModified()
+	if lm.IsZero() {
+		t.Fatalf("expected non-zero time, got %v", lm.UTC())
+	}
+	e.SetEnabled(true)
 
-			// Artificial sleep added due to filesystems caching the mod time
-			// of files.  This prevents the WAL last modified time from being
-			// returned and newer than the filestore's mod time.
-			time.Sleep(2 * time.Second) // Covers most filesystems.
+	// Artificial sleep added due to filesystems caching the mod time
+	// of files.  This prevents the WAL last modified time from being
+	// returned and newer than the filestore's mod time.
+	time.Sleep(2 * time.Second) // Covers most filesystems.
 
-			if err := e.WriteSnapshot(); err != nil {
-				t.Fatalf("failed to snapshot: %s", err.Error())
-			}
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
 
-			lm2 := e.LastModified()
+	lm2 := e.LastModified()
 
-			if got, exp := lm.Equal(lm2), false; exp != got {
-				t.Fatalf("expected time change, got %v, exp %v: %s == %s", got, exp, lm.String(), lm2.String())
-			}
+	if got, exp := lm.Equal(lm2), false; exp != got {
+		t.Fatalf("expected time change, got %v, exp %v: %s == %s", got, exp, lm.String(), lm2.String())
+	}
 
-			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
+	itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
+	if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
 
-			lm3 := e.LastModified()
-			if got, exp := lm2.Equal(lm3), false; exp != got {
-				t.Fatalf("expected time change, got %v, exp %v", got, exp)
-			}
-		})
+	lm3 := e.LastModified()
+	if got, exp := lm2.Equal(lm3), false; exp != got {
+		t.Fatalf("expected time change, got %v, exp %v", got, exp)
 	}
 }
 
@@ -852,119 +814,108 @@ func BenchmarkBlockTypeToInfluxQLDataType(b *testing.B) {
 // This test ensures that "sync: WaitGroup is reused before previous Wait has returned" is
 // is not raised.
 func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
-	t.Parallel()
+	e := MustOpenEngine()
+	defer e.Close()
 
-	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-			e := MustOpenEngine()
-			defer e.Close()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			e.SetCompactionsEnabled(true)
+			e.SetCompactionsEnabled(false)
+		}
+	}()
 
-			var wg sync.WaitGroup
-			wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			e.SetCompactionsEnabled(false)
+			e.SetCompactionsEnabled(true)
+		}
+	}()
 
-			go func() {
-				defer wg.Done()
-				for i := 0; i < 1000; i++ {
-					e.SetCompactionsEnabled(true)
-					e.SetCompactionsEnabled(false)
-				}
-			}()
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
 
-			go func() {
-				defer wg.Done()
-				for i := 0; i < 1000; i++ {
-					e.SetCompactionsEnabled(false)
-					e.SetCompactionsEnabled(true)
-				}
-			}()
-
-			done := make(chan struct{})
-			go func() {
-				wg.Wait()
-				close(done)
-			}()
-
-			// Wait for waitgroup or fail if it takes too long.
-			select {
-			case <-time.NewTimer(30 * time.Second).C:
-				t.Fatalf("timed out after 30 seconds waiting for waitgroup")
-			case <-done:
-			}
-		})
+	// Wait for waitgroup or fail if it takes too long.
+	select {
+	case <-time.NewTimer(30 * time.Second).C:
+		t.Fatalf("timed out after 30 seconds waiting for waitgroup")
+	case <-done:
 	}
 }
 
 func BenchmarkEngine_WritePoints(b *testing.B) {
 	batchSizes := []int{10, 100, 1000, 5000, 10000}
 	for _, sz := range batchSizes {
-		for _, index := range tsdb.RegisteredIndexes() {
-			e := MustOpenEngine()
-			pp := make([]models.Point, 0, sz)
-			for i := 0; i < sz; i++ {
-				p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i))
-				pp = append(pp, p)
-			}
-
-			b.Run(fmt.Sprintf("%s_%d", index, sz), func(b *testing.B) {
-				b.ReportAllocs()
-				for i := 0; i < b.N; i++ {
-					err := e.WritePoints(pp)
-					if err != nil {
-						b.Fatal(err)
-					}
-				}
-			})
-			e.Close()
+		e := MustOpenEngine()
+		pp := make([]models.Point, 0, sz)
+		for i := 0; i < sz; i++ {
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i))
+			pp = append(pp, p)
 		}
+
+		b.Run(fmt.Sprintf("%d", sz), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				err := e.WritePoints(pp)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+		e.Close()
 	}
 }
 
 func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 	batchSizes := []int{1000, 5000, 10000, 25000, 50000, 75000, 100000, 200000}
 	for _, sz := range batchSizes {
-		for _, index := range tsdb.RegisteredIndexes() {
-			e := MustOpenEngine()
+		e := MustOpenEngine()
 
-			cpus := runtime.GOMAXPROCS(0)
-			pp := make([]models.Point, 0, sz*cpus)
-			for i := 0; i < sz*cpus; i++ {
-				p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i))
-				pp = append(pp, p)
-			}
+		cpus := runtime.GOMAXPROCS(0)
+		pp := make([]models.Point, 0, sz*cpus)
+		for i := 0; i < sz*cpus; i++ {
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i))
+			pp = append(pp, p)
+		}
 
-			b.Run(fmt.Sprintf("%s_%d", index, sz), func(b *testing.B) {
-				b.ReportAllocs()
-				for i := 0; i < b.N; i++ {
-					var wg sync.WaitGroup
-					errC := make(chan error)
-					for i := 0; i < cpus; i++ {
-						wg.Add(1)
-						go func(i int) {
-							defer wg.Done()
-							from, to := i*sz, (i+1)*sz
-							err := e.WritePoints(pp[from:to])
-							if err != nil {
-								errC <- err
-								return
-							}
-						}(i)
-					}
-
-					go func() {
-						wg.Wait()
-						close(errC)
-					}()
-
-					for err := range errC {
+		b.Run(fmt.Sprintf("%d", sz), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				var wg sync.WaitGroup
+				errC := make(chan error)
+				for i := 0; i < cpus; i++ {
+					wg.Add(1)
+					go func(i int) {
+						defer wg.Done()
+						from, to := i*sz, (i+1)*sz
+						err := e.WritePoints(pp[from:to])
 						if err != nil {
-							b.Error(err)
+							errC <- err
+							return
 						}
+					}(i)
+				}
+
+				go func() {
+					wg.Wait()
+					close(errC)
+				}()
+
+				for err := range errC {
+					if err != nil {
+						b.Error(err)
 					}
 				}
-			})
-			e.Close()
-		}
+			}
+		})
+		e.Close()
 	}
 }
 
