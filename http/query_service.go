@@ -68,7 +68,7 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	// Always cancel the results to free resources.
 	// If all results were consumed cancelling does nothing.
-	defer results.Cancel()
+	defer results.Release()
 
 	// Setup headers
 	stats, hasStats := results.(flux.Statisticser)
@@ -186,8 +186,8 @@ func (s *statsResultIterator) Next() flux.Result {
 	return s.results.Next()
 }
 
-func (s *statsResultIterator) Cancel() {
-	s.results.Cancel()
+func (s *statsResultIterator) Release() {
+	s.results.Release()
 	s.readStats()
 }
 

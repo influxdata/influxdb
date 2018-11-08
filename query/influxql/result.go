@@ -37,7 +37,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (i
 		id, err := strconv.Atoi(name)
 		if err != nil {
 			resp.error(fmt.Errorf("unable to parse statement id from result name: %s", err))
-			results.Cancel()
+			results.Release()
 			break
 		}
 
@@ -148,7 +148,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (i
 			return nil
 		}); err != nil {
 			resp.error(err)
-			results.Cancel()
+			results.Release()
 			break
 		}
 		resp.Results = append(resp.Results, result)

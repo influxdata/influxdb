@@ -31,7 +31,7 @@ func (b ProxyQueryServiceBridge) Query(ctx context.Context, w io.Writer, req *Pr
 	if err != nil {
 		return 0, err
 	}
-	defer results.Cancel()
+	defer results.Release()
 	encoder := req.Dialect.Encoder()
 	return encoder.Encode(w, results)
 }

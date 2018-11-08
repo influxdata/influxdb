@@ -61,5 +61,5 @@ func TestService(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	defer results.Cancel()
+	defer results.Release()
 }
