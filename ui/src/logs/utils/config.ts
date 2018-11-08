@@ -16,6 +16,7 @@ import {
 
 import {
   View,
+  NewView,
   LogViewerView,
   LogViewerColumn,
   LogViewerColumnSetting,
@@ -27,7 +28,7 @@ import {
   EMPTY_VIEW_PROPERTIES,
 } from 'src/logs/constants'
 
-export const serverToUIConfig = (logView: View): LogConfig => {
+export const serverToUIConfig = (logView: View | NewView): LogConfig => {
   const logConfigID = getDeep<string>(logView, 'id', null)
   const logsConfigLink = getDeep<string>(logView, 'links.self', null)
   const logViewProperties = getDeep<LogViewerView>(logView, 'properties', null)
@@ -137,6 +138,9 @@ export const uiToServerConfig = (config: LogConfig): View => {
     properties,
     id: config.id,
     name: LOG_VIEW_NAME,
+    links: {
+      self: config.link,
+    },
   }
 }
 

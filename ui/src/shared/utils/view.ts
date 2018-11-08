@@ -9,6 +9,8 @@ import {
   TableView,
   GaugeView,
   MarkdownView,
+  NewView,
+  ViewProperties,
 } from 'src/types/v2/dashboards'
 
 function defaultView() {
@@ -70,7 +72,7 @@ function defaultGaugeViewProperties() {
 
 // Defines the zero values of the various view types
 const NEW_VIEW_CREATORS = {
-  [ViewType.Bar]: (): View<BarChartView> => ({
+  [ViewType.Bar]: (): NewView<BarChartView> => ({
     ...defaultView(),
     properties: {
       ...defaultLineViewProperties(),
@@ -78,7 +80,7 @@ const NEW_VIEW_CREATORS = {
       shape: ViewShape.ChronografV2,
     },
   }),
-  [ViewType.Line]: (): View<LineView> => ({
+  [ViewType.Line]: (): NewView<LineView> => ({
     ...defaultView(),
     properties: {
       ...defaultLineViewProperties(),
@@ -86,7 +88,7 @@ const NEW_VIEW_CREATORS = {
       shape: ViewShape.ChronografV2,
     },
   }),
-  [ViewType.Stacked]: (): View<StackedView> => ({
+  [ViewType.Stacked]: (): NewView<StackedView> => ({
     ...defaultView(),
     properties: {
       ...defaultLineViewProperties(),
@@ -94,7 +96,7 @@ const NEW_VIEW_CREATORS = {
       shape: ViewShape.ChronografV2,
     },
   }),
-  [ViewType.StepPlot]: (): View<StepPlotView> => ({
+  [ViewType.StepPlot]: (): NewView<StepPlotView> => ({
     ...defaultView(),
     properties: {
       ...defaultLineViewProperties(),
@@ -102,7 +104,7 @@ const NEW_VIEW_CREATORS = {
       shape: ViewShape.ChronografV2,
     },
   }),
-  [ViewType.SingleStat]: (): View<SingleStatView> => ({
+  [ViewType.SingleStat]: (): NewView<SingleStatView> => ({
     ...defaultView(),
     properties: {
       ...defaultGaugeViewProperties(),
@@ -110,7 +112,7 @@ const NEW_VIEW_CREATORS = {
       shape: ViewShape.ChronografV2,
     },
   }),
-  [ViewType.Gauge]: (): View<GaugeView> => ({
+  [ViewType.Gauge]: (): NewView<GaugeView> => ({
     ...defaultView(),
     properties: {
       ...defaultGaugeViewProperties(),
@@ -118,7 +120,7 @@ const NEW_VIEW_CREATORS = {
       shape: ViewShape.ChronografV2,
     },
   }),
-  [ViewType.LinePlusSingleStat]: (): View<LinePlusSingleStatView> => ({
+  [ViewType.LinePlusSingleStat]: (): NewView<LinePlusSingleStatView> => ({
     ...defaultView(),
     properties: {
       ...defaultLineViewProperties(),
@@ -127,7 +129,7 @@ const NEW_VIEW_CREATORS = {
       shape: ViewShape.ChronografV2,
     },
   }),
-  [ViewType.Table]: (): View<TableView> => ({
+  [ViewType.Table]: (): NewView<TableView> => ({
     ...defaultView(),
     properties: {
       type: ViewType.Table,
@@ -151,7 +153,7 @@ const NEW_VIEW_CREATORS = {
       timeFormat: 'YYYY-MM-DD HH:mm:ss',
     },
   }),
-  [ViewType.Markdown]: (): View<MarkdownView> => ({
+  [ViewType.Markdown]: (): NewView<MarkdownView> => ({
     ...defaultView(),
     properties: {
       type: ViewType.Markdown,
@@ -161,7 +163,9 @@ const NEW_VIEW_CREATORS = {
   }),
 }
 
-export function createView(viewType: ViewType = ViewType.Line): View {
+export function createView<T extends ViewProperties = ViewProperties>(
+  viewType: ViewType = ViewType.Line
+): NewView<T> {
   const creator = NEW_VIEW_CREATORS[viewType]
 
   if (!creator) {
@@ -203,7 +207,10 @@ const VIEW_CONVERSIONS = {
   },
 }
 
-export function convertView(view: View, outType: ViewType): View {
+export function convertView<T extends View | NewView>(
+  view: T,
+  outType: ViewType
+): T {
   const inType = view.properties.type
 
   if (VIEW_CONVERSIONS[inType] && VIEW_CONVERSIONS[inType][outType]) {

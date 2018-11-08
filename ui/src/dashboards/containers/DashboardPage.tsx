@@ -48,7 +48,7 @@ import {
   TimeRange,
   DashboardSwitcherLinks,
 } from 'src/types/v2'
-import {LineView} from 'src/types/v2/dashboards'
+import {NewView, LineView} from 'src/types/v2/dashboards'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
@@ -111,7 +111,7 @@ type Props = PassedProps &
 interface State {
   scrollTop: number
   windowHeight: number
-  selectedView: View | null
+  selectedView: NewView | View | null
   dashboardLinks: DashboardSwitcherLinks
   isShowingVEO: boolean
 }
@@ -270,8 +270,7 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleAddCell = async (): Promise<void> => {
-    // TODO: We should revisit our polymorphic `View` type
-    const newView = createView(ViewType.Line) as View<LineView>
+    const newView = createView<LineView>(ViewType.Line)
 
     newView.properties.queries = [TEMPORARY_DEFAULT_QUERY]
 
@@ -285,7 +284,7 @@ class DashboardPage extends Component<Props, State> {
     this.setState({isShowingVEO: false})
   }
 
-  private handleSaveVEO = async (view: View): Promise<void> => {
+  private handleSaveVEO = async (view): Promise<void> => {
     this.setState({isShowingVEO: false})
 
     const {dashboard, onCreateCellWithView, onUpdateView, notify} = this.props

@@ -8,11 +8,12 @@ import {
 } from 'src/shared/constants/timeMachine'
 
 // Types
-import {View, TimeRange} from 'src/types/v2'
+import {TimeRange} from 'src/types/v2'
+import {NewView} from 'src/types/v2/dashboards'
 import {Action} from 'src/shared/actions/v2/timeMachines'
 
 export interface TimeMachineState {
-  view: View
+  view: NewView
   timeRange: TimeRange
 }
 

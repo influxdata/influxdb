@@ -14,11 +14,11 @@ import {VEO_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
 
 // Types
 import {Source, AppState} from 'src/types/v2'
-import {View} from 'src/types/v2/dashboards'
+import {NewView, View} from 'src/types/v2/dashboards'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 
 interface StateProps {
-  draftView: View
+  draftView: NewView
 }
 
 interface DispatchProps {
@@ -28,9 +28,9 @@ interface DispatchProps {
 
 interface OwnProps {
   source: Source
-  view: View
+  view: NewView | View
   onHide: () => void
-  onSave: (v: View) => Promise<void>
+  onSave: (v: NewView | View) => Promise<void>
 }
 
 type Props = OwnProps & StateProps & DispatchProps
@@ -79,9 +79,9 @@ class VEO extends PureComponent<Props, State> {
   }
 
   private handleSave = (): void => {
-    const {draftView, onSave} = this.props
+    const {view, draftView, onSave} = this.props
 
-    onSave(draftView)
+    onSave({...view, ...draftView})
   }
 }
 

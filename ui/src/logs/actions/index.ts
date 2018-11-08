@@ -24,7 +24,7 @@ import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
 // Types
 import {Dispatch} from 'redux'
 import {ThunkDispatch} from 'redux-thunk'
-import {View, ViewType} from 'src/types/v2/dashboards'
+import {View, NewView, ViewType} from 'src/types/v2/dashboards'
 import {
   Filter,
   LogConfig,
@@ -286,7 +286,7 @@ export const getLogConfigAsync = (url: string) => async (
   const state = getState()
   const isTruncated = getIsTruncated(state)
   const views = await readViewsAJAX(url, {type: ViewType.LogViewer})
-  const logView: View = getDeep(views, '0', defaultLogView)
+  const logView: NewView | View = getDeep(views, '0', defaultLogView)
 
   const logConfig = {
     ...serverToUIConfig(logView),

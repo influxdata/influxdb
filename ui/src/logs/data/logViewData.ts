@@ -1,4 +1,9 @@
-import {View, LogViewerView, ViewShape, ViewType} from 'src/types/v2/dashboards'
+import {
+  NewView,
+  LogViewerView,
+  ViewShape,
+  ViewType,
+} from 'src/types/v2/dashboards'
 import {LOG_VIEW_NAME} from 'src/logs/constants'
 
 export const logViewProperties: LogViewerView = {
@@ -154,8 +159,7 @@ export const logViewProperties: LogViewerView = {
   ],
 }
 
-export const logViewData: View = {
-  id: null,
+export const logViewData: NewView = {
   name: LOG_VIEW_NAME,
   properties: logViewProperties,
 }

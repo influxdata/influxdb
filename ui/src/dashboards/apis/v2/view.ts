@@ -6,6 +6,7 @@ import {getDeep} from 'src/utils/wrappers'
 
 // Types
 import {View, ViewParams} from 'src/types/v2'
+import {NewView} from 'src/types/v2/dashboards'
 
 export const readView = async (url: string): Promise<View> => {
   const {data} = await AJAX({url})
@@ -13,10 +14,7 @@ export const readView = async (url: string): Promise<View> => {
   return data
 }
 
-export const createView = async (
-  url: string,
-  view: Partial<View>
-): Promise<View> => {
+export const createView = async (url: string, view: NewView): Promise<View> => {
   const {data} = await AJAX({
     url,
     method: 'POST',

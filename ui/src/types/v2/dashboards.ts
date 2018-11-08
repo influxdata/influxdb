@@ -62,11 +62,18 @@ export interface MarkDownProperties {
 }
 
 export interface View<T extends ViewProperties = ViewProperties> {
-  id?: string
+  id: string
   name: string
   properties: T
-  links?: ViewLinks
+  links: ViewLinks
 }
+
+type Omit<K, V> = Pick<K, Exclude<keyof K, V>>
+
+export type NewView<T extends ViewProperties = ViewProperties> = Omit<
+  View<T>,
+  'id' | 'links'
+>
 
 export interface ViewLinks {
   self: string
@@ -239,8 +246,8 @@ interface DashboardFileMetaSection {
 }
 
 export interface Cell {
-  id?: string
-  viewID?: string
+  id: string
+  viewID: string
   x: number
   y: number
   w: number
@@ -251,6 +258,8 @@ export interface Cell {
     copy: string
   }
 }
+
+export type NewCell = Omit<Cell, 'id' | 'viewID' | 'links'>
 
 export enum ThresholdType {
   Text = 'text',

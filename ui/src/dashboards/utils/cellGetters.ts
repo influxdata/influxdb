@@ -1,4 +1,4 @@
-import {Cell, Dashboard} from 'src/types/v2/dashboards'
+import {NewCell, Cell, Dashboard} from 'src/types/v2/dashboards'
 import {UNTITLED_GRAPH} from 'src/dashboards/constants'
 
 const getMostCommonValue = (values: number[]): number => {
@@ -52,7 +52,7 @@ const getNextAvailablePosition = (dashboard, newCell) => {
       }
 }
 
-export const getNewDashboardCell = (dashboard: Dashboard): Cell => {
+export const getNewDashboardCell = (dashboard: Dashboard): NewCell => {
   const defaultCell = {
     x: 0,
     y: 0,

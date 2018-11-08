@@ -519,6 +519,9 @@ describe('Logs.Config', () => {
           shape: ViewShape.ChronografV2,
           columns: sortLogViewColumns(),
         },
+        links: {
+          self: logViewSelfLink,
+        },
       }
 
       expect(convertedLogView).toEqual(expected)

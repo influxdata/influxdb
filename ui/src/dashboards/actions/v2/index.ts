@@ -37,7 +37,8 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
-import {Dashboard, Cell, View, AppState} from 'src/types/v2'
+import {Dashboard, Cell, AppState} from 'src/types/v2'
+import {NewView} from 'src/types/v2/dashboards'
 
 export enum ActionTypes {
   LoadDashboards = 'LOAD_DASHBOARDS',
@@ -245,7 +246,10 @@ export const addCellAsync = (dashboard: Dashboard) => async (
   }
 }
 
-export const createCellWithView = (dashboard: Dashboard, view: View) => async (
+export const createCellWithView = (
+  dashboard: Dashboard,
+  view: NewView
+) => async (
   dispatch: Dispatch<Action>,
   getState: () => AppState
 ): Promise<void> => {
