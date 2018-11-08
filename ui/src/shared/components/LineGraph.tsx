@@ -19,7 +19,7 @@ interface Props {
   viewID: string
   staticLegend: boolean
   onZoom: (range: TimeRange) => void
-  handleSetHoverTime: typeof setHoverTime
+  onSetHoverTime: typeof setHoverTime
   tables: FluxTable[]
   properties: LineView
   timeRange: TimeRange
@@ -42,7 +42,7 @@ class LineGraph extends PureComponent<Props> {
       children,
       timeRange,
       properties,
-      handleSetHoverTime,
+      onSetHoverTime,
     } = this.props
 
     const {axes, type, colors, queries} = properties
@@ -62,7 +62,7 @@ class LineGraph extends PureComponent<Props> {
               options={this.options}
               timeRange={timeRange}
               timeSeries={dygraphsData}
-              handleSetHoverTime={handleSetHoverTime}
+              onSetHoverTime={onSetHoverTime}
             >
               {children}
             </Dygraph>

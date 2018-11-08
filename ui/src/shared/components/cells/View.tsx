@@ -30,7 +30,7 @@ class ViewComponent extends Component<Props> {
   }
 
   public render() {
-    const {view, onZoom, timeRange, autoRefresh, manualRefresh} = this.props
+    const {view, onZoom, timeRange, manualRefresh} = this.props
 
     switch (view.properties.type) {
       case ViewShape.Empty:
@@ -44,7 +44,6 @@ class ViewComponent extends Component<Props> {
             viewID={view.id}
             onZoom={onZoom}
             timeRange={timeRange}
-            autoRefresh={autoRefresh}
             properties={view.properties}
             manualRefresh={manualRefresh}
           />

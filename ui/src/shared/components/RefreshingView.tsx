@@ -1,18 +1,13 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import LineGraph from 'src/shared/components/LineGraph'
-import StepPlot from 'src/shared/components/StepPlot'
-import Stacked from 'src/shared/components/Stacked'
-import GaugeChart from 'src/shared/components/GaugeChart'
-import SingleStat from 'src/shared/components/SingleStat'
 import TimeSeries from 'src/shared/components/TimeSeries'
-import SingleStatTransform from 'src/shared/components/SingleStatTransform'
-import TimeMachineTables from 'src/shared/components/tables/TimeMachineTables'
+import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
+import EmptyRefreshingView from 'src/shared/components/EmptyRefreshingView'
+import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
 
 // Constants
 import {emptyGraphCopy} from 'src/shared/copy/cell'
@@ -24,19 +19,12 @@ import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 import {TimeRange} from 'src/types'
 import {AppState} from 'src/types/v2'
 import {DashboardQuery} from 'src/types/v2/dashboards'
-import {
-  RefreshingViewProperties,
-  ViewType,
-  LineView,
-  SingleStatView,
-} from 'src/types/v2/dashboards'
+import {RefreshingViewProperties, ViewType} from 'src/types/v2/dashboards'
 
 interface OwnProps {
   timeRange: TimeRange
   viewID: string
   inView: boolean
-  timeFormat: string
-  autoRefresh: number
   manualRefresh: number
   onZoom: (range: TimeRange) => void
   properties: RefreshingViewProperties
@@ -50,7 +38,7 @@ interface DispatchProps {
   handleSetHoverTime: typeof setHoverTime
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps & StateProps & DispatchProps
 
 class RefreshingView extends PureComponent<Props> {
   public static defaultProps: Partial<Props> = {
@@ -71,11 +59,7 @@ class RefreshingView extends PureComponent<Props> {
     } = this.props
 
     if (!properties.queries.length) {
-      return (
-        <div className="graph-empty">
-          <p data-test="data-explorer-no-results">{emptyGraphCopy}</p>
-        </div>
-      )
+      return <EmptyGraphMessage message={emptyGraphCopy} />
     }
 
     return (
@@ -85,96 +69,25 @@ class RefreshingView extends PureComponent<Props> {
         queries={this.queries}
         key={manualRefresh}
       >
-        {({tables, loading}) => {
-          switch (properties.type) {
-            case ViewType.SingleStat:
-              return (
-                <SingleStatTransform tables={tables}>
-                  {stat => <SingleStat stat={stat} properties={properties} />}
-                </SingleStatTransform>
-              )
-            case ViewType.Table:
-              return (
-                <TimeMachineTables tables={tables} properties={properties} />
-              )
-            case ViewType.Gauge:
-              return (
-                <GaugeChart
-                  tables={tables}
-                  key={manualRefresh}
-                  properties={properties}
-                />
-              )
-            case ViewType.Line:
-              return (
-                <LineGraph
-                  tables={tables}
-                  viewID={viewID}
-                  onZoom={onZoom}
-                  loading={loading}
-                  timeRange={timeRange}
-                  properties={properties}
-                  handleSetHoverTime={handleSetHoverTime}
-                />
-              )
-            case ViewType.LinePlusSingleStat:
-              const lineProperties = {
-                ...properties,
-                type: ViewType.Line,
-              } as LineView
-
-              const singleStatProperties = {
-                ...properties,
-                type: ViewType.SingleStat,
-              } as SingleStatView
-
-              return (
-                <LineGraph
-                  tables={tables}
-                  viewID={viewID}
-                  onZoom={onZoom}
-                  loading={loading}
-                  timeRange={timeRange}
-                  properties={lineProperties}
-                  handleSetHoverTime={handleSetHoverTime}
-                >
-                  <SingleStatTransform tables={tables}>
-                    {stat => (
-                      <SingleStat
-                        stat={stat}
-                        properties={singleStatProperties}
-                      />
-                    )}
-                  </SingleStatTransform>
-                </LineGraph>
-              )
-            case ViewType.StepPlot:
-              return (
-                <StepPlot
-                  tables={tables}
-                  viewID={viewID}
-                  onZoom={onZoom}
-                  loading={loading}
-                  timeRange={timeRange}
-                  properties={properties}
-                  handleSetHoverTime={handleSetHoverTime}
-                />
-              )
-            case ViewType.Stacked:
-              return (
-                <Stacked
-                  tables={tables}
-                  viewID={viewID}
-                  onZoom={onZoom}
-                  loading={loading}
-                  timeRange={timeRange}
-                  properties={properties}
-                  handleSetHoverTime={handleSetHoverTime}
-                />
-              )
-            default:
-              return <div>YO!</div>
-          }
+        {({tables, loading, error, isInitialFetch}) => {
+          return (
+            <EmptyRefreshingView
+              error={error}
+              tables={tables}
+              loading={loading}
+              isInitialFetch={isInitialFetch}
+            >
+              <RefreshingViewSwitcher
+                tables={tables}
+                viewID={viewID}
+                onZoom={onZoom}
+                loading={loading}
+                timeRange={timeRange}
+                properties={properties}
+                onSetHoverTime={handleSetHoverTime}
+              />
+            </EmptyRefreshingView>
+          )
         }}
       </TimeSeries>
     )
@@ -211,4 +124,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter(RefreshingView))
+)(RefreshingView)

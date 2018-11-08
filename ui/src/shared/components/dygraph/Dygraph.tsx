@@ -43,7 +43,7 @@ interface Props {
   labels: string[]
   options: Partial<Options>
   colors: Color[]
-  handleSetHoverTime: (t: string) => void
+  onSetHoverTime: (t: string) => void
   viewID?: string
   axes?: Axes
   mode?: string
@@ -81,7 +81,7 @@ class Dygraph extends Component<Props, State> {
     isGraphFilled: true,
     onZoom: () => {},
     setResolution: () => {},
-    handleSetHoverTime: () => {},
+    onSetHoverTime: () => {},
     underlayCallback: () => {},
     dygraphSeries: {},
   }
@@ -353,7 +353,7 @@ class Dygraph extends Component<Props, State> {
 
   private handleHideLegend = () => {
     this.setState({isMouseInLegend: false})
-    this.props.handleSetHoverTime(NULL_HOVER_TIME)
+    this.props.onSetHoverTime(NULL_HOVER_TIME)
   }
 
   private handleShowLegend = (e: MouseEvent<Element>): void => {
@@ -364,7 +364,7 @@ class Dygraph extends Component<Props, State> {
     }
 
     const newTime = this.eventToTimestamp(e)
-    this.props.handleSetHoverTime(newTime)
+    this.props.onSetHoverTime(newTime)
   }
 
   private get labelWidth() {

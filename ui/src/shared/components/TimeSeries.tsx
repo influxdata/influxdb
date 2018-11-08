@@ -1,6 +1,6 @@
 // Library
-import React, {Component} from 'react'
-import _ from 'lodash'
+import {Component} from 'react'
+import {isEqual, flatten} from 'lodash'
 
 // API
 import {executeQueries} from 'src/shared/apis/v2/query'
@@ -10,7 +10,7 @@ import {RemoteDataState, FluxTable} from 'src/types'
 import {DashboardQuery} from 'src/types/v2/dashboards'
 
 // Utils
-import AutoRefresh from 'src/utils/AutoRefresh'
+import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {restartable, CancellationError} from 'src/utils/restartable'
 
@@ -19,6 +19,8 @@ export const DEFAULT_TIME_SERIES = [{response: {results: []}}]
 interface RenderProps {
   tables: FluxTable[]
   loading: RemoteDataState
+  error: Error | null
+  isInitialFetch: boolean
 }
 
 interface Props {
@@ -30,8 +32,9 @@ interface Props {
 
 interface State {
   loading: RemoteDataState
-  isFirstFetch: boolean
   tables: FluxTable[]
+  error: Error | null
+  fetchCount: number
 }
 
 class TimeSeries extends Component<Props, State> {
@@ -46,101 +49,81 @@ class TimeSeries extends Component<Props, State> {
 
     this.state = {
       loading: RemoteDataState.NotStarted,
-      isFirstFetch: false,
       tables: [],
+      fetchCount: 0,
+      error: null,
     }
   }
 
   public async componentDidMount() {
-    const isFirstFetch = true
-    this.reload(isFirstFetch)
-    AutoRefresh.subscribe(this.executeQueries)
+    this.reload()
+
+    GlobalAutoRefresher.subscribe(this.reload)
   }
 
   public componentWillUnmount() {
-    AutoRefresh.unsubscribe(this.executeQueries)
+    GlobalAutoRefresher.unsubscribe(this.reload)
   }
 
   public async componentDidUpdate(prevProps: Props) {
-    if (!this.isPropsDifferent(prevProps)) {
-      return
+    if (this.shouldReload(prevProps)) {
+      this.reload()
     }
-
-    this.reload()
   }
 
-  public reload = async (isFirstFetch: boolean = false) => {
+  public render() {
+    const {tables, loading, error, fetchCount} = this.state
+
+    return this.props.children({
+      tables,
+      loading,
+      error,
+      isInitialFetch: fetchCount === 1,
+    })
+  }
+
+  private reload = async () => {
     const {link, inView, queries} = this.props
 
     if (!inView) {
       return
     }
 
-    if (!queries.length) {
-      return this.setState({tables: []})
-    }
-
-    this.setState({loading: RemoteDataState.Loading, isFirstFetch})
+    this.setState({
+      loading: RemoteDataState.Loading,
+      fetchCount: this.state.fetchCount + 1,
+    })
 
     try {
       const results = await this.executeQueries(link, queries)
-      const tables = _.flatten(results.map(r => parseResponse(r.csv)))
+      const tables = flatten(results.map(r => parseResponse(r.csv)))
 
       this.setState({
         tables,
         loading: RemoteDataState.Done,
       })
-    } catch (err) {
-      if (err instanceof CancellationError) {
+    } catch (error) {
+      if (error instanceof CancellationError) {
         return
       }
 
-      console.error(err)
+      this.setState({
+        error,
+        loading: RemoteDataState.Error,
+      })
     }
   }
 
-  public render() {
-    const {tables, loading, isFirstFetch} = this.state
-
-    const hasValues = _.some(tables, s => {
-      const data = _.get(s, 'data', [])
-      return !!data.length
-    })
-
-    if (isFirstFetch && loading === RemoteDataState.Loading) {
-      return (
-        <div className="graph-empty">
-          <h3 className="graph-spinner" />
-        </div>
-      )
+  private shouldReload(prevProps: Props) {
+    if (prevProps.link !== this.props.link) {
+      return true
     }
 
-    if (!hasValues) {
-      return (
-        <div className="graph-empty">
-          <p>No Results</p>
-        </div>
-      )
+    if (!isEqual(prevProps.queries, this.props.queries)) {
+      return true
     }
 
-    return this.props.children({tables, loading})
-  }
-
-  private isPropsDifferent(nextProps: Props) {
-    const isSourceDifferent = !_.isEqual(this.props.link, nextProps.link)
-
-    return (
-      this.props.inView !== nextProps.inView ||
-      !!this.queryDifference(this.props.queries, nextProps.queries).length ||
-      isSourceDifferent
-    )
-  }
-
-  private queryDifference = (left, right) => {
-    const mapper = q => `${q.text}`
-    const l = left.map(mapper)
-    const r = right.map(mapper)
-    return _.difference(_.union(l, r), _.intersection(l, r))
+    return false
   }
 }
 

@@ -1,6 +1,6 @@
 type func = (...args: any[]) => any
 
-class AutoRefresh {
+export class AutoRefresher {
   public subscribers: func[] = []
 
   private intervalID: NodeJS.Timer
@@ -39,4 +39,4 @@ class AutoRefresh {
   }
 }
 
-export default new AutoRefresh()
+export const GlobalAutoRefresher = new AutoRefresher()

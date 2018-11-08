@@ -22,7 +22,7 @@ interface Props {
   tables: FluxTable[]
   viewID: string
   onZoom: (range: TimeRange) => void
-  handleSetHoverTime: typeof setHoverTime
+  onSetHoverTime: typeof setHoverTime
 }
 
 @ErrorHandlingWith(InvalidData)
@@ -35,7 +35,7 @@ class StepPlot extends PureComponent<Props> {
       loading,
       timeRange,
       properties,
-      handleSetHoverTime,
+      onSetHoverTime,
     } = this.props
 
     const {axes, type, colors, queries} = properties
@@ -55,7 +55,7 @@ class StepPlot extends PureComponent<Props> {
               options={this.options}
               timeRange={timeRange}
               timeSeries={dygraphsData}
-              handleSetHoverTime={handleSetHoverTime}
+              onSetHoverTime={onSetHoverTime}
             />
           </DygraphCell>
         )}

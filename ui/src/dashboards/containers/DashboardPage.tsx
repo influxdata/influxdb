@@ -22,7 +22,7 @@ import * as viewActions from 'src/dashboards/actions/v2/views'
 // Utils
 import {getDeep} from 'src/utils/wrappers'
 import {updateDashboardLinks} from 'src/dashboards/utils/dashboardSwitcherLinks'
-import AutoRefresh from 'src/utils/AutoRefresh'
+import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {createView} from 'src/shared/utils/view'
 import {cellAddFailed} from 'src/shared/copy/notifications'
 
@@ -133,7 +133,7 @@ class DashboardPage extends Component<Props, State> {
   public async componentDidMount() {
     const {autoRefresh} = this.props
 
-    AutoRefresh.poll(autoRefresh)
+    GlobalAutoRefresher.poll(autoRefresh)
 
     window.addEventListener('resize', this.handleWindowResize, true)
 
@@ -153,12 +153,12 @@ class DashboardPage extends Component<Props, State> {
     }
 
     if (autoRefresh !== prevProps.autoRefresh) {
-      AutoRefresh.poll(autoRefresh)
+      GlobalAutoRefresher.poll(autoRefresh)
     }
   }
 
   public componentWillUnmount() {
-    AutoRefresh.stopPolling()
+    GlobalAutoRefresher.stopPolling()
 
     window.removeEventListener('resize', this.handleWindowResize, true)
   }
