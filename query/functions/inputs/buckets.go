@@ -2,6 +2,8 @@ package inputs
 
 import (
 	"fmt"
+
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
 
 	"github.com/influxdata/flux"
@@ -21,7 +23,7 @@ type BucketsDecoder struct {
 	orgID   platform.ID
 	deps    BucketDependencies
 	buckets []*platform.Bucket
-	alloc   *execute.Allocator
+	alloc   *memory.Allocator
 }
 
 func (bd *BucketsDecoder) Connect() error {

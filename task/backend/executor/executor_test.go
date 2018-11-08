@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"reflect"
 	"sync"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
@@ -170,7 +170,7 @@ func newFakeResult() *fakeResult {
 	meta := []flux.ColMeta{{Label: "x", Type: flux.TInt}}
 	vals := []values.Value{values.NewInt(int64(1))}
 	gk := execute.NewGroupKey(meta, vals)
-	a := &execute.Allocator{Limit: math.MaxInt64}
+	a := &memory.Allocator{}
 	b := execute.NewColListTableBuilder(gk, a)
 	i, _ := b.AddCol(meta[0])
 	b.AppendInt(i, int64(1))

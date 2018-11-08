@@ -38,9 +38,9 @@ func (r *responseIterator) Next() flux.Result {
 	return newQueryResult(&res)
 }
 
-// Cancel is a noop.
+// Release is a noop.
 // It is used to implement flux.ResultIterator.
-func (r *responseIterator) Cancel() {}
+func (r *responseIterator) Release() {}
 
 // Err returns an error if the response contained an error.
 // It is used to implement flux.ResultIterator.

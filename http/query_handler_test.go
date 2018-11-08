@@ -161,7 +161,7 @@ func TestFluxQueryService_Query(t *testing.T) {
 			if tt.wantErr {
 				return
 			}
-			defer res.Cancel()
+			defer res.Release()
 
 			enc := csv.NewMultiResultEncoder(csv.ResultEncoderConfig{
 				NoHeader:  true,

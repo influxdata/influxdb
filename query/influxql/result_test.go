@@ -72,7 +72,7 @@ type resultErrorIterator struct {
 	Error string
 }
 
-func (*resultErrorIterator) Cancel()           {}
+func (*resultErrorIterator) Release()          {}
 func (*resultErrorIterator) More() bool        { return false }
 func (*resultErrorIterator) Next() flux.Result { panic("no results") }
 

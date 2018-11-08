@@ -47,7 +47,7 @@ func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *Prox
 			stats = s.Statistics()
 		}()
 	}
-	defer results.Cancel()
+	defer results.Release()
 
 	encoder := req.Dialect.Encoder()
 	n, err = encoder.Encode(w, results)
