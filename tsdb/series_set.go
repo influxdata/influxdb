@@ -218,8 +218,13 @@ func (s *SeriesIDSet) Diff(other *SeriesIDSet) {
 
 // Clone returns a new SeriesIDSet with a deep copy of the underlying bitmap.
 func (s *SeriesIDSet) Clone() *SeriesIDSet {
-	s.RLock()
-	defer s.RUnlock()
+	// Cloning the SeriesIDSet involves cloning s's bitmap.
+	// Unfortunately, if the bitmap is set to COW, the original bitmap is modified during clone,
+	// so we have to take a write lock rather than a read lock.
+	// For now, we'll just hold a write lock for clone; if this shows up as a bottleneck later,
+	// we can conditionally RLock if we are not COW.
+	s.Lock()
+	defer s.Unlock()
 	return s.CloneNoLock()
 }
 

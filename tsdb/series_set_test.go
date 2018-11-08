@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"runtime"
+	"sync"
 	"testing"
 )
 
@@ -59,7 +61,42 @@ func TestSeriesIDSet_AndNot(t *testing.T) {
 			}
 		})
 	}
+}
 
+// Ensure that cloning is race-free.
+func TestSeriesIDSet_Clone_Race(t *testing.T) {
+	main := NewSeriesIDSet()
+	for i := uint64(0); i < 1024; i++ {
+		main.AddNoLock(NewSeriesID(i))
+	}
+
+	// One test with a closure around the main SeriesIDSet,
+	// so that we can run a subtest with and without COW.
+	test := func(t *testing.T) {
+		n := 10 * (runtime.NumCPU() + 1)
+		clones := make([]*SeriesIDSet, n)
+		var wg sync.WaitGroup
+		wg.Add(n)
+		for i := 0; i < n; i++ {
+			go func(i int) {
+				defer wg.Done()
+				clones[i] = main.Clone()
+			}(i)
+		}
+
+		wg.Wait()
+		for _, o := range clones {
+			if !main.Equals(o) {
+				t.Fatalf("clone from goroutine wasn't equal to main")
+			}
+		}
+	}
+
+	main.SetCOW(false)
+	t.Run("without COW", test)
+
+	main.SetCOW(true)
+	t.Run("with COW", test)
 }
 
 var resultBool bool
@@ -468,7 +505,6 @@ func BenchmarkSeriesIDSet_AddMany(b *testing.B) {
 						}
 					})
 				})
-
 			}
 		})
 	}
