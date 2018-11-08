@@ -188,8 +188,6 @@ func run() error {
 	var pointsWriter storage.PointsWriter
 	{
 		config := storage.NewConfig()
-		config.EngineOptions.WALEnabled = true // Enable a disk-based WAL.
-		config.EngineOptions.Config = config.Config
 
 		engine := storage.NewEngine(enginePath, config, storage.WithRetentionEnforcer(bucketSvc))
 		engine.WithLogger(logger)

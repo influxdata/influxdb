@@ -341,7 +341,7 @@ func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
 		cur := generations[i]
 
 		// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
-		if cur.count() > 2 && cur.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(cur.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !cur.hasTombstones() {
+		if cur.count() > 2 && cur.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(cur.files[0].Path, 1) == MaxPointsPerBlock && !cur.hasTombstones() {
 			continue
 		}
 
@@ -426,7 +426,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 			var skip bool
 
 			// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
-			if len(generations) > 2 && group.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
+			if len(generations) > 2 && group.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) == MaxPointsPerBlock && !group.hasTombstones() {
 				skip = true
 			}
 
@@ -502,7 +502,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 		// Skip the file if it's over the max size and contains a full block or the generation is split
 		// over multiple files.  In the latter case, that would mean the data in the file spilled over
 		// the 2GB limit.
-		if g.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(g.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock {
+		if g.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(g.files[0].Path, 1) == MaxPointsPerBlock {
 			start = i + 1
 		}
 
@@ -546,7 +546,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 			}
 
 			// Skip the file if it's over the max size and it contains a full block
-			if gen.size() >= uint64(maxTSMFileSize) && c.FileStore.BlockCount(gen.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !gen.hasTombstones() {
+			if gen.size() >= uint64(maxTSMFileSize) && c.FileStore.BlockCount(gen.files[0].Path, 1) == MaxPointsPerBlock && !gen.hasTombstones() {
 				startIndex++
 				continue
 			}
@@ -846,7 +846,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	resC := make(chan res, concurrency)
 	for i := 0; i < concurrency; i++ {
 		go func(sp *Cache) {
-			iter := NewCacheKeyIterator(sp, tsdb.DefaultMaxPointsPerBlock, intC)
+			iter := NewCacheKeyIterator(sp, MaxPointsPerBlock, intC)
 			files, err := c.writeNewFiles(c.FileStore.NextGeneration(), 0, nil, iter, throttle)
 			resC <- res{files: files, err: err}
 
@@ -884,7 +884,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 	size := c.Size
 	if size <= 0 {
-		size = tsdb.DefaultMaxPointsPerBlock
+		size = MaxPointsPerBlock
 	}
 
 	c.mu.RLock()
@@ -1921,12 +1921,12 @@ func (c *cacheKeyIterator) encode() {
 	for i := 0; i < concurrency; i++ {
 		// Run one goroutine per CPU and encode a section of the key space concurrently
 		go func() {
-			tenc := getTimeEncoder(tsdb.DefaultMaxPointsPerBlock)
-			fenc := getFloatEncoder(tsdb.DefaultMaxPointsPerBlock)
-			benc := getBooleanEncoder(tsdb.DefaultMaxPointsPerBlock)
-			uenc := getUnsignedEncoder(tsdb.DefaultMaxPointsPerBlock)
-			senc := getStringEncoder(tsdb.DefaultMaxPointsPerBlock)
-			ienc := getIntegerEncoder(tsdb.DefaultMaxPointsPerBlock)
+			tenc := getTimeEncoder(MaxPointsPerBlock)
+			fenc := getFloatEncoder(MaxPointsPerBlock)
+			benc := getBooleanEncoder(MaxPointsPerBlock)
+			uenc := getUnsignedEncoder(MaxPointsPerBlock)
+			senc := getStringEncoder(MaxPointsPerBlock)
+			ienc := getIntegerEncoder(MaxPointsPerBlock)
 
 			defer putTimeEncoder(tenc)
 			defer putFloatEncoder(fenc)

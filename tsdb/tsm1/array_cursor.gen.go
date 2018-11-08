@@ -33,9 +33,9 @@ type floatArrayAscendingCursor struct {
 
 func newFloatArrayAscendingCursor() *floatArrayAscendingCursor {
 	c := &floatArrayAscendingCursor{
-		res: tsdb.NewFloatArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.NewFloatArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewFloatArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.NewFloatArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -169,9 +169,9 @@ type floatArrayDescendingCursor struct {
 
 func newFloatArrayDescendingCursor() *floatArrayDescendingCursor {
 	c := &floatArrayDescendingCursor{
-		res: tsdb.NewFloatArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.NewFloatArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewFloatArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.NewFloatArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -316,9 +316,9 @@ type integerArrayAscendingCursor struct {
 
 func newIntegerArrayAscendingCursor() *integerArrayAscendingCursor {
 	c := &integerArrayAscendingCursor{
-		res: tsdb.NewIntegerArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.NewIntegerArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewIntegerArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.NewIntegerArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -452,9 +452,9 @@ type integerArrayDescendingCursor struct {
 
 func newIntegerArrayDescendingCursor() *integerArrayDescendingCursor {
 	c := &integerArrayDescendingCursor{
-		res: tsdb.NewIntegerArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.NewIntegerArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewIntegerArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.NewIntegerArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -599,9 +599,9 @@ type unsignedArrayAscendingCursor struct {
 
 func newUnsignedArrayAscendingCursor() *unsignedArrayAscendingCursor {
 	c := &unsignedArrayAscendingCursor{
-		res: tsdb.NewUnsignedArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.NewUnsignedArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewUnsignedArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.NewUnsignedArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -735,9 +735,9 @@ type unsignedArrayDescendingCursor struct {
 
 func newUnsignedArrayDescendingCursor() *unsignedArrayDescendingCursor {
 	c := &unsignedArrayDescendingCursor{
-		res: tsdb.NewUnsignedArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.NewUnsignedArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewUnsignedArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.NewUnsignedArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -882,9 +882,9 @@ type stringArrayAscendingCursor struct {
 
 func newStringArrayAscendingCursor() *stringArrayAscendingCursor {
 	c := &stringArrayAscendingCursor{
-		res: tsdb.NewStringArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.NewStringArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewStringArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.NewStringArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -1018,9 +1018,9 @@ type stringArrayDescendingCursor struct {
 
 func newStringArrayDescendingCursor() *stringArrayDescendingCursor {
 	c := &stringArrayDescendingCursor{
-		res: tsdb.NewStringArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.NewStringArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewStringArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.NewStringArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -1165,9 +1165,9 @@ type booleanArrayAscendingCursor struct {
 
 func newBooleanArrayAscendingCursor() *booleanArrayAscendingCursor {
 	c := &booleanArrayAscendingCursor{
-		res: tsdb.NewBooleanArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.NewBooleanArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewBooleanArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.NewBooleanArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -1301,9 +1301,9 @@ type booleanArrayDescendingCursor struct {
 
 func newBooleanArrayDescendingCursor() *booleanArrayDescendingCursor {
 	c := &booleanArrayDescendingCursor{
-		res: tsdb.NewBooleanArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.NewBooleanArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.NewBooleanArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.NewBooleanArrayLen(MaxPointsPerBlock)
 	return c
 }
 

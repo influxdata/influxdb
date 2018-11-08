@@ -80,7 +80,7 @@ func MustNewIndex(c tsi1.Config) *Index {
 		panic(err)
 	}
 
-	seriesPath, err := ioutil.TempDir(rootPath, tsdb.DefaultSeriesFileDirectory)
+	seriesPath, err := ioutil.TempDir(rootPath, "_series")
 	if err != nil {
 		panic(err)
 	}
@@ -90,7 +90,7 @@ func MustNewIndex(c tsi1.Config) *Index {
 		panic(err)
 	}
 
-	i := tsi1.NewIndex(sfile, "remove-me", c, tsi1.WithPath(filepath.Join(rootPath, "index")))
+	i := tsi1.NewIndex(sfile, c, tsi1.WithPath(filepath.Join(rootPath, "index")))
 
 	if testing.Verbose() {
 		i.WithLogger(logger.New(os.Stderr))
@@ -141,7 +141,8 @@ func (i *Index) Reopen() error {
 		return err
 	}
 
-	i.Index = tsi1.NewIndex(i.SeriesFile(), "remove-me", i.config, tsi1.WithPath(filepath.Join(i.rootPath, "index")))
+	i.Index = tsi1.NewIndex(i.SeriesFile(), i.config,
+		tsi1.WithPath(filepath.Join(i.rootPath, "index")))
 	return i.Index.Open()
 }
 
@@ -212,9 +213,9 @@ func BenchmarkIndex_TagSets(b *testing.B) {
 
 	// This benchmark will merge eight bitsets each containing ~10,000 series IDs.
 	b.Run("1M series", func(b *testing.B) {
-		b.ReportAllocs()
 		idx := MustOpenNewIndex(tsi1.NewConfig())
 		setup(idx)
+		defer idx.Close()
 
 		name := []byte("m4")
 		opt := query.IteratorOptions{Condition: influxql.MustParseExpr(`"tag5"::tag = 'value0'`)}
@@ -222,6 +223,9 @@ func BenchmarkIndex_TagSets(b *testing.B) {
 		ts := func() ([]*query.TagSet, error) {
 			return idx.Index.TagSets(name, opt)
 		}
+
+		b.ReportAllocs()
+		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
 			// Will call TagSets on the appropriate implementation.
@@ -342,7 +346,6 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	}
 
 	queries := []int{1e5}
-
 	for _, queryN := range queries {
 		b.Run(fmt.Sprintf("queries %d", queryN), func(b *testing.B) {
 			b.Run("cache", func(b *testing.B) {

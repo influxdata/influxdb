@@ -32,9 +32,9 @@ type {{$type}} struct {
 
 func new{{$Type}}() *{{$type}} {
 	c := &{{$type}}{
-		res: tsdb.New{{.Name}}ArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.New{{.Name}}ArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.New{{.Name}}ArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.New{{.Name}}ArrayLen(MaxPointsPerBlock)
 	return c
 }
 
@@ -171,9 +171,9 @@ type {{$type}} struct {
 
 func new{{$Type}}() *{{$type}} {
 	c := &{{$type}}{
-		res: tsdb.New{{.Name}}ArrayLen(tsdb.DefaultMaxPointsPerBlock),
+		res: tsdb.New{{.Name}}ArrayLen(MaxPointsPerBlock),
 	}
-	c.tsm.buf = tsdb.New{{.Name}}ArrayLen(tsdb.DefaultMaxPointsPerBlock)
+	c.tsm.buf = tsdb.New{{.Name}}ArrayLen(MaxPointsPerBlock)
 	return c
 }
 

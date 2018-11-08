@@ -6,10 +6,6 @@ import "github.com/influxdata/platform/toml"
 // write-ahead log file will compact into an index file.
 const DefaultMaxIndexLogFileSize = 1 * 1024 * 1024 // 1MB
 
-// DefaultIndexDirectoryName is the default name of the directory holding the
-// index data.
-const DefaultIndexDirectoryName = "index"
-
 // Config holds configurable Index options.
 type Config struct {
 	// MaxIndexLogFileSize is the threshold, in bytes, when an index write-ahead log file will

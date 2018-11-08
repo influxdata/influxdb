@@ -15,7 +15,6 @@ import (
 
 	"github.com/influxdata/platform/pkg/bytesutil"
 	"github.com/influxdata/platform/pkg/file"
-	"github.com/influxdata/platform/tsdb"
 )
 
 // ErrFileInUse is returned when attempting to remove or close a TSM file that is still being used.
@@ -252,7 +251,10 @@ func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 }
 
 // WithObserver sets the observer for the TSM reader.
-func (t *TSMReader) WithObserver(obs tsdb.FileStoreObserver) {
+func (t *TSMReader) WithObserver(obs FileStoreObserver) {
+	if obs == nil {
+		obs = noFileStoreObserver{}
+	}
 	t.tombstoner.WithObserver(obs)
 }
 

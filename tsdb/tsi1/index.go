@@ -25,9 +25,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// IndexName is the name of the index.
-const IndexName = tsdb.TSI1IndexName
-
 // DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache.
 const DefaultSeriesIDSetCacheSize = 100
 
@@ -123,8 +120,7 @@ type Index struct {
 	logger             *zap.Logger // Index's logger.
 
 	// The following must be set when initializing an Index.
-	sfile    *tsdb.SeriesFile // series lookup file
-	database string           // Name of database.
+	sfile *tsdb.SeriesFile // series lookup file
 
 	// Index's version.
 	version int
@@ -138,14 +134,13 @@ func (i *Index) UniqueReferenceID() uintptr {
 }
 
 // NewIndex returns a new instance of Index.
-func NewIndex(sfile *tsdb.SeriesFile, database string, c Config, options ...IndexOption) *Index {
+func NewIndex(sfile *tsdb.SeriesFile, c Config, options ...IndexOption) *Index {
 	idx := &Index{
 		tagValueCache:  NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
 		maxLogFileSize: int64(c.MaxIndexLogFileSize),
 		logger:         zap.NewNop(),
 		version:        Version,
 		sfile:          sfile,
-		database:       database,
 		PartitionN:     DefaultPartitionN,
 	}
 
@@ -172,16 +167,10 @@ func (i *Index) Bytes() int {
 	b += int(unsafe.Sizeof(i.logger))
 	b += int(unsafe.Sizeof(i.sfile))
 	// Do not count SeriesFile because it belongs to the code that constructed this Index.
-	b += int(unsafe.Sizeof(i.database)) + len(i.database)
 	b += int(unsafe.Sizeof(i.version))
 	b += int(unsafe.Sizeof(i.PartitionN))
 	i.mu.RUnlock()
 	return b
-}
-
-// Database returns the name of the database the index was initialized with.
-func (i *Index) Database() string {
-	return i.database
 }
 
 // WithLogger sets the logger on the index after it's been created.
@@ -191,9 +180,6 @@ func (i *Index) Database() string {
 func (i *Index) WithLogger(l *zap.Logger) {
 	i.logger = l.With(zap.String("index", "tsi"))
 }
-
-// Type returns the type of Index this is.
-func (i *Index) Type() string { return IndexName }
 
 // SeriesFile returns the series file attached to the index.
 func (i *Index) SeriesFile() *tsdb.SeriesFile { return i.sfile }

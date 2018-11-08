@@ -150,12 +150,17 @@ func NewWAL(path string) *WAL {
 	}
 }
 
-// enableTraceLogging must be called before the WAL is opened.
-func (l *WAL) enableTraceLogging(enabled bool) {
+// EnableTraceLogging must be called before the WAL is opened.
+func (l *WAL) EnableTraceLogging(enabled bool) {
 	l.traceLogging = enabled
 	if enabled {
 		l.traceLogger = l.logger
 	}
+}
+
+// WithFsyncDelay sets the fsync delay and should be called before the WAL is opened.
+func (l *WAL) WithFsyncDelay(delay time.Duration) {
+	l.syncDelay = delay
 }
 
 // WithLogger sets the WAL's logger.

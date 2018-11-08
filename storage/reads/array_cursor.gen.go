@@ -10,7 +10,13 @@ import (
 	"errors"
 
 	"github.com/influxdata/platform/tsdb/cursors"
-	"github.com/influxdata/platform/tsdb/defaults"
+)
+
+const (
+	// MaxPointsPerBlock is the maximum number of points in an encoded
+	// block in a TSM file. It should match the value in the tsm1
+	// package, but we don't want to import it.
+	MaxPointsPerBlock = 1000
 )
 
 // ********************
@@ -28,7 +34,7 @@ func newFloatFilterArrayCursor(cond expression) *floatArrayFilterCursor {
 	return &floatArrayFilterCursor{
 		cond: cond,
 		m:    &singleValue{},
-		res:  cursors.NewFloatArrayLen(defaults.DefaultMaxPointsPerBlock),
+		res:  cursors.NewFloatArrayLen(MaxPointsPerBlock),
 		tmp:  &cursors.FloatArray{},
 	}
 }
@@ -61,7 +67,7 @@ LOOP:
 				c.res.Timestamps[pos] = a.Timestamps[i]
 				c.res.Values[pos] = v
 				pos++
-				if pos >= defaults.DefaultMaxPointsPerBlock {
+				if pos >= MaxPointsPerBlock {
 					c.tmp.Timestamps = a.Timestamps[i+1:]
 					c.tmp.Values = a.Values[i+1:]
 					break LOOP
@@ -244,7 +250,7 @@ func newIntegerFilterArrayCursor(cond expression) *integerArrayFilterCursor {
 	return &integerArrayFilterCursor{
 		cond: cond,
 		m:    &singleValue{},
-		res:  cursors.NewIntegerArrayLen(defaults.DefaultMaxPointsPerBlock),
+		res:  cursors.NewIntegerArrayLen(MaxPointsPerBlock),
 		tmp:  &cursors.IntegerArray{},
 	}
 }
@@ -277,7 +283,7 @@ LOOP:
 				c.res.Timestamps[pos] = a.Timestamps[i]
 				c.res.Values[pos] = v
 				pos++
-				if pos >= defaults.DefaultMaxPointsPerBlock {
+				if pos >= MaxPointsPerBlock {
 					c.tmp.Timestamps = a.Timestamps[i+1:]
 					c.tmp.Values = a.Values[i+1:]
 					break LOOP
@@ -460,7 +466,7 @@ func newUnsignedFilterArrayCursor(cond expression) *unsignedArrayFilterCursor {
 	return &unsignedArrayFilterCursor{
 		cond: cond,
 		m:    &singleValue{},
-		res:  cursors.NewUnsignedArrayLen(defaults.DefaultMaxPointsPerBlock),
+		res:  cursors.NewUnsignedArrayLen(MaxPointsPerBlock),
 		tmp:  &cursors.UnsignedArray{},
 	}
 }
@@ -493,7 +499,7 @@ LOOP:
 				c.res.Timestamps[pos] = a.Timestamps[i]
 				c.res.Values[pos] = v
 				pos++
-				if pos >= defaults.DefaultMaxPointsPerBlock {
+				if pos >= MaxPointsPerBlock {
 					c.tmp.Timestamps = a.Timestamps[i+1:]
 					c.tmp.Values = a.Values[i+1:]
 					break LOOP
@@ -676,7 +682,7 @@ func newStringFilterArrayCursor(cond expression) *stringArrayFilterCursor {
 	return &stringArrayFilterCursor{
 		cond: cond,
 		m:    &singleValue{},
-		res:  cursors.NewStringArrayLen(defaults.DefaultMaxPointsPerBlock),
+		res:  cursors.NewStringArrayLen(MaxPointsPerBlock),
 		tmp:  &cursors.StringArray{},
 	}
 }
@@ -709,7 +715,7 @@ LOOP:
 				c.res.Timestamps[pos] = a.Timestamps[i]
 				c.res.Values[pos] = v
 				pos++
-				if pos >= defaults.DefaultMaxPointsPerBlock {
+				if pos >= MaxPointsPerBlock {
 					c.tmp.Timestamps = a.Timestamps[i+1:]
 					c.tmp.Values = a.Values[i+1:]
 					break LOOP
@@ -854,7 +860,7 @@ func newBooleanFilterArrayCursor(cond expression) *booleanArrayFilterCursor {
 	return &booleanArrayFilterCursor{
 		cond: cond,
 		m:    &singleValue{},
-		res:  cursors.NewBooleanArrayLen(defaults.DefaultMaxPointsPerBlock),
+		res:  cursors.NewBooleanArrayLen(MaxPointsPerBlock),
 		tmp:  &cursors.BooleanArray{},
 	}
 }
@@ -887,7 +893,7 @@ LOOP:
 				c.res.Timestamps[pos] = a.Timestamps[i]
 				c.res.Values[pos] = v
 				pos++
-				if pos >= defaults.DefaultMaxPointsPerBlock {
+				if pos >= MaxPointsPerBlock {
 					c.tmp.Timestamps = a.Timestamps[i+1:]
 					c.tmp.Values = a.Values[i+1:]
 					break LOOP

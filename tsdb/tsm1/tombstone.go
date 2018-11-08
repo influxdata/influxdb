@@ -15,7 +15,6 @@ import (
 	"sync"
 
 	"github.com/influxdata/platform/pkg/file"
-	"github.com/influxdata/platform/tsdb"
 )
 
 const (
@@ -55,7 +54,7 @@ type Tombstoner struct {
 	lastAppliedOffset int64
 
 	// Optional observer for when tombstone files are written.
-	obs tsdb.FileStoreObserver
+	obs FileStoreObserver
 }
 
 // NewTombstoner constructs a Tombstoner for the given path. FilterFn can be nil.
@@ -78,7 +77,10 @@ type Tombstone struct {
 }
 
 // WithObserver sets a FileStoreObserver for when the tombstone file is written.
-func (t *Tombstoner) WithObserver(obs tsdb.FileStoreObserver) {
+func (t *Tombstoner) WithObserver(obs FileStoreObserver) {
+	if obs == nil {
+		obs = noFileStoreObserver{}
+	}
 	t.obs = obs
 }
 

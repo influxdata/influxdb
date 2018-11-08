@@ -16,6 +16,7 @@ import (
 
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/toml"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/tsi1"
@@ -62,7 +63,7 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.retentionFilter, "retention", "", "optional: retention policy")
 	fs.StringVar(&cmd.shardFilter, "shard", "", "optional: shard id")
 	fs.Int64Var(&cmd.maxLogFileSize, "max-log-file-size", tsi1.DefaultMaxIndexLogFileSize, "optional: maximum log file size")
-	fs.Uint64Var(&cmd.maxCacheSize, "max-cache-size", tsdb.DefaultCacheMaxMemorySize, "optional: maximum cache size")
+	fs.Uint64Var(&cmd.maxCacheSize, "max-cache-size", tsm1.DefaultCacheMaxMemorySize, "optional: maximum cache size")
 	fs.IntVar(&cmd.batchSize, "batch-size", defaultBatchSize, "optional: set the size of the batches we write to the index. Setting this can have adverse affects on performance and heap requirements")
 	fs.BoolVar(&cmd.Verbose, "v", false, "verbose")
 	fs.SetOutput(cmd.Stdout)
@@ -115,7 +116,7 @@ func (cmd *Command) run(dataDir, walDir string) error {
 func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 	cmd.Logger.Info("Rebuilding database", zap.String("name", dbName))
 
-	sfile := tsdb.NewSeriesFile(filepath.Join(dataDir, tsdb.DefaultSeriesFileDirectory))
+	sfile := tsdb.NewSeriesFile(filepath.Join(dataDir, storage.DefaultSeriesFileDirectoryName))
 	sfile.Logger = cmd.Logger
 	if err := sfile.Open(); err != nil {
 		return err
@@ -131,7 +132,7 @@ func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 		rpName := fi.Name()
 		if !fi.IsDir() {
 			continue
-		} else if rpName == tsdb.DefaultSeriesFileDirectory {
+		} else if rpName == storage.DefaultSeriesFileDirectoryName {
 			continue
 		} else if cmd.retentionFilter != "" && rpName != cmd.retentionFilter {
 			continue
@@ -225,7 +226,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 	c := tsi1.NewConfig()
 	c.MaxIndexLogFileSize = toml.Size(maxLogFileSize)
 
-	tsiIndex := tsi1.NewIndex(sfile, "", c,
+	tsiIndex := tsi1.NewIndex(sfile, c,
 		tsi1.WithPath(tmpPath),
 		tsi1.DisableFsync(),
 		// Each new series entry in a log file is ~12 bytes so this should
@@ -264,7 +265,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 
 	} else {
 		log.Info("Building cache from wal files")
-		cache := tsm1.NewCache(tsdb.DefaultCacheMaxMemorySize)
+		cache := tsm1.NewCache(tsm1.DefaultCacheMaxMemorySize)
 		loader := tsm1.NewCacheLoader(walPaths)
 		loader.WithLogger(log)
 		if err := loader.Load(cache); err != nil {

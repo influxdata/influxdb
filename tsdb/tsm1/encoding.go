@@ -45,7 +45,7 @@ func init() {
 		vals = vals[:0]
 		// Check one out to force the allocation now and hold onto it
 		for i := 0; i < runtime.NumCPU(); i++ {
-			v := p.Get(tsdb.DefaultMaxPointsPerBlock)
+			v := p.Get(MaxPointsPerBlock)
 			vals = append(vals, v)
 		}
 		// Add them all back
