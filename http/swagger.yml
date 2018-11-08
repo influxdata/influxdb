@@ -3121,6 +3121,13 @@ paths:
       summary: Update password
       security:
         - basicAuth: []
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of the user
       requestBody:
         description: new password
         required: true
