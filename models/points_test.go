@@ -15,6 +15,11 @@ import (
 	"github.com/influxdata/platform/models"
 )
 
+func init() {
+	// Force uint support to be enabled for testing.
+	models.EnableUintSupport()
+}
+
 var (
 	tags   = models.NewTags(map[string]string{"foo": "bar", "apple": "orange", "host": "serverA", "region": "uswest"})
 	fields = models.Fields{
@@ -82,7 +87,7 @@ func TestMarshalFields(t *testing.T) {
 }
 
 func TestTags_HashKey(t *testing.T) {
-	tags = models.NewTags(map[string]string{"A FOO": "bar", "APPLE": "orange", "host": "serverA", "region": "uswest"})
+	tags := models.NewTags(map[string]string{"A FOO": "bar", "APPLE": "orange", "host": "serverA", "region": "uswest"})
 	got := tags.HashKey()
 	if exp := ",A\\ FOO=bar,APPLE=orange,host=serverA,region=uswest"; string(got) != exp {
 		t.Log("got: ", string(got))
@@ -96,6 +101,7 @@ func BenchmarkMarshal(b *testing.B) {
 		tags.HashKey()
 	}
 }
+
 func TestPoint_Tags(t *testing.T) {
 	examples := []struct {
 		Point string
@@ -128,7 +134,6 @@ func TestPoint_Tags(t *testing.T) {
 					t.Fatalf("got %#v (%s), expected %#v", tags, tags.String(), example.Tags)
 				}
 			}
-
 		})
 	}
 }
@@ -142,7 +147,6 @@ func TestPoint_StringSize(t *testing.T) {
 			t.Errorf("Incorrect length for %q. got %v, exp %v", s, l, len(s))
 		}
 	})
-
 }
 
 func TestPoint_AppendString(t *testing.T) {
@@ -2257,7 +2261,6 @@ func TestNewPointsRejectsMaxKey(t *testing.T) {
 }
 
 func TestPoint_FieldIterator_Simple(t *testing.T) {
-
 	p, err := models.ParsePoints([]byte(`m v=42i,f=42 36`))
 	if err != nil {
 		t.Fatal(err)
@@ -2336,7 +2339,6 @@ func toFields(fi models.FieldIterator) models.Fields {
 }
 
 func TestPoint_FieldIterator_FieldMap(t *testing.T) {
-
 	points, err := models.ParsePointsString(`
 m v=42
 m v=42i
@@ -2543,9 +2545,4 @@ func BenchmarkMakeKey(b *testing.B) {
 			}
 		})
 	}
-}
-
-func init() {
-	// Force uint support to be enabled for testing.
-	models.EnableUintSupport()
 }
