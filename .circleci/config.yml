@@ -52,8 +52,7 @@ jobs:
       - run: make vet
       - run: make checkfmt
       - run: make checktidy
-      # For now stop testing race conditions as we think it is taking too much memory on circle
-      # - run: make test-go-race # This doesn't use the test cache, and will not complete quickly.
+      - run: make test-go-race # This doesn't use the test cache because of -count=1, so it will not complete quickly.
       # TODO add these checks to the Makefile
       # - run: go get -v -t -d ./...
 
