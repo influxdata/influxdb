@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -207,6 +208,26 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 		int(config.Compaction.Throughput),
 		int(config.Compaction.ThroughputBurst))
 
+	// determine max concurrent compactions informed by the system
+	maxCompactions := config.Compaction.MaxConcurrent
+	if maxCompactions == 0 {
+		maxCompactions = runtime.GOMAXPROCS(0) / 2 // Default to 50% of cores for compactions
+
+		// On systems with more cores, cap at 4 to reduce disk utilization.
+		if maxCompactions > 4 {
+			maxCompactions = 4
+		}
+
+		if maxCompactions < 1 {
+			maxCompactions = 1
+		}
+	}
+
+	// Don't allow more compactions to run than cores.
+	if maxCompactions > runtime.GOMAXPROCS(0) {
+		maxCompactions = runtime.GOMAXPROCS(0)
+	}
+
 	logger := zap.NewNop()
 	stats := &EngineStatistics{}
 	e := &Engine{
@@ -229,8 +250,8 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 		enableCompactionsOnOpen:       true,
 		formatFileName:                DefaultFormatFileName,
 		stats:                         stats,
-		compactionLimiter:             limiter.NewFixed(config.Compaction.MaxConcurrent),
-		scheduler:                     newScheduler(stats, config.Compaction.MaxConcurrent),
+		compactionLimiter:             limiter.NewFixed(maxCompactions),
+		scheduler:                     newScheduler(stats, maxCompactions),
 	}
 
 	for _, option := range options {
