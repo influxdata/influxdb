@@ -13,6 +13,7 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/binaryutil"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -35,6 +36,9 @@ type SeriesFile struct {
 	path       string
 	partitions []*SeriesPartition
 
+	defaultMetricLabels prometheus.Labels
+	metrics             *seriesFileMetrics
+
 	refs sync.RWMutex // RWMutex to track references to the SeriesFile that are in use.
 
 	Logger *zap.Logger
@@ -53,6 +57,12 @@ func (f *SeriesFile) WithLogger(log *zap.Logger) {
 	f.Logger = log.With(zap.String("service", "series-file"))
 }
 
+// SetDefaultMetricLabels sets the default labels for metrics on the Series File.
+// It must be called before the SeriesFile is opened.
+func (f *SeriesFile) SetDefaultMetricLabels(labels prometheus.Labels) {
+	f.defaultMetricLabels = labels
+}
+
 // Open memory maps the data file at the file's path.
 func (f *SeriesFile) Open() error {
 	// Wait for all references to be released and prevent new ones from being acquired.
@@ -64,12 +74,18 @@ func (f *SeriesFile) Open() error {
 		return err
 	}
 
+	f.metrics = newSeriesFileMetrics(f.defaultMetricLabels) // All partitions must share the same metrics.
+
 	// Open partitions.
 	f.partitions = make([]*SeriesPartition, 0, SeriesFilePartitionN)
 	for i := 0; i < SeriesFilePartitionN; i++ {
 		// TODO(edd): These partition initialisation should be moved up to NewSeriesFile.
 		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
+
+		// Set the metric tracker on the partition with any injected default labels.
+		p.tracker = newSeriesPartitionTracker(f.metrics, p.ID())
+
 		if err := p.Open(); err != nil {
 			f.Close()
 			return err
@@ -298,6 +314,16 @@ func (f *SeriesFile) SeriesKeyPartition(key []byte) *SeriesPartition {
 		return nil
 	}
 	return f.partitions[partitionID]
+}
+
+// PrometheusCollectors returns all the prometheus metrics associated with the series file.
+func (f *SeriesFile) PrometheusCollectors() []prometheus.Collector {
+	collectors := f.metrics.PrometheusCollectors() // Shared per-partition metrics.
+
+	for _, p := range f.partitions {
+		collectors = append(collectors, p.PrometheusCollectors()...)
+	}
+	return collectors
 }
 
 // AppendSeriesKey serializes name and tags to a byte slice.

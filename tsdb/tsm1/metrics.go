@@ -53,7 +53,7 @@ type compactionMetrics struct {
 	CompactionDuration *prometheus.HistogramVec
 	CompactionQueue    *prometheus.GaugeVec
 
-	// The following metrics include a ``"status" = {ok, error, dropped}` label
+	// The following metrics include a ``"status" = {ok, error}` label
 	Compactions *prometheus.CounterVec
 }
 
@@ -312,7 +312,7 @@ func newWALMetrics(labels prometheus.Labels) *walMetrics {
 	}
 }
 
-// Labels returns a copy of labels for use with file metrics.
+// Labels returns a copy of labels for use with WAL metrics.
 func (m *walMetrics) Labels() prometheus.Labels {
 	l := make(map[string]string, len(m.labels))
 	for k, v := range m.labels {

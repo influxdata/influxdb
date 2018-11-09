@@ -144,6 +144,16 @@ func (idx *SeriesIndex) OnDiskCount() uint64 { return idx.count }
 // InMemCount returns the number of series in the in-memory index.
 func (idx *SeriesIndex) InMemCount() uint64 { return uint64(len(idx.idOffsetMap)) }
 
+// OnDiskSize returns the on-disk size of the index in bytes.
+func (idx *SeriesIndex) OnDiskSize() uint64 { return uint64(len(idx.data)) }
+
+// InMemSize returns the heap size of the index in bytes. The returned value is
+// an estimation and does not include include all allocated memory.
+func (idx *SeriesIndex) InMemSize() uint64 {
+	n := len(idx.idOffsetMap)
+	return uint64(2*8*n) + uint64(len(idx.tombstones)*8)
+}
+
 func (idx *SeriesIndex) Insert(key []byte, id SeriesIDTyped, offset int64) {
 	idx.execEntry(SeriesEntryInsertFlag, id, offset, key)
 }

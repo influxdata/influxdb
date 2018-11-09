@@ -8,10 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/rhh"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -44,7 +46,8 @@ type SeriesPartition struct {
 
 	CompactThreshold int
 
-	Logger *zap.Logger
+	tracker *seriesPartitionTracker
+	Logger  *zap.Logger
 }
 
 // NewSeriesPartition returns a new instance of SeriesPartition.
@@ -54,6 +57,7 @@ func NewSeriesPartition(id int, path string) *SeriesPartition {
 		path:             path,
 		closing:          make(chan struct{}),
 		CompactThreshold: DefaultSeriesPartitionCompactThreshold,
+		tracker:          newSeriesPartitionTracker(newSeriesFileMetrics(nil), id),
 		Logger:           zap.NewNop(),
 		seq:              uint64(id) + 1,
 	}
@@ -75,7 +79,6 @@ func (p *SeriesPartition) Open() error {
 		if err := p.openSegments(); err != nil {
 			return err
 		}
-
 		// Init last segment for writes.
 		if err := p.activeSegment().InitForWrite(); err != nil {
 			return err
@@ -87,13 +90,14 @@ func (p *SeriesPartition) Open() error {
 		} else if p.index.Recover(p.segments); err != nil {
 			return err
 		}
-
 		return nil
 	}(); err != nil {
 		p.Close()
 		return err
 	}
 
+	p.tracker.SetSeries(p.index.Count()) // Set series count metric.
+	p.tracker.SetDiskSize(p.DiskSize())  // Set on-disk size metric.
 	return nil
 }
 
@@ -134,6 +138,7 @@ func (p *SeriesPartition) openSegments() error {
 		p.segments = append(p.segments, segment)
 	}
 
+	p.tracker.SetSegments(uint64(len(p.segments)))
 	return nil
 }
 
@@ -170,8 +175,16 @@ func (p *SeriesPartition) ID() int { return p.id }
 // Path returns the path to the partition.
 func (p *SeriesPartition) Path() string { return p.path }
 
-// Path returns the path to the series index.
+// IndexPath returns the path to the series index.
 func (p *SeriesPartition) IndexPath() string { return filepath.Join(p.path, "index") }
+
+// PrometheusCollectors returns the collectors associated with the partition.
+func (p *SeriesPartition) PrometheusCollectors() []prometheus.Collector {
+	// SeriesFile metrics
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.index.keyIDMap.PrometheusCollectors() // Metrics for RHH.
+}
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The ids parameter is modified to contain series IDs for all keys belonging to this partition.
@@ -283,6 +296,8 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 	for _, keyRange := range newKeyRanges {
 		p.index.Insert(p.seriesKeyByOffset(keyRange.offset), keyRange.id, keyRange.offset)
 	}
+	p.tracker.AddSeriesCreated(uint64(len(newKeyRanges))) // Track new series in metric.
+	p.tracker.AddSeries(uint64(len(newKeyRanges)))
 
 	// Check if we've crossed the compaction threshold.
 	if p.compactionsEnabled() && !p.compacting && p.CompactThreshold != 0 && p.index.InMemCount() >= uint64(p.CompactThreshold) {
@@ -290,13 +305,18 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 		log, logEnd := logger.NewOperation(p.Logger, "Series partition compaction", "series_partition_compaction", zap.String("path", p.path))
 
 		p.wg.Add(1)
+		p.tracker.IncCompactionsActive()
 		go func() {
 			defer p.wg.Done()
 
 			compactor := NewSeriesPartitionCompactor()
 			compactor.cancel = p.closing
-			if err := compactor.Compact(p); err != nil {
+			duration, err := compactor.Compact(p)
+			if err != nil {
+				p.tracker.IncCompactionErr()
 				log.Error("series partition compaction failed", zap.Error(err))
+			} else {
+				p.tracker.IncCompactionOK(duration)
 			}
 
 			logEnd()
@@ -305,6 +325,10 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 			p.mu.Lock()
 			p.compacting = false
 			p.mu.Unlock()
+			p.tracker.DecCompactionsActive()
+
+			// Disk size may have changed due to compaction.
+			p.tracker.SetDiskSize(p.DiskSize())
 		}()
 	}
 
@@ -348,7 +372,7 @@ func (p *SeriesPartition) DeleteSeriesID(id SeriesID) error {
 
 	// Mark tombstone in memory.
 	p.index.Delete(id)
-
+	p.tracker.SubSeries(1)
 	return nil
 }
 
@@ -415,6 +439,21 @@ func (p *SeriesPartition) SeriesCount() uint64 {
 	n := p.index.Count()
 	p.mu.RUnlock()
 	return n
+}
+
+// DiskSize returns the number of bytes taken up on disk by the partition.
+func (p *SeriesPartition) DiskSize() uint64 {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.diskSize()
+}
+
+func (p *SeriesPartition) diskSize() uint64 {
+	totalSize := p.index.OnDiskSize()
+	for _, segment := range p.segments {
+		totalSize += uint64(len(segment.Data()))
+	}
+	return totalSize
 }
 
 func (p *SeriesPartition) DisableCompactions() {
@@ -503,7 +542,8 @@ func (p *SeriesPartition) createSegment() (*SeriesSegment, error) {
 	if err := segment.InitForWrite(); err != nil {
 		return nil, err
 	}
-
+	p.tracker.SetSegments(uint64(len(p.segments)))
+	p.tracker.SetDiskSize(p.diskSize()) // Disk size will change with new segment.
 	return segment, nil
 }
 
@@ -525,6 +565,92 @@ func (p *SeriesPartition) seriesKeyByOffset(offset int64) []byte {
 	return nil
 }
 
+type seriesPartitionTracker struct {
+	metrics *seriesFileMetrics
+	id      int // ID of partition.
+}
+
+func newSeriesPartitionTracker(metrics *seriesFileMetrics, partition int) *seriesPartitionTracker {
+	return &seriesPartitionTracker{
+		metrics: metrics,
+		id:      partition,
+	}
+}
+
+// AddSeriesCreated increases the number of series created in the partition by n.
+func (t *seriesPartitionTracker) AddSeriesCreated(n uint64) {
+	labels := t.metrics.Labels(t.id)
+	t.metrics.SeriesCreated.With(labels).Add(float64(n))
+}
+
+// SetSeries sets the number of series in the partition.
+func (t *seriesPartitionTracker) SetSeries(n uint64) {
+	labels := t.metrics.Labels(t.id)
+	t.metrics.Series.With(labels).Set(float64(n))
+}
+
+// AddSeries increases the number of series in the partition by n.
+func (t *seriesPartitionTracker) AddSeries(n uint64) {
+	labels := t.metrics.Labels(t.id)
+	t.metrics.Series.With(labels).Add(float64(n))
+}
+
+// SubSeries decreases the number of series in the partition by n.
+func (t *seriesPartitionTracker) SubSeries(n uint64) {
+	labels := t.metrics.Labels(t.id)
+	t.metrics.Series.With(labels).Sub(float64(n))
+}
+
+// SetDiskSize sets the number of bytes used by files for in partition.
+func (t *seriesPartitionTracker) SetDiskSize(sz uint64) {
+	labels := t.metrics.Labels(t.id)
+	t.metrics.DiskSize.With(labels).Set(float64(sz))
+}
+
+// SetSegments sets the number of segments files for the partition.
+func (t *seriesPartitionTracker) SetSegments(n uint64) {
+	labels := t.metrics.Labels(t.id)
+	t.metrics.Segments.With(labels).Set(float64(n))
+}
+
+// IncCompactionsActive increments the number of active compactions for the
+// components of a partition (index and segments).
+func (t *seriesPartitionTracker) IncCompactionsActive() {
+	labels := t.metrics.Labels(t.id)
+	labels["component"] = "index" // TODO(edd): when we add segment compactions we will add a new label value.
+	t.metrics.CompactionsActive.With(labels).Inc()
+}
+
+// DecCompactionsActive decrements the number of active compactions for the
+// components of a partition (index and segments).
+func (t *seriesPartitionTracker) DecCompactionsActive() {
+	labels := t.metrics.Labels(t.id)
+	labels["component"] = "index" // TODO(edd): when we add segment compactions we will add a new label value.
+	t.metrics.CompactionsActive.With(labels).Dec()
+}
+
+// incCompactions increments the number of compactions for the partition.
+// Callers should use IncCompactionOK and IncCompactionErr.
+func (t *seriesPartitionTracker) incCompactions(status string, duration time.Duration) {
+	if duration > 0 {
+		labels := t.metrics.Labels(t.id)
+		labels["component"] = "index"
+		t.metrics.CompactionDuration.With(labels).Observe(duration.Seconds())
+	}
+
+	labels := t.metrics.Labels(t.id)
+	labels["status"] = status
+	t.metrics.Compactions.With(labels).Inc()
+}
+
+// IncCompactionOK increments the number of successful compactions for the partition.
+func (t *seriesPartitionTracker) IncCompactionOK(duration time.Duration) {
+	t.incCompactions("ok", duration)
+}
+
+// IncCompactionErr increments the number of failed compactions for the partition.
+func (t *seriesPartitionTracker) IncCompactionErr() { t.incCompactions("error", 0) }
+
 // SeriesPartitionCompactor represents an object reindexes a series partition and optionally compacts segments.
 type SeriesPartitionCompactor struct {
 	cancel <-chan struct{}
@@ -536,7 +662,7 @@ func NewSeriesPartitionCompactor() *SeriesPartitionCompactor {
 }
 
 // Compact rebuilds the series partition index.
-func (c *SeriesPartitionCompactor) Compact(p *SeriesPartition) error {
+func (c *SeriesPartitionCompactor) Compact(p *SeriesPartition) (time.Duration, error) {
 	// Snapshot the partitions and index so we can check tombstones and replay at the end under lock.
 	p.mu.RLock()
 	segments := CloneSeriesSegments(p.segments)
@@ -544,11 +670,14 @@ func (c *SeriesPartitionCompactor) Compact(p *SeriesPartition) error {
 	seriesN := p.index.Count()
 	p.mu.RUnlock()
 
+	now := time.Now()
+
 	// Compact index to a temporary location.
 	indexPath := index.path + ".compacting"
 	if err := c.compactIndexTo(index, seriesN, segments, indexPath); err != nil {
-		return err
+		return 0, err
 	}
+	duration := time.Since(now)
 
 	// Swap compacted index under lock & replay since compaction.
 	if err := func() error {
@@ -570,10 +699,10 @@ func (c *SeriesPartitionCompactor) Compact(p *SeriesPartition) error {
 		}
 		return nil
 	}(); err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return duration, nil
 }
 
 func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN uint64, segments []*SeriesSegment, path string) error {

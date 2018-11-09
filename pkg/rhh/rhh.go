@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/cespare/xxhash"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // HashMap represents a hash map that implements Robin Hood Hashing.
@@ -21,12 +22,15 @@ type HashMap struct {
 	loadFactor int
 
 	tmpKey []byte
+
+	tracker *rhhTracker
 }
 
 func NewHashMap(opt Options) *HashMap {
 	m := &HashMap{
 		capacity:   pow2(opt.Capacity), // Limited to 2^64.
 		loadFactor: opt.LoadFactor,
+		tracker:    newRHHTracker(newRHHMetrics("", "", nil)),
 	}
 	m.alloc()
 	return m
@@ -201,6 +205,19 @@ func (m *HashMap) Keys() [][]byte {
 	}
 	sort.Sort(byteSlices(a))
 	return a
+}
+
+// PrometheusCollectors returns the metrics associated with this hashmap.
+func (m *HashMap) PrometheusCollectors() []prometheus.Collector {
+	return m.tracker.metrics.PrometheusCollectors()
+}
+
+type rhhTracker struct {
+	metrics *rhhMetrics
+}
+
+func newRHHTracker(metrics *rhhMetrics) *rhhTracker {
+	return &rhhTracker{metrics: metrics}
 }
 
 type hashElem struct {

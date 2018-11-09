@@ -1,10 +1,10 @@
 package storage
 
 import (
+	"fmt"
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -136,7 +136,8 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		option(e)
 	}
 	// Set default metrics labels.
-	e.engine.WithDefaultMetricLabels(e.defaultMetricLabels)
+	e.engine.SetDefaultMetricLabels(e.defaultMetricLabels)
+	e.sfile.SetDefaultMetricLabels(e.defaultMetricLabels)
 
 	return e
 }
@@ -165,7 +166,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
 	// TODO(edd): Get prom metrics for index.
-	// TODO(edd): Get prom metrics for series file.
+	metrics = append(metrics, e.sfile.PrometheusCollectors()...)
 	metrics = append(metrics, e.engine.PrometheusCollectors()...)
 	metrics = append(metrics, e.retentionEnforcer.PrometheusCollectors()...)
 	return metrics
@@ -200,7 +201,7 @@ func (e *Engine) Open() error {
 	// For now we will just run on an interval as we only have the retention
 	// policy enforcer.
 	e.runRetentionEnforcer()
-
+	
 	return nil
 }
 
