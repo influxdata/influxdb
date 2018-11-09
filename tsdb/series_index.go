@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
@@ -43,6 +44,10 @@ type SeriesIndex struct {
 	maxSeriesID SeriesID
 	maxOffset   int64
 
+	// metrics stores a shard instance of some Prometheus metrics. metrics
+	// must be set before Open is called.
+	metrics *rhh.Metrics
+
 	data         []byte // mmap data
 	keyIDData    []byte // key/id mmap data
 	idOffsetData []byte // id/offset mmap data
@@ -57,6 +62,13 @@ func NewSeriesIndex(path string) *SeriesIndex {
 	return &SeriesIndex{
 		path: path,
 	}
+}
+
+// setMetrics sets the metrics
+func (idx *SeriesIndex) setMetrics(metrics *rhh.Metrics, id int) {
+	idx.metrics = metrics
+	idx.metrics.Lab = idx.metrics.Labels()           // Copy labels
+	idx.metrics.Lab["partition_id"] = fmt.Sprint(id) // N.B., This MUST be the same as the other series file metric labels
 }
 
 // Open memory-maps the index file.
@@ -86,7 +98,10 @@ func (idx *SeriesIndex) Open() (err error) {
 		return err
 	}
 
-	idx.keyIDMap = rhh.NewHashMap(rhh.DefaultOptions)
+	options := rhh.DefaultOptions
+	options.Metrics = idx.metrics
+
+	idx.keyIDMap = rhh.NewHashMap(options)
 	idx.idOffsetMap = make(map[SeriesID]int64)
 	idx.tombstones = make(map[SeriesID]struct{})
 	return nil
@@ -109,7 +124,9 @@ func (idx *SeriesIndex) Close() (err error) {
 // Recover rebuilds the in-memory index for all new entries.
 func (idx *SeriesIndex) Recover(segments []*SeriesSegment) error {
 	// Allocate new in-memory maps.
-	idx.keyIDMap = rhh.NewHashMap(rhh.DefaultOptions)
+	options := rhh.DefaultOptions
+	options.Metrics = idx.metrics
+	idx.keyIDMap = rhh.NewHashMap(options)
 	idx.idOffsetMap = make(map[SeriesID]int64)
 	idx.tombstones = make(map[SeriesID]struct{})
 
@@ -176,7 +193,7 @@ func (idx *SeriesIndex) execEntry(flag uint8, id SeriesIDTyped, offset int64, ke
 	untypedID := id.SeriesID()
 	switch flag {
 	case SeriesEntryInsertFlag:
-		idx.keyIDMap.Put(key, id)
+		idx.keyIDMap.PutQuiet(key, id)
 		idx.idOffsetMap[untypedID] = offset
 
 		if untypedID.Greater(idx.maxSeriesID) {

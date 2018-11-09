@@ -31,7 +31,6 @@ func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
 	for k := range labels {
 		names = append(names, k)
 	}
-	names = append(names, "partition_id") // All metrics have a partition_id label
 	sort.Strings(names)
 
 	totalCompactions := append(names, "status")
@@ -70,7 +69,7 @@ func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
 			Namespace: namespace,
 			Subsystem: seriesFileSubsystem,
 			Name:      "index_compactions_active",
-			Help:      "Number of active compactions.",
+			Help:      "Number of active index compactions.",
 		}, names),
 		CompactionDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: namespace,

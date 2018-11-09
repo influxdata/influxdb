@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/influxdata/platform/logger"
+	"github.com/influxdata/platform/pkg/rhh"
 	"os"
 	"path/filepath"
 	"sort"
@@ -36,8 +38,13 @@ type SeriesFile struct {
 	path       string
 	partitions []*SeriesPartition
 
+	// N.B we have many partitions, but they must share the same metrics, so the
+	// metrics are managed in a single location (here in the SeriesFile), and
+	// each partition decorates the same metric measurements with different
+	// partition id label values.
 	defaultMetricLabels prometheus.Labels
-	metrics             *seriesFileMetrics
+	partitionMetrics    *seriesFileMetrics // Metrics for each partition.
+	indexMetrics        *rhh.Metrics       // Metrics for each partition's index Hashmap.
 
 	refs sync.RWMutex // RWMutex to track references to the SeriesFile that are in use.
 
@@ -61,10 +68,14 @@ func (f *SeriesFile) WithLogger(log *zap.Logger) {
 // It must be called before the SeriesFile is opened.
 func (f *SeriesFile) SetDefaultMetricLabels(labels prometheus.Labels) {
 	f.defaultMetricLabels = labels
+	f.defaultMetricLabels["partition_id"] = "" // All metrics have partition_id as a label.
 }
 
 // Open memory maps the data file at the file's path.
 func (f *SeriesFile) Open() error {
+	_, logEnd := logger.NewOperation(f.Logger, "Opening Series File", "series_file_open", zap.String("path", f.path))
+	defer logEnd()
+
 	// Wait for all references to be released and prevent new ones from being acquired.
 	f.refs.Lock()
 	defer f.refs.Unlock()
@@ -74,7 +85,8 @@ func (f *SeriesFile) Open() error {
 		return err
 	}
 
-	f.metrics = newSeriesFileMetrics(f.defaultMetricLabels) // All partitions must share the same metrics.
+	f.partitionMetrics = newSeriesFileMetrics(f.defaultMetricLabels) // All partitions must share the same metrics.
+	f.indexMetrics = rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", f.defaultMetricLabels)
 
 	// Open partitions.
 	f.partitions = make([]*SeriesPartition, 0, SeriesFilePartitionN)
@@ -83,8 +95,9 @@ func (f *SeriesFile) Open() error {
 		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
 
-		// Set the metric tracker on the partition with any injected default labels.
-		p.tracker = newSeriesPartitionTracker(f.metrics, p.ID())
+		// Set the metric trackers on the partition with any injected default labels.
+		p.tracker = newSeriesPartitionTracker(f.partitionMetrics, p.ID())
+		p.index.setMetrics(f.indexMetrics, p.ID())
 
 		if err := p.Open(); err != nil {
 			f.Close()
@@ -318,11 +331,8 @@ func (f *SeriesFile) SeriesKeyPartition(key []byte) *SeriesPartition {
 
 // PrometheusCollectors returns all the prometheus metrics associated with the series file.
 func (f *SeriesFile) PrometheusCollectors() []prometheus.Collector {
-	collectors := f.metrics.PrometheusCollectors() // Shared per-partition metrics.
-
-	for _, p := range f.partitions {
-		collectors = append(collectors, p.PrometheusCollectors()...)
-	}
+	collectors := f.partitionMetrics.PrometheusCollectors() // Shared per-partition metrics.
+	collectors = append(collectors, f.indexMetrics.PrometheusCollectors()...)
 	return collectors
 }
 

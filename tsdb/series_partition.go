@@ -13,7 +13,6 @@ import (
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/rhh"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -52,7 +51,7 @@ type SeriesPartition struct {
 
 // NewSeriesPartition returns a new instance of SeriesPartition.
 func NewSeriesPartition(id int, path string) *SeriesPartition {
-	return &SeriesPartition{
+	p := &SeriesPartition{
 		id:               id,
 		path:             path,
 		closing:          make(chan struct{}),
@@ -61,6 +60,8 @@ func NewSeriesPartition(id int, path string) *SeriesPartition {
 		Logger:           zap.NewNop(),
 		seq:              uint64(id) + 1,
 	}
+	p.index = NewSeriesIndex(p.IndexPath())
+	return p
 }
 
 // Open memory maps the data file at the partition's path.
@@ -84,7 +85,6 @@ func (p *SeriesPartition) Open() error {
 			return err
 		}
 
-		p.index = NewSeriesIndex(p.IndexPath())
 		if err := p.index.Open(); err != nil {
 			return err
 		} else if p.index.Recover(p.segments); err != nil {
@@ -177,14 +177,6 @@ func (p *SeriesPartition) Path() string { return p.path }
 
 // IndexPath returns the path to the series index.
 func (p *SeriesPartition) IndexPath() string { return filepath.Join(p.path, "index") }
-
-// PrometheusCollectors returns the collectors associated with the partition.
-func (p *SeriesPartition) PrometheusCollectors() []prometheus.Collector {
-	// SeriesFile metrics
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.index.keyIDMap.PrometheusCollectors() // Metrics for RHH.
-}
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The ids parameter is modified to contain series IDs for all keys belonging to this partition.
