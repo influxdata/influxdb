@@ -49,6 +49,7 @@ func init() {
 var skipTests = map[string]string{
 	"hardcoded_literal_1": "transpiler count query is off by 1 (https://github.com/influxdata/platform/issues/1278)",
 	"hardcoded_literal_3": "transpiler count query is off by 1 (https://github.com/influxdata/platform/issues/1278)",
+	"fuzz_join_within_cursor": "transpiler does not implement joining fields within a cursor (https://github.com/influxdata/platform/issues/1340)",
 }
 
 var querier = querytest.NewQuerier()
