@@ -15,8 +15,16 @@
 }
 
 .time-machine-container {
-  height: calc(100% - 120px);
+  flex-grow: 1;
   position: relative;
+
+  .threesizer.horizontal {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+  }
 }
 
 .time-machine-top {

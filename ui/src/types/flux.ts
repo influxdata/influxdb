@@ -14,7 +14,6 @@ export type OnToggleYield = (
 ) => void
 export type OnGenerateScript = () => void
 export type OnChangeScript = (script: string) => void
-export type OnSubmitScript = () => void
 export type ScriptUpToYield = (
   bodyID: string,
   declarationID: string,
@@ -32,7 +31,6 @@ export interface Context {
   source: Source
   onAddNode: OnAddNode
   onChangeArg: OnChangeArg
-  onSubmitScript: OnSubmitScript
   onChangeScript: OnChangeScript
   onDeleteFuncNode: OnDeleteFuncNode
   onGenerateScript: OnGenerateScript

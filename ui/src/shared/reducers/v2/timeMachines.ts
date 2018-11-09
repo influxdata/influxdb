@@ -11,10 +11,12 @@ import {
 import {TimeRange} from 'src/types/v2'
 import {NewView} from 'src/types/v2/dashboards'
 import {Action} from 'src/shared/actions/v2/timeMachines'
+import {InfluxLanguage} from 'src/types/v2/dashboards'
 
 export interface TimeMachineState {
   view: NewView
   timeRange: TimeRange
+  draftScript: string
 }
 
 export interface TimeMachinesState {
@@ -27,6 +29,7 @@ export interface TimeMachinesState {
 const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
   view: createView(),
+  draftScript: '',
 })
 
 const INITIAL_STATE: TimeMachinesState = {
@@ -77,6 +80,7 @@ const timeMachineReducer = (
       newActiveTimeMachine = {...activeTimeMachine, view}
       break
     }
+
     case 'SET_TIME_RANGE': {
       const {timeRange} = action.payload
 
@@ -89,6 +93,35 @@ const timeMachineReducer = (
       const view = convertView(activeTimeMachine.view, type)
 
       newActiveTimeMachine = {...activeTimeMachine, view}
+      break
+    }
+
+    case 'SET_DRAFT_SCRIPT': {
+      const {draftScript} = action.payload
+
+      newActiveTimeMachine = {...activeTimeMachine, draftScript}
+      break
+    }
+
+    case 'SUBMIT_SCRIPT': {
+      const view: any = activeTimeMachine.view
+
+      if (!view.properties.queries) {
+        break
+      }
+
+      const queries = [
+        {
+          type: InfluxLanguage.Flux,
+          text: activeTimeMachine.draftScript,
+          source: '',
+        },
+      ]
+
+      newActiveTimeMachine = {
+        ...activeTimeMachine,
+        view: {...view, properties: {...view.properties, queries}},
+      }
       break
     }
   }

@@ -7,6 +7,7 @@ import TimeMachineControls from 'src/shared/components/TimeMachineControls'
 import ViewComponent from 'src/shared/components/cells/View'
 import ViewTypeSelector from 'src/shared/components/ViewTypeSelector'
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
+import TimeMachineQueryEditor from 'src/shared/components/TimeMachineQueryEditor'
 
 // Actions
 import {setType} from 'src/shared/actions/v2/timeMachines'
@@ -31,6 +32,7 @@ interface DispatchProps {
 }
 
 type Props = StateProps & PassedProps & DispatchProps
+
 class TimeMachine extends PureComponent<Props> {
   public render() {
     return (
@@ -63,7 +65,7 @@ class TimeMachine extends PureComponent<Props> {
         handlePixels: 8,
         headerButtons: [],
         menuOptions: [],
-        render: () => this.customizationPanels,
+        render: () => this.bottom,
         headerOrientation: HANDLE_HORIZONTAL,
         size: 0.67,
       },
@@ -92,21 +94,21 @@ class TimeMachine extends PureComponent<Props> {
     )
   }
 
-  private get customizationPanels(): JSX.Element {
+  private get bottom(): JSX.Element {
     const {view, onUpdateType, activeTab} = this.props
 
-    return (
-      <div className="time-machine-customization">
-        {activeTab === TimeMachineTab.Queries ? (
-          <div />
-        ) : (
+    if (activeTab === TimeMachineTab.Queries) {
+      return <TimeMachineQueryEditor />
+    } else {
+      return (
+        <div className="time-machine-customization">
           <ViewTypeSelector
             type={view.properties.type}
             onUpdateType={onUpdateType}
           />
-        )}
-      </div>
-    )
+        </div>
+      )
+    }
   }
 }
 

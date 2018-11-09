@@ -15,7 +15,7 @@ import {EXCLUDED_KEYS} from 'src/shared/constants/fluxEditor'
 import {getSuggestions} from 'src/shared/utils/autoComplete'
 
 // Types
-import {OnChangeScript, OnSubmitScript, Suggestion} from 'src/types/flux'
+import {OnChangeScript, Suggestion} from 'src/types/flux'
 
 interface Gutter {
   line: number
@@ -29,11 +29,10 @@ interface Status {
 
 interface Props {
   script: string
-  visibility: string
   status: Status
   onChangeScript: OnChangeScript
-  onSubmitScript: OnSubmitScript
   suggestions: Suggestion[]
+  visibility?: string
 }
 
 interface Widget extends LineWidget {
@@ -50,6 +49,10 @@ interface EditorInstance extends IInstance {
 
 @ErrorHandling
 class FluxEditor extends PureComponent<Props, State> {
+  public static defaultProps = {
+    visibility: 'visible',
+  }
+
   private editor: EditorInstance
   private lineWidgets: Widget[] = []
 
@@ -102,15 +105,10 @@ class FluxEditor extends PureComponent<Props, State> {
           onBeforeChange={this.updateCode}
           onTouchStart={this.onTouchStart}
           editorDidMount={this.handleMount}
-          onBlur={this.handleBlur}
           onKeyUp={this.handleKeyUp}
         />
       </div>
     )
-  }
-
-  private handleBlur = (): void => {
-    this.props.onSubmitScript()
   }
 
   private makeError(): void {

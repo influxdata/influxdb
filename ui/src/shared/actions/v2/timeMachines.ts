@@ -6,6 +6,8 @@ export type Action =
   | SetNameAction
   | SetTimeRangeAction
   | SetTypeAction
+  | SetDraftScriptAction
+  | SubmitScriptAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -51,4 +53,22 @@ interface SetTypeAction {
 export const setType = (type: ViewType): SetTypeAction => ({
   type: 'SET_VIEW_TYPE',
   payload: {type},
+})
+
+interface SetDraftScriptAction {
+  type: 'SET_DRAFT_SCRIPT'
+  payload: {draftScript: string}
+}
+
+export const setDraftScript = (draftScript: string): SetDraftScriptAction => ({
+  type: 'SET_DRAFT_SCRIPT',
+  payload: {draftScript},
+})
+
+interface SubmitScriptAction {
+  type: 'SUBMIT_SCRIPT'
+}
+
+export const submitScript = (): SubmitScriptAction => ({
+  type: 'SUBMIT_SCRIPT',
 })

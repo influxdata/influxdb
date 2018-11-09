@@ -25,7 +25,6 @@ export default class TaskForm extends PureComponent<Props> {
               onChangeScript={this.props.onChange}
               visibility={'visible'}
               status={{text: '', type: ''}}
-              onSubmitScript={_.noop}
               suggestions={[]}
             />
           </Form.Element>

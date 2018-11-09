@@ -5,6 +5,8 @@ $veo-padding: 25px;
   height: calc(100% - 30px);
   margin: 0 auto;
   background: $g3-castle;
+  display: flex;
+  flex-direction: column;
 }
 
 .veo-header {
