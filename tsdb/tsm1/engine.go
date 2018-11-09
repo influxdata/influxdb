@@ -1107,10 +1107,6 @@ func (e *Engine) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) 
 	return e.index.CreateSeriesListIfNotExists(collection)
 }
 
-func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ models.FieldType) error {
-	return e.index.CreateSeriesIfNotExists(key, name, tags, typ)
-}
-
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
 func (e *Engine) WriteSnapshot() error {
 	// Lock and grab the cache snapshot along with all the closed WAL
