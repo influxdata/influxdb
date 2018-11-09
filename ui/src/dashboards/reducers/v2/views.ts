@@ -4,29 +4,21 @@ import {RemoteDataState} from 'src/types'
 import {View} from 'src/types/v2'
 
 export interface ViewsState {
-  activeViewID: string
   views: {
     [viewID: string]: {
       status: RemoteDataState
       view: View
     }
   }
-  // viewStatus: RemoteDataState
 }
 
 const INITIAL_STATE = {
-  activeViewID: '',
+  // TODO: Flatten me
   views: {},
 }
 
 const viewsReducer = (state: ViewsState = INITIAL_STATE, action: Action) => {
   switch (action.type) {
-    case 'SET_ACTIVE_VIEW_ID': {
-      const {activeViewID} = action.payload
-
-      return {...state, activeViewID}
-    }
-
     case 'SET_VIEW': {
       const {id, view, status} = action.payload
 

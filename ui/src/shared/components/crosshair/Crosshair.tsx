@@ -1,21 +1,18 @@
 import _ from 'lodash'
 import React, {PureComponent} from 'react'
 import Dygraph from 'dygraphs'
-import {connect} from 'react-redux'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {withHoverTime, InjectedHoverProps} from 'src/dashboards/utils/hoverTime'
+
 import {DYGRAPH_CONTAINER_XLABEL_MARGIN} from 'src/shared/constants'
-import {AppState} from 'src/types/v2'
 
 interface OwnProps {
   dygraph: Dygraph
 }
 
-interface StateProps {
-  hoverTime: number
-}
-
-type Props = OwnProps & StateProps
+type Props = OwnProps & InjectedHoverProps
 
 @ErrorHandling
 class Crosshair extends PureComponent<Props> {
@@ -62,11 +59,4 @@ class Crosshair extends PureComponent<Props> {
   }
 }
 
-const mstp = ({hoverTime}: AppState) => ({
-  hoverTime: +hoverTime,
-})
-
-export default connect<StateProps, {}, OwnProps>(
-  mstp,
-  null
-)(Crosshair)
+export default withHoverTime(Crosshair)

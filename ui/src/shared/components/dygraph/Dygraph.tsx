@@ -12,13 +12,13 @@ import Crosshair from 'src/shared/components/crosshair/Crosshair'
 // Utils
 import getRange, {getStackedRange} from 'src/shared/parsing/getRangeForDygraph'
 import {numberValueFormatter} from 'src/utils/formatting'
+import {withHoverTime, InjectedHoverProps} from 'src/dashboards/utils/hoverTime'
 
 // Constants
 import {
   AXES_SCALE_OPTIONS,
   DEFAULT_AXIS,
 } from 'src/dashboards/constants/cellEditor'
-import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 import {
   OPTIONS,
   LINE_COLORS,
@@ -37,13 +37,12 @@ import {Axes, TimeRange} from 'src/types'
 import {DashboardQuery, ViewType} from 'src/types/v2/dashboards'
 import {DygraphData, DygraphSeries, Options} from 'src/external/dygraph'
 
-interface Props {
+interface OwnProps {
   type: ViewType
   timeSeries: DygraphData
   labels: string[]
   options: Partial<Options>
   colors: Color[]
-  onSetHoverTime: (t: string) => void
   viewID?: string
   axes?: Axes
   mode?: string
@@ -60,6 +59,8 @@ interface State {
   xAxisRange: [number, number]
   isMouseInLegend: boolean
 }
+
+type Props = OwnProps & InjectedHoverProps
 
 @ErrorHandling
 class Dygraph extends Component<Props, State> {
@@ -81,7 +82,6 @@ class Dygraph extends Component<Props, State> {
     isGraphFilled: true,
     onZoom: () => {},
     setResolution: () => {},
-    onSetHoverTime: () => {},
     underlayCallback: () => {},
     dygraphSeries: {},
   }
@@ -340,7 +340,7 @@ class Dygraph extends Component<Props, State> {
 
   private eventToTimestamp = ({
     pageX: pxBetweenMouseAndPage,
-  }: MouseEvent<Element>): string => {
+  }: MouseEvent<Element>): number => {
     const {
       left: pxBetweenGraphAndPage,
     } = this.graphRef.current.getBoundingClientRect()
@@ -348,12 +348,13 @@ class Dygraph extends Component<Props, State> {
     const timestamp = this.dygraph.toDataXCoord(graphXCoordinate)
     const [xRangeStart] = this.dygraph.xAxisRange()
     const clamped = Math.max(xRangeStart, timestamp)
-    return `${clamped}`
+
+    return clamped
   }
 
   private handleHideLegend = () => {
     this.setState({isMouseInLegend: false})
-    this.props.onSetHoverTime(NULL_HOVER_TIME)
+    this.props.onSetHoverTime(null)
   }
 
   private handleShowLegend = (e: MouseEvent<Element>): void => {
@@ -364,6 +365,7 @@ class Dygraph extends Component<Props, State> {
     }
 
     const newTime = this.eventToTimestamp(e)
+
     this.props.onSetHoverTime(newTime)
   }
 
@@ -422,4 +424,4 @@ class Dygraph extends Component<Props, State> {
   }
 }
 
-export default Dygraph
+export default withHoverTime(Dygraph)

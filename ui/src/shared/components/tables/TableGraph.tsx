@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
-import {connect} from 'react-redux'
 
 // Components
 import TableCell from 'src/shared/components/tables/TableCell'
@@ -10,17 +9,14 @@ import {MultiGrid, PropsMultiGrid} from 'src/shared/components/MultiGrid'
 import InvalidData from 'src/shared/components/InvalidData'
 import {fastReduce} from 'src/utils/fast'
 
-// Actions
-import {setHoverTime as setHoverTimeAction} from 'src/dashboards/actions/v2/hoverTime'
-
 // Utils
 import {transformTableData} from 'src/dashboards/utils/tableGraph'
+import {withHoverTime, InjectedHoverProps} from 'src/dashboards/utils/hoverTime'
 
 // Constants
 import {
   ASCENDING,
   DESCENDING,
-  NULL_HOVER_TIME,
   NULL_ARRAY_INDEX,
   DEFAULT_FIX_FIRST_COLUMN,
   DEFAULT_VERTICAL_TIME_AXIS,
@@ -56,13 +52,13 @@ enum ErrorTypes {
   GeneralError = 'Error',
 }
 
-interface Props {
+interface OwnProps {
   data: TimeSeriesValue[][]
   sortedLabels: Label[]
   properties: TableView
-  hoverTime: string
-  onSetHoverTime?: (hovertime: string) => void
 }
+
+type Props = OwnProps & InjectedHoverProps
 
 interface State {
   transformedData: TimeSeriesValue[][]
@@ -314,8 +310,7 @@ class TableGraph extends PureComponent<Props, State> {
     const {sortedTimeVals, hoveredColumnIndex, isTimeVisible} = this.state
     const {hoverTime} = this.props
     const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
-    const notHovering = hoverTime === NULL_HOVER_TIME
-    if (this.isEmpty || notHovering || hoveringThisTable || !isTimeVisible) {
+    if (this.isEmpty || !hoverTime || hoveringThisTable || !isTimeVisible) {
       return {scrollToColumn: 0, scrollToRow: -1}
     }
 
@@ -373,7 +368,7 @@ class TableGraph extends PureComponent<Props, State> {
 
   private handleMouseLeave = (): void => {
     if (this.props.onSetHoverTime) {
-      this.props.onSetHoverTime(NULL_HOVER_TIME)
+      this.props.onSetHoverTime(null)
       this.setState({
         hoveredColumnIndex: NULL_ARRAY_INDEX,
         hoveredRowIndex: NULL_ARRAY_INDEX,
@@ -474,15 +469,4 @@ class TableGraph extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({hoverTime}) => ({
-  hoverTime,
-})
-
-const mdtp = {
-  onSetHoverTime: setHoverTimeAction,
-}
-
-export default connect(
-  mstp,
-  mdtp
-)(TableGraph)
+export default withHoverTime(TableGraph)

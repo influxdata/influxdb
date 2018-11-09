@@ -13,7 +13,6 @@ import {Options} from 'src/external/dygraph'
 import {StepPlotView} from 'src/types/v2/dashboards'
 import {TimeRange} from 'src/types/v2'
 import {FluxTable, RemoteDataState} from 'src/types'
-import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 
 interface Props {
   loading: RemoteDataState
@@ -22,22 +21,12 @@ interface Props {
   tables: FluxTable[]
   viewID: string
   onZoom: (range: TimeRange) => void
-  onSetHoverTime: typeof setHoverTime
 }
 
 @ErrorHandlingWith(InvalidData)
 class StepPlot extends PureComponent<Props> {
   public render() {
-    const {
-      tables,
-      viewID,
-      onZoom,
-      loading,
-      timeRange,
-      properties,
-      onSetHoverTime,
-    } = this.props
-
+    const {tables, viewID, onZoom, loading, timeRange, properties} = this.props
     const {axes, type, colors, queries} = properties
 
     return (
@@ -55,7 +44,6 @@ class StepPlot extends PureComponent<Props> {
               options={this.options}
               timeRange={timeRange}
               timeSeries={dygraphsData}
-              onSetHoverTime={onSetHoverTime}
             />
           </DygraphCell>
         )}

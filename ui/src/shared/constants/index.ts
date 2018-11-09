@@ -5,8 +5,6 @@ import {TemplateValueType, TemplateType} from 'src/types'
 export const DEFAULT_DURATION_MS = 1000
 export const DEFAULT_PIXELS = 333
 
-export const NO_CELL = 'none'
-
 export const PERMISSIONS = {
   ViewAdmin: {
     description: 'Can view or edit admin screens',

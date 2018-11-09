@@ -1,7 +1,5 @@
 export const NULL_ARRAY_INDEX = -1
 
-export const NULL_HOVER_TIME = '0'
-
 export const ASCENDING = 'asc'
 export const DESCENDING = 'desc'
 export const DEFAULT_SORT_DIRECTION = ASCENDING

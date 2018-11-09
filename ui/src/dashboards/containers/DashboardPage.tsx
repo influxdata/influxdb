@@ -11,6 +11,7 @@ import DashboardComponent from 'src/dashboards/components/Dashboard'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import VEO from 'src/dashboards/components/VEO'
 import {OverlayTechnology} from 'src/clockface'
+import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 
 // Actions
 import * as dashboardActions from 'src/dashboards/actions/v2'
@@ -178,46 +179,48 @@ class DashboardPage extends Component<Props, State> {
 
     return (
       <Page>
-        <DashboardHeader
-          dashboard={dashboard}
-          timeRange={timeRange}
-          autoRefresh={autoRefresh}
-          isHidden={inPresentationMode}
-          onAddCell={this.handleAddCell}
-          onManualRefresh={onManualRefresh}
-          zoomedTimeRange={zoomedTimeRange}
-          onRenameDashboard={this.handleRenameDashboard}
-          dashboardLinks={dashboardLinks}
-          activeDashboard={dashboard ? dashboard.name : ''}
-          showTemplateControlBar={showTemplateControlBar}
-          handleChooseAutoRefresh={handleChooseAutoRefresh}
-          handleChooseTimeRange={this.handleChooseTimeRange}
-          handleClickPresentationButton={handleClickPresentationButton}
-        />
-        {!!dashboard && (
-          <DashboardComponent
-            inView={this.inView}
+        <HoverTimeProvider>
+          <DashboardHeader
             dashboard={dashboard}
             timeRange={timeRange}
             autoRefresh={autoRefresh}
-            manualRefresh={manualRefresh}
-            setScrollTop={this.setScrollTop}
-            onCloneCell={this.handleCloneCell}
-            onZoom={this.handleZoomedTimeRange}
-            inPresentationMode={inPresentationMode}
-            onPositionChange={this.handlePositionChange}
-            onDeleteCell={this.handleDeleteDashboardCell}
-            onEditView={this.handleEditView}
+            isHidden={inPresentationMode}
+            onAddCell={this.handleAddCell}
+            onManualRefresh={onManualRefresh}
+            zoomedTimeRange={zoomedTimeRange}
+            onRenameDashboard={this.handleRenameDashboard}
+            dashboardLinks={dashboardLinks}
+            activeDashboard={dashboard ? dashboard.name : ''}
+            showTemplateControlBar={showTemplateControlBar}
+            handleChooseAutoRefresh={handleChooseAutoRefresh}
+            handleChooseTimeRange={this.handleChooseTimeRange}
+            handleClickPresentationButton={handleClickPresentationButton}
           />
-        )}
-        <OverlayTechnology visible={isShowingVEO}>
-          <VEO
-            source={source}
-            view={selectedView}
-            onHide={this.handleHideVEO}
-            onSave={this.handleSaveVEO}
-          />
-        </OverlayTechnology>
+          {!!dashboard && (
+            <DashboardComponent
+              inView={this.inView}
+              dashboard={dashboard}
+              timeRange={timeRange}
+              autoRefresh={autoRefresh}
+              manualRefresh={manualRefresh}
+              setScrollTop={this.setScrollTop}
+              onCloneCell={this.handleCloneCell}
+              onZoom={this.handleZoomedTimeRange}
+              inPresentationMode={inPresentationMode}
+              onPositionChange={this.handlePositionChange}
+              onDeleteCell={this.handleDeleteDashboardCell}
+              onEditView={this.handleEditView}
+            />
+          )}
+          <OverlayTechnology visible={isShowingVEO}>
+            <VEO
+              source={source}
+              view={selectedView}
+              onHide={this.handleHideVEO}
+              onSave={this.handleSaveVEO}
+            />
+          </OverlayTechnology>
+        </HoverTimeProvider>
       </Page>
     )
   }

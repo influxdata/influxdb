@@ -18,7 +18,6 @@ import {
   SingleStatView,
 } from 'src/types/v2/dashboards'
 import {FluxTable, RemoteDataState, TimeRange} from 'src/types'
-import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 
 interface Props {
   viewID: string
@@ -27,20 +26,11 @@ interface Props {
   timeRange: TimeRange
   onZoom: (range: TimeRange) => void
   properties: RefreshingViewProperties
-  onSetHoverTime: typeof setHoverTime
 }
 
 export default class RefreshingViewSwitcher extends PureComponent<Props> {
   public render() {
-    const {
-      properties,
-      loading,
-      viewID,
-      tables,
-      onZoom,
-      timeRange,
-      onSetHoverTime,
-    } = this.props
+    const {properties, loading, viewID, tables, onZoom, timeRange} = this.props
 
     switch (properties.type) {
       case ViewType.SingleStat:
@@ -62,7 +52,6 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
             loading={loading}
             timeRange={timeRange}
             properties={properties}
-            onSetHoverTime={onSetHoverTime}
           />
         )
       case ViewType.LinePlusSingleStat:
@@ -84,7 +73,6 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
             loading={loading}
             timeRange={timeRange}
             properties={lineProperties}
-            onSetHoverTime={onSetHoverTime}
           >
             <SingleStatTransform tables={tables}>
               {stat => (
@@ -102,7 +90,6 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
             loading={loading}
             timeRange={timeRange}
             properties={properties}
-            onSetHoverTime={onSetHoverTime}
           />
         )
       case ViewType.Stacked:
@@ -114,7 +101,6 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
             loading={loading}
             timeRange={timeRange}
             properties={properties}
-            onSetHoverTime={onSetHoverTime}
           />
         )
       default:

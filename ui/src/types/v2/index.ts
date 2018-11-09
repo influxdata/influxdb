@@ -2,7 +2,6 @@ import {Source} from 'src/types/v2/sources'
 import {Bucket, RetentionRule, RetentionRuleTypes} from 'src/types/v2/buckets'
 import {RangeState} from 'src/dashboards/reducers/v2/ranges'
 import {ViewsState} from 'src/dashboards/reducers/v2/views'
-import {HoverTimeState} from 'src/dashboards/reducers/v2/hoverTime'
 import {
   Dashboard,
   DashboardSwitcherLinks,
@@ -41,7 +40,6 @@ export interface AppState {
   views: ViewsState
   sources: Source[]
   dashboards: Dashboard[]
-  hoverTime: HoverTimeState
   notifications: Notification[]
   timeMachines: TimeMachinesState
   routing: RouterState

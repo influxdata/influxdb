@@ -9,19 +9,7 @@ import {RemoteDataState} from 'src/types'
 import {View} from 'src/types/v2'
 import {Dispatch} from 'redux'
 
-export type Action = SetActiveViewAction | SetViewAction
-
-interface SetActiveViewAction {
-  type: 'SET_ACTIVE_VIEW_ID'
-  payload: {
-    activeViewID: string
-  }
-}
-
-export const setActiveCell = (activeViewID: string): SetActiveViewAction => ({
-  type: 'SET_ACTIVE_VIEW_ID',
-  payload: {activeViewID},
-})
+export type Action = SetViewAction
 
 export interface SetViewAction {
   type: 'SET_VIEW'

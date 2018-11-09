@@ -12,9 +12,6 @@ import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher
 // Constants
 import {emptyGraphCopy} from 'src/shared/copy/cell'
 
-// Actions
-import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
-
 // Types
 import {TimeRange} from 'src/types'
 import {AppState} from 'src/types/v2'
@@ -34,9 +31,7 @@ interface StateProps {
   link: string
 }
 
-interface DispatchProps {
-  handleSetHoverTime: typeof setHoverTime
-}
+interface DispatchProps {}
 
 type Props = OwnProps & StateProps & DispatchProps
 
@@ -55,7 +50,6 @@ class RefreshingView extends PureComponent<Props> {
       timeRange,
       properties,
       manualRefresh,
-      handleSetHoverTime,
     } = this.props
 
     if (!properties.queries.length) {
@@ -84,7 +78,6 @@ class RefreshingView extends PureComponent<Props> {
                 loading={loading}
                 timeRange={timeRange}
                 properties={properties}
-                onSetHoverTime={handleSetHoverTime}
               />
             </EmptyRefreshingView>
           )
@@ -117,9 +110,7 @@ const mstp = ({source}: AppState): StateProps => {
   }
 }
 
-const mdtp = {
-  handleSetHoverTime: setHoverTime,
-}
+const mdtp = {}
 
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,

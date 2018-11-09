@@ -1,29 +1,23 @@
 import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
-import {connect} from 'react-redux'
 
 import _ from 'lodash'
 import classnames from 'classnames'
 import uuid from 'uuid'
 
-import * as actions from 'src/dashboards/actions/v2/views'
 import DygraphLegendSort from 'src/shared/components/DygraphLegendSort'
 
 import {makeLegendStyles} from 'src/shared/graphs/helpers'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {NO_CELL} from 'src/shared/constants'
+import {withHoverTime, InjectedHoverProps} from 'src/dashboards/utils/hoverTime'
 
 // Types
 import DygraphClass, {SeriesLegendData} from 'src/external/dygraph'
-import {AppState} from 'src/types/v2'
 
-interface Props {
-  hoverTime: number
+interface OwnProps {
   dygraph: DygraphClass
   viewID: string
   onHide: () => void
   onShow: (e: MouseEvent) => void
-  activeViewID: string
-  setActiveCell: (viewID: string) => void
   onMouseEnter: () => void
 }
 
@@ -43,6 +37,8 @@ interface State {
   pageX: number | null
   viewID: string
 }
+
+type Props = OwnProps & InjectedHoverProps
 
 @ErrorHandling
 class DygraphLegend extends PureComponent<Props, State> {
@@ -149,7 +145,7 @@ class DygraphLegend extends PureComponent<Props, State> {
 
   private handleHide = (): void => {
     this.props.onHide()
-    this.props.setActiveCell(NO_CELL)
+    this.props.onSetActiveViewID(null)
   }
 
   private handleToggleFilter = (): void => {
@@ -183,7 +179,7 @@ class DygraphLegend extends PureComponent<Props, State> {
 
   private highlightCallback = (e: MouseEvent) => {
     if (this.props.activeViewID !== this.props.viewID) {
-      this.props.setActiveCell(this.props.viewID)
+      this.props.onSetActiveViewID(this.props.viewID)
     }
 
     this.setState({pageX: e.pageX})
@@ -273,16 +269,4 @@ class DygraphLegend extends PureComponent<Props, State> {
   }
 }
 
-const mapDispatchToProps = {
-  setActiveCell: actions.setActiveCell,
-}
-
-const mapStateToProps = (state: AppState) => ({
-  activeViewID: state.views.activeViewID,
-  hoverTime: +state.hoverTime,
-})
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(DygraphLegend)
+export default withHoverTime(DygraphLegend)

@@ -13,13 +13,11 @@ import {Options} from 'src/external/dygraph'
 import {LineView} from 'src/types/v2/dashboards'
 import {TimeRange} from 'src/types/v2'
 import {FluxTable, RemoteDataState} from 'src/types'
-import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 
 interface Props {
   viewID: string
   staticLegend: boolean
   onZoom: (range: TimeRange) => void
-  onSetHoverTime: typeof setHoverTime
   tables: FluxTable[]
   properties: LineView
   timeRange: TimeRange
@@ -42,7 +40,6 @@ class LineGraph extends PureComponent<Props> {
       children,
       timeRange,
       properties,
-      onSetHoverTime,
     } = this.props
 
     const {axes, type, colors, queries} = properties
@@ -62,7 +59,6 @@ class LineGraph extends PureComponent<Props> {
               options={this.options}
               timeRange={timeRange}
               timeSeries={dygraphsData}
-              onSetHoverTime={onSetHoverTime}
             >
               {children}
             </Dygraph>
