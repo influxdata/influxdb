@@ -115,6 +115,12 @@ type EngineOption func(i *Engine)
 
 // WithWAL sets the WAL for the Engine
 var WithWAL = func(wal Log) EngineOption {
+	// be defensive: it's very easy to pass in a nil WAL here
+	// which will panic. Set any nil WALs to the NopWAL.
+	if pwal, _ := wal.(*WAL); pwal == nil {
+		wal = NopWAL{}
+	}
+
 	return func(e *Engine) {
 		e.WAL = wal
 	}
