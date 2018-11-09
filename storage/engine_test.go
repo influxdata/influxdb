@@ -181,6 +181,26 @@ func TestEngineClose_RemoveIndex(t *testing.T) {
 	}
 }
 
+func TestEngine_WALDisabled(t *testing.T) {
+	config := storage.NewConfig()
+	config.WAL.Enabled = false
+
+	engine := NewEngine(config)
+	defer engine.Close()
+	engine.MustOpen()
+
+	pt := models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	if err := engine.Write1xPoints([]models.Point{pt}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 type Engine struct {
 	path string
 	*storage.Engine
