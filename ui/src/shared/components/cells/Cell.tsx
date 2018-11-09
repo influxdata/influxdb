@@ -125,7 +125,7 @@ class CellComponent extends Component<Props> {
 }
 
 const mstp = (state: AppState, ownProps: PassedProps): StateProps => {
-  const entry = state.views.views[ownProps.cell.viewID]
+  const entry = state.views[ownProps.cell.viewID]
 
   if (entry) {
     return {view: entry.view, viewStatus: entry.status}
