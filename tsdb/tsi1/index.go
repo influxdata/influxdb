@@ -666,51 +666,6 @@ func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) e
 	return nil
 }
 
-// CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
-// TODO(edd): This should go.
-func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ models.FieldType) error {
-	collection := &tsdb.SeriesCollection{
-		Keys:  [][]byte{key},
-		Names: [][]byte{name},
-		Tags:  []models.Tags{tags},
-		Types: []models.FieldType{typ},
-	}
-	err := i.sfile.CreateSeriesListIfNotExists(collection)
-	if err != nil {
-		return err
-	}
-	ids, err := i.partition(key).createSeriesListIfNotExists(collection)
-	if err != nil {
-		return err
-	}
-
-	if len(ids) == 0 || ids[0].IsZero() {
-		return nil // No new series, nothing further to update.
-	}
-
-	// If there are cached sets for any of the tag pairs, they will need to be
-	// updated with the series id.
-	i.tagValueCache.RLock()
-	if i.tagValueCache.measurementContainsSets(name) {
-		for _, pair := range tags {
-			// TODO(edd): It's not clear to me yet whether it will be better to take a lock
-			// on every series id set, or whether to gather them all up under the cache rlock
-			// and then take the cache lock and update them all at once (without invoking a lock
-			// on each series id set).
-			//
-			// Taking the cache lock will block all queries, but is one lock. Taking each series set
-			// lock might be many lock/unlocks but will only block a query that needs that particular set.
-			//
-			// Need to think on it, but I think taking a lock on each series id set is the way to go.
-			//
-			// Note this will only add `id` to the set if it exists.
-			i.tagValueCache.addToSet(name, pair.Key, pair.Value, ids[0]) // Takes a lock on the series id set
-		}
-	}
-	i.tagValueCache.RUnlock()
-	return nil
-}
-
 // InitializeSeries is a no-op. This only applies to the in-memory index.
 func (i *Index) InitializeSeries(*tsdb.SeriesCollection) error {
 	return nil

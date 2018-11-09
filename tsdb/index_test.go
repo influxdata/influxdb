@@ -120,12 +120,6 @@ func (i *Index) MustOpen() {
 	}
 }
 
-func (idx *Index) AddSeries(name string, tags map[string]string, typ models.FieldType) error {
-	t := models.NewTags(tags)
-	key := fmt.Sprintf("%s,%s", name, t.HashKey())
-	return idx.CreateSeriesIfNotExists([]byte(key), []byte(name), t, typ)
-}
-
 // Reopen closes and re-opens the underlying index, without removing any data.
 func (i *Index) Reopen() error {
 	if err := i.Index.Close(); err != nil {
