@@ -4665,9 +4665,6 @@ components:
           format: uri
         defaultRP:
           type: string
-        fluxURL:
-          type: string
-          format: uri
         languages:
           type: array
           readOnly: true

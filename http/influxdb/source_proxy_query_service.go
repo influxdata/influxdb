@@ -37,10 +37,6 @@ func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *q
 }
 
 func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
-	if len(s.FluxURL) == 0 {
-		return 0, fmt.Errorf("fluxURL from source cannot be empty if the compiler type is flux")
-	}
-
 	request := struct {
 		Spec    *flux.Spec   `json:"spec"`
 		Query   string       `json:"query"`
@@ -70,7 +66,7 @@ func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, re
 		}
 	}
 
-	u, err := newURL(s.FluxURL, "/query")
+	u, err := newURL(s.URL, "/api/v2/query")
 	if err != nil {
 		return 0, err
 	}

@@ -26,11 +26,7 @@ func NewQueryService(s *platform.Source) (query.ProxyQueryService, error) {
 			SourceFields:       s.SourceFields,
 		}, nil
 	case platform.V1SourceType:
-		// This can be an influxdb or an influxdb + fluxd.
-		// If it is an influxdb alone it is just a source configured with the url of an influxdb
-		// and will only accept "influxql" compilers, if it has a fluxd it will also accept "flux" compilers.
-		// If the compiler used is "influxql" the proxy request will be made on the platform.URL directly.
-		// If the compiler used is "flux" the proxy request will be made on the platform.V1SourceFields.FluxURL
+		// This is an InfluxDB 1.7 source, which supports both InfluxQL and Flux queries
 		return &influxdb.SourceProxyQueryService{
 			InsecureSkipVerify: s.InsecureSkipVerify,
 			URL:                s.URL,

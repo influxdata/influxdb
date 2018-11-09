@@ -42,7 +42,6 @@ type V1SourceFields struct {
 	SharedSecret string `json:"sharedSecret,omitempty"` // ShareSecret is the optional signing secret for Influx JWT authorization
 	MetaURL      string `json:"metaUrl,omitempty"`      // MetaURL is the url for the meta node
 	DefaultRP    string `json:"defaultRP"`              // DefaultRP is the default retention policy used in database queries to this source
-	FluxURL      string `json:"fluxURL,omitempty"`      // FluxURL is the url for a flux connected to a 1x source
 }
 
 // SourceFields is used to authorize against an influx 2.0 source.
@@ -78,7 +77,6 @@ type SourceUpdate struct {
 	Password           *string     `json:"password,omitempty"`
 	SharedSecret       *string     `json:"sharedSecret,omitempty"`
 	MetaURL            *string     `json:"metaURL,omitempty"`
-	FluxURL            *string     `json:"fluxURL,omitempty"`
 	Role               *string     `json:"role,omitempty"`
 	DefaultRP          *string     `json:"defaultRP"`
 }
@@ -114,9 +112,6 @@ func (u SourceUpdate) Apply(s *Source) error {
 	}
 	if u.MetaURL != nil {
 		s.MetaURL = *u.MetaURL
-	}
-	if u.FluxURL != nil {
-		s.FluxURL = *u.FluxURL
 	}
 	if u.DefaultRP != nil {
 		s.DefaultRP = *u.DefaultRP
