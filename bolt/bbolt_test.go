@@ -12,9 +12,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func init() {
+	bolt.HashCost = bcrypt.MinCost
+}
+
 func NewTestClient() (*bolt.Client, func(), error) {
 	c := bolt.NewClient()
-	bolt.HashCost = bcrypt.MinCost
 
 	f, err := ioutil.TempFile("", "influxdata-platform-bolt-")
 	if err != nil {
