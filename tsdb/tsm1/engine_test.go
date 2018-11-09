@@ -177,15 +177,10 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 	}
 	defer e.Close()
 
-	for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-		if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
-			t.Fatalf("create series index error: %v", err)
-		}
-	}
-
-	if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+	if err := e.writePoints(p1, p2, p3, p4, p5, p6, p7, p8); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
+
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
@@ -281,15 +276,10 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 	}
 	defer e.Close()
 
-	for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-		if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
-			t.Fatalf("create series index error: %v", err)
-		}
-	}
-
-	if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+	if err := e.writePoints(p1, p2, p3, p4, p5, p6, p7, p8); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
+
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
@@ -401,15 +391,10 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 	}
 	defer e.Close()
 
-	for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-		if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
-			t.Fatalf("create series index error: %v", err)
-		}
-	}
-
-	if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+	if err := e.writePoints(p1, p2, p3, p4, p5, p6, p7, p8); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
+
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
@@ -483,15 +468,10 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 	}
 	defer e.Close()
 
-	for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-		if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
-			t.Fatalf("create series index error: %v", err)
-		}
-	}
-
-	if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+	if err := e.writePoints(p1, p2, p3, p4, p5, p6, p7, p8); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
+
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
@@ -596,15 +576,10 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 	}
 	defer e.Close()
 
-	for _, p := range []models.Point{p1} {
-		if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), models.Float); err != nil {
-			t.Fatalf("create series index error: %v", err)
-		}
-	}
-
-	if err := e.WritePoints([]models.Point{p1}); err != nil {
+	if err := e.writePoints(p1); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
+
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
@@ -1050,13 +1025,10 @@ func (e *Engine) WritePointsString(ptstr ...string) error {
 // writePoints adds the series for the provided points to the index, and writes
 // the point data to the engine.
 func (e *Engine) writePoints(points ...models.Point) error {
-	for _, point := range points {
-		// Write into the index.
-		iter := point.FieldIterator()
-		iter.Next()
-		if err := e.Engine.CreateSeriesIfNotExists(point.Key(), point.Name(), point.Tags(), iter.Type()); err != nil {
-			return err
-		}
+	// Write into the index.
+	collection := tsdb.NewSeriesCollection(points)
+	if err := e.CreateSeriesListIfNotExists(collection); err != nil {
+		return err
 	}
 	// Write the points into the cache/wal.
 	return e.WritePoints(points)
