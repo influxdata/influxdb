@@ -11,6 +11,7 @@ import {
   MarkdownView,
   NewView,
   ViewProperties,
+  InfluxLanguage,
 } from 'src/types/v2/dashboards'
 
 function defaultView() {
@@ -224,4 +225,24 @@ export function convertView<T extends View | NewView>(
   throw new Error(
     `cannot convert view of type "${inType}" to view of type "${outType}"`
   )
+}
+
+export function replaceQuery<T extends View | NewView>(
+  view: T,
+  text,
+  type = InfluxLanguage.Flux
+): T {
+  const anyView: any = view
+
+  if (!anyView.properties.queries) {
+    return
+  }
+
+  return {
+    ...anyView,
+    properties: {
+      ...anyView.properties,
+      queries: [{type, text, source: ''}],
+    },
+  }
 }

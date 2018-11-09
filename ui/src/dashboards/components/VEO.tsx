@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {get} from 'lodash'
 
 // Components
 import VEOHeader from 'src/dashboards/components/VEOHeader'
@@ -8,6 +9,9 @@ import TimeMachine from 'src/shared/components/TimeMachine'
 
 // Actions
 import {setName, setActiveTimeMachine} from 'src/shared/actions/v2/timeMachines'
+
+// Utils
+import {replaceQuery} from 'src/shared/utils/view'
 
 // Constants
 import {VEO_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
@@ -19,6 +23,7 @@ import {TimeMachineTab} from 'src/types/v2/timeMachine'
 
 interface StateProps {
   draftView: NewView
+  draftScript: string
 }
 
 interface DispatchProps {
@@ -50,8 +55,9 @@ class VEO extends PureComponent<Props, State> {
 
   public componentDidMount() {
     const {onSetActiveTimeMachine, view} = this.props
+    const draftScript: string = get(view, 'properties.queries.0.text', '')
 
-    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
+    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view, draftScript})
   }
 
   public render() {
@@ -79,17 +85,17 @@ class VEO extends PureComponent<Props, State> {
   }
 
   private handleSave = (): void => {
-    const {view, draftView, onSave} = this.props
+    const {view, draftView, draftScript, onSave} = this.props
 
-    onSave({...view, ...draftView})
+    onSave(replaceQuery({...view, ...draftView}, draftScript))
   }
 }
 
 const mstp = (state: AppState): StateProps => {
   const {activeTimeMachineID, timeMachines} = state.timeMachines
-  const draftView = timeMachines[activeTimeMachineID].view
+  const {view, draftScript} = timeMachines[activeTimeMachineID]
 
-  return {draftView}
+  return {draftView: view, draftScript}
 }
 
 const mdtp: DispatchProps = {

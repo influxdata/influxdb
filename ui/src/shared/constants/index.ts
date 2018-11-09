@@ -1,7 +1,6 @@
 import _ from 'lodash'
 
 import {TemplateValueType, TemplateType} from 'src/types'
-import {InfluxLanguage, DashboardQuery} from 'src/types/v2/dashboards'
 
 export const DEFAULT_DURATION_MS = 1000
 export const DEFAULT_PIXELS = 333
@@ -473,10 +472,3 @@ export const HANDLE_PIXELS = 20
 export const MIN_HANDLE_PIXELS = 20
 export const MAX_SIZE = 1
 export const MIN_SIZE = 0
-
-export const TEMPORARY_DEFAULT_QUERY: DashboardQuery = {
-  text:
-    'SELECT "active" FROM "telegraf"."autogen"."mem" WHERE time > now() - 1h',
-  type: InfluxLanguage.InfluxQL,
-  source: 'v1',
-}

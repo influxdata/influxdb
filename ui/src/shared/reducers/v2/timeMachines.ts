@@ -1,5 +1,5 @@
 // Utils
-import {convertView, createView} from 'src/shared/utils/view'
+import {convertView, createView, replaceQuery} from 'src/shared/utils/view'
 
 // Constants
 import {
@@ -11,7 +11,6 @@ import {
 import {TimeRange} from 'src/types/v2'
 import {NewView} from 'src/types/v2/dashboards'
 import {Action} from 'src/shared/actions/v2/timeMachines'
-import {InfluxLanguage} from 'src/types/v2/dashboards'
 
 export interface TimeMachineState {
   view: NewView
@@ -104,23 +103,11 @@ const timeMachineReducer = (
     }
 
     case 'SUBMIT_SCRIPT': {
-      const view: any = activeTimeMachine.view
-
-      if (!view.properties.queries) {
-        break
-      }
-
-      const queries = [
-        {
-          type: InfluxLanguage.Flux,
-          text: activeTimeMachine.draftScript,
-          source: '',
-        },
-      ]
+      const {view, draftScript} = activeTimeMachine
 
       newActiveTimeMachine = {
         ...activeTimeMachine,
-        view: {...view, properties: {...view.properties, queries}},
+        view: replaceQuery(view, draftScript),
       }
       break
     }

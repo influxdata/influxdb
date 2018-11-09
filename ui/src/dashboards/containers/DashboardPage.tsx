@@ -30,10 +30,7 @@ import {cellAddFailed} from 'src/shared/copy/notifications'
 import {loadDashboardLinks} from 'src/dashboards/apis/v2'
 
 // Constants
-import {
-  DASHBOARD_LAYOUT_ROW_HEIGHT,
-  TEMPORARY_DEFAULT_QUERY,
-} from 'src/shared/constants'
+import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
 
@@ -271,8 +268,6 @@ class DashboardPage extends Component<Props, State> {
 
   private handleAddCell = async (): Promise<void> => {
     const newView = createView<LineView>(ViewType.Line)
-
-    newView.properties.queries = [TEMPORARY_DEFAULT_QUERY]
 
     this.setState({
       isShowingVEO: true,
