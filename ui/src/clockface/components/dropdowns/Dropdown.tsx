@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, CSSProperties} from 'react'
+import React, {Component, CSSProperties, MouseEvent} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -89,7 +89,8 @@ class Dropdown extends Component<Props, State> {
     )
   }
 
-  private toggleMenu = (): void => {
+  private toggleMenu = (e: MouseEvent<HTMLElement>): void => {
+    e.preventDefault()
     this.setState({expanded: !this.state.expanded})
   }
 
