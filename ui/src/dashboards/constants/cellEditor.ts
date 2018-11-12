@@ -1,6 +1,6 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/dashboards/constants'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
-import {ViewType, Axis} from 'src/types/v2/dashboards'
+import {ViewType, Axis, Axes} from 'src/types/v2/dashboards'
 import {Color} from 'src/types/colors'
 
 export const initializeOptions = (type: ViewType) => {
@@ -27,6 +27,16 @@ export const DEFAULT_AXIS: DefaultAxis = {
   base: AXES_SCALE_OPTIONS.BASE_10,
   scale: AXES_SCALE_OPTIONS.LINEAR,
   label: '',
+}
+
+export const FULL_DEFAULT_AXIS: Axis = {
+  ...DEFAULT_AXIS,
+  bounds: ['', ''],
+}
+
+export const DEFAULT_AXES: Axes = {
+  x: FULL_DEFAULT_AXIS,
+  y: FULL_DEFAULT_AXIS,
 }
 
 export const TOOLTIP_Y_VALUE_FORMAT =

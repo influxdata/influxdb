@@ -13,7 +13,7 @@ const fixedValueString = 'fixed'
 const defaultPlaceholder = 'unlimited'
 
 @ErrorHandling
-class GraphOptionsDecimalPlaces extends PureComponent<Props> {
+class DecimalPlacesOption extends PureComponent<Props> {
   constructor(props: Props) {
     super(props)
   }
@@ -75,4 +75,4 @@ class GraphOptionsDecimalPlaces extends PureComponent<Props> {
   }
 }
 
-export default GraphOptionsDecimalPlaces
+export default DecimalPlacesOption
