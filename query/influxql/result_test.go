@@ -41,6 +41,44 @@ func TestMultiResultEncoder_Encode(t *testing.T) {
 			out: `{"results":[{"statement_id":0,"series":[{"name":"m0","tags":{"host":"server01"},"columns":["time","value"],"values":[["2018-05-24T09:00:00Z",2]]}]}]}`,
 		},
 		{
+			name: "No _time column",
+			in: flux.NewSliceResultIterator(
+				[]flux.Result{&executetest.Result{
+					Nm: "0",
+					Tbls: []*executetest.Table{{
+						KeyCols: []string{"_measurement", "host"},
+						ColMeta: []flux.ColMeta{
+							{Label: "_measurement", Type: flux.TString},
+							{Label: "host", Type: flux.TString},
+							{Label: "value", Type: flux.TFloat},
+						},
+						Data: [][]interface{}{
+							{"m0", "server01", float64(2)},
+						},
+					}},
+				}},
+			),
+			out: `{"results":[{"statement_id":0,"series":[{"name":"m0","tags":{"host":"server01"},"columns":["value"],"values":[[2]]}]}]}`,
+		},
+		{
+			name: "Just One Value Column",
+			in: flux.NewSliceResultIterator(
+				[]flux.Result{&executetest.Result{
+					Nm: "0",
+					Tbls: []*executetest.Table{{
+						KeyCols: []string{},
+						ColMeta: []flux.ColMeta{
+							{Label: "name", Type: flux.TString},
+						},
+						Data: [][]interface{}{
+							{"telegraf"},
+						},
+					}},
+				}},
+			),
+			out: `{"results":[{"statement_id":0,"series":[{"columns":["name"],"values":[["telegraf"]]}]}]}`,
+		},
+		{
 			name: "Error",
 			in:   &resultErrorIterator{Error: "expected"},
 			out:  `{"error":"expected"}`,

@@ -83,6 +83,12 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (i
 				}
 			}
 
+			if _, ok := resultColMap[execute.DefaultTimeColLabel]; !ok {
+				for k, v := range resultColMap {
+					resultColMap[k] = v - 1
+				}
+			}
+
 			row.Columns = make([]string, len(resultColMap))
 			for k, v := range resultColMap {
 				if k == execute.DefaultTimeColLabel {
