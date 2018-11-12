@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -609,7 +610,11 @@ func (r *runner) clearRunning(id platform.ID) {
 
 func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *zap.Logger) {
 	defer r.wg.Done()
-	rp, err := r.executor.Execute(r.ctx, qr)
+
+	sp, spCtx := opentracing.StartSpanFromContext(ctx, "task.run.execution")
+	defer sp.Finish()
+
+	rp, err := r.executor.Execute(spCtx, qr)
 
 	if err != nil {
 		// TODO(mr): retry? and log error.
