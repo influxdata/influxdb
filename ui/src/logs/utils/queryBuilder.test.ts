@@ -42,9 +42,9 @@ describe('Logs.queryBuilder', () => {
       `from(bucket: "telegraf/autogen")`,
       `range(start: 2018-10-10T22:46:24.859Z, stop: 2018-10-10T22:46:54.859Z)`,
       `filter(fn: (r) => r._measurement == "syslog")`,
-      `pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")`,
+      `pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")`,
       `group(none: true)`,
-      `sort(cols: ["_time"])`,
+      `sort(columns: ["_time"])`,
       `map(fn: (r) => ({time: r._time, severity: r.severity, timestamp: r.timestamp, message: r.message, facility: r.facility, procid: r.procid, appname: r.appname, host: r.host}))`,
     ].join('\n  |> ')
 
@@ -64,10 +64,10 @@ describe('Logs.queryBuilder', () => {
       `from(bucket: "telegraf/autogen")`,
       `range(start: 2018-10-10T22:46:24.859Z, stop: 2018-10-10T22:46:54.859Z)`,
       `filter(fn: (r) => r._measurement == "syslog")`,
-      `pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")`,
+      `pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")`,
       `group(none: true)`,
       `filter(fn: (r) => r.severity != "notice")`,
-      `sort(cols: ["_time"])`,
+      `sort(columns: ["_time"])`,
       `map(fn: (r) => ({time: r._time, severity: r.severity, timestamp: r.timestamp, message: r.message, facility: r.facility, procid: r.procid, appname: r.appname, host: r.host}))`,
     ].join('\n  |> ')
 
@@ -92,10 +92,10 @@ describe('Logs.queryBuilder', () => {
       `from(bucket: "telegraf/autogen")`,
       `range(start: 2018-10-10T22:46:24.859Z, stop: 2018-10-10T22:46:54.859Z)`,
       `filter(fn: (r) => r._measurement == "syslog")`,
-      `pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")`,
+      `pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")`,
       `group(none: true)`,
       `filter(fn: (r) => r.severity == "notice" and r.appname !~ /beep/ and r.appname =~ /o_trace_id=broken/)`,
-      `sort(cols: ["_time"])`,
+      `sort(columns: ["_time"])`,
       `map(fn: (r) => ({time: r._time, severity: r.severity, timestamp: r.timestamp, message: r.message, facility: r.facility, procid: r.procid, appname: r.appname, host: r.host}))`,
     ].join('\n  |> ')
 

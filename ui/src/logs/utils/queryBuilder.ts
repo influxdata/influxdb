@@ -75,7 +75,7 @@ export const buildTableQueryConfig = (bucket: Bucket): QueryConfig => {
 
 const PIPE = '\n  |> '
 const ROW_NAME = 'r'
-const SORT_FUNC = ['sort(cols: ["_time"])']
+const SORT_FUNC = ['sort(columns: ["_time"])']
 
 export function buildInfiniteScrollLogQuery(
   lower: string,
@@ -101,7 +101,7 @@ const buildRowsQuery = (
     `from(bucket: ${bucketName})`,
     `range(start: ${lower}, stop: ${upper})`,
     `filter(fn: (${ROW_NAME}) => ${ROW_NAME}._measurement == "${measurement}")`,
-    `pivot(rowKey:["_time"], colKey: ["_field"], valueCol: "_value")`,
+    `pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")`,
     `group(none: true)`,
   ]
 }
