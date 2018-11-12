@@ -209,14 +209,14 @@ func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 func (c *indexSeriesCursor) Value(key string) (interface{}, bool) {
 	switch key {
 	case "_name":
-		return c.row.Name, true
+		return string(c.row.Name), true
 	case fieldKey:
 		return c.field.n, true
 	case "$":
 		return nil, false
 	default:
 		res := c.row.SeriesTags.GetString(key)
-		return res, len(res) > 0
+		return res, true
 	}
 }
 
