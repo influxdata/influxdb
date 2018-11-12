@@ -308,6 +308,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			}
 			collection.Dropped++
 			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
+			continue
 		}
 
 		// Filter out any tags with key equal to "time": they are invalid.
