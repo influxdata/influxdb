@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -68,6 +68,8 @@ class SigninPage extends PureComponent<Props, State> {
                 value={username}
                 onChange={this.handleUsername}
                 size={ComponentSize.Medium}
+                onKeyPress={this.handleKeyPress}
+                autoFocus={true}
               />
             </Form.Element>
             <Form.Element
@@ -78,6 +80,7 @@ class SigninPage extends PureComponent<Props, State> {
               <Input
                 value={password}
                 onChange={this.handlePassword}
+                onKeyPress={this.handleKeyPress}
                 size={ComponentSize.Medium}
                 type={InputType.Password}
               />
@@ -103,6 +106,12 @@ class SigninPage extends PureComponent<Props, State> {
   private handlePassword = (e: ChangeEvent<HTMLInputElement>): void => {
     const password = e.target.value
     this.setState({password})
+  }
+
+  private handleKeyPress = (e: KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter') {
+      this.handleSignIn()
+    }
   }
 
   private handleSignIn = async (): Promise<void> => {
