@@ -24,6 +24,12 @@ type {{$k.Name}}Iterator interface {
 	Next() (*{{$k.Name}}Point, error)
 }
 
+// {{$k.Name}}PrevIterator wraps an underlying iterator and remembers previous element a stream.
+type {{$k.Name}}PrevIterator interface {
+	Iterator
+	Prev() *{{$k.Name}}Point
+}
+
 // new{{$k.Name}}Iterators converts a slice of Iterator to a slice of {{$k.Name}}Iterator.
 // Drop and closes any iterator in itrs that is not a {{$k.Name}}Iterator and cannot
 // be cast to a {{$k.Name}}Iterator.
@@ -40,6 +46,45 @@ func new{{$k.Name}}Iterators(itrs []Iterator) []{{$k.Name}}Iterator {
 	return a
 }
 
+type prevElement{{$k.Name}}Iterator struct {
+	itr  {{$k.Name}}Iterator
+	curr *{{$k.Name}}Point
+	prev *{{$k.Name}}Point
+}
+
+func newPrevElement{{$k.Name}}Iterator(itr {{$k.Name}}Iterator) *prevElement{{$k.Name}}Iterator {
+	return &prevElement{{$k.Name}}Iterator{itr: itr}
+}
+
+func (itr *prevElement{{$k.Name}}Iterator) Prev() *{{$k.Name}}Point {
+	return itr.prev
+}
+
+// Stats returns statistics from the input iterator.
+func (itr *prevElement{{$k.Name}}Iterator) Stats() IteratorStats { return itr.itr.Stats() }
+
+// Close closes the underlying iterator.
+func (itr *prevElement{{$k.Name}}Iterator) Close() error { return itr.itr.Close() }
+
+// Next calls the underlying iterator and updates prev element.
+func (itr *prevElement{{$k.Name}}Iterator) Next() (*{{$k.Name}}Point, error) {
+
+	if itr.curr != nil {
+		curr := *itr.curr
+		itr.prev = &curr
+	} else {
+		itr.curr = nil
+	}
+
+	x, err := itr.itr.Next()
+	if x != nil {
+		tmp := *x
+		itr.curr = &tmp
+	} else {
+		itr.curr = nil
+	}
+	return x, err
+}
 
 // buf{{$k.Name}}Iterator represents a buffered {{$k.Name}}Iterator.
 type buf{{$k.Name}}Iterator struct {

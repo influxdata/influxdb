@@ -370,7 +370,7 @@ func (c *compiledField) compileFunction(expr *influxql.Call) error {
 	switch expr.Name {
 	case "max", "min", "first", "last":
 		// top/bottom are not included here since they are not typical functions.
-	case "count", "sum", "mean", "median", "mode", "stddev", "spread":
+	case "count", "sum", "mean", "median", "mode", "stddev", "spread", "time_weighted_average":
 		// These functions are not considered selectors.
 		c.global.OnlySelectors = false
 	default:

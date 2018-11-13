@@ -53,6 +53,8 @@ func NewCallIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 		return newLastIterator(input, opt)
 	case "mean":
 		return newMeanIterator(input, opt)
+	case "time_weighted_average":
+		return newTimeWeightedAverageIterator(input, opt)
 	default:
 		return nil, fmt.Errorf("unsupported function call: %s", name)
 	}
@@ -507,6 +509,71 @@ func NewDistinctIterator(input Iterator, opt IteratorOptions) (Iterator, error) 
 		return newBooleanReduceBooleanIterator(input, opt, createFn), nil
 	default:
 		return nil, fmt.Errorf("unsupported distinct iterator type: %T", input)
+	}
+}
+
+func newFloatReduceFloatWithPrevElementIterator(input FloatIterator, opt IteratorOptions, createFn func(it FloatPrevIterator) (FloatPointAggregator, FloatPointEmitter)) *floatReduceFloatIterator {
+	prevIt := newPrevElementFloatIterator(input)
+	it := newBufFloatIterator(prevIt)
+	return &floatReduceFloatIterator{
+		input: it,
+		create: func() (FloatPointAggregator, FloatPointEmitter) {
+			return createFn(prevIt)
+		},
+		dims: opt.GetDimensions(),
+		opt:  opt,
+	}
+}
+
+func newIntegerReduceFloatWithPrevElementIterator(input IntegerIterator, opt IteratorOptions, createFn func(it IntegerPrevIterator) (IntegerPointAggregator, FloatPointEmitter)) *integerReduceFloatIterator {
+	prevIt := newPrevElementIntegerIterator(input)
+	it := newBufIntegerIterator(prevIt)
+	return &integerReduceFloatIterator{
+		input: it,
+		create: func() (IntegerPointAggregator, FloatPointEmitter) {
+			return createFn(prevIt)
+		},
+		dims: opt.GetDimensions(),
+		opt:  opt,
+	}
+}
+
+func newUnsignedReduceFloatWithPrevElementIterator(input UnsignedIterator, opt IteratorOptions, createFn func(it UnsignedPrevIterator) (UnsignedPointAggregator, FloatPointEmitter)) *unsignedReduceFloatIterator {
+	prevIt := newPrevElementUnsignedIterator(input)
+	it := newBufUnsignedIterator(prevIt)
+	return &unsignedReduceFloatIterator{
+		input: it,
+		create: func() (UnsignedPointAggregator, FloatPointEmitter) {
+			return createFn(prevIt)
+		},
+		dims: opt.GetDimensions(),
+		opt:  opt,
+	}
+}
+
+// newTimeWeightedAverageIterator returns an iterator for operating on a time_weighted_average() call.
+func newTimeWeightedAverageIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func(it FloatPrevIterator) (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatTimeWeightedAverageReducer(opt, it)
+			return fn, fn
+		}
+		return newFloatReduceFloatWithPrevElementIterator(input, opt, createFn), nil
+	case IntegerIterator:
+		createFn := func(it IntegerPrevIterator) (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewIntegerTimeWeightedAverageReducer(opt, it)
+			return fn, fn
+		}
+		return newIntegerReduceFloatWithPrevElementIterator(input, opt, createFn), nil
+	case UnsignedIterator:
+		createFn := func(it UnsignedPrevIterator) (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewUnsignedTimeWeightedAverageReducer(opt, it)
+			return fn, fn
+		}
+		return newUnsignedReduceFloatWithPrevElementIterator(input, opt, createFn), nil
+	default:
+		return nil, fmt.Errorf("unsupported mean iterator type: %T", input)
 	}
 }
 

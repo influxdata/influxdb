@@ -27,6 +27,12 @@ type FloatIterator interface {
 	Next() (*FloatPoint, error)
 }
 
+// FloatPrevIterator wraps an underlying iterator and remembers previous element a stream.
+type FloatPrevIterator interface {
+	Iterator
+	Prev() *FloatPoint
+}
+
 // newFloatIterators converts a slice of Iterator to a slice of FloatIterator.
 // Drop and closes any iterator in itrs that is not a FloatIterator and cannot
 // be cast to a FloatIterator.
@@ -41,6 +47,46 @@ func newFloatIterators(itrs []Iterator) []FloatIterator {
 		}
 	}
 	return a
+}
+
+type prevElementFloatIterator struct {
+	itr  FloatIterator
+	curr *FloatPoint
+	prev *FloatPoint
+}
+
+func newPrevElementFloatIterator(itr FloatIterator) *prevElementFloatIterator {
+	return &prevElementFloatIterator{itr: itr}
+}
+
+func (itr *prevElementFloatIterator) Prev() *FloatPoint {
+	return itr.prev
+}
+
+// Stats returns statistics from the input iterator.
+func (itr *prevElementFloatIterator) Stats() IteratorStats { return itr.itr.Stats() }
+
+// Close closes the underlying iterator.
+func (itr *prevElementFloatIterator) Close() error { return itr.itr.Close() }
+
+// Next calls the underlying iterator and updates prev element.
+func (itr *prevElementFloatIterator) Next() (*FloatPoint, error) {
+
+	if itr.curr != nil {
+		curr := *itr.curr
+		itr.prev = &curr
+	} else {
+		itr.curr = nil
+	}
+
+	x, err := itr.itr.Next()
+	if x != nil {
+		tmp := *x
+		itr.curr = &tmp
+	} else {
+		itr.curr = nil
+	}
+	return x, err
 }
 
 // bufFloatIterator represents a buffered FloatIterator.
@@ -2583,6 +2629,12 @@ type IntegerIterator interface {
 	Next() (*IntegerPoint, error)
 }
 
+// IntegerPrevIterator wraps an underlying iterator and remembers previous element a stream.
+type IntegerPrevIterator interface {
+	Iterator
+	Prev() *IntegerPoint
+}
+
 // newIntegerIterators converts a slice of Iterator to a slice of IntegerIterator.
 // Drop and closes any iterator in itrs that is not a IntegerIterator and cannot
 // be cast to a IntegerIterator.
@@ -2597,6 +2649,46 @@ func newIntegerIterators(itrs []Iterator) []IntegerIterator {
 		}
 	}
 	return a
+}
+
+type prevElementIntegerIterator struct {
+	itr  IntegerIterator
+	curr *IntegerPoint
+	prev *IntegerPoint
+}
+
+func newPrevElementIntegerIterator(itr IntegerIterator) *prevElementIntegerIterator {
+	return &prevElementIntegerIterator{itr: itr}
+}
+
+func (itr *prevElementIntegerIterator) Prev() *IntegerPoint {
+	return itr.prev
+}
+
+// Stats returns statistics from the input iterator.
+func (itr *prevElementIntegerIterator) Stats() IteratorStats { return itr.itr.Stats() }
+
+// Close closes the underlying iterator.
+func (itr *prevElementIntegerIterator) Close() error { return itr.itr.Close() }
+
+// Next calls the underlying iterator and updates prev element.
+func (itr *prevElementIntegerIterator) Next() (*IntegerPoint, error) {
+
+	if itr.curr != nil {
+		curr := *itr.curr
+		itr.prev = &curr
+	} else {
+		itr.curr = nil
+	}
+
+	x, err := itr.itr.Next()
+	if x != nil {
+		tmp := *x
+		itr.curr = &tmp
+	} else {
+		itr.curr = nil
+	}
+	return x, err
 }
 
 // bufIntegerIterator represents a buffered IntegerIterator.
@@ -5139,6 +5231,12 @@ type UnsignedIterator interface {
 	Next() (*UnsignedPoint, error)
 }
 
+// UnsignedPrevIterator wraps an underlying iterator and remembers previous element a stream.
+type UnsignedPrevIterator interface {
+	Iterator
+	Prev() *UnsignedPoint
+}
+
 // newUnsignedIterators converts a slice of Iterator to a slice of UnsignedIterator.
 // Drop and closes any iterator in itrs that is not a UnsignedIterator and cannot
 // be cast to a UnsignedIterator.
@@ -5153,6 +5251,46 @@ func newUnsignedIterators(itrs []Iterator) []UnsignedIterator {
 		}
 	}
 	return a
+}
+
+type prevElementUnsignedIterator struct {
+	itr  UnsignedIterator
+	curr *UnsignedPoint
+	prev *UnsignedPoint
+}
+
+func newPrevElementUnsignedIterator(itr UnsignedIterator) *prevElementUnsignedIterator {
+	return &prevElementUnsignedIterator{itr: itr}
+}
+
+func (itr *prevElementUnsignedIterator) Prev() *UnsignedPoint {
+	return itr.prev
+}
+
+// Stats returns statistics from the input iterator.
+func (itr *prevElementUnsignedIterator) Stats() IteratorStats { return itr.itr.Stats() }
+
+// Close closes the underlying iterator.
+func (itr *prevElementUnsignedIterator) Close() error { return itr.itr.Close() }
+
+// Next calls the underlying iterator and updates prev element.
+func (itr *prevElementUnsignedIterator) Next() (*UnsignedPoint, error) {
+
+	if itr.curr != nil {
+		curr := *itr.curr
+		itr.prev = &curr
+	} else {
+		itr.curr = nil
+	}
+
+	x, err := itr.itr.Next()
+	if x != nil {
+		tmp := *x
+		itr.curr = &tmp
+	} else {
+		itr.curr = nil
+	}
+	return x, err
 }
 
 // bufUnsignedIterator represents a buffered UnsignedIterator.
@@ -7695,6 +7833,12 @@ type StringIterator interface {
 	Next() (*StringPoint, error)
 }
 
+// StringPrevIterator wraps an underlying iterator and remembers previous element a stream.
+type StringPrevIterator interface {
+	Iterator
+	Prev() *StringPoint
+}
+
 // newStringIterators converts a slice of Iterator to a slice of StringIterator.
 // Drop and closes any iterator in itrs that is not a StringIterator and cannot
 // be cast to a StringIterator.
@@ -7709,6 +7853,46 @@ func newStringIterators(itrs []Iterator) []StringIterator {
 		}
 	}
 	return a
+}
+
+type prevElementStringIterator struct {
+	itr  StringIterator
+	curr *StringPoint
+	prev *StringPoint
+}
+
+func newPrevElementStringIterator(itr StringIterator) *prevElementStringIterator {
+	return &prevElementStringIterator{itr: itr}
+}
+
+func (itr *prevElementStringIterator) Prev() *StringPoint {
+	return itr.prev
+}
+
+// Stats returns statistics from the input iterator.
+func (itr *prevElementStringIterator) Stats() IteratorStats { return itr.itr.Stats() }
+
+// Close closes the underlying iterator.
+func (itr *prevElementStringIterator) Close() error { return itr.itr.Close() }
+
+// Next calls the underlying iterator and updates prev element.
+func (itr *prevElementStringIterator) Next() (*StringPoint, error) {
+
+	if itr.curr != nil {
+		curr := *itr.curr
+		itr.prev = &curr
+	} else {
+		itr.curr = nil
+	}
+
+	x, err := itr.itr.Next()
+	if x != nil {
+		tmp := *x
+		itr.curr = &tmp
+	} else {
+		itr.curr = nil
+	}
+	return x, err
 }
 
 // bufStringIterator represents a buffered StringIterator.
@@ -10237,6 +10421,12 @@ type BooleanIterator interface {
 	Next() (*BooleanPoint, error)
 }
 
+// BooleanPrevIterator wraps an underlying iterator and remembers previous element a stream.
+type BooleanPrevIterator interface {
+	Iterator
+	Prev() *BooleanPoint
+}
+
 // newBooleanIterators converts a slice of Iterator to a slice of BooleanIterator.
 // Drop and closes any iterator in itrs that is not a BooleanIterator and cannot
 // be cast to a BooleanIterator.
@@ -10251,6 +10441,46 @@ func newBooleanIterators(itrs []Iterator) []BooleanIterator {
 		}
 	}
 	return a
+}
+
+type prevElementBooleanIterator struct {
+	itr  BooleanIterator
+	curr *BooleanPoint
+	prev *BooleanPoint
+}
+
+func newPrevElementBooleanIterator(itr BooleanIterator) *prevElementBooleanIterator {
+	return &prevElementBooleanIterator{itr: itr}
+}
+
+func (itr *prevElementBooleanIterator) Prev() *BooleanPoint {
+	return itr.prev
+}
+
+// Stats returns statistics from the input iterator.
+func (itr *prevElementBooleanIterator) Stats() IteratorStats { return itr.itr.Stats() }
+
+// Close closes the underlying iterator.
+func (itr *prevElementBooleanIterator) Close() error { return itr.itr.Close() }
+
+// Next calls the underlying iterator and updates prev element.
+func (itr *prevElementBooleanIterator) Next() (*BooleanPoint, error) {
+
+	if itr.curr != nil {
+		curr := *itr.curr
+		itr.prev = &curr
+	} else {
+		itr.curr = nil
+	}
+
+	x, err := itr.itr.Next()
+	if x != nil {
+		tmp := *x
+		itr.curr = &tmp
+	} else {
+		itr.curr = nil
+	}
+	return x, err
 }
 
 // bufBooleanIterator represents a buffered BooleanIterator.
