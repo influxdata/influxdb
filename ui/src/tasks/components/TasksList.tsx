@@ -24,9 +24,9 @@ export default class TasksList extends PureComponent<Props> {
     return (
       <IndexList>
         <IndexList.Header>
-          <IndexList.HeaderCell columnName="Name" width="65%" />
-          <IndexList.HeaderCell columnName="Organization" width="15%" />
-          <IndexList.HeaderCell columnName="Status" width="10%" />
+          <IndexList.HeaderCell columnName="NAME" width="65%" />
+          <IndexList.HeaderCell columnName="ORGANIZATION" width="15%" />
+          <IndexList.HeaderCell columnName="ACTIVE" width="10%" />
           <IndexList.HeaderCell columnName="" width="10%" />
         </IndexList.Header>
         <IndexList.Body
