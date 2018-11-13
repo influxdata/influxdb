@@ -12,6 +12,7 @@ import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 interface Props {
   tasks: Task[]
   searchTerm: string
+  onActivate: (task: Task) => void
   onDelete: (task: Task) => void
   onCreate: () => void
   onSelect: (task: Task) => void
@@ -24,10 +25,10 @@ export default class TasksList extends PureComponent<Props> {
     return (
       <IndexList>
         <IndexList.Header>
-          <IndexList.HeaderCell columnName="NAME" width="65%" />
-          <IndexList.HeaderCell columnName="ORGANIZATION" width="15%" />
+          <IndexList.HeaderCell columnName="NAME" width="20%" />
           <IndexList.HeaderCell columnName="ACTIVE" width="10%" />
-          <IndexList.HeaderCell columnName="" width="10%" />
+          <IndexList.HeaderCell columnName="ORGANIZATION" width="15%" />
+          <IndexList.HeaderCell columnName="" width="50%" />
         </IndexList.Header>
         <IndexList.Body
           emptyState={
@@ -42,12 +43,13 @@ export default class TasksList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    const {tasks, onDelete, onSelect} = this.props
+    const {tasks, onActivate, onDelete, onSelect} = this.props
 
     return tasks.map(t => (
       <TaskRow
         key={`task-id--${t.id}`}
         task={t}
+        onActivate={onActivate}
         onDelete={onDelete}
         onSelect={onSelect}
       />

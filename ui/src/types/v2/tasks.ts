@@ -1,6 +1,7 @@
 export interface Task {
   id: string
   name: string
+  status: TaskStatus
   organizationId: string
   organization: {
     id: string
@@ -11,4 +12,9 @@ export interface Task {
     name: string
   }
   flux?: string
+}
+
+export enum TaskStatus {
+  Active = 'active',
+  Inactive = 'inactive',
 }

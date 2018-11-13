@@ -7,6 +7,7 @@ import {
   updateTaskFlux,
   getUserTasks,
   getTask,
+  updateTaskStatus as updateTaskStatusAPI,
   deleteTask as deleteTaskAPI,
 } from 'src/tasks/api/v2'
 import {getMe} from 'src/shared/apis/v2/user'
@@ -93,6 +94,23 @@ export const setSearchTerm = (searchTerm: string) => ({
   type: ActionTypes.SetSearchTerm,
   payload: {searchTerm},
 })
+
+export const updateTaskStatus = (task: Task) => async (
+  dispatch,
+  getState: GetStateFunc
+) => {
+  try {
+    const {
+      links: {tasks: url},
+    } = await getState()
+    await updateTaskStatusAPI(url, task.id, task.status)
+
+    dispatch(populateTasks())
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(taskDeleteFailed()))
+  }
+}
 
 export const deleteTask = (task: Task) => async (
   dispatch,
