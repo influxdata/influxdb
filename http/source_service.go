@@ -251,7 +251,9 @@ func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, req.Source); err != nil {
+	res := newSourceResponse(req.Source)
+
+	if err := encodeResponse(ctx, w, http.StatusCreated, res); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}

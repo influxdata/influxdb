@@ -4,12 +4,12 @@ import {connect} from 'react-redux'
 
 import {RemoteDataState} from 'src/types'
 
-import {getSourcesAsync} from 'src/shared/actions/sources'
+import {readSources} from 'src/sources/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: React.ReactElement<any>
-  getSources: typeof getSourcesAsync
+  onReadSources: typeof readSources
 }
 
 interface State {
@@ -27,7 +27,8 @@ export class GetSources extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    await this.props.getSources()
+    await this.props.onReadSources()
+
     this.setState({ready: RemoteDataState.Done})
   }
 
@@ -41,7 +42,7 @@ export class GetSources extends PureComponent<Props, State> {
 }
 
 const mdtp = {
-  getSources: getSourcesAsync,
+  onReadSources: readSources,
 }
 
 export default connect(

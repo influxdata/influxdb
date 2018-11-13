@@ -8,7 +8,7 @@ import {resizeLayout} from 'src/shared/middleware/resizeLayout'
 import {queryStringConfig} from 'src/shared/middleware/queryStringConfig'
 import sharedReducers from 'src/shared/reducers'
 import persistStateEnhancer from './persistStateEnhancer'
-import sourcesReducer from 'src/sources/reducers/sources'
+import sourcesReducer from 'src/sources/reducers'
 
 // v2 reducers
 import meReducer from 'src/shared/reducers/v2/me'
@@ -19,7 +19,6 @@ import viewsReducer from 'src/dashboards/reducers/v2/views'
 import logsReducer from 'src/logs/reducers'
 import timeMachinesReducer from 'src/shared/reducers/v2/timeMachines'
 import orgsReducer from 'src/organizations/reducers/orgs'
-import sourceReducer from 'src/shared/reducers/v2/source'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -42,7 +41,6 @@ const rootReducer = combineReducers<ReducerState>({
   tasks: tasksReducer,
   orgs: orgsReducer,
   me: meReducer,
-  source: sourceReducer,
 })
 
 const composeEnhancers =

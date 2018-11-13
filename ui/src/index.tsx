@@ -15,7 +15,7 @@ import {getBasepath} from 'src/utils/basepath'
 // Components
 import App from 'src/App'
 import GetSources from 'src/shared/containers/GetSources'
-import SetSource from 'src/shared/containers/SetSource'
+import SetActiveSource from 'src/shared/containers/SetActiveSource'
 import GetOrganizations from 'src/shared/containers/GetOrganizations'
 import Setup from 'src/Setup'
 import Signin from 'src/Signin'
@@ -26,12 +26,12 @@ import OrganizationView from 'src/organizations/containers/OrganizationView'
 import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
-import {SourcePage, ManageSources} from 'src/sources'
 import {UserPage} from 'src/user'
 import {LogsPage} from 'src/logs'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
+import SourcesPage from 'src/sources/components/SourcesPage'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -82,7 +82,7 @@ class Root extends PureComponent {
                   <Route component={GetOrganizations}>
                     <Route component={App}>
                       <Route path="/" component={GetSources}>
-                        <Route path="/" component={SetSource}>
+                        <Route path="/" component={SetActiveSource}>
                           <Route
                             path="dashboards/:dashboardID"
                             component={DashboardPage}
@@ -98,26 +98,14 @@ class Root extends PureComponent {
                           />
                           <Route path="tasks/new" component={TaskPage} />
                           <Route path="tasks/:id" component={TaskEditPage} />
-                          <Route path="sources/new" component={SourcePage} />
                           <Route
                             path="data-explorer"
                             component={DataExplorerPage}
                           />
                           <Route path="dashboards" component={DashboardsPage} />
-                          <Route
-                            path="manage-sources"
-                            component={ManageSources}
-                          />
-                          <Route
-                            path="manage-sources/new"
-                            component={SourcePage}
-                          />
-                          <Route
-                            path="manage-sources/:id/edit"
-                            component={SourcePage}
-                          />
                           <Route path="user_profile" component={UserPage} />
                           <Route path="logs" component={LogsPage} />
+                          <Route path="sources" component={SourcesPage} />
                         </Route>
                       </Route>
                     </Route>

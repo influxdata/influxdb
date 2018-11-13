@@ -12,6 +12,9 @@ import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher
 // Constants
 import {emptyGraphCopy} from 'src/shared/copy/cell'
 
+// Utils
+import {getActiveSource} from 'src/sources/selectors'
+
 // Types
 import {TimeRange} from 'src/types'
 import {AppState} from 'src/types/v2'
@@ -102,12 +105,10 @@ class RefreshingView extends PureComponent<Props> {
   }
 }
 
-const mstp = ({source}: AppState): StateProps => {
-  const link = source.links.query
+const mstp = (state: AppState): StateProps => {
+  const link = getActiveSource(state).links.query
 
-  return {
-    link,
-  }
+  return {link}
 }
 
 const mdtp = {}

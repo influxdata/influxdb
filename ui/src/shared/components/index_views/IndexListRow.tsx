@@ -8,6 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   disabled?: boolean
   children: JSX.Element[] | JSX.Element
+  customClass?: string
 }
 
 @ErrorHandling
@@ -23,9 +24,12 @@ class IndexListRow extends Component<Props> {
   }
 
   private get className(): string {
-    const {disabled} = this.props
+    const {disabled, customClass} = this.props
 
-    return classnames('index-list--row', {'index-list--row-disabled': disabled})
+    return classnames('index-list--row', {
+      'index-list--row-disabled': disabled,
+      [customClass]: !!customClass,
+    })
   }
 }
 

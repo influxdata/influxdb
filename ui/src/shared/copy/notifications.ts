@@ -137,13 +137,10 @@ export const sourceCreationSucceeded = (sourceName: string): Notification => ({
   message: `Connected to InfluxDB ${sourceName} successfully.`,
 })
 
-export const sourceCreationFailed = (
-  sourceName: string,
-  errorMessage: string
-): Notification => ({
+export const sourceCreationFailed = (errorMessage: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'server2',
-  message: `Unable to connect to InfluxDB ${sourceName}: ${errorMessage}`,
+  message: `Unable to create source: ${errorMessage}`,
 })
 
 export const sourceUpdated = (sourceName: string): Notification => ({
