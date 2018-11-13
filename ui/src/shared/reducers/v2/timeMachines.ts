@@ -1,3 +1,6 @@
+// Libraries
+import _ from 'lodash'
+
 // Utils
 import {convertView, createView, replaceQuery} from 'src/shared/utils/view'
 
@@ -109,6 +112,168 @@ const timeMachineReducer = (
         ...activeTimeMachine,
         view: replaceQuery(view, draftScript),
       }
+      break
+    }
+    case 'SET_AXES': {
+      const {axes} = action.payload
+      const {
+        view,
+        view: {properties},
+      } = activeTimeMachine
+
+      newActiveTimeMachine = {
+        ...activeTimeMachine,
+        view: {...view, properties: {...properties, axes}},
+      }
+      break
+    }
+
+    case 'SET_Y_AXIS_LABEL': {
+      const {label} = action.payload
+      const {
+        view,
+        view: {properties},
+      } = activeTimeMachine
+
+      const axes = _.get(properties, 'axes')
+      const yAxis = {..._.get(axes, 'y'), label}
+
+      newActiveTimeMachine = {
+        ...activeTimeMachine,
+        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
+      }
+      break
+    }
+
+    case 'SET_Y_AXIS_MIN_BOUND': {
+      const {min} = action.payload
+      const {
+        view,
+        view: {properties},
+      } = activeTimeMachine
+
+      const axes = _.get(properties, 'axes')
+      const yAxis = _.get(axes, 'y')
+      yAxis.bounds[0] = min
+
+      newActiveTimeMachine = {
+        ...activeTimeMachine,
+        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
+      }
+      break
+    }
+
+    case 'SET_Y_AXIS_MAX_BOUND': {
+      const {max} = action.payload
+      const {
+        view,
+        view: {properties},
+      } = activeTimeMachine
+
+      const axes = _.get(properties, 'axes')
+      const yAxis = _.get(axes, 'y')
+      yAxis.bounds[1] = max
+
+      newActiveTimeMachine = {
+        ...activeTimeMachine,
+        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
+      }
+      break
+    }
+
+    case 'SET_Y_AXIS_PREFIX': {
+      const {prefix} = action.payload
+      const {
+        view,
+        view: {properties},
+      } = activeTimeMachine
+
+      const axes = _.get(properties, 'axes')
+      const yAxis = {..._.get(axes, 'y'), prefix}
+
+      newActiveTimeMachine = {
+        ...activeTimeMachine,
+        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
+      }
+      break
+    }
+
+    case 'SET_Y_AXIS_SUFFIX': {
+      const {suffix} = action.payload
+      const {
+        view,
+        view: {properties},
+      } = activeTimeMachine
+
+      const axes = _.get(properties, 'axes')
+      const yAxis = {..._.get(axes, 'y'), suffix}
+
+      newActiveTimeMachine = {
+        ...activeTimeMachine,
+        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
+      }
+      break
+    }
+
+    case 'SET_Y_AXIS_BASE': {
+      const {base} = action.payload
+      const {
+        view,
+        view: {properties},
+      } = activeTimeMachine
+
+      const axes = _.get(properties, 'axes')
+      const yAxis = {..._.get(axes, 'y'), base}
+
+      newActiveTimeMachine = {
+        ...activeTimeMachine,
+        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
+      }
+      break
+    }
+
+    case 'SET_Y_AXIS_SCALE': {
+      const {scale} = action.payload
+      const {
+        view,
+        view: {properties},
+      } = activeTimeMachine
+
+      const axes = _.get(properties, 'axes')
+      const yAxis = {..._.get(axes, 'y'), scale}
+
+      newActiveTimeMachine = {
+        ...activeTimeMachine,
+        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
+      }
+      break
+    }
+
+    case 'SET_COLORS': {
+      const {colors} = action.payload
+      const {
+        view,
+        view: {properties},
+      } = activeTimeMachine
+
+      newActiveTimeMachine = {
+        ...activeTimeMachine,
+        view: {...view, properties: {...properties, colors}},
+      }
+      break
+    }
+
+    case 'SET_DECIMAL_PLACES': {
+      const {decimalPlaces} = action.payload
+
+      newActiveTimeMachine = {...activeTimeMachine, decimalPlaces}
+      break
+    }
+
+    case 'SET_STATIC_LEGEND': {
+      const {staticLegend} = action.payload
+
+      newActiveTimeMachine = {...activeTimeMachine, staticLegend}
       break
     }
   }

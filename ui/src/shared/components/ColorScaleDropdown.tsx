@@ -38,7 +38,6 @@ export default class ColorScaleDropdown extends Component<Props, State> {
 
   public render() {
     const {expanded} = this.state
-    const {selected} = this.props
 
     return (
       <ClickOutside onClickOutside={this.handleClickOutside}>
@@ -46,9 +45,9 @@ export default class ColorScaleDropdown extends Component<Props, State> {
           <div className={this.buttonClassName} onClick={this.handleToggleMenu}>
             <div
               className="color-dropdown--swatches"
-              style={this.generateGradientStyle(selected)}
+              style={this.generateGradientStyle(this.selected)}
             />
-            <div className="color-dropdown--name">{selected[0].name}</div>
+            <div className="color-dropdown--name">{this.selected[0].name}</div>
             <span className="caret" />
           </div>
           {expanded && this.renderMenu}
@@ -57,9 +56,17 @@ export default class ColorScaleDropdown extends Component<Props, State> {
     )
   }
 
-  private get renderMenu(): JSX.Element {
+  private get selected(): Color[] {
     const {selected} = this.props
 
+    if (selected.length) {
+      return selected
+    }
+
+    return LINE_COLOR_SCALES[0].colors
+  }
+
+  private get renderMenu(): JSX.Element {
     return (
       <div className="color-dropdown--menu">
         <FancyScrollbar
@@ -70,7 +77,7 @@ export default class ColorScaleDropdown extends Component<Props, State> {
           {LINE_COLOR_SCALES.map(colorScale => (
             <div
               className={
-                colorScale.name === selected[0].name
+                colorScale.name === this.selected[0].name
                   ? 'color-dropdown--item active'
                   : 'color-dropdown--item'
               }
