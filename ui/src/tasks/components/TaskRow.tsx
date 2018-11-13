@@ -24,7 +24,7 @@ export default class TaskRow extends PureComponent<Props> {
     const {task} = this.props
 
     return (
-      <IndexList.Row disabled={this.disabled}>
+      <IndexList.Row disabled={!this.isTaskActive}>
         <IndexList.Cell>
           <a href="#" onClick={this.handleClick}>
             {task.name}
@@ -32,7 +32,7 @@ export default class TaskRow extends PureComponent<Props> {
         </IndexList.Cell>
         <IndexList.Cell>
           <SlideToggle
-            active={!this.disabled}
+            active={this.isTaskActive}
             size={ComponentSize.ExtraSmall}
             onChange={this.changeToggle}
           />
@@ -64,12 +64,12 @@ export default class TaskRow extends PureComponent<Props> {
     this.props.onDelete(this.props.task)
   }
 
-  private get disabled(): boolean {
+  private get isTaskActive(): boolean {
     const {task} = this.props
     if (task.status === TaskStatus.Active) {
-      return false
+      return true
     }
-    return true
+    return false
   }
 
   private changeToggle = () => {
