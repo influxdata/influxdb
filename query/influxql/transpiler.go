@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform"
+	pinputs "github.com/influxdata/platform/query/functions/inputs"
 )
 
 // Transpiler converts InfluxQL queries into a query spec.
@@ -92,6 +93,8 @@ func (t *transpilerState) transpile(ctx context.Context, s influxql.Statement) (
 		return t.transpileSelect(ctx, stmt)
 	case *influxql.ShowTagValuesStatement:
 		return t.transpileShowTagValues(ctx, stmt)
+	case *influxql.ShowDatabasesStatement:
+		return t.transpileShowDatabases(ctx, stmt)
 	default:
 		return "", fmt.Errorf("unknown statement type %T", s)
 	}
@@ -203,6 +206,27 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 	}, t.op("group", &transformations.GroupOpSpec{
 		By: []string{"_measurement", "_key"},
 	}, op)))), nil
+}
+
+func (t *transpilerState) transpileShowDatabases(ctx context.Context, stmt *influxql.ShowDatabasesStatement) (flux.OperationID, error) {
+	// While the ShowTagValuesStatement contains a sources section and those sources are measurements, they do
+	// not actually contain the database and we do not factor in retention policies. So we are always going to use
+	// the default retention policy when evaluating which bucket we are querying and we do not have to consult
+	// the sources in the statement.
+
+	spec := &pinputs.DatabasesOpSpec{}
+	op := t.op("databases", spec)
+
+	// SHOW DATABASES has one column, name
+	return t.op("extractcol", &transformations.KeepOpSpec{
+		Columns: []string{
+			"name",
+		},
+	}, t.op("rename", &transformations.RenameOpSpec{
+		Columns: map[string]string{
+			"databaseName": "name",
+		},
+	}, op)), nil
 }
 
 func (t *transpilerState) transpileSelect(ctx context.Context, stmt *influxql.SelectStatement) (flux.OperationID, error) {

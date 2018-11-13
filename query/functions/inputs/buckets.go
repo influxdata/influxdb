@@ -2,7 +2,6 @@ package inputs
 
 import (
 	"fmt"
-
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
 
@@ -87,12 +86,12 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 	}
 
 	for _, bucket := range bd.buckets {
-		b.AppendString(0, bucket.Name)
-		b.AppendString(1, bucket.ID.String())
-		b.AppendString(2, bucket.Organization)
-		b.AppendString(3, bucket.OrganizationID.String())
-		b.AppendString(4, bucket.RetentionPolicyName)
-		b.AppendInt(5, bucket.RetentionPeriod.Nanoseconds())
+		_ = b.AppendString(0, bucket.Name)
+		_ = b.AppendString(1, bucket.ID.String())
+		_ = b.AppendString(2, bucket.Organization)
+		_ = b.AppendString(3, bucket.OrganizationID.String())
+		_ = b.AppendString(4, bucket.RetentionPolicyName)
+		_ = b.AppendInt(5, bucket.RetentionPeriod.Nanoseconds())
 	}
 
 	return b.Table()
