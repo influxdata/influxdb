@@ -88,6 +88,58 @@ func TestCompactor_Snapshot(t *testing.T) {
 	}
 }
 
+func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	var vals tsm1.Values
+	ts := int64(1e9)
+	for i := 0; i < 120; i++ {
+		vals = append(vals, tsm1.NewIntegerValue(ts, 1))
+		ts += 1e9
+	}
+	// 121st timestamp skips a second
+	ts += 1e9
+	vals = append(vals, tsm1.NewIntegerValue(ts, 1))
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": vals[:100],
+	}
+	f1 := MustWriteTSM(dir, 1, writes)
+
+	writes = map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": vals[100:],
+	}
+	f2 := MustWriteTSM(dir, 2, writes)
+
+	fs := &fakeFileStore{}
+	defer fs.Close()
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
+	compactor.Open()
+
+	files, err := compactor.CompactFull([]string{f1, f2})
+	if err != nil {
+		t.Fatalf("unexpected error writing snapshot: %v", err)
+	}
+
+	r := MustOpenTSMReader(files[0])
+	entries := r.Entries([]byte("cpu,host=A#!~#value"))
+	_, b, err := r.ReadBytes(&entries[0], nil)
+	if err != nil {
+		t.Fatalf("ReadBytes: unexpected error %v", err)
+	}
+	var a tsdb.IntegerArray
+	err = tsm1.DecodeIntegerArrayBlock(b, &a)
+	if err != nil {
+		t.Fatalf("DecodeIntegerArrayBlock: unexpected error %v", err)
+	}
+
+	if a.MaxTime() != entries[0].MaxTime {
+		t.Fatalf("expected MaxTime == a.MaxTime()")
+	}
+}
+
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_CompactFull(t *testing.T) {
 	dir := MustTempDir()
