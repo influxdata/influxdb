@@ -6,6 +6,7 @@ import {
   Button,
   ComponentColor,
   ComponentStatus,
+  ButtonType,
 } from 'src/clockface'
 import Retention from 'src/organizations/components/Retention'
 
@@ -43,7 +44,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
     } = this.props
 
     return (
-      <Form>
+      <Form onSubmit={onSubmit}>
         <Form.Element label="Name" errorMessage={errorMessage}>
           <Input
             placeholder="Give your bucket a name"
@@ -65,12 +66,9 @@ export default class BucketOverlayForm extends PureComponent<Props> {
             text="Cancel"
             color={ComponentColor.Danger}
             onClick={onCloseModal}
+            type={ButtonType.Button}
           />
-          <Button
-            text={buttonText}
-            color={ComponentColor.Primary}
-            onClick={onSubmit}
-          />
+          <Button text={buttonText} color={ComponentColor.Primary} />
         </Form.Footer>
       </Form>
     )

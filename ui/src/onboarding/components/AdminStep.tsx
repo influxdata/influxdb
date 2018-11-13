@@ -47,12 +47,15 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
       isPassMismatched: false,
     }
   }
+
   public componentDidMount() {
     window.addEventListener('keydown', this.handleKeydown)
   }
+
   public componentWillUnmount() {
     window.removeEventListener('keydown', this.handleKeydown)
   }
+
   public render() {
     const {username, password, confirmPassword, org, bucket} = this.state
     const icon = this.InputIcon
@@ -166,22 +169,26 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     const username = e.target.value
     this.setState({username})
   }
+
   private handlePassword = (e: ChangeEvent<HTMLInputElement>): void => {
     const {confirmPassword} = this.state
     const password = e.target.value
     const isPassMismatched = confirmPassword && password !== confirmPassword
     this.setState({password, isPassMismatched})
   }
+
   private handleConfirmPassword = (e: ChangeEvent<HTMLInputElement>): void => {
     const {password} = this.state
     const confirmPassword = e.target.value
     const isPassMismatched = confirmPassword && password !== confirmPassword
     this.setState({confirmPassword, isPassMismatched})
   }
+
   private handleOrg = (e: ChangeEvent<HTMLInputElement>): void => {
     const org = e.target.value
     this.setState({org})
   }
+
   private handleBucket = (e: ChangeEvent<HTMLInputElement>): void => {
     const bucket = e.target.value
     this.setState({bucket})

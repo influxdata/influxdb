@@ -15,6 +15,7 @@ interface Props {
   children: JSX.Element[] | JSX.Element
   style?: React.CSSProperties
   className?: string
+  onSubmit?: (e: React.FormEvent) => void
 }
 
 @ErrorHandling
@@ -43,10 +44,19 @@ class Form extends Component<Props> {
     this.validateChildren()
 
     return (
-      <div style={style} className={this.formWrapperClass}>
+      <form
+        style={style}
+        className={this.formWrapperClass}
+        onSubmit={this.handleSubmit}
+      >
         {children}
-      </div>
+      </form>
     )
+  }
+
+  private handleSubmit = (e: React.FormEvent): void => {
+    e.preventDefault()
+    this.props.onSubmit(e)
   }
 
   private get formWrapperClass(): string {
@@ -59,12 +69,6 @@ class Form extends Component<Props> {
 
   private validateChildren = (): void => {
     const childArray = React.Children.toArray(this.props.children)
-    if (childArray.length === 0) {
-      // TODO: (watts): be less strict in these validations
-      //  throw new Error(
-      //    'Form require at least 1 child element. We recommend using <Form.Element>'
-      //  )
-    }
     const childrenAreValid = _.every(childArray, this.childTypeIsValid)
     if (!childrenAreValid) {
       // throw new Error(

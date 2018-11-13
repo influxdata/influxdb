@@ -11,6 +11,7 @@ import {
   Button,
   ComponentColor,
   ComponentStatus,
+  ButtonType,
 } from 'src/clockface'
 
 // Types
@@ -50,7 +51,7 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
           onDismiss={this.props.onCloseModal}
         />
         <OverlayBody>
-          <Form>
+          <Form onSubmit={this.handleCreateOrg}>
             <Form.Element label="Name" errorMessage={errorMessage}>
               <Input
                 placeholder="Give your organization a name"
@@ -69,8 +70,8 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
               />
               <Button
                 text="Create"
+                type={ButtonType.Submit}
                 color={ComponentColor.Primary}
-                onClick={this.handleCreateOrg}
               />
             </Form.Footer>
           </Form>

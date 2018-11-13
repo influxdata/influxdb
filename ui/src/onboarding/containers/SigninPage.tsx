@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -15,6 +15,7 @@ import {
   InputType,
   Form,
   Columns,
+  ButtonType,
 } from 'src/clockface'
 
 // APIs
@@ -58,29 +59,27 @@ class SigninPage extends PureComponent<Props, State> {
         <SplashPage.Panel>
           <SplashPage.Logo />
           <SplashPage.Header title="InfluxData" />
-          <Form>
+          <Form onSubmit={this.handleSignIn}>
             <Form.Element
               label="Username"
               colsXS={Columns.Twelve}
-              errorMessage={''}
+              errorMessage=""
             >
               <Input
                 value={username}
                 onChange={this.handleUsername}
                 size={ComponentSize.Medium}
-                onKeyPress={this.handleKeyPress}
                 autoFocus={true}
               />
             </Form.Element>
             <Form.Element
               label="Password"
               colsXS={Columns.Twelve}
-              errorMessage={''}
+              errorMessage=""
             >
               <Input
                 value={password}
                 onChange={this.handlePassword}
-                onKeyPress={this.handleKeyPress}
                 size={ComponentSize.Medium}
                 type={InputType.Password}
               />
@@ -90,7 +89,7 @@ class SigninPage extends PureComponent<Props, State> {
                 color={ComponentColor.Primary}
                 text="Sign In"
                 size={ComponentSize.Medium}
-                onClick={this.handleSignIn}
+                type={ButtonType.Submit}
               />
             </Form.Footer>
           </Form>
@@ -106,12 +105,6 @@ class SigninPage extends PureComponent<Props, State> {
   private handlePassword = (e: ChangeEvent<HTMLInputElement>): void => {
     const password = e.target.value
     this.setState({password})
-  }
-
-  private handleKeyPress = (e: KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === 'Enter') {
-      this.handleSignIn()
-    }
   }
 
   private handleSignIn = async (): Promise<void> => {

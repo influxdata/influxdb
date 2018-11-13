@@ -30,7 +30,7 @@ export default class OrgOptions extends PureComponent<Props, State> {
   public render() {
     const {org, errorMessage} = this.state
     return (
-      <Form>
+      <Form onSubmit={this.handleUpdateOrg}>
         <Form.Element label="Name" errorMessage={errorMessage}>
           <Input
             placeholder="Give your organization a name"
