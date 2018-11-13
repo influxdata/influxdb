@@ -189,7 +189,7 @@ func TestResponseWriter_CSV_DifferentColumns(t *testing.T) {
 						Name:    "runtime",
 						Columns: []string{"GOARCH", "GOMAXPROCS", "GOOS", "version"},
 						Values: [][]interface{}{
-							{"amd64", int64(8), "darwin", "go1.10"},
+							{"amd64", int64(8), "darwin", "go1.11"},
 						},
 					},
 				},
@@ -201,7 +201,7 @@ func TestResponseWriter_CSV_DifferentColumns(t *testing.T) {
 network,,localhost
 
 name,tags,GOARCH,GOMAXPROCS,GOOS,version
-runtime,,amd64,8,darwin,go1.10
+runtime,,amd64,8,darwin,go1.11
 `; got != want {
 		t.Errorf("unexpected output:\n\ngot=%v\nwant=%s", got, want)
 	}

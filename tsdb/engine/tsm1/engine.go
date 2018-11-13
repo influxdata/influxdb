@@ -39,7 +39,7 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl batch_cursor.gen.go.tmpl cursor_iterator.gen.go.tmpl array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
+//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl engine.gen.go.tmpl array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
 //go:generate go run ../../../_tools/tmpl/main.go -i -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
 //go:generate go run ../../../_tools/tmpl/main.go -i -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
@@ -1289,7 +1289,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 						continue
 					}
 
-					// Doesn't exsts, so try to insert
+					// Doesn't exist, so try to insert
 					vv, ok := e.seriesTypeMap.Insert(keyBuf, int(iter.Type()))
 
 					// We didn't insert and the type that exists isn't what we tried to insert, so
@@ -1480,7 +1480,6 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 // does not update the index or disable compactions.  This should mainly be called by DeleteSeriesRange
 // and not directly.
 func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
-	ts := time.Now().UTC().UnixNano()
 	if len(seriesKeys) == 0 {
 		return nil
 	}
@@ -1617,7 +1616,14 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 	// Have we deleted all values for the series? If so, we need to remove
 	// the series from the index.
-	if len(seriesKeys) > 0 {
+	hasDeleted := false
+	for _, k := range seriesKeys {
+		if len(k) > 0 {
+			hasDeleted = true
+			break
+		}
+	}
+	if hasDeleted {
 		buf := make([]byte, 1024) // For use when accessing series file.
 		ids := tsdb.NewSeriesIDSet()
 		measurements := make(map[string]struct{}, 1)
@@ -1692,7 +1698,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			// the global index (all shards).
 			if index, ok := e.index.(*inmem.ShardIndex); ok {
 				key := models.MakeKey(name, tags)
-				if e := index.Index.DropSeriesGlobal(key, ts); e != nil {
+				if e := index.Index.DropSeriesGlobal(key); e != nil {
 					err = e
 				}
 			}
@@ -1778,19 +1784,19 @@ func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) err
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
 
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
-func (e *Engine) WriteSnapshot() error {
+func (e *Engine) WriteSnapshot() (err error) {
 	// Lock and grab the cache snapshot along with all the closed WAL
 	// filenames associated with the snapshot
 
 	started := time.Now()
-
 	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "tsm1_cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
 		e.Cache.UpdateCompactTime(elapsed)
-		log.Info("Snapshot for path written",
-			zap.String("path", e.path),
-			zap.Duration("duration", elapsed))
+
+		if err == nil {
+			log.Info("Snapshot for path written", zap.String("path", e.path), zap.Duration("duration", elapsed))
+		}
 		logEnd()
 	}()
 
@@ -1876,7 +1882,14 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, s
 
 	// update the file store with these new files
 	if err := e.FileStore.Replace(nil, newFiles); err != nil {
-		log.Info("Error adding new TSM files from snapshot", zap.Error(err))
+		log.Info("Error adding new TSM files from snapshot. Removing temp files.", zap.Error(err))
+
+		// Remove the new snapshot files. We will try again.
+		for _, file := range newFiles {
+			if err := os.Remove(file); err != nil {
+				log.Info("Unable to remove file", zap.String("path", file), zap.Error(err))
+			}
+		}
 		return err
 	}
 
@@ -2354,7 +2367,7 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == "inmem" {
+	if e.index.Type() == tsdb.InmemIndexName {
 		ts := e.index.(indexTagSets)
 		tagSets, err = ts.TagSets([]byte(measurement), opt)
 	} else {
@@ -2434,7 +2447,7 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == "inmem" {
+	if e.index.Type() == tsdb.InmemIndexName {
 		ts := e.index.(indexTagSets)
 		tagSets, err = ts.TagSets([]byte(measurement), opt)
 	} else {

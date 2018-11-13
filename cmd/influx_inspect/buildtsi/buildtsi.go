@@ -36,6 +36,7 @@ type Command struct {
 	retentionFilter string
 	shardFilter     string
 	maxLogFileSize  int64
+	maxCacheSize    uint64
 	batchSize       int
 }
 
@@ -60,6 +61,7 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.retentionFilter, "retention", "", "optional: retention policy")
 	fs.StringVar(&cmd.shardFilter, "shard", "", "optional: shard id")
 	fs.Int64Var(&cmd.maxLogFileSize, "max-log-file-size", tsdb.DefaultMaxIndexLogFileSize, "optional: maximum log file size")
+	fs.Uint64Var(&cmd.maxCacheSize, "max-cache-size", tsdb.DefaultCacheMaxMemorySize, "optional: maximum cache size")
 	fs.IntVar(&cmd.batchSize, "batch-size", defaultBatchSize, "optional: set the size of the batches we write to the index. Setting this can have adverse affects on performance and heap requirements")
 	fs.BoolVar(&cmd.Verbose, "v", false, "verbose")
 	fs.SetOutput(cmd.Stdout)
@@ -183,7 +185,8 @@ func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpNam
 				}
 
 				id, name := shards[i].ID, shards[i].Path
-				errC <- cmd.processShard(sfile, dbName, rpName, id, filepath.Join(dataDir, name), filepath.Join(walDir, name))
+				log := cmd.Logger.With(logger.Database(dbName), logger.RetentionPolicy(rpName), logger.Shard(id))
+				errC <- IndexShard(sfile, filepath.Join(dataDir, name), filepath.Join(walDir, name), cmd.maxLogFileSize, cmd.maxCacheSize, cmd.batchSize, log, cmd.Verbose)
 			}
 		}()
 	}
@@ -197,8 +200,7 @@ func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpNam
 	return nil
 }
 
-func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, shardID uint64, dataDir, walDir string) error {
-	log := cmd.Logger.With(logger.Database(dbName), logger.RetentionPolicy(rpName), logger.Shard(shardID))
+func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize int64, maxCacheSize uint64, batchSize int, log *zap.Logger, verboseLogging bool) error {
 	log.Info("Rebuilding shard")
 
 	// Check if shard already has a TSI index.
@@ -211,16 +213,6 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 
 	log.Info("Opening shard")
 
-	// Find shard files.
-	tsmPaths, err := cmd.collectTSMFiles(dataDir)
-	if err != nil {
-		return err
-	}
-	walPaths, err := cmd.collectWALFiles(walDir)
-	if err != nil {
-		return err
-	}
-
 	// Remove temporary index files if this is being re-run.
 	tmpPath := filepath.Join(dataDir, ".index")
 	log.Info("Cleaning up partial index from previous run, if any")
@@ -229,16 +221,16 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 	}
 
 	// Open TSI index in temporary path.
-	tsiIndex := tsi1.NewIndex(sfile, dbName,
+	tsiIndex := tsi1.NewIndex(sfile, "",
 		tsi1.WithPath(tmpPath),
-		tsi1.WithMaximumLogFileSize(cmd.maxLogFileSize),
+		tsi1.WithMaximumLogFileSize(maxLogFileSize),
 		tsi1.DisableFsync(),
 		// Each new series entry in a log file is ~12 bytes so this should
 		// roughly equate to one flush to the file for every batch.
-		tsi1.WithLogFileBufferSize(12*cmd.batchSize),
+		tsi1.WithLogFileBufferSize(12*batchSize),
 	)
 
-	tsiIndex.WithLogger(cmd.Logger)
+	tsiIndex.WithLogger(log)
 
 	log.Info("Opening tsi index in temporary location", zap.String("path", tmpPath))
 	if err := tsiIndex.Open(); err != nil {
@@ -247,59 +239,73 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 	defer tsiIndex.Close()
 
 	// Write out tsm1 files.
+	// Find shard files.
+	tsmPaths, err := collectTSMFiles(dataDir)
+	if err != nil {
+		return err
+	}
+
 	log.Info("Iterating over tsm files")
 	for _, path := range tsmPaths {
 		log.Info("Processing tsm file", zap.String("path", path))
-		if err := cmd.processTSMFile(tsiIndex, path, log); err != nil {
+		if err := IndexTSMFile(tsiIndex, path, batchSize, log, verboseLogging); err != nil {
 			return err
 		}
 	}
 
 	// Write out wal files.
-	log.Info("Building cache from wal files")
-	cache := tsm1.NewCache(tsdb.DefaultCacheMaxMemorySize)
-	loader := tsm1.NewCacheLoader(walPaths)
-	loader.WithLogger(cmd.Logger)
-	if err := loader.Load(cache); err != nil {
-		return err
-	}
-
-	log.Info("Iterating over cache")
-	keysBatch := make([][]byte, 0, cmd.batchSize)
-	namesBatch := make([][]byte, 0, cmd.batchSize)
-	tagsBatch := make([]models.Tags, 0, cmd.batchSize)
-
-	for _, key := range cache.Keys() {
-		seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
-		name, tags := models.ParseKeyBytes(seriesKey)
-
-		if cmd.Verbose {
-			log.Info("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
+	walPaths, err := collectWALFiles(walDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
 		}
 
-		keysBatch = append(keysBatch, seriesKey)
-		namesBatch = append(namesBatch, name)
-		tagsBatch = append(tagsBatch, tags)
+	} else {
+		log.Info("Building cache from wal files")
+		cache := tsm1.NewCache(maxCacheSize)
+		loader := tsm1.NewCacheLoader(walPaths)
+		loader.WithLogger(log)
+		if err := loader.Load(cache); err != nil {
+			return err
+		}
 
-		// Flush batch?
-		if len(keysBatch) == cmd.batchSize {
+		log.Info("Iterating over cache")
+		keysBatch := make([][]byte, 0, batchSize)
+		namesBatch := make([][]byte, 0, batchSize)
+		tagsBatch := make([]models.Tags, 0, batchSize)
+
+		for _, key := range cache.Keys() {
+			seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
+			name, tags := models.ParseKeyBytes(seriesKey)
+
+			if verboseLogging {
+				log.Info("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
+			}
+
+			keysBatch = append(keysBatch, seriesKey)
+			namesBatch = append(namesBatch, name)
+			tagsBatch = append(tagsBatch, tags)
+
+			// Flush batch?
+			if len(keysBatch) == batchSize {
+				if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
+					return fmt.Errorf("problem creating series: (%s)", err)
+				}
+				keysBatch = keysBatch[:0]
+				namesBatch = namesBatch[:0]
+				tagsBatch = tagsBatch[:0]
+			}
+		}
+
+		// Flush any remaining series in the batches
+		if len(keysBatch) > 0 {
 			if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
 				return fmt.Errorf("problem creating series: (%s)", err)
 			}
-			keysBatch = keysBatch[:0]
-			namesBatch = namesBatch[:0]
-			tagsBatch = tagsBatch[:0]
+			keysBatch = nil
+			namesBatch = nil
+			tagsBatch = nil
 		}
-	}
-
-	// Flush any remaining series in the batches
-	if len(keysBatch) > 0 {
-		if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
-			return fmt.Errorf("problem creating series: (%s)", err)
-		}
-		keysBatch = nil
-		namesBatch = nil
-		tagsBatch = nil
 	}
 
 	// Attempt to compact the index & wait for all compactions to complete.
@@ -318,7 +324,7 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 	return os.Rename(tmpPath, indexPath)
 }
 
-func (cmd *Command) processTSMFile(index *tsi1.Index, path string, log *zap.Logger) error {
+func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger, verboseLogging bool) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -332,9 +338,9 @@ func (cmd *Command) processTSMFile(index *tsi1.Index, path string, log *zap.Logg
 	}
 	defer r.Close()
 
-	keysBatch := make([][]byte, 0, cmd.batchSize)
-	namesBatch := make([][]byte, 0, cmd.batchSize)
-	tagsBatch := make([]models.Tags, cmd.batchSize)
+	keysBatch := make([][]byte, 0, batchSize)
+	namesBatch := make([][]byte, 0, batchSize)
+	tagsBatch := make([]models.Tags, batchSize)
 	var ti int
 	for i := 0; i < r.KeyCount(); i++ {
 		key, _ := r.KeyAt(i)
@@ -342,7 +348,7 @@ func (cmd *Command) processTSMFile(index *tsi1.Index, path string, log *zap.Logg
 		var name []byte
 		name, tagsBatch[ti] = models.ParseKeyBytesWithTags(seriesKey, tagsBatch[ti])
 
-		if cmd.Verbose {
+		if verboseLogging {
 			log.Info("Series", zap.String("name", string(name)), zap.String("tags", tagsBatch[ti].String()))
 		}
 
@@ -351,7 +357,7 @@ func (cmd *Command) processTSMFile(index *tsi1.Index, path string, log *zap.Logg
 		ti++
 
 		// Flush batch?
-		if len(keysBatch) == cmd.batchSize {
+		if len(keysBatch) == batchSize {
 			if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti]); err != nil {
 				return fmt.Errorf("problem creating series: (%s)", err)
 			}
@@ -370,7 +376,7 @@ func (cmd *Command) processTSMFile(index *tsi1.Index, path string, log *zap.Logg
 	return nil
 }
 
-func (cmd *Command) collectTSMFiles(path string) ([]string, error) {
+func collectTSMFiles(path string) ([]string, error) {
 	fis, err := ioutil.ReadDir(path)
 	if err != nil {
 		return nil, err
@@ -386,7 +392,13 @@ func (cmd *Command) collectTSMFiles(path string) ([]string, error) {
 	return paths, nil
 }
 
-func (cmd *Command) collectWALFiles(path string) ([]string, error) {
+func collectWALFiles(path string) ([]string, error) {
+	if path == "" {
+		return nil, os.ErrNotExist
+	}
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, err
+	}
 	fis, err := ioutil.ReadDir(path)
 	if err != nil {
 		return nil, err

@@ -1,7 +1,10 @@
 package tsdb
 
 import (
+	"bytes"
 	"fmt"
+	"math"
+	"math/rand"
 	"testing"
 )
 
@@ -132,9 +135,16 @@ func BenchmarkSeriesIDSet_AddMore(b *testing.B) {
 //
 // Typical benchmarks from a laptop:
 //
-// BenchmarkSeriesIDSet_Add/cardinality_1000000_add_same-4         			20000000	        89.5 ns/op	       0 B/op	       0 allocs/op
-// BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add_global_lock-4     30000000	        56.9 ns/op	       0 B/op	       0 allocs/op
-// BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add_multi_lock-4      20000000	        75.7 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Add/cardinality_1000000_add/same-8    							20000000	        64.8 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Add/cardinality_1000000_add/random-8  	 						 2000000	       704 	 ns/op	       5 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Add/cardinality_1000000_add/same_no_lock-8         				50000000	        40.3 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Add/cardinality_1000000_add/random_no_lock-8       				 2000000	       644   ns/op	       5 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add/same_no_lock-8   				50000000	        34.0 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add/random_no_lock-8 	 		   	 2000000	       860   ns/op	      14 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add/same_global_lock-8         	30000000	        49.8 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add/random_global_lock-8       	 2000000	       914   ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add/same_multi_lock-8          	30000000	        39.7 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add/random_multi_lock-8        	 1000000	      1002   ns/op	       0 B/op	       0 allocs/op
 //
 func BenchmarkSeriesIDSet_Add(b *testing.B) {
 	// Setup...
@@ -145,32 +155,323 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 	lookup := uint64(300032)
 
 	// Add the same value over and over.
-	b.Run(fmt.Sprint("cardinality_1000000_add_same"), func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			set.Add(lookup)
-		}
-	})
-
-	// Check if the value exists before adding it. Subsequent repeats of the code
-	// will result in contains checks.
-	b.Run(fmt.Sprint("cardinality_1000000_check_add_global_lock"), func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			set.Lock()
-			if !set.ContainsNoLock(lookup) {
-				set.AddNoLock(lookup)
-			}
-			set.Unlock()
-		}
-	})
-
-	// Check if the value exists before adding it under two locks.
-	b.Run(fmt.Sprint("cardinality_1000000_check_add_multi_lock"), func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			if !set.Contains(lookup) {
+	b.Run(fmt.Sprint("cardinality_1000000_add"), func(b *testing.B) {
+		b.Run("same", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
 				set.Add(lookup)
 			}
-		}
+		})
+
+		b.Run("random", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				x := rand.Intn(math.MaxInt32)
+				b.StartTimer()
+				set.Add(uint64(x))
+			}
+		})
+
+		b.Run("same no lock", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				set.AddNoLock(lookup)
+			}
+		})
+
+		b.Run("random no lock", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				x := rand.Intn(math.MaxInt32)
+				b.StartTimer()
+				set.AddNoLock(uint64(x))
+			}
+		})
 	})
+
+	// Add the same value over and over with no lock
+	b.Run(fmt.Sprint("cardinality_1000000_check_add"), func(b *testing.B) {
+		b.Run("same no lock", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				if !set.ContainsNoLock(lookup) {
+					set.AddNoLock(lookup)
+				}
+			}
+		})
+
+		b.Run("random no lock", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				x := rand.Intn(math.MaxInt32)
+				b.StartTimer()
+				if !set.ContainsNoLock(uint64(x)) {
+					set.AddNoLock(uint64(x))
+				}
+			}
+		})
+
+		b.Run("same global lock", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				set.Lock()
+				if !set.ContainsNoLock(lookup) {
+					set.AddNoLock(lookup)
+				}
+				set.Unlock()
+			}
+		})
+
+		b.Run("random global lock", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				x := rand.Intn(math.MaxInt32)
+				b.StartTimer()
+				set.Lock()
+				if !set.ContainsNoLock(uint64(x)) {
+					set.AddNoLock(uint64(x))
+				}
+				set.Unlock()
+			}
+		})
+
+		b.Run("same multi lock", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				if !set.Contains(lookup) {
+					set.Add(lookup)
+				}
+			}
+		})
+
+		b.Run("random multi lock", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				x := rand.Intn(math.MaxInt32)
+				b.StartTimer()
+				if !set.Contains(uint64(x)) {
+					set.Add(uint64(x))
+				}
+			}
+		})
+	})
+}
+
+var ssResult *SeriesIDSet
+
+// Benchmark various ways of creating a copy of a bitmap. Note, Clone_COW will result
+// in a bitmap where future modifications will involve copies.
+//
+// Typical results from an i7 laptop.
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/Clone-8         	   			   30000	     44171 ns/op	   47200 B/op	    1737 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/Clone_COW-8     	  			  300000	      4554 ns/op	   17392 B/op	       7 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/Merge-8         	  			  100000	     17877 ns/op	   39008 B/op	      30 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/MergeInPlace-8  	  			  200000	      7367 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/Add-8           	   			   10000	    137460 ns/op	   62336 B/op	    2596 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/WriteTo-8       	   			   30000	     52896 ns/op	   35872 B/op	     866 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/Clone-8   	   			   30000	     41940 ns/op	   47200 B/op	    1737 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/Clone_COW-8         	  300000	      4474 ns/op	   17392 B/op	       7 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/Merge-8             	  100000	     17624 ns/op	   39008 B/op	      30 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/MergeInPlace-8      	  100000	     17320 ns/op	   38880 B/op	      28 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/Add-8               	   10000	    167544 ns/op	  101216 B/op	    2624 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/WriteTo-8           	   20000	     66976 ns/op	   52897 B/op	     869 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/Clone-8                  	   10000	    179933 ns/op	  177072 B/op	    5895 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/Clone_COW-8              	  100000	     18578 ns/op	   58736 B/op	       7 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/Merge-8                  	   20000	     77574 ns/op	  210656 B/op	      42 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/MergeInPlace-8           	  100000	     23645 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/Add-8                    	    2000	    689254 ns/op	  224161 B/op	    9572 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/WriteTo-8                	   10000	    199052 ns/op	  118791 B/op	    2945 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/Clone-8            	   10000	    183137 ns/op	  177073 B/op	    5895 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/Clone_COW-8        	  100000	     19341 ns/op	   58736 B/op	       7 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/Merge-8            	   20000	     77502 ns/op	  210656 B/op	      42 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/MergeInPlace-8     	   20000	     72610 ns/op	  210528 B/op	      40 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/Add-8              	    2000	    724789 ns/op	  434691 B/op	    9612 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/WriteTo-8          	   10000	    215734 ns/op	  177159 B/op	    2948 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/Clone-8                 	    5000	    244971 ns/op	  377648 B/op	    6111 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/Clone_COW-8             	  100000	     19284 ns/op	   58736 B/op	       7 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/Merge-8                 	   20000	     90580 ns/op	  210656 B/op	      42 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/MergeInPlace-8          	   50000	     24697 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/Add-8                   	     500	   3274456 ns/op	  758996 B/op	   19853 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/WriteTo-8               	    5000	    248791 ns/op	  122392 B/op	    3053 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/Clone-8           	    5000	    269152 ns/op	  377648 B/op	    6111 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/Clone_COW-8       	  100000	     21428 ns/op	   58736 B/op	       7 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/Merge-8           	   20000	     85948 ns/op	  210657 B/op	      42 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/MergeInPlace-8    	   20000	     78142 ns/op	  210528 B/op	      40 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/Add-8             	     500	   3123753 ns/op	  969529 B/op	   19893 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/WriteTo-8         	   10000	    230657 ns/op	  180684 B/op	    3056 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/Clone-8                	    3000	    551781 ns/op	 2245424 B/op	    6111 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/Clone_COW-8            	  100000	     16162 ns/op	   58736 B/op	       7 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/Merge-8                	   20000	     92104 ns/op	  210656 B/op	      42 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/MergeInPlace-8         	   50000	     27408 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/Add-8                  	     100	  22573498 ns/op	 6420446 B/op	   30520 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/WriteTo-8              	    5000	    284901 ns/op	  123522 B/op	    3053 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/Clone-8          	    3000	    679284 ns/op	 2245424 B/op	    6111 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/Clone_COW-8      	  100000	     16006 ns/op	   58736 B/op	       7 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/Merge-8          	   20000	     68965 ns/op	  210656 B/op	      42 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/MergeInPlace-8   	   20000	     64236 ns/op	  210528 B/op	      40 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/Add-8            	     100	  21960668 ns/op	 6630979 B/op	   30560 allocs/op
+// BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/WriteTo-8        	    5000	    298276 ns/op	  181890 B/op	    3056 allocs/op
+
+func BenchmarkSeriesIDSet_Clone(b *testing.B) {
+	toAddCardinalities := []int{1e3, 1e4, 1e5, 1e6}
+
+	runBenchmarks := func(b *testing.B, other *SeriesIDSet, init func() *SeriesIDSet) {
+		b.Run("Clone", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				ssResult = other.Clone()
+			}
+		})
+
+		b.Run("Clone_COW", func(b *testing.B) {
+			other.SetCOW(true)
+			for i := 0; i < b.N; i++ {
+				ssResult = other.Clone()
+			}
+			other.SetCOW(false)
+		})
+
+		b.Run("Merge", func(b *testing.B) {
+			ssResult = init()
+			for i := 0; i < b.N; i++ {
+				ssResult.Merge(other)
+				b.StopTimer()
+				ssResult = init()
+				b.StartTimer()
+			}
+		})
+
+		b.Run("MergeInPlace", func(b *testing.B) {
+			ssResult = init()
+			for i := 0; i < b.N; i++ {
+				ssResult.MergeInPlace(other)
+				b.StopTimer()
+				ssResult = init()
+				b.StartTimer()
+			}
+		})
+
+		b.Run("Add", func(b *testing.B) {
+			ssResult = init()
+			for i := 0; i < b.N; i++ {
+				itr := other.Iterator()
+				ssResult.Lock()
+				for itr.HasNext() {
+					ssResult.AddNoLock(uint64(itr.Next()))
+				}
+				ssResult.Unlock()
+				b.StopTimer()
+				ssResult = init()
+				b.StartTimer()
+			}
+		})
+
+		b.Run("WriteTo", func(b *testing.B) {
+			var buf bytes.Buffer
+			ssResult = init()
+			for i := 0; i < b.N; i++ {
+				other.WriteTo(&buf)
+				ssResult.UnmarshalBinaryUnsafe(buf.Bytes())
+				b.StopTimer()
+				ssResult = init()
+				buf.Reset()
+				b.StartTimer()
+			}
+		})
+	}
+
+	for _, toAddCardinality := range toAddCardinalities {
+		b.Run(fmt.Sprintf("cardinality %d", toAddCardinality), func(b *testing.B) {
+			ids := make([]uint64, 0, toAddCardinality)
+			for i := 0; i < toAddCardinality; i++ {
+				ids = append(ids, uint64(rand.Intn(200000000)))
+			}
+			other := NewSeriesIDSet(ids...)
+
+			b.Run("re-use", func(b *testing.B) {
+				base := NewSeriesIDSet()
+				runBenchmarks(b, other, func() *SeriesIDSet {
+					base.Clear()
+					return base
+				})
+			})
+
+			b.Run("don't re-use", func(b *testing.B) {
+				runBenchmarks(b, other, func() *SeriesIDSet {
+					return NewSeriesIDSet()
+				})
+			})
+		})
+	}
+}
+func BenchmarkSeriesIDSet_AddMany(b *testing.B) {
+	cardinalities := []int{1, 1e3, 1e4, 1e5, 1e6}
+	toAddCardinalities := []int{1e3, 1e4, 1e5}
+
+	for _, cardinality := range cardinalities {
+		ids := make([]uint64, 0, cardinality)
+		for i := 0; i < cardinality; i++ {
+			ids = append(ids, uint64(rand.Intn(200000000)))
+		}
+
+		// Setup...
+		set = NewSeriesIDSet(ids...)
+
+		// Check if the value exists before adding it under two locks.
+		b.Run(fmt.Sprintf("cardinality %d", cardinality), func(b *testing.B) {
+			for _, toAddCardinality := range toAddCardinalities {
+				ids := make([]uint64, 0, toAddCardinality)
+				for i := 0; i < toAddCardinality; i++ {
+					ids = append(ids, uint64(rand.Intn(200000000)))
+				}
+
+				b.Run(fmt.Sprintf("adding %d", toAddCardinality), func(b *testing.B) {
+					b.Run("AddNoLock", func(b *testing.B) {
+						clone := set.Clone()
+						for i := 0; i < b.N; i++ {
+							for _, id := range ids {
+								clone.AddNoLock(id)
+							}
+
+							b.StopTimer()
+							clone = set.Clone()
+							b.StartTimer()
+						}
+					})
+
+					b.Run("AddMany", func(b *testing.B) {
+						clone := set.Clone()
+						for i := 0; i < b.N; i++ {
+							clone.AddMany(ids...)
+							b.StopTimer()
+							clone = set.Clone()
+							b.StartTimer()
+						}
+					})
+
+					// Merge will involve a new bitmap being allocated.
+					b.Run("Merge", func(b *testing.B) {
+						clone := set.Clone()
+						for i := 0; i < b.N; i++ {
+							other := NewSeriesIDSet(ids...)
+							clone.Merge(other)
+
+							b.StopTimer()
+							clone = set.Clone()
+							b.StartTimer()
+						}
+					})
+
+					b.Run("MergeInPlace", func(b *testing.B) {
+						clone := set.Clone()
+						for i := 0; i < b.N; i++ {
+							other := NewSeriesIDSet(ids...)
+							clone.MergeInPlace(other)
+
+							b.StopTimer()
+							clone = set.Clone()
+							b.StartTimer()
+						}
+					})
+				})
+
+			}
+		})
+	}
 }
 
 // Remove benchmarks the cost of removing the same element in a set versus the

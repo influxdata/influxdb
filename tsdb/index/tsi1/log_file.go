@@ -62,9 +62,6 @@ type LogFile struct {
 	size    int64            // tracks current file size
 	modTime time.Time        // tracks last time write occurred
 
-	mSketch, mTSketch estimator.Sketch // Measurement sketches
-	sSketch, sTSketch estimator.Sketch // Series sketche
-
 	// In-memory series existence/tombstone sets.
 	seriesIDSet, tombstoneSeriesIDSet *tsdb.SeriesIDSet
 
@@ -78,13 +75,9 @@ type LogFile struct {
 // NewLogFile returns a new instance of LogFile.
 func NewLogFile(sfile *tsdb.SeriesFile, path string) *LogFile {
 	return &LogFile{
-		sfile:    sfile,
-		path:     path,
-		mms:      make(logMeasurements),
-		mSketch:  hll.NewDefaultPlus(),
-		mTSketch: hll.NewDefaultPlus(),
-		sSketch:  hll.NewDefaultPlus(),
-		sTSketch: hll.NewDefaultPlus(),
+		sfile: sfile,
+		path:  path,
+		mms:   make(logMeasurements),
 
 		seriesIDSet:          tsdb.NewSeriesIDSet(),
 		tombstoneSeriesIDSet: tsdb.NewSeriesIDSet(),
@@ -105,10 +98,6 @@ func (f *LogFile) bytes() int {
 	// Do not count SeriesFile because it belongs to the code that constructed this Index.
 	b += int(unsafe.Sizeof(f.size))
 	b += int(unsafe.Sizeof(f.modTime))
-	b += int(unsafe.Sizeof(f.mSketch)) + f.mSketch.Bytes()
-	b += int(unsafe.Sizeof(f.mTSketch)) + f.mTSketch.Bytes()
-	b += int(unsafe.Sizeof(f.sSketch)) + f.sSketch.Bytes()
-	b += int(unsafe.Sizeof(f.sTSketch)) + f.sTSketch.Bytes()
 	b += int(unsafe.Sizeof(f.seriesIDSet)) + f.seriesIDSet.Bytes()
 	b += int(unsafe.Sizeof(f.tombstoneSeriesIDSet)) + f.tombstoneSeriesIDSet.Bytes()
 	b += int(unsafe.Sizeof(f.mms)) + f.mms.bytes()
@@ -354,7 +343,9 @@ func (f *LogFile) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
 		if tv.cardinality() == 0 {
 			continue
 		}
-		itrs = append(itrs, tsdb.NewSeriesIDSetIterator(tv.seriesIDSet()))
+		if itr := tsdb.NewSeriesIDSetIterator(tv.seriesIDSet()); itr != nil {
+			itrs = append(itrs, itr)
+		}
 	}
 
 	return tsdb.MergeSeriesIDIterators(itrs...)
@@ -520,10 +511,10 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
-func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) error {
+func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
 	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var writeRequired bool
@@ -532,16 +523,17 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 	for i := range names {
 		if seriesSet.ContainsNoLock(seriesIDs[i]) {
 			// We don't need to allocate anything for this series.
+			seriesIDs[i] = 0
 			continue
 		}
 		writeRequired = true
-		entries = append(entries, LogEntry{SeriesID: seriesIDs[i], name: names[i], tags: tagsSlice[i], cached: true})
+		entries = append(entries, LogEntry{SeriesID: seriesIDs[i], name: names[i], tags: tagsSlice[i], cached: true, batchidx: i})
 	}
 	seriesSet.RUnlock()
 
 	// Exit if all series already exist.
 	if !writeRequired {
-		return nil
+		return seriesIDs, nil
 	}
 
 	f.mu.Lock()
@@ -550,21 +542,25 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 	seriesSet.Lock()
 	defer seriesSet.Unlock()
 
-	for i := range entries {
+	for i := range entries { // NB - this doesn't evaluate all series ids returned from series file.
 		entry := &entries[i]
 		if seriesSet.ContainsNoLock(entry.SeriesID) {
 			// We don't need to allocate anything for this series.
+			seriesIDs[entry.batchidx] = 0
 			continue
 		}
 		if err := f.appendEntry(entry); err != nil {
-			return err
+			return nil, err
 		}
 		f.execEntry(entry)
 		seriesSet.AddNoLock(entry.SeriesID)
 	}
 
 	// Flush buffer and sync to disk.
-	return f.FlushAndSync()
+	if err := f.FlushAndSync(); err != nil {
+		return nil, err
+	}
+	return seriesIDs, nil
 }
 
 // DeleteSeriesID adds a tombstone for a series id.
@@ -643,9 +639,6 @@ func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
 	mm.tagSet = make(map[string]logTagKey)
 	mm.series = make(map[uint64]struct{})
 	mm.seriesSet = nil
-
-	// Update measurement tombstone sketch.
-	f.mTSketch.Add(e.Name)
 }
 
 func (f *LogFile) execDeleteTagKeyEntry(e *LogEntry) {
@@ -728,11 +721,9 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 
 	// Add/remove from appropriate series id sets.
 	if !deleted {
-		f.sSketch.Add(seriesKey) // Add series to sketch - key in series file format.
 		f.seriesIDSet.Add(e.SeriesID)
 		f.tombstoneSeriesIDSet.Remove(e.SeriesID)
 	} else {
-		f.sTSketch.Add(seriesKey) // Add series to tombstone sketch - key in series file format.
 		f.seriesIDSet.Remove(e.SeriesID)
 		f.tombstoneSeriesIDSet.Add(e.SeriesID)
 	}
@@ -776,9 +767,6 @@ func (f *LogFile) createMeasurementIfNotExists(name []byte) *logMeasurement {
 			series: make(map[uint64]struct{}),
 		}
 		f.mms[string(name)] = mm
-
-		// Add measurement to sketch.
-		f.mSketch.Add(name)
 	}
 	return mm
 }
@@ -846,13 +834,6 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 		return n, err
 	}
 
-	// Ensure block is word aligned.
-	// if offset := n % 8; offset != 0 {
-	// 	if err := writeTo(bw, make([]byte, 8-offset), &n); err != nil {
-	// 		return n, err
-	// 	}
-	// }
-
 	// Write measurement block.
 	t.MeasurementBlock.Offset = n
 	if err := f.writeMeasurementBlockTo(bw, names, info, &n); err != nil {
@@ -876,9 +857,15 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 	}
 	t.TombstoneSeriesIDSet.Size = n - t.TombstoneSeriesIDSet.Offset
 
-	// Write series sketches. TODO(edd): Implement WriterTo on HLL++.
+	// Build series sketches.
+	sSketch, sTSketch, err := f.seriesSketches()
+	if err != nil {
+		return n, err
+	}
+
+	// Write series sketches.
 	t.SeriesSketch.Offset = n
-	data, err := f.sSketch.MarshalBinary()
+	data, err := sSketch.MarshalBinary()
 	if err != nil {
 		return n, err
 	} else if _, err := bw.Write(data); err != nil {
@@ -888,7 +875,7 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 	n += t.SeriesSketch.Size
 
 	t.TombstoneSeriesSketch.Offset = n
-	if data, err = f.sTSketch.MarshalBinary(); err != nil {
+	if data, err = sTSketch.MarshalBinary(); err != nil {
 		return n, err
 	} else if _, err := bw.Write(data); err != nil {
 		return n, err
@@ -930,13 +917,6 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 		return ErrCompactionInterrupted
 	default:
 	}
-
-	// Ensure block is word aligned.
-	// if offset := (*n) % 8; offset != 0 {
-	// 	if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
-	// 		return err
-	// 	}
-	// }
 
 	enc := NewTagBlockEncoder(w)
 	var valueN int
@@ -1035,32 +1015,45 @@ type logFileMeasurementCompactInfo struct {
 	size   int64
 }
 
-// MergeMeasurementsSketches merges the measurement sketches belonging to this
-// LogFile into the provided sketches.
-//
-// MergeMeasurementsSketches is safe for concurrent use by multiple goroutines.
-func (f *LogFile) MergeMeasurementsSketches(sketch, tsketch estimator.Sketch) error {
+// MeasurementsSketches returns sketches for existing and tombstoned measurement names.
+func (f *LogFile) MeasurementsSketches() (sketch, tSketch estimator.Sketch, err error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-
-	if err := sketch.Merge(f.mSketch); err != nil {
-		return err
-	}
-	return tsketch.Merge(f.mTSketch)
+	return f.measurementsSketches()
 }
 
-// MergeSeriesSketches merges the series sketches belonging to this
-// LogFile into the provided sketches.
-//
-// MergeSeriesSketches is safe for concurrent use by multiple goroutines.
-func (f *LogFile) MergeSeriesSketches(sketch, tsketch estimator.Sketch) error {
+func (f *LogFile) measurementsSketches() (sketch, tSketch estimator.Sketch, err error) {
+	sketch, tSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	for _, mm := range f.mms {
+		if mm.deleted {
+			tSketch.Add(mm.name)
+		} else {
+			sketch.Add(mm.name)
+		}
+	}
+	return sketch, tSketch, nil
+}
+
+// SeriesSketches returns sketches for existing and tombstoned series.
+func (f *LogFile) SeriesSketches() (sketch, tSketch estimator.Sketch, err error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
+	return f.seriesSketches()
+}
 
-	if err := sketch.Merge(f.sSketch); err != nil {
-		return err
-	}
-	return tsketch.Merge(f.sTSketch)
+func (f *LogFile) seriesSketches() (sketch, tSketch estimator.Sketch, err error) {
+	sketch = hll.NewDefaultPlus()
+	f.seriesIDSet.ForEach(func(id uint64) {
+		name, keys := f.sfile.Series(id)
+		sketch.Add(models.MakeKey(name, keys))
+	})
+
+	tSketch = hll.NewDefaultPlus()
+	f.tombstoneSeriesIDSet.ForEach(func(id uint64) {
+		name, keys := f.sfile.Series(id)
+		sketch.Add(models.MakeKey(name, keys))
+	})
+	return sketch, tSketch, nil
 }
 
 // LogEntry represents a single log entry in the write-ahead log.
@@ -1073,9 +1066,10 @@ type LogEntry struct {
 	Checksum uint32 // checksum of flag/name/tags.
 	Size     int    // total size of record, in bytes.
 
-	cached bool        // Hint to LogFile that series data is already parsed
-	name   []byte      // series naem, this is a cached copy of the parsed measurement name
-	tags   models.Tags // series tags, this is a cached copied of the parsed tags
+	cached   bool        // Hint to LogFile that series data is already parsed
+	name     []byte      // series naem, this is a cached copy of the parsed measurement name
+	tags     models.Tags // series tags, this is a cached copied of the parsed tags
+	batchidx int         // position of entry in batch.
 }
 
 // UnmarshalBinary unmarshals data into e.

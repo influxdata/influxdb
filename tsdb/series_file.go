@@ -355,18 +355,41 @@ func ReadSeriesKeyTag(data []byte) (key, value, remainder []byte) {
 
 // ParseSeriesKey extracts the name & tags from a series key.
 func ParseSeriesKey(data []byte) (name []byte, tags models.Tags) {
+	return parseSeriesKey(data, nil)
+}
+
+// ParseSeriesKeyInto extracts the name and tags for data, parsing the tags into
+// dstTags, which is then returened.
+//
+// The returned dstTags may have a different length and capacity.
+func ParseSeriesKeyInto(data []byte, dstTags models.Tags) ([]byte, models.Tags) {
+	return parseSeriesKey(data, dstTags)
+}
+
+// parseSeriesKey extracts the name and tags from data, attempting to re-use the
+// provided tags value rather than allocating. The returned tags may have a
+// different length and capacity to those provided.
+func parseSeriesKey(data []byte, dst models.Tags) ([]byte, models.Tags) {
+	var name []byte
 	_, data = ReadSeriesKeyLen(data)
 	name, data = ReadSeriesKeyMeasurement(data)
-
 	tagN, data := ReadSeriesKeyTagN(data)
-	tags = make(models.Tags, tagN)
+
+	dst = dst[:cap(dst)] // Grow dst to use full capacity
+	if got, want := len(dst), tagN; got < want {
+		dst = append(dst, make(models.Tags, want-got)...)
+	} else if got > want {
+		dst = dst[:want]
+	}
+	dst = dst[:tagN]
+
 	for i := 0; i < tagN; i++ {
 		var key, value []byte
 		key, value, data = ReadSeriesKeyTag(data)
-		tags[i] = models.Tag{Key: key, Value: value}
+		dst[i].Key, dst[i].Value = key, value
 	}
 
-	return name, tags
+	return name, dst
 }
 
 func CompareSeriesKeys(a, b []byte) int {

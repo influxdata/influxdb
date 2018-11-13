@@ -56,3 +56,195 @@ func TestConfig_WriteTracing(t *testing.T) {
 		t.Fatalf("write tracing was not set")
 	}
 }
+
+func TestConfig_StatusFilter(t *testing.T) {
+	for i, tt := range []struct {
+		cfg     string
+		status  int
+		matches bool
+	}{
+		{
+			cfg:     ``,
+			status:  200,
+			matches: true,
+		},
+		{
+			cfg:     ``,
+			status:  404,
+			matches: true,
+		},
+		{
+			cfg:     ``,
+			status:  500,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = []
+`,
+			status:  200,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = []
+`,
+			status:  404,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = []
+`,
+			status:  500,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["4xx"]
+`,
+			status:  200,
+			matches: false,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["4xx"]
+`,
+			status:  404,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["4xx"]
+`,
+			status:  400,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["4xx"]
+`,
+			status:  500,
+			matches: false,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["4xx", "5xx"]
+`,
+			status:  200,
+			matches: false,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["4xx", "5xx"]
+`,
+			status:  404,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["4xx", "5xx"]
+`,
+			status:  400,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["4xx", "5xx"]
+`,
+			status:  500,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["400"]
+`,
+			status:  400,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["400"]
+`,
+			status:  404,
+			matches: false,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["40x"]
+`,
+			status:  400,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["40x"]
+`,
+			status:  404,
+			matches: true,
+		},
+		{
+			cfg: `
+access-log-status-filters = ["40x"]
+`,
+			status:  419,
+			matches: false,
+		},
+	} {
+		// Parse configuration.
+		var c httpd.Config
+		if _, err := toml.Decode(tt.cfg, &c); err != nil {
+			t.Fatal(err)
+		}
+
+		if got, want := httpd.StatusFilters(c.AccessLogStatusFilters).Match(tt.status), tt.matches; got != want {
+			t.Errorf("%d. status was not filtered correctly: got=%v want=%v", i, got, want)
+		}
+	}
+}
+
+func TestConfig_StatusFilter_Error(t *testing.T) {
+	for i, tt := range []struct {
+		cfg string
+		err string
+	}{
+		{
+			cfg: `
+access-log-status-filters = ["xxx"]
+`,
+			err: "status filter must be a digit that starts with 1-5 optionally followed by X characters",
+		},
+		{
+			cfg: `
+access-log-status-filters = ["4x4"]
+`,
+			err: "status filter must be a digit that starts with 1-5 optionally followed by X characters",
+		},
+		{
+			cfg: `
+access-log-status-filters = ["6xx"]
+`,
+			err: "status filter must be a digit that starts with 1-5 optionally followed by X characters",
+		},
+		{
+			cfg: `
+access-log-status-filters = ["0xx"]
+`,
+			err: "status filter must be a digit that starts with 1-5 optionally followed by X characters",
+		},
+		{
+			cfg: `
+access-log-status-filters = ["4xxx"]
+`,
+			err: "status filter must be exactly 3 characters long",
+		},
+	} {
+		// Parse configuration.
+		var c httpd.Config
+		if _, err := toml.Decode(tt.cfg, &c); err == nil {
+			t.Errorf("%d. expected error", i)
+		} else if got, want := err.Error(), tt.err; got != want {
+			t.Errorf("%d. config parsing error was not correct: got=%q want=%q", i, got, want)
+		}
+	}
+}

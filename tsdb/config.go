@@ -14,7 +14,7 @@ const (
 	DefaultEngine = "tsm1"
 
 	// DefaultIndex is the default index for new shards
-	DefaultIndex = "inmem"
+	DefaultIndex = InmemIndexName
 
 	// tsdb/engine/wal configuration options
 
@@ -36,6 +36,17 @@ const (
 	// DefaultCompactFullWriteColdDuration is the duration at which the engine
 	// will compact all TSM files in a shard if it hasn't received a write or delete
 	DefaultCompactFullWriteColdDuration = time.Duration(4 * time.Hour)
+
+	// DefaultCompactThroughput is the rate limit in bytes per second that we
+	// will allow TSM compactions to write to disk. Not that short bursts are allowed
+	// to happen at a possibly larger value, set by DefaultCompactThroughputBurst.
+	// A value of 0 here will disable compaction rate limiting
+	DefaultCompactThroughput = 48 * 1024 * 1024
+
+	// DefaultCompactThroughputBurst is the rate limit in bytes per second that we
+	// will allow TSM compactions to write to disk. If this is not set, the burst value
+	// will be set to equal the normal throughput
+	DefaultCompactThroughputBurst = 48 * 1024 * 1024
 
 	// DefaultMaxPointsPerBlock is the maximum number of points in an encoded
 	// block in a TSM file
@@ -71,6 +82,9 @@ type Config struct {
 	// disks or when WAL write contention is seen.  A value of 0 fsyncs every write to the WAL.
 	WALFsyncDelay toml.Duration `toml:"wal-fsync-delay"`
 
+	// Enables unicode validation on series keys on write.
+	ValidateKeys bool `toml:"validate-keys"`
+
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 
@@ -79,6 +93,8 @@ type Config struct {
 	CacheSnapshotMemorySize        toml.Size     `toml:"cache-snapshot-memory-size"`
 	CacheSnapshotWriteColdDuration toml.Duration `toml:"cache-snapshot-write-cold-duration"`
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
+	CompactThroughput              toml.Size     `toml:"compact-throughput"`
+	CompactThroughputBurst         toml.Size     `toml:"compact-throughput-burst"`
 
 	// Limits
 
@@ -125,6 +141,8 @@ func NewConfig() Config {
 		CacheSnapshotMemorySize:        toml.Size(DefaultCacheSnapshotMemorySize),
 		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
+		CompactThroughput:              toml.Size(DefaultCompactThroughput),
+		CompactThroughputBurst:         toml.Size(DefaultCompactThroughputBurst),
 
 		MaxSeriesPerDatabase:     DefaultMaxSeriesPerDatabase,
 		MaxValuesPerTag:          DefaultMaxValuesPerTag,

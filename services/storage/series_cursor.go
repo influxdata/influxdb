@@ -9,56 +9,37 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/opentracing/opentracing-go"
+	"github.com/influxdata/platform/storage/reads"
+	"github.com/influxdata/platform/storage/reads/datatypes"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
-const measurementKey = "_measurement"
+const (
+	measurementKey = "_measurement"
+	fieldKey       = "_field"
+)
 
 var (
 	measurementKeyBytes = []byte(measurementKey)
-	fieldKeyBytes       = []byte("_field")
+	fieldKeyBytes       = []byte(fieldKey)
 )
-
-type seriesCursor interface {
-	Close()
-	Next() *seriesRow
-	Err() error
-}
-
-type seriesRow struct {
-	sortKey   []byte
-	name      []byte      // measurement name
-	stags     models.Tags // unmodified series tags
-	field     field
-	tags      models.Tags
-	query     tsdb.CursorIterators
-	valueCond influxql.Expr
-}
-
-type mapValuer map[string]string
-
-var _ influxql.Valuer = mapValuer(nil)
-
-func (vs mapValuer) Value(key string) (interface{}, bool) {
-	v, ok := vs[key]
-	return v, ok
-}
 
 type indexSeriesCursor struct {
 	sqry            tsdb.SeriesCursor
 	fields          measurementFields
 	nf              []field
+	field           field
 	err             error
 	tags            models.Tags
 	cond            influxql.Expr
 	measurementCond influxql.Expr
-	row             seriesRow
+	row             reads.SeriesRow
 	eof             bool
 	hasFieldExpr    bool
 	hasValueExpr    bool
 }
 
-func newIndexSeriesCursor(ctx context.Context, predicate *Predicate, shards []*tsdb.Shard) (*indexSeriesCursor, error) {
+func newIndexSeriesCursor(ctx context.Context, predicate *datatypes.Predicate, shards []*tsdb.Shard) (*indexSeriesCursor, error) {
 	queries, err := tsdb.CreateCursorIterators(ctx, shards)
 	if err != nil {
 		return nil, err
@@ -80,10 +61,10 @@ func newIndexSeriesCursor(ctx context.Context, predicate *Predicate, shards []*t
 		Ascending:  true,
 		Ordered:    true,
 	}
-	p := &indexSeriesCursor{row: seriesRow{query: queries}}
+	p := &indexSeriesCursor{row: reads.SeriesRow{Query: queries}}
 
 	if root := predicate.GetRoot(); root != nil {
-		if p.cond, err = NodeToExpr(root, measurementRemap); err != nil {
+		if p.cond, err = reads.NodeToExpr(root, measurementRemap); err != nil {
 			return nil, err
 		}
 
@@ -92,13 +73,13 @@ func newIndexSeriesCursor(ctx context.Context, predicate *Predicate, shards []*t
 			p.measurementCond = p.cond
 			opt.Condition = p.cond
 		} else {
-			p.measurementCond = influxql.Reduce(RewriteExprRemoveFieldValue(influxql.CloneExpr(p.cond)), nil)
-			if isBooleanLiteral(p.measurementCond) {
+			p.measurementCond = influxql.Reduce(reads.RewriteExprRemoveFieldValue(influxql.CloneExpr(p.cond)), nil)
+			if reads.IsTrueBooleanLiteral(p.measurementCond) {
 				p.measurementCond = nil
 			}
 
 			opt.Condition = influxql.Reduce(RewriteExprRemoveFieldKeyAndValue(influxql.CloneExpr(p.cond)), nil)
-			if isBooleanLiteral(opt.Condition) {
+			if reads.IsTrueBooleanLiteral(opt.Condition) {
 				opt.Condition = nil
 			}
 		}
@@ -174,7 +155,7 @@ func copyTags(dst, src models.Tags) models.Tags {
 	return dst
 }
 
-func (c *indexSeriesCursor) Next() *seriesRow {
+func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 	if c.eof {
 		return nil
 	}
@@ -192,34 +173,35 @@ func (c *indexSeriesCursor) Next() *seriesRow {
 				return nil
 			}
 
-			c.row.name = sr.Name
-			c.row.stags = sr.Tags
+			c.row.Name = sr.Name
+			c.row.SeriesTags = sr.Tags
 			c.tags = copyTags(c.tags, sr.Tags)
 			c.tags.Set(measurementKeyBytes, sr.Name)
 
 			c.nf = c.fields[string(sr.Name)]
 			// c.nf may be nil if there are no fields
 		} else {
-			c.row.field, c.nf = c.nf[0], c.nf[1:]
+			c.field, c.nf = c.nf[0], c.nf[1:]
 
-			if c.measurementCond == nil || evalExprBool(c.measurementCond, c) {
+			if c.measurementCond == nil || reads.EvalExprBool(c.measurementCond, c) {
 				break
 			}
 		}
 	}
 
-	c.tags.Set(fieldKeyBytes, c.row.field.nb)
+	c.tags.Set(fieldKeyBytes, c.field.nb)
+	c.row.Field = c.field.n
 
 	if c.cond != nil && c.hasValueExpr {
 		// TODO(sgc): lazily evaluate valueCond
-		c.row.valueCond = influxql.Reduce(c.cond, c)
-		if isBooleanLiteral(c.row.valueCond) {
+		c.row.ValueCond = influxql.Reduce(c.cond, c)
+		if reads.IsTrueBooleanLiteral(c.row.ValueCond) {
 			// we've reduced the expression to "true"
-			c.row.valueCond = nil
+			c.row.ValueCond = nil
 		}
 	}
 
-	c.row.tags = copyTags(c.row.tags, c.tags)
+	c.row.Tags = copyTags(c.row.Tags, c.tags)
 
 	return &c.row
 }
@@ -227,57 +209,19 @@ func (c *indexSeriesCursor) Next() *seriesRow {
 func (c *indexSeriesCursor) Value(key string) (interface{}, bool) {
 	switch key {
 	case "_name":
-		return c.row.name, true
-	case "_field":
-		return c.row.field.n, true
+		return string(c.row.Name), true
+	case fieldKey:
+		return c.field.n, true
+	case "$":
+		return nil, false
 	default:
-		res := c.row.stags.Get([]byte(key))
-		return res, res != nil
+		res := c.row.SeriesTags.GetString(key)
+		return res, true
 	}
 }
 
 func (c *indexSeriesCursor) Err() error {
 	return c.err
-}
-
-type limitSeriesCursor struct {
-	seriesCursor
-	n, o, c int64
-}
-
-func newLimitSeriesCursor(ctx context.Context, cur seriesCursor, n, o int64) *limitSeriesCursor {
-	return &limitSeriesCursor{seriesCursor: cur, o: o, n: n}
-}
-
-func (c *limitSeriesCursor) Next() *seriesRow {
-	if c.o > 0 {
-		for i := int64(0); i < c.o; i++ {
-			if c.seriesCursor.Next() == nil {
-				break
-			}
-		}
-		c.o = 0
-	}
-
-	if c.c >= c.n {
-		return nil
-	}
-	c.c++
-	return c.seriesCursor.Next()
-}
-
-func isBooleanLiteral(expr influxql.Expr) bool {
-	_, ok := expr.(*influxql.BooleanLiteral)
-	return ok
-}
-
-func toFloatIterator(iter query.Iterator) (query.FloatIterator, error) {
-	sitr, ok := iter.(query.FloatIterator)
-	if !ok {
-		return nil, errors.New("expected FloatIterator")
-	}
-
-	return sitr, nil
 }
 
 type measurementFields map[string][]field
@@ -330,4 +274,13 @@ func extractFields(itr query.FloatIterator) measurementFields {
 	}
 
 	return mf
+}
+
+func toFloatIterator(iter query.Iterator) (query.FloatIterator, error) {
+	sitr, ok := iter.(query.FloatIterator)
+	if !ok {
+		return nil, errors.New("expected FloatIterator")
+	}
+
+	return sitr, nil
 }

@@ -31,7 +31,7 @@ import (
 )
 
 // IndexName is the name of this index.
-const IndexName = "inmem"
+const IndexName = tsdb.InmemIndexName
 
 func init() {
 	tsdb.NewInmemIndex = func(name string, sfile *tsdb.SeriesFile) (interface{}, error) { return NewIndex(name, sfile), nil }
@@ -773,7 +773,7 @@ func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
 }
 
 // DropSeriesGlobal removes the series key and its tags from the index.
-func (i *Index) DropSeriesGlobal(key []byte, ts int64) error {
+func (i *Index) DropSeriesGlobal(key []byte) error {
 	if key == nil {
 		return nil
 	}

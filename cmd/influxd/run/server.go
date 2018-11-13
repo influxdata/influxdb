@@ -14,6 +14,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
+	"github.com/influxdata/influxdb/flux/control"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
@@ -27,14 +28,15 @@ import (
 	"github.com/influxdata/influxdb/services/precreator"
 	"github.com/influxdata/influxdb/services/retention"
 	"github.com/influxdata/influxdb/services/snapshotter"
+	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/platform/storage/reads"
 	client "github.com/influxdata/usage-client/v1"
 	"go.uber.org/zap"
 
-	"github.com/influxdata/influxdb/services/storage"
 	// Initialize the engine package
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 	// Initialize the index package
@@ -286,23 +288,9 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
 	srv.Handler.BuildType = "OSS"
-
-	// Wire up storage service for Prometheus endpoints.
-	storageStore := storage.NewStore()
-	storageStore.MetaClient = s.MetaClient
-	storageStore.TSDBStore = s.TSDBStore
-	srv.Handler.Store = storageStore
-
-	s.Services = append(s.Services, srv)
-}
-
-func (s *Server) appendStorageService(c storage.Config) {
-	if !c.Enabled {
-		return
-	}
-	srv := storage.NewService(c)
-	srv.MetaClient = s.MetaClient
-	srv.TSDBStore = s.TSDBStore
+	ss := storage.NewStore(s.TSDBStore, s.MetaClient)
+	srv.Handler.Store = ss
+	srv.Handler.Controller = control.NewController(s.MetaClient, reads.NewReader(ss), s.Logger)
 
 	s.Services = append(s.Services, srv)
 }
@@ -403,7 +391,6 @@ func (s *Server) Open() error {
 	s.appendSnapshotterService()
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
-	s.appendStorageService(s.config.Storage)
 	s.appendRetentionPolicyService(s.config.Retention)
 	for _, i := range s.config.GraphiteInputs {
 		if err := s.appendGraphiteService(i); err != nil {

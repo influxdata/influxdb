@@ -586,6 +586,11 @@ func TestParsePointMissingFieldValue(t *testing.T) {
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=server01,region=us-west value=1i,b`)
 	}
+
+	_, err = models.ParsePointsString(`m f="blah"=123,r 1531703600000000000`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `m f="blah"=123,r 1531703600000000000`)
+	}
 }
 
 func TestParsePointBadNumber(t *testing.T) {

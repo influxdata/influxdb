@@ -356,7 +356,6 @@ func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
 
 		// check both that the offset is right and that we get the right
 		// id for the key
-
 		if gotOffset := index.FindOffsetByID(id); gotOffset != expectedOffset {
 			v.Logger.Error("Index inconsistency",
 				zap.Uint64("id", id),

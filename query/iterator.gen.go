@@ -1246,10 +1246,17 @@ func (itr *floatStreamFloatIterator) Next() (*FloatPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *floatStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []FloatPoint
 			for _, rp := range itr.m {
@@ -1274,8 +1281,6 @@ func (itr *floatStreamFloatIterator) reduce() ([]FloatPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -1521,10 +1526,17 @@ func (itr *floatStreamIntegerIterator) Next() (*IntegerPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *floatStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []IntegerPoint
 			for _, rp := range itr.m {
@@ -1549,8 +1561,6 @@ func (itr *floatStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -1796,10 +1806,17 @@ func (itr *floatStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *floatStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []UnsignedPoint
 			for _, rp := range itr.m {
@@ -1824,8 +1841,6 @@ func (itr *floatStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -2071,10 +2086,17 @@ func (itr *floatStreamStringIterator) Next() (*StringPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *floatStreamStringIterator) reduce() ([]StringPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []StringPoint
 			for _, rp := range itr.m {
@@ -2099,8 +2121,6 @@ func (itr *floatStreamStringIterator) reduce() ([]StringPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -2346,10 +2366,17 @@ func (itr *floatStreamBooleanIterator) Next() (*BooleanPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *floatStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []BooleanPoint
 			for _, rp := range itr.m {
@@ -2374,8 +2401,6 @@ func (itr *floatStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -2539,6 +2564,49 @@ func (itr *floatFilterIterator) Next() (*FloatPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type floatTagSubsetIterator struct {
+	input      FloatIterator
+	point      FloatPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newFloatTagSubsetIterator(input FloatIterator, opt IteratorOptions) *floatTagSubsetIterator {
+	return &floatTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *floatTagSubsetIterator) Next() (*FloatPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *floatTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *floatTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newFloatDedupeIterator returns a new instance of floatDedupeIterator.
@@ -3848,10 +3916,17 @@ func (itr *integerStreamFloatIterator) Next() (*FloatPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *integerStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []FloatPoint
 			for _, rp := range itr.m {
@@ -3876,8 +3951,6 @@ func (itr *integerStreamFloatIterator) reduce() ([]FloatPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -4123,10 +4196,17 @@ func (itr *integerStreamIntegerIterator) Next() (*IntegerPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *integerStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []IntegerPoint
 			for _, rp := range itr.m {
@@ -4151,8 +4231,6 @@ func (itr *integerStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -4398,10 +4476,17 @@ func (itr *integerStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *integerStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []UnsignedPoint
 			for _, rp := range itr.m {
@@ -4426,8 +4511,6 @@ func (itr *integerStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -4673,10 +4756,17 @@ func (itr *integerStreamStringIterator) Next() (*StringPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *integerStreamStringIterator) reduce() ([]StringPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []StringPoint
 			for _, rp := range itr.m {
@@ -4701,8 +4791,6 @@ func (itr *integerStreamStringIterator) reduce() ([]StringPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -4948,10 +5036,17 @@ func (itr *integerStreamBooleanIterator) Next() (*BooleanPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *integerStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []BooleanPoint
 			for _, rp := range itr.m {
@@ -4976,8 +5071,6 @@ func (itr *integerStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -5141,6 +5234,49 @@ func (itr *integerFilterIterator) Next() (*IntegerPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type integerTagSubsetIterator struct {
+	input      IntegerIterator
+	point      IntegerPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newIntegerTagSubsetIterator(input IntegerIterator, opt IteratorOptions) *integerTagSubsetIterator {
+	return &integerTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *integerTagSubsetIterator) Next() (*IntegerPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *integerTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *integerTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newIntegerDedupeIterator returns a new instance of integerDedupeIterator.
@@ -6450,10 +6586,17 @@ func (itr *unsignedStreamFloatIterator) Next() (*FloatPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *unsignedStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []FloatPoint
 			for _, rp := range itr.m {
@@ -6478,8 +6621,6 @@ func (itr *unsignedStreamFloatIterator) reduce() ([]FloatPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -6725,10 +6866,17 @@ func (itr *unsignedStreamIntegerIterator) Next() (*IntegerPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *unsignedStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []IntegerPoint
 			for _, rp := range itr.m {
@@ -6753,8 +6901,6 @@ func (itr *unsignedStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -7000,10 +7146,17 @@ func (itr *unsignedStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *unsignedStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []UnsignedPoint
 			for _, rp := range itr.m {
@@ -7028,8 +7181,6 @@ func (itr *unsignedStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -7275,10 +7426,17 @@ func (itr *unsignedStreamStringIterator) Next() (*StringPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *unsignedStreamStringIterator) reduce() ([]StringPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []StringPoint
 			for _, rp := range itr.m {
@@ -7303,8 +7461,6 @@ func (itr *unsignedStreamStringIterator) reduce() ([]StringPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -7550,10 +7706,17 @@ func (itr *unsignedStreamBooleanIterator) Next() (*BooleanPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *unsignedStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []BooleanPoint
 			for _, rp := range itr.m {
@@ -7578,8 +7741,6 @@ func (itr *unsignedStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -7743,6 +7904,49 @@ func (itr *unsignedFilterIterator) Next() (*UnsignedPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type unsignedTagSubsetIterator struct {
+	input      UnsignedIterator
+	point      UnsignedPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newUnsignedTagSubsetIterator(input UnsignedIterator, opt IteratorOptions) *unsignedTagSubsetIterator {
+	return &unsignedTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *unsignedTagSubsetIterator) Next() (*UnsignedPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *unsignedTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *unsignedTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newUnsignedDedupeIterator returns a new instance of unsignedDedupeIterator.
@@ -9038,10 +9242,17 @@ func (itr *stringStreamFloatIterator) Next() (*FloatPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *stringStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []FloatPoint
 			for _, rp := range itr.m {
@@ -9066,8 +9277,6 @@ func (itr *stringStreamFloatIterator) reduce() ([]FloatPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -9313,10 +9522,17 @@ func (itr *stringStreamIntegerIterator) Next() (*IntegerPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *stringStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []IntegerPoint
 			for _, rp := range itr.m {
@@ -9341,8 +9557,6 @@ func (itr *stringStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -9588,10 +9802,17 @@ func (itr *stringStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *stringStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []UnsignedPoint
 			for _, rp := range itr.m {
@@ -9616,8 +9837,6 @@ func (itr *stringStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -9863,10 +10082,17 @@ func (itr *stringStreamStringIterator) Next() (*StringPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *stringStreamStringIterator) reduce() ([]StringPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []StringPoint
 			for _, rp := range itr.m {
@@ -9891,8 +10117,6 @@ func (itr *stringStreamStringIterator) reduce() ([]StringPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -10138,10 +10362,17 @@ func (itr *stringStreamBooleanIterator) Next() (*BooleanPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *stringStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []BooleanPoint
 			for _, rp := range itr.m {
@@ -10166,8 +10397,6 @@ func (itr *stringStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -10331,6 +10560,49 @@ func (itr *stringFilterIterator) Next() (*StringPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type stringTagSubsetIterator struct {
+	input      StringIterator
+	point      StringPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newStringTagSubsetIterator(input StringIterator, opt IteratorOptions) *stringTagSubsetIterator {
+	return &stringTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *stringTagSubsetIterator) Next() (*StringPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *stringTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *stringTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newStringDedupeIterator returns a new instance of stringDedupeIterator.
@@ -11626,10 +11898,17 @@ func (itr *booleanStreamFloatIterator) Next() (*FloatPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *booleanStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []FloatPoint
 			for _, rp := range itr.m {
@@ -11654,8 +11933,6 @@ func (itr *booleanStreamFloatIterator) reduce() ([]FloatPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -11901,10 +12178,17 @@ func (itr *booleanStreamIntegerIterator) Next() (*IntegerPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *booleanStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []IntegerPoint
 			for _, rp := range itr.m {
@@ -11929,8 +12213,6 @@ func (itr *booleanStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -12176,10 +12458,17 @@ func (itr *booleanStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *booleanStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []UnsignedPoint
 			for _, rp := range itr.m {
@@ -12204,8 +12493,6 @@ func (itr *booleanStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -12451,10 +12738,17 @@ func (itr *booleanStreamStringIterator) Next() (*StringPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *booleanStreamStringIterator) reduce() ([]StringPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []StringPoint
 			for _, rp := range itr.m {
@@ -12479,8 +12773,6 @@ func (itr *booleanStreamStringIterator) reduce() ([]StringPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -12726,10 +13018,17 @@ func (itr *booleanStreamBooleanIterator) Next() (*BooleanPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *booleanStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []BooleanPoint
 			for _, rp := range itr.m {
@@ -12754,8 +13053,6 @@ func (itr *booleanStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -12919,6 +13216,49 @@ func (itr *booleanFilterIterator) Next() (*BooleanPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type booleanTagSubsetIterator struct {
+	input      BooleanIterator
+	point      BooleanPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newBooleanTagSubsetIterator(input BooleanIterator, opt IteratorOptions) *booleanTagSubsetIterator {
+	return &booleanTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *booleanTagSubsetIterator) Next() (*BooleanPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *booleanTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *booleanTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newBooleanDedupeIterator returns a new instance of booleanDedupeIterator.
