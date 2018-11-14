@@ -1,5 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
+import classnames from 'classnames'
 
 // Components
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
@@ -20,13 +21,19 @@ class PageContents extends Component<Props> {
 
     if (scrollable) {
       return (
-        <FancyScrollbar className="page-contents">
+        <FancyScrollbar className={this.containerClass}>
           {this.children}
         </FancyScrollbar>
       )
     }
 
-    return <div className="page-contents">{this.children}</div>
+    return <div className={this.containerClass}>{this.children}</div>
+  }
+
+  private get containerClass(): string {
+    const {fullWidth} = this.props
+
+    return classnames('page-contents', {'full-width': fullWidth})
   }
 
   private get children(): JSX.Element | JSX.Element[] {

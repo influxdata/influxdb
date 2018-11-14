@@ -11,6 +11,9 @@ import NavMenu from 'src/pageLayout/components/NavMenu'
 import {Source} from 'src/types/v2'
 import {IconFont} from 'src/clockface'
 
+// Styles
+import '../PageLayout.scss'
+
 // MOCK DATA
 import {LeroyJenkins} from 'src/user/mockUserData'
 

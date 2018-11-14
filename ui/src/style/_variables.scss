@@ -3,6 +3,17 @@
    -----------------------------------------------------------------------------
 */
 
+/* Page Layout */
+
+$nav-size: 54px;
+$nav-breakpoint: 800px;
+$page-header-size: 80px;
+$page-max-width: 1300px;
+$page-gutter: 32px;
+$page-title-size: 21px;
+$page-title-weight: 400;
+$sidebar--width: 54px; //delete this later
+
 /* Z Variables */
 
 $z--notifications: 9999;
@@ -17,9 +28,6 @@ $radius-small: 3px;
 $page-wrapper-padding: 60px;
 $page-wrapper-max-width: 1300px;
 $chronograf-page-header-height: 60px;
-
-$page-header-size: 19px;
-$page-header-weight: 400 !important;
 
 $ix-marg-a: 4px;
 $ix-marg-b: 8px;
