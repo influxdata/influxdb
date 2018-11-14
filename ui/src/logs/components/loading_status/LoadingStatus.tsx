@@ -22,14 +22,12 @@ class LoadingStatus extends PureComponent<Props> {
       <div className="logs-viewer--table-container">
         <EmptyState size={ComponentSize.Large}>
           {this.loadingSpinner}
-          <h4>
-            <ComponentSpacer align={Alignment.Center}>
+          <ComponentSpacer align={Alignment.Center}>
+            <h4 className="logs-viewer--loading-message">
               <>{this.loadingMessage}</>
-            </ComponentSpacer>
-            <ComponentSpacer align={Alignment.Center}>
               <>{this.description}</>
-            </ComponentSpacer>
-          </h4>
+            </h4>
+          </ComponentSpacer>
         </EmptyState>
       </div>
     )

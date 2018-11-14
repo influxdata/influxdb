@@ -1,0 +1,317 @@
+/*
+  Custom Time Range Dropdown
+  ------------------------------------------------------
+*/
+
+$date-picker-z: 1000;
+
+.custom-time-range {
+    position: relative;
+  }
+  .custom-time--container {
+    display: none;
+    position: absolute;
+    flex-direction: row;
+    align-items: stretch;
+    top: 35px;
+    right: 0;
+    border-radius: $radius;
+    z-index: 1000;
+    @extend %drop-shadow;
+  }
+  .custom-time--wrap,
+  .custom-time--moving-dates {
+    display: flex;
+    flex-direction: column;
+  }
+  .custom-time--wrap {
+    padding: 8px;
+    align-items: center;
+    border-radius: 0 $radius $radius 0;
+    background: $g5-pepper;
+  }
+  .custom-time--dates {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+  .custom-time--upper-container,
+  .custom-time--lower-container {
+    position: relative;
+  }
+  .custom-time--lower {
+    margin-right: 4px;
+    text-align: center;
+  }
+  .custom-time--upper {
+    margin-left: 4px;
+    text-align: center;
+  }
+  .custom-time--mask {
+    position: absolute;
+    width: 100%;
+    height: calc(100% - 30px);
+    top: 30px;
+    left: 0;
+    opacity: 0.5;
+    background-color: $g5-pepper;
+    z-index: 2;
+  }
+  .custom-time--now {
+    position: absolute !important;
+    right: 0;
+    top: 4px;
+  }
+  .custom-time--shortcuts {
+    @include no-user-select();
+    align-items: stretch;
+    background-color: $g6-smoke;
+    border-radius: $radius 0 0 $radius;
+  }
+  .custom-time--shortcuts-header {
+    white-space: nowrap;
+    padding: 16px;
+    color: $g15-platinum;
+    font-weight: 700;
+  }
+  .custom-time--shortcut {
+    white-space: nowrap;
+    padding: 6px 16px;
+    transition:
+      color 0.25s ease,
+      background-color 0.25s ease;
+    color: $g11-sidewalk;
+    font-weight: 500;
+  
+    &:hover {
+      cursor: pointer;
+      background-color: $g7-graphite;
+      color: $g17-whisper;
+    }
+  }
+  
+  $custom-time-arrow: 28px;
+  $rd-cell-size: 30px;
+  
+  .rd-container {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+  }
+  .rd-date {
+    position: relative;
+  }
+  .rd-back,
+  .rd-next,
+  .rd-month-label {
+    position: absolute;
+    top: 0;
+    height: $custom-time-arrow;
+    line-height: $custom-time-arrow;
+  }
+  .rd-back,
+  .rd-next {
+    outline: none;
+    width: $custom-time-arrow;
+    border: 0;
+    background-color: transparent;
+    border-radius: 50%;
+    color: $g15-platinum;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  
+    &:after {
+      font-family: 'icomoon' !important;
+      font-style: normal;
+      font-weight: normal;
+      font-variant: normal;
+      color: inherit;
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 16px;
+    }
+    &:hover {
+      cursor: pointer;
+      background-color: $g6-smoke;
+      color: $g20-white;
+    }
+  }
+  .rd-back {
+    left: 0;
+    &:after {
+      left: calc(50% - 1px);
+      content: "\e901";
+    }
+  }
+  .rd-next {
+    left: calc(100% - #{$custom-time-arrow});
+    &:after {
+      left: calc(50% + 1px);
+      content: "\e903";
+    }
+  }
+  .rd-month-label {
+    font-weight: 600;
+    color: $g15-platinum;
+    left: $custom-time-arrow;
+    text-align: center;
+    @include no-user-select();
+    width: calc(100% - #{($custom-time-arrow * 2)});
+  }
+  .rd-days {
+    font-size: 13px;
+    margin-top: ($custom-time-arrow + 8px);
+    background-color: transparent;
+    border-radius: $radius-small;
+  
+    /* Cancel out default table styles */
+    tr:hover {
+      background-color: transparent !important;
+      color: inherit !important;
+    }
+  
+    thead.rd-days-head th.rd-day-head,
+    tbody.rd-days-body td.rd-day-body {
+      padding: 0 !important;
+      min-height: $rd-cell-size !important;
+      height: $rd-cell-size !important;
+      max-height: $rd-cell-size !important;
+      min-width: $rd-cell-size !important;
+      width: $rd-cell-size !important;
+      max-width: $rd-cell-size !important;
+      vertical-align: middle;
+      text-align: center;
+      border: 0 !important;
+    }
+    thead.rd-days-head th.rd-day-head {
+      color: $g15-platinum !important;
+      background-color: $g5-pepper !important;
+    }
+    tbody.rd-days-body td.rd-day-body {
+      @include no-user-select();
+      letter-spacing: -1px;
+      font-family: $code-font;
+      transition: background-color 0.25s ease, color 0.25s ease;
+      color: $g13-mist !important;
+      background-color: $g3-castle;
+      border-radius: $radius;
+  
+      &:hover {
+        cursor: pointer;
+        color: $g20-white !important;
+        background-color: $g6-smoke;
+      }
+      &.rd-day-next-month,
+      &.rd-day-prev-month {
+        cursor: default;
+        visibility: hidden;
+      }
+      &.rd-day-selected {
+        background-color: $c-pool !important;
+        color: $g20-white !important;
+      }
+      &.rd-day-disabled {
+        color: $g8-storm !important;
+        background-color: $g5-pepper !important;
+        cursor: default;
+      }
+    }
+  }
+  
+  .rd-time {
+    margin: 0 2px;
+    width: calc(100% - 4px);
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .rd-time-selected {
+    @include no-user-select();
+    height: 28px;
+    line-height: 28px;
+    background-color: $g3-castle;
+    border-radius: $radius-small;
+    width: 100%;
+    letter-spacing: -1px;
+    font-family: $code-font;
+    color: $g13-mist;
+    display: inline-block;
+    transition: color 0.25s ease, background-color 0.25s ease;
+    text-align: center;
+  
+    &:hover {
+      color: $g20-white;
+      background-color: $g6-smoke;
+      cursor: pointer;
+    }
+  }
+  .rd-time-list {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 50%;
+    width: 120px;
+    height: 200px;
+    transform: translate(-50%, -50%);
+    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: scroll;
+    @include custom-scrollbar-round($c-pool, $c-laser);
+    @include gradient-h($c-ocean, $c-pool);
+    border-radius: $radius;
+    @extend %drop-shadow;
+  }
+  
+  .rd-time-option {
+    width: 100%;
+    height: 24px;
+    line-height: 24px;
+    padding-left: $scrollbar-width;
+    text-align: center;
+    @include no-user-select();
+    font-family: $code-font;
+    color: $c-yeti;
+    letter-spacing: -1px;
+  
+    &:hover,
+    &:active,
+    &:focus {
+      color: $g20-white;
+      cursor: pointer;
+      outline: none;
+      @include gradient-h($c-laser, $c-pool);
+    }
+  }
+  
+  .custom-time--container .btn.custom-time--apply {
+    margin-top: 8px;
+    width: 210px;
+  }
+  
+  /* Open State */
+  .custom-time-range.open {
+    .custom-time--container {
+      display: flex;
+    }
+    .custom-time-range--btn {
+      color: $g20-white !important;
+      background-color: $g6-smoke;
+    }
+  }
+  /* Custom positioning for dashboard use */
+  .time-range-dropdown {
+    position: relative;
+  }
+  .custom-time--overlay {
+    position: absolute;
+    top: 0;
+    right: calc(100% + 4px);
+    z-index: $date-picker-z;
+  
+    .custom-time--container {
+      display: flex;
+    }
+  }
+  

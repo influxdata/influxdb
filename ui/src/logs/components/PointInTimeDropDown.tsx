@@ -1,13 +1,12 @@
 import React, {Component, MouseEvent} from 'react'
-import classnames from 'classnames'
-import moment from 'moment'
+import ReactDOM from 'react-dom'
 
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+// Components
+import {Dropdown} from 'src/clockface'
 import timePoints from 'src/logs/data/timePoints'
-import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
-import CustomSingularTime from 'src/shared/components/CustomSingularTime'
+import CustomSingularTime from 'src/shared/components/custom_singular_time/CustomSingularTime'
 
 interface Props {
   customTime?: string
@@ -17,12 +16,8 @@ interface Props {
 }
 
 interface State {
-  isOpen: boolean
   isTimeSelectorOpen: boolean
 }
-
-const dateFormat = 'YYYY-MM-DD HH:mm'
-const format = (t: string) => moment(t.replace(/\'/g, '')).format(dateFormat)
 
 @ErrorHandling
 class TimeRangeDropdown extends Component<Props, State> {
@@ -30,103 +25,75 @@ class TimeRangeDropdown extends Component<Props, State> {
     super(props)
 
     this.state = {
-      isOpen: false,
       isTimeSelectorOpen: false,
     }
   }
 
   public render() {
-    const {isTimeSelectorOpen} = this.state
-
     return (
-      <ClickOutside onClickOutside={this.handleClickOutside}>
-        <div
-          className="time-range-dropdown logs-viewer--search-dropdown"
-          style={{display: 'inline'}}
+      <div style={{display: 'inline'}}>
+        <Dropdown
+          selectedID={this.timeInputValue}
+          onChange={this.handleSelection}
+          widthPixels={100}
+          customClass="time-range-dropdown logs-viewer--search-dropdown"
         >
-          <div className={this.dropdownClassName}>
-            <div
-              className="btn btn-sm btn-default dropdown-toggle"
-              onClick={this.toggleMenu}
-            >
-              <span className="icon clock" />
-              <span className="dropdown-selected">{this.timeInputValue}</span>
-              <span className="caret" />
-            </div>
-            <ul className="dropdown-menu">
-              <FancyScrollbar
-                autoHide={false}
-                autoHeight={true}
-                maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
-              >
-                <div>
-                  <li className="dropdown-header">Absolute Time</li>
-                  <li
-                    className={
-                      isTimeSelectorOpen
-                        ? 'active dropdown-item custom-timerange'
-                        : 'dropdown-item custom-timerange'
-                    }
-                  >
-                    <a href="#" onClick={this.handleOpenCustomTime}>
-                      Date Picker
-                    </a>
-                  </li>
-                </div>
-                <li className="dropdown-header">Relative Time</li>
-                {timePoints.map(point => {
-                  return (
-                    <li className="dropdown-item" key={`pot-${point.value}`}>
-                      <a
-                        href="#"
-                        onClick={this.handleSelection}
-                        data-value={point.value}
-                      >
-                        {point.text}
-                      </a>
-                    </li>
-                  )
-                })}
-              </FancyScrollbar>
-            </ul>
-          </div>
-          {isTimeSelectorOpen ? (
-            <ClickOutside onClickOutside={this.handleCloseCustomTime}>
-              <div className="custom-time--overlay">
-                <CustomSingularTime
-                  onSelected={this.handleCustomSelection}
-                  time={this.props.customTime}
-                />
-              </div>
-            </ClickOutside>
-          ) : null}
-        </div>
-      </ClickOutside>
+          {this.timeItems}
+        </Dropdown>
+        {this.timeSelector}
+      </div>
     )
   }
 
-  private get dropdownClassName(): string {
-    const {isOpen} = this.state
-    const absoluteTimeRange = !!this.props.customTime
+  private get timeItems(): JSX.Element[] {
+    const relativeItems = timePoints.map(({text, value}) => (
+      <Dropdown.Item key={text} value={value} id={text}>
+        {text}
+      </Dropdown.Item>
+    ))
 
-    return classnames('dropdown', {
-      'dropdown-180': absoluteTimeRange,
-      'dropdown-110': !absoluteTimeRange,
-      open: isOpen,
-    })
+    return [this.customTimeItem, ...relativeItems]
+  }
+
+  private get customTimeItem(): JSX.Element {
+    return (
+      <Dropdown.Item key="custom" value={this.props.customTime} id="custom">
+        <div onClick={this.handleOpenCustomTime}>Date Picker</div>
+      </Dropdown.Item>
+    )
+  }
+
+  private get timeSelector(): JSX.Element {
+    const portalElement = document.querySelector(
+      '.logs-viewer--search-dropdown'
+    )
+
+    if (!this.state.isTimeSelectorOpen || !portalElement) {
+      return null
+    }
+
+    const overlay = (
+      <ClickOutside onClickOutside={this.handleCloseCustomTime}>
+        <div className="custom-time--overlay">
+          <CustomSingularTime
+            onSelected={this.handleCustomSelection}
+            time={this.props.customTime}
+          />
+        </div>
+      </ClickOutside>
+    )
+
+    return ReactDOM.createPortal(overlay, portalElement)
   }
 
   private handleCustomSelection = (time: string) => {
     this.handleCloseCustomTime()
     this.props.onChooseCustomTime(time)
-    this.setState({isOpen: false})
+    this.setState({isTimeSelectorOpen: false})
   }
 
-  private handleSelection = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault()
-    const {dataset} = e.target as HTMLAnchorElement
-    this.props.onChooseRelativeTime(+dataset.value)
-    this.setState({isOpen: false})
+  private handleSelection = (timeValue: number) => {
+    this.props.onChooseRelativeTime(timeValue)
   }
 
   private get timeInputValue(): string {
@@ -139,22 +106,17 @@ class TimeRangeDropdown extends Component<Props, State> {
       return 'now'
     }
 
-    return format(this.props.customTime)
-  }
-
-  private handleClickOutside = () => {
-    this.setState({isOpen: false})
-  }
-
-  private toggleMenu = () => {
-    this.setState({isOpen: !this.state.isOpen})
+    return 'custom'
   }
 
   private handleCloseCustomTime = () => {
     this.setState({isTimeSelectorOpen: false})
   }
 
-  private handleOpenCustomTime = () => {
+  private handleOpenCustomTime = (e: MouseEvent<HTMLElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+
     this.setState({isTimeSelectorOpen: true})
   }
 }
