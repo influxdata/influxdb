@@ -1076,6 +1076,14 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 					return nil
 				}
 
+				// Invariant: v.MaxTime() == k.blocks[i].maxTime
+				if k.blocks[i].maxTime != v.MaxTime() {
+					if maxTime == k.blocks[i].maxTime {
+						maxTime = v.MaxTime()
+					}
+					k.blocks[i].maxTime = v.MaxTime()
+				}
+
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
@@ -1150,6 +1158,11 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 		if err := DecodeFloatArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
+		}
+
+		// Invariant: v.MaxTime() == k.blocks[i].maxTime
+		if k.blocks[i].maxTime != v.MaxTime() {
+			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block
@@ -1282,6 +1295,14 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 					return nil
 				}
 
+				// Invariant: v.MaxTime() == k.blocks[i].maxTime
+				if k.blocks[i].maxTime != v.MaxTime() {
+					if maxTime == k.blocks[i].maxTime {
+						maxTime = v.MaxTime()
+					}
+					k.blocks[i].maxTime = v.MaxTime()
+				}
+
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
@@ -1356,6 +1377,11 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 		if err := DecodeIntegerArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
+		}
+
+		// Invariant: v.MaxTime() == k.blocks[i].maxTime
+		if k.blocks[i].maxTime != v.MaxTime() {
+			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block
@@ -1488,6 +1514,14 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 					return nil
 				}
 
+				// Invariant: v.MaxTime() == k.blocks[i].maxTime
+				if k.blocks[i].maxTime != v.MaxTime() {
+					if maxTime == k.blocks[i].maxTime {
+						maxTime = v.MaxTime()
+					}
+					k.blocks[i].maxTime = v.MaxTime()
+				}
+
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
@@ -1562,6 +1596,11 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 		if err := DecodeUnsignedArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
+		}
+
+		// Invariant: v.MaxTime() == k.blocks[i].maxTime
+		if k.blocks[i].maxTime != v.MaxTime() {
+			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block
@@ -1694,6 +1733,14 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 					return nil
 				}
 
+				// Invariant: v.MaxTime() == k.blocks[i].maxTime
+				if k.blocks[i].maxTime != v.MaxTime() {
+					if maxTime == k.blocks[i].maxTime {
+						maxTime = v.MaxTime()
+					}
+					k.blocks[i].maxTime = v.MaxTime()
+				}
+
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
@@ -1768,6 +1815,11 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 		if err := DecodeStringArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
+		}
+
+		// Invariant: v.MaxTime() == k.blocks[i].maxTime
+		if k.blocks[i].maxTime != v.MaxTime() {
+			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block
@@ -1900,6 +1952,14 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 					return nil
 				}
 
+				// Invariant: v.MaxTime() == k.blocks[i].maxTime
+				if k.blocks[i].maxTime != v.MaxTime() {
+					if maxTime == k.blocks[i].maxTime {
+						maxTime = v.MaxTime()
+					}
+					k.blocks[i].maxTime = v.MaxTime()
+				}
+
 				// Remove values we already read
 				v.Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
@@ -1974,6 +2034,11 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 		if err := DecodeBooleanArrayBlock(k.blocks[i].b, &v); err != nil {
 			k.err = err
 			return nil
+		}
+
+		// Invariant: v.MaxTime() == k.blocks[i].maxTime
+		if k.blocks[i].maxTime != v.MaxTime() {
+			k.blocks[i].maxTime = v.MaxTime()
 		}
 
 		// Apply each tombstone to the block
