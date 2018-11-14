@@ -37,6 +37,7 @@ export default class TaskRow extends PureComponent<Props> {
             onChange={this.changeToggle}
           />
         </IndexList.Cell>
+        <IndexList.Cell>{this.schedule}</IndexList.Cell>
         <IndexList.Cell>
           <a href="#">{task.organization.name}</a>
         </IndexList.Cell>
@@ -80,5 +81,19 @@ export default class TaskRow extends PureComponent<Props> {
       task.status = TaskStatus.Active
     }
     onActivate(task)
+  }
+
+  private get schedule(): string {
+    const {task} = this.props
+    if (task.every && task.delay) {
+      return `Every ${task.every}, Delay ${task.delay}`
+    }
+    if (task.every) {
+      return `Every ${task.every}`
+    }
+    if (task.cron) {
+      return task.cron
+    }
+    return ''
   }
 }

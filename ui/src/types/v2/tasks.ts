@@ -1,4 +1,7 @@
 export interface Task {
+  every?: string
+  cron?: string
+  delay?: string
   id: string
   name: string
   status: TaskStatus
