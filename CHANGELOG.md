@@ -1,5 +1,9 @@
-v1.7.1 [unreleased]
+v1.7.1 [2018-11-14]
 -------------------
+
+### Bugfixes
+
+-	[#10481](https://github.com/influxdata/influxdb/pull/10481): Simple8B EncodeAll incorrectly encodes 120 or 240 1s if last value is not a 1. 
 
 v1.7.0 [2018-11-06]
 -------------------

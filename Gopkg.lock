@@ -446,7 +446,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:c804531a7a4112cc00c59f9447411e57147ba4867ea61cfb6350d223f0fb1885"
+  digest = "1:b144c33992549744ebf906e28c95dea90e950dda5112be0010e3ed3f39d09ff6"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
@@ -455,7 +455,6 @@
     "pkg/binaryutil",
     "pkg/bytesutil",
     "pkg/escape",
-    "pkg/limiter",
     "pkg/mmap",
     "pkg/rhh",
     "pkg/snowflake",
@@ -465,13 +464,11 @@
     "telegraf/plugins",
     "telegraf/plugins/inputs",
     "telegraf/plugins/outputs",
-    "toml",
     "tsdb",
     "tsdb/cursors",
-    "tsdb/defaults",
   ]
   pruneopts = "UT"
-  revision = "362d4c6b34d40aa8873bfe3e425c9f29a51fa26b"
+  revision = "bceb99526a51ff6dc16c3e304bf5db35675941de"
 
 [[projects]]
   branch = "master"
