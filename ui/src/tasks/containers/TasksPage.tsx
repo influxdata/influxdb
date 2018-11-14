@@ -15,10 +15,11 @@ import {
   deleteTask,
   selectTask,
   setSearchTerm as setSearchTermAction,
+  setShowInactive as setShowInactiveAction,
 } from 'src/tasks/actions/v2'
 
 // Types
-import {Task} from 'src/types/v2/tasks'
+import {Task, TaskStatus} from 'src/types/v2/tasks'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -32,31 +33,42 @@ interface ConnectedDispatchProps {
   deleteTask: typeof deleteTask
   selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
+  setShowInactive: typeof setShowInactiveAction
 }
 
 interface ConnectedStateProps {
   tasks: Task[]
   searchTerm: string
+  showInactive: boolean
 }
 
 type Props = ConnectedDispatchProps & PassedInProps & ConnectedStateProps
 
 @ErrorHandling
 class TasksPage extends PureComponent<Props> {
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
 
-    this.props.setSearchTerm('')
+    props.setSearchTerm('')
+    if (!props.showInactive) {
+      props.setShowInactive()
+    }
   }
 
   public render(): JSX.Element {
-    const {setSearchTerm, searchTerm} = this.props
-
+    const {
+      setSearchTerm,
+      searchTerm,
+      setShowInactive,
+      showInactive,
+    } = this.props
     return (
       <Page>
         <TasksHeader
           onCreateTask={this.handleCreateTask}
-          filterTasks={setSearchTerm}
+          setSearchTerm={setSearchTerm}
+          setShowInactive={setShowInactive}
+          showInactive={showInactive}
         />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
@@ -92,18 +104,27 @@ class TasksPage extends PureComponent<Props> {
   }
 
   private get filteredTasks(): Task[] {
-    const {tasks, searchTerm} = this.props
+    const {tasks, searchTerm, showInactive} = this.props
+    const matchingTasks = tasks.filter(t => {
+      const searchTermFilter = t.name
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())
+      let activeFilter = true
+      if (!showInactive) {
+        activeFilter = t.status === TaskStatus.Active
+      }
 
-    const matchingTasks = tasks.filter(t =>
-      t.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+      return searchTermFilter && activeFilter
+    })
 
     return matchingTasks
   }
 }
 
-const mstp = ({tasks: {tasks, searchTerm}}): ConnectedStateProps => {
-  return {tasks, searchTerm}
+const mstp = ({
+  tasks: {tasks, searchTerm, showInactive},
+}): ConnectedStateProps => {
+  return {tasks, searchTerm, showInactive}
 }
 
 const mdtp: ConnectedDispatchProps = {
@@ -112,6 +133,7 @@ const mdtp: ConnectedDispatchProps = {
   deleteTask,
   selectTask,
   setSearchTerm: setSearchTermAction,
+  setShowInactive: setShowInactiveAction,
 }
 
 export default connect<

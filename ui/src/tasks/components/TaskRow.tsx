@@ -22,7 +22,6 @@ interface Props {
 export default class TaskRow extends PureComponent<Props> {
   public render() {
     const {task} = this.props
-
     return (
       <IndexList.Row disabled={!this.isTaskActive}>
         <IndexList.Cell>
