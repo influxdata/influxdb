@@ -27,14 +27,15 @@ export default class TasksList extends PureComponent<Props> {
         <IndexList.Header>
           <IndexList.HeaderCell columnName="NAME" width="20%" />
           <IndexList.HeaderCell columnName="ACTIVE" width="10%" />
+          <IndexList.HeaderCell columnName="SCHEDULE" width="20%" />
           <IndexList.HeaderCell columnName="ORGANIZATION" width="15%" />
-          <IndexList.HeaderCell columnName="" width="50%" />
+          <IndexList.HeaderCell columnName="" width="35%" />
         </IndexList.Header>
         <IndexList.Body
           emptyState={
             <EmptyTasksList searchTerm={searchTerm} onCreate={onCreate} />
           }
-          columnCount={4}
+          columnCount={5}
         >
           {this.rows}
         </IndexList.Body>

@@ -56,6 +56,7 @@ export default class Tasks extends PureComponent<Props, State> {
   private get tempTasks(): Task[] {
     return [
       {
+        every: '2m',
         id: '1',
         name: 'swoggles task',
         status: TaskStatus.Active,
@@ -70,6 +71,7 @@ export default class Tasks extends PureComponent<Props, State> {
         },
       },
       {
+        every: '2m',
         id: '2',
         name: 'plerps task',
         status: TaskStatus.Active,
