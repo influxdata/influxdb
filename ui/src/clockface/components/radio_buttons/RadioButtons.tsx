@@ -25,7 +25,7 @@ interface Props {
 @ErrorHandling
 class Radio extends Component<Props> {
   public static defaultProps: Partial<Props> = {
-    color: ComponentColor.Default,
+    color: ComponentColor.Primary,
     size: ComponentSize.Small,
     shape: ButtonShape.Default,
   }
