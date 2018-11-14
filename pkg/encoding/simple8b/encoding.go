@@ -388,6 +388,7 @@ NEXTVALUE:
 
 		// try to pack run of 240 or 120 1s
 		if len(remaining) >= 120 {
+			// Invariant: len(a) is fixed to 120 or 240 values
 			var a []uint64
 			if len(remaining) >= 240 {
 				a = remaining[:240]
@@ -395,24 +396,31 @@ NEXTVALUE:
 				a = remaining[:120]
 			}
 
+			// search for the longest sequence of 1s in a
+			// Postcondition: k equals the index of the last 1 or -1
 			k := 0
 			for k = range a {
 				if a[k] != 1 {
+					k--
 					break
 				}
 			}
 
 			v := uint64(0)
 			switch {
-			case k >= 239:
+			case k == 239:
+				// 240 1s
 				i += 240
+
 			case k >= 119:
+				// at least 120 1s
 				v = 1 << 60
 				i += 120
 
 			default:
 				goto CODES
 			}
+
 			dst[j] = v
 			j++
 			continue
