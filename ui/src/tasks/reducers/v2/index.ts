@@ -37,8 +37,7 @@ export default (state: State = defaultState, action: Action): State => {
       const {searchTerm} = action.payload
       return {...state, searchTerm}
     case ActionTypes.SetShowInactive:
-      const {showInactive} = action.payload
-      return {...state, showInactive}
+      return {...state, showInactive: !state.showInactive}
     default:
       return state
   }

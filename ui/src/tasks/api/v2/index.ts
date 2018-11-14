@@ -51,7 +51,6 @@ export const getUserTasks = async (url, user): Promise<Task[]> => {
   const {
     data: {tasks},
   } = await AJAX({url: completeUrl})
-
   return tasks
 }
 

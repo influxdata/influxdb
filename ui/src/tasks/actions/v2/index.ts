@@ -74,9 +74,7 @@ export interface SetSearchTerm {
 
 export interface SetShowInactive {
   type: ActionTypes.SetShowInactive
-  payload: {
-    showInactive: boolean
-  }
+  payload: {}
 }
 
 export const setNewScript = (script: string): SetNewScript => ({
@@ -104,9 +102,9 @@ export const setSearchTerm = (searchTerm: string): SetSearchTerm => ({
   payload: {searchTerm},
 })
 
-export const setShowInactive = (showInactive: boolean): SetShowInactive => ({
+export const setShowInactive = (): SetShowInactive => ({
   type: ActionTypes.SetShowInactive,
-  payload: {showInactive},
+  payload: {},
 })
 
 export const updateTaskStatus = (task: Task) => async (

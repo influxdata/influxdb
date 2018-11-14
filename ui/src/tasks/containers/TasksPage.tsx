@@ -46,21 +46,28 @@ type Props = ConnectedDispatchProps & PassedInProps & ConnectedStateProps
 
 @ErrorHandling
 class TasksPage extends PureComponent<Props> {
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
 
-    this.props.setSearchTerm('')
-    this.props.setShowInactive(true)
+    props.setSearchTerm('')
+    if (!props.showInactive) {
+      props.setShowInactive()
+    }
   }
 
   public render(): JSX.Element {
-    const {setSearchTerm, searchTerm, showInactive} = this.props
+    const {
+      setSearchTerm,
+      searchTerm,
+      setShowInactive,
+      showInactive,
+    } = this.props
     return (
       <Page>
         <TasksHeader
           onCreateTask={this.handleCreateTask}
           setSearchTerm={setSearchTerm}
-          setShowInactive={this.handleInactiveToggle}
+          setShowInactive={setShowInactive}
           showInactive={showInactive}
         />
         <Page.Contents fullWidth={false} scrollable={true}>
@@ -98,7 +105,6 @@ class TasksPage extends PureComponent<Props> {
 
   private get filteredTasks(): Task[] {
     const {tasks, searchTerm, showInactive} = this.props
-
     const matchingTasks = tasks.filter(t => {
       const searchTermFilter = t.name
         .toLowerCase()
@@ -112,11 +118,6 @@ class TasksPage extends PureComponent<Props> {
     })
 
     return matchingTasks
-  }
-
-  private handleInactiveToggle = () => {
-    const {showInactive, setShowInactive} = this.props
-    setShowInactive(!showInactive)
   }
 }
 
