@@ -5,50 +5,43 @@
 
 @import "src/style/modules";
 
+$radio-buttons--padding: 4px;
+
 .radio-buttons {
   display: inline-flex;
   align-items: stretch;
+  padding: $radio-buttons--padding;
+  border-radius: $radius;
+  background-color: $g5-pepper;
 }
 
 .radio-button {
   @include no-user-select();
+  border: 0;
   font-family: $ix-text-font;
   font-weight: 600;
+  background-color: transparent;
   transition: background-color 0.25s ease, color 0.25s ease;
-  background-color: $g2-kevlar;
   color: $g11-sidewalk;
   text-transform: capitalize;
+  border-radius: $radius - 1px;
   outline: none;
-  border: $ix-border solid $g5-pepper;
-  border-right-width: 0;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
 
-  &:first-child {
-    border-top-left-radius: $ix-radius;
-    border-bottom-left-radius: $ix-radius;
-  }
-
-  &:last-child {
-    border-top-right-radius: $ix-radius;
-    border-bottom-right-radius: $ix-radius;
-    border-right-width: $ix-border;
-  }
-
   &:hover {
-    background-color: $g4-onyx;
+    // background-color: $g4-onyx;
     color: $g15-platinum;
     cursor: pointer;
   }
 
   &.active {
-    background-color: $g5-pepper;
+    color: $g20-white;
   }
 
   &.disabled,
   &.disabled:hover {
-    background-color: $g2-kevlar;
     font-style: italic;
     color: $g7-graphite;
   }
@@ -59,7 +52,8 @@
   height: $height;
 
   .radio-button {
-    height: $height;
+    height: $height - ($radio-buttons--padding * 2);
+    line-height: $height - ($radio-buttons--padding * 2);
     padding: 0 $padding;
     font-size: $fontSize;
   }
@@ -82,32 +76,32 @@
 /* Color Modifiers */
 .radio-buttons--default {
   .radio-button.active {
-    color: $g18-cloud;
+    background-color: $g7-graphite;
   }
 }
 .radio-buttons--primary {
   .radio-button.active {
-    color: $c-pool;
+    background-color: $c-pool;
   }
 }
 .radio-buttons--success {
   .radio-button.active {
-    color: $c-rainforest;
+    background-color: $c-rainforest;
   }
 }
 .radio-buttons--warning {
   .radio-button.active {
-    color: $c-comet;
+    background-color: $c-star;
   }
 }
 .radio-buttons--danger {
   .radio-button.active {
-    color: $c-dreamsicle;
+    background-color: $c-curacao;
   }
 }
 .radio-buttons--alert {
   .radio-button.active {
-    color: $c-pineapple;
+    background-color: $c-pineapple;
   }
 }
 
