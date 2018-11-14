@@ -29,9 +29,9 @@ const (
 	organizationsIDPath          = "/api/v2/orgs/:id"
 	organizationsIDLogPath       = "/api/v2/orgs/:id/log"
 	organizationsIDMembersPath   = "/api/v2/orgs/:id/members"
-	organizationsIDMembersIDPath = "/api/v2/orgs/:id/members/:organizationID"
+	organizationsIDMembersIDPath = "/api/v2/orgs/:id/members/:userID"
 	organizationsIDOwnersPath    = "/api/v2/orgs/:id/owners"
-	organizationsIDOwnersIDPath  = "/api/v2/orgs/:id/owners/:organizationID"
+	organizationsIDOwnersIDPath  = "/api/v2/orgs/:id/owners/:userID"
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.
