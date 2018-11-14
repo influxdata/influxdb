@@ -31,7 +31,6 @@ $radio-buttons--padding: 4px;
   overflow: hidden;
 
   &:hover {
-    // background-color: $g4-onyx;
     color: $g15-platinum;
     cursor: pointer;
   }
@@ -84,14 +83,14 @@ $radio-buttons--padding: 4px;
     background-color: $c-pool;
   }
 }
+.radio-buttons--secondary {
+  .radio-button.active {
+    background-color: $c-star;
+  }
+}
 .radio-buttons--success {
   .radio-button.active {
     background-color: $c-rainforest;
-  }
-}
-.radio-buttons--warning {
-  .radio-button.active {
-    background-color: $c-star;
   }
 }
 .radio-buttons--danger {
