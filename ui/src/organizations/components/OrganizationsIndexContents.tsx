@@ -24,16 +24,18 @@ interface Props {
 class OrganizationsPageContents extends Component<Props> {
   public render() {
     return (
-      <IndexList>
-        <IndexList.Header>
-          <IndexList.HeaderCell columnName="Name" />
-          <IndexList.HeaderCell />
-          <IndexList.HeaderCell />
-        </IndexList.Header>
-        <IndexList.Body columnCount={3} emptyState={this.emptyState}>
-          {this.rows}
-        </IndexList.Body>
-      </IndexList>
+      <div className="col-xs-12">
+        <IndexList>
+          <IndexList.Header>
+            <IndexList.HeaderCell columnName="Name" />
+            <IndexList.HeaderCell />
+            <IndexList.HeaderCell />
+          </IndexList.Header>
+          <IndexList.Body columnCount={3} emptyState={this.emptyState}>
+            {this.rows}
+          </IndexList.Body>
+        </IndexList>
+      </div>
     )
   }
 
