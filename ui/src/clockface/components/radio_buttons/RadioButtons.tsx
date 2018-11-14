@@ -11,6 +11,9 @@ import {ComponentColor, ComponentSize, ButtonShape} from 'src/clockface/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+// Styles
+import './RadioButtons.scss'
+
 interface Props {
   children: JSX.Element[]
   customClass?: string
@@ -22,7 +25,7 @@ interface Props {
 @ErrorHandling
 class Radio extends Component<Props> {
   public static defaultProps: Partial<Props> = {
-    color: ComponentColor.Default,
+    color: ComponentColor.Primary,
     size: ComponentSize.Small,
     shape: ButtonShape.Default,
   }
