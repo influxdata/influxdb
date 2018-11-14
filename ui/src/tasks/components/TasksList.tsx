@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import IndexList from 'src/shared/components/index_views/IndexList'
+import {IndexList} from 'src/clockface'
 import TaskRow from 'src/tasks/components/TaskRow'
 
 // Types

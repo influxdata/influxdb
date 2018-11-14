@@ -2,10 +2,9 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import IndexList from 'src/shared/components/index_views/IndexList'
 import UpdateBucketOverlay from 'src/organizations/components/UpdateBucketOverlay'
 import BucketRow, {PrettyBucket} from 'src/organizations/components/BucketRow'
-import {OverlayTechnology} from 'src/clockface'
+import {OverlayTechnology, IndexList} from 'src/clockface'
 
 // Types
 import {OverlayState} from 'src/types/v2'

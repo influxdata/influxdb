@@ -17,6 +17,7 @@ import ProgressBar from './components/wizard/ProgressBar'
 import ComponentSpacer from './components/component_spacer/ComponentSpacer'
 import EmptyState from './components/empty_state/EmptyState'
 import Spinner from './components/spinners/Spinner'
+import IndexList from './components/index_views/IndexList'
 
 // Import Types
 import {
@@ -44,6 +45,7 @@ export {
   MultiSelectDropdown,
   EmptyState,
   Form,
+  IndexList,
   Input,
   InputType,
   OverlayTechnology,

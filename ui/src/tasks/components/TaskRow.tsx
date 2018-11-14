@@ -7,8 +7,8 @@ import {
   ComponentColor,
   ComponentSize,
   SlideToggle,
+  IndexList,
 } from 'src/clockface'
-import IndexList from 'src/shared/components/index_views/IndexList'
 
 import {Task, TaskStatus} from 'src/types/v2/tasks'
 

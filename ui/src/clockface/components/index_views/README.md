@@ -17,9 +17,9 @@ import {Alignment} from 'src/clockface'
 import {
   IndexListColumn,
   IndexListRow,
-} from 'src/shared/components/index_views/IndexListTypes'
+} from 'src/clockface/components/index_views/IndexListTypes'
 
-import IndexList from 'src/shared/components/index_views/IndexList'
+import IndexList from 'src/clockface/components/index_views/IndexList'
 ```
 
 #### Define Your Columns

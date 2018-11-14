@@ -2,11 +2,11 @@
 import React, {Component} from 'react'
 
 // Components
-import Body from 'src/shared/components/index_views/IndexListBody'
-import Header from 'src/shared/components/index_views/IndexListHeader'
-import HeaderCell from 'src/shared/components/index_views/IndexListHeaderCell'
-import Row from 'src/shared/components/index_views/IndexListRow'
-import Cell from 'src/shared/components/index_views/IndexListRowCell'
+import Body from 'src/clockface/components/index_views/IndexListBody'
+import Header from 'src/clockface/components/index_views/IndexListHeader'
+import HeaderCell from 'src/clockface/components/index_views/IndexListHeaderCell'
+import Row from 'src/clockface/components/index_views/IndexListRow'
+import Cell from 'src/clockface/components/index_views/IndexListRowCell'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
