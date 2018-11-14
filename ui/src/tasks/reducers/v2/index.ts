@@ -7,6 +7,7 @@ export interface State {
   currentTask?: Task
   tasks: Task[]
   searchTerm: string
+  showInactive: boolean
 }
 
 const defaultState: State = {
@@ -14,6 +15,7 @@ const defaultState: State = {
   currentScript: '',
   tasks: [],
   searchTerm: '',
+  showInactive: true,
 }
 
 export default (state: State = defaultState, action: Action): State => {
@@ -34,6 +36,9 @@ export default (state: State = defaultState, action: Action): State => {
     case ActionTypes.SetSearchTerm:
       const {searchTerm} = action.payload
       return {...state, searchTerm}
+    case ActionTypes.SetShowInactive:
+      const {showInactive} = action.payload
+      return {...state, showInactive}
     default:
       return state
   }

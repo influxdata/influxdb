@@ -26,6 +26,7 @@ export type Action =
   | SetSearchTerm
   | SetCurrentScript
   | SetCurrentTask
+  | SetShowInactive
 
 type GetStateFunc = () => AppState
 
@@ -35,6 +36,7 @@ export enum ActionTypes {
   SetSearchTerm = 'SET_TASKS_SEARCH_TERM',
   SetCurrentScript = 'SET_CURRENT_SCRIPT',
   SetCurrentTask = 'SET_CURRENT_TASK',
+  SetShowInactive = 'SET_TASKS_SHOW_INACTIVE',
 }
 
 export interface SetNewScript {
@@ -70,6 +72,13 @@ export interface SetSearchTerm {
   }
 }
 
+export interface SetShowInactive {
+  type: ActionTypes.SetShowInactive
+  payload: {
+    showInactive: boolean
+  }
+}
+
 export const setNewScript = (script: string): SetNewScript => ({
   type: ActionTypes.SetNewScript,
   payload: {script},
@@ -90,9 +99,14 @@ export const setTasks = (tasks: Task[]): SetTasks => ({
   payload: {tasks},
 })
 
-export const setSearchTerm = (searchTerm: string) => ({
+export const setSearchTerm = (searchTerm: string): SetSearchTerm => ({
   type: ActionTypes.SetSearchTerm,
   payload: {searchTerm},
+})
+
+export const setShowInactive = (showInactive: boolean): SetShowInactive => ({
+  type: ActionTypes.SetShowInactive,
+  payload: {showInactive},
 })
 
 export const updateTaskStatus = (task: Task) => async (
