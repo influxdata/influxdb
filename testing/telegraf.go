@@ -727,6 +727,21 @@ func FindTelegrafConfigs(
 		wants  wants
 	}{
 		{
+			name: "find nothing",
+			fields: TelegrafConfigFields{
+				UserResourceMappings: []*platform.UserResourceMapping{},
+				TelegrafConfigs:      []*platform.TelegrafConfig{},
+			},
+			args: args{
+				filter: platform.UserResourceMappingFilter{
+					ResourceType: platform.TelegrafResourceType,
+				},
+			},
+			wants: wants{
+				telegrafConfigs: []*platform.TelegrafConfig{},
+			},
+		},
+		{
 			name: "find all telegraf configs",
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{

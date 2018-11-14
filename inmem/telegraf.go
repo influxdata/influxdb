@@ -66,9 +66,7 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, filter platform.UserR
 		}
 	}
 	if len(m) == 0 {
-		return nil, 0, &platform.Error{
-			Code: platform.ENotFound,
-		}
+		return tcs, 0, nil
 	}
 	for _, item := range m {
 		tc, err := s.findTelegrafConfigByID(ctx, item.ResourceID)

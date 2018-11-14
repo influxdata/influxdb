@@ -88,9 +88,7 @@ func (c *Client) findTelegrafConfigs(ctx context.Context, tx *bolt.Tx, filter pl
 		}
 	}
 	if len(m) == 0 {
-		return nil, 0, &platform.Error{
-			Code: platform.ENotFound,
-		}
+		return tcs, 0, nil
 	}
 	for _, item := range m {
 		tc, err := c.findTelegrafConfigByID(ctx, tx, item.ResourceID)
