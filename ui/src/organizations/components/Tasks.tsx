@@ -8,7 +8,7 @@ import TaskList from 'src/organizations/components/TaskList'
 import FilterList from 'src/organizations/components/Filter'
 
 // Types
-import {Task} from 'src/types/v2'
+import {Task, TaskStatus} from 'src/types/v2/tasks'
 
 interface Props {
   tasks: Task[]
@@ -58,6 +58,7 @@ export default class Tasks extends PureComponent<Props, State> {
       {
         id: '1',
         name: 'swoggles task',
+        status: TaskStatus.Active,
         organizationId: '1',
         organization: {
           id: '1',
@@ -71,6 +72,7 @@ export default class Tasks extends PureComponent<Props, State> {
       {
         id: '2',
         name: 'plerps task',
+        status: TaskStatus.Active,
         organizationId: '1',
         organization: {
           id: '1',

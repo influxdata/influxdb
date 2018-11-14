@@ -7,6 +7,7 @@ import {
   updateTaskFlux,
   getUserTasks,
   getTask,
+  updateTaskStatus as updateTaskStatusAPI,
   deleteTask as deleteTaskAPI,
 } from 'src/tasks/api/v2'
 import {getMe} from 'src/shared/apis/v2/user'
@@ -26,7 +27,7 @@ export type Action =
   | SetCurrentScript
   | SetCurrentTask
 
-type GetStateFunc = () => Promise<AppState>
+type GetStateFunc = () => AppState
 
 export enum ActionTypes {
   SetNewScript = 'SET_NEW_SCRIPT',
@@ -94,6 +95,23 @@ export const setSearchTerm = (searchTerm: string) => ({
   payload: {searchTerm},
 })
 
+export const updateTaskStatus = (task: Task) => async (
+  dispatch,
+  getState: GetStateFunc
+) => {
+  try {
+    const {
+      links: {tasks: url},
+    } = getState()
+    await updateTaskStatusAPI(url, task.id, task.status)
+
+    dispatch(populateTasks())
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(taskDeleteFailed()))
+  }
+}
+
 export const deleteTask = (task: Task) => async (
   dispatch,
   getState: GetStateFunc
@@ -101,7 +119,7 @@ export const deleteTask = (task: Task) => async (
   try {
     const {
       links: {tasks: url},
-    } = await getState()
+    } = getState()
 
     await deleteTaskAPI(url, task.id)
 
@@ -120,7 +138,7 @@ export const populateTasks = () => async (
     const {
       orgs,
       links: {tasks: url, me: meUrl},
-    } = await getState()
+    } = getState()
 
     const user = await getMe(meUrl)
     const tasks = await getUserTasks(url, user)
@@ -146,7 +164,7 @@ export const selectTaskByID = (id: string) => async (
   try {
     const {
       links: {tasks: url},
-    } = await getState()
+    } = getState()
 
     const task = await getTask(url, id)
 
@@ -176,7 +194,7 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
     const {
       links: {tasks: url},
       tasks: {currentScript: script, currentTask: task},
-    } = await getState()
+    } = getState()
 
     await updateTaskFlux(url, task.id, script)
 
@@ -197,7 +215,7 @@ export const saveNewScript = () => async (
       orgs,
       links: {tasks: url, me: meUrl},
       tasks: {newScript: script},
-    } = await getState()
+    } = getState()
 
     const user = await getMe(meUrl)
 
