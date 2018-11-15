@@ -1,31 +1,28 @@
 // Libraries
 import React, {Component, ReactElement, ReactNode} from 'react'
-import {withRouter, InjectedRouter} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import ProfilePageSection from 'src/shared/components/profile_page/ProfilePageSection'
 import ProfilePageTab from 'src/shared/components/profile_page/ProfilePageTab'
-import ProfilePageHeader from 'src/shared/components/profile_page/ProfilePageHeader'
 import Avatar from 'src/shared/components/avatar/Avatar'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+interface OwnProps {
   name: string
-  avatar: string
+  avatar?: string
   description?: string
   children: ReactNode[]
   activeTabUrl: string
-  router: InjectedRouter
   parentUrl: string
 }
 
+type Props = OwnProps & WithRouterProps
+
 @ErrorHandling
 class ProfilePage extends Component<Props> {
-  public static Section = ProfilePageSection
-  public static Header = ProfilePageHeader
-
   constructor(props) {
     super(props)
   }
@@ -102,11 +99,11 @@ class ProfilePage extends Component<Props> {
     React.Children.forEach(children, (child: JSX.Element) => {
       if (child.type !== ProfilePageSection) {
         throw new Error(
-          '<ProfilePage> expected children of type <ProfilePage.Section />'
+          '<ProfilePage> expected children of type <ProfilePageSection />'
         )
       }
     })
   }
 }
 
-export default withRouter(ProfilePage)
+export default withRouter<OwnProps>(ProfilePage)

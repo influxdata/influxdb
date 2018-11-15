@@ -19,6 +19,7 @@ import {updateOrg} from 'src/organizations/actions'
 import {Page} from 'src/pageLayout'
 import {Spinner} from 'src/clockface'
 import ProfilePage from 'src/shared/components/profile_page/ProfilePage'
+import ProfilePageSection from 'src/shared/components/profile_page/ProfilePageSection'
 import Members from 'src/organizations/components/Members'
 import Buckets from 'src/organizations/components/Buckets'
 import Dashboards from 'src/organizations/components/Dashboards'
@@ -69,7 +70,7 @@ class OrganizationView extends PureComponent<Props> {
               parentUrl={`/organizations/${org.id}`}
               activeTabUrl={params.tab}
             >
-              <ProfilePage.Section
+              <ProfilePageSection
                 id="org-view-tab--members"
                 url="members_tab"
                 title="Members"
@@ -84,8 +85,8 @@ class OrganizationView extends PureComponent<Props> {
                     </Spinner>
                   )}
                 </GetOrgResources>
-              </ProfilePage.Section>
-              <ProfilePage.Section
+              </ProfilePageSection>
+              <ProfilePageSection
                 id="org-view-tab--buckets"
                 url="buckets_tab"
                 title="Buckets"
@@ -100,8 +101,8 @@ class OrganizationView extends PureComponent<Props> {
                     </Spinner>
                   )}
                 </GetOrgResources>
-              </ProfilePage.Section>
-              <ProfilePage.Section
+              </ProfilePageSection>
+              <ProfilePageSection
                 id="org-view-tab--dashboards"
                 url="dashboards_tab"
                 title="Dashboards"
@@ -116,8 +117,8 @@ class OrganizationView extends PureComponent<Props> {
                     </Spinner>
                   )}
                 </GetOrgResources>
-              </ProfilePage.Section>
-              <ProfilePage.Section
+              </ProfilePageSection>
+              <ProfilePageSection
                 id="org-view-tab--tasks"
                 url="tasks_tab"
                 title="Tasks"
@@ -132,14 +133,14 @@ class OrganizationView extends PureComponent<Props> {
                     </Spinner>
                   )}
                 </GetOrgResources>
-              </ProfilePage.Section>
-              <ProfilePage.Section
+              </ProfilePageSection>
+              <ProfilePageSection
                 id="org-view-tab--options"
                 url="options_tab"
                 title="Options"
               >
                 <OrgOptions org={org} onUpdateOrg={onUpdateOrg} />
-              </ProfilePage.Section>
+              </ProfilePageSection>
             </ProfilePage>
           </div>
         </Page.Contents>
