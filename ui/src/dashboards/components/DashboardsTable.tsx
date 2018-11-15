@@ -7,7 +7,6 @@ import _ from 'lodash'
 import {Alignment} from 'src/clockface'
 
 // Components
-import IndexList from 'src/shared/components/index_views/IndexList'
 import {
   Button,
   ComponentColor,
@@ -15,6 +14,7 @@ import {
   ComponentSize,
   ComponentSpacer,
   EmptyState,
+  IndexList,
 } from 'src/clockface'
 import DefaultToggle from 'src/dashboards/components/DashboardDefaultToggle'
 

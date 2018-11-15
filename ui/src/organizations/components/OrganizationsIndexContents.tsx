@@ -4,9 +4,8 @@ import {Link} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import IndexList from 'src/shared/components/index_views/IndexList'
 import DeleteOrgButton from 'src/organizations/components/DeleteOrgButton'
-import {Alignment, ComponentSize, EmptyState} from 'src/clockface'
+import {Alignment, ComponentSize, EmptyState, IndexList} from 'src/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

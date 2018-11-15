@@ -3,38 +3,39 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Types
-import {Alignment} from 'src/clockface'
+import {Alignment} from 'src/clockface/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  columnName?: string
+  children: any
   alignment?: Alignment
-  width: string
+  revealOnHover?: boolean
 }
 
 @ErrorHandling
-class IndexListHeaderCell extends Component<Props> {
+class IndexListRowCell extends Component<Props> {
   public static defaultProps: Partial<Props> = {
-    columnName: '',
     alignment: Alignment.Left,
+    revealOnHover: false,
   }
 
   public render() {
-    const {columnName, width} = this.props
+    const {children} = this.props
 
     return (
-      <th className={this.className} style={{width}}>
-        {columnName}
-      </th>
+      <td className={this.className}>
+        <div className="index-list--cell">{children}</div>
+      </td>
     )
   }
 
   private get className(): string {
-    const {alignment} = this.props
+    const {alignment, revealOnHover} = this.props
 
-    return classnames('index-list--header-cell', {
+    return classnames('index-list--row-cell', {
+      'index-list--show-hover': revealOnHover,
       'index-list--align-left': alignment === Alignment.Left,
       'index-list--align-center': alignment === Alignment.Center,
       'index-list--align-right': alignment === Alignment.Right,
@@ -42,4 +43,4 @@ class IndexListHeaderCell extends Component<Props> {
   }
 }
 
-export default IndexListHeaderCell
+export default IndexListRowCell

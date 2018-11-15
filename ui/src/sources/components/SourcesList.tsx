@@ -3,8 +3,7 @@ import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import IndexList from 'src/shared/components/index_views/IndexList'
-import {Alignment} from 'src/clockface'
+import {IndexList, Alignment} from 'src/clockface'
 import SourcesListRow from 'src/sources/components/SourcesListRow'
 
 // Utils

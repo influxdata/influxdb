@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 
 // Components
-import IndexList from 'src/shared/components/index_views/IndexList'
+import {IndexList} from 'src/clockface'
 
 // Types
 import {Dashboard} from 'src/types/v2'

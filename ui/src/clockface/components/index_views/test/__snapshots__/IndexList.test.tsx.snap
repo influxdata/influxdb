@@ -19,6 +19,7 @@ exports[`IndexList matches snapshot when 0 rows exist 1`] = `
           >
             <th
               className="index-list--header-cell index-list--align-left"
+              onClick={[Function]}
               style={
                 Object {
                   "width": "50%",
@@ -35,6 +36,7 @@ exports[`IndexList matches snapshot when 0 rows exist 1`] = `
           >
             <th
               className="index-list--header-cell index-list--align-left"
+              onClick={[Function]}
               style={
                 Object {
                   "width": "50%",
@@ -100,6 +102,7 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
           >
             <th
               className="index-list--header-cell index-list--align-left"
+              onClick={[Function]}
               style={
                 Object {
                   "width": "50%",
@@ -116,6 +119,7 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
           >
             <th
               className="index-list--header-cell index-list--align-left"
+              onClick={[Function]}
               style={
                 Object {
                   "width": "50%",

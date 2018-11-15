@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import IndexList from 'src/shared/components/index_views/IndexList'
+import {IndexList} from 'src/clockface'
 
 // Types
 import {Bucket, OverlayState} from 'src/types/v2'

@@ -1,7 +1,7 @@
 import React from 'react'
 import {mount} from 'enzyme'
 
-import IndexList from 'src/shared/components/index_views/IndexList'
+import IndexList from 'src/clockface/components/index_views/IndexList'
 
 describe('IndexList', () => {
   let wrapper
