@@ -28,7 +28,7 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
             color={ComponentColor.Default}
             text="Back"
             size={ComponentSize.Medium}
-            onClick={this.handleDecrement}
+            onClick={this.props.onDecrementCurrentStepIndex}
           />
           <Button
             color={ComponentColor.Success}
@@ -39,11 +39,6 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
         </div>
       </div>
     )
-  }
-
-  private handleDecrement = () => {
-    const {handleSetCurrentStep, currentStepIndex} = this.props
-    handleSetCurrentStep(currentStepIndex - 1)
   }
 
   private handleKeydown = (e: KeyboardEvent): void => {
