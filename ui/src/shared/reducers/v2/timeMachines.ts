@@ -12,7 +12,7 @@ import {
 
 // Types
 import {TimeRange} from 'src/types/v2'
-import {NewView} from 'src/types/v2/dashboards'
+import {NewView, RefreshingViewProperties} from 'src/types/v2/dashboards'
 import {Action} from 'src/shared/actions/v2/timeMachines'
 
 export interface TimeMachineState {
@@ -42,7 +42,7 @@ const INITIAL_STATE: TimeMachinesState = {
   },
 }
 
-const timeMachineReducer = (
+const timeMachinesReducer = (
   state = INITIAL_STATE,
   action: Action
 ): TimeMachinesState => {
@@ -72,60 +72,64 @@ const timeMachineReducer = (
     return state
   }
 
-  let newActiveTimeMachine
+  const newActiveTimeMachine = timeMachineReducer(activeTimeMachine, action)
 
+  return {
+    ...state,
+    timeMachines: {
+      ...timeMachines,
+      [activeTimeMachineID]: newActiveTimeMachine,
+    },
+  }
+}
+
+const timeMachineReducer = (
+  state: TimeMachineState,
+  action: Action
+): TimeMachineState => {
   switch (action.type) {
     case 'SET_VIEW_NAME': {
       const {name} = action.payload
-      const view = {...activeTimeMachine.view, name}
+      const view = {...state.view, name}
 
-      newActiveTimeMachine = {...activeTimeMachine, view}
-      break
+      return {...state, view}
     }
 
     case 'SET_TIME_RANGE': {
       const {timeRange} = action.payload
 
-      newActiveTimeMachine = {...activeTimeMachine, timeRange}
-      break
+      return {...state, timeRange}
     }
 
     case 'SET_VIEW_TYPE': {
       const {type} = action.payload
-      const view = convertView(activeTimeMachine.view, type)
+      const view = convertView(state.view, type)
 
-      newActiveTimeMachine = {...activeTimeMachine, view}
-      break
+      return {...state, view}
     }
 
     case 'SET_DRAFT_SCRIPT': {
       const {draftScript} = action.payload
 
-      newActiveTimeMachine = {...activeTimeMachine, draftScript}
-      break
+      return {...state, draftScript}
     }
 
     case 'SUBMIT_SCRIPT': {
-      const {view, draftScript} = activeTimeMachine
+      const {view, draftScript} = state
 
-      newActiveTimeMachine = {
-        ...activeTimeMachine,
+      return {
+        ...state,
         view: replaceQuery(view, draftScript),
       }
-      break
     }
     case 'SET_AXES': {
       const {axes} = action.payload
-      const {
-        view,
-        view: {properties},
-      } = activeTimeMachine
+      const {view} = state
 
-      newActiveTimeMachine = {
-        ...activeTimeMachine,
+      return {
+        ...state,
         view: {...view, properties: {...properties, axes}},
       }
-      break
     }
 
     case 'SET_Y_AXIS_LABEL': {
@@ -133,16 +137,15 @@ const timeMachineReducer = (
       const {
         view,
         view: {properties},
-      } = activeTimeMachine
+      } = state
 
       const axes = _.get(properties, 'axes')
       const yAxis = {..._.get(axes, 'y'), label}
 
-      newActiveTimeMachine = {
-        ...activeTimeMachine,
+      return {
+        ...state,
         view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
       }
-      break
     }
 
     case 'SET_Y_AXIS_MIN_BOUND': {
@@ -150,17 +153,16 @@ const timeMachineReducer = (
       const {
         view,
         view: {properties},
-      } = activeTimeMachine
+      } = state
 
       const axes = _.get(properties, 'axes')
       const yAxis = _.get(axes, 'y')
       yAxis.bounds[0] = min
 
-      newActiveTimeMachine = {
-        ...activeTimeMachine,
+      return {
+        ...state,
         view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
       }
-      break
     }
 
     case 'SET_Y_AXIS_MAX_BOUND': {
@@ -168,17 +170,16 @@ const timeMachineReducer = (
       const {
         view,
         view: {properties},
-      } = activeTimeMachine
+      } = state
 
       const axes = _.get(properties, 'axes')
       const yAxis = _.get(axes, 'y')
       yAxis.bounds[1] = max
 
-      newActiveTimeMachine = {
-        ...activeTimeMachine,
+      return {
+        ...state,
         view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
       }
-      break
     }
 
     case 'SET_Y_AXIS_PREFIX': {
@@ -186,16 +187,15 @@ const timeMachineReducer = (
       const {
         view,
         view: {properties},
-      } = activeTimeMachine
+      } = state
 
       const axes = _.get(properties, 'axes')
       const yAxis = {..._.get(axes, 'y'), prefix}
 
-      newActiveTimeMachine = {
-        ...activeTimeMachine,
+      return {
+        ...state,
         view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
       }
-      break
     }
 
     case 'SET_Y_AXIS_SUFFIX': {
@@ -203,16 +203,15 @@ const timeMachineReducer = (
       const {
         view,
         view: {properties},
-      } = activeTimeMachine
+      } = state
 
       const axes = _.get(properties, 'axes')
       const yAxis = {..._.get(axes, 'y'), suffix}
 
-      newActiveTimeMachine = {
-        ...activeTimeMachine,
+      return {
+        ...state,
         view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
       }
-      break
     }
 
     case 'SET_Y_AXIS_BASE': {
@@ -220,16 +219,15 @@ const timeMachineReducer = (
       const {
         view,
         view: {properties},
-      } = activeTimeMachine
+      } = state
 
       const axes = _.get(properties, 'axes')
       const yAxis = {..._.get(axes, 'y'), base}
 
-      newActiveTimeMachine = {
-        ...activeTimeMachine,
+      return {
+        ...state,
         view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
       }
-      break
     }
 
     case 'SET_Y_AXIS_SCALE': {
@@ -237,16 +235,15 @@ const timeMachineReducer = (
       const {
         view,
         view: {properties},
-      } = activeTimeMachine
+      } = state
 
       const axes = _.get(properties, 'axes')
       const yAxis = {..._.get(axes, 'y'), scale}
 
-      newActiveTimeMachine = {
-        ...activeTimeMachine,
+      return {
+        ...state,
         view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
       }
-      break
     }
 
     case 'SET_COLORS': {
@@ -254,41 +251,28 @@ const timeMachineReducer = (
       const {
         view,
         view: {properties},
-      } = activeTimeMachine
+      } = state
 
-      newActiveTimeMachine = {
-        ...activeTimeMachine,
+      return {
+        ...state,
         view: {...view, properties: {...properties, colors}},
       }
-      break
     }
 
     case 'SET_DECIMAL_PLACES': {
       const {decimalPlaces} = action.payload
 
-      newActiveTimeMachine = {...activeTimeMachine, decimalPlaces}
-      break
+      return {...state, decimalPlaces}
     }
 
     case 'SET_STATIC_LEGEND': {
       const {staticLegend} = action.payload
 
-      newActiveTimeMachine = {...activeTimeMachine, staticLegend}
-      break
-    }
-  }
-
-  if (newActiveTimeMachine) {
-    return {
-      ...state,
-      timeMachines: {
-        ...timeMachines,
-        [activeTimeMachineID]: newActiveTimeMachine,
-      },
+      return {...state, staticLegend}
     }
   }
 
   return state
 }
 
-export default timeMachineReducer
+export default timeMachinesReducer
