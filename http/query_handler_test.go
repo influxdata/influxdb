@@ -281,7 +281,7 @@ func TestFluxHandler_postFluxSpec(t *testing.T) {
 
 			if got := tt.w.Code; got != tt.status {
 				t.Errorf("http.postFluxSpec = got %d\nwant %d", got, tt.status)
-				t.Log(tt.w.HeaderMap)
+				t.Log(tt.w.Header())
 			}
 		})
 	}
@@ -331,7 +331,7 @@ func TestFluxHandler_postFluxPlan(t *testing.T) {
 
 			if got := tt.w.Code; got != tt.status {
 				t.Errorf("http.postFluxPlan = got %d\nwant %d", got, tt.status)
-				t.Log(tt.w.HeaderMap)
+				t.Log(tt.w.Header())
 			}
 		})
 	}
