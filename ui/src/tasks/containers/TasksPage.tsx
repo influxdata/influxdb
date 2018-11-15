@@ -7,6 +7,7 @@ import {InjectedRouter} from 'react-router'
 import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
 import {Page} from 'src/pageLayout'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
 import {
@@ -16,12 +17,15 @@ import {
   selectTask,
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
+  setDropdownOrgID as setDropdownOrgIDAction,
 } from 'src/tasks/actions/v2'
+
+// Constants
+import {allOrganizationsID} from 'src/tasks/constants'
 
 // Types
 import {Task, TaskStatus} from 'src/types/v2/tasks'
-
-import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Organization} from 'src/types/v2'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -34,12 +38,15 @@ interface ConnectedDispatchProps {
   selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
+  setDropdownOrgID: typeof setDropdownOrgIDAction
 }
 
 interface ConnectedStateProps {
   tasks: Task[]
   searchTerm: string
   showInactive: boolean
+  orgs: Organization[]
+  dropdownOrgID: string
 }
 
 type Props = ConnectedDispatchProps & PassedInProps & ConnectedStateProps
@@ -53,6 +60,7 @@ class TasksPage extends PureComponent<Props> {
     if (!props.showInactive) {
       props.setShowInactive()
     }
+    props.setDropdownOrgID(null)
   }
 
   public render(): JSX.Element {
@@ -104,7 +112,7 @@ class TasksPage extends PureComponent<Props> {
   }
 
   private get filteredTasks(): Task[] {
-    const {tasks, searchTerm, showInactive} = this.props
+    const {tasks, searchTerm, showInactive, dropdownOrgID} = this.props
     const matchingTasks = tasks.filter(t => {
       const searchTermFilter = t.name
         .toLowerCase()
@@ -113,8 +121,11 @@ class TasksPage extends PureComponent<Props> {
       if (!showInactive) {
         activeFilter = t.status === TaskStatus.Active
       }
-
-      return searchTermFilter && activeFilter
+      let orgIDFilter = true
+      if (dropdownOrgID && dropdownOrgID !== allOrganizationsID) {
+        orgIDFilter = t.organizationId === dropdownOrgID
+      }
+      return searchTermFilter && activeFilter && orgIDFilter
     })
 
     return matchingTasks
@@ -122,9 +133,16 @@ class TasksPage extends PureComponent<Props> {
 }
 
 const mstp = ({
-  tasks: {tasks, searchTerm, showInactive},
+  tasks: {tasks, searchTerm, showInactive, dropdownOrgID},
+  orgs,
 }): ConnectedStateProps => {
-  return {tasks, searchTerm, showInactive}
+  return {
+    tasks,
+    searchTerm,
+    showInactive,
+    orgs,
+    dropdownOrgID,
+  }
 }
 
 const mdtp: ConnectedDispatchProps = {
@@ -134,6 +152,7 @@ const mdtp: ConnectedDispatchProps = {
   selectTask,
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,
+  setDropdownOrgID: setDropdownOrgIDAction,
 }
 
 export default connect<
