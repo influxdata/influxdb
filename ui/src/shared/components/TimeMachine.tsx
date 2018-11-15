@@ -12,6 +12,7 @@ import TimeSeries from 'src/shared/components/TimeSeries'
 
 // Utils
 import {getActiveSource} from 'src/sources/selectors'
+import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 
 // Constants
 import {HANDLE_HORIZONTAL} from 'src/shared/constants'
@@ -79,8 +80,7 @@ class TimeMachine extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  const {activeTimeMachineID, timeMachines} = state.timeMachines
-  const timeMachine = timeMachines[activeTimeMachineID]
+  const timeMachine = getActiveTimeMachine(state)
   const queries = get(timeMachine, 'view.properties.queries', [])
   const queryLink = getActiveSource(state).links.query
 

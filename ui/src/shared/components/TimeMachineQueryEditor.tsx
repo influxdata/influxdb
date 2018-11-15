@@ -9,6 +9,9 @@ import {Button, ComponentColor} from 'src/clockface'
 // Actions
 import {setDraftScript, submitScript} from 'src/shared/actions/v2/timeMachines'
 
+// Utils
+import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+
 // Types
 import {AppState} from 'src/types/v2'
 
@@ -52,11 +55,7 @@ class TimeMachineQueryEditor extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  const {
-    timeMachines: {activeTimeMachineID, timeMachines},
-  } = state
-
-  const {draftScript} = timeMachines[activeTimeMachineID]
+  const {draftScript} = getActiveTimeMachine(state)
 
   return {draftScript}
 }

@@ -10,6 +10,9 @@ import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher
 // Actions
 import {setType} from 'src/shared/actions/v2/timeMachines'
 
+// Utils
+import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+
 // Types
 import {View, NewView, TimeRange, DashboardQuery, AppState} from 'src/types/v2'
 import {RefreshingViewProperties} from 'src/types/v2/dashboards'
@@ -61,8 +64,7 @@ const TimeMachineVis: SFC<Props> = props => {
 }
 
 const mstp = (state: AppState) => {
-  const {activeTimeMachineID, timeMachines} = state.timeMachines
-  const timeMachine = timeMachines[activeTimeMachineID]
+  const timeMachine = getActiveTimeMachine(state)
   const queries = get(timeMachine, 'view.properties.queries', [])
 
   return {

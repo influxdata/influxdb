@@ -10,8 +10,12 @@ import ViewTypeSelector from 'src/shared/components/ViewTypeSelector'
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import OptionsSwitcher from 'src/shared/components/view_options/OptionsSwitcher'
 
+// Utils
+import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+
 // Constants
 import {HANDLE_VERTICAL} from 'src/shared/constants'
+
 // Types
 import {View, NewView, AppState} from 'src/types/v2'
 
@@ -59,14 +63,9 @@ class ViewOptions extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    timeMachines: {activeTimeMachineID, timeMachines},
-  } = state
-  const timeMachine = timeMachines[activeTimeMachineID]
+  const {view} = getActiveTimeMachine(state)
 
-  return {
-    view: timeMachine.view,
-  }
+  return {view}
 }
 
 const mdtp: DispatchProps = {

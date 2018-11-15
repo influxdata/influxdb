@@ -12,6 +12,7 @@ import {setName, setActiveTimeMachine} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
 import {replaceQuery} from 'src/shared/utils/view'
+import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 
 // Constants
 import {VEO_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
@@ -92,8 +93,7 @@ class VEO extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {activeTimeMachineID, timeMachines} = state.timeMachines
-  const {view, draftScript} = timeMachines[activeTimeMachineID]
+  const {view, draftScript} = getActiveTimeMachine(state)
 
   return {draftView: view, draftScript}
 }

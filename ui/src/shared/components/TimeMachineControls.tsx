@@ -8,6 +8,9 @@ import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 // Actions
 import {setTimeRange} from 'src/shared/actions/v2/timeMachines'
 
+// Utils
+import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+
 // Types
 import {TimeRange, AppState} from 'src/types/v2'
 
@@ -42,8 +45,7 @@ class TimeMachineControls extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {activeTimeMachineID, timeMachines} = state.timeMachines
-  const {timeRange} = timeMachines[activeTimeMachineID]
+  const {timeRange} = getActiveTimeMachine(state)
 
   return {timeRange}
 }
