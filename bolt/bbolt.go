@@ -162,6 +162,11 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
+		// Always create SecretService bucket.
+		if err := c.initializeSecretService(ctx, tx); err != nil {
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		return err

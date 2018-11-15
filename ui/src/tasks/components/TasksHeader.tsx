@@ -1,5 +1,8 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import {Page} from 'src/pageLayout'
+
+// Components
 import {
   Button,
   ComponentColor,
@@ -8,6 +11,7 @@ import {
   SlideToggle,
 } from 'src/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
+import TaskOrgDropdown from 'src/tasks/components/TasksOrgDropdown'
 
 interface Props {
   onCreateTask: () => void
@@ -41,6 +45,7 @@ export default class TasksHeader extends PureComponent<Props> {
             placeholderText="Filter tasks by name..."
             onSearch={setSearchTerm}
           />
+          <TaskOrgDropdown />
           <Button
             color={ComponentColor.Primary}
             onClick={onCreateTask}

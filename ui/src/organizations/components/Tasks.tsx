@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import ProfilePage from 'src/shared/components/profile_page/ProfilePage'
+import ProfilePageHeader from 'src/shared/components/profile_page/ProfilePageHeader'
 import {Input, IconFont, ComponentSize, EmptyState} from 'src/clockface'
 import TaskList from 'src/organizations/components/TaskList'
 import FilterList from 'src/organizations/components/Filter'
@@ -31,7 +31,7 @@ export default class Tasks extends PureComponent<Props, State> {
 
     return (
       <>
-        <ProfilePage.Header>
+        <ProfilePageHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter tasks..."
@@ -40,7 +40,7 @@ export default class Tasks extends PureComponent<Props, State> {
             onChange={this.handleFilterChange}
             onBlur={this.handleFilterBlur}
           />
-        </ProfilePage.Header>
+        </ProfilePageHeader>
         <FilterList<Task>
           searchTerm={searchTerm}
           searchKeys={['name', 'owner.name']}

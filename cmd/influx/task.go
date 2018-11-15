@@ -471,7 +471,7 @@ func taskLogFindF(cmd *cobra.Command, args []string) {
 	)
 	for _, log := range logs {
 		w.Write(map[string]interface{}{
-			"Log": log,
+			"Log": *log,
 		})
 	}
 	w.Flush()

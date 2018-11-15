@@ -9,6 +9,7 @@ import {
   SlideToggle,
   IndexList,
 } from 'src/clockface'
+import download from 'src/external/download'
 
 import {Task, TaskStatus} from 'src/types/v2/tasks'
 
@@ -44,6 +45,12 @@ export default class TaskRow extends PureComponent<Props> {
           <ComponentSpacer align={Alignment.Right}>
             <Button
               size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Default}
+              text="Export"
+              onClick={this.handleExport}
+            />
+            <Button
+              size={ComponentSize.ExtraSmall}
               color={ComponentColor.Danger}
               text="Delete"
               onClick={this.handleDelete}
@@ -62,6 +69,11 @@ export default class TaskRow extends PureComponent<Props> {
 
   private handleDelete = () => {
     this.props.onDelete(this.props.task)
+  }
+
+  private handleExport = () => {
+    const {task} = this.props
+    download(task.flux, `${task.name}.flux`, 'text/plain')
   }
 
   private get isTaskActive(): boolean {

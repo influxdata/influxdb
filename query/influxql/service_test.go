@@ -50,16 +50,20 @@ func TestService(t *testing.T) {
 			},
 		},
 	}
-	results, err := service.Query(context.Background(), &query.Request{
-		Compiler: &influxql.Compiler{
-			Cluster: "myserver",
-			DB:      "db0",
-			RP:      "rp0",
-			Query:   "SHOW DATABASES",
-		},
-	})
+	req := &query.Request{Compiler: &influxql.Compiler{
+		Cluster: "myserver",
+		DB:      "db0",
+		RP:      "rp0",
+		Query:   "SHOW DATABASES",
+	}}
+
+	results, err := service.Query(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	defer results.Release()
+	_, err = service.QueryRawJSON(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
 }

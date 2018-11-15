@@ -37,14 +37,13 @@ class InitStep extends PureComponent<OnboardingStepProps> {
   }
 
   private handleNext = () => {
-    const {handleSetStepStatus, currentStepIndex} = this.props
+    const {
+      handleSetStepStatus,
+      currentStepIndex,
+      onIncrementCurrentStepIndex,
+    } = this.props
     handleSetStepStatus(currentStepIndex, StepStatus.Complete)
-    this.handleIncrement()
-  }
-
-  private handleIncrement = () => {
-    const {handleSetCurrentStep, currentStepIndex} = this.props
-    handleSetCurrentStep(currentStepIndex + 1)
+    onIncrementCurrentStepIndex()
   }
 
   private handleKeydown = (e: KeyboardEvent): void => {

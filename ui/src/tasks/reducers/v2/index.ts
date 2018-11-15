@@ -8,6 +8,7 @@ export interface State {
   tasks: Task[]
   searchTerm: string
   showInactive: boolean
+  dropdownOrgID: string
 }
 
 const defaultState: State = {
@@ -16,6 +17,7 @@ const defaultState: State = {
   tasks: [],
   searchTerm: '',
   showInactive: true,
+  dropdownOrgID: null,
 }
 
 export default (state: State = defaultState, action: Action): State => {
@@ -38,6 +40,9 @@ export default (state: State = defaultState, action: Action): State => {
       return {...state, searchTerm}
     case ActionTypes.SetShowInactive:
       return {...state, showInactive: !state.showInactive}
+    case ActionTypes.SetDropdownOrgID:
+      const {dropdownOrgID} = action.payload
+      return {...state, dropdownOrgID}
     default:
       return state
   }

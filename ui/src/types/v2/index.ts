@@ -30,6 +30,7 @@ import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/v2/me'
 import {OverlayState} from 'src/types/v2/overlay'
 import {SourcesState} from 'src/sources/reducers'
+import {OnboardingState} from 'src/onboarding/reducers'
 
 export interface AppState {
   VERSION: string
@@ -47,6 +48,7 @@ export interface AppState {
   timeRange: TimeRange
   orgs: Organization[]
   me: MeState
+  onboarding: OnboardingState
 }
 
 export type GetState = () => AppState

@@ -30,7 +30,7 @@ class OtherStep extends PureComponent<OnboardingStepProps, null> {
             color={ComponentColor.Default}
             text="Back"
             size={ComponentSize.Medium}
-            onClick={this.handlePrevious}
+            onClick={this.props.onDecrementCurrentStepIndex}
           />
           <Button
             color={ComponentColor.Primary}
@@ -45,23 +45,13 @@ class OtherStep extends PureComponent<OnboardingStepProps, null> {
   }
 
   private handleNext = async () => {
-    const {handleSetStepStatus, currentStepIndex} = this.props
+    const {
+      handleSetStepStatus,
+      currentStepIndex,
+      onIncrementCurrentStepIndex,
+    } = this.props
     handleSetStepStatus(currentStepIndex, StepStatus.Complete)
-    this.handleIncrement()
-  }
-
-  private handlePrevious = () => {
-    this.handleDecrement()
-  }
-
-  private handleIncrement = () => {
-    const {handleSetCurrentStep, currentStepIndex} = this.props
-    handleSetCurrentStep(currentStepIndex + 1)
-  }
-
-  private handleDecrement = () => {
-    const {handleSetCurrentStep, currentStepIndex} = this.props
-    handleSetCurrentStep(currentStepIndex - 1)
+    onIncrementCurrentStepIndex()
   }
 
   private handleKeydown = (e: KeyboardEvent): void => {

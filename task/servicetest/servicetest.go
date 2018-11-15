@@ -295,7 +295,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if runs[0].ID != rc0.Created.RunID {
 			t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
 		}
-		if exp := startedAt.Format(time.RFC3339); runs[0].StartedAt != exp {
+		if exp := startedAt.Format(time.RFC3339Nano); runs[0].StartedAt != exp {
 			t.Fatalf("unexpectedStartedAt; want %s, got %s", exp, runs[0].StartedAt)
 		}
 		if runs[0].Status != backend.RunStarted.String() {
@@ -314,7 +314,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if runs[1].Status != backend.RunSuccess.String() {
 			t.Fatalf("unexpected run status; want %s, got %s", backend.RunSuccess.String(), runs[0].Status)
 		}
-		if exp := startedAt.Add(time.Second).Format(time.RFC3339); runs[1].FinishedAt != exp {
+		if exp := startedAt.Add(time.Second).Format(time.RFC3339Nano); runs[1].FinishedAt != exp {
 			t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[1].FinishedAt)
 		}
 
@@ -407,6 +407,93 @@ func testTaskRuns(t *testing.T, sys *System) {
 		// Retrying a run which has been queued but not started, should be rejected.
 		if exp, err := (backend.RetryAlreadyQueuedError{Start: rc.Created.Now, End: rc.Created.Now}), sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix); err != exp {
 			t.Fatalf("subsequent retry should have been rejected with %v; got %v", exp, err)
+		}
+	})
+
+	t.Run("FindLogs", func(t *testing.T) {
+		t.Parallel()
+
+		task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+		if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
+			t.Fatal(err)
+		}
+		st, err := sys.S.FindTaskByID(sys.Ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make a run.
+
+		// Create two runs.
+		rc1, err := sys.S.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rlb1 := backend.RunLogBase{
+			Task:            st,
+			RunID:           rc1.Created.RunID,
+			RunScheduledFor: rc1.Created.Now,
+			RequestedAt:     requestedAtUnix,
+		}
+		if err := sys.LW.UpdateRunState(sys.Ctx, rlb1, time.Now(), backend.RunStarted); err != nil {
+			t.Fatal(err)
+		}
+
+		rc2, err := sys.S.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rlb2 := backend.RunLogBase{
+			Task:            st,
+			RunID:           rc2.Created.RunID,
+			RunScheduledFor: rc2.Created.Now,
+			RequestedAt:     requestedAtUnix,
+		}
+		if err := sys.LW.UpdateRunState(sys.Ctx, rlb2, time.Now(), backend.RunStarted); err != nil {
+			t.Fatal(err)
+		}
+
+		// Add a log for the first run.
+		log1Time := time.Now().UTC()
+		if err := sys.LW.AddRunLog(sys.Ctx, rlb1, log1Time, "entry 1"); err != nil {
+			t.Fatal(err)
+		}
+
+		// Ensure it is returned when filtering logs by run ID.
+		logs, err := sys.LR.ListLogs(sys.Ctx, platform.LogFilter{
+			Org:  &orgID,
+			Task: &task.ID,
+			Run:  &rc1.Created.RunID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expLine1 := platform.Log(log1Time.Format(time.RFC3339Nano) + ": entry 1")
+		exp := []platform.Log{expLine1}
+		if diff := cmp.Diff(logs, exp); diff != "" {
+			t.Fatalf("unexpected log: -got/+want: %s", diff)
+		}
+
+		// Add a log for the second run.
+		log2Time := time.Now().UTC()
+		if err := sys.LW.AddRunLog(sys.Ctx, rlb2, log2Time, "entry 2"); err != nil {
+			t.Fatal(err)
+		}
+
+		// Ensure both returned when filtering logs by task ID.
+		logs, err = sys.LR.ListLogs(sys.Ctx, platform.LogFilter{
+			Org:  &orgID,
+			Task: &task.ID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expLine2 := platform.Log(log2Time.Format(time.RFC3339Nano) + ": entry 2")
+		exp = []platform.Log{expLine1, expLine2}
+		if diff := cmp.Diff(logs, exp); diff != "" {
+			t.Fatalf("unexpected log: -got/+want: %s", diff)
 		}
 	})
 }

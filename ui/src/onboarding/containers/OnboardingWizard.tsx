@@ -6,19 +6,25 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import InitStep from 'src/onboarding/components/InitStep'
-import AdminStep from 'src/onboarding/components/AdminStep'
-import OtherStep from 'src/onboarding/components/OtherStep'
-import CompletionStep from 'src/onboarding/components/CompletionStep'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   WizardFullScreen,
   WizardProgressHeader,
   ProgressBar,
 } from 'src/clockface'
+import OnboardingStepSwitcher from 'src/onboarding/components/OnboardingStepSwitcher'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {
+  setSetupParams,
+  incrementCurrentStepIndex,
+  decrementCurrentStepIndex,
+  setCurrentStepIndex,
+  setStepStatus,
+  addDataSource,
+  removeDataSource,
+} from 'src/onboarding/actions'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
@@ -26,12 +32,16 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 // Types
 import {Links} from 'src/types/v2/links'
 import {SetupParams} from 'src/onboarding/apis'
+import {DataSource} from 'src/types/v2/dataSources'
 import {Notification, NotificationFunc} from 'src/types'
+import {AppState} from 'src/types/v2'
 
 export interface OnboardingStepProps {
   links: Links
   currentStepIndex: number
-  handleSetCurrentStep: (stepNumber: number) => void
+  onSetCurrentStepIndex: (stepNumber: number) => void
+  onIncrementCurrentStepIndex: () => void
+  onDecrementCurrentStepIndex: () => void
   handleSetStepStatus: (index: number, status: StepStatus) => void
   stepStatuses: StepStatus[]
   stepTitles: string[]
@@ -42,57 +52,86 @@ export interface OnboardingStepProps {
   onExit: () => void
 }
 
-interface Props extends WithRouterProps {
-  links: Links
+interface OwnProps {
   startStep?: number
   stepStatuses?: StepStatus[]
-  notify: (message: Notification | NotificationFunc) => void
   onCompleteSetup: () => void
 }
 
-interface State {
+interface DispatchProps {
+  notify: (message: Notification | NotificationFunc) => void
+  onSetSetupParams: typeof setSetupParams
+  onIncrementCurrentStepIndex: typeof incrementCurrentStepIndex
+  onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex
+  onSetCurrentStepIndex: typeof setCurrentStepIndex
+  onSetStepStatus: typeof setStepStatus
+  onAddDataSource: typeof addDataSource
+  onRemoveDataSource: typeof removeDataSource
+}
+
+interface StateProps {
+  links: Links
   currentStepIndex: number
   stepStatuses: StepStatus[]
   setupParams: SetupParams
+  dataSources: DataSource[]
 }
 
-@ErrorHandling
-class OnboardingWizard extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
-    startStep: 0,
-    stepStatuses: [
-      StepStatus.Incomplete,
-      StepStatus.Incomplete,
-      StepStatus.Incomplete,
-      StepStatus.Incomplete,
-    ],
-  }
+type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 
-  public stepTitles = ['Welcome', 'Admin Setup', 'Next Step', 'Complete']
-  public steps = [InitStep, AdminStep, OtherStep, CompletionStep]
-  public stepSkippable = [false, false, true, false]
+@ErrorHandling
+class OnboardingWizard extends PureComponent<Props> {
+  public stepTitles = [
+    'Welcome',
+    'Admin Setup',
+    'Select Data Sources',
+    'Next Step',
+    'Complete',
+  ]
+
+  public stepSkippable = [false, false, false, true, false]
 
   constructor(props: Props) {
     super(props)
     this.state = {
-      currentStepIndex: props.startStep,
-      stepStatuses: props.stepStatuses,
-      setupParams: null,
+      dataSources: [],
     }
   }
 
   public render() {
+    const {
+      currentStepIndex,
+      dataSources,
+      onRemoveDataSource,
+      onAddDataSource,
+      setupParams,
+    } = this.props
+    const currentStepTitle = this.stepTitles[currentStepIndex]
+
     return (
       <WizardFullScreen>
         {this.progressHeader}
-        <div className="wizard-step--container">{this.currentStep}</div>
+        <div className="wizard-step--container">
+          <OnboardingStepSwitcher
+            onboardingStepProps={this.onboardingStepProps}
+            stepTitle={currentStepTitle}
+            setupParams={setupParams}
+            dataSources={dataSources}
+            onAddDataSource={onAddDataSource}
+            onRemoveDataSource={onRemoveDataSource}
+          />
+        </div>
       </WizardFullScreen>
     )
   }
 
   private get progressHeader(): JSX.Element {
-    const {stepStatuses} = this.props
-    const {currentStepIndex} = this.state
+    const {
+      stepStatuses,
+      currentStepIndex,
+      onIncrementCurrentStepIndex,
+      onSetCurrentStepIndex,
+    } = this.props
 
     if (
       currentStepIndex === 0 ||
@@ -105,11 +144,11 @@ class OnboardingWizard extends PureComponent<Props, State> {
       <WizardProgressHeader
         currentStepIndex={currentStepIndex}
         stepSkippable={this.stepSkippable}
-        onSkip={this.handleSkip}
+        onSkip={onIncrementCurrentStepIndex}
       >
         <ProgressBar
           currentStepIndex={currentStepIndex}
-          handleSetCurrentStep={this.onSetCurrentStep}
+          handleSetCurrentStep={onSetCurrentStepIndex}
           stepStatuses={stepStatuses}
           stepTitles={this.stepTitles}
         />
@@ -117,60 +156,68 @@ class OnboardingWizard extends PureComponent<Props, State> {
     )
   }
 
-  private get currentStep(): React.ReactElement<OnboardingStepProps> {
-    const {currentStepIndex, setupParams} = this.state
-    const {stepStatuses, links, notify, onCompleteSetup} = this.props
+  private get onboardingStepProps(): OnboardingStepProps {
+    const {
+      stepStatuses,
+      links,
+      notify,
+      onCompleteSetup,
+      setupParams,
+      currentStepIndex,
+      onSetStepStatus,
+      onSetSetupParams,
+      onSetCurrentStepIndex,
+      onDecrementCurrentStepIndex,
+      onIncrementCurrentStepIndex,
+    } = this.props
 
-    return React.createElement(this.steps[currentStepIndex], {
+    return {
       stepStatuses,
       stepTitles: this.stepTitles,
       currentStepIndex,
-      handleSetCurrentStep: this.onSetCurrentStep,
-      handleSetStepStatus: this.onSetStepStatus,
+      onSetCurrentStepIndex,
+      onIncrementCurrentStepIndex,
+      onDecrementCurrentStepIndex,
+      handleSetStepStatus: onSetStepStatus,
       links,
       setupParams,
-      handleSetSetupParams: this.onSetSetupParams,
+      handleSetSetupParams: onSetSetupParams,
       notify,
       onCompleteSetup,
       onExit: this.handleExit,
-    })
+    }
   }
 
   private handleExit = () => {
     const {router, onCompleteSetup} = this.props
     onCompleteSetup()
-    router.push(`/manage-sources`)
-  }
-
-  private handleSkip = () => {
-    const {stepStatuses} = this.props
-    this.setState({currentStepIndex: stepStatuses.length - 1})
-  }
-
-  private onSetSetupParams = (setupParams: SetupParams): void => {
-    this.setState({setupParams})
-  }
-
-  private onSetCurrentStep = (stepNumber: number): void => {
-    this.setState({currentStepIndex: stepNumber})
-  }
-
-  private onSetStepStatus = (index: number, status: StepStatus): void => {
-    const {stepStatuses} = this.state
-    stepStatuses[index] = status
-    this.setState({stepStatuses})
+    router.push(`/sources`)
   }
 }
 
-const mstp = ({links}) => ({
+const mstp = ({
   links,
+  onboarding: {currentStepIndex, stepStatuses, setupParams, dataSources},
+}: AppState): StateProps => ({
+  links,
+  currentStepIndex,
+  stepStatuses,
+  setupParams,
+  dataSources,
 })
 
-const mdtp = {
+const mdtp: DispatchProps = {
   notify: notifyAction,
+  onSetSetupParams: setSetupParams,
+  onDecrementCurrentStepIndex: decrementCurrentStepIndex,
+  onIncrementCurrentStepIndex: incrementCurrentStepIndex,
+  onSetCurrentStepIndex: setCurrentStepIndex,
+  onSetStepStatus: setStepStatus,
+  onAddDataSource: addDataSource,
+  onRemoveDataSource: removeDataSource,
 }
 
-export default connect(
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
 )(withRouter(OnboardingWizard))

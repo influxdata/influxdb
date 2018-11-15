@@ -429,6 +429,12 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 		}
 
 		req.filter.Org = &o.ID
+	} else if oid := qp.Get("orgID"); oid != "" {
+		orgID, err := platform.IDFromString(oid)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.Org = orgID
 	}
 
 	if runID := params.ByName("rid"); runID != "" {
@@ -891,7 +897,51 @@ func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 
 // FindLogs returns logs for a run.
 func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
-	return nil, -1, errors.New("not yet implemented")
+	if filter.Task == nil {
+		return nil, 0, errors.New("task ID required")
+	}
+
+	var urlPath string
+	if filter.Run == nil {
+		urlPath = path.Join(taskIDPath(*filter.Task), "logs")
+	} else {
+		urlPath = path.Join(taskIDRunIDPath(*filter.Task, *filter.Run), "logs")
+	}
+
+	u, err := newURL(t.Addr, urlPath)
+	if err != nil {
+		return nil, 0, err
+	}
+	val := url.Values{}
+	if filter.Org != nil {
+		val.Set("orgID", filter.Org.String())
+	}
+	u.RawQuery = val.Encode()
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	if err := CheckError(resp); err != nil {
+		return nil, 0, err
+	}
+
+	var logs []*platform.Log
+	if err := json.NewDecoder(resp.Body).Decode(&logs); err != nil {
+		return nil, 0, err
+	}
+
+	return logs, len(logs), nil
 }
 
 // FindRuns returns a list of runs that match a filter and the total count of returned runs.
