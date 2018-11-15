@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 
@@ -25,8 +26,36 @@ type Service struct {
 	Endpoints map[string]Endpoint
 }
 
-// Query will execute a query for the influxql.Compiler type against an influxdb 1.x endpoint.
+// Query will execute a query for the influxql.Compiler type against an influxdb 1.x endpoint,
+// and return results using the default decoder.
 func (s *Service) Query(ctx context.Context, req *query.Request) (flux.ResultIterator, error) {
+	resp, err := s.query(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode the response into the JSON structure.
+	var results Response
+	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+		return nil, err
+	}
+
+	// Return a result iterator using the response.
+	return NewResponseIterator(&results), nil
+}
+
+// QueryRawJSON will execute a query for the influxql.Compiler type against an influxdb 1.x endpoint,
+// and return the body of the response as a byte array.
+func (s *Service) QueryRawJSON(ctx context.Context, req *query.Request) ([]byte, error) {
+	resp, err := s.query(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return ioutil.ReadAll(resp.Body)
+}
+
+func (s *Service) query(ctx context.Context, req *query.Request) (*http.Response, error) {
 	// Verify that this is an influxql query in the compiler.
 	compiler, ok := req.Compiler.(*Compiler)
 	if !ok {
@@ -71,12 +100,5 @@ func (s *Service) Query(ctx context.Context, req *query.Request) (flux.ResultIte
 		return nil, fmt.Errorf("unexpected http status: %s", resp.Status)
 	}
 
-	// Decode the response into the JSON structure.
-	var results Response
-	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
-		return nil, err
-	}
-
-	// Return a result iterator using the response.
-	return NewResponseIterator(&results), nil
+	return resp, nil
 }
