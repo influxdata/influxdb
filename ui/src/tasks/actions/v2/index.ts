@@ -251,6 +251,6 @@ export const saveNewScript = () => async (
     dispatch(goToTasks())
   } catch (e) {
     console.error(e)
-    dispatch(notify(taskNotCreated()))
+    dispatch(notify(taskNotCreated(e.headers['x-influx-error'])))
   }
 }
