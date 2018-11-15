@@ -27,6 +27,7 @@ export type Action =
   | SetCurrentScript
   | SetCurrentTask
   | SetShowInactive
+  | SetDropdownOrgID
 
 type GetStateFunc = () => AppState
 
@@ -37,6 +38,7 @@ export enum ActionTypes {
   SetCurrentScript = 'SET_CURRENT_SCRIPT',
   SetCurrentTask = 'SET_CURRENT_TASK',
   SetShowInactive = 'SET_TASKS_SHOW_INACTIVE',
+  SetDropdownOrgID = 'SET_DROPDOWN_ORG_ID',
 }
 
 export interface SetNewScript {
@@ -77,6 +79,13 @@ export interface SetShowInactive {
   payload: {}
 }
 
+export interface SetDropdownOrgID {
+  type: ActionTypes.SetDropdownOrgID
+  payload: {
+    dropdownOrgID: string
+  }
+}
+
 export const setNewScript = (script: string): SetNewScript => ({
   type: ActionTypes.SetNewScript,
   payload: {script},
@@ -105,6 +114,11 @@ export const setSearchTerm = (searchTerm: string): SetSearchTerm => ({
 export const setShowInactive = (): SetShowInactive => ({
   type: ActionTypes.SetShowInactive,
   payload: {},
+})
+
+export const setDropdownOrgID = (dropdownOrgID: string): SetDropdownOrgID => ({
+  type: ActionTypes.SetDropdownOrgID,
+  payload: {dropdownOrgID},
 })
 
 export const updateTaskStatus = (task: Task) => async (
