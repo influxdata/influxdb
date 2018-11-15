@@ -12,9 +12,9 @@ const defaultErrorNotification: NotificationExcludingMessage = {
   duration: TEN_SECONDS,
 }
 
-export const taskNotCreated = (): Notification => ({
+export const taskNotCreated = (additionalMessage: string): Notification => ({
   ...defaultErrorNotification,
-  message: 'Failed to create new task',
+  message: `Failed to create new task: ${additionalMessage}`,
 })
 
 export const taskNotFound = (): Notification => ({
