@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {Component, ReactNode} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -9,7 +9,7 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  children: JSX.Element[] | JSX.Element
+  children: JSX.Element[] | JSX.Element | ReactNode
   fullWidth: boolean
   scrollable: boolean
 }
@@ -36,7 +36,7 @@ class PageContents extends Component<Props> {
     return classnames('page-contents', {'full-width': fullWidth})
   }
 
-  private get children(): JSX.Element | JSX.Element[] {
+  private get children(): JSX.Element | JSX.Element[] | ReactNode {
     const {fullWidth, children} = this.props
 
     if (fullWidth) {

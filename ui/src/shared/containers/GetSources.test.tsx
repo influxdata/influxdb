@@ -6,11 +6,12 @@ import MockChild from 'mocks/MockChild'
 import {source} from 'mocks/dummy'
 
 jest.mock('src/sources/apis', () => require('mocks/sources/apis'))
-const getSources = jest.fn(() => Promise.resolve)
+
+const onReadSources = jest.fn(() => Promise.resolve())
 
 const setup = (override?) => {
   const props = {
-    getSources,
+    onReadSources,
     sources: [source],
     router: {},
     location: {

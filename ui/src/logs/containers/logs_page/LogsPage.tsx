@@ -14,7 +14,6 @@ import LogsTable from 'src/logs/components/logs_table/LogsTable'
 
 // Actions
 import * as logActions from 'src/logs/actions'
-import {getSourcesAsync} from 'src/shared/actions/sources'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Utils
@@ -24,6 +23,7 @@ import {
   applyChangesToTableData,
   isEmptyInfiniteData,
 } from 'src/logs/utils/table'
+import {getSources} from 'src/sources/selectors'
 
 // Constants
 import {NOW, DEFAULT_TAIL_CHUNK_DURATION_MS} from 'src/logs/constants'
@@ -57,7 +57,6 @@ interface TableConfigStateProps {
 interface DispatchTableConfigProps {
   notify: typeof notifyAction
   getConfig: typeof logActions.getLogConfigAsync
-  getSources: typeof getSourcesAsync
   addFilter: typeof logActions.addFilter // TODO: update addFilters
   setConfig: typeof logActions.setConfig
   updateConfig: typeof logActions.updateLogConfigAsync
@@ -120,7 +119,6 @@ class LogsPage extends Component<Props, State> {
 
   public async componentDidMount() {
     try {
-      await this.props.getSources()
       await this.setCurrentSource()
       await this.props.getConfig(this.configLink)
 
@@ -558,37 +556,41 @@ class LogsPage extends Component<Props, State> {
   }
 }
 
-const mstp = ({
-  sources,
-  links,
-  logs: {
-    currentSource,
-    currentBuckets,
-    currentBucket,
+const mstp = (state: AppState): StateProps => {
+  const {
+    links,
+    logs: {
+      currentSource,
+      currentBuckets,
+      currentBucket,
+      filters,
+      logConfig,
+      searchStatus,
+      tableInfiniteData,
+      nextTailLowerBound,
+      currentTailUpperBound,
+    },
+  } = state
+
+  const sources = getSources(state)
+
+  return {
+    links,
+    sources,
     filters,
     logConfig,
     searchStatus,
+    currentSource,
+    currentBucket,
+    currentBuckets,
     tableInfiniteData,
     nextTailLowerBound,
     currentTailUpperBound,
-  },
-}: AppState): StateProps => ({
-  links,
-  sources,
-  filters,
-  logConfig,
-  searchStatus,
-  currentSource,
-  currentBucket,
-  currentBuckets,
-  tableInfiniteData,
-  nextTailLowerBound,
-  currentTailUpperBound,
-})
+  }
+}
 
 const mdtp: DispatchProps = {
   notify: notifyAction,
-  getSources: getSourcesAsync,
   addFilter: logActions.addFilter,
   updateConfig: logActions.updateLogConfigAsync,
   createConfig: logActions.createLogConfigAsync,

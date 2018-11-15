@@ -14,7 +14,7 @@ import {
   createView as createViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis/v2/view'
-import {getSource} from 'src/sources/apis/v2'
+import {readSource} from 'src/sources/apis'
 import {getBuckets} from 'src/shared/apis/v2/buckets'
 import {executeQueryAsync} from 'src/logs/api/v2'
 
@@ -263,7 +263,7 @@ export const populateBucketsAsync = (
 export const getSourceAndPopulateBucketsAsync = (sourceURL: string) => async (
   dispatch
 ): Promise<void> => {
-  const source = await getSource(sourceURL)
+  const source = await readSource(sourceURL)
 
   const bucketsLink = getDeep<string | null>(source, 'links.buckets', null)
 

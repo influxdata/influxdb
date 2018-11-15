@@ -28,8 +28,8 @@ import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {State as TaskState} from 'src/tasks/reducers/v2'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/v2/me'
-import {SourceState} from 'src/shared/reducers/v2/source'
 import {OverlayState} from 'src/types/v2/overlay'
+import {SourcesState} from 'src/sources/reducers'
 
 export interface AppState {
   VERSION: string
@@ -38,7 +38,7 @@ export interface AppState {
   logs: LogsState
   ranges: RangeState
   views: ViewsState
-  sources: Source[]
+  sources: SourcesState
   dashboards: Dashboard[]
   notifications: Notification[]
   timeMachines: TimeMachinesState
@@ -47,8 +47,9 @@ export interface AppState {
   timeRange: TimeRange
   orgs: Organization[]
   me: MeState
-  source: SourceState
 }
+
+export type GetState = () => AppState
 
 export {
   User,

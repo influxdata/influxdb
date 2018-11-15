@@ -7,8 +7,11 @@ import _ from 'lodash'
 // Components
 import NavMenu from 'src/pageLayout/components/NavMenu'
 
+// Utils
+import {getSources} from 'src/sources/selectors'
+
 // Types
-import {Source} from 'src/types/v2'
+import {Source, AppState} from 'src/types/v2'
 import {IconFont} from 'src/clockface'
 
 // Styles
@@ -62,7 +65,7 @@ class SideNav extends PureComponent<Props> {
       {
         type: NavItemType.Icon,
         title: 'Status',
-        link: `/${this.sourceParam}`,
+        link: '/',
         icon: IconFont.Cubouniform,
         location: location.pathname,
         highlightWhen: ['status'],
@@ -70,7 +73,7 @@ class SideNav extends PureComponent<Props> {
       {
         type: NavItemType.Icon,
         title: 'Data Explorer',
-        link: `/data-explorer/${this.sourceParam}`,
+        link: '/data-explorer',
         icon: IconFont.Capacitor,
         location: location.pathname,
         highlightWhen: ['data-explorer'],
@@ -78,7 +81,7 @@ class SideNav extends PureComponent<Props> {
       {
         type: NavItemType.Icon,
         title: 'Dashboards',
-        link: `/dashboards/${this.sourceParam}`,
+        link: '/dashboards',
         icon: IconFont.DashJ,
         location: location.pathname,
         highlightWhen: ['dashboards'],
@@ -86,7 +89,7 @@ class SideNav extends PureComponent<Props> {
       {
         type: NavItemType.Icon,
         title: 'Logs',
-        link: `/logs/${this.sourceParam}`,
+        link: '/logs',
         icon: IconFont.Wood,
         location: location.pathname,
         highlightWhen: ['logs'],
@@ -94,7 +97,7 @@ class SideNav extends PureComponent<Props> {
       {
         type: NavItemType.Icon,
         title: 'Tasks',
-        link: `/tasks/${this.sourceParam}`,
+        link: '/tasks',
         icon: IconFont.Alerts,
         location: location.pathname,
         highlightWhen: ['tasks'],
@@ -102,49 +105,36 @@ class SideNav extends PureComponent<Props> {
       {
         type: NavItemType.Icon,
         title: 'Organizations',
-        link: `/organizations/${this.sourceParam}`,
+        link: '/organizations',
         icon: IconFont.Group,
         location: location.pathname,
         highlightWhen: ['organizations'],
       },
       {
         type: NavItemType.Icon,
-        title: 'Configuration',
-        link: `/manage-sources/${this.sourceParam}`,
+        title: 'Sources',
+        link: '/sources',
         icon: IconFont.Wrench,
         location: location.pathname,
-        highlightWhen: ['manage-sources'],
+        highlightWhen: ['sources'],
       },
       {
         type: NavItemType.Avatar,
         title: 'My Profile',
-        link: `/user_profile/${this.sourceParam}`,
+        link: '/user_profile',
         image: LeroyJenkins.avatar,
         location: location.pathname,
         highlightWhen: ['user_profile'],
       },
     ]
   }
-
-  private get sourceParam(): string {
-    const {location, sources = []} = this.props
-
-    const {query} = location
-    const defaultSource = sources.find(s => s.default)
-    const id = query.sourceID || _.get(defaultSource, 'id', 0)
-
-    return `?sourceID=${id}`
-  }
 }
 
-const mapStateToProps = ({
-  sources,
-  app: {
-    ephemeral: {inPresentationMode},
-  },
-}) => ({
-  sources,
-  isHidden: inPresentationMode,
-})
+const mstp = (state: AppState) => {
+  const isHidden = state.app.ephemeral.inPresentationMode
+  const sources = getSources(state)
 
-export default connect(mapStateToProps)(withRouter(SideNav))
+  return {sources, isHidden}
+}
+
+export default connect(mstp)(withRouter(SideNav))
