@@ -3905,6 +3905,7 @@ components:
             - conflict
             - invalid
             - empty value
+            - unavailable
         message:
           readOnly: true
           description: message is a human-readable message.
@@ -3930,6 +3931,7 @@ components:
             - conflict
             - invalid
             - empty value
+            - unavailable
         message:
           readOnly: true
           description: message is a human-readable message.
