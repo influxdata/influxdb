@@ -58,7 +58,7 @@ class OrganizationView extends PureComponent<Props> {
       <Page>
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <Page.Title title="Organization" />
+            <Page.Title title={org.name ? org.name : 'Organization'} />
           </Page.Header.Left>
           <Page.Header.Right />
         </Page.Header>

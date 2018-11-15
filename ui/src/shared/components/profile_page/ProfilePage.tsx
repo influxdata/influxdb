@@ -64,7 +64,7 @@ class ProfilePage extends Component<Props> {
   }
 
   private get profileNavHeader(): JSX.Element {
-    const {avatar, name, description} = this.props
+    const {avatar, description} = this.props
 
     return (
       <div className="profile-nav--header">
@@ -73,7 +73,6 @@ class ProfilePage extends Component<Props> {
           diameterPixels={160}
           customClass="profile-nav--avatar"
         />
-        <h3 className="profile-nav--name">{name}</h3>
         {description && (
           <p className="profile-nav--description">{description}</p>
         )}
