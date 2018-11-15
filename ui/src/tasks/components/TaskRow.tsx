@@ -1,5 +1,9 @@
+// Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
+import download from 'src/external/download'
 
+// Components
 import {
   ComponentSpacer,
   Alignment,
@@ -9,8 +13,8 @@ import {
   SlideToggle,
   IndexList,
 } from 'src/clockface'
-import download from 'src/external/download'
 
+// Types
 import {Task, TaskStatus} from 'src/types/v2/tasks'
 
 interface Props {
@@ -20,7 +24,7 @@ interface Props {
   onSelect: (task: Task) => void
 }
 
-export default class TaskRow extends PureComponent<Props> {
+class TaskRow extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {task} = this.props
     return (
@@ -39,7 +43,9 @@ export default class TaskRow extends PureComponent<Props> {
         </IndexList.Cell>
         <IndexList.Cell>{this.schedule}</IndexList.Cell>
         <IndexList.Cell>
-          <a href="#">{task.organization.name}</a>
+          <a href="" onClick={this.handleOrgClick}>
+            {task.organization.name}
+          </a>
         </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Right}>
@@ -76,6 +82,11 @@ export default class TaskRow extends PureComponent<Props> {
     download(task.flux, `${task.name}.flux`, 'text/plain')
   }
 
+  private handleOrgClick = () => {
+    const {router, task} = this.props
+    router.push(`/organizations/${task.organization.id}/members_tab`)
+  }
+
   private get isTaskActive(): boolean {
     const {task} = this.props
     if (task.status === TaskStatus.Active) {
@@ -108,3 +119,4 @@ export default class TaskRow extends PureComponent<Props> {
     return ''
   }
 }
+export default withRouter(TaskRow)
