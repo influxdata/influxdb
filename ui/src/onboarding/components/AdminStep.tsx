@@ -150,7 +150,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
             color={ComponentColor.Default}
             text="Back"
             size={ComponentSize.Medium}
-            onClick={this.handlePrevious}
+            onClick={this.props.onDecrementCurrentStepIndex}
           />
           <Button
             color={ComponentColor.Primary}
@@ -267,13 +267,14 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
       currentStepIndex,
       handleSetSetupParams,
       notify,
+      onIncrementCurrentStepIndex,
     } = this.props
 
     const {username, password, org, bucket, isAlreadySet} = this.state
 
     if (isAlreadySet) {
       handleSetStepStatus(currentStepIndex, StepStatus.Complete)
-      this.handleIncrement()
+      onIncrementCurrentStepIndex()
       return
     }
 
@@ -290,24 +291,10 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
       notify(copy.SetupSuccess)
       handleSetSetupParams(setupParams)
       handleSetStepStatus(currentStepIndex, StepStatus.Complete)
-      this.handleIncrement()
+      onIncrementCurrentStepIndex()
     } catch (error) {
       notify(copy.SetupError)
     }
-  }
-
-  private handlePrevious = () => {
-    this.handleDecrement()
-  }
-
-  private handleIncrement = () => {
-    const {handleSetCurrentStep, currentStepIndex} = this.props
-    handleSetCurrentStep(currentStepIndex + 1)
-  }
-
-  private handleDecrement = () => {
-    const {handleSetCurrentStep, currentStepIndex} = this.props
-    handleSetCurrentStep(currentStepIndex - 1)
   }
 }
 
