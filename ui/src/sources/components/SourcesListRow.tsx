@@ -3,9 +3,13 @@ import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import IndexList from 'src/shared/components/index_views/IndexList'
-import {Button, ComponentColor, ComponentSize} from 'src/clockface'
-import {Alignment} from 'src/clockface'
+import {
+  IndexList,
+  Alignment,
+  Button,
+  ComponentColor,
+  ComponentSize,
+} from 'src/clockface'
 import DeleteSourceButton from 'src/sources/components/DeleteSourceButton'
 
 // Actions
