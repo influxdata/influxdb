@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import {WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
@@ -13,6 +13,7 @@ import {
   IconFont,
   ComponentColor,
   OverlayTechnology,
+  Input,
 } from 'src/clockface'
 
 // Actions
@@ -36,6 +37,7 @@ interface DispatchProps {
 
 interface State {
   modalState: ModalState
+  searchTerm: string
 }
 
 enum ModalState {
@@ -47,15 +49,14 @@ type Props = StateProps & DispatchProps & WithRouterProps
 
 @ErrorHandling
 class OrganizationsIndex extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-    this.state = {
-      modalState: ModalState.Closed,
-    }
+  public state: State = {
+    modalState: ModalState.Closed,
+    searchTerm: '',
   }
+
   public render() {
-    const {orgs, links, onCreateOrg, onDeleteOrg} = this.props
-    const {modalState} = this.state
+    const {links, onCreateOrg, onDeleteOrg} = this.props
+    const {modalState, searchTerm} = this.state
 
     return (
       <>
@@ -65,6 +66,12 @@ class OrganizationsIndex extends PureComponent<Props, State> {
               <Page.Title title="Organizations" />
             </Page.Header.Left>
             <Page.Header.Right>
+              <Input
+                value={searchTerm}
+                placeholder="Filter organizations by name..."
+                onChange={this.handleChangeSearchTerm}
+              />
+
               <Button
                 color={ComponentColor.Primary}
                 onClick={this.handleOpenModal}
@@ -75,7 +82,10 @@ class OrganizationsIndex extends PureComponent<Props, State> {
             </Page.Header.Right>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
-            <OrganizationsIndexContents orgs={orgs} onDeleteOrg={onDeleteOrg} />
+            <OrganizationsIndexContents
+              orgs={this.filteredOrgs}
+              onDeleteOrg={onDeleteOrg}
+            />
           </Page.Contents>
         </Page>
         <OverlayTechnology visible={modalState === ModalState.Open}>
@@ -89,12 +99,27 @@ class OrganizationsIndex extends PureComponent<Props, State> {
     )
   }
 
+  private get filteredOrgs(): Organization[] {
+    const {orgs} = this.props
+    const {searchTerm} = this.state
+
+    const filteredOrgs = orgs.filter(org =>
+      org.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+
+    return filteredOrgs
+  }
+
   private handleOpenModal = (): void => {
     this.setState({modalState: ModalState.Open})
   }
 
   private handleCloseModal = (): void => {
     this.setState({modalState: ModalState.Closed})
+  }
+
+  private handleChangeSearchTerm = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({searchTerm: e.target.value})
   }
 }
 
