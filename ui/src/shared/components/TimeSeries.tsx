@@ -16,7 +16,7 @@ import {restartable, CancellationError} from 'src/utils/restartable'
 
 export const DEFAULT_TIME_SERIES = [{response: {results: []}}]
 
-interface RenderProps {
+export interface QueriesState {
   tables: FluxTable[]
   loading: RemoteDataState
   error: Error | null
@@ -27,7 +27,7 @@ interface Props {
   link: string
   queries: DashboardQuery[]
   inView?: boolean
-  children: (r: RenderProps) => JSX.Element
+  children: (r: QueriesState) => JSX.Element
 }
 
 interface State {
@@ -37,23 +37,21 @@ interface State {
   fetchCount: number
 }
 
+const defaultState = (): State => ({
+  loading: RemoteDataState.NotStarted,
+  tables: [],
+  fetchCount: 0,
+  error: null,
+})
+
 class TimeSeries extends Component<Props, State> {
   public static defaultProps = {
     inView: true,
   }
 
+  public state: State = defaultState()
+
   private executeQueries = restartable(executeQueries)
-
-  constructor(props: Props) {
-    super(props)
-
-    this.state = {
-      loading: RemoteDataState.NotStarted,
-      tables: [],
-      fetchCount: 0,
-      error: null,
-    }
-  }
 
   public async componentDidMount() {
     this.reload()
@@ -86,6 +84,12 @@ class TimeSeries extends Component<Props, State> {
     const {link, inView, queries} = this.props
 
     if (!inView) {
+      return
+    }
+
+    if (!queries.length) {
+      this.setState(defaultState())
+
       return
     }
 

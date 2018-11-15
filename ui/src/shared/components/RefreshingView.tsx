@@ -5,12 +5,8 @@ import _ from 'lodash'
 
 // Components
 import TimeSeries from 'src/shared/components/TimeSeries'
-import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import EmptyRefreshingView from 'src/shared/components/EmptyRefreshingView'
 import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
-
-// Constants
-import {emptyGraphCopy} from 'src/shared/copy/cell'
 
 // Utils
 import {getActiveSource} from 'src/sources/selectors'
@@ -55,10 +51,6 @@ class RefreshingView extends PureComponent<Props> {
       manualRefresh,
     } = this.props
 
-    if (!properties.queries.length) {
-      return <EmptyGraphMessage message={emptyGraphCopy} />
-    }
-
     return (
       <TimeSeries
         link={link}
@@ -73,6 +65,7 @@ class RefreshingView extends PureComponent<Props> {
               tables={tables}
               loading={loading}
               isInitialFetch={isInitialFetch}
+              queries={this.queries}
             >
               <RefreshingViewSwitcher
                 tables={tables}

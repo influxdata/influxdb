@@ -24,11 +24,15 @@ interface Props {
   tables: FluxTable[]
   loading: RemoteDataState
   timeRange: TimeRange
-  onZoom: (range: TimeRange) => void
+  onZoom?: (range: TimeRange) => void
   properties: RefreshingViewProperties
 }
 
 export default class RefreshingViewSwitcher extends PureComponent<Props> {
+  public static defaultProps: Partial<Props> = {
+    onZoom: () => {},
+  }
+
   public render() {
     const {properties, loading, viewID, tables, onZoom, timeRange} = this.props
 
