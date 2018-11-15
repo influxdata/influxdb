@@ -32,6 +32,7 @@ import {
   Columns,
   Alignment,
   ButtonType,
+  Sort,
 } from './types'
 
 // Fire de lazer
@@ -68,4 +69,5 @@ export {
   WizardProgressHeader,
   ProgressBar,
   Spinner,
+  Sort,
 }

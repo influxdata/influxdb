@@ -165,3 +165,9 @@ export enum Alignment {
   Center = 'center',
   Right = 'right',
 }
+
+export enum Sort {
+  Descending = 'desc',
+  Ascending = 'asc',
+  None = 'none',
+}
