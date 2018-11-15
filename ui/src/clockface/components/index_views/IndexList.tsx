@@ -11,6 +11,9 @@ import Cell from 'src/clockface/components/index_views/IndexListRowCell'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+// Styles
+import './IndexList.scss'
+
 interface Props {
   children: JSX.Element[]
 }

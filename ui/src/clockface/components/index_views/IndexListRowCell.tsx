@@ -3,7 +3,7 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Types
-import {Alignment} from 'src/clockface'
+import {Alignment} from 'src/clockface/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
