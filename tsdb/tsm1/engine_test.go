@@ -656,6 +656,10 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 }
 
 func TestEngine_LastModified(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+
 	// Create a few points.
 	p1 := MustParsePointString("cpu,host=A value=1.1 1000000000")
 	p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")

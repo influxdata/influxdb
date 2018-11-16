@@ -2418,6 +2418,10 @@ func TestFileStore_Remove(t *testing.T) {
 }
 
 func TestFileStore_Replace(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
@@ -2505,7 +2509,6 @@ func TestFileStore_Replace(t *testing.T) {
 	if _, err := os.Stat(files[2]); err != nil {
 		t.Fatalf("stat file: %v", err)
 	}
-
 }
 
 func TestFileStore_Open_Deleted(t *testing.T) {

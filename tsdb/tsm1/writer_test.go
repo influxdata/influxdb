@@ -556,12 +556,8 @@ func TestTSMWriter_WriteBlock_MaxKey(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	var key string
-	for i := 0; i < 100000; i++ {
-		key += "a"
-	}
-
-	if err := w.WriteBlock([]byte(key), 0, 0, nil); err != tsm1.ErrMaxKeyLengthExceeded {
+	key := bytes.Repeat([]byte("a"), 100000)
+	if err := w.WriteBlock(key, 0, 0, nil); err != tsm1.ErrMaxKeyLengthExceeded {
 		t.Fatalf("expected max key length error writing key: %v", err)
 	}
 }
@@ -577,11 +573,8 @@ func TestTSMWriter_Write_MaxKey(t *testing.T) {
 		t.Fatalf("unexpected error created writer: %v", err)
 	}
 
-	var key string
-	for i := 0; i < 100000; i++ {
-		key += "a"
-	}
-	if err := w.Write([]byte(key), []tsm1.Value{tsm1.NewValue(0, 1.0)}); err != tsm1.ErrMaxKeyLengthExceeded {
+	key := bytes.Repeat([]byte("a"), 100000)
+	if err := w.Write(key, []tsm1.Value{tsm1.NewValue(0, 1.0)}); err != tsm1.ErrMaxKeyLengthExceeded {
 		t.Fatalf("expected max key length error writing key: %v", err)
 	}
 }
