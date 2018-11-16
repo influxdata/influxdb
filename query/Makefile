@@ -8,7 +8,5 @@ $(SUBDIRS):
 
 all: $(SUBDIRS)
 
-clean: $(SUBDIRS)
-
-.PHONY: all clean subdirs $(SUBDIRS)
+.PHONY: all subdirs $(SUBDIRS)
 

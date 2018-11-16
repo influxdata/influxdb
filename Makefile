@@ -8,7 +8,7 @@
 #    * All cmds must be added to this top level Makefile.
 #    * All binaries are placed in ./bin, its recommended to add this directory to your PATH.
 #    * Each package that has a need to run go generate, must have its own Makefile for that purpose.
-#    * All recursive Makefiles must support the targets: all and clean.
+#    * All recursive Makefiles must support the all target
 #
 
 SUBDIRS := query task
@@ -127,9 +127,7 @@ bench:
 nightly: all
 	env GO111MODULE=on go run github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
 
-# Recursively clean all subdirs
-clean: $(SUBDIRS)
-	@for d in $^; do $(MAKE) -C $$d $(MAKECMDGOALS); done
+clean:
 	$(MAKE) -C ui $(MAKECMDGOALS)
 	rm -rf bin
 

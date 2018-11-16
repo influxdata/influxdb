@@ -7,7 +7,4 @@ all: $(targets)
 $(targets): meta.proto
 	$(GO_GENERATE) -x
 
-clean:
-	rm -f $(targets)
-
-.PHONY: all clean
+.PHONY: all
