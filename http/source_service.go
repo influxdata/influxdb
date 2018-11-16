@@ -32,6 +32,19 @@ type sourceResponse struct {
 func newSourceResponse(s *platform.Source) *sourceResponse {
 	s.Password = ""
 	s.SharedSecret = ""
+
+	if s.Type == platform.SelfSourceType {
+		return &sourceResponse{
+			Source: s,
+			Links: map[string]interface{}{
+				"self":    fmt.Sprintf("%s/%s", sourceHTTPPath, s.ID.String()),
+				"query":   "/api/v2/query",
+				"buckets": "/api/v2/buckets",
+				"health":  "/api/v2/health",
+			},
+		}
+	}
+
 	return &sourceResponse{
 		Source: s,
 		Links: map[string]interface{}{
