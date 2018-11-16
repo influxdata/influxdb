@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
-import download from 'src/external/download'
+import {downloadTextFile} from 'src/shared/utils/download'
 import _ from 'lodash'
 
 // Components
@@ -188,10 +188,9 @@ class DashboardsPage extends PureComponent<Props, State> {
       dashboard
     )
     try {
-      download(
+      downloadTextFile(
         JSON.stringify(dashboardForDownload, null, '\t'),
-        `${dashboard.name}.json`,
-        'text/plain'
+        `${dashboard.name}.json`
       )
       this.props.notify(dashboardExported(dashboard.name))
     } catch (error) {

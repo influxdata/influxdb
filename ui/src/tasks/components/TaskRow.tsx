@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
-import download from 'src/external/download'
 
 // Components
 import {
@@ -13,6 +12,9 @@ import {
   SlideToggle,
   IndexList,
 } from 'src/clockface'
+
+// Utils
+import {downloadTextFile} from 'src/shared/utils/download'
 
 // Types
 import {Task, TaskStatus} from 'src/types/v2/tasks'
@@ -79,7 +81,7 @@ class TaskRow extends PureComponent<Props & WithRouterProps> {
 
   private handleExport = () => {
     const {task} = this.props
-    download(task.flux, `${task.name}.flux`, 'text/plain')
+    downloadTextFile(task.flux, `${task.name}.flux`)
   }
 
   private handleOrgClick = () => {
