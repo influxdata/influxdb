@@ -245,6 +245,7 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 	if err := json.NewDecoder(r.Body).Decode(task); err != nil {
 		return nil, err
 	}
+
 	return &postTaskRequest{
 		Task: task,
 	}, nil
