@@ -19,7 +19,16 @@ The InfluxQL Transpiler exists to rewrite an InfluxQL query into its equivalent 
 		8. [Combine windows](#combine-windows)
 	3. [Join the groups](#join-groups)
 	4. [Map and eval columns](#map-and-eval)
-2. [Show Tag Values](#show-tag-values)
+2. [Show Databases](#show-databases)
+    1. [Create cursor](#show-databases-cursor)
+    2. [Rename and Keep the name databaseName column](#show-databases-name)
+3. [Show Retention Policies](#show-retention-policies)
+    1. [Create cursor](#show-retention-policies-cursor)
+    2. [Filter by the database name](#show-retention-policies-database-filter)
+    3. [Rename Columns](#show-retention-policies-rename)
+    4. [Set Static Columns](#show-retention-policies-static-cols)
+    5. [Keep Specific Columns](#show-retention-policies-keep)
+4. [Show Tag Values](#show-tag-values)
     1. [Create cursor](#show-tag-values-cursor)
     2. [Filter by the measurement](#show-tag-values-measurement-filter)
     3. [Evaluate the condition](#show-tag-values-evaluate-condition)
@@ -181,6 +190,64 @@ result |> map(fn: (r) => {_time: r._time, max: r.val1, usage_system: r.val2})
 This is the final result. It will also include any tags in the group key and the time will be located in the `_time` variable.
 
 TODO(jsternberg): The `_time` variable is only needed for selectors and raw queries. We can actually drop this variable for aggregate queries and use the `_start` time from the group key. Consider whether or not we should do this and if it is worth it.
+
+## <a name="show-databases"></a> Show Databases 
+In 2.0, not all "buckets" will be conceptually equivalent to a 1.X database.  If a bucket is intended to represent a collection of 1.X data, it will be specifically identified as such.  `flux` provides a special function `databases()` that will retrieve information about all registered 1.X compatible buckets.  
+    
+### <a name="show-databases-cursor"></a> Create Cursor
+The cursor is trivially implemented as a no-argument call to the `databases` function: 
+
+```
+databases() 
+```
+
+
+### <a name="show-databases-name"></a>Rename and Keep the databaseName Column
+The result of `databases()` has several columns.  In this application, we only need the `databaseName` but in 1.X output, the label is `name`: 
+
+```
+databases() 
+  |> rename(columns: {databaseName: "name"})
+  |> keep(columns: ["name"])
+```
+
+
+
+## <a name="show-retention-policies"></a> Show Retention Policies 
+Similar to `SHOW DATABASES`, show retention policies also returns information only for 1.X compatible buckets.  It uses different columns from the same `databses()` function. 
+### <a name="how-retention-policies-cursor"></a> Create cursor
+The cursor is trivially implemented as a no-argument call to the `databases` function: 
+
+```
+databases() 
+```
+
+### <a name="show-retention-policies-database-filter"></a> Filter by the database name
+The databases function will return rows of database/retention policy pairs for all databases.  The result of `SHOW RETENTION POLICIES` is defined for a single database, so we filter: 
+
+```
+databases() |> filter(fn: (r) => r.databaseName == <DBNAME>
+```
+
+### <a name="show-retention-policies-rename"></a> Rename Columns
+Several columns must be renamed to match the 1.X format: 
+```
+... |> rename(columns: {retentionPolicy: "name", retentionPeriod: "duration"})
+```
+
+### <a name="show-retention-policies-static-cols"></a> Set Static Columns
+Two static columns are set.  In 1.X the columns for `shardGroupDuration` and `replicaN` could vary depending on the database/retention policy definition.  In 2.0, there is no shardGroups to configure, and the replication level is always 2.  
+
+```
+... |> set(key: "shardGroupDuration", value: "0") |> set(key: "replicaN", value: "2")
+```
+
+### <a name="show-retention-policies-keep"></a> Keep Specific Columns
+Finally, we will identify the columns in the table that we wish to keep: 
+
+```
+... |> keep(columns: ["name", "duration", "shardGroupDuration", "replicaN", "default"])
+```
 
 ## <a name="show-tag-values"></a> Show Tag Values
 

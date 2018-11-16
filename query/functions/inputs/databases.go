@@ -129,6 +129,12 @@ func (bd *DatabasesDecoder) Decode() (flux.Table, error) {
 		return nil, err
 	}
 	if _, err := b.AddCol(flux.ColMeta{
+		Label: "default",
+		Type:  flux.TBool,
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := b.AddCol(flux.ColMeta{
 		Label: "bucketId",
 		Type:  flux.TString,
 	}); err != nil {
@@ -143,7 +149,8 @@ func (bd *DatabasesDecoder) Decode() (flux.Table, error) {
 			_ = b.AppendString(1, db.Database)
 			_ = b.AppendString(2, db.RetentionPolicy)
 			_ = b.AppendInt(3, bucket.RetentionPeriod.Nanoseconds())
-			_ = b.AppendString(4, db.BucketID.String())
+			_ = b.AppendBool(4, db.Default)
+			_ = b.AppendString(5, db.BucketID.String())
 		}
 	}
 

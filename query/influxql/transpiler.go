@@ -95,6 +95,8 @@ func (t *transpilerState) transpile(ctx context.Context, s influxql.Statement) (
 		return t.transpileShowTagValues(ctx, stmt)
 	case *influxql.ShowDatabasesStatement:
 		return t.transpileShowDatabases(ctx, stmt)
+	case *influxql.ShowRetentionPoliciesStatement:
+		return t.transpileShowRetentionPolicies(ctx, stmt)
 	default:
 		return "", fmt.Errorf("unknown statement type %T", s)
 	}
@@ -227,6 +229,66 @@ func (t *transpilerState) transpileShowDatabases(ctx context.Context, stmt *infl
 			"databaseName": "name",
 		},
 	}, op)), nil
+}
+
+func (t *transpilerState) transpileShowRetentionPolicies(ctx context.Context, stmt *influxql.ShowRetentionPoliciesStatement) (flux.OperationID, error) {
+	// While the ShowTagValuesStatement contains a sources section and those sources are measurements, they do
+	// not actually contain the database and we do not factor in retention policies. So we are always going to use
+	// the default retention policy when evaluating which bucket we are querying and we do not have to consult
+	// the sources in the statement.
+
+	spec := &pinputs.DatabasesOpSpec{}
+	op := t.op("databases", spec)
+	var expr semantic.Expression = &semantic.BinaryExpression{
+		Operator: ast.EqualOperator,
+		Left: &semantic.MemberExpression{
+			Object:   &semantic.IdentifierExpression{Name: "r"},
+			Property: "databaseName",
+		},
+		Right: &semantic.StringLiteral{Value: stmt.Database},
+	}
+
+	op = t.op("filter", &transformations.FilterOpSpec{
+		Fn: &semantic.FunctionExpression{
+			Block: &semantic.FunctionBlock{
+				Parameters: &semantic.FunctionParameters{
+					List: []*semantic.FunctionParameter{
+						{Key: &semantic.Identifier{Name: "r"}},
+					},
+				},
+				Body: expr,
+			},
+		},
+	}, op)
+
+	return t.op("keep",
+		&transformations.KeepOpSpec{
+			Columns: []string{
+				"name",
+				"duration",
+				"shardGroupDuration",
+				"replicaN",
+				"default",
+			},
+		},
+		t.op("set",
+			&transformations.SetOpSpec{
+				Key:   "replicaN",
+				Value: "2",
+			},
+			t.op("set",
+				&transformations.SetOpSpec{
+					Key:   "shardGroupDuration",
+					Value: "0",
+				},
+				t.op("rename",
+					&transformations.RenameOpSpec{
+						Columns: map[string]string{
+							"retentionPolicy": "name",
+							"retentionPeriod": "duration",
+						},
+					},
+					op)))), nil
 }
 
 func (t *transpilerState) transpileSelect(ctx context.Context, stmt *influxql.SelectStatement) (flux.OperationID, error) {
