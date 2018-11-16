@@ -33,8 +33,7 @@ class TasksOrgDropdown extends PureComponent<Props> {
       <Dropdown
         selectedID={this.selectedID}
         onChange={setDropdownOrgID}
-        widthPixels={200}
-        wrapText={true}
+        widthPixels={150}
       >
         {this.allOrgs.map(({id, name}) => (
           <Dropdown.Item key={id} value={id} id={id}>

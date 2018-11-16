@@ -3,6 +3,8 @@ import React, {PureComponent} from 'react'
 import {Page} from 'src/pageLayout'
 import {ComponentColor, ComponentSize, Button} from 'src/clockface'
 
+import 'src/tasks/components/TasksPage.scss'
+
 interface Props {
   title: string
   onCancel: () => void
