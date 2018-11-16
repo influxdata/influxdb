@@ -190,3 +190,58 @@ func encodeSecretValue(v string) []byte {
 	base64.StdEncoding.Encode(val, []byte(v))
 	return val
 }
+
+// PutSecrets puts all provided secrets and overwrites any previous values.
+func (c *Client) PutSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		keys, err := c.getSecretKeys(ctx, tx, orgID)
+		if err != nil {
+			return err
+		}
+		for k, v := range m {
+			if err := c.putSecret(ctx, tx, orgID, k, v); err != nil {
+				return err
+			}
+		}
+		for _, k := range keys {
+			if _, ok := m[k]; !ok {
+				if err := c.deleteSecret(ctx, tx, orgID, k); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
+
+// PatchSecrets patches all provided secrets and updates any previous values.
+func (c *Client) PatchSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		for k, v := range m {
+			if err := c.putSecret(ctx, tx, orgID, k, v); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// DeleteSecret removes secrets from the secret store.
+func (c *Client) DeleteSecret(ctx context.Context, orgID platform.ID, ks ...string) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		for _, k := range ks {
+			if err := c.deleteSecret(ctx, tx, orgID, k); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (c *Client) deleteSecret(ctx context.Context, tx *bolt.Tx, orgID platform.ID, k string) error {
+	key, err := encodeSecretKey(orgID, k)
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(secretBucket).Delete(key)
+}

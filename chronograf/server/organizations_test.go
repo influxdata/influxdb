@@ -12,7 +12,6 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
 	"github.com/influxdata/platform/chronograf/roles"
 )
@@ -46,7 +45,7 @@ func TestService_OrganizationID(t *testing.T) {
 				),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
@@ -77,7 +76,7 @@ func TestService_OrganizationID(t *testing.T) {
 				),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
@@ -164,7 +163,7 @@ func TestService_Organizations(t *testing.T) {
 				),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					AllF: func(ctx context.Context) ([]chronograf.Organization, error) {
 						return []chronograf.Organization{
@@ -247,7 +246,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					UpdateF: func(ctx context.Context, o *chronograf.Organization) error {
 						return nil
@@ -278,7 +277,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 				org: &organizationRequest{},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					UpdateF: func(ctx context.Context, o *chronograf.Organization) error {
 						return nil
@@ -311,7 +310,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					UpdateF: func(ctx context.Context, o *chronograf.Organization) error {
 						return nil
@@ -342,7 +341,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 				org: &organizationRequest{},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					UpdateF: func(ctx context.Context, o *chronograf.Organization) error {
 						return nil
@@ -371,7 +370,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					UpdateF: func(ctx context.Context, o *chronograf.Organization) error {
 						return nil
@@ -453,7 +452,7 @@ func TestService_RemoveOrganization(t *testing.T) {
 				),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DeleteF: func(ctx context.Context, o *chronograf.Organization) error {
 						return nil
@@ -543,7 +542,7 @@ func TestService_NewOrganization(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return &chronograf.User{
@@ -585,7 +584,7 @@ func TestService_NewOrganization(t *testing.T) {
 				org: &organizationRequest{},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return &chronograf.User{
@@ -620,7 +619,7 @@ func TestService_NewOrganization(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return &chronograf.User{
@@ -667,7 +666,7 @@ func TestService_NewOrganization(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 						return nil, fmt.Errorf("failed to add user to org")

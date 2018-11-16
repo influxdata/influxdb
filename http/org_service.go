@@ -22,6 +22,7 @@ type OrgHandler struct {
 	OrganizationOperationLogService platform.OrganizationOperationLogService
 	BucketService                   platform.BucketService
 	UserResourceMappingService      platform.UserResourceMappingService
+	SecretService                   platform.SecretService
 }
 
 const (
@@ -32,6 +33,9 @@ const (
 	organizationsIDMembersIDPath = "/api/v2/orgs/:id/members/:userID"
 	organizationsIDOwnersPath    = "/api/v2/orgs/:id/owners"
 	organizationsIDOwnersIDPath  = "/api/v2/orgs/:id/owners/:userID"
+	organizationsIDSecretsPath   = "/api/v2/orgs/:id/secrets"
+	// TODO(desa): need a way to specify which secrets to delete. this should work for now
+	organizationsIDSecretsDeletePath = "/api/v2/orgs/:id/secrets/delete"
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.
@@ -55,6 +59,11 @@ func NewOrgHandler(mappingService platform.UserResourceMappingService) *OrgHandl
 	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.OrgResourceType, platform.Owner))
 	h.HandlerFunc("GET", organizationsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
 	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+
+	h.HandlerFunc("GET", organizationsIDSecretsPath, h.handleGetSecrets)
+	h.HandlerFunc("PATCH", organizationsIDSecretsPath, h.handlePatchSecrets)
+	// TODO(desa): need a way to specify which secrets to delete. this should work for now
+	h.HandlerFunc("POST", organizationsIDSecretsDeletePath, h.handleDeleteSecrets)
 
 	return h
 }
@@ -101,6 +110,21 @@ func newOrgResponse(o *platform.Organization) *orgResponse {
 			"dashboards": fmt.Sprintf("/api/v2/dashboards?org=%s", o.Name),
 		},
 		Organization: *o,
+	}
+}
+
+type secretsResponse struct {
+	Links   map[string]string `json:"links"`
+	Secrets []string          `json:"secrets"`
+}
+
+func newSecretsResponse(orgID platform.ID, ks []string) *secretsResponse {
+	return &secretsResponse{
+		Links: map[string]string{
+			"org":     fmt.Sprintf("/api/v2/orgs/%s", orgID),
+			"secrets": fmt.Sprintf("/api/v2/orgs/%s/secrets", orgID),
+		},
+		Secrets: ks,
 	}
 }
 
@@ -318,6 +342,139 @@ func decodePatchOrgRequest(ctx context.Context, r *http.Request) (*patchOrgReque
 		Update: upd,
 		OrgID:  i,
 	}, nil
+}
+
+// handleGetSecrets is the HTTP handler for the GET /api/v2/orgs/:id/secrets route.
+func (h *OrgHandler) handleGetSecrets(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetSecretsRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	ks, err := h.SecretService.GetSecretKeys(ctx, req.orgID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newSecretsResponse(req.orgID, ks)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type getSecretsRequest struct {
+	orgID platform.ID
+}
+
+func decodeGetSecretsRequest(ctx context.Context, r *http.Request) (*getSecretsRequest, error) {
+	req := &getSecretsRequest{}
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+	req.orgID = i
+
+	return req, nil
+}
+
+// handleGetPatchSecrets is the HTTP handler for the PATCH /api/v2/orgs/:id/secrets route.
+func (h *OrgHandler) handlePatchSecrets(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodePatchSecretsRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.SecretService.PatchSecrets(ctx, req.orgID, req.secrets); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type patchSecretsRequest struct {
+	orgID   platform.ID
+	secrets map[string]string
+}
+
+func decodePatchSecretsRequest(ctx context.Context, r *http.Request) (*patchSecretsRequest, error) {
+	req := &patchSecretsRequest{}
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+	req.orgID = i
+	req.secrets = map[string]string{}
+
+	if err := json.NewDecoder(r.Body).Decode(&req.secrets); err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// handleDeleteSecrets is the HTTP handler for the DELETE /api/v2/orgs/:id/secrets route.
+func (h *OrgHandler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeDeleteSecretsRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.SecretService.DeleteSecret(ctx, req.orgID, req.secrets...); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type deleteSecretsRequest struct {
+	orgID   platform.ID
+	secrets []string
+}
+
+func decodeDeleteSecretsRequest(ctx context.Context, r *http.Request) (*deleteSecretsRequest, error) {
+	req := &deleteSecretsRequest{}
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+	req.orgID = i
+	req.secrets = []string{}
+
+	if err := json.NewDecoder(r.Body).Decode(&req.secrets); err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 const (

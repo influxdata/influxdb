@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
 	"github.com/influxdata/platform/chronograf/organizations"
 )
@@ -171,7 +170,7 @@ func TestOrganizationConfig(t *testing.T) {
 				Store: &mocks.Store{
 					OrganizationConfigStore: tt.fields.organizationConfigStore,
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()
@@ -273,7 +272,7 @@ func TestLogViewerOrganizationConfig(t *testing.T) {
 				Store: &mocks.Store{
 					OrganizationConfigStore: tt.fields.organizationConfigStore,
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()
@@ -673,7 +672,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 				Store: &mocks.Store{
 					OrganizationConfigStore: tt.fields.organizationConfigStore,
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()

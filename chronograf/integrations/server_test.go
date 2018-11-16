@@ -17,7 +17,6 @@ import (
 
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/bolt"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/oauth2"
 	"github.com/influxdata/platform/chronograf/server"
 )
@@ -3567,7 +3566,7 @@ func TestServer(t *testing.T) {
 			boltdb := bolt.NewClient()
 			boltdb.Path = boltFile
 
-			logger := log.New(log.ParseLevel("debug"))
+			logger := &chronograf.NoopLogger{}
 			build := chronograf.BuildInfo{
 				Version: "pre-1.4.0.0",
 				Commit:  "",

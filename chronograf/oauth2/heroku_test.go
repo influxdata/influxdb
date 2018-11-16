@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	clog "github.com/influxdata/platform/chronograf/log"
+	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/oauth2"
 )
 
@@ -31,7 +31,7 @@ func Test_Heroku_PrincipalID_ExtractsEmailAddress(t *testing.T) {
 	}))
 	defer mockAPI.Close()
 
-	logger := clog.New(clog.ParseLevel("debug"))
+	logger := &chronograf.NoopLogger{}
 	prov := oauth2.Heroku{
 		Logger: logger,
 	}
@@ -80,7 +80,7 @@ func Test_Heroku_PrincipalID_RestrictsByOrganization(t *testing.T) {
 	}))
 	defer mockAPI.Close()
 
-	logger := clog.New(clog.ParseLevel("debug"))
+	logger := &chronograf.NoopLogger{}
 	prov := oauth2.Heroku{
 		Logger:        logger,
 		Organizations: []string{"enchantment-under-the-sea-dance-committee"},

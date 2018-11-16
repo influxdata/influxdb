@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
 	"github.com/influxdata/platform/chronograf/oauth2"
 	"github.com/influxdata/platform/chronograf/roles"
@@ -48,7 +47,7 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -129,7 +128,7 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				MappingsStore: &mocks.MappingsStore{
 					AllF: func(ctx context.Context) ([]chronograf.Mapping, error) {
 						return []chronograf.Mapping{}, nil
@@ -197,7 +196,7 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				MappingsStore: &mocks.MappingsStore{
 					AllF: func(ctx context.Context) ([]chronograf.Mapping, error) {
 						return []chronograf.Mapping{}, nil
@@ -256,7 +255,7 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -336,7 +335,7 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -416,7 +415,7 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -546,7 +545,7 @@ func TestService_Me(t *testing.T) {
 						return nil
 					},
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			},
 			principal: oauth2.Principal{
 				Subject: "secret",
@@ -571,7 +570,7 @@ func TestService_Me(t *testing.T) {
 						},
 					},
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
@@ -592,7 +591,7 @@ func TestService_Me(t *testing.T) {
 						},
 					},
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			},
 			wantStatus: http.StatusUnprocessableEntity,
 			principal: oauth2.Principal{
@@ -608,7 +607,7 @@ func TestService_Me(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				ConfigStore: mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -668,7 +667,7 @@ func TestService_Me(t *testing.T) {
 				SuperAdminProviderGroups: superAdminProviderGroups{
 					auth0: "example",
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -736,7 +735,7 @@ func TestService_Me(t *testing.T) {
 				SuperAdminProviderGroups: superAdminProviderGroups{
 					auth0: "example",
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -804,7 +803,7 @@ func TestService_Me(t *testing.T) {
 				SuperAdminProviderGroups: superAdminProviderGroups{
 					auth0: "example",
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -879,7 +878,7 @@ func TestService_Me(t *testing.T) {
 				SuperAdminProviderGroups: superAdminProviderGroups{
 					auth0: "example",
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -954,7 +953,7 @@ func TestService_Me(t *testing.T) {
 				SuperAdminProviderGroups: superAdminProviderGroups{
 					auth0: "example",
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: mocks.ConfigStore{
 					Config: &chronograf.Config{},
 				},
@@ -1035,7 +1034,7 @@ func TestService_Me(t *testing.T) {
 				SuperAdminProviderGroups: superAdminProviderGroups{
 					auth0: "example",
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: mocks.ConfigStore{
 					Config: &chronograf.Config{},
 				},
@@ -1176,7 +1175,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
@@ -1247,7 +1246,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
@@ -1319,7 +1318,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
@@ -1379,7 +1378,7 @@ func TestService_UpdateMe(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {

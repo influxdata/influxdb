@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	clog "github.com/influxdata/platform/chronograf/log"
+	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/oauth2"
 )
 
@@ -30,7 +30,7 @@ func TestGenericGroup_withNotEmail(t *testing.T) {
 	}))
 	defer mockAPI.Close()
 
-	logger := clog.New(clog.ParseLevel("debug"))
+	logger := &chronograf.NoopLogger{}
 	prov := oauth2.Generic{
 		Logger: logger,
 		APIURL: mockAPI.URL,
@@ -76,7 +76,7 @@ func TestGenericGroup_withEmail(t *testing.T) {
 	}))
 	defer mockAPI.Close()
 
-	logger := clog.New(clog.ParseLevel("debug"))
+	logger := &chronograf.NoopLogger{}
 	prov := oauth2.Generic{
 		Logger: logger,
 		APIURL: mockAPI.URL,
@@ -122,7 +122,7 @@ func TestGenericPrincipalID(t *testing.T) {
 	}))
 	defer mockAPI.Close()
 
-	logger := clog.New(clog.ParseLevel("debug"))
+	logger := &chronograf.NoopLogger{}
 	prov := oauth2.Generic{
 		Logger: logger,
 		APIURL: mockAPI.URL,
@@ -175,7 +175,7 @@ func TestGenericPrincipalIDDomain(t *testing.T) {
 	}))
 	defer mockAPI.Close()
 
-	logger := clog.New(clog.ParseLevel("debug"))
+	logger := &chronograf.NoopLogger{}
 	prov := oauth2.Generic{
 		Logger:  logger,
 		Domains: []string{"pinheads.rok"},

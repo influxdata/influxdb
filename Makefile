@@ -113,6 +113,10 @@ test-js: node_modules
 test-go:
 	$(GO_TEST) ./...
 
+test-integration: GO_TAGS=integration
+test-integration:
+	$(GO_TEST) -count=1 ./...
+
 test: test-go test-js
 
 test-go-race:

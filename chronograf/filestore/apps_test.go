@@ -14,7 +14,6 @@ import (
 
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/filestore"
-	clog "github.com/influxdata/platform/chronograf/log"
 )
 
 func TestAll(t *testing.T) {
@@ -374,6 +373,6 @@ func MockApps(existing []chronograf.Layout, expected error) (filestore.Apps, *ma
 		IDs: &MockID{
 			id: len(existing),
 		},
-		Logger: clog.New(clog.ParseLevel("debug")),
+		Logger: &chronograf.NoopLogger{},
 	}, &layouts
 }
