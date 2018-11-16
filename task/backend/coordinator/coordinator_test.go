@@ -157,6 +157,10 @@ func TestCoordinator_DeleteUnclaimedTask(t *testing.T) {
 }
 
 func TestCoordinator_ClaimExistingTasks(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
 	st := backend.NewInMemStore()
 	sched := mock.NewScheduler()
 

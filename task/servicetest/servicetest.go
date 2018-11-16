@@ -65,6 +65,9 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 		})
 
 		t.Run("Task Concurrency", func(t *testing.T) {
+			if testing.Short() {
+				t.Skip("skipping in short mode")
+			}
 			t.Parallel()
 			testTaskConcurrency(t, sys)
 		})
