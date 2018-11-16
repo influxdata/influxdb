@@ -10,11 +10,12 @@ import (
 // Some error code constant, ideally we want define common platform codes here
 // projects on use platform's error, should have their own central place like this.
 const (
-	EInternal   = "internal error"
-	ENotFound   = "not found"
-	EConflict   = "conflict" // action cannot be performed
-	EInvalid    = "invalid"  // validation failed
-	EEmptyValue = "empty value"
+	EInternal    = "internal error"
+	ENotFound    = "not found"
+	EConflict    = "conflict" // action cannot be performed
+	EInvalid     = "invalid"  // validation failed
+	EEmptyValue  = "empty value"
+	EUnavailable = "unavailable"
 )
 
 // Error is the error struct of platform.
