@@ -21,7 +21,7 @@ interface Props {
   onCloneCell: (cell: Cell) => void
   onZoom: (range: TimeRange) => void
   onPositionChange: (cells: Cell[]) => void
-  setScrollTop: (e: MouseEvent<JSX.Element>) => void
+  setScrollTop: (e: MouseEvent<HTMLElement>) => void
   onEditView: (viewID: string) => void
 }
 

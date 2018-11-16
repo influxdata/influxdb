@@ -8,8 +8,22 @@
 
 .time-machine-controls--rhs {
   display: flex;
+  align-items: center;
 
   button {
+    margin-right: 5px;
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: $g13-mist;
+    margin-right: 15px;
+  }
+
+  .slide-toggle {
     margin-right: 5px;
   }
 }

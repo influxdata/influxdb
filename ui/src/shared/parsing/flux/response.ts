@@ -18,16 +18,25 @@ export const parseResponseError = (response: string): FluxTable[] => {
   ]
 }
 
-export const parseResponse = (response: string): FluxTable[] => {
+export const parseChunks = (response: string): string[] => {
   const trimmedResponse = response.trim()
 
   if (_.isEmpty(trimmedResponse)) {
     return []
   }
 
-  return trimmedResponse.split(/\n\s*\n/).reduce((acc, chunk) => {
+  const chunks = trimmedResponse.split(/\n\s*\n/)
+
+  return chunks
+}
+
+export const parseResponse = (response: string): FluxTable[] => {
+  const chunks = parseChunks(response)
+  const tables = chunks.reduce((acc, chunk) => {
     return [...acc, ...parseTables(chunk)]
   }, [])
+
+  return tables
 }
 
 export const parseTables = (responseChunk: string): FluxTable[] => {

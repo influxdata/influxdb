@@ -19,6 +19,7 @@ export interface TimeMachineState {
   view: NewView
   timeRange: TimeRange
   draftScript: string
+  isViewingRawData: boolean
 }
 
 export interface TimeMachinesState {
@@ -32,6 +33,7 @@ const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
   view: createView(),
   draftScript: '',
+  isViewingRawData: false,
 })
 
 const INITIAL_STATE: TimeMachinesState = {
@@ -146,6 +148,12 @@ const timeMachineReducer = (
         ...state,
         view: replaceQuery(view, draftScript),
       }
+    }
+
+    case 'SET_IS_VIEWING_RAW_DATA': {
+      const {isViewingRawData} = action.payload
+
+      return {...state, isViewingRawData}
     }
 
     case 'SET_AXES': {

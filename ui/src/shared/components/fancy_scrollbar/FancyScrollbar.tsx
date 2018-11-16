@@ -11,7 +11,7 @@ interface DefaultProps {
   autoHide: boolean
   autoHeight: boolean
   maxHeight: number
-  setScrollTop: (value: React.MouseEvent<JSX.Element>) => void
+  setScrollTop: (value: React.MouseEvent<HTMLElement>) => void
   style: React.CSSProperties
 }
 

@@ -2,10 +2,12 @@
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
+import {AutoSizer} from 'react-virtualized'
 
 // Components
 import EmptyRefreshingView from 'src/shared/components/EmptyRefreshingView'
 import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
+import RawFluxDataTable from 'src/shared/components/RawFluxDataTable'
 
 // Actions
 import {setType} from 'src/shared/actions/v2/timeMachines'
@@ -22,6 +24,7 @@ interface StateProps {
   view: View | NewView
   timeRange: TimeRange
   queries: DashboardQuery[]
+  isViewingRawData: boolean
 }
 
 interface DispatchProps {
@@ -35,8 +38,8 @@ interface OwnProps {
 type Props = StateProps & DispatchProps & OwnProps
 
 const TimeMachineVis: SFC<Props> = props => {
-  const {view, timeRange, queries} = props
-  const {tables, loading, error, isInitialFetch} = props.queriesState
+  const {view, timeRange, queries, isViewingRawData} = props
+  const {tables, loading, error, isInitialFetch, files} = props.queriesState
 
   return (
     <div className="time-machine-top">
@@ -49,13 +52,25 @@ const TimeMachineVis: SFC<Props> = props => {
             isInitialFetch={isInitialFetch}
             queries={queries}
           >
-            <RefreshingViewSwitcher
-              tables={tables}
-              viewID="time-machine-view"
-              loading={loading}
-              timeRange={timeRange}
-              properties={view.properties as RefreshingViewProperties}
-            />
+            {isViewingRawData ? (
+              <AutoSizer>
+                {({width, height}) => (
+                  <RawFluxDataTable
+                    files={files}
+                    width={width}
+                    height={height}
+                  />
+                )}
+              </AutoSizer>
+            ) : (
+              <RefreshingViewSwitcher
+                tables={tables}
+                viewID="time-machine-view"
+                loading={loading}
+                timeRange={timeRange}
+                properties={view.properties as RefreshingViewProperties}
+              />
+            )}
           </EmptyRefreshingView>
         </div>
       </div>
@@ -70,6 +85,7 @@ const mstp = (state: AppState) => {
   return {
     view: timeMachine.view,
     timeRange: timeMachine.timeRange,
+    isViewingRawData: timeMachine.isViewingRawData,
     queries,
   }
 }

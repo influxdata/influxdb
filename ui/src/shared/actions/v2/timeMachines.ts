@@ -11,6 +11,7 @@ export type Action =
   | SetTypeAction
   | SetDraftScriptAction
   | SubmitScriptAction
+  | SetIsViewingRawDataAction
   | SetDecimalPlaces
   | SetAxes
   | SetStaticLegend
@@ -86,6 +87,19 @@ interface SubmitScriptAction {
 export const submitScript = (): SubmitScriptAction => ({
   type: 'SUBMIT_SCRIPT',
 })
+
+interface SetIsViewingRawDataAction {
+  type: 'SET_IS_VIEWING_RAW_DATA'
+  payload: {isViewingRawData: boolean}
+}
+
+export const setIsViewingRawData = (
+  isViewingRawData: boolean
+): SetIsViewingRawDataAction => ({
+  type: 'SET_IS_VIEWING_RAW_DATA',
+  payload: {isViewingRawData},
+})
+
 interface SetAxes {
   type: 'SET_AXES'
   payload: {axes: Axes}

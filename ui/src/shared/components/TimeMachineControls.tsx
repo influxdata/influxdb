@@ -5,9 +5,13 @@ import {connect} from 'react-redux'
 // Components
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import CSVExportButton from 'src/shared/components/CSVExportButton'
+import {SlideToggle, ComponentSize} from 'src/clockface'
 
 // Actions
-import {setTimeRange} from 'src/shared/actions/v2/timeMachines'
+import {
+  setTimeRange,
+  setIsViewingRawData,
+} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
@@ -18,10 +22,12 @@ import {QueriesState} from 'src/shared/components/TimeSeries'
 
 interface StateProps {
   timeRange: TimeRange
+  isViewingRawData: boolean
 }
 
 interface DispatchProps {
   onSetTimeRange: (timeRange: TimeRange) => void
+  onSetIsViewingRawData: typeof setIsViewingRawData
 }
 
 interface OwnProps {
@@ -35,6 +41,7 @@ class TimeMachineControls extends PureComponent<Props> {
     const {
       timeRange,
       onSetTimeRange,
+      isViewingRawData,
       queriesState: {files},
     } = this.props
 
@@ -42,6 +49,14 @@ class TimeMachineControls extends PureComponent<Props> {
       <div className="time-machine-controls">
         <div className="time-machine-controls--lhs" />
         <div className="time-machine-controls--rhs">
+          <label>
+            <SlideToggle
+              active={isViewingRawData}
+              onChange={this.handleToggleIsViewingRawData}
+              size={ComponentSize.ExtraSmall}
+            />
+            View Raw Data
+          </label>
           <CSVExportButton files={files} />
           <TimeRangeDropdown
             timeRange={timeRange}
@@ -51,16 +66,23 @@ class TimeMachineControls extends PureComponent<Props> {
       </div>
     )
   }
+
+  private handleToggleIsViewingRawData = () => {
+    const {isViewingRawData, onSetIsViewingRawData} = this.props
+
+    onSetIsViewingRawData(!isViewingRawData)
+  }
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {timeRange} = getActiveTimeMachine(state)
+  const {timeRange, isViewingRawData} = getActiveTimeMachine(state)
 
-  return {timeRange}
+  return {timeRange, isViewingRawData}
 }
 
 const mdtp: DispatchProps = {
   onSetTimeRange: setTimeRange,
+  onSetIsViewingRawData: setIsViewingRawData,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

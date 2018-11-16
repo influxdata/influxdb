@@ -339,7 +339,7 @@ class DashboardPage extends Component<Props, State> {
     // })
   }
 
-  private setScrollTop = (e: MouseEvent<JSX.Element>): void => {
+  private setScrollTop = (e: MouseEvent<HTMLElement>): void => {
     const target = e.target as HTMLElement
 
     this.setState({scrollTop: target.scrollTop})
