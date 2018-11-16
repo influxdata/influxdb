@@ -3,7 +3,6 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 
 // Types
 import {SetupParams} from 'src/onboarding/apis'
-import {DataSource} from 'src/types/v2/dataSources'
 
 export type Action =
   | SetSetupParams
@@ -11,8 +10,6 @@ export type Action =
   | DecrementCurrentStepIndex
   | SetCurrentStepIndex
   | SetStepStatus
-  | AddDataSource
-  | RemoveDataSource
 
 interface SetSetupParams {
   type: 'SET_SETUP_PARAMS'
@@ -64,24 +61,4 @@ export const setStepStatus = (
     index,
     status,
   },
-})
-
-interface AddDataSource {
-  type: 'ADD_DATA_SOURCE'
-  payload: {dataSource: DataSource}
-}
-
-export const addDataSource = (dataSource: DataSource): AddDataSource => ({
-  type: 'ADD_DATA_SOURCE',
-  payload: {dataSource},
-})
-
-interface RemoveDataSource {
-  type: 'REMOVE_DATA_SOURCE'
-  payload: {dataSource: string}
-}
-
-export const removeDataSource = (dataSource: string): RemoveDataSource => ({
-  type: 'REMOVE_DATA_SOURCE',
-  payload: {dataSource},
 })
