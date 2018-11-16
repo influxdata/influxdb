@@ -9,24 +9,39 @@ import {
   ComponentSize,
   ComponentStatus,
 } from 'src/clockface'
-import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
-import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
+import DataSourceSelector from 'src/onboarding/components/DataSourceSelector'
+import StreamingDataSourceSelector from 'src/onboarding/components/StreamingDataSourcesSelector'
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {DataSource, ConfigurationState} from 'src/types/v2/dataSources'
-
-const DATA_SOURCE_OPTIONS = ['System', 'CSV Data', 'Line Protocol', 'Redis']
 
 export interface Props extends OnboardingStepProps {
   bucket: string
   dataSources: DataSource[]
   onAddDataSource: (dataSource: DataSource) => void
   onRemoveDataSource: (dataSource: string) => void
+  onSetDataSources: (dataSources: DataSource[]) => void
+}
+
+export enum StreamingOptions {
+  NotSelected = 'not selected',
+  Selected = 'selected',
+  Show = 'show',
+}
+
+interface State {
+  streaming: StreamingOptions
 }
 
 @ErrorHandling
-class SelectDataSourceStep extends PureComponent<Props> {
+class SelectDataSourceStep extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {streaming: StreamingOptions.NotSelected}
+  }
+
   public render() {
     return (
       <div className="onboarding-step">
@@ -34,32 +49,19 @@ class SelectDataSourceStep extends PureComponent<Props> {
         <h5 className="wizard-step--sub-title">
           You can configure additional Data Sources later
         </h5>
-        <GridSizer>
-          {DATA_SOURCE_OPTIONS.map(ds => {
-            return (
-              <CardSelectCard
-                key={ds}
-                id={ds}
-                name={ds}
-                label={ds}
-                checked={this.isCardChecked(ds)}
-                onClick={this.toggleChecked(ds)}
-              />
-            )
-          })}
-        </GridSizer>
+        {this.selector}
         <div className="wizard-button-bar">
           <Button
             color={ComponentColor.Default}
             text="Back"
             size={ComponentSize.Medium}
-            onClick={this.props.onDecrementCurrentStepIndex}
+            onClick={this.handleClickBack}
           />
           <Button
             color={ComponentColor.Primary}
             text="Next"
             size={ComponentSize.Medium}
-            onClick={this.props.onIncrementCurrentStepIndex}
+            onClick={this.handleClickNext}
             status={ComponentStatus.Default}
             titleText={'Next'}
           />
@@ -74,25 +76,79 @@ class SelectDataSourceStep extends PureComponent<Props> {
     return `Select Data Source for Bucket ${bucket || ''}`
   }
 
-  private isCardChecked(dataSource: string) {
-    const {dataSources} = this.props
-
-    if (dataSources.find(ds => ds.name === dataSource)) {
-      return true
+  private get selector(): JSX.Element {
+    if (this.state.streaming === StreamingOptions.Show) {
+      return (
+        <StreamingDataSourceSelector
+          dataSources={this.props.dataSources}
+          onToggleDataSource={this.handleToggleDataSource}
+        />
+      )
     }
-    return false
+    return (
+      <DataSourceSelector
+        dataSources={this.props.dataSources}
+        onSelectDataSource={this.handleSelectDataSource}
+        streaming={this.state.streaming}
+      />
+    )
   }
 
-  private toggleChecked = (dataSource: string) => () => {
-    if (this.isCardChecked(dataSource)) {
+  private handleClickNext = () => {
+    if (this.state.streaming === StreamingOptions.Selected) {
+      this.setState({streaming: StreamingOptions.Show})
+      return
+    }
+
+    this.props.onIncrementCurrentStepIndex()
+  }
+
+  private handleClickBack = () => {
+    if (this.state.streaming === StreamingOptions.Show) {
+      this.setState({streaming: StreamingOptions.NotSelected})
+      return
+    }
+
+    this.props.onDecrementCurrentStepIndex()
+  }
+
+  private handleSelectDataSource = (dataSource: string) => {
+    switch (dataSource) {
+      case 'Streaming':
+        this.setState({streaming: StreamingOptions.Selected})
+        this.props.onSetDataSources([])
+        break
+      default:
+        this.setState({streaming: StreamingOptions.NotSelected})
+        this.props.onSetDataSources([
+          {
+            name: dataSource,
+            configured: ConfigurationState.Unconfigured,
+            active: true,
+            configs: null,
+          },
+        ])
+        break
+    }
+  }
+
+  private handleToggleDataSource = (
+    dataSource: string,
+    isSelected: boolean
+  ) => {
+    const {dataSources} = this.props
+
+    if (isSelected) {
       this.props.onRemoveDataSource(dataSource)
 
       return
     }
 
+    const active = dataSources.length === 0
     this.props.onAddDataSource({
       name: dataSource,
       configured: ConfigurationState.Unconfigured,
+      active,
       configs: null,
     })
   }

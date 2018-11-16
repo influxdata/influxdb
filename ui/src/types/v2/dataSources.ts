@@ -10,5 +10,6 @@ export enum ConfigurationState {
 export interface DataSource {
   name: string
   configured: ConfigurationState
+  active: boolean
   configs: any
 }

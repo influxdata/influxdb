@@ -22,9 +22,12 @@ import {
   decrementCurrentStepIndex,
   setCurrentStepIndex,
   setStepStatus,
+} from 'src/onboarding/actions/steps'
+import {
   addDataSource,
   removeDataSource,
-} from 'src/onboarding/actions'
+  setDataSources,
+} from 'src/onboarding/actions/dataSources'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
@@ -67,6 +70,7 @@ interface DispatchProps {
   onSetStepStatus: typeof setStepStatus
   onAddDataSource: typeof addDataSource
   onRemoveDataSource: typeof removeDataSource
+  onSetDataSources: typeof setDataSources
 }
 
 interface StateProps {
@@ -85,11 +89,11 @@ class OnboardingWizard extends PureComponent<Props> {
     'Welcome',
     'Admin Setup',
     'Select Data Sources',
-    'Next Step',
+    'Configure Data Sources',
     'Complete',
   ]
 
-  public stepSkippable = [false, false, false, true, false]
+  public stepSkippable = [false, false, false, false, false]
 
   constructor(props: Props) {
     super(props)
@@ -104,6 +108,7 @@ class OnboardingWizard extends PureComponent<Props> {
       dataSources,
       onRemoveDataSource,
       onAddDataSource,
+      onSetDataSources,
       setupParams,
     } = this.props
     const currentStepTitle = this.stepTitles[currentStepIndex]
@@ -119,6 +124,7 @@ class OnboardingWizard extends PureComponent<Props> {
             dataSources={dataSources}
             onAddDataSource={onAddDataSource}
             onRemoveDataSource={onRemoveDataSource}
+            onSetDataSources={onSetDataSources}
           />
         </div>
       </WizardFullScreen>
@@ -197,7 +203,10 @@ class OnboardingWizard extends PureComponent<Props> {
 
 const mstp = ({
   links,
-  onboarding: {currentStepIndex, stepStatuses, setupParams, dataSources},
+  onboarding: {
+    steps: {currentStepIndex, stepStatuses, setupParams},
+    dataSources,
+  },
 }: AppState): StateProps => ({
   links,
   currentStepIndex,
@@ -215,6 +224,7 @@ const mdtp: DispatchProps = {
   onSetStepStatus: setStepStatus,
   onAddDataSource: addDataSource,
   onRemoveDataSource: removeDataSource,
+  onSetDataSources: setDataSources,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
