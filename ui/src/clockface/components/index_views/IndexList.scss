@@ -91,6 +91,13 @@
   background-color: rgba($g3-castle, 0.5);
   color: $g9-mountain;
   font-style: italic;
+
+  a:link,
+  a:visited,
+  a:hover,
+  a:active {
+    opacity: 0.7;
+  }
 }
 
 // Row Disabled Hover State 
