@@ -63,7 +63,7 @@ class TimeMachine extends PureComponent<Props> {
 
             return (
               <>
-                <TimeMachineControls />
+                <TimeMachineControls queriesState={queriesState} />
                 <div className="time-machine-container">
                   <Threesizer
                     orientation={HANDLE_HORIZONTAL}

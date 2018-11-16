@@ -18,6 +18,7 @@ export const DEFAULT_TIME_SERIES = [{response: {results: []}}]
 
 export interface QueriesState {
   tables: FluxTable[]
+  files: string[] | null
   loading: RemoteDataState
   error: Error | null
   isInitialFetch: boolean
@@ -33,6 +34,7 @@ interface Props {
 interface State {
   loading: RemoteDataState
   tables: FluxTable[]
+  files: string[] | null
   error: Error | null
   fetchCount: number
 }
@@ -40,6 +42,7 @@ interface State {
 const defaultState = (): State => ({
   loading: RemoteDataState.NotStarted,
   tables: [],
+  files: null,
   fetchCount: 0,
   error: null,
 })
@@ -70,10 +73,11 @@ class TimeSeries extends Component<Props, State> {
   }
 
   public render() {
-    const {tables, loading, error, fetchCount} = this.state
+    const {tables, files, loading, error, fetchCount} = this.state
 
     return this.props.children({
       tables,
+      files,
       loading,
       error,
       isInitialFetch: fetchCount === 1,
@@ -101,9 +105,11 @@ class TimeSeries extends Component<Props, State> {
     try {
       const results = await this.executeQueries(link, queries)
       const tables = flatten(results.map(r => parseResponse(r.csv)))
+      const files = results.map(r => r.csv)
 
       this.setState({
         tables,
+        files,
         loading: RemoteDataState.Done,
       })
     } catch (error) {

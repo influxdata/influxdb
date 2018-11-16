@@ -3,4 +3,13 @@
   display: flex;
   padding: 25px;
   justify-content: space-between;
+
+}
+
+.time-machine-controls--rhs {
+  display: flex;
+
+  button {
+    margin-right: 5px;
+  }
 }
