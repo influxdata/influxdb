@@ -30,7 +30,8 @@ func (c *Client) setUserOnAuthorization(ctx context.Context, tx *bolt.Tx, a *pla
 	u, err := c.findUserByID(ctx, tx, a.UserID)
 	if err != nil {
 		return &platform.Error{
-			Err: err,
+			Code: platform.ENotFound,
+			Err:  err,
 		}
 	}
 	a.User = u.Name
@@ -45,7 +46,7 @@ func (c *Client) FindAuthorizationByID(ctx context.Context, id platform.ID) (*pl
 		var pe *platform.Error
 		a, pe = c.findAuthorizationByID(ctx, tx, id)
 		if pe != nil {
-			pe.Op = OpPrefix + platform.OpFindAuthorizationByID
+			pe.Op = getOp(platform.OpFindAuthorizationByID)
 			err = pe
 		}
 		return err
@@ -58,7 +59,8 @@ func (c *Client) findAuthorizationByID(ctx context.Context, tx *bolt.Tx, id plat
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, &platform.Error{
-			Err: err,
+			Code: platform.EInvalid,
+			Err:  err,
 		}
 	}
 
@@ -74,7 +76,8 @@ func (c *Client) findAuthorizationByID(ctx context.Context, tx *bolt.Tx, id plat
 
 	if err := decodeAuthorization(v, &a); err != nil {
 		return nil, &platform.Error{
-			Err: err,
+			Code: platform.EInvalid,
+			Err:  err,
 		}
 	}
 
@@ -93,7 +96,7 @@ func (c *Client) FindAuthorizationByToken(ctx context.Context, n string) (*platf
 		var pe *platform.Error
 		a, pe = c.findAuthorizationByToken(ctx, tx, n)
 		if pe != nil {
-			pe.Op = OpPrefix + platform.OpFindAuthorizationByToken
+			pe.Op = getOp(platform.OpFindAuthorizationByToken)
 			err = pe
 		}
 		return err
@@ -113,7 +116,8 @@ func (c *Client) findAuthorizationByToken(ctx context.Context, tx *bolt.Tx, n st
 	var id platform.ID
 	if err := id.Decode(a); err != nil {
 		return nil, &platform.Error{
-			Err: err,
+			Code: platform.EInvalid,
+			Err:  err,
 		}
 	}
 	return c.findAuthorizationByID(ctx, tx, id)
@@ -207,7 +211,7 @@ func (c *Client) findAuthorizations(ctx context.Context, tx *bolt.Tx, f platform
 
 // CreateAuthorization creates a platform authorization and sets b.ID, and b.UserID if not provided.
 func (c *Client) CreateAuthorization(ctx context.Context, a *platform.Authorization) error {
-	op := OpPrefix + platform.OpCreateAuthorization
+	op := getOp(platform.OpCreateAuthorization)
 	return c.db.Update(func(tx *bolt.Tx) error {
 		if !a.UserID.Valid() {
 			u, err := c.findUserByName(ctx, tx, a.User)
@@ -277,20 +281,23 @@ func (c *Client) putAuthorization(ctx context.Context, tx *bolt.Tx, a *platform.
 	v, err := encodeAuthorization(a)
 	if err != nil {
 		return &platform.Error{
-			Err: err,
+			Code: platform.EInvalid,
+			Err:  err,
 		}
 	}
 
 	encodedID, err := a.ID.Encode()
 	if err != nil {
 		return &platform.Error{
-			Err: err,
+			Code: platform.ENotFound,
+			Err:  err,
 		}
 	}
 
 	if err := tx.Bucket(authorizationIndex).Put(authorizationIndexKey(a.Token), encodedID); err != nil {
 		return &platform.Error{
-			Err: err,
+			Code: platform.EInternal,
+			Err:  err,
 		}
 	}
 	if err := tx.Bucket(authorizationBucket).Put(encodedID, v); err != nil {
@@ -345,7 +352,7 @@ func (c *Client) DeleteAuthorization(ctx context.Context, id platform.ID) error 
 	err := c.db.Update(func(tx *bolt.Tx) (err error) {
 		pe := c.deleteAuthorization(ctx, tx, id)
 		if pe != nil {
-			pe.Op = OpPrefix + platform.OpDeleteAuthorization
+			pe.Op = getOp(platform.OpDeleteAuthorization)
 			err = pe
 		}
 		return err
@@ -396,7 +403,8 @@ func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platfo
 	b, err := encodeAuthorization(a)
 	if err != nil {
 		return &platform.Error{
-			Err: err,
+			Code: platform.EInvalid,
+			Err:  err,
 		}
 	}
 

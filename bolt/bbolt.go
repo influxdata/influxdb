@@ -28,6 +28,10 @@ const (
 // OpPrefix is the prefix for bolt ops
 const OpPrefix = "bolt/"
 
+func getOp(op string) string {
+	return OpPrefix + op
+}
+
 // Client is a client for the boltDB data store.
 type Client struct {
 	Path   string
