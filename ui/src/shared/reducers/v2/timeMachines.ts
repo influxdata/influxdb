@@ -1,5 +1,5 @@
 // Libraries
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Utils
 import {convertView, createView, replaceQuery} from 'src/shared/utils/view'
@@ -12,7 +12,7 @@ import {
 
 // Types
 import {TimeRange} from 'src/types/v2'
-import {NewView, RefreshingViewProperties} from 'src/types/v2/dashboards'
+import {NewView} from 'src/types/v2/dashboards'
 import {Action} from 'src/shared/actions/v2/timeMachines'
 
 export interface TimeMachineState {
@@ -83,6 +83,31 @@ const timeMachinesReducer = (
   }
 }
 
+const setViewProperties = (
+  state: TimeMachineState,
+  update: {[key: string]: any}
+): TimeMachineState => {
+  const view: any = state.view
+  const properties = view.properties
+
+  return {...state, view: {...view, properties: {...properties, ...update}}}
+}
+
+const setYAxis = (state: TimeMachineState, update: {[key: string]: any}) => {
+  const view: any = state.view
+  const properties = view.properties
+  const axes = get(properties, 'axes', {})
+  const yAxis = get(axes, 'y', {})
+
+  return {
+    ...state,
+    view: {
+      ...view,
+      properties: {...properties, axes: {...axes, y: {...yAxis, ...update}}},
+    },
+  }
+}
+
 const timeMachineReducer = (
   state: TimeMachineState,
   action: Action
@@ -122,153 +147,79 @@ const timeMachineReducer = (
         view: replaceQuery(view, draftScript),
       }
     }
+
     case 'SET_AXES': {
       const {axes} = action.payload
-      const {view} = state
 
-      return {
-        ...state,
-        view: {...view, properties: {...properties, axes}},
-      }
+      return setViewProperties(state, {axes})
     }
 
     case 'SET_Y_AXIS_LABEL': {
       const {label} = action.payload
-      const {
-        view,
-        view: {properties},
-      } = state
 
-      const axes = _.get(properties, 'axes')
-      const yAxis = {..._.get(axes, 'y'), label}
-
-      return {
-        ...state,
-        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
-      }
+      return setYAxis(state, {label})
     }
 
     case 'SET_Y_AXIS_MIN_BOUND': {
       const {min} = action.payload
-      const {
-        view,
-        view: {properties},
-      } = state
 
-      const axes = _.get(properties, 'axes')
-      const yAxis = _.get(axes, 'y')
-      yAxis.bounds[0] = min
+      const bounds = [...get(state, 'view.properties.axes.y.bounds', [])]
 
-      return {
-        ...state,
-        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
-      }
+      bounds[0] = min
+
+      return setYAxis(state, {bounds})
     }
 
     case 'SET_Y_AXIS_MAX_BOUND': {
       const {max} = action.payload
-      const {
-        view,
-        view: {properties},
-      } = state
 
-      const axes = _.get(properties, 'axes')
-      const yAxis = _.get(axes, 'y')
-      yAxis.bounds[1] = max
+      const bounds = [...get(state, 'view.properties.axes.y.bounds', [])]
 
-      return {
-        ...state,
-        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
-      }
+      bounds[1] = max
+
+      return setYAxis(state, {bounds})
     }
 
     case 'SET_Y_AXIS_PREFIX': {
       const {prefix} = action.payload
-      const {
-        view,
-        view: {properties},
-      } = state
 
-      const axes = _.get(properties, 'axes')
-      const yAxis = {..._.get(axes, 'y'), prefix}
-
-      return {
-        ...state,
-        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
-      }
+      return setYAxis(state, {prefix})
     }
 
     case 'SET_Y_AXIS_SUFFIX': {
       const {suffix} = action.payload
-      const {
-        view,
-        view: {properties},
-      } = state
 
-      const axes = _.get(properties, 'axes')
-      const yAxis = {..._.get(axes, 'y'), suffix}
-
-      return {
-        ...state,
-        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
-      }
+      return setYAxis(state, {suffix})
     }
 
     case 'SET_Y_AXIS_BASE': {
       const {base} = action.payload
-      const {
-        view,
-        view: {properties},
-      } = state
 
-      const axes = _.get(properties, 'axes')
-      const yAxis = {..._.get(axes, 'y'), base}
-
-      return {
-        ...state,
-        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
-      }
+      return setYAxis(state, {base})
     }
 
     case 'SET_Y_AXIS_SCALE': {
       const {scale} = action.payload
-      const {
-        view,
-        view: {properties},
-      } = state
 
-      const axes = _.get(properties, 'axes')
-      const yAxis = {..._.get(axes, 'y'), scale}
-
-      return {
-        ...state,
-        view: {...view, properties: {...properties, axes: {...axes, y: yAxis}}},
-      }
+      return setYAxis(state, {scale})
     }
 
     case 'SET_COLORS': {
       const {colors} = action.payload
-      const {
-        view,
-        view: {properties},
-      } = state
 
-      return {
-        ...state,
-        view: {...view, properties: {...properties, colors}},
-      }
+      return setViewProperties(state, {colors})
     }
 
     case 'SET_DECIMAL_PLACES': {
       const {decimalPlaces} = action.payload
 
-      return {...state, decimalPlaces}
+      return setViewProperties(state, {decimalPlaces})
     }
 
     case 'SET_STATIC_LEGEND': {
       const {staticLegend} = action.payload
 
-      return {...state, staticLegend}
+      return setViewProperties(state, {staticLegend})
     }
   }
 
