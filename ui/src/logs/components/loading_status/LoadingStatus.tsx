@@ -8,7 +8,7 @@ import {
 } from 'src/clockface'
 
 import {SearchStatus} from 'src/types/logs'
-import {formatTime} from 'src/logs/utils'
+import {formatTime} from 'src/logs/utils/v2'
 
 interface Props {
   status: SearchStatus

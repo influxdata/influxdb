@@ -16,7 +16,7 @@ export const formatTime = (time: number): string => {
   return moment(time).format(DEFAULT_TIME_FORMAT)
 }
 
-export const transformFluxLogsResponse = (
+export const fluxToTableData = (
   tables: FluxTable[],
   columnNames: string[]
 ): TableData => {

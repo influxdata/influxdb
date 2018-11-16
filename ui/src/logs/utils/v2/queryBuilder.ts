@@ -1,88 +1,17 @@
-// Libraries
-import uuid from 'uuid'
-
 // Types
-import {Bucket} from 'src/types/v2/buckets'
-import {QueryConfig, Field} from 'src/types'
-import {Filter} from 'src/types/logs'
+import {Field} from 'src/types'
+import {Filter, LogSearchParams} from 'src/types/logs'
 
-const defaultQueryConfig = {
-  areTagsAccepted: false,
-  fill: '0',
-  measurement: 'syslog',
-  rawText: null,
-  shifts: [],
-  tags: {},
-}
-
-const tableFields = [
-  {
-    alias: 'time',
-    type: 'field',
-    value: '_time',
-  },
-  {
-    alias: 'severity',
-    type: 'field',
-    value: 'severity',
-  },
-  {
-    alias: 'timestamp',
-    type: 'field',
-    value: 'timestamp',
-  },
-  {
-    alias: 'message',
-    type: 'field',
-    value: 'message',
-  },
-  {
-    alias: 'facility',
-    type: 'field',
-    value: 'facility',
-  },
-  {
-    alias: 'procid',
-    type: 'field',
-    value: 'procid',
-  },
-  {
-    alias: 'appname',
-    type: 'field',
-    value: 'appname',
-  },
-  {
-    alias: 'host',
-    type: 'field',
-    value: 'host',
-  },
-]
-
-export const buildTableQueryConfig = (bucket: Bucket): QueryConfig => {
-  const id = uuid.v4()
-  const {name, rp} = bucket
-
-  return {
-    ...defaultQueryConfig,
-    id,
-    database: name,
-    retentionPolicy: rp,
-    groupBy: {tags: []},
-    fields: tableFields,
-    fill: null,
-  }
-}
-
-const PIPE = '\n  |> '
+const PIPE = ' |> '
 const ROW_NAME = 'r'
 const SORT_FUNC = ['sort(columns: ["_time"])']
 
-export function buildInfiniteScrollLogQuery(
-  lower: string,
-  upper: string,
-  config: QueryConfig,
-  filters: Filter[]
-) {
+export function buildFluxQuery({
+  lower,
+  upper,
+  config,
+  filters,
+}: LogSearchParams) {
   const {database, retentionPolicy, fields, measurement} = config
   const bucketName = `"${database}/${retentionPolicy}"`
 

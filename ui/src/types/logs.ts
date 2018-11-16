@@ -5,6 +5,13 @@ import {QueryConfig} from 'src/types'
 
 import {FieldOption, TimeSeriesValue} from 'src/types/v2/dashboards'
 
+export interface LogSearchParams {
+  lower: string
+  upper: string
+  config: QueryConfig
+  filters: Filter[]
+}
+
 export enum SearchStatus {
   None = 'None',
   Loading = 'Loading',

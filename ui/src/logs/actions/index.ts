@@ -2,11 +2,7 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 import {serverToUIConfig, uiToServerConfig} from 'src/logs/utils/config'
-import {
-  buildInfiniteScrollLogQuery,
-  buildTableQueryConfig,
-} from 'src/logs/utils/queryBuilder'
-import {transformFluxLogsResponse} from 'src/logs/utils'
+import {getTableData, buildTableQueryConfig} from 'src/logs/utils/logQuery'
 
 // APIs
 import {
@@ -438,25 +434,13 @@ export const fetchTailAsync = () => async (
     const upperUTC = Date.parse(upper)
     dispatch(setCurrentTailUpperBound(upperUTC))
 
-    const query = buildInfiniteScrollLogQuery(
+    const logSeries = await getTableData(executeQueryAsync, {
       lower,
       upper,
-      tableQueryConfig,
-      filters
-    )
-    const {
-      links: {query: queryLink},
-    } = currentSource
-    const response = await executeQueryAsync(queryLink, query)
-
-    if (response.status !== SearchStatus.Loaded) {
-      return
-    }
-    const columnNames: string[] = tableQueryConfig.fields.map(f => f.alias)
-    const logSeries: TableData = transformFluxLogsResponse(
-      response.tables,
-      columnNames
-    )
+      filters,
+      source: currentSource,
+      config: tableQueryConfig,
+    })
 
     const currentForwardBufferDuration = upperUTC - tailLowerBound
     const maxTailBufferDurationMs = getMaxTailBufferDurationMs(state)

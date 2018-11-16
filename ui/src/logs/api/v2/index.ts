@@ -14,7 +14,8 @@ export interface QueryResponse {
 
 export const executeQueryAsync = async (
   link: string,
-  query: string
+  query: string,
+  type: InfluxLanguage = InfluxLanguage.Flux
 ): Promise<QueryResponse> => {
   try {
     const dialect = {
@@ -27,7 +28,7 @@ export const executeQueryAsync = async (
       method: 'POST',
       url: link,
       data: {
-        type: InfluxLanguage.Flux,
+        type,
         query,
         dialect,
       },

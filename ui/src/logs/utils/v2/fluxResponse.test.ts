@@ -1,7 +1,7 @@
-import {transformFluxLogsResponse} from 'src/logs/utils'
+import {fluxToTableData} from 'src/logs/utils/v2'
 import {fluxResponse} from 'src/logs/utils/fixtures/fluxResponse'
 
-describe('Logs.transformFluxLogsResponse', () => {
+describe('Logs.fluxToTableData', () => {
   const {tables: fluxResponseTables} = fluxResponse
 
   it('can transform a Flux server response to a TableData shape', () => {
@@ -15,10 +15,7 @@ describe('Logs.transformFluxLogsResponse', () => {
       'timestamp',
     ]
 
-    const actual = transformFluxLogsResponse(
-      fluxResponseTables,
-      columnNamesToExtract
-    )
+    const actual = fluxToTableData(fluxResponseTables, columnNamesToExtract)
     const expected = {
       columns: [
         'appname',
@@ -91,10 +88,7 @@ describe('Logs.transformFluxLogsResponse', () => {
       'timestamp',
     ]
 
-    const actual = transformFluxLogsResponse(
-      fluxResponseTables,
-      columnNamesToExtract
-    )
+    const actual = fluxToTableData(fluxResponseTables, columnNamesToExtract)
     const expected = {
       columns: [
         'facility',
@@ -154,10 +148,7 @@ describe('Logs.transformFluxLogsResponse', () => {
   it('can extract in the specified column ordering', () => {
     const columnNamesToExtract = ['host', 'facility']
 
-    const actual = transformFluxLogsResponse(
-      fluxResponseTables,
-      columnNamesToExtract
-    )
+    const actual = fluxToTableData(fluxResponseTables, columnNamesToExtract)
     const expected = {
       columns: ['host', 'facility'],
       values: [
