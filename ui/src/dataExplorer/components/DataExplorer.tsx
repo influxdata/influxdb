@@ -11,6 +11,7 @@ import {setActiveTimeMachine} from 'src/shared/actions/v2/timeMachines'
 // Utils
 import {DE_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
+import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 
 interface StateProps {}
 
@@ -39,7 +40,9 @@ class DataExplorer extends PureComponent<Props, State> {
     return (
       <div className="data-explorer">
         <div className="time-machine-page">
-          <TimeMachine activeTab={activeTab} />
+          <HoverTimeProvider>
+            <TimeMachine activeTab={activeTab} />
+          </HoverTimeProvider>
         </div>
       </div>
     )
