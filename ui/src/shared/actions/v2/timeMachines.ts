@@ -2,10 +2,12 @@
 import {TimeMachineState} from 'src/shared/reducers/v2/timeMachines'
 import {TimeRange, ViewType} from 'src/types/v2'
 import {Axes, DecimalPlaces} from 'src/types/v2/dashboards'
+import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {Color} from 'src/types/colors'
 
 export type Action =
   | SetActiveTimeMachineAction
+  | SetActiveTabAction
   | SetNameAction
   | SetTimeRangeAction
   | SetTypeAction
@@ -38,6 +40,18 @@ export const setActiveTimeMachine = (
 ): SetActiveTimeMachineAction => ({
   type: 'SET_ACTIVE_TIME_MACHINE',
   payload: {activeTimeMachineID, initialState},
+})
+
+interface SetActiveTabAction {
+  type: 'SET_ACTIVE_TAB'
+  payload: {activeTab: TimeMachineTab}
+}
+
+export const setActiveTab = (
+  activeTab: TimeMachineTab
+): SetActiveTabAction => ({
+  type: 'SET_ACTIVE_TAB',
+  payload: {activeTab},
 })
 
 interface SetNameAction {

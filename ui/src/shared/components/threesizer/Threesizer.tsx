@@ -37,7 +37,7 @@ interface DivisionProps {
   style?: CSSProperties
   size?: number
   headerButtons?: JSX.Element[]
-  menuOptions: MenuItem[]
+  menuOptions?: MenuItem[]
   render: (visibility: string, pixels: number) => ReactElement<any>
 }
 

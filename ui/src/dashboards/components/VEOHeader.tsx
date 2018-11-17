@@ -13,28 +13,16 @@ import {
 } from 'src/clockface'
 import {Page} from 'src/pageLayout'
 
-// Types
-import {TimeMachineTab} from 'src/types/v2/timeMachine'
-
 interface Props {
   name: string
   onSetName: (name: string) => void
-  activeTab: TimeMachineTab
-  onSetActiveTab: (activeTab: TimeMachineTab) => void
   onCancel: () => void
   onSave: () => void
 }
 
 class VEOHeader extends PureComponent<Props> {
   public render() {
-    const {
-      name,
-      onSetName,
-      activeTab,
-      onSetActiveTab,
-      onCancel,
-      onSave,
-    } = this.props
+    const {name, onSetName, onCancel, onSave} = this.props
 
     return (
       <div className="veo-header">
@@ -43,10 +31,7 @@ class VEOHeader extends PureComponent<Props> {
             <VEOHeaderName name={name} onRename={onSetName} />
           </Page.Header.Left>
           <Page.Header.Center>
-            <TimeMachineTabs
-              activeTab={activeTab}
-              onSetActiveTab={onSetActiveTab}
-            />
+            <TimeMachineTabs />
           </Page.Header.Center>
           <Page.Header.Right>
             <Button

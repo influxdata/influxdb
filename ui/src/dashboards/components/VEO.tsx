@@ -20,7 +20,6 @@ import {VEO_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
 // Types
 import {Source, AppState} from 'src/types/v2'
 import {NewView, View} from 'src/types/v2/dashboards'
-import {TimeMachineTab} from 'src/types/v2/timeMachine'
 
 interface StateProps {
   draftView: NewView
@@ -41,19 +40,7 @@ interface OwnProps {
 
 type Props = OwnProps & StateProps & DispatchProps
 
-interface State {
-  activeTab: TimeMachineTab
-}
-
-class VEO extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-
-    this.state = {
-      activeTab: TimeMachineTab.Queries,
-    }
-  }
-
+class VEO extends PureComponent<Props, {}> {
   public componentDidMount() {
     const {onSetActiveTimeMachine, view} = this.props
     const draftScript: string = get(view, 'properties.queries.0.text', '')
@@ -63,7 +50,6 @@ class VEO extends PureComponent<Props, State> {
 
   public render() {
     const {draftView, onSetName, onHide} = this.props
-    const {activeTab} = this.state
 
     return (
       <div className="veo">
@@ -71,18 +57,12 @@ class VEO extends PureComponent<Props, State> {
           key={draftView.name}
           name={draftView.name}
           onSetName={onSetName}
-          activeTab={activeTab}
-          onSetActiveTab={this.handleSetActiveTab}
           onCancel={onHide}
           onSave={this.handleSave}
         />
-        <TimeMachine activeTab={activeTab} />
+        <TimeMachine />
       </div>
     )
-  }
-
-  private handleSetActiveTab = (activeTab: TimeMachineTab): void => {
-    this.setState({activeTab})
   }
 
   private handleSave = (): void => {
