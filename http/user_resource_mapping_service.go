@@ -112,7 +112,7 @@ func decodePostMemberRequest(ctx context.Context, r *http.Request) (*postMemberR
 	}, nil
 }
 
-// newPostMemberHandler returns a handler func for a GET to /members or /owners endpoints
+// newGetMembersHandler returns a handler func for a GET to /members or /owners endpoints
 func newGetMembersHandler(s platform.UserResourceMappingService, userType platform.UserType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
