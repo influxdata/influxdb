@@ -476,7 +476,7 @@ func DeleteUser(
 				ID: MustIDBase16(userThreeID),
 			},
 			wants: wants{
-				err: fmt.Errorf("user not found"),
+				err: fmt.Errorf("<not found> user not found"),
 				users: []*platform.User{
 					{
 						Name: "orgA",
@@ -572,7 +572,7 @@ func FindUser(
 				name: "abc",
 			},
 			wants: wants{
-				err: fmt.Errorf("user not found"),
+				err: fmt.Errorf("<not found> user not found"),
 			},
 		},
 	}

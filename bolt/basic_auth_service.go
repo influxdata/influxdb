@@ -43,9 +43,9 @@ func (c *Client) ComparePassword(ctx context.Context, name string, password stri
 	})
 }
 func (c *Client) comparePassword(ctx context.Context, tx *bolt.Tx, name string, password string) error {
-	u, err := c.findUserByName(ctx, tx, name)
-	if err != nil {
-		return err
+	u, pe := c.findUserByName(ctx, tx, name)
+	if pe != nil {
+		return pe
 	}
 
 	encodedID, err := u.ID.Encode()

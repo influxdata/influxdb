@@ -64,8 +64,10 @@ func (c *Client) findUserByID(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 	v := tx.Bucket(userUser).Get(encodedID)
 
 	if len(v) == 0 {
-		// TODO: Make standard error
-		return nil, fmt.Errorf("user not found")
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "user not found",
+		}
 	}
 
 	if err := json.Unmarshal(v, &u); err != nil {
@@ -95,7 +97,10 @@ func (c *Client) findUserByName(ctx context.Context, tx *bolt.Tx, n string) (*pl
 	u := tx.Bucket(userIndex).Get(userIndexKey(n))
 	if u == nil {
 		// TODO: Make standard error
-		return nil, fmt.Errorf("user not found")
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "user not found",
+		}
 	}
 
 	var id platform.ID

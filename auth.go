@@ -45,6 +45,16 @@ func (a *Authorization) Kind() string { return "authorization" }
 // Identifier returns the authorizations ID and is used for auditing.
 func (a *Authorization) Identifier() ID { return a.ID }
 
+// auth service op
+const (
+	OpFindAuthorizationByID    = "FindAuthorizationByID"
+	OpFindAuthorizationByToken = "FindAuthorizationByToken"
+	OpFindAuthorizations       = "FindAuthorizations"
+	OpCreateAuthorization      = "CreateAuthorization"
+	OpSetAuthorizationStatus   = "SetAuthorizationStatus"
+	OpDeleteAuthorization      = "DeleteAuthorization"
+)
+
 // AuthorizationService represents a service for managing authorization data.
 type AuthorizationService interface {
 	// Returns a single authorization by ID.

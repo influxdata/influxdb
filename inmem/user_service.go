@@ -7,15 +7,21 @@ import (
 	"github.com/influxdata/platform"
 )
 
-func (s *Service) loadUser(id platform.ID) (*platform.User, error) {
+func (s *Service) loadUser(id platform.ID) (*platform.User, *platform.Error) {
 	i, ok := s.userKV.Load(id.String())
 	if !ok {
-		return nil, fmt.Errorf("user not found")
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "user not found",
+		}
 	}
 
 	b, ok := i.(*platform.User)
 	if !ok {
-		return nil, fmt.Errorf("type %T is not a user", i)
+		return nil, &platform.Error{
+			Code: platform.EInternal,
+			Msg:  fmt.Sprintf("type %T is not a user", i),
+		}
 	}
 	return b, nil
 }
@@ -36,8 +42,13 @@ func (s *Service) forEachUser(ctx context.Context, fn func(b *platform.User) boo
 }
 
 // FindUserByID returns a single user by ID.
-func (s *Service) FindUserByID(ctx context.Context, id platform.ID) (*platform.User, error) {
-	return s.loadUser(id)
+func (s *Service) FindUserByID(ctx context.Context, id platform.ID) (u *platform.User, err error) {
+	var pe *platform.Error
+	u, pe = s.loadUser(id)
+	if pe != nil {
+		err = pe
+	}
+	return u, err
 }
 
 func (c *Service) findUserByName(ctx context.Context, n string) (*platform.User, error) {
@@ -62,7 +73,10 @@ func (s *Service) FindUser(ctx context.Context, filter platform.UserFilter) (*pl
 		}
 
 		if o == nil {
-			return nil, fmt.Errorf("user not found")
+			return nil, &platform.Error{
+				Code: platform.ENotFound,
+				Msg:  "user not found",
+			}
 		}
 
 		return o, nil

@@ -3,7 +3,6 @@ package testing
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 
@@ -42,11 +41,11 @@ type AuthorizationFields struct {
 
 // AuthorizationService tests all the service functions.
 func AuthorizationService(
-	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, func()), t *testing.T,
+	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()), t *testing.T,
 ) {
 	tests := []struct {
 		name string
-		fn   func(init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, func()),
+		fn   func(init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
 			t *testing.T)
 	}{
 		{
@@ -79,7 +78,7 @@ func AuthorizationService(
 
 // CreateAuthorization testing
 func CreateAuthorization(
-	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, func()),
+	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -274,13 +273,15 @@ func CreateAuthorization(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.CreateAuthorization(ctx, tt.args.authorization)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
+
+			diffPlatformErrors(tt.name, tt.wants.err, err, opPrefix, t)
 
 			if err != nil && tt.wants.err != nil {
 				if err.Error() != tt.wants.err.Error() {
@@ -304,7 +305,7 @@ func CreateAuthorization(
 
 // FindAuthorizationByID testing
 func FindAuthorizationByID(
-	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, func()),
+	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -374,20 +375,12 @@ func FindAuthorizationByID(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
 			authorization, err := s.FindAuthorizationByID(ctx, tt.args.id)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(authorization, tt.wants.authorization, authorizationCmpOptions...); diff != "" {
 				t.Errorf("authorization is different -got/+want\ndiff %s", diff)
@@ -398,7 +391,7 @@ func FindAuthorizationByID(
 
 // FindAuthorizationByToken testing
 func FindAuthorizationByToken(
-	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, func()),
+	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -488,20 +481,12 @@ func FindAuthorizationByToken(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
 			authorization, err := s.FindAuthorizationByToken(ctx, tt.args.token)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(authorization, tt.wants.authorization, authorizationCmpOptions...); diff != "" {
 				t.Errorf("authorization is different -got/+want\ndiff %s", diff)
@@ -512,7 +497,7 @@ func FindAuthorizationByToken(
 
 // FindAuthorizations testing
 func FindAuthorizations(
-	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, func()),
+	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -733,7 +718,7 @@ func FindAuthorizations(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
@@ -749,16 +734,7 @@ func FindAuthorizations(
 			}
 
 			authorizations, _, err := s.FindAuthorizations(ctx, filter)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
-
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 			if diff := cmp.Diff(authorizations, tt.wants.authorizations, authorizationCmpOptions...); diff != "" {
 				t.Errorf("authorizations are different -got/+want\ndiff %s", diff)
 			}
@@ -768,7 +744,7 @@ func FindAuthorizations(
 
 // DeleteAuthorization testing
 func DeleteAuthorization(
-	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, func()),
+	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -873,7 +849,11 @@ func DeleteAuthorization(
 				ID: MustIDBase16(authThreeID),
 			},
 			wants: wants{
-				err: fmt.Errorf("authorization not found"),
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Msg:  "authorization not found",
+					Op:   platform.OpDeleteAuthorization,
+				},
 				authorizations: []*platform.Authorization{
 					{
 						ID:     MustIDBase16(authOneID),
@@ -903,19 +883,11 @@ func DeleteAuthorization(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.DeleteAuthorization(ctx, tt.args.ID)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			filter := platform.AuthorizationFilter{}
 			authorizations, _, err := s.FindAuthorizations(ctx, filter)
