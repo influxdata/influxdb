@@ -54,11 +54,11 @@ func NewBucketHandler(mappingService platform.UserResourceMappingService, labelS
 	h.HandlerFunc("DELETE", bucketsIDPath, h.handleDeleteBucket)
 
 	h.HandlerFunc("POST", bucketsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.BucketResourceType, platform.Member))
-	h.HandlerFunc("GET", bucketsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.Member))
+	h.HandlerFunc("GET", bucketsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.BucketResourceType, platform.Member))
 	h.HandlerFunc("DELETE", bucketsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
 	h.HandlerFunc("POST", bucketsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.BucketResourceType, platform.Owner))
-	h.HandlerFunc("GET", bucketsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.Owner))
+	h.HandlerFunc("GET", bucketsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.BucketResourceType, platform.Owner))
 	h.HandlerFunc("DELETE", bucketsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(h.LabelService))

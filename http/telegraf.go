@@ -58,11 +58,11 @@ func NewTelegrafHandler(
 	h.HandlerFunc("PUT", telegrafsIDPath, h.handlePutTelegraf)
 
 	h.HandlerFunc("POST", telegrafsIDMembersIDPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Member))
-	h.HandlerFunc("GET", telegrafsIDMembersIDPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.Member))
+	h.HandlerFunc("GET", telegrafsIDMembersIDPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Member))
 	h.HandlerFunc("DELETE", telegrafsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
 	h.HandlerFunc("POST", telegrafsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Owner))
-	h.HandlerFunc("GET", telegrafsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.Owner))
+	h.HandlerFunc("GET", telegrafsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Owner))
 	h.HandlerFunc("DELETE", telegrafsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", telegrafsIDLabelsPath, newGetLabelsHandler(h.LabelService))

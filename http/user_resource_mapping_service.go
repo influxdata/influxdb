@@ -131,7 +131,7 @@ func decodePostMemberRequest(ctx context.Context, r *http.Request) (*postMemberR
 }
 
 // newGetMembersHandler returns a handler func for a GET to /members or /owners endpoints
-func newGetMembersHandler(s platform.UserResourceMappingService, userType platform.UserType) http.HandlerFunc {
+func newGetMembersHandler(s platform.UserResourceMappingService, userService platform.UserService, resourceType platform.ResourceType, userType platform.UserType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -142,8 +142,9 @@ func newGetMembersHandler(s platform.UserResourceMappingService, userType platfo
 		}
 
 		filter := platform.UserResourceMappingFilter{
-			ResourceID: req.ResourceID,
-			UserType:   userType,
+			ResourceID:   req.ResourceID,
+			ResourceType: resourceType,
+			UserType:     userType,
 		}
 
 		opts := platform.FindOptions{}

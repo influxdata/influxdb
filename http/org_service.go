@@ -59,11 +59,15 @@ func NewOrgHandler(mappingService platform.UserResourceMappingService,
 	h.HandlerFunc("DELETE", organizationsIDPath, h.handleDeleteOrg)
 
 	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.OrgResourceType, platform.Member))
-	h.HandlerFunc("GET", organizationsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.Member))
+	h.HandlerFunc("GET", organizationsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.OrgResourceType, platform.Member))
 	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
 	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.OrgResourceType, platform.Owner))
+<<<<<<< HEAD
 	h.HandlerFunc("GET", organizationsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.Owner))
+=======
+	h.HandlerFunc("GET", organizationsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.OrgResourceType, platform.Owner))
+>>>>>>> add ResourceType param to filter resource members
 	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", organizationsIDSecretsPath, h.handleGetSecrets)

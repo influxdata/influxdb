@@ -70,11 +70,11 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("GET", tasksIDRunsIDLogsPath, h.handleGetLogs)
 
 	h.HandlerFunc("POST", tasksIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TaskResourceType, platform.Member))
-	h.HandlerFunc("GET", tasksIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.Member))
+	h.HandlerFunc("GET", tasksIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TaskResourceType, platform.Member))
 	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
 	h.HandlerFunc("POST", tasksIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TaskResourceType, platform.Owner))
-	h.HandlerFunc("GET", tasksIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.Owner))
+	h.HandlerFunc("GET", tasksIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TaskResourceType, platform.Owner))
 	h.HandlerFunc("DELETE", tasksIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", tasksIDRunsPath, h.handleGetRuns)
