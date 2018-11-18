@@ -3789,7 +3789,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserResponse"
+                $ref: "#/components/schemas/User"
         default:
           description: unexpected error
           content:
@@ -3814,7 +3814,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserResponse"
+                $ref: "#/components/schemas/User"
         default:
           description: unexpected error
           content:
@@ -3899,7 +3899,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserResponse"
+                $ref: "#/components/schemas/User"
         default:
           description: unsuccessful authentication
           content:
@@ -4421,25 +4421,9 @@ components:
               format: uri
       required: [name, organization, flux]
     Tasks:
-      type: object
-      properties:
-        tasks:
-          type: array
-          items:
-            $ref: "#/components/schemas/Task"
-        links:
-          $ref: "#/components/schemas/Links"
-    UserResponse:
-      type: object
-      properties:
-        user:
-          $ref: "#/components/schemas/User"
-        links:
-          type: object
-          properties:
-            self:
-              type: string
-              format: uri
+      type: array
+      items:
+        $ref: "#/components/schemas/Task"
     User:
       properties:
         id:
@@ -4454,6 +4438,19 @@ components:
           enum:
             - active
             - inactive
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/users/1"
+            log: "/api/v2/users/1/log"
+          properties:
+            self:
+              type: string
+              format: uri
+            log:
+              type: string
+              format: uri
       required: [name]
     Users:
       type: object
@@ -4467,7 +4464,7 @@ components:
         users:
           type: array
           items:
-            $ref: "#/components/schemas/UserResponse"
+            $ref: "#/components/schemas/User"
     FluxSuggestions:
       type: object
       properties:
