@@ -62,6 +62,25 @@ func newResourceUserResponse(u *platform.User, userType platform.UserType) *reso
 	}
 }
 
+type resourceUsersResponse struct {
+	Links map[string]string       `json:"links"`
+	Users []*resourceUserResponse `json:"users"`
+}
+
+func newResourceUsersResponse(opts platform.FindOptions, f platform.UserResourceMappingFilter, users []*platform.User) *resourceUsersResponse {
+	rs := resourceUsersResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/api/v2/%ss/%s/%ss", f.ResourceType, f.ResourceID, f.UserType),
+		},
+		Users: make([]*resourceUserResponse, 0, len(users)),
+	}
+
+	for _, user := range users {
+		rs.Users = append(rs.Users, newResourceUserResponse(user, f.UserType))
+	}
+	return &rs
+}
+
 // newPostMemberHandler returns a handler func for a POST to /members or /owners endpoints
 func newPostMemberHandler(s platform.UserResourceMappingService, userService platform.UserService, resourceType platform.ResourceType, userType platform.UserType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -154,7 +173,18 @@ func newGetMembersHandler(s platform.UserResourceMappingService, userService pla
 			return
 		}
 
-		if err := encodeResponse(ctx, w, http.StatusOK, newUserResourcesResponse(opts, filter, mappings)); err != nil {
+		users := make([]*platform.User, 0, len(mappings))
+		for _, m := range mappings {
+			user, err := userService.FindUserByID(ctx, m.UserID)
+			if err != nil {
+				EncodeError(ctx, err, w)
+				return
+			}
+
+			users = append(users, user)
+		}
+
+		if err := encodeResponse(ctx, w, http.StatusOK, newResourceUsersResponse(opts, filter, users)); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
