@@ -24,6 +24,9 @@ import {
 import {Cell} from 'src/types/v2'
 import {TimeRange} from 'src/types'
 
+// Styles
+import './react-grid-layout.scss'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -73,12 +76,12 @@ class Cells extends Component<Props & WithRouterProps, State> {
         containerPadding={[0, 0]}
         margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         onLayoutChange={this.handleLayoutChange}
-        draggableHandle={'.dash-graph--draggable'}
+        draggableHandle={'.cell--draggable'}
         isDraggable={this.isDashboard}
         isResizable={this.isDashboard}
       >
         {fastMap(cells, cell => (
-          <div key={cell.id}>
+          <div key={cell.id} className="cell">
             <CellComponent
               cell={cell}
               onZoom={onZoom}
