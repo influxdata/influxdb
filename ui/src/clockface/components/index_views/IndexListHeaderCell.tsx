@@ -8,17 +8,18 @@ import {Alignment, Sort} from 'src/clockface/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+export interface IndexHeaderCellProps {
   width: string
   columnName?: string
   alignment?: Alignment
   sort?: Sort
-  onClick?: (nextSort: Sort) => void
+  sortKey?: string
+  onClick?: (nextSort: Sort, sortKey: string) => void
 }
 
 @ErrorHandling
-class IndexListHeaderCell extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+class IndexListHeaderCell extends Component<IndexHeaderCellProps> {
+  public static defaultProps: Partial<IndexHeaderCellProps> = {
     columnName: '',
     alignment: Alignment.Left,
   }
@@ -35,18 +36,18 @@ class IndexListHeaderCell extends Component<Props> {
   }
 
   private handleClick = (): void => {
-    const {onClick, sort} = this.props
+    const {onClick, sort, sortKey} = this.props
 
     if (!onClick || !sort) {
       return
     }
 
     if (sort === Sort.None) {
-      onClick(Sort.Ascending)
+      onClick(Sort.Ascending, sortKey)
     } else if (sort === Sort.Ascending) {
-      onClick(Sort.Descending)
+      onClick(Sort.Descending, sortKey)
     } else if (sort === Sort.Descending) {
-      onClick(Sort.None)
+      onClick(Sort.None, sortKey)
     }
   }
 

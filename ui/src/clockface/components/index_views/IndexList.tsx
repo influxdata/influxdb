@@ -15,7 +15,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import './IndexList.scss'
 
 interface Props {
-  children: JSX.Element[]
+  children: JSX.Element[] | JSX.Element
 }
 
 @ErrorHandling

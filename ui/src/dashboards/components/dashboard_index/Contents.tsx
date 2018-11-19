@@ -1,9 +1,9 @@
 // Libraries
-import React, {Component, MouseEvent} from 'react'
+import React, {Component} from 'react'
 import _ from 'lodash'
 
 // Components
-import DashboardsTable from 'src/dashboards/components/DashboardsTable'
+import Table from 'src/dashboards/components/dashboard_index/Table'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -16,18 +16,16 @@ interface Props {
   dashboards: Dashboard[]
   defaultDashboardLink: string
   onSetDefaultDashboard: (dashboardLink: string) => void
-  onDeleteDashboard: (dashboard: Dashboard) => () => void
   onCreateDashboard: () => void
-  onCloneDashboard: (
-    dashboard: Dashboard
-  ) => (event: MouseEvent<HTMLButtonElement>) => void
-  onExportDashboard: (dashboard: Dashboard) => () => void
+  onCloneDashboard: (dashboard: Dashboard) => void
+  onExportDashboard: (dashboard: Dashboard) => void
+  onDeleteDashboard: (dashboard: Dashboard) => void
   notify: (message: Notification) => void
   searchTerm: string
 }
 
 @ErrorHandling
-class DashboardsPageContents extends Component<Props> {
+export default class DashboardsIndexContents extends Component<Props> {
   public render() {
     const {
       onDeleteDashboard,
@@ -41,7 +39,7 @@ class DashboardsPageContents extends Component<Props> {
 
     return (
       <div className="col-md-12">
-        <DashboardsTable
+        <Table
           searchTerm={searchTerm}
           dashboards={this.filteredDashboards}
           onDeleteDashboard={onDeleteDashboard}
@@ -65,5 +63,3 @@ class DashboardsPageContents extends Component<Props> {
     return _.sortBy(matchingDashboards, d => d.name.toLowerCase())
   }
 }
-
-export default DashboardsPageContents

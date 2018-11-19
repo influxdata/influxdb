@@ -24,7 +24,8 @@ import TasksPage from 'src/tasks/containers/TasksPage'
 import OrganizationsIndex from 'src/organizations/containers/OrganizationsIndex'
 import OrganizationView from 'src/organizations/containers/OrganizationView'
 import TaskEditPage from 'src/tasks/containers/TaskEditPage'
-import {DashboardsPage, DashboardPage} from 'src/dashboards'
+import DashboardPage from 'src/dashboards/components/DashboardPage'
+import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import {UserPage} from 'src/user'
 import {LogsPage} from 'src/logs'
@@ -102,7 +103,10 @@ class Root extends PureComponent {
                             path="data-explorer"
                             component={DataExplorerPage}
                           />
-                          <Route path="dashboards" component={DashboardsPage} />
+                          <Route
+                            path="dashboards"
+                            component={DashboardsIndex}
+                          />
                           <Route path="user_profile" component={UserPage} />
                           <Route path="logs" component={LogsPage} />
                           <Route path="sources" component={SourcesPage} />

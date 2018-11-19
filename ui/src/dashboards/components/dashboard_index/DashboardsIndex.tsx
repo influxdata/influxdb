@@ -6,7 +6,7 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import _ from 'lodash'
 
 // Components
-import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
+import DashboardsContents from 'src/dashboards/components/dashboard_index/Contents'
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {
@@ -66,7 +66,7 @@ interface State {
 }
 
 @ErrorHandling
-class DashboardsPage extends PureComponent<Props, State> {
+class DashboardIndex extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
@@ -161,9 +161,9 @@ class DashboardsPage extends PureComponent<Props, State> {
     }
   }
 
-  private handleCloneDashboard = (dashboard: Dashboard) => async (): Promise<
-    void
-  > => {
+  private handleCloneDashboard = async (
+    dashboard: Dashboard
+  ): Promise<void> => {
     const {router, links, notify} = this.props
     const name = `${dashboard.name} (clone)`
     try {
@@ -177,13 +177,13 @@ class DashboardsPage extends PureComponent<Props, State> {
     }
   }
 
-  private handleDeleteDashboard = (dashboard: Dashboard) => (): void => {
+  private handleDeleteDashboard = (dashboard: Dashboard) => {
     this.props.handleDeleteDashboard(dashboard)
   }
 
-  private handleExportDashboard = (dashboard: Dashboard) => async (): Promise<
-    void
-  > => {
+  private handleExportDashboard = async (
+    dashboard: Dashboard
+  ): Promise<void> => {
     const dashboardForDownload = await this.modifyDashboardForDownload(
       dashboard
     )
@@ -274,4 +274,4 @@ const mdtp = {
 export default connect(
   mstp,
   mdtp
-)(DashboardsPage)
+)(DashboardIndex)
