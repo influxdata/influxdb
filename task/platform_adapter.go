@@ -82,7 +82,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 	scheduleAfter := time.Now().Unix()
 
 	if t.Status == "" {
-		t.Status = "active"
+		t.Status = string(backend.DefaultTaskStatus)
 	}
 
 	req := backend.CreateTaskRequest{
