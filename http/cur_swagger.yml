@@ -3,7 +3,7 @@ info:
   title: Influx API Service
   version: 0.1.0
 servers:
-  - url: /api/v2
+  - url: "http://localhost:9999/api/v2"
 paths:
   /signin:
     post:
@@ -1490,8 +1490,6 @@ paths:
       responses:
         '200':
           description: Abstract syntax tree of flux query.
-          content:
-            application/json: #TODO(goller): document the AST JSON schema
         default:
           description: Any response other than 200 is an internal server error
           content:
@@ -3452,24 +3450,23 @@ components:
             annotations:
               description: https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
               type: array
-              default: []
               items:
                 type: string
                 enum:
-                  - group
-                  - datatype
-                  - default
+                  - "group"
+                  - "datatype"
+                  - "default"
                 uniqueItems: true
             commentPrefix:
               description: character prefixed to comment strings
               type: string
-              default: \#
+              default: "#"
               maxLength: 1
               minLength: 0
             dateTimeFormat:
               description: format of timestamps
               type: string
-              default: RFC3339
+              default: "RFC3339"
               enum:
                 - RFC3339
                 - RFC3339Nano
@@ -3764,7 +3761,7 @@ components:
         id:
           readOnly: true
           type: string
-        organization:
+        organizationId:
           description: The ID of the organization that owns this Task.
           type: string
         name:
@@ -3976,75 +3973,6 @@ components:
           type: integer
           format: int32
       required: [code, message, maxLength]
-    InfluxQLResults:
-      properties:
-        error:
-          description: error during processing of the message
-          type: string
-        results:
-          type: array
-          description: result for each query
-          items:
-            type: object
-            properties:
-              error:
-                type: string
-                description: error during processing of the message
-              partial:
-                type: boolean
-                description: If a max row limit has been placed in the configuration file and the number of returned values is larger, this will be set to true and values truncated.
-              statement_id:
-                type: integer
-                description: statement's position in the query.
-              series:
-                description: The collection of data in InfluxDB’s data structure that share a measurement, tag set, and retention policy.
-                type: array
-                items:
-                  type: object
-                  description: values for a unique series
-                  properties:
-                    name:
-                      description: The part of InfluxDB’s structure that describes the data stored in the associated fields. Measurements are strings.
-                      type: string
-                    tags:
-                      description: The key-value pairs in InfluxDB’s data structure that records metadata.
-                      type: object
-                    columns:
-                      description: list of columns describing the content of a single value array
-                      type: array
-                      items:
-                        type: string
-                    values:
-                      description: array of arrays of the values return from the query
-                      type: array
-                      items:
-                        type: array
-                        description: single row of results in the order of the columns field.
-                        items:
-                          oneOf:
-                            - type: string
-                            - type: number
-                            - type: integer
-                    partial:
-                      type: boolean
-              messages:
-                type: array
-                description: represents a user-facing message to be included with the result.
-                items:
-                  type: object
-                  properties:
-                    level:
-                      type: string
-                    text:
-                      type: string
-    InfluxqlQueryError:
-      properties:
-        error:
-          description: message describing why the query was rejected
-          readOnly: true
-          type: string
-      required:
-        - error
     Field:
       type: object
       properties:
@@ -4782,14 +4710,6 @@ components:
           type: array
           items:
             type: string
-    TelegrafPluginInputNginx:
-      type: object
-      properties:
-        urls:
-          type: array
-          items:
-            type: string
-            format: uri
     TelegrafPluginInputProcstat:
       type: object
       properties:

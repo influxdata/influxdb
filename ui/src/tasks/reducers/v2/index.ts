@@ -1,7 +1,12 @@
 import {Action} from 'src/tasks/actions/v2'
-import {Task} from 'src/types/v2/tasks'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
+import {Task as TaskAPI, User, Organization} from 'src/api'
 
+interface Task extends TaskAPI {
+  organization: Organization
+  owner?: User
+  delay?: string
+}
 export interface State {
   newScript: string
   currentScript: string

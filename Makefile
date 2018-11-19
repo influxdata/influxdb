@@ -149,6 +149,10 @@ chronogiraffe: subdirs generate $(CMDS)
 run: chronogiraffe
 	./bin/$(GOOS)/influxd --developer-mode=true
 
+generate-typescript-client:
+	cat http/cur_swagger.yml | yq read -j - > openapi.json
+	openapi-generator generate -g typescript-axios -o ui/src/api -i openapi.json
+	rm openapi.json
 
 # .PHONY targets represent actions that do not create an actual file.
 .PHONY: all subdirs $(SUBDIRS) ui run fmt checkfmt tidy checktidy test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe

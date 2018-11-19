@@ -15,7 +15,7 @@ import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/api'
 import {Alignment, Direction} from 'src/clockface/types'
 
 interface Props {

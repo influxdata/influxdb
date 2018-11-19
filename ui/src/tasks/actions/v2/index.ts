@@ -1,7 +1,7 @@
 import {AppState} from 'src/types/v2'
 import {push} from 'react-router-redux'
 
-import {Task} from 'src/types/v2/tasks'
+import {Task as TaskAPI, Organization} from 'src/api'
 import {
   submitNewTask,
   updateTaskFlux,
@@ -19,6 +19,7 @@ import {
   taskNotFound,
   taskUpdateFailed,
 } from 'src/shared/copy/v2/notifications'
+import {getDeep} from 'src/utils/wrappers'
 
 import {taskOptionsToFluxScript} from 'src/utils/taskOptionsToFluxScript'
 
@@ -37,7 +38,19 @@ export type Action =
   | SetScheduleUnit
 
 type GetStateFunc = () => AppState
+interface Task extends TaskAPI {
+  organization: Organization
+}
 
+export enum ActionTypes {
+  SetNewScript = 'SET_NEW_SCRIPT',
+  SetTasks = 'SET_TASKS',
+  SetSearchTerm = 'SET_TASKS_SEARCH_TERM',
+  SetCurrentScript = 'SET_CURRENT_SCRIPT',
+  SetCurrentTask = 'SET_CURRENT_TASK',
+  SetShowInactive = 'SET_TASKS_SHOW_INACTIVE',
+  SetDropdownOrgID = 'SET_DROPDOWN_ORG_ID',
+}
 export interface ClearTaskOptions {
   type: 'CLEAR_TASK_OPTIONS'
 }
@@ -221,9 +234,11 @@ export const populateTasks = () => async (
     const tasks = await getUserTasks(url, user)
 
     const mappedTasks = tasks.map(task => {
+      const org = orgs.find(org => org.id === task.organizationId)
+
       return {
         ...task,
-        organization: orgs.find(org => org.id === task.organizationId),
+        organization: org,
       }
     })
 
@@ -240,12 +255,15 @@ export const selectTaskByID = (id: string) => async (
 ): Promise<void> => {
   try {
     const {
+      orgs,
       links: {tasks: url},
     } = getState()
 
+    const org = orgs.find(org => org.id === task.organizationId)
+
     const task = await getTask(url, id)
 
-    return dispatch(setCurrentTask(task))
+    return dispatch(setCurrentTask({...task, organization: org}))
   } catch (e) {
     console.error(e)
     dispatch(goToTasks())
@@ -290,14 +308,11 @@ export const saveNewScript = () => async (
   try {
     const {
       orgs,
-      links: {tasks: url, me: meUrl},
       tasks: {newScript: script, taskOptions},
     } = await getState()
 
     const fluxTaskOptions = taskOptionsToFluxScript(taskOptions)
     const scriptWithOptions = `${fluxTaskOptions}\n${script}`
-
-    const user = await getMe(meUrl)
 
     let org = orgs.find(org => {
       return org.id === taskOptions.orgID
@@ -307,7 +322,7 @@ export const saveNewScript = () => async (
       org = orgs[0]
     }
 
-    await submitNewTask(url, user, org, scriptWithOptions)
+    await submitNewTask(getDeep<string>(org, 'id', ''), scriptWithOptions)
 
     dispatch(setNewScript(''))
     dispatch(clearTaskOptions())

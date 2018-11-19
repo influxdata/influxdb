@@ -6,8 +6,13 @@ import {IndexList} from 'src/clockface'
 import TaskRow from 'src/tasks/components/TaskRow'
 
 // Types
-import {Task} from 'src/types/v2/tasks'
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
+import {Task as TaskAPI, User, Organization} from 'src/api'
+
+interface Task extends TaskAPI {
+  organization: Organization
+  owner?: User
+}
 
 interface Props {
   tasks: Task[]

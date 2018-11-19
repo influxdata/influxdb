@@ -5,8 +5,14 @@ import {connect} from 'react-redux'
 
 import TaskForm from 'src/tasks/components/TaskForm'
 import TaskHeader from 'src/tasks/components/TaskHeader'
-import {Task} from 'src/types/v2/tasks'
 import {Page} from 'src/pageLayout'
+import {Task as TaskAPI, User, Organization} from 'src/api'
+
+interface Task extends TaskAPI {
+  organization: Organization
+  owner?: User
+  delay?: string
+}
 
 import {Links} from 'src/types/v2/links'
 import {State as TasksState} from 'src/tasks/reducers/v2'
@@ -19,7 +25,6 @@ import {
   setScheduleUnit,
 } from 'src/tasks/actions/v2'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {Organization} from 'src/types/v2'
 
 interface PassedInProps {
   router: InjectedRouter

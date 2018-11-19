@@ -1,20 +1,21 @@
 import AJAX from 'src/utils/ajax'
-import {Task} from 'src/types/v2/tasks'
+
+import {Task, TasksApi} from 'src/api'
+
+const getBasePath = () => {
+  const host = window.location.hostname
+  const port = window.location.port
+  const protocol = window.location.protocol
+
+  return `${protocol}//${host}:${port}/api/v2`
+}
 
 export const submitNewTask = async (
-  url,
-  owner,
-  org,
+  organizationId: string,
   flux: string
 ): Promise<Task> => {
-  const request = {
-    flux,
-    organizationId: org.id,
-    status: 'active',
-    owner,
-  }
-
-  const {data} = await AJAX({url, data: request, method: 'POST'})
+  const api = new TasksApi({basePath: getBasePath()})
+  const {data} = await api.tasksPost({organizationId, flux})
 
   return data
 }
