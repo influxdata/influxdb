@@ -1,3 +1,5 @@
+import {get, cloneDeep} from 'lodash'
+
 import {View, ViewType, ViewShape} from 'src/types/v2'
 import {
   LineView,
@@ -214,17 +216,26 @@ export function convertView<T extends View | NewView>(
 ): T {
   const inType = view.properties.type
 
+  let newView
+
   if (VIEW_CONVERSIONS[inType] && VIEW_CONVERSIONS[inType][outType]) {
-    return VIEW_CONVERSIONS[inType][outType](view)
+    newView = VIEW_CONVERSIONS[inType][outType](view)
+  } else if (NEW_VIEW_CREATORS[outType]) {
+    newView = NEW_VIEW_CREATORS[outType]()
+  } else {
+    throw new Error(
+      `cannot convert view of type "${inType}" to view of type "${outType}"`
+    )
   }
 
-  if (NEW_VIEW_CREATORS[outType]) {
-    return NEW_VIEW_CREATORS[outType]()
+  const oldViewQueries = get(view, 'properties.queries')
+  const newViewQueries = get(newView, 'properties.queries')
+
+  if (oldViewQueries && newViewQueries) {
+    newView.properties.queries = cloneDeep(oldViewQueries)
   }
 
-  throw new Error(
-    `cannot convert view of type "${inType}" to view of type "${outType}"`
-  )
+  return newView
 }
 
 export function replaceQuery<T extends View | NewView>(
