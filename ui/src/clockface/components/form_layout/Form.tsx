@@ -32,16 +32,8 @@ class Form extends Component<Props> {
     FormFooter,
   ]
 
-  public static ValidChildNames: string = _.map(Form.ValidChildTypes, valid => {
-    const name = valid.displayName.split('Form').pop()
-
-    return `<Form.${name}>`
-  }).join(', ')
-
   public render() {
     const {children, style} = this.props
-
-    this.validateChildren()
 
     return (
       <form
@@ -66,19 +58,6 @@ class Form extends Component<Props> {
       [`${className}`]: className,
     })
   }
-
-  private validateChildren = (): void => {
-    const childArray = React.Children.toArray(this.props.children)
-    const childrenAreValid = _.every(childArray, this.childTypeIsValid)
-    if (!childrenAreValid) {
-      // throw new Error(
-      //   `<Form> expected children of type ${Form.ValidChildNames}`
-      // )
-    }
-  }
-
-  private childTypeIsValid = (child: JSX.Element): boolean =>
-    _.includes(Form.ValidChildTypes, child.type)
 }
 
 export default Form
