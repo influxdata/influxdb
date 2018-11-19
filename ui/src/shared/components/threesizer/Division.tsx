@@ -13,14 +13,12 @@ import {
   HANDLE_HORIZONTAL,
   MIN_HANDLE_PIXELS,
 } from 'src/shared/constants/index'
-import {MenuItem} from 'src/shared/components/threesizer/DivisionMenu'
 
 const NOOP = () => {}
 
 interface Props {
   name?: string
   handleDisplay?: string
-  menuOptions?: MenuItem[]
   style?: CSSProperties
   handlePixels: number
   id: string
@@ -44,7 +42,6 @@ class Division extends PureComponent<Props> {
     handleDisplay: 'visible',
     style: {},
     headerButtons: [],
-    menuOptions: [],
   }
 
   private collapseThreshold: number = 0
@@ -99,7 +96,7 @@ class Division extends PureComponent<Props> {
   }
 
   private get renderHeader(): JSX.Element {
-    const {name, headerButtons, menuOptions, orientation} = this.props
+    const {name, headerButtons, orientation} = this.props
 
     if (!name) {
       return null
@@ -109,7 +106,6 @@ class Division extends PureComponent<Props> {
       return (
         <DivisionHeader
           buttons={headerButtons}
-          menuOptions={menuOptions}
           onMinimize={this.handleMinimize}
           onMaximize={this.handleMaximize}
         />
@@ -159,13 +155,7 @@ class Division extends PureComponent<Props> {
   }
 
   private get renderDragHandleContents(): JSX.Element {
-    const {
-      name,
-      handlePixels,
-      orientation,
-      headerButtons,
-      menuOptions,
-    } = this.props
+    const {name, handlePixels, orientation, headerButtons} = this.props
 
     if (!name) {
       return
@@ -178,7 +168,6 @@ class Division extends PureComponent<Props> {
       return (
         <DivisionHeader
           buttons={headerButtons}
-          menuOptions={menuOptions}
           onMinimize={this.handleMinimize}
           onMaximize={this.handleMaximize}
           name={name}

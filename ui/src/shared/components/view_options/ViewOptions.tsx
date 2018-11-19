@@ -42,7 +42,6 @@ class ViewOptions extends PureComponent<Props> {
       {
         name: 'Visualization Type',
         headerButtons: [],
-        menuOptions: [],
         render: () => (
           <ViewTypeSelector
             type={view.properties.type}
@@ -54,7 +53,6 @@ class ViewOptions extends PureComponent<Props> {
       {
         name: 'Customize',
         headerButtons: [],
-        menuOptions: [],
         render: () => <OptionsSwitcher view={view} />,
         headerOrientation: HANDLE_VERTICAL,
       },

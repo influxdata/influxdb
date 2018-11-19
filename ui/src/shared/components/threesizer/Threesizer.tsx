@@ -5,7 +5,6 @@ import _ from 'lodash'
 
 import Division from 'src/shared/components/threesizer/Division'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {MenuItem} from 'src/shared/components/threesizer/DivisionMenu'
 
 import {
   HANDLE_NONE,
@@ -37,7 +36,6 @@ interface DivisionProps {
   style?: CSSProperties
   size?: number
   headerButtons?: JSX.Element[]
-  menuOptions?: MenuItem[]
   render: (visibility: string, pixels: number) => ReactElement<any>
 }
 
@@ -156,7 +154,6 @@ class Threesizer extends Component<Props, State> {
               onDoubleClick={this.handleDoubleClick}
               render={this.props.divisions[i].render}
               onHandleStartDrag={this.handleStartDrag}
-              menuOptions={this.props.divisions[i].menuOptions}
               headerButtons={this.props.divisions[i].headerButtons}
             />
           )
