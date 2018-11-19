@@ -6,6 +6,9 @@
     "tslint-plugin-prettier",
     "tslint-config-prettier"
   ],
+  "linterOptions": {
+    "exclude": ["src/api"]
+  },
   "rules": {
     "object-literal-sort-keys": false,
     "ordered-imports": false,
