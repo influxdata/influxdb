@@ -1,3 +1,10 @@
+v1.7.2 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#10499](https://github.com/influxdata/influxdb/pull/10499): Fix ApplyEnvOverrides when a type that implements Unmarshaler is in a slice.
+
 v1.7.1 [2018-11-14]
 -------------------
 
