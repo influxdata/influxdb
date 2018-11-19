@@ -6,6 +6,7 @@ import ReactGridLayout, {WidthProvider, Layout} from 'react-grid-layout'
 // Components
 const Grid = WidthProvider(ReactGridLayout)
 import CellComponent from 'src/shared/components/cells/Cell'
+import GradientBorder from 'src/shared/components/cells/GradientBorder'
 
 // Utils
 import {fastMap} from 'src/utils/fast'
@@ -89,10 +90,17 @@ class Cells extends Component<Props & WithRouterProps, State> {
               onDeleteCell={onDeleteCell}
               onEditCell={this.handleEditCell(cell)}
             />
+            {this.cellBorder}
           </div>
         ))}
       </Grid>
     )
+  }
+
+  private get cellBorder(): JSX.Element {
+    if (this.isDashboard) {
+      return <GradientBorder />
+    }
   }
 
   private get cells(): Layout[] {
