@@ -48,7 +48,11 @@ class Form extends Component<Props> {
 
   private handleSubmit = (e: React.FormEvent): void => {
     e.preventDefault()
-    this.props.onSubmit(e)
+    const {onSubmit} = this.props
+
+    if (onSubmit) {
+      onSubmit(e)
+    }
   }
 
   private get formWrapperClass(): string {
