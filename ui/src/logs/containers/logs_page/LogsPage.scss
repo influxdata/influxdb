@@ -32,7 +32,7 @@ $logs-viewer-gutter: 60px;
 .logs-viewer--table-container {
   padding: 0 $logs-viewer-gutter;
   height: calc(
-    100% - #{$logs-viewer-graph-height + $logs-viewer-search-height +
+    100% - #{$logs-viewer-search-height +
       $logs-viewer-filter-height}
   );
   background-color: $g3-castle;
