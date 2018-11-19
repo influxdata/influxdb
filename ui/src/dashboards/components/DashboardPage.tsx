@@ -2,6 +2,7 @@
 import React, {Component, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
+import {get} from 'lodash'
 
 // Components
 import {Page} from 'src/pageLayout'
@@ -19,6 +20,7 @@ import * as rangesActions from 'src/dashboards/actions/v2/ranges'
 import * as appActions from 'src/shared/actions/app'
 import * as notifyActions from 'src/shared/actions/notifications'
 import * as viewActions from 'src/dashboards/actions/v2/views'
+import {setActiveTimeMachine} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -34,6 +36,7 @@ import {loadDashboardLinks} from 'src/dashboards/apis/v2'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
+import {VEO_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
 
 // Types
 import {
@@ -82,6 +85,7 @@ interface DispatchProps {
   onAddCell: typeof dashboardActions.addCellAsync
   onCreateCellWithView: typeof dashboardActions.createCellWithView
   onUpdateView: typeof viewActions.updateView
+  onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
 
 interface PassedProps {
@@ -109,7 +113,6 @@ type Props = PassedProps &
 interface State {
   scrollTop: number
   windowHeight: number
-  selectedView: NewView | View | null
   dashboardLinks: DashboardSwitcherLinks
   isShowingVEO: boolean
 }
@@ -121,7 +124,6 @@ class DashboardPage extends Component<Props, State> {
 
     this.state = {
       scrollTop: 0,
-      selectedView: null,
       windowHeight: window.innerHeight,
       dashboardLinks: EMPTY_LINKS,
       isShowingVEO: false,
@@ -175,7 +177,7 @@ class DashboardPage extends Component<Props, State> {
       handleChooseAutoRefresh,
       handleClickPresentationButton,
     } = this.props
-    const {dashboardLinks, isShowingVEO, selectedView} = this.state
+    const {dashboardLinks, isShowingVEO} = this.state
 
     return (
       <Page>
@@ -215,7 +217,6 @@ class DashboardPage extends Component<Props, State> {
           <OverlayTechnology visible={isShowingVEO}>
             <VEO
               source={source}
-              view={selectedView}
               onHide={this.handleHideVEO}
               onSave={this.handleSaveVEO}
             />
@@ -272,10 +273,7 @@ class DashboardPage extends Component<Props, State> {
   private handleAddCell = async (): Promise<void> => {
     const newView = createView<LineView>(ViewType.Line)
 
-    this.setState({
-      isShowingVEO: true,
-      selectedView: newView,
-    })
+    this.showVEO(newView)
   }
 
   private handleHideVEO = (): void => {
@@ -306,10 +304,16 @@ class DashboardPage extends Component<Props, State> {
       throw new Error(`Can't edit non-existant view with ID "${viewID}"`)
     }
 
-    this.setState({
-      isShowingVEO: true,
-      selectedView: entry.view,
-    })
+    this.showVEO(entry.view)
+  }
+
+  private showVEO = (view: View | NewView): void => {
+    const {onSetActiveTimeMachine} = this.props
+    const draftScript: string = get(view, 'properties.queries.0.text', '')
+
+    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view, draftScript})
+
+    this.setState({isShowingVEO: true})
   }
 
   private handleCloneCell = async (cell: Cell): Promise<void> => {
@@ -413,6 +417,7 @@ const mdtp: DispatchProps = {
   onAddCell: dashboardActions.addCellAsync,
   onCreateCellWithView: dashboardActions.createCellWithView,
   onUpdateView: viewActions.updateView,
+  onSetActiveTimeMachine: setActiveTimeMachine,
 }
 
 export default connect(
