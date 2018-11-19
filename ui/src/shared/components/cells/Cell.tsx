@@ -5,7 +5,6 @@ import _ from 'lodash'
 
 // Components
 import CellMenu from 'src/shared/components/cells/CellMenu'
-import CellHeader from 'src/shared/components/cells/CellHeader'
 import ViewComponent from 'src/shared/components/cells/View'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -56,8 +55,9 @@ class CellComponent extends Component<Props> {
     const {cell, isEditable, onDeleteCell, onCloneCell, onEditCell} = this.props
 
     return (
-      <div className="dash-graph">
+      <>
         <CellMenu
+          name={this.viewName}
           cell={cell}
           dataExists={false}
           queries={this.queries}
@@ -67,9 +67,8 @@ class CellComponent extends Component<Props> {
           onEdit={onEditCell}
           onCSVDownload={this.handleCSVDownload}
         />
-        <CellHeader cellName={this.viewName} isEditable={isEditable} />
-        <div className="dash-graph--container">{this.view}</div>
-      </div>
+        <div className="cell--view">{this.view}</div>
+      </>
     )
   }
 
