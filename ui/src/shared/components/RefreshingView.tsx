@@ -10,6 +10,7 @@ import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher
 
 // Utils
 import {getActiveSource} from 'src/sources/selectors'
+import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 
 // Types
 import {TimeRange} from 'src/types'
@@ -55,6 +56,7 @@ class RefreshingView extends PureComponent<Props> {
       <TimeSeries
         link={link}
         inView={inView}
+        autoRefresher={GlobalAutoRefresher}
         queries={this.queries}
         key={manualRefresh}
       >

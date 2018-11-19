@@ -10,7 +10,7 @@ import {RemoteDataState, FluxTable} from 'src/types'
 import {DashboardQuery} from 'src/types/v2/dashboards'
 
 // Utils
-import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
+import {AutoRefresher} from 'src/utils/AutoRefresher'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {restartable, CancellationError} from 'src/utils/restartable'
 
@@ -27,6 +27,7 @@ export interface QueriesState {
 interface Props {
   link: string
   queries: DashboardQuery[]
+  autoRefresher?: AutoRefresher
   inView?: boolean
   children: (r: QueriesState) => JSX.Element
 }
@@ -59,11 +60,19 @@ class TimeSeries extends Component<Props, State> {
   public async componentDidMount() {
     this.reload()
 
-    GlobalAutoRefresher.subscribe(this.reload)
+    const {autoRefresher} = this.props
+
+    if (autoRefresher) {
+      autoRefresher.subscribe(this.reload)
+    }
   }
 
   public componentWillUnmount() {
-    GlobalAutoRefresher.unsubscribe(this.reload)
+    const {autoRefresher} = this.props
+
+    if (autoRefresher) {
+      autoRefresher.unsubscribe(this.reload)
+    }
   }
 
   public async componentDidUpdate(prevProps: Props) {
