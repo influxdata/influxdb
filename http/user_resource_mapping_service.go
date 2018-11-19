@@ -21,35 +21,6 @@ type UserResourceMappingService struct {
 	BasePath           string
 }
 
-type userResourceResponse struct {
-	Links map[string]string `json:"links"`
-	platform.UserResourceMapping
-}
-
-func newUserResourceResponse(u *platform.UserResourceMapping) *userResourceResponse {
-	return &userResourceResponse{
-		Links: map[string]string{
-			"user":     fmt.Sprintf("/api/v2/users/%s", u.UserID),
-			"resource": fmt.Sprintf("/api/v2/%ss/%s", u.ResourceType, u.ResourceID),
-		},
-		UserResourceMapping: *u,
-	}
-}
-
-type userResourcesResponse struct {
-	UserResourceMappings []*userResourceResponse `json:"userResourceMappings"`
-}
-
-func newUserResourcesResponse(opt platform.FindOptions, f platform.UserResourceMappingFilter, ms []*platform.UserResourceMapping) *userResourcesResponse {
-	rs := make([]*userResourceResponse, 0, len(ms))
-	for _, m := range ms {
-		rs = append(rs, newUserResourceResponse(m))
-	}
-	return &userResourcesResponse{
-		UserResourceMappings: rs,
-	}
-}
-
 type resourceUserResponse struct {
 	Role platform.UserType `json:"role"`
 	*userResponse
