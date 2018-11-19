@@ -31,6 +31,7 @@ interface Props {
   script: string
   status: Status
   onChangeScript: OnChangeScript
+  onSubmitScript?: () => void
   suggestions: Suggestion[]
   visibility?: string
 }
@@ -185,6 +186,11 @@ class FluxEditor extends PureComponent<Props, State> {
 
   private handleKeyUp = (__, e: KeyboardEvent) => {
     const {ctrlKey, metaKey, key} = e
+    const {onSubmitScript} = this.props
+
+    if (ctrlKey && key === 'Enter' && onSubmitScript) {
+      onSubmitScript()
+    }
 
     if (ctrlKey && key === ' ') {
       this.showAutoComplete()

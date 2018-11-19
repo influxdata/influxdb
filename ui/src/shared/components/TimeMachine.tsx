@@ -5,7 +5,9 @@ import {get} from 'lodash'
 
 // Components
 import TimeMachineControls from 'src/shared/components/TimeMachineControls'
-import Threesizer from 'src/shared/components/threesizer/Threesizer'
+import Threesizer, {
+  DivisionProps,
+} from 'src/shared/components/threesizer/Threesizer'
 import TimeMachineBottom from 'src/shared/components/TimeMachineBottom'
 import TimeMachineVis from 'src/shared/components/TimeMachineVis'
 import TimeSeries from 'src/shared/components/TimeSeries'
@@ -32,7 +34,7 @@ const TimeMachine: SFC<StateProps> = props => {
     <div className="time-machine">
       <TimeSeries link={queryLink} queries={queries}>
         {queriesState => {
-          const divisions = [
+          const divisions: DivisionProps[] = [
             {
               handleDisplay: 'none',
               render: () => <TimeMachineVis queriesState={queriesState} />,
@@ -41,7 +43,9 @@ const TimeMachine: SFC<StateProps> = props => {
             },
             {
               handlePixels: 12,
-              render: () => <TimeMachineBottom queryStatus={queriesState.loading} />,
+              render: () => (
+                <TimeMachineBottom queryStatus={queriesState.loading} />
+              ),
               headerOrientation: HANDLE_HORIZONTAL,
               size: 0.67,
             },

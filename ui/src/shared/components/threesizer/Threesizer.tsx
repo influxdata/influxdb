@@ -29,13 +29,14 @@ interface State {
   dragEvent: any
 }
 
-interface DivisionProps {
+export interface DivisionProps {
   name?: string
   handleDisplay?: string
   handlePixels?: number
   style?: CSSProperties
   size?: number
   headerButtons?: JSX.Element[]
+  headerOrientation?: string
   render: (visibility: string, pixels: number) => ReactElement<any>
 }
 

@@ -76,6 +76,7 @@ class TimeMachineQueryEditor extends PureComponent<Props> {
             script={draftScript}
             status={{type: '', text: ''}}
             onChangeScript={onSetDraftScript}
+            onSubmitScript={onSubmitScript}
             suggestions={[]}
           />
         ),
