@@ -316,7 +316,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Users"
+                $ref: "#/components/schemas/ResourceMembers"
         default:
           description: unexpected error
           content:
@@ -341,14 +341,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/User"
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
       responses:
         '201':
           description: member added to telegraf
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/ResourceMember"
         default:
           description: unexpected error
           content:
@@ -402,7 +402,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Users"
+                $ref: "#/components/schemas/ResourceOwners"
         default:
           description: unexpected error
           content:
@@ -427,14 +427,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/User"
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
       responses:
         '201':
           description: telegraf config owner added
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/ResourceOwner"
         default:
           description: unexpected error
           content:
@@ -1252,7 +1252,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Users"
+                $ref: "#/components/schemas/ResourceMembers"
         default:
           description: unexpected error
           content:
@@ -1277,14 +1277,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/User"
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
       responses:
         '201':
           description: added to view members
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/ResourceMember"
         default:
           description: unexpected error
           content:
@@ -1338,7 +1338,7 @@ paths:
             content:
               application/json:
                 schema:
-                  $ref: "#/components/schemas/Users"
+                  $ref: "#/components/schemas/ResourceOwners"
           default:
             description: unexpected error
             content:
@@ -1363,14 +1363,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/AddResourceMemberRequestBody"
         responses:
           '201':
             description: added to view owners
             content:
               application/json:
                 schema:
-                  $ref: "#/components/schemas/User"
+                  $ref: "#/components/schemas/ResourceOwner"
           default:
             description: unexpected error
             content:
@@ -1817,7 +1817,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Users"
+                $ref: "#/components/schemas/ResourceMembers"
         default:
           description: unexpected error
           content:
@@ -1842,14 +1842,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/User"
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
       responses:
         '201':
           description: added to dashboard members
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/ResourceMember"
         default:
           description: unexpected error
           content:
@@ -1903,7 +1903,7 @@ paths:
             content:
               application/json:
                 schema:
-                  $ref: "#/components/schemas/Users"
+                  $ref: "#/components/schemas/ResourceOwners"
           default:
             description: unexpected error
             content:
@@ -1928,14 +1928,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/AddResourceMemberRequestBody"
         responses:
           '201':
             description: added to dashboard owners
             content:
               application/json:
                 schema:
-                  $ref: "#/components/schemas/User"
+                  $ref: "#/components/schemas/ResourceOwner"
           default:
             description: unexpected error
             content:
@@ -2584,7 +2584,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Users"
+                $ref: "#/components/schemas/ResourceOwners"
         default:
           description: unexpected error
           content:
@@ -2609,14 +2609,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/User"
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
       responses:
         '201':
           description: member added to bucket
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/ResourceMember"
         default:
           description: unexpected error
           content:
@@ -2670,7 +2670,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Users"
+                $ref: "#/components/schemas/ResourceMembers"
         default:
           description: unexpected error
           content:
@@ -2695,14 +2695,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/User"
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
       responses:
         '201':
           description: bucket owner added
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/ResourceOwner"
         default:
           description: unexpected error
           content:
@@ -3069,7 +3069,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Users"
+                $ref: "#/components/schemas/ResourceOwners"
         default:
           description: unexpected error
           content:
@@ -3094,14 +3094,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/User"
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
       responses:
         '201':
           description: added to organization created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/ResourceMember"
         default:
           description: unexpected error
           content:
@@ -3155,7 +3155,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Users"
+                $ref: "#/components/schemas/ResourceMembers"
         default:
           description: unexpected error
           content:
@@ -3180,14 +3180,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/User"
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
       responses:
         '201':
           description: organization owner added
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/ResourceOwner"
         default:
           description: unexpected error
           content:
@@ -3601,7 +3601,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Users"
+                $ref: "#/components/schemas/ResourceMembers"
         default:
           description: unexpected error
           content:
@@ -3626,14 +3626,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/User"
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
       responses:
         '201':
           description: added to task members
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/ResourceMember"
         default:
           description: unexpected error
           content:
@@ -3687,7 +3687,7 @@ paths:
             content:
               application/json:
                 schema:
-                  $ref: "#/components/schemas/Users"
+                  $ref: "#/components/schemas/ResourceOwners"
           default:
             description: unexpected error
             content:
@@ -3712,14 +3712,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/AddResourceMemberRequestBody"
         responses:
           '201':
             description: added to task owners
             content:
               application/json:
                 schema:
-                  $ref: "#/components/schemas/User"
+                  $ref: "#/components/schemas/ResourceOwner"
           default:
             description: unexpected error
             content:
@@ -4465,6 +4465,52 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/User"
+    ResourceMember:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            role:
+              type: string
+              default: member
+              enum:
+                - member
+    ResourceMembers:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+              format: uri
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceMember"
+    ResourceOwner:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            role:
+              type: string
+              default: owner
+              enum:
+                - owner
+    ResourceOwners:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+              format: uri
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceOwner"
     FluxSuggestions:
       type: object
       properties:
@@ -6042,6 +6088,15 @@ components:
           type: string
       required:
         - password
+    AddResourceMemberRequestBody:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required:
+        - id
     Check:
       type: object
       required:
