@@ -40,7 +40,7 @@ const TimeMachine: SFC<StateProps> = props => {
               size: 0.33,
             },
             {
-              handlePixels: 8,
+              handlePixels: 12,
               render: () => <TimeMachineBottom />,
               headerOrientation: HANDLE_HORIZONTAL,
               size: 0.67,

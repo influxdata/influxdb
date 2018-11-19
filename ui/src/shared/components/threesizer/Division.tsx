@@ -43,6 +43,8 @@ class Division extends PureComponent<Props> {
     name: '',
     handleDisplay: 'visible',
     style: {},
+    headerButtons: [],
+    menuOptions: [],
   }
 
   private collapseThreshold: number = 0
@@ -282,7 +284,7 @@ class Division extends PureComponent<Props> {
       return true
     }
 
-    if (!this.divisionRef || this.props.size >= 0.33) {
+    if (!this.divisionRef.current || this.props.size >= 0.33) {
       return false
     }
 

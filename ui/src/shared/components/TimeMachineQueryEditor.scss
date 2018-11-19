@@ -1,20 +1,16 @@
+@import "src/style/modules";
+
 .time-machine-query-editor {
   height: 100%;
   width: 100%;
-  padding: 10px;
   display: flex;
   flex-direction: column;
 
-  > .time-machine-editor {
-    height: 100%;
-    border-radius: 4px;
-    overflow: hidden;
+  .time-machine-editor {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
   }
-}
-
-.time-machine-query-editor--controls {
-  flex: 0 0 30px;
-  margin-bottom: 10px;
-  display: flex;
-  justify-content: flex-end;
 }

@@ -171,6 +171,8 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
 }
 
 .threesizer--body {
+  position: relative;
+
   .horizontal>&:only-child {
     width: 100%;
   }

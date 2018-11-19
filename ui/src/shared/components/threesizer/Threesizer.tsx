@@ -136,6 +136,7 @@ class Threesizer extends Component<Props, State> {
       >
         {divisions.map((d, i) => {
           const headerOrientation = _.get(d, 'headerOrientation', orientation)
+
           return (
             <Division
               key={d.id}
