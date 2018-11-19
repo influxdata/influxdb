@@ -50,12 +50,30 @@ func newUserResourcesResponse(opt platform.FindOptions, f platform.UserResourceM
 	}
 }
 
+type resourceUserResponse struct {
+	Role platform.UserType `json:"role"`
+	*userResponse
+}
+
+func newResourceUserResponse(u *platform.User, userType platform.UserType) *resourceUserResponse {
+	return &resourceUserResponse{
+		Role:         userType,
+		userResponse: newUserResponse(u),
+	}
+}
+
 // newPostMemberHandler returns a handler func for a POST to /members or /owners endpoints
-func newPostMemberHandler(s platform.UserResourceMappingService, resourceType platform.ResourceType, userType platform.UserType) http.HandlerFunc {
+func newPostMemberHandler(s platform.UserResourceMappingService, userService platform.UserService, resourceType platform.ResourceType, userType platform.UserType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
 		req, err := decodePostMemberRequest(ctx, r)
+		if err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		user, err := userService.FindUserByID(ctx, req.MemberID)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -73,7 +91,7 @@ func newPostMemberHandler(s platform.UserResourceMappingService, resourceType pl
 			return
 		}
 
-		if err := encodeResponse(ctx, w, http.StatusCreated, newUserResourceResponse(mapping)); err != nil {
+		if err := encodeResponse(ctx, w, http.StatusCreated, newResourceUserResponse(user, userType)); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
