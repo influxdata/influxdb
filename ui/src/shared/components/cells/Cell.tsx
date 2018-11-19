@@ -16,6 +16,9 @@ import {readView} from 'src/dashboards/actions/v2/views'
 import {DashboardQuery, RemoteDataState, TimeRange} from 'src/types'
 import {Cell, View, AppState} from 'src/types/v2'
 
+// Styles
+import './Cell.scss'
+
 interface StateProps {
   view: View
   viewStatus: RemoteDataState

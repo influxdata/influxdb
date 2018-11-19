@@ -1,0 +1,49 @@
+/*
+  Cell Styles
+  ---------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.cell {
+  background-color: $g3-castle;
+  border-radius: $radius;
+}
+
+.cell--view {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+
+
+
+
+
+
+
+/* OLD */
+
+$graph-heading-height: 44px;
+$graph-gutter: 16px;
+.graph-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-content: center;
+  @include no-user-select();
+
+  > p {
+    font-size: 20px;
+    font-weight: 400;
+    margin: 0;
+    text-align: center;
+    color: $g8-storm;
+    white-space: pre-wrap;
+  }
+}
