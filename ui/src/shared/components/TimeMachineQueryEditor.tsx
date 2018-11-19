@@ -4,7 +4,12 @@ import {connect} from 'react-redux'
 
 // Components
 import FluxEditor from 'src/shared/components/FluxEditor'
-import {Button, ComponentColor, ComponentSize} from 'src/clockface'
+import {
+  Button,
+  ComponentColor,
+  ComponentSize,
+  ComponentStatus,
+} from 'src/clockface'
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/shared/components/flux_functions_toolbar/FluxFunctionsToolbar'
 
@@ -19,6 +24,7 @@ import {HANDLE_VERTICAL} from 'src/shared/constants'
 
 // Types
 import {AppState} from 'src/types/v2'
+import {RemoteDataState} from 'src/types'
 
 import 'src/shared/components/TimeMachineQueryEditor.scss'
 
@@ -31,13 +37,25 @@ interface DispatchProps {
   onSubmitScript: typeof submitScript
 }
 
-interface OwnProps {}
+interface OwnProps {
+  queryStatus: RemoteDataState
+}
 
 type Props = StateProps & DispatchProps & OwnProps
 
 class TimeMachineQueryEditor extends PureComponent<Props> {
   public render() {
-    const {draftScript, onSetDraftScript, onSubmitScript} = this.props
+    const {
+      queryStatus,
+      draftScript,
+      onSetDraftScript,
+      onSubmitScript,
+    } = this.props
+
+    const buttonStatus =
+      queryStatus === RemoteDataState.Loading
+        ? ComponentStatus.Loading
+        : ComponentStatus.Default
 
     const divisions = [
       {
@@ -48,6 +66,7 @@ class TimeMachineQueryEditor extends PureComponent<Props> {
             key="foo"
             text="Submit"
             size={ComponentSize.ExtraSmall}
+            status={buttonStatus}
             onClick={onSubmitScript}
             color={ComponentColor.Primary}
           />,

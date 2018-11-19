@@ -12,16 +12,21 @@ import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 // Types
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {AppState} from 'src/types/v2'
+import {RemoteDataState} from 'src/types'
 
 interface StateProps {
   activeTab: TimeMachineTab
 }
 
-const TimeMachineBottom: SFC<StateProps> = props => {
-  const {activeTab} = props
+interface OwnProps {
+  queryStatus: RemoteDataState
+}
 
+type Props = StateProps & OwnProps
+
+const TimeMachineBottom: SFC<Props> = ({activeTab, queryStatus}) => {
   if (activeTab === TimeMachineTab.Queries) {
-    return <TimeMachineQueryEditor />
+    return <TimeMachineQueryEditor queryStatus={queryStatus} />
   }
 
   if (activeTab === TimeMachineTab.Visualization) {
@@ -41,7 +46,7 @@ const mstp = (state: AppState) => {
   return {activeTab}
 }
 
-export default connect<StateProps, {}, {}>(
+export default connect<StateProps, {}, OwnProps>(
   mstp,
   null
 )(TimeMachineBottom)

@@ -41,7 +41,7 @@ const TimeMachine: SFC<StateProps> = props => {
             },
             {
               handlePixels: 12,
-              render: () => <TimeMachineBottom />,
+              render: () => <TimeMachineBottom queryStatus={queriesState.loading} />,
               headerOrientation: HANDLE_HORIZONTAL,
               size: 0.67,
             },
