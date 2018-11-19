@@ -3,6 +3,7 @@ vendor
 .vscode
 .vs
 .tern-project
+.DS_Store
 
 # binary databases
 influxd.bolt
