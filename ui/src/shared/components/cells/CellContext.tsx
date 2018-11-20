@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Context, IconFont} from 'src/clockface'
+import {Context, IconFont, ComponentColor, Alignment} from 'src/clockface'
 
 // Types
 import {Cell} from 'src/types/v2'
@@ -25,24 +25,25 @@ class CellContext extends PureComponent<Props> {
 
     if (visible) {
       return (
-        <div className="cell--context">
-          <Context>
-            <Context.Menu icon={IconFont.Pencil}>
-              <Context.Item label="Configure" action={onEditCell} />
-              <Context.Item
-                label="Download CSV"
-                action={onCSVDownload}
-                disabled={true}
-              />
-            </Context.Menu>
-            <Context.Menu icon={IconFont.Duplicate}>
-              <Context.Item label="Clone" action={this.handleCloneCell} />
-            </Context.Menu>
-            <Context.Menu icon={IconFont.Trash}>
-              <Context.Item label="Delete" action={this.handleDeleteCell} />
-            </Context.Menu>
-          </Context>
-        </div>
+        <Context className="cell--context">
+          <Context.Menu icon={IconFont.Pencil}>
+            <Context.Item label="Configure" action={onEditCell} />
+            <Context.Item
+              label="Download CSV"
+              action={onCSVDownload}
+              disabled={true}
+            />
+          </Context.Menu>
+          <Context.Menu
+            icon={IconFont.Duplicate}
+            color={ComponentColor.Secondary}
+          >
+            <Context.Item label="Clone" action={this.handleCloneCell} />
+          </Context.Menu>
+          <Context.Menu icon={IconFont.Trash} color={ComponentColor.Danger}>
+            <Context.Item label="Delete" action={this.handleDeleteCell} />
+          </Context.Menu>
+        </Context>
       )
     }
 

@@ -15,12 +15,17 @@ import './ContextMenu.scss'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  align?: Alignment
   children: JSX.Element | JSX.Element[]
+  align?: Alignment
+  className?: string
+}
+
+interface State {
+  boostZIndex: boolean
 }
 
 @ErrorHandling
-class CellContext extends PureComponent<Props> {
+class CellContext extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     align: Alignment.Right,
   }
@@ -28,16 +33,46 @@ class CellContext extends PureComponent<Props> {
   public static Menu = ContextMenu
   public static Item = ContextMenuItem
 
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      boostZIndex: false,
+    }
+  }
+
   public render() {
     const {children} = this.props
 
-    return <div className={this.className}>{children}</div>
+    return (
+      <div className={this.className}>
+        {React.Children.map(children, (child: JSX.Element) => {
+          if (child.type === ContextMenu) {
+            return (
+              <ContextMenu
+                {...child.props}
+                onBoostZIndex={this.handleBoostZIndex}
+              />
+            )
+          } else {
+            throw new Error('Expected children of type <Context.Menu />')
+          }
+        })}
+      </div>
+    )
+  }
+
+  private handleBoostZIndex = (boostZIndex: boolean): void => {
+    this.setState({boostZIndex})
   }
 
   private get className(): string {
-    const {align} = this.props
+    const {align, className} = this.props
+    const {boostZIndex} = this.state
 
     return classnames('context-menu', {
+      [`${className}`]: className,
+      'context-menu--boost-z': boostZIndex,
       'context-menu--align-left': align === Alignment.Left,
       'context-menu--align-right': align === Alignment.Right,
     })

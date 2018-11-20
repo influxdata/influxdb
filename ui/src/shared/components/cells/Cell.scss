@@ -36,8 +36,6 @@ $cell--header-size: 36px;
 }
 
 .cell--context {
-  display: flex;
-  align-items: center;
   position: absolute;
   top: 0;
   right: 2px;
@@ -46,10 +44,6 @@ $cell--header-size: 36px;
   z-index: $z--cell-context;
   opacity: 0;
   transition: opacity 0.25s ease;
-
-  &:hover {
-    z-index: $z--cell-context-hover;
-  }
 }
 
 .cell--name {

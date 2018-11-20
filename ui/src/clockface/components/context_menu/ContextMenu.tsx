@@ -7,13 +7,15 @@ import ContextMenuItem from 'src/clockface/components/context_menu/ContextMenuIt
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
-import {IconFont} from 'src/clockface/types'
+import {IconFont, ComponentColor} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: JSX.Element | JSX.Element[]
   icon: IconFont
+  color?: ComponentColor
+  onBoostZIndex?: (boostZIndex: boolean) => void
 }
 
 interface State {
@@ -22,6 +24,10 @@ interface State {
 
 @ErrorHandling
 class CellMenu extends Component<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    color: ComponentColor.Primary,
+  }
+
   constructor(props: Props) {
     super(props)
 
@@ -49,10 +55,22 @@ class CellMenu extends Component<Props, State> {
   }
 
   private handleExpandMenu = (): void => {
+    const {onBoostZIndex} = this.props
+
+    if (onBoostZIndex) {
+      onBoostZIndex(true)
+    }
+
     this.setState({isExpanded: true})
   }
 
   private handleCollapseMenu = (): void => {
+    const {onBoostZIndex} = this.props
+
+    if (onBoostZIndex) {
+      onBoostZIndex(false)
+    }
+
     this.setState({isExpanded: false})
   }
 
@@ -61,7 +79,7 @@ class CellMenu extends Component<Props, State> {
 
     return (
       <div className={this.menuClassName}>
-        <div className="context-menu--list">
+        <div className={this.listClassName}>
           {React.Children.map(children, (child: JSX.Element) => {
             if (child.type === ContextMenuItem) {
               return (
@@ -71,12 +89,20 @@ class CellMenu extends Component<Props, State> {
                 />
               )
             } else {
-              throw new Error('Expected children of type <ContextMenu.Item />')
+              throw new Error('Expected children of type <Context.Item />')
             }
           })}
         </div>
       </div>
     )
+  }
+
+  private get listClassName(): string {
+    const {color} = this.props
+
+    return classnames('context-menu--list', {
+      [`context-menu--${color}`]: color,
+    })
   }
 
   private get menuClassName(): string {
@@ -86,9 +112,13 @@ class CellMenu extends Component<Props, State> {
   }
 
   private get toggleClassName(): string {
+    const {color} = this.props
     const {isExpanded} = this.state
 
-    return classnames('context-menu--toggle', {active: isExpanded})
+    return classnames('context-menu--toggle', {
+      [`context-menu--${color}`]: color,
+      active: isExpanded,
+    })
   }
 }
 
