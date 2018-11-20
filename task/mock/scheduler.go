@@ -285,6 +285,8 @@ type Executor struct {
 
 	// Map of stringified, concatenated task and run ID, to results of runs that have executed and completed.
 	finished map[string]backend.RunResult
+
+	wg sync.WaitGroup
 }
 
 var _ backend.Executor = (*Executor)(nil)
@@ -303,7 +305,9 @@ func (e *Executor) Execute(ctx context.Context, run backend.QueuedRun) (backend.
 	e.mu.Lock()
 	e.running[id] = rp
 	e.mu.Unlock()
+	e.wg.Add(1)
 	go func() {
+		defer e.wg.Done()
 		res, _ := rp.Wait()
 		e.mu.Lock()
 		delete(e.running, id)
@@ -313,7 +317,9 @@ func (e *Executor) Execute(ctx context.Context, run backend.QueuedRun) (backend.
 	return rp, nil
 }
 
-func (e *Executor) WithLogger(l *zap.Logger) {}
+func (e *Executor) Wait() {
+	e.wg.Wait()
+}
 
 func (e *Executor) WithHanging(dt time.Duration) {
 	e.hangingFor = dt

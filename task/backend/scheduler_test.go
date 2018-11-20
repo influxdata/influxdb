@@ -17,7 +17,9 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-func TestScheduler_TestCancelation(t *testing.T) {
+func TestScheduler_Cancelation(t *testing.T) {
+	t.Parallel()
+
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	e.WithHanging(100 * time.Millisecond)
@@ -631,5 +633,47 @@ func TestScheduler_Metrics(t *testing.T) {
 	m = promtest.MustFindMetric(t, mfs, "task_scheduler_claims_active", nil)
 	if got := *m.Gauge.Value; got != 0 {
 		t.Fatalf("expected 0 claims active, got %v", got)
+	}
+}
+
+type fakeWaitExecutor struct {
+	wait chan struct{}
+}
+
+func (e *fakeWaitExecutor) Execute(ctx context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
+	panic("fakeWaitExecutor cannot Execute")
+}
+
+func (e *fakeWaitExecutor) Wait() {
+	<-e.wait
+}
+
+func TestScheduler_Stop(t *testing.T) {
+	t.Parallel()
+
+	e := &fakeWaitExecutor{wait: make(chan struct{})}
+	o := backend.NewScheduler(mock.NewDesiredState(), e, backend.NopLogWriter{}, 4, backend.WithLogger(zaptest.NewLogger(t)))
+	o.Start(context.Background())
+
+	stopped := make(chan struct{})
+	go func() {
+		o.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+		t.Fatalf("scheduler stopped before in-flight executions finished")
+	case <-time.After(50 * time.Millisecond):
+		// Okay.
+	}
+
+	close(e.wait)
+
+	select {
+	case <-stopped:
+		// Okay.
+	case <-time.After(50 * time.Millisecond):
+		t.Fatalf("scheduler did not stop after executor Wait returned")
 	}
 }

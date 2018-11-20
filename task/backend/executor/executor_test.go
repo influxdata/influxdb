@@ -72,7 +72,7 @@ func (s *fakeQueryService) Query(ctx context.Context, req *query.Request) (flux.
 	}
 	s.queries[makeSpecString(sc.Spec)] = fq
 
-	go fq.run()
+	go fq.run(ctx)
 
 	return fq, nil
 }
@@ -109,6 +109,8 @@ func (s *fakeQueryService) FailNextQuery(forced error) {
 // This is particularly useful for the synchronous executor,
 // because the execution starts on a separate goroutine.
 func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
+	t.Helper()
+
 	const attempts = 10
 	spec := makeSpecString(makeSpec(script))
 	for i := 0; i < attempts; i++ {
@@ -131,22 +133,37 @@ type fakeQuery struct {
 	ready       chan map[string]flux.Result
 	wait        chan struct{} // Blocks Ready from returning.
 	forcedError error         // Value to return from Err() method.
+
+	ctxErr error // Error from ctx.Done.
 }
 
 var _ flux.Query = (*fakeQuery)(nil)
 
 func (q *fakeQuery) Spec() *flux.Spec                     { return nil }
 func (q *fakeQuery) Done()                                {}
-func (q *fakeQuery) Cancel()                              {}
-func (q *fakeQuery) Err() error                           { return q.forcedError }
+func (q *fakeQuery) Cancel()                              { close(q.ready) }
 func (q *fakeQuery) Statistics() flux.Statistics          { return flux.Statistics{} }
 func (q *fakeQuery) Ready() <-chan map[string]flux.Result { return q.ready }
 
+func (q *fakeQuery) Err() error {
+	if q.ctxErr != nil {
+		return q.ctxErr
+	}
+	return q.forcedError
+}
+
 // run is intended to be run on its own goroutine.
 // It blocks until q.wait is closed, then sends a fake result on the q.ready channel.
-func (q *fakeQuery) run() {
+func (q *fakeQuery) run(ctx context.Context) {
 	// Wait for call to set query success/fail.
-	<-q.wait
+	select {
+	case <-ctx.Done():
+		q.ctxErr = ctx.Err()
+		close(q.ready)
+		return
+	case <-q.wait:
+		// Normal case.
+	}
 
 	if q.forcedError == nil {
 		res := newFakeResult()
@@ -241,11 +258,14 @@ func TestExecutor(t *testing.T) {
 		testExecutorQueryFailure(t, fn)
 		testExecutorPromiseCancel(t, fn)
 		testExecutorServiceError(t, fn)
+		testExecutorWait(t, fn)
 	}
 }
 
-const testScript = `option task = {
-			name: "foo",
+// Some tests use t.Parallel, and the fake query service depends on unique scripts,
+// so format a new script with the test name in each test.
+const fmtTestScript = `option task = {
+			name: %q,
 			every: 1m,
 		}
 		from(bucket: "one") |> toHTTP(url: "http://example.com")`
@@ -255,7 +275,10 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/QuerySuccess", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: testScript})
+		t.Parallel()
+
+		script := fmt.Sprintf(fmtTestScript, t.Name())
+		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -282,8 +305,8 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 			// Okay.
 		}
 
-		sys.svc.WaitForQueryLive(t, testScript)
-		sys.svc.SucceedQuery(testScript)
+		sys.svc.WaitForQueryLive(t, script)
+		sys.svc.SucceedQuery(script)
 		res, err := rp.Wait()
 		if err != nil {
 			t.Fatal(err)
@@ -307,7 +330,9 @@ func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/QueryFail", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: testScript})
+		t.Parallel()
+		script := fmt.Sprintf(fmtTestScript, t.Name())
+		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -318,8 +343,8 @@ func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 		}
 
 		expErr := errors.New("forced error")
-		sys.svc.WaitForQueryLive(t, testScript)
-		sys.svc.FailQuery(testScript, expErr)
+		sys.svc.WaitForQueryLive(t, script)
+		sys.svc.FailQuery(script, expErr)
 		res, err := rp.Wait()
 		if err != nil {
 			t.Fatal(err)
@@ -335,7 +360,9 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/PromiseCancel", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: testScript})
+		t.Parallel()
+		script := fmt.Sprintf(fmtTestScript, t.Name())
+		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -362,7 +389,9 @@ func testExecutorServiceError(t *testing.T, fn createSysFn) {
 	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
 	t.Run(sys.name+"/ServiceError", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: testScript})
+		t.Parallel()
+		script := fmt.Sprintf(fmtTestScript, t.Name())
+		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -389,5 +418,198 @@ func testExecutorServiceError(t *testing.T, fn createSysFn) {
 		} else {
 			t.Fatalf("unexpected error: %v", err)
 		}
+	})
+}
+
+func testExecutorWait(t *testing.T, createSys createSysFn) {
+	// This is a longer delay than I'd prefer,
+	// but it needs to be large-ish for slow machines running with the race detector.
+	const waitCheckDelay = 100 * time.Millisecond
+
+	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
+	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
+
+	// Other executor tests create a single sys and share it among subtests.
+	// For this set of tests, we are testing Wait, which does not allow calling Execute concurrently,
+	// so we make a new sys for each subtest.
+
+	t.Run(createSys().name+"/Wait", func(t *testing.T) {
+		t.Run("with nothing running", func(t *testing.T) {
+			t.Parallel()
+			sys := createSys()
+
+			executorWaited := make(chan struct{})
+			go func() {
+				sys.ex.Wait()
+				close(executorWaited)
+			}()
+
+			select {
+			case <-executorWaited:
+				// Okay.
+			case <-time.After(waitCheckDelay):
+				t.Fatalf("executor.Wait should have returned immediately")
+			}
+		})
+
+		t.Run("cancel execute context", func(t *testing.T) {
+			t.Parallel()
+			sys := createSys()
+
+			ctx, ctxCancel := context.WithCancel(context.Background())
+			defer ctxCancel()
+
+			script := fmt.Sprintf(fmtTestScript, t.Name())
+			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+			if err != nil {
+				t.Fatal(err)
+			}
+			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			if _, err := sys.ex.Execute(ctx, qr); err != nil {
+				t.Fatal(err)
+			}
+
+			executorWaited := make(chan struct{})
+			go func() {
+				sys.ex.Wait()
+				close(executorWaited)
+			}()
+
+			select {
+			case <-executorWaited:
+				t.Fatalf("executor.Wait returned too early")
+			case <-time.After(waitCheckDelay):
+				// Okay.
+			}
+
+			ctxCancel()
+
+			select {
+			case <-executorWaited:
+				// Okay.
+			case <-time.After(waitCheckDelay):
+				t.Fatalf("executor.Wait didn't return after execute context canceled")
+			}
+		})
+
+		t.Run("cancel run promise", func(t *testing.T) {
+			t.Parallel()
+			sys := createSys()
+
+			ctx := context.Background()
+
+			script := fmt.Sprintf(fmtTestScript, t.Name())
+			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+			if err != nil {
+				t.Fatal(err)
+			}
+			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			rp, err := sys.ex.Execute(ctx, qr)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			executorWaited := make(chan struct{})
+			go func() {
+				sys.ex.Wait()
+				close(executorWaited)
+			}()
+
+			select {
+			case <-executorWaited:
+				t.Fatalf("executor.Wait returned too early")
+			case <-time.After(waitCheckDelay):
+				// Okay.
+			}
+
+			rp.Cancel()
+
+			select {
+			case <-executorWaited:
+				// Okay.
+			case <-time.After(waitCheckDelay):
+				t.Fatalf("executor.Wait didn't return after run promise canceled")
+			}
+		})
+
+		t.Run("run success", func(t *testing.T) {
+			t.Parallel()
+			sys := createSys()
+
+			ctx := context.Background()
+
+			script := fmt.Sprintf(fmtTestScript, t.Name())
+			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+			if err != nil {
+				t.Fatal(err)
+			}
+			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			if _, err := sys.ex.Execute(ctx, qr); err != nil {
+				t.Fatal(err)
+			}
+
+			executorWaited := make(chan struct{})
+			go func() {
+				sys.ex.Wait()
+				close(executorWaited)
+			}()
+
+			select {
+			case <-executorWaited:
+				t.Fatalf("executor.Wait returned too early")
+			case <-time.After(waitCheckDelay):
+				// Okay.
+			}
+
+			sys.svc.WaitForQueryLive(t, script)
+			sys.svc.SucceedQuery(script)
+
+			select {
+			case <-executorWaited:
+				// Okay.
+			case <-time.After(waitCheckDelay):
+				t.Fatalf("executor.Wait didn't return after query succeeded")
+			}
+		})
+
+		t.Run("run failure", func(t *testing.T) {
+			t.Parallel()
+			sys := createSys()
+
+			ctx := context.Background()
+
+			script := fmt.Sprintf(fmtTestScript, t.Name())
+			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+			if err != nil {
+				t.Fatal(err)
+			}
+			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			if _, err := sys.ex.Execute(ctx, qr); err != nil {
+				t.Fatal(err)
+			}
+
+			executorWaited := make(chan struct{})
+			go func() {
+				sys.ex.Wait()
+				close(executorWaited)
+			}()
+
+			select {
+			case <-executorWaited:
+				t.Fatalf("executor.Wait returned too early")
+			case <-time.After(waitCheckDelay):
+				// Okay.
+			}
+
+			sys.svc.WaitForQueryLive(t, script)
+			sys.svc.FailQuery(script, errors.New("forced"))
+
+			select {
+			case <-executorWaited:
+				// Okay.
+			case <-time.After(waitCheckDelay):
+				t.Fatalf("executor.Wait didn't return after query failed")
+			}
+		})
 	})
 }

@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/influxdata/platform"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -48,6 +48,11 @@ type Executor interface {
 	// TODO(mr): this assumes you can execute a run just from a taskID and a now time.
 	// We may need to include the script content in this method signature.
 	Execute(ctx context.Context, run QueuedRun) (RunPromise, error)
+
+	// Wait blocks until all RunPromises created through Execute have finished.
+	// Once Wait has been called, it is an error to call Execute before Wait has returned.
+	// After Wait returns, it is safe to call Execute again.
+	Wait()
 }
 
 // QueuedRun is a task run that has been assigned an ID,
@@ -244,7 +249,6 @@ func (s *TickScheduler) Start(ctx context.Context) {
 }
 
 func (s *TickScheduler) Stop() {
-	defer s.wg.Wait()
 
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
@@ -261,6 +265,12 @@ func (s *TickScheduler) Stop() {
 		delete(s.taskSchedulers, id)
 		s.metrics.ReleaseTask(id.String())
 	}
+
+	// Wait for schedulers to clean up.
+	s.wg.Wait()
+
+	// Wait for outstanding executions to finish.
+	s.executor.Wait()
 }
 
 func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err error) {

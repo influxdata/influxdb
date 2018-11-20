@@ -20,6 +20,7 @@ type queryServiceExecutor struct {
 	svc    query.QueryService
 	st     backend.Store
 	logger *zap.Logger
+	wg     sync.WaitGroup
 }
 
 var _ backend.Executor = (*queryServiceExecutor)(nil)
@@ -38,6 +39,10 @@ func (e *queryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRu
 	}
 
 	return newSyncRunPromise(ctx, run, e, t), nil
+}
+
+func (e *queryServiceExecutor) Wait() {
+	e.wg.Wait()
 }
 
 // syncRunPromise implements backend.RunPromise for a synchronous QueryService.
@@ -73,8 +78,9 @@ func newSyncRunPromise(ctx context.Context, qr backend.QueuedRun, e *queryServic
 		ready:  make(chan struct{}),
 	}
 
-	go rp.doQuery()
-	go rp.cancelOnContextDone()
+	e.wg.Add(2)
+	go rp.doQuery(&e.wg)
+	go rp.cancelOnContextDone(&e.wg)
 
 	return rp
 }
@@ -119,7 +125,9 @@ func (p *syncRunPromise) finish(res *runResult, err error) {
 	})
 }
 
-func (p *syncRunPromise) doQuery() {
+func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	spec, err := flux.Compile(p.ctx, p.t.Script, time.Unix(p.qr.Now, 0))
 	if err != nil {
 		p.finish(nil, err)
@@ -153,7 +161,9 @@ func (p *syncRunPromise) doQuery() {
 	p.finish(&runResult{err: it.Err()}, nil)
 }
 
-func (p *syncRunPromise) cancelOnContextDone() {
+func (p *syncRunPromise) cancelOnContextDone(wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	select {
 	case <-p.ready:
 		// Nothing to do.
@@ -170,6 +180,7 @@ type asyncQueryServiceExecutor struct {
 	svc    query.AsyncQueryService
 	st     backend.Store
 	logger *zap.Logger
+	wg     sync.WaitGroup
 }
 
 var _ backend.Executor = (*asyncQueryServiceExecutor)(nil)
@@ -204,6 +215,10 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 	return newAsyncRunPromise(run, q, e), nil
 }
 
+func (e *asyncQueryServiceExecutor) Wait() {
+	e.wg.Wait()
+}
+
 // asyncRunPromise implements backend.RunPromise for an AsyncQueryService.
 type asyncRunPromise struct {
 	qr backend.QueuedRun
@@ -233,7 +248,8 @@ func newAsyncRunPromise(qr backend.QueuedRun, q flux.Query, e *asyncQueryService
 		logEnd: logEnd,
 	}
 
-	go p.followQuery()
+	e.wg.Add(1)
+	go p.followQuery(&e.wg)
 	return p
 }
 
@@ -258,7 +274,8 @@ func (p *asyncRunPromise) Cancel() {
 // followQuery waits for the query to become ready and sets p's results.
 // If the promise is finished somewhere else first, such as if it is canceled,
 // followQuery will return.
-func (p *asyncRunPromise) followQuery() {
+func (p *asyncRunPromise) followQuery(wg *sync.WaitGroup) {
+	defer wg.Done()
 	// Always need to call Done after query is finished.
 	defer p.q.Done()
 
