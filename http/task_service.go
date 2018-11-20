@@ -243,8 +243,17 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !req.Task.Organization.Valid() {
+		err := &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "invalid organization id",
+		}
+		EncodeError(ctx, err, w)
+		return
+	}
+
 	if !req.Task.Owner.ID.Valid() {
-		req.Task.Owner.ID = auth.GetUserID()
+		req.Task.Owner.ID = auth.Identifier()
 	}
 
 	if err := h.TaskService.CreateTask(ctx, req.Task); err != nil {

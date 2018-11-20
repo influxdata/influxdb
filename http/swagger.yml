@@ -2501,12 +2501,6 @@ paths:
       tags:
         - Tasks
       summary: Create a new task
-      parameters:
-        - in: query
-          name: org
-          schema:
-            type: string
-          description: filter tasks to a specific organization name
       requestBody:
         description: task to create
         required: true
