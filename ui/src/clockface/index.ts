@@ -19,6 +19,7 @@ import EmptyState from './components/empty_state/EmptyState'
 import Spinner from './components/spinners/Spinner'
 import IndexList from './components/index_views/IndexList'
 import Context from './components/context_menu/Context'
+import FormElement from 'src/clockface/components/form_layout/FormElement'
 
 // Import Types
 import {
@@ -50,6 +51,7 @@ export {
   MultiSelectDropdown,
   EmptyState,
   Form,
+  FormElement,
   IndexList,
   Input,
   InputType,

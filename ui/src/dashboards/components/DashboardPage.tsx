@@ -49,7 +49,7 @@ import {
   TimeRange,
   DashboardSwitcherLinks,
 } from 'src/types/v2'
-import {NewView, LineView} from 'src/types/v2/dashboards'
+import {NewView, XYView} from 'src/types/v2/dashboards'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
@@ -271,7 +271,7 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleAddCell = async (): Promise<void> => {
-    const newView = createView<LineView>(ViewType.Line)
+    const newView = createView<XYView>(ViewType.XY)
 
     this.showVEO(newView)
   }

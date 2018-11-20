@@ -5,10 +5,7 @@ import {ViewType} from 'src/types/v2/dashboards'
 type Graphic = JSX.Element
 
 interface GraphSVGs {
-  [ViewType.Line]: Graphic
-  [ViewType.Stacked]: Graphic
-  [ViewType.StepPlot]: Graphic
-  [ViewType.Bar]: Graphic
+  [ViewType.XY]: Graphic
   [ViewType.LinePlusSingleStat]: Graphic
   [ViewType.SingleStat]: Graphic
   [ViewType.Gauge]: Graphic
@@ -16,7 +13,7 @@ interface GraphSVGs {
 }
 
 const GRAPH_SVGS: GraphSVGs = {
-  line: (
+  xy: (
     <div className="viz-type-selector--graphic">
       <svg
         width="100%"
@@ -51,84 +48,6 @@ const GRAPH_SVGS: GraphSVGs = {
         <polyline
           className="viz-type-selector--graphic-line graphic-line-c"
           points="2,115 38.5,116.5 75,85.7 111.5,106.3 148,96 	"
-        />
-      </svg>
-    </div>
-  ),
-  stacked: (
-    <div className="viz-type-selector--graphic">
-      <svg
-        width="100%"
-        height="100%"
-        version="1.1"
-        id="LineStacked"
-        x="0px"
-        y="0px"
-        viewBox="0 0 150 150"
-        preserveAspectRatio="none meet"
-      >
-        <polygon
-          className="viz-type-selector--graphic-fill graphic-fill-a"
-          points="148,25 111.5,25 75,46 38.5,39.1 2,85.5 2,125 148,125 	"
-        />
-        <polyline
-          className="viz-type-selector--graphic-line graphic-line-a"
-          points="2,85.5 38.5,39.1 75,46 111.5,25 148,25 	"
-        />
-        <polygon
-          className="viz-type-selector--graphic-fill graphic-fill-b"
-          points="148,53 111.5,49.9 75,88.5 38.5,71 2,116 2,125 148,125 	"
-        />
-        <polyline
-          className="viz-type-selector--graphic-line graphic-line-b"
-          points="2,116 38.5,71 75,88.5 111.5,49.9 148,53 	"
-        />
-        <polygon
-          className="viz-type-selector--graphic-fill graphic-fill-c"
-          points="148,86.2 111.5,88.6 75,108.6 38.5,98 2,121.1 2,125 148,125 	"
-        />
-        <polyline
-          className="viz-type-selector--graphic-line graphic-line-c"
-          points="2,121.1 38.5,98 75,108.6 111.5,88.6 148,86.2 	"
-        />
-      </svg>
-    </div>
-  ),
-  'step-plot': (
-    <div className="viz-type-selector--graphic">
-      <svg
-        width="100%"
-        height="100%"
-        version="1.1"
-        id="StepPlot"
-        x="0px"
-        y="0px"
-        viewBox="0 0 150 150"
-        preserveAspectRatio="none meet"
-      >
-        <polygon
-          className="viz-type-selector--graphic-fill graphic-fill-a"
-          points="148,61.9 129.8,61.9 129.8,25 93.2,25 93.2,40.6 56.8,40.6 56.8,25 20.2,25 20.2,67.8 2,67.8 2,125 148,125 	"
-        />
-        <polyline
-          className="viz-type-selector--graphic-line graphic-line-a"
-          points="2,67.8 20.2,67.8 20.2,25 56.8,25 56.8,40.6 93.2,40.6 93.2,25 129.8,25 129.8,61.9 148,61.9 	"
-        />
-        <polygon
-          className="viz-type-selector--graphic-fill graphic-fill-b"
-          points="148,91.9 129.8,91.9 129.8,70.2 93.2,70.2 93.2,67 56.8,67 56.8,50.1 20.2,50.1 20.2,87 2,87 2,125 148,125 	"
-        />
-        <polyline
-          className="viz-type-selector--graphic-line graphic-line-b"
-          points="2,87 20.2,87 20.2,50.1 56.8,50.1 56.8,67 93.2,67 93.2,70.2 129.8,70.2 129.8,91.9 148,91.9 	"
-        />
-        <polygon
-          className="viz-type-selector--graphic-fill graphic-fill-c"
-          points="148,103.5 129.8,103.5 129.8,118.2 93.2,118.2 93.2,84.5 56.8,84.5 56.8,75 20.2,75 20.2,100.2 2,100.2 2,125 148,125 	"
-        />
-        <polyline
-          className="viz-type-selector--graphic-line graphic-line-c"
-          points="2,100.2 20.2,100.2 20.2,75 56.8,75 56.8,84.5 93.2,84.5 93.2,118.2 129.8,118.2 129.8,103.5 148,103.5 	"
         />
       </svg>
     </div>
@@ -217,91 +136,6 @@ const GRAPH_SVGS: GraphSVGs = {
         <path
           className="viz-type-selector--graphic-fill graphic-fill-d"
           d="M113.8,74.3l1.3-13.6H129v1.1h-12.9l-1.2,11.4c0.7-0.6,1.6-1,2.7-1.4s2.2-0.5,3.3-0.5c2.6,0,4.6,0.8,6.1,2.4 c1.5,1.6,2.3,3.8,2.3,6.4c0,3.1-0.7,5.4-2.1,7c-1.4,1.6-3.4,2.4-5.9,2.4c-2.4,0-4.4-0.7-5.9-2.1c-1.5-1.4-2.3-3.3-2.5-5.8h1.1 c0.2,2.2,0.9,3.9,2.2,5.1c1.2,1.2,3,1.7,5.2,1.7c2.3,0,4.1-0.7,5.2-2.1c1.1-1.4,1.7-3.5,1.7-6.2c0-2.4-0.7-4.3-2-5.7 c-1.3-1.4-3.1-2.1-5.3-2.1c-1.4,0-2.6,0.2-3.6,0.5c-1,0.4-1.9,0.9-2.7,1.7L113.8,74.3z"
-        />
-      </svg>
-    </div>
-  ),
-  bar: (
-    <div className="viz-type-selector--graphic">
-      <svg
-        width="100%"
-        height="100%"
-        version="1.1"
-        id="Bar"
-        x="0px"
-        y="0px"
-        viewBox="0 0 150 150"
-        preserveAspectRatio="none meet"
-      >
-        <rect
-          x="2"
-          y="108.4"
-          className="viz-type-selector--graphic-line graphic-line-a"
-          width="26.8"
-          height="16.6"
-        />
-        <rect
-          x="31.8"
-          y="82.4"
-          className="viz-type-selector--graphic-line graphic-line-b"
-          width="26.8"
-          height="42.6"
-        />
-        <rect
-          x="61.6"
-          y="28.8"
-          className="viz-type-selector--graphic-line graphic-line-c"
-          width="26.8"
-          height="96.2"
-        />
-        <rect
-          x="91.4"
-          y="47.9"
-          className="viz-type-selector--graphic-line graphic-line-a"
-          width="26.8"
-          height="77.1"
-        />
-        <rect
-          x="121.2"
-          y="25"
-          className="viz-type-selector--graphic-line graphic-line-b"
-          width="26.8"
-          height="100"
-        />
-        <rect
-          x="2"
-          y="108.4"
-          className="viz-type-selector--graphic-fill graphic-fill-a"
-          width="26.8"
-          height="16.6"
-        />
-        <rect
-          x="31.8"
-          y="82.4"
-          className="viz-type-selector--graphic-fill graphic-fill-b"
-          width="26.8"
-          height="42.6"
-        />
-        <rect
-          x="61.6"
-          y="28.8"
-          className="viz-type-selector--graphic-fill graphic-fill-c"
-          width="26.8"
-          height="96.2"
-        />
-        <rect
-          x="91.4"
-          y="47.9"
-          className="viz-type-selector--graphic-fill graphic-fill-a"
-          width="26.8"
-          height="77.1"
-        />
-        <rect
-          x="121.2"
-          y="25"
-          className="viz-type-selector--graphic-fill graphic-fill-b"
-          width="26.8"
-          height="100"
         />
       </svg>
     </div>
@@ -531,28 +365,13 @@ interface GraphType {
 }
 export const GRAPH_TYPES: GraphType[] = [
   {
-    type: ViewType.Line,
-    menuOption: 'Line Graph',
-    graphic: GRAPH_SVGS[ViewType.Line],
-  },
-  {
-    type: ViewType.Stacked,
-    menuOption: 'Stacked Graph',
-    graphic: GRAPH_SVGS[ViewType.Stacked],
-  },
-  {
-    type: ViewType.StepPlot,
-    menuOption: 'Step-Plot Graph',
-    graphic: GRAPH_SVGS[ViewType.StepPlot],
-  },
-  {
-    type: ViewType.Bar,
-    menuOption: 'Bar Graph',
-    graphic: GRAPH_SVGS[ViewType.Bar],
+    type: ViewType.XY,
+    menuOption: 'Graph',
+    graphic: GRAPH_SVGS[ViewType.XY],
   },
   {
     type: ViewType.LinePlusSingleStat,
-    menuOption: 'Line Graph + Single Stat',
+    menuOption: 'Graph + Single Stat',
     graphic: GRAPH_SVGS[ViewType.LinePlusSingleStat],
   },
   {

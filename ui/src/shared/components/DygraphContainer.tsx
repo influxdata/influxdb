@@ -6,17 +6,18 @@ import Dygraph from 'src/shared/components/dygraph/Dygraph'
 import DygraphCell from 'src/shared/components/DygraphCell'
 import DygraphTransformation from 'src/shared/components/DygraphTransformation'
 
+// Utils
+import {geomToDygraphOptions} from 'src/shared/graphs/helpers'
+
 // Types
-import {Options} from 'src/external/dygraph'
-import {DygraphViewProperties} from 'src/types/v2/dashboards'
+import {XYView} from 'src/types/v2/dashboards'
 import {FluxTable, RemoteDataState, TimeRange} from 'src/types'
 
 interface Props {
   viewID: string
   tables: FluxTable[]
   loading: RemoteDataState
-  properties: DygraphViewProperties
-  dygraphOptions?: Partial<Options>
+  properties: XYView
   timeRange?: TimeRange
   onZoom?: (range: TimeRange) => void
   children?: JSX.Element
@@ -31,23 +32,21 @@ const DygraphContainer: SFC<Props> = props => {
     properties,
     timeRange,
     onZoom,
-    dygraphOptions,
   } = props
 
-  const {axes, type, colors, queries} = properties
+  const {axes, colors, queries} = properties
 
   return (
     <DygraphTransformation tables={tables}>
       {({labels, dygraphsData}) => (
         <DygraphCell loading={loading}>
           <Dygraph
-            type={type}
             axes={axes}
             viewID={viewID}
             colors={colors}
             labels={labels}
             queries={queries}
-            options={dygraphOptions}
+            options={geomToDygraphOptions[properties.geom]}
             timeSeries={dygraphsData}
             timeRange={timeRange}
             onZoom={onZoom}

@@ -105,12 +105,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 	switch t.Shape {
 	case "chronograf-v2":
 		switch t.Type {
-		case "line":
-			var lv LineViewProperties
-			if err := json.Unmarshal(v.B, &lv); err != nil {
+		case "xy":
+			var xyv XYViewProperties
+			if err := json.Unmarshal(v.B, &xyv); err != nil {
 				return nil, err
 			}
-			vis = lv
+			vis = xyv
 		case "single-stat":
 			var ssv SingleStatViewProperties
 			if err := json.Unmarshal(v.B, &ssv); err != nil {
@@ -123,18 +123,6 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = gv
-		case "step-plot":
-			var spv StepPlotViewProperties
-			if err := json.Unmarshal(v.B, &spv); err != nil {
-				return nil, err
-			}
-			vis = spv
-		case "stacked":
-			var sv StackedViewProperties
-			if err := json.Unmarshal(v.B, &sv); err != nil {
-				return nil, err
-			}
-			vis = sv
 		case "table":
 			var tv TableViewProperties
 			if err := json.Unmarshal(v.B, &tv); err != nil {
@@ -195,13 +183,13 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape:               "chronograf-v2",
 			GaugeViewProperties: vis,
 		}
-	case LineViewProperties:
+	case XYViewProperties:
 		s = struct {
 			Shape string `json:"shape"`
-			LineViewProperties
+			XYViewProperties
 		}{
-			Shape:              "chronograf-v2",
-			LineViewProperties: vis,
+			Shape:            "chronograf-v2",
+			XYViewProperties: vis,
 		}
 	case LinePlusSingleStatProperties:
 		s = struct {
@@ -210,22 +198,6 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 		}{
 			Shape:                        "chronograf-v2",
 			LinePlusSingleStatProperties: vis,
-		}
-	case StepPlotViewProperties:
-		s = struct {
-			Shape string `json:"shape"`
-			StepPlotViewProperties
-		}{
-			Shape:                  "chronograf-v2",
-			StepPlotViewProperties: vis,
-		}
-	case StackedViewProperties:
-		s = struct {
-			Shape string `json:"shape"`
-			StackedViewProperties
-		}{
-			Shape:                 "chronograf-v2",
-			StackedViewProperties: vis,
 		}
 	case LogViewProperties:
 		s = struct {
@@ -319,30 +291,13 @@ type LinePlusSingleStatProperties struct {
 	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
 }
 
-// LineViewProperties represents options for line view in Chronograf
-type LineViewProperties struct {
+// XYViewProperties represents options for line, bar, step, or stacked view in Chronograf
+type XYViewProperties struct {
 	Queries    []DashboardQuery `json:"queries"`
 	Axes       map[string]Axis  `json:"axes"`
 	Type       string           `json:"type"`
 	Legend     Legend           `json:"legend"`
-	ViewColors []ViewColor      `json:"colors"`
-}
-
-// StepPlotViewProperties represents options for step plot view in Chronograf
-type StepPlotViewProperties struct {
-	Queries    []DashboardQuery `json:"queries"`
-	Axes       map[string]Axis  `json:"axes"`
-	Type       string           `json:"type"`
-	Legend     Legend           `json:"legend"`
-	ViewColors []ViewColor      `json:"colors"`
-}
-
-// StackedViewProperties represents options for stacked view in Chronograf
-type StackedViewProperties struct {
-	Queries    []DashboardQuery `json:"queries"`
-	Axes       map[string]Axis  `json:"axes"`
-	Type       string           `json:"type"`
-	Legend     Legend           `json:"legend"`
+	Geom       string           `json:"geom"` // Either "line", "step", "stacked", or "bar"
 	ViewColors []ViewColor      `json:"colors"`
 }
 
@@ -397,11 +352,9 @@ type LogColumnSetting struct {
 	Name  string `json:"name,omitempty"`
 }
 
-func (LineViewProperties) viewProperties()           {}
+func (XYViewProperties) viewProperties()             {}
 func (LinePlusSingleStatProperties) viewProperties() {}
-func (StepPlotViewProperties) viewProperties()       {}
 func (SingleStatViewProperties) viewProperties()     {}
-func (StackedViewProperties) viewProperties()        {}
 func (GaugeViewProperties) viewProperties()          {}
 func (TableViewProperties) viewProperties()          {}
 func (LogViewProperties) viewProperties()            {}

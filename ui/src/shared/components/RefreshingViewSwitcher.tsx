@@ -12,8 +12,9 @@ import DygraphContainer from 'src/shared/components/DygraphContainer'
 import {
   RefreshingViewProperties,
   ViewType,
-  LineView,
   SingleStatView,
+  XYView,
+  XYViewGeom,
 } from 'src/types/v2/dashboards'
 import {FluxTable, RemoteDataState, TimeRange} from 'src/types'
 
@@ -41,7 +42,7 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
         return <TimeMachineTables tables={tables} properties={properties} />
       case ViewType.Gauge:
         return <GaugeChart tables={tables} properties={properties} />
-      case ViewType.Line:
+      case ViewType.XY:
         return (
           <DygraphContainer
             tables={tables}
@@ -53,10 +54,11 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
           />
         )
       case ViewType.LinePlusSingleStat:
-        const lineProperties = {
+        const xyProperties = {
           ...properties,
-          type: ViewType.Line,
-        } as LineView
+          type: ViewType.XY,
+          geom: XYViewGeom.Line,
+        } as XYView
 
         const singleStatProperties = {
           ...properties,
@@ -70,7 +72,7 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
             onZoom={onZoom}
             loading={loading}
             timeRange={timeRange}
-            properties={lineProperties}
+            properties={xyProperties}
           >
             <SingleStatTransform tables={tables}>
               {stat => (
@@ -78,41 +80,6 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
               )}
             </SingleStatTransform>
           </DygraphContainer>
-        )
-      case ViewType.StepPlot:
-        return (
-          <DygraphContainer
-            tables={tables}
-            viewID={viewID}
-            onZoom={onZoom}
-            loading={loading}
-            timeRange={timeRange}
-            properties={properties}
-            dygraphOptions={{stepPlot: true}}
-          />
-        )
-      case ViewType.Stacked:
-        return (
-          <DygraphContainer
-            tables={tables}
-            viewID={viewID}
-            onZoom={onZoom}
-            loading={loading}
-            timeRange={timeRange}
-            dygraphOptions={{stackedGraph: true}}
-            properties={properties}
-          />
-        )
-      case ViewType.Bar:
-        return (
-          <DygraphContainer
-            tables={tables}
-            viewID={viewID}
-            onZoom={onZoom}
-            loading={loading}
-            timeRange={timeRange}
-            properties={properties}
-          />
         )
       default:
         return <div>YO!</div>

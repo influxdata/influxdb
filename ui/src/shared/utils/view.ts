@@ -2,10 +2,8 @@ import {get, cloneDeep} from 'lodash'
 
 import {View, ViewType, ViewShape} from 'src/types/v2'
 import {
-  LineView,
-  BarChartView,
-  StepPlotView,
-  StackedView,
+  XYView,
+  XYViewGeom,
   LinePlusSingleStatView,
   SingleStatView,
   TableView,
@@ -75,36 +73,13 @@ function defaultGaugeViewProperties() {
 
 // Defines the zero values of the various view types
 const NEW_VIEW_CREATORS = {
-  [ViewType.Bar]: (): NewView<BarChartView> => ({
+  [ViewType.XY]: (): NewView<XYView> => ({
     ...defaultView(),
     properties: {
       ...defaultLineViewProperties(),
-      type: ViewType.Bar,
+      type: ViewType.XY,
       shape: ViewShape.ChronografV2,
-    },
-  }),
-  [ViewType.Line]: (): NewView<LineView> => ({
-    ...defaultView(),
-    properties: {
-      ...defaultLineViewProperties(),
-      type: ViewType.Line,
-      shape: ViewShape.ChronografV2,
-    },
-  }),
-  [ViewType.Stacked]: (): NewView<StackedView> => ({
-    ...defaultView(),
-    properties: {
-      ...defaultLineViewProperties(),
-      type: ViewType.Stacked,
-      shape: ViewShape.ChronografV2,
-    },
-  }),
-  [ViewType.StepPlot]: (): NewView<StepPlotView> => ({
-    ...defaultView(),
-    properties: {
-      ...defaultLineViewProperties(),
-      type: ViewType.StepPlot,
-      shape: ViewShape.ChronografV2,
+      geom: XYViewGeom.Line,
     },
   }),
   [ViewType.SingleStat]: (): NewView<SingleStatView> => ({
@@ -167,7 +142,7 @@ const NEW_VIEW_CREATORS = {
 }
 
 export function createView<T extends ViewProperties = ViewProperties>(
-  viewType: ViewType = ViewType.Line
+  viewType: ViewType = ViewType.XY
 ): NewView<T> {
   const creator = NEW_VIEW_CREATORS[viewType]
 
@@ -178,66 +153,28 @@ export function createView<T extends ViewProperties = ViewProperties>(
   return creator()
 }
 
-// To convert from a view with `ViewType` `T` to a view with `ViewType` `R`,
-// lookup the conversion function stored at the `VIEW_CONVERSIONS[T][R]` index.
-// Most conversions are not yet defined---we should define them as we need.
-// This matrix should only be consumed via the `convertView` helper.
-const VIEW_CONVERSIONS = {
-  [ViewType.Bar]: {
-    [ViewType.Bar]: (view: View<BarChartView>): View<BarChartView> => view,
-    [ViewType.Line]: (view: View<BarChartView>): View<LineView> => ({
-      ...view,
-      properties: {
-        ...view.properties,
-        type: ViewType.Line,
-      },
-    }),
-    [ViewType.LinePlusSingleStat]: (
-      view: View<BarChartView>
-    ): View<LinePlusSingleStatView> => ({
-      ...view,
-      properties: {
-        ...view.properties,
-        type: ViewType.LinePlusSingleStat,
-        prefix: '',
-        suffix: '',
-        decimalPlaces: {
-          isEnforced: true,
-          digits: 2,
-        },
-      },
-    }),
-  },
-}
-
 export function convertView<T extends View | NewView>(
-  oldView: T,
+  view: T,
   outType: ViewType
 ): T {
-  const inType = oldView.properties.type
+  const viewCreator = NEW_VIEW_CREATORS[outType]
 
-  let newView: any
-
-  if (VIEW_CONVERSIONS[inType] && VIEW_CONVERSIONS[inType][outType]) {
-    newView = VIEW_CONVERSIONS[inType][outType](oldView)
-  } else if (NEW_VIEW_CREATORS[outType]) {
-    newView = NEW_VIEW_CREATORS[outType]()
-  } else {
-    throw new Error(
-      `cannot convert view of type "${inType}" to view of type "${outType}"`
-    )
+  if (!viewCreator) {
+    throw new Error(`no view creator exists for type ${outType}`)
   }
 
-  const oldViewQueries = get(oldView, 'properties.queries')
+  const newView: any = viewCreator()
+
+  const oldViewQueries = get(view, 'properties.queries')
   const newViewQueries = get(newView, 'properties.queries')
 
   if (oldViewQueries && newViewQueries) {
     newView.properties.queries = cloneDeep(oldViewQueries)
   }
 
-  newView.name = oldView.name
-  newView.id = (oldView as any).id
-  newView.links = (oldView as any).links
+  newView.name = view.name
+  newView.id = (view as any).id
+  newView.links = (view as any).links
 
   return newView
 }

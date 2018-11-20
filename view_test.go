@@ -28,8 +28,8 @@ func TestView_MarshalJSON(t *testing.T) {
 						ID:   platformtesting.MustIDBase16("f01dab1ef005ba11"),
 						Name: "hello",
 					},
-					Properties: platform.LineViewProperties{
-						Type: "line",
+					Properties: platform.XYViewProperties{
+						Type: "xy",
 					},
 				},
 			},
@@ -42,9 +42,10 @@ func TestView_MarshalJSON(t *testing.T) {
     "shape": "chronograf-v2",
     "queries": null,
     "axes": null,
-    "type": "line",
+    "type": "xy",
     "colors": null,
-    "legend": {}
+    "legend": {},
+		"geom": ""
   }
 }
 `,

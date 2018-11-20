@@ -67,11 +67,8 @@ export const getCellTypeColors = ({
       colors = stringifyColorValues(thresholdsListColors)
       break
     }
-    case ViewType.Bar:
-    case ViewType.Line:
     case ViewType.LinePlusSingleStat:
-    case ViewType.Stacked:
-    case ViewType.StepPlot: {
+    case ViewType.XY: {
       colors = stringifyColorValues(lineColors)
     }
   }

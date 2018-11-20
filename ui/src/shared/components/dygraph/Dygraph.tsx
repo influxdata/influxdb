@@ -20,12 +20,7 @@ import {
   AXES_SCALE_OPTIONS,
   DEFAULT_AXIS,
 } from 'src/dashboards/constants/cellEditor'
-import {
-  LINE_COLORS,
-  LABEL_WIDTH,
-  CHAR_PIXELS,
-  barPlotter,
-} from 'src/shared/graphs/helpers'
+import {LINE_COLORS, LABEL_WIDTH, CHAR_PIXELS} from 'src/shared/graphs/helpers'
 import {getLineColorsHexes} from 'src/shared/constants/graphColorPalettes'
 const {LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
@@ -35,7 +30,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Axes, TimeRange} from 'src/types'
 import {DygraphData, DygraphSeries, Options} from 'src/external/dygraph'
 import {Color} from 'src/types/colors'
-import {DashboardQuery, ViewType} from 'src/types/v2/dashboards'
+import {DashboardQuery} from 'src/types/v2/dashboards'
 
 const getRangeMemoizedY = memoizeOne(getRange)
 
@@ -61,7 +56,6 @@ const DEFAULT_DYGRAPH_OPTIONS = {
 }
 
 interface OwnProps {
-  type: ViewType
   viewID: string
   queries?: DashboardQuery[]
   timeSeries: DygraphData
@@ -356,7 +350,6 @@ class Dygraph extends Component<Props, State> {
     const {
       labels,
       axes: {y},
-      type,
       underlayCallback,
       isGraphFilled,
       options: passedOptions,
@@ -380,7 +373,6 @@ class Dygraph extends Component<Props, State> {
       fillGraph: isGraphFilled,
       logscale: y.scale === LOG,
       series: colorDygraphSeries,
-      plotter: type === ViewType.Bar ? barPlotter : null,
       axes: {
         y: {
           axisLabelWidth: labelWidth,
@@ -391,10 +383,12 @@ class Dygraph extends Component<Props, State> {
         },
       },
       ...passedOptions,
-      // The following options are explicitly coerced to booleans, since
-      // dygraphs will not update if they change from `true` to `undefined`
+      // The following options must be explicitly set to a `null` or boolean
+      // value. Otherwise, dygraphs will not update if they change to
+      // `undefined`
       stepPlot: !!passedOptions.stepPlot,
       stackedGraph: !!passedOptions.stackedGraph,
+      plotter: passedOptions.plotter ? passedOptions.plotter : null,
     }
 
     return options

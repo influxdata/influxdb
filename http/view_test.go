@@ -47,8 +47,8 @@ func TestService_handleGetViews(t *testing.T) {
 									ID:   platformtesting.MustIDBase16("7365637465747572"),
 									Name: "hello",
 								},
-								Properties: platform.LineViewProperties{
-									Type: "line",
+								Properties: platform.XYViewProperties{
+									Type: "xy",
 								},
 							},
 							{
@@ -81,9 +81,10 @@ func TestService_handleGetViews(t *testing.T) {
         "shape": "chronograf-v2",
         "queries": null,
         "axes": null,
-        "type": "line",
+        "type": "xy",
         "colors": null,
-        "legend": {}
+        "legend": {},
+				"geom": ""
       }
     },
     {
@@ -307,8 +308,8 @@ func TestService_handlePostViews(t *testing.T) {
 						ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 						Name: "hello",
 					},
-					Properties: platform.LineViewProperties{
-						Type: "line",
+					Properties: platform.XYViewProperties{
+						Type: "xy",
 					},
 				},
 			},
@@ -326,9 +327,10 @@ func TestService_handlePostViews(t *testing.T) {
     "shape": "chronograf-v2",
     "queries": null,
     "axes": null,
-    "type": "line",
+    "type": "xy",
     "colors": null,
-    "legend": {}
+    "legend": {},
+    "geom": ""
   }
 }
 `,
@@ -497,8 +499,8 @@ func TestService_handlePatchView(t *testing.T) {
 									ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 									Name: "example",
 								},
-								Properties: platform.LineViewProperties{
-									Type: "line",
+								Properties: platform.XYViewProperties{
+									Type: "xy",
 								},
 							}, nil
 						}
@@ -525,9 +527,10 @@ func TestService_handlePatchView(t *testing.T) {
     "shape": "chronograf-v2",
     "queries": null,
     "axes": null,
-    "type": "line",
+    "type": "xy",
     "colors": null,
-    "legend": {}
+    "legend": {},
+		"geom": ""
   }
 }
 `,
@@ -544,8 +547,8 @@ func TestService_handlePatchView(t *testing.T) {
 									ID:   platformtesting.MustIDBase16("020f755c3c082000"),
 									Name: "example",
 								},
-								Properties: platform.LineViewProperties{
-									Type: "line",
+								Properties: platform.XYViewProperties{
+									Type: "xy",
 								},
 							}, nil
 						}

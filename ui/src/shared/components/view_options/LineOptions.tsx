@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import Form from 'src/clockface/components/form_layout/Form'
+import Geom from 'src/shared/components/view_options/options/Geom'
 import YAxisTitle from 'src/shared/components/view_options/options/YAxisTitle'
 import YAxisBounds from 'src/shared/components/view_options/options/YAxisBounds'
 import YAxisAffixes from 'src/shared/components/view_options/options/YAxisAffixes'
@@ -24,16 +25,18 @@ import {
   setYAxisSuffix,
   setYAxisBase,
   setYAxisScale,
+  setGeom,
 } from 'src/shared/actions/v2/timeMachines'
 
 // Types
 import {ViewType} from 'src/types/v2'
-import {Axes, DecimalPlaces} from 'src/types/v2/dashboards'
+import {Axes, DecimalPlaces, XYViewGeom} from 'src/types/v2/dashboards'
 import {Color} from 'src/types/colors'
 
 interface OwnProps {
   type: ViewType
   axes: Axes
+  geom?: XYViewGeom
   colors: Color[]
   decimalPlaces?: DecimalPlaces
 }
@@ -49,6 +52,7 @@ interface DispatchProps {
   onToggleStaticLegend: (isStaticLegend: boolean) => void
   onUpdateColors: (colors: Color[]) => void
   onUpdateDecimalPlaces: (decimalPlaces: DecimalPlaces) => void
+  onSetGeom: (geom: XYViewGeom) => void
 }
 
 type Props = OwnProps & DispatchProps
@@ -60,6 +64,7 @@ class LineOptions extends PureComponent<Props> {
         y: {label, bounds, scale, prefix, suffix, base},
       },
       colors,
+      geom,
       onUpdateColors,
       onUpdateYAxisLabel,
       onUpdateYAxisMinBound,
@@ -68,12 +73,14 @@ class LineOptions extends PureComponent<Props> {
       onUpdateYAxisSuffix,
       onUpdateYAxisBase,
       onUpdateYAxisScale,
+      onSetGeom,
     } = this.props
 
     const [min, max] = bounds
 
     return (
       <Form>
+        {geom && <Geom geom={geom} onSetGeom={onSetGeom} />}
         <YAxisTitle label={label} onUpdateYAxisLabel={onUpdateYAxisLabel} />
         <ColorSelector colors={colors} onUpdateColors={onUpdateColors} />
         <YAxisBounds
@@ -124,6 +131,7 @@ const mdtp: DispatchProps = {
   onToggleStaticLegend: setStaticLegend,
   onUpdateColors: setColors,
   onUpdateDecimalPlaces: setDecimalPlaces,
+  onSetGeom: setGeom,
 }
 
 export default connect<{}, DispatchProps, OwnProps>(

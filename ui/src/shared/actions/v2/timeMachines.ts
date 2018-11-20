@@ -1,7 +1,7 @@
 // Types
 import {TimeMachineState} from 'src/shared/reducers/v2/timeMachines'
 import {TimeRange, ViewType} from 'src/types/v2'
-import {Axes, DecimalPlaces} from 'src/types/v2/dashboards'
+import {Axes, DecimalPlaces, XYViewGeom} from 'src/types/v2/dashboards'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {Color} from 'src/types/colors'
 
@@ -14,6 +14,7 @@ export type Action =
   | SetDraftScriptAction
   | SubmitScriptAction
   | SetIsViewingRawDataAction
+  | SetGeomAction
   | SetDecimalPlaces
   | SetAxes
   | SetStaticLegend
@@ -112,6 +113,16 @@ export const setIsViewingRawData = (
 ): SetIsViewingRawDataAction => ({
   type: 'SET_IS_VIEWING_RAW_DATA',
   payload: {isViewingRawData},
+})
+
+interface SetGeomAction {
+  type: 'SET_GEOM'
+  payload: {geom: XYViewGeom}
+}
+
+export const setGeom = (geom: XYViewGeom): SetGeomAction => ({
+  type: 'SET_GEOM',
+  payload: {geom},
 })
 
 interface SetAxes {

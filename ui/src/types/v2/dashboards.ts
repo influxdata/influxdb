@@ -79,18 +79,10 @@ export interface ViewLinks {
   self: string
 }
 
-export type DygraphViewProperties =
-  | LineView
-  | StepPlotView
-  | StackedView
-  | BarChartView
-  | LinePlusSingleStatView
+export type DygraphViewProperties = XYView | LinePlusSingleStatView
 
 export type RefreshingViewProperties =
-  | LineView
-  | StepPlotView
-  | StackedView
-  | BarChartView
+  | XYView
   | LinePlusSingleStatView
   | SingleStatView
   | TableView
@@ -107,35 +99,16 @@ export interface EmptyView {
   shape: ViewShape.Empty
 }
 
-export interface LineView {
-  type: ViewType.Line
-  queries: DashboardQuery[]
-  shape: ViewShape.ChronografV2
-  axes: Axes
-  colors: Color[]
-  legend: Legend
+export enum XYViewGeom {
+  Line = 'line',
+  Bar = 'bar',
+  Step = 'step',
+  Stacked = 'stacked',
 }
 
-export interface StackedView {
-  type: ViewType.Stacked
-  queries: DashboardQuery[]
-  shape: ViewShape.ChronografV2
-  axes: Axes
-  colors: Color[]
-  legend: Legend
-}
-
-export interface StepPlotView {
-  type: ViewType.StepPlot
-  queries: DashboardQuery[]
-  shape: ViewShape.ChronografV2
-  axes: Axes
-  colors: Color[]
-  legend: Legend
-}
-
-export interface BarChartView {
-  type: ViewType.Bar
+export interface XYView {
+  type: ViewType.XY
+  geom: XYViewGeom
   queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   axes: Axes
@@ -216,10 +189,7 @@ export enum ViewShape {
 }
 
 export enum ViewType {
-  Bar = 'bar',
-  Line = 'line',
-  Stacked = 'stacked',
-  StepPlot = 'step-plot',
+  XY = 'xy',
   LinePlusSingleStat = 'line-plus-single-stat',
   SingleStat = 'single-stat',
   Gauge = 'gauge',

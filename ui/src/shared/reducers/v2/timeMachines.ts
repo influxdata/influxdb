@@ -170,6 +170,12 @@ const timeMachineReducer = (
       return setViewProperties(state, {axes})
     }
 
+    case 'SET_GEOM': {
+      const {geom} = action.payload
+
+      return setViewProperties(state, {geom})
+    }
+
     case 'SET_Y_AXIS_LABEL': {
       const {label} = action.payload
 

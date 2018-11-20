@@ -1,5 +1,8 @@
 import {toRGB} from 'src/shared/graphs/toRGB'
 
+import {Options} from 'src/external/dygraph'
+import {XYViewGeom} from 'src/types/v2/dashboards'
+
 export const LINE_COLORS = [
   '#00C9FF',
   '#9394FF',
@@ -165,17 +168,6 @@ export const removeMeasurement = (label = '') => {
   return label.replace(measurement, '')
 }
 
-export const OPTIONS = {
-  rightGap: 0,
-  axisLineWidth: 2,
-  gridLineWidth: 1,
-  animatedZooms: true,
-  labelsSeparateLines: false,
-  hideOverlayOnMouseOut: false,
-  highlightSeriesBackgroundAlpha: 1.0,
-  highlightSeriesBackgroundColor: 'rgb(41, 41, 51)',
-}
-
 export const hasherino = (str, len) =>
   str
     .split('')
@@ -184,3 +176,10 @@ export const hasherino = (str, len) =>
 
 export const LABEL_WIDTH = 44
 export const CHAR_PIXELS = 7
+
+export const geomToDygraphOptions: {[k: string]: Partial<Options>} = {
+  [XYViewGeom.Line]: {},
+  [XYViewGeom.Stacked]: {stackedGraph: true},
+  [XYViewGeom.Step]: {stepPlot: true},
+  [XYViewGeom.Bar]: {plotter: barPlotter},
+}
