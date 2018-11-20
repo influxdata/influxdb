@@ -103,6 +103,17 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
             properties={properties}
           />
         )
+      case ViewType.Bar:
+        return (
+          <DygraphContainer
+            tables={tables}
+            viewID={viewID}
+            onZoom={onZoom}
+            loading={loading}
+            timeRange={timeRange}
+            properties={properties}
+          />
+        )
       default:
         return <div>YO!</div>
     }
