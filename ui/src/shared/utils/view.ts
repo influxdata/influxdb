@@ -211,15 +211,15 @@ const VIEW_CONVERSIONS = {
 }
 
 export function convertView<T extends View | NewView>(
-  view: T,
+  oldView: T,
   outType: ViewType
 ): T {
-  const inType = view.properties.type
+  const inType = oldView.properties.type
 
-  let newView
+  let newView: any
 
   if (VIEW_CONVERSIONS[inType] && VIEW_CONVERSIONS[inType][outType]) {
-    newView = VIEW_CONVERSIONS[inType][outType](view)
+    newView = VIEW_CONVERSIONS[inType][outType](oldView)
   } else if (NEW_VIEW_CREATORS[outType]) {
     newView = NEW_VIEW_CREATORS[outType]()
   } else {
@@ -228,12 +228,16 @@ export function convertView<T extends View | NewView>(
     )
   }
 
-  const oldViewQueries = get(view, 'properties.queries')
+  const oldViewQueries = get(oldView, 'properties.queries')
   const newViewQueries = get(newView, 'properties.queries')
 
   if (oldViewQueries && newViewQueries) {
     newView.properties.queries = cloneDeep(oldViewQueries)
   }
+
+  newView.name = oldView.name
+  newView.id = (oldView as any).id
+  newView.links = (oldView as any).links
 
   return newView
 }

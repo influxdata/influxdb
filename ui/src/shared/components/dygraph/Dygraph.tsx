@@ -359,6 +359,7 @@ class Dygraph extends Component<Props, State> {
       type,
       underlayCallback,
       isGraphFilled,
+      options: passedOptions,
     } = this.props
 
     const {
@@ -389,7 +390,11 @@ class Dygraph extends Component<Props, State> {
           valueRange: this.getYRange(timeSeries),
         },
       },
-      ...this.props.options,
+      ...passedOptions,
+      // The following options are explicitly coerced to booleans, since
+      // dygraphs will not update if they change from `true` to `undefined`
+      stepPlot: !!passedOptions.stepPlot,
+      stackedGraph: !!passedOptions.stackedGraph,
     }
 
     return options
