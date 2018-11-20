@@ -26,7 +26,7 @@ func NewController(mc MetaClient, reader fstorage.Reader, logger *zap.Logger) *c
 		Verbose:              false,
 	}
 
-	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, inputs.Dependencies{Reader: reader})
+	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, inputs.Dependencies{Reader: reader, MetaClient: mc})
 	if err != nil {
 		panic(err)
 	}
