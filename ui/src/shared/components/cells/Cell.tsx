@@ -13,7 +13,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {readView} from 'src/dashboards/actions/v2/views'
 
 // Types
-import {DashboardQuery, RemoteDataState, TimeRange} from 'src/types'
+import {RemoteDataState, TimeRange} from 'src/types'
 import {Cell, View, AppState} from 'src/types/v2'
 
 // Styles
