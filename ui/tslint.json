@@ -7,7 +7,7 @@
     "tslint-config-prettier"
   ],
   "linterOptions": {
-    "exclude": ["src/api"]
+    "exclude": ["src/api/**/*"]
   },
   "rules": {
     "object-literal-sort-keys": false,
