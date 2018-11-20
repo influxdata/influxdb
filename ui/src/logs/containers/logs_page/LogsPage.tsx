@@ -8,9 +8,10 @@ import {withRouter, WithRouterProps} from 'react-router'
 import LogsHeader from 'src/logs/components/LogsHeader'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/logs_filter_bar/LogsFilterBar'
-import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
 import OptionsOverlay from 'src/logs/components/options_overlay/OptionsOverlay'
 import LogsTable from 'src/logs/components/logs_table/LogsTable'
+import {OverlayTechnology} from 'src/clockface'
+import {Page} from 'src/pageLayout'
 
 // Actions
 import * as logActions from 'src/logs/actions'
@@ -99,6 +100,7 @@ const RELATIVE_TIME = 0
 
 class LogsPage extends Component<Props, State> {
   private interval: number
+
   constructor(props: Props) {
     super(props)
 
@@ -110,7 +112,7 @@ class LogsPage extends Component<Props, State> {
 
   public componentDidUpdate() {
     const {router} = this.props
-    if (!this.props.sources || this.props.sources.length === 0) {
+    if (this.isSourcesEmpty) {
       return router.push(`/manage-sources?redirectPath=${location.pathname}`)
     }
 
@@ -141,50 +143,48 @@ class LogsPage extends Component<Props, State> {
     } = this.props
 
     return (
-      <>
-        <div className="page">
-          {this.header}
-          <div className="page-contents logs-viewer">
-            <SearchBar
-              onSearch={this.handleSubmitSearch}
-              customTime={null}
-              relativeTime={RELATIVE_TIME}
-              onChooseCustomTime={this.handleChooseCustomTime}
-              onChooseRelativeTime={this.handleChooseRelativeTime}
-            />
-            <FilterBar
-              filters={filters || []}
-              onDelete={this.handleFilterDelete}
-              onFilterChange={this.handleFilterChange}
-              onClearFilters={this.handleClearFilters}
-              onUpdateTruncation={this.handleUpdateTruncation}
-              isTruncated={this.isTruncated}
-            />
-            <LogsTable
-              data={this.tableData}
-              onExpand={this.handleExpandMessage}
-              onScrollVertical={this.handleVerticalScroll}
-              onScrolledToTop={this.handleScrollToTop}
-              isScrolledToTop={false}
-              isTruncated={this.isTruncated}
-              onTagSelection={this.handleTagSelection}
-              scrollToRow={this.tableScrollToRow}
-              tableColumns={this.tableColumns}
-              severityFormat={this.severityFormat}
-              severityLevelColors={this.severityLevelColors}
-              hasScrolled={this.hasScrolled}
-              tableInfiniteData={this.props.tableInfiniteData}
-              onChooseCustomTime={this.handleChooseCustomTime}
-              notify={notify}
-              searchStatus={searchStatus}
-              upper={currentTailUpperBound || nextTailLowerBound}
-              lower={nextTailLowerBound}
-            />
-          </div>
+      <Page>
+        {this.header}
+        <div className="page-contents logs-viewer">
+          <SearchBar
+            onSearch={this.handleSubmitSearch}
+            customTime={null}
+            relativeTime={RELATIVE_TIME}
+            onChooseCustomTime={this.handleChooseCustomTime}
+            onChooseRelativeTime={this.handleChooseRelativeTime}
+          />
+          <FilterBar
+            filters={filters || []}
+            onDelete={this.handleFilterDelete}
+            onFilterChange={this.handleFilterChange}
+            onClearFilters={this.handleClearFilters}
+            onUpdateTruncation={this.handleUpdateTruncation}
+            isTruncated={this.isTruncated}
+          />
+          <LogsTable
+            data={this.tableData}
+            onExpand={this.handleExpandMessage}
+            onScrollVertical={this.handleVerticalScroll}
+            onScrolledToTop={this.handleScrollToTop}
+            isScrolledToTop={false}
+            isTruncated={this.isTruncated}
+            onTagSelection={this.handleTagSelection}
+            scrollToRow={this.tableScrollToRow}
+            tableColumns={this.tableColumns}
+            severityFormat={this.severityFormat}
+            severityLevelColors={this.severityLevelColors}
+            hasScrolled={this.hasScrolled}
+            tableInfiniteData={this.props.tableInfiniteData}
+            onChooseCustomTime={this.handleChooseCustomTime}
+            notify={notify}
+            searchStatus={searchStatus}
+            upper={currentTailUpperBound || nextTailLowerBound}
+            lower={nextTailLowerBound}
+          />
         </div>
         {this.configOverlay}
         {this.expandedMessageContainer}
-      </>
+      </Page>
     )
   }
 
@@ -252,6 +252,7 @@ class LogsPage extends Component<Props, State> {
   private handleLoadingStatus() {
     if (
       !this.isClearing &&
+      this.props.searchStatus !== SearchStatus.Loaded &&
       !isEmptyInfiniteData(this.props.tableInfiniteData)
     ) {
       this.props.setSearchStatus(SearchStatus.Loaded)
@@ -553,6 +554,10 @@ class LogsPage extends Component<Props, State> {
   private get shouldLiveUpdate(): boolean {
     // Todo: check table time is set to now
     return true
+  }
+
+  private get isSourcesEmpty(): boolean {
+    return !this.props.sources || this.props.sources.length === 0
   }
 }
 

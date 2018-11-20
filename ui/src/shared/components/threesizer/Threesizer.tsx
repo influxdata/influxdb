@@ -5,7 +5,6 @@ import _ from 'lodash'
 
 import Division from 'src/shared/components/threesizer/Division'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {MenuItem} from 'src/shared/components/threesizer/DivisionMenu'
 
 import {
   HANDLE_NONE,
@@ -30,14 +29,14 @@ interface State {
   dragEvent: any
 }
 
-interface DivisionProps {
+export interface DivisionProps {
   name?: string
   handleDisplay?: string
   handlePixels?: number
   style?: CSSProperties
   size?: number
   headerButtons?: JSX.Element[]
-  menuOptions: MenuItem[]
+  headerOrientation?: string
   render: (visibility: string, pixels: number) => ReactElement<any>
 }
 
@@ -136,6 +135,7 @@ class Threesizer extends Component<Props, State> {
       >
         {divisions.map((d, i) => {
           const headerOrientation = _.get(d, 'headerOrientation', orientation)
+
           return (
             <Division
               key={d.id}
@@ -155,7 +155,6 @@ class Threesizer extends Component<Props, State> {
               onDoubleClick={this.handleDoubleClick}
               render={this.props.divisions[i].render}
               onHandleStartDrag={this.handleStartDrag}
-              menuOptions={this.props.divisions[i].menuOptions}
               headerButtons={this.props.divisions[i].headerButtons}
             />
           )

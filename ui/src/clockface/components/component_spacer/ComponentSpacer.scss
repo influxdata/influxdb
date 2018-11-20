@@ -11,24 +11,70 @@
 
 .component-spacer--left {
   justify-content: flex-start;
-
-  > * {
-    margin-right: $ix-marg-a;
-  }
 }
 
 .component-spacer--center {
   justify-content: center;
-
-  > * {
-    margin: 0 ($ix-marg-a / 2);
-  }
 }
 
 .component-spacer--right {
   justify-content: flex-end;
+}
 
-  > * {
+.component-spacer--horizontal {
+  flex-direction: row;
+
+  &.component-spacer--stretch {
+    width: 100%;
+  }
+
+  &.component-spacer--left > * {
+    margin-right: $ix-marg-a;
+  
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+
+  &.component-spacer--center > * {
+    margin-left: ($ix-marg-a / 2);
+    margin-right: ($ix-marg-a / 2);
+  }
+
+  &.component-spacer--right > * {
     margin-left: $ix-marg-a;
+  
+    &:last-child {
+      margin-left: 0;
+    }
+  }
+}
+
+.component-spacer--vertical {
+  flex-direction: column;
+
+  &.component-spacer--stretch {
+    height: 100%;
+  }
+
+  &.component-spacer--left > * {
+    margin-bottom: $ix-marg-a;
+  
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &.component-spacer--center > * {
+    margin-top: ($ix-marg-a / 2);
+    margin-top: ($ix-marg-a / 2);
+  }
+
+  &.component-spacer--right > * {
+    margin-top: $ix-marg-a;
+  
+    &:last-child {
+      margin-top: 0;
+    }
   }
 }

@@ -14,12 +14,14 @@ import {
 import {TimeRange} from 'src/types/v2'
 import {NewView} from 'src/types/v2/dashboards'
 import {Action} from 'src/shared/actions/v2/timeMachines'
+import {TimeMachineTab} from 'src/types/v2/timeMachine'
 
 export interface TimeMachineState {
   view: NewView
   timeRange: TimeRange
   draftScript: string
   isViewingRawData: boolean
+  activeTab: TimeMachineTab
 }
 
 export interface TimeMachinesState {
@@ -34,6 +36,7 @@ const initialStateHelper = (): TimeMachineState => ({
   view: createView(),
   draftScript: '',
   isViewingRawData: false,
+  activeTab: TimeMachineTab.Queries,
 })
 
 const INITIAL_STATE: TimeMachinesState = {
@@ -154,6 +157,11 @@ const timeMachineReducer = (
       const {isViewingRawData} = action.payload
 
       return {...state, isViewingRawData}
+    }
+
+    case 'SET_ACTIVE_TAB': {
+      const {activeTab} = action.payload
+      return {...state, activeTab}
     }
 
     case 'SET_AXES': {
