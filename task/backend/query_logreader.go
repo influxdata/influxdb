@@ -16,8 +16,6 @@ import (
 	"github.com/influxdata/platform/query"
 )
 
-var errAuthorizerNotSupported = errors.New("your authorizer is not supported, please use *platform.Authorization as authorizer")
-
 type QueryLogReader struct {
 	queryService query.QueryService
 }
@@ -56,9 +54,9 @@ func (qlr *QueryLogReader) ListLogs(ctx context.Context, logFilter platform.LogF
 		return nil, err
 	}
 	if auth.Kind() != "authorization" {
-		return nil, errAuthorizerNotSupported
+		return nil, platform.ErrAuthorizerNotSupported
 	}
-	request := &query.Request{Authorizer: auth.(*platform.Authorization), OrganizationID: *logFilter.Org, Compiler: lang.FluxCompiler{Query: listScript}}
+	request := &query.Request{Authorization: auth.(*platform.Authorization), OrganizationID: *logFilter.Org, Compiler: lang.FluxCompiler{Query: listScript}}
 
 	ittr, err := qlr.queryService.Query(ctx, request)
 	if err != nil {
@@ -134,9 +132,9 @@ join(tables: {main: main, supl: supl}, on: ["_start", "_stop", "orgID", "taskID"
 		return nil, err
 	}
 	if auth.Kind() != "authorization" {
-		return nil, errAuthorizerNotSupported
+		return nil, platform.ErrAuthorizerNotSupported
 	}
-	request := &query.Request{Authorizer: auth.(*platform.Authorization), OrganizationID: *runFilter.Org, Compiler: lang.FluxCompiler{Query: listScript}}
+	request := &query.Request{Authorization: auth.(*platform.Authorization), OrganizationID: *runFilter.Org, Compiler: lang.FluxCompiler{Query: listScript}}
 
 	ittr, err := qlr.queryService.Query(ctx, request)
 	if err != nil {
@@ -182,9 +180,9 @@ logs |> yield(name: "logs")
 		return nil, err
 	}
 	if auth.Kind() != "authorization" {
-		return nil, errAuthorizerNotSupported
+		return nil, platform.ErrAuthorizerNotSupported
 	}
-	request := &query.Request{Authorizer: auth.(*platform.Authorization), OrganizationID: orgID, Compiler: lang.FluxCompiler{Query: showScript}}
+	request := &query.Request{Authorization: auth.(*platform.Authorization), OrganizationID: orgID, Compiler: lang.FluxCompiler{Query: showScript}}
 
 	ittr, err := qlr.queryService.Query(ctx, request)
 	if err != nil {

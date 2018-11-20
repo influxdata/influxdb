@@ -466,7 +466,6 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 	var cmpOptions = cmp.Options{
 		cmpopts.IgnoreUnexported(query.ProxyRequest{}),
 		cmpopts.IgnoreUnexported(query.Request{}),
-		cmpopts.IgnoreFields(query.Request{}, "Authorizer"),
 		cmpopts.EquateEmpty(),
 	}
 	for _, tt := range tests {
