@@ -34,6 +34,7 @@ import (
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
@@ -1153,8 +1154,15 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+	if val := r.FormValue("node_id"); val != "" {
+		if nodeID, err := strconv.ParseUint(val, 10, 64); err == nil {
+			ctx = storage.NewContextWithReadOptions(ctx, &storage.ReadOptions{NodeID: nodeID})
+		}
+	}
+
 	pr := req.ProxyRequest()
-	q, err := h.Controller.Query(r.Context(), pr.Compiler)
+	q, err := h.Controller.Query(ctx, pr.Compiler)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)
 		return
