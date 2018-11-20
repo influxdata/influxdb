@@ -227,6 +227,7 @@ entries:
 		flag, id, key, sz := tsdb.ReadSeriesEntry(buf.data)
 
 		// Check the flag is valid and for id monotonicity.
+		hasKey := true
 		switch flag {
 		case tsdb.SeriesEntryInsertFlag:
 			if !firstID && prevID > id {
@@ -251,6 +252,7 @@ entries:
 			}
 
 		case tsdb.SeriesEntryTombstoneFlag:
+			hasKey = false
 			if ids != nil {
 				data := ids[id]
 				data.Deleted = true
@@ -275,21 +277,23 @@ entries:
 
 		// Ensure the key parses. This may panic, but our defer handler should
 		// make the error message more usable by providing the key.
-		parsed := false
-		func() {
-			defer func() {
-				if rec := recover(); rec != nil {
-					v.Logger.Error("Panic parsing key",
-						zap.String("key", fmt.Sprintf("%x", key)),
-						zap.Int64("offset", buf.offset),
-						zap.String("recovered", fmt.Sprint(rec)))
-				}
+		if hasKey {
+			parsed := false
+			func() {
+				defer func() {
+					if rec := recover(); rec != nil {
+						v.Logger.Error("Panic parsing key",
+							zap.String("key", fmt.Sprintf("%x", key)),
+							zap.Int64("offset", buf.offset),
+							zap.String("recovered", fmt.Sprint(rec)))
+					}
+				}()
+				tsdb.ParseSeriesKey(key)
+				parsed = true
 			}()
-			tsdb.ParseSeriesKey(key)
-			parsed = true
-		}()
-		if !parsed {
-			return false, nil
+			if !parsed {
+				return false, nil
+			}
 		}
 
 		// Advance past the entry.
