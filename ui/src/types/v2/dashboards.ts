@@ -79,6 +79,13 @@ export interface ViewLinks {
   self: string
 }
 
+export type DygraphViewProperties =
+  | LineView
+  | StepPlotView
+  | StackedView
+  | BarChartView
+  | LinePlusSingleStatView
+
 export type RefreshingViewProperties =
   | LineView
   | StepPlotView

@@ -41,13 +41,21 @@ const getRangeMemoizedY = memoizeOne(getRange)
 
 const DEFAULT_DYGRAPH_OPTIONS = {
   rightGap: 0,
-  axisLineWidth: 2,
+  yRangePad: 10,
+  labelsKMB: true,
+  fillGraph: true,
   gridLineWidth: 1,
+  axisLineWidth: 2,
   colors: LINE_COLORS,
+  axisLabelWidth: 60,
   animatedZooms: true,
+  drawAxesAtZero: true,
   highlightCircleSize: 3,
+  axisLineColor: '#383846',
+  gridLineColor: '#383846',
   labelsSeparateLines: false,
   hideOverlayOnMouseOut: false,
+  connectSeparatedPoints: true,
   highlightSeriesBackgroundAlpha: 1.0,
   highlightSeriesBackgroundColor: 'rgb(41, 41, 51)',
 }
@@ -58,10 +66,10 @@ interface OwnProps {
   queries?: DashboardQuery[]
   timeSeries: DygraphData
   labels: string[]
-  options: Partial<Options>
+  options?: Partial<Options>
   dygraphSeries?: DygraphSeries
-  timeRange: TimeRange
   colors: Color[]
+  timeRange?: TimeRange
   axes?: Axes
   isGraphFilled?: boolean
   onZoom?: (timeRange: TimeRange) => void
@@ -97,6 +105,7 @@ class Dygraph extends Component<Props, State> {
     onZoom: () => {},
     underlayCallback: () => {},
     dygraphSeries: {},
+    options: {},
   }
 
   private graphRef: React.RefObject<HTMLDivElement>

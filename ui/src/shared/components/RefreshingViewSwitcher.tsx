@@ -2,13 +2,11 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import LineGraph from 'src/shared/components/LineGraph'
-import StepPlot from 'src/shared/components/StepPlot'
-import Stacked from 'src/shared/components/Stacked'
 import GaugeChart from 'src/shared/components/GaugeChart'
 import SingleStat from 'src/shared/components/SingleStat'
 import SingleStatTransform from 'src/shared/components/SingleStatTransform'
 import TimeMachineTables from 'src/shared/components/tables/TimeMachineTables'
+import DygraphContainer from 'src/shared/components/DygraphContainer'
 
 // Types
 import {
@@ -23,16 +21,12 @@ interface Props {
   viewID: string
   tables: FluxTable[]
   loading: RemoteDataState
-  timeRange: TimeRange
-  onZoom?: (range: TimeRange) => void
   properties: RefreshingViewProperties
+  timeRange?: TimeRange
+  onZoom?: (range: TimeRange) => void
 }
 
 export default class RefreshingViewSwitcher extends PureComponent<Props> {
-  public static defaultProps: Partial<Props> = {
-    onZoom: () => {},
-  }
-
   public render() {
     const {properties, loading, viewID, tables, onZoom, timeRange} = this.props
 
@@ -49,7 +43,7 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
         return <GaugeChart tables={tables} properties={properties} />
       case ViewType.Line:
         return (
-          <LineGraph
+          <DygraphContainer
             tables={tables}
             viewID={viewID}
             onZoom={onZoom}
@@ -70,7 +64,7 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
         } as SingleStatView
 
         return (
-          <LineGraph
+          <DygraphContainer
             tables={tables}
             viewID={viewID}
             onZoom={onZoom}
@@ -83,27 +77,29 @@ export default class RefreshingViewSwitcher extends PureComponent<Props> {
                 <SingleStat stat={stat} properties={singleStatProperties} />
               )}
             </SingleStatTransform>
-          </LineGraph>
+          </DygraphContainer>
         )
       case ViewType.StepPlot:
         return (
-          <StepPlot
+          <DygraphContainer
             tables={tables}
             viewID={viewID}
             onZoom={onZoom}
             loading={loading}
             timeRange={timeRange}
             properties={properties}
+            dygraphOptions={{stepPlot: true}}
           />
         )
       case ViewType.Stacked:
         return (
-          <Stacked
+          <DygraphContainer
             tables={tables}
             viewID={viewID}
             onZoom={onZoom}
             loading={loading}
             timeRange={timeRange}
+            dygraphOptions={{stackedGraph: true}}
             properties={properties}
           />
         )
