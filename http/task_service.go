@@ -82,7 +82,7 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, logger *
 
 type taskResponse struct {
 	Links map[string]string `json:"links"`
-	Task  platform.Task     `json:"task"`
+	platform.Task
 }
 
 func newTaskResponse(t platform.Task) taskResponse {
@@ -92,6 +92,7 @@ func newTaskResponse(t platform.Task) taskResponse {
 			"members": fmt.Sprintf("/api/v2/tasks/%s/members", t.ID),
 			"owners":  fmt.Sprintf("/api/v2/tasks/%s/owners", t.ID),
 			"runs":    fmt.Sprintf("/api/v2/tasks/%s/runs", t.ID),
+			"logs":    fmt.Sprintf("/api/v2/tasks/%s/logs", t.ID),
 		},
 		Task: t,
 	}
@@ -99,16 +100,44 @@ func newTaskResponse(t platform.Task) taskResponse {
 
 type tasksResponse struct {
 	Links map[string]string `json:"links"`
-	Tasks []*platform.Task  `json:"tasks"`
+	Tasks []taskResponse    `json:"tasks"`
 }
 
 func newTasksResponse(ts []*platform.Task) tasksResponse {
-	return tasksResponse{
+	// TODO: impl paging links
+	/*
+			In swagger, paging links are embedded in a map, like this:
+			"links": {
+		    	"next": {
+		      		"href": "string"
+		    	},
+		    	"self": {
+		      		"href": "string"
+		    	},
+		    	"prev": {
+		      		"href": "string"
+		    	}
+			}
+
+			But in http services (auth, org, bucket...), links are flat:
+			"links": {
+		    	"self": "string"
+			}
+
+			Them need to be unified.
+	*/
+
+	rs := tasksResponse{
 		Links: map[string]string{
 			"self": tasksPath,
 		},
-		Tasks: ts,
+		Tasks: make([]taskResponse, len(ts)),
 	}
+
+	for i, _ := range ts {
+		rs.Tasks[i] = newTaskResponse(*ts[i])
+	}
+	return rs
 }
 
 type runResponse struct {
@@ -781,7 +810,10 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 		return nil, 0, err
 	}
 
-	tasks := tr.Tasks
+	tasks := make([]*platform.Task, 0, len(tr.Tasks))
+	for _, t := range tr.Tasks {
+		tasks = append(tasks, &t.Task)
+	}
 	return tasks, len(tasks), nil
 }
 
