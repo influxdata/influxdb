@@ -196,16 +196,9 @@ export const updateTaskStatus = (task: Task) => async dispatch => {
   }
 }
 
-export const deleteTask = (task: Task) => async (
-  dispatch,
-  getState: GetStateFunc
-) => {
+export const deleteTask = (task: Task) => async dispatch => {
   try {
-    const {
-      links: {tasks: url},
-    } = getState()
-
-    await deleteTaskAPI(url, task.id)
+    await deleteTaskAPI(task.id)
 
     dispatch(populateTasks())
   } catch (e) {
@@ -221,11 +214,11 @@ export const populateTasks = () => async (
   try {
     const {
       orgs,
-      links: {tasks: url, me: meUrl},
+      links: {me: meUrl},
     } = getState()
 
     const user = await getMe(meUrl)
-    const tasks = await getUserTasks(url, user)
+    const tasks = await getUserTasks(user)
 
     const mappedTasks = tasks.map(task => {
       const org = orgs.find(org => org.id === task.organizationId)
@@ -248,12 +241,9 @@ export const selectTaskByID = (id: string) => async (
   getState: GetStateFunc
 ): Promise<void> => {
   try {
-    const {
-      orgs,
-      links: {tasks: url},
-    } = getState()
+    const {orgs} = getState()
 
-    const task = await getTask(url, id)
+    const task = await getTask(id)
     const org = orgs.find(org => org.id === task.organizationId)
 
     return dispatch(setCurrentTask({...task, organization: org}))

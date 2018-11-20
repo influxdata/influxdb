@@ -1,5 +1,3 @@
-import AJAX from 'src/utils/ajax'
-
 import {Task, TasksApi} from 'src/api'
 
 const getBasePath = () => {
@@ -41,26 +39,23 @@ export const updateTaskStatus = async (
   return data
 }
 
-export const getUserTasks = async (url, user): Promise<Task[]> => {
-  const completeUrl = `${url}?user=${user.id}`
+export const getUserTasks = async (user): Promise<Task[]> => {
+  const api = createTaskAPI()
+  const after = ''
+  const {data} = await api.tasksGet(after, user.id)
 
-  const {
-    data: {tasks},
-  } = await AJAX({url: completeUrl})
-  return tasks
+  return data.tasks
 }
 
-export const getTask = async (url, id): Promise<Task> => {
-  const completeUrl = `${url}/${id}`
-  const {
-    data: {task},
-  } = await AJAX({url: completeUrl})
+export const getTask = async (id): Promise<Task> => {
+  const api = createTaskAPI()
+  const {data} = await api.tasksTaskIDGet(id)
 
-  return task
+  return data
 }
 
-export const deleteTask = (url: string, taskID: string) => {
-  const completeUrl = `${url}/${taskID}`
+export const deleteTask = (taskID: string) => {
+  const api = createTaskAPI()
 
-  return AJAX({url: completeUrl, method: 'DELETE'})
+  return api.tasksTaskIDDelete(taskID)
 }
