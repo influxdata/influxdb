@@ -1497,6 +1497,12 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		max = math.MaxInt64
 	}
 
+	// This sucks, but writes while we're deleting are SUPER racy and can lead to amazing
+	// mismatches between what's on disk, in the cache, in the wal, in the index, in the
+	// series file, and what actually exists. We should be correct first, and fast later.
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	// Run the delete on each TSM file in parallel
 	if err := e.FileStore.Apply(func(r TSMFile) error {
 		// See if this TSM file contains the keys and time range
@@ -1575,7 +1581,8 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// left in the slice at the end do not exist and can be deleted from the index.
 	// Note: this is inherently racy if writes are occurring to the same measurement/series are
 	// being removed.  A write could occur and exist in the cache at this point, but we
-	// would delete it from the index.
+	// would delete it from the index.  This race is mitigated by holding a write
+	// lock over the engine while we're reconciling this state.
 	minKey := seriesKeys[0]
 
 	// Apply runs this func concurrently.  The seriesKeys slice is mutated concurrently
