@@ -51,7 +51,7 @@ export const getTask = async (id): Promise<Task> => {
   const api = createTaskAPI()
   const {data} = await api.tasksTaskIDGet(id)
 
-  return data
+  return data.task
 }
 
 export const deleteTask = (taskID: string) => {

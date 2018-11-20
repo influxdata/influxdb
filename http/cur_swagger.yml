@@ -2544,7 +2544,10 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Task"
+                type: object
+                properties:
+                  task:
+                    $ref: "#/components/schemas/Task"
         default:
           description: unexpected error
           content:
@@ -3798,10 +3801,6 @@ components:
           description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
           type: string
       required: [name, organization, flux]
-    Tasks:
-      type: array
-      items:
-        $ref: "#/components/schemas/Task"
     UserResponse:
       type: object
       properties:
