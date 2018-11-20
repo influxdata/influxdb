@@ -7,16 +7,20 @@ import {
   AddFilterAction,
   ChangeFilterAction,
   SetConfigAction,
+  ConcatMoreLogsAction,
 } from 'src/logs/actions'
 
 import {
   DEFAULT_TRUNCATION,
   DEFAULT_TAIL_CHUNK_DURATION_MS,
+  DEFAULT_OLDER_CHUNK_DURATION_MS,
   defaultTableData,
 } from 'src/logs/constants'
 import {LogsState, SearchStatus, SeverityFormatOptions} from 'src/types/logs'
 
 export const defaultState: LogsState = {
+  currentOlderBatchID: undefined,
+  currentTailID: undefined,
   currentSource: null,
   currentBuckets: [],
   currentBucket: null,
@@ -39,6 +43,9 @@ export const defaultState: LogsState = {
   currentTailUpperBound: undefined,
   nextTailLowerBound: undefined,
   tailChunkDurationMs: DEFAULT_TAIL_CHUNK_DURATION_MS,
+  nextOlderUpperBound: undefined,
+  nextOlderLowerBound: undefined,
+  olderChunkDurationMs: DEFAULT_OLDER_CHUNK_DURATION_MS,
 }
 
 const removeFilter = (
@@ -115,6 +122,29 @@ const clearTableData = (state: LogsState) => {
   }
 }
 
+const concatMoreLogs = (
+  state: LogsState,
+  action: ConcatMoreLogsAction
+): LogsState => {
+  const {
+    series: {columns, values},
+  } = action.payload
+  const {tableInfiniteData} = state
+  const {backward} = tableInfiniteData
+  const vals = [...backward.values, ...values]
+
+  return {
+    ...state,
+    tableInfiniteData: {
+      ...tableInfiniteData,
+      backward: {
+        columns,
+        values: vals,
+      },
+    },
+  }
+}
+
 export default (state: LogsState = defaultState, action: Action) => {
   switch (action.type) {
     case ActionTypes.SetSource:
@@ -123,6 +153,8 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, currentBuckets: action.payload.buckets}
     case ActionTypes.SetBucket:
       return {...state, currentBucket: action.payload.bucket}
+    case ActionTypes.SetCurrentTailID:
+      return {...state, currentTailID: action.payload.currentTailID}
     case ActionTypes.SetSearchStatus:
       return {...state, searchStatus: action.payload.searchStatus}
     case ActionTypes.SetTableQueryConfig:
@@ -131,6 +163,14 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, currentTailUpperBound: action.payload.upper}
     case ActionTypes.SetNextTailLowerBound:
       return {...state, nextTailLowerBound: action.payload.lower}
+    case ActionTypes.SetCurrentOlderBatchID:
+      return {...state, currentOlderBatchID: action.payload.currentOlderBatchID}
+    case ActionTypes.SetNextOlderUpperBound:
+      return {...state, nextOlderUpperBound: action.payload.upper}
+    case ActionTypes.SetNextOlderLowerBound:
+      return {...state, nextOlderLowerBound: action.payload.lower}
+    case ActionTypes.ConcatMoreLogs:
+      return concatMoreLogs(state, action)
     case ActionTypes.SetTableForwardData:
       return {
         ...state,

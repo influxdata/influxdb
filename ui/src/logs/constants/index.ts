@@ -128,3 +128,8 @@ export const defaultTableData: TableData = {
   ],
   values: [],
 }
+
+export const DEFAULT_OLDER_CHUNK_DURATION_MS = 30000
+export const DEFAULT_NEWER_CHUNK_DURATION_MS = 30000
+
+export const OLDER_BATCH_SIZE_LIMIT = 100

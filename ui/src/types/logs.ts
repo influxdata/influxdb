@@ -12,6 +12,10 @@ export interface LogSearchParams {
   filters: Filter[]
 }
 
+export interface LogQuery extends LogSearchParams {
+  source: Source
+}
+
 export enum SearchStatus {
   None = 'None',
   Loading = 'Loading',
@@ -45,8 +49,13 @@ export interface LogsConfigState {
 }
 
 export interface LogsTableDataState {
+  currentTailID: number | undefined
+  currentOlderBatchID: string | undefined
   currentTailUpperBound: number | undefined
   nextTailLowerBound: number | undefined
+  nextOlderUpperBound: number | undefined
+  nextOlderLowerBound: number | undefined
+  olderChunkDurationMs: number
   tailChunkDurationMs: number
   tableQueryConfig: QueryConfig | null
   tableInfiniteData: {

@@ -4,6 +4,14 @@ import {fluxResponse} from 'src/logs/utils/fixtures/fluxResponse'
 describe('Logs.fluxToTableData', () => {
   const {tables: fluxResponseTables} = fluxResponse
 
+  it('can transform an empty table', () => {
+    const columnNamesToExtract = ['buzz', 'beep']
+    const actual = fluxToTableData([], columnNamesToExtract)
+    const expected = {columns: ['buzz', 'beep'], values: []}
+
+    expect(actual).toEqual(expected)
+  })
+
   it('can transform a Flux server response to a TableData shape', () => {
     const columnNamesToExtract = [
       'appname',

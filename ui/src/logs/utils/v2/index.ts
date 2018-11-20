@@ -27,6 +27,10 @@ export const fluxToTableData = (
   const rows = getDeep<TimeSeriesValue[][]>(tables, '0.data', [])
   const columnNamesRow = getDeep<string[]>(tables, '0.data.0', [])
 
+  if (tables.length === 0) {
+    return {columns: columnNames, values: []}
+  }
+
   for (let i = 0; i < columnNames.length; i++) {
     const columnIndex = columnNamesRow.indexOf(columnNames[i])
     if (columnIndex !== -1) {

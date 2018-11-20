@@ -20,14 +20,11 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 // Utils
 import {searchToFilters} from 'src/logs/utils/search'
 import {getDeep} from 'src/utils/wrappers'
-import {
-  applyChangesToTableData,
-  isEmptyInfiniteData,
-} from 'src/logs/utils/table'
+import {applyChangesToTableData} from 'src/logs/utils/table'
 import {getSources} from 'src/sources/selectors'
 
 // Constants
-import {NOW, DEFAULT_TAIL_CHUNK_DURATION_MS} from 'src/logs/constants'
+import {NOW} from 'src/logs/constants'
 
 // Types
 import {Source, Links, Bucket, AppState} from 'src/types/v2'
@@ -81,10 +78,11 @@ interface TableDataStateProps {
 }
 
 interface DispatchTableDataProps {
-  fetchTailAsync: typeof logActions.fetchTailAsync
-  flushTailBuffer: typeof logActions.flushTailBuffer
+  startLogsTail: typeof logActions.startLogsTail
+  stopCurrentTail: typeof logActions.stopCurrentTail
   setNextTailLowerBound: typeof logActions.setNextTailLowerBound
   clearSearchData: typeof logActions.clearSearchData
+  startFetchingOlder: typeof logActions.startFetchingOlder
 }
 
 type StateProps = TableConfigStateProps & TableDataStateProps
@@ -99,8 +97,6 @@ interface State {
 const RELATIVE_TIME = 0
 
 class LogsPage extends Component<Props, State> {
-  private interval: number
-
   constructor(props: Props) {
     super(props)
 
@@ -115,8 +111,6 @@ class LogsPage extends Component<Props, State> {
     if (this.isSourcesEmpty) {
       return router.push(`/manage-sources?redirectPath=${location.pathname}`)
     }
-
-    this.handleLoadingStatus()
   }
 
   public async componentDidMount() {
@@ -125,12 +119,17 @@ class LogsPage extends Component<Props, State> {
       await this.props.getConfig(this.configLink)
 
       if (this.props.searchStatus !== SearchStatus.SourceError) {
+        this.setState({scrollMode: ScrollMode.TailTop})
         this.props.setSearchStatus(SearchStatus.Loading)
         this.fetchNewDataset()
       }
     } catch (e) {
       console.error('Failed to get sources and buckets for logs')
     }
+  }
+
+  public componentWillUnmount() {
+    this.props.clearSearchData(SearchStatus.None)
   }
 
   public render() {
@@ -249,16 +248,6 @@ class LogsPage extends Component<Props, State> {
     return data
   }
 
-  private handleLoadingStatus() {
-    if (
-      !this.isClearing &&
-      this.props.searchStatus !== SearchStatus.Loaded &&
-      !isEmptyInfiniteData(this.props.tableInfiniteData)
-    ) {
-      this.props.setSearchStatus(SearchStatus.Loaded)
-    }
-  }
-
   private get tableColumns(): LogsTableColumn[] {
     const {logConfig} = this.props
 
@@ -313,7 +302,7 @@ class LogsPage extends Component<Props, State> {
   private handleChangeLiveUpdatingStatus = async (): Promise<void> => {
     if (this.isLiveUpdating) {
       this.setState({scrollMode: ScrollMode.TailScrolling})
-      this.clearTailInterval()
+      this.props.stopCurrentTail()
     } else {
       this.handleChooseRelativeTime(NOW)
     }
@@ -409,55 +398,20 @@ class LogsPage extends Component<Props, State> {
       return
     }
 
-    this.startLogsTailFetchingInterval()
+    if (this.isLiveUpdating && this.shouldLiveUpdate) {
+      this.startLogsTailFetchingInterval()
+    }
+
+    this.props.startFetchingOlder()
   }
 
   private clearCurrentSearch = async (searchStatus: SearchStatus) => {
-    this.clearTailInterval()
     await this.props.clearSearchData(searchStatus)
   }
 
   private startLogsTailFetchingInterval = () => {
-    this.flushTailBuffer()
-    this.clearTailInterval()
-
-    this.props.setNextTailLowerBound(Date.now())
-
-    this.interval = window.setInterval(
-      this.handleTailFetchingInterval,
-      DEFAULT_TAIL_CHUNK_DURATION_MS
-    )
-
+    this.props.startLogsTail()
     this.setState({scrollMode: ScrollMode.TailTop})
-  }
-
-  private flushTailBuffer(): void {
-    this.props.flushTailBuffer()
-  }
-
-  private handleTailFetchingInterval = async () => {
-    if (this.isClearing) {
-      return
-    }
-
-    await this.props.fetchTailAsync()
-  }
-
-  private clearTailInterval = () => {
-    if (this.interval) {
-      clearInterval(this.interval)
-      this.interval = null
-    }
-  }
-
-  private get isClearing(): boolean {
-    switch (this.props.searchStatus) {
-      case SearchStatus.Clearing:
-      case SearchStatus.None:
-        return true
-    }
-
-    return false
   }
 
   private handleTagSelection = (selection: {tag: string; key: string}) => {
@@ -484,7 +438,7 @@ class LogsPage extends Component<Props, State> {
    */
   private handleVerticalScroll = () => {
     if (this.isLiveUpdating) {
-      this.clearTailInterval()
+      this.props.stopCurrentTail()
     }
 
     let scrollMode: ScrollMode
@@ -607,8 +561,9 @@ const mdtp: DispatchProps = {
   setSearchStatus: logActions.setSearchStatus,
   setBucketAsync: logActions.setBucketAsync,
   getSourceAndPopulateBuckets: logActions.getSourceAndPopulateBucketsAsync,
-  fetchTailAsync: logActions.fetchTailAsync,
-  flushTailBuffer: logActions.flushTailBuffer,
+  startLogsTail: logActions.startLogsTail,
+  stopCurrentTail: logActions.stopCurrentTail,
+  startFetchingOlder: logActions.startFetchingOlder,
   setNextTailLowerBound: logActions.setNextTailLowerBound,
   clearSearchData: logActions.clearSearchData,
 }

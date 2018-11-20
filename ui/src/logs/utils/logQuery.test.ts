@@ -1,9 +1,14 @@
-import {buildTableQueryConfig, buildLogQuery} from 'src/logs/utils/logQuery'
+import {
+  buildTableQueryConfig,
+  buildLogQuery,
+  validateTailQuery,
+  validateOlderQuery,
+} from 'src/logs/utils/logQuery'
 
 import {oneline} from 'src/logs/utils/helpers/formatting'
 
 import {QueryConfig} from 'src/types'
-import {Filter} from 'src/types/logs'
+import {Filter, LogQuery} from 'src/types/logs'
 import {InfluxLanguage} from 'src/types/v2/dashboards'
 
 describe('Logs.LogQuery', () => {
@@ -11,6 +16,7 @@ describe('Logs.LogQuery', () => {
   let filters: Filter[]
   let lower: string
   let upper: string
+  let logQuery: LogQuery
 
   beforeEach(() => {
     config = buildTableQueryConfig({
@@ -29,6 +35,24 @@ describe('Logs.LogQuery', () => {
     filters = []
     lower = '2018-10-10T22:46:24.859Z'
     upper = '2018-10-10T22:46:54.859Z'
+
+    const source = {
+      id: '1',
+      name: 'foo',
+      type: 'test',
+      url: 'test.local',
+      insecureSkipVerify: false,
+      default: true,
+      telegraf: 'telegraf.local',
+      links: {
+        self: 'test',
+        query: 'test/query',
+        buckets: 'test/buckets',
+        health: 'test/health',
+      },
+    }
+
+    logQuery = {lower, upper, filters, config, source}
   })
 
   it('can build a flux query', () => {
@@ -84,8 +108,45 @@ describe('Logs.LogQuery', () => {
       time >= '2018-10-10T22:46:24.859Z' AND
       time < '2018-10-10T22:46:54.859Z' AND
       "severity" = 'notice'
+    ORDER BY time DESC
   `
 
     expect(actual).toEqual(expected)
+  })
+
+  describe('validateTailQuery', () => {
+    it('can error when id is incorrect', () => {
+      const currentID = 3
+      const id = 2
+      const {error} = validateTailQuery(logQuery, id, currentID)
+
+      expect(error).toEqual('Stale log tail')
+    })
+
+    it('can error when no currentID', () => {
+      const currentID = undefined
+      const id = 2
+      const {error} = validateTailQuery(logQuery, id, currentID)
+
+      expect(error).toEqual('Stale log tail')
+    })
+  })
+
+  describe('validateOlderQuery', () => {
+    it('can error when id is incorrect', () => {
+      const currentID = 'currentID'
+      const id = 'staleID'
+      const {error} = validateOlderQuery(logQuery, id, currentID)
+
+      expect(error).toEqual('Stale older batch request')
+    })
+
+    it('can error when no currentID', () => {
+      const currentID = undefined
+      const id = 'staleID'
+      const {error} = validateOlderQuery(logQuery, id, currentID)
+
+      expect(error).toEqual('Stale older batch request')
+    })
   })
 })

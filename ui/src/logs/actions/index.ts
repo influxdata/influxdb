@@ -1,8 +1,14 @@
 // Utils
 import _ from 'lodash'
+import uuid from 'uuid'
 import {getDeep} from 'src/utils/wrappers'
 import {serverToUIConfig, uiToServerConfig} from 'src/logs/utils/config'
-import {getTableData, buildTableQueryConfig} from 'src/logs/utils/logQuery'
+import {
+  getTableData,
+  buildTableQueryConfig,
+  validateTailQuery,
+  validateOlderQuery,
+} from 'src/logs/utils/logQuery'
 
 // APIs
 import {
@@ -20,7 +26,7 @@ import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
 // Types
 import {Dispatch} from 'redux'
 import {ThunkDispatch} from 'redux-thunk'
-import {View, NewView, ViewType} from 'src/types/v2/dashboards'
+import {View, NewView, ViewType, TimeSeriesValue} from 'src/types/v2/dashboards'
 import {
   Filter,
   LogConfig,
@@ -28,6 +34,7 @@ import {
   State,
   GetState,
   TableData,
+  LogQuery,
 } from 'src/types/logs'
 import {Source, Bucket} from 'src/types/v2'
 import {QueryConfig} from 'src/types'
@@ -35,7 +42,10 @@ import {QueryConfig} from 'src/types'
 // Constants
 import {
   DEFAULT_MAX_TAIL_BUFFER_DURATION_MS,
+  DEFAULT_TAIL_CHUNK_DURATION_MS,
+  DEFAULT_OLDER_CHUNK_DURATION_MS,
   defaultTableData,
+  OLDER_BATCH_SIZE_LIMIT,
 } from 'src/logs/constants'
 
 export const INITIAL_LIMIT = 1000
@@ -56,6 +66,11 @@ export enum ActionTypes {
   ClearTableData = 'CLEAR_TABLE_DATA',
   SetTableForwardData = 'SET_TABLE_FORWARD_DATA',
   SetTableBackwardData = 'SET_TABLE_BACKWARD_DATA',
+  SetCurrentTailID = 'SET_CURRENT_TAIL_ID',
+  SetNextOlderUpperBound = 'SET_NEXT_OLDER_UPPER_BOUND',
+  SetNextOlderLowerBound = 'SET_NEXT_OLDER_LOWER_BOUND',
+  SetCurrentOlderBatchID = 'SET_CURRENT_OLDER_BATCH_ID',
+  ConcatMoreLogs = 'LOGS_CONCAT_MORE_LOGS',
 }
 
 const getIsTruncated = (state: State): boolean =>
@@ -142,6 +157,33 @@ interface SetNextTailLowerBoundAction {
   }
 }
 
+interface SetNextOlderUpperBoundAction {
+  type: ActionTypes.SetNextOlderUpperBound
+  payload: {
+    upper: number | undefined
+  }
+}
+interface SetNextOlderLowerBoundAction {
+  type: ActionTypes.SetNextOlderLowerBound
+  payload: {
+    lower: number | undefined
+  }
+}
+
+interface SetCurrentOlderBatchIDAction {
+  type: ActionTypes.SetCurrentOlderBatchID
+  payload: {
+    currentOlderBatchID: string | undefined
+  }
+}
+
+export interface ConcatMoreLogsAction {
+  type: ActionTypes.ConcatMoreLogs
+  payload: {
+    series: TableData
+  }
+}
+
 export interface ClearTableDataAction {
   type: ActionTypes.ClearTableData
 }
@@ -157,6 +199,13 @@ export interface SetTableBackwardDataAction {
   type: ActionTypes.SetTableBackwardData
   payload: {
     data: TableData
+  }
+}
+
+export interface SetCurrentTailIDAction {
+  type: ActionTypes.SetCurrentTailID
+  payload: {
+    currentTailID: number | undefined
   }
 }
 
@@ -176,6 +225,11 @@ export type Action =
   | ClearTableDataAction
   | SetTableForwardDataAction
   | SetTableBackwardDataAction
+  | SetCurrentTailIDAction
+  | SetCurrentOlderBatchIDAction
+  | SetNextOlderLowerBoundAction
+  | SetNextOlderUpperBoundAction
+  | ConcatMoreLogsAction
 
 /**
  * Sets the search status corresponding to the current fetch request.
@@ -341,8 +395,87 @@ export const clearSearchData = (
   searchStatus: SearchStatus
 ) => async dispatch => {
   await dispatch(setSearchStatus(SearchStatus.Clearing))
+  await dispatch(stopCurrentTail())
+  await dispatch(stopFetchingOlder())
   await dispatch(clearTableData())
   await dispatch(setSearchStatus(searchStatus))
+}
+
+const getCurrentTailID = (state: State): number => state.logs.currentTailID
+
+const getCurrentOlderBatchID = (state: State): string =>
+  state.logs.currentOlderBatchID
+
+const getBackwardTableDataValues = (state: State): TimeSeriesValue[][] =>
+  state.logs.tableInfiniteData.backward.values
+
+const getSearchStatus = (state: State): SearchStatus => state.logs.searchStatus
+
+const getNextTailLowerBound = (state: State): number | void =>
+  state.logs.nextTailLowerBound
+
+const getTailLogQuery = (state: State): LogQuery => {
+  const {
+    logs: {currentSource, nextTailLowerBound, filters, tableQueryConfig},
+  } = state
+
+  const lower = new Date(nextTailLowerBound).toISOString()
+  const upper = new Date(Date.now()).toISOString()
+
+  return {
+    source: currentSource,
+    config: tableQueryConfig,
+    lower,
+    upper,
+    filters,
+  }
+}
+
+const getOlderLogQuery = (state: State): LogQuery => {
+  const {
+    logs: {currentSource, filters, tableQueryConfig},
+  } = state
+
+  const olderUpperBound = getNextOlderUpperBound(state)
+  const olderChunkDurationMs = getOlderChunkDurationMs(state)
+
+  const nextOlderUpperBound = olderUpperBound - olderChunkDurationMs
+
+  const upper = new Date(olderUpperBound).toISOString()
+  const lower = new Date(nextOlderUpperBound).toISOString()
+
+  return {
+    source: currentSource,
+    config: tableQueryConfig,
+    lower,
+    upper,
+    filters,
+  }
+}
+
+const getOlderChunkDurationMs = (state: State): number => {
+  return getDeep<number>(
+    state,
+    'logs.olderChunkDurationMs',
+    DEFAULT_OLDER_CHUNK_DURATION_MS
+  )
+}
+
+const getTableSelectedTime = (state: State): number => {
+  const custom = getDeep<string>(state, 'logs.tableTime.custom', '')
+
+  if (!_.isEmpty(custom)) {
+    return Date.parse(custom)
+  }
+
+  const relative = getDeep<number>(state, 'logs.tableTime.relative', 0)
+
+  return Date.now() - relative * 1000
+}
+
+const getNextOlderUpperBound = (state: State): number => {
+  const selectedTableTime = getTableSelectedTime(state)
+  return getDeep<number>(state, 'logs.nextOlderUpperBound', selectedTableTime)
 }
 
 /**
@@ -384,6 +517,29 @@ export const setCurrentTailUpperBound = (
 })
 
 /**
+ * Sets the upper bound on the next older chunk fetch query.
+ * @param upper the point in time up until which to fetch older logs.
+ */
+export const setNextOlderUpperBound = (
+  upper: number
+): SetNextOlderUpperBoundAction => ({
+  type: ActionTypes.SetNextOlderUpperBound,
+  payload: {upper},
+})
+
+/**
+ * Sets the lower bound on the next older chunk fetch query.
+ *  This is _not_ used in fetchOlderChunkAsync.
+ * @param lower the point in time starting from which to fetch older logs.
+ */
+export const setNextOlderLowerBound = (
+  lower: number
+): SetNextOlderLowerBoundAction => ({
+  type: ActionTypes.SetNextOlderLowerBound,
+  payload: {lower},
+})
+
+/**
  * Sets the lower bound of time on the current tail chunk fetch query.
  * @param lower the point in time starting from which to begin the next tail fetch.
  */
@@ -401,7 +557,82 @@ export const setTableQueryConfig = (
   payload: {queryConfig},
 })
 
-export const fetchTailAsync = () => async (
+export const setCurrentTailID = (
+  currentTailID: number | undefined
+): SetCurrentTailIDAction => ({
+  type: ActionTypes.SetCurrentTailID,
+  payload: {currentTailID},
+})
+
+export const setCurrentOlderBatchID = (
+  currentOlderBatchID: string
+): SetCurrentOlderBatchIDAction => ({
+  type: ActionTypes.SetCurrentOlderBatchID,
+  payload: {currentOlderBatchID},
+})
+
+export const stopCurrentTail = () => (
+  dispatch:
+    | Dispatch<SetCurrentTailIDAction>
+    | ThunkDispatch<typeof flushTailBuffer>,
+  getState: GetState
+) => {
+  const state = getState()
+  const currentTailID = getCurrentTailID(state)
+
+  dispatch(setCurrentTailID(undefined))
+  clearInterval(currentTailID)
+}
+
+export const startLogsTail = () => (
+  dispatch:
+    | Dispatch<SetCurrentTailIDAction>
+    | ThunkDispatch<typeof flushTailBuffer>
+) => {
+  dispatch(flushTailBuffer())
+  dispatch(setNextTailLowerBound(Date.now()))
+
+  const logTailID = setInterval(
+    () => dispatch(fetchLogTailAsync(logTailID)),
+    DEFAULT_TAIL_CHUNK_DURATION_MS
+  )
+
+  dispatch(setCurrentTailID(logTailID))
+}
+
+export const fetchLogTailAsync = (logTailID: number) => async (
+  dispatch:
+    | Dispatch<SetCurrentTailUpperBoundAction>
+    | ThunkDispatch<typeof stopCurrentTail | typeof updateLogsTailData>,
+  getState: GetState
+) => {
+  const state = getState()
+  const currentTailID = getCurrentTailID(state)
+  const tailLogQuery = getTailLogQuery(state)
+  const {logQuery, error} = validateTailQuery(
+    tailLogQuery,
+    logTailID,
+    currentTailID
+  )
+
+  if (error) {
+    dispatch(stopCurrentTail())
+    return
+  }
+
+  const upperUTC = Date.parse(logQuery.upper)
+  dispatch(setCurrentTailUpperBound(upperUTC))
+
+  const logSeries = await getTableData(executeQueryAsync, logQuery)
+
+  dispatch(updateLogsTailData(logSeries, logTailID, upperUTC))
+}
+
+export const updateLogsTailData = (
+  logSeries: TableData,
+  logTailID: number,
+  upperTailBound: number
+) => async (
   dispatch:
     | Dispatch<
         | SetTableBackwardDataAction
@@ -410,57 +641,38 @@ export const fetchTailAsync = () => async (
       >
     | ThunkDispatch<typeof flushTailBuffer>,
   getState: GetState
-): Promise<void> => {
+) => {
   const state = getState()
+  const maxTailBufferDurationMs = getMaxTailBufferDurationMs(state)
+  const tailLowerBound = getNextTailLowerBound(state) as number
+  const currentTailID = getCurrentTailID(state)
+  const searchStatus = getSearchStatus(state)
 
-  const {
-    logs: {
-      nextTailLowerBound: tailLowerBound,
-      tableQueryConfig,
-      currentSource,
-      filters,
-    },
-  } = getState()
+  if (!currentTailID || currentTailID !== logTailID) {
+    return
+  }
 
-  const params = [currentSource, tableQueryConfig]
+  const currentForwardBufferDuration = upperTailBound - tailLowerBound
+  const isMaxTailBufferDurationExceeded =
+    currentForwardBufferDuration >= maxTailBufferDurationMs
 
-  if (_.every(params)) {
-    if (!tailLowerBound) {
-      throw new Error('tail lower bound is not set')
-    }
-    const upper = new Date().toISOString()
-    const lower = new Date(tailLowerBound).toISOString()
+  if (
+    searchStatus !== SearchStatus.Loaded &&
+    logSeries.values &&
+    logSeries.values.length > 0
+  ) {
+    dispatch(setSearchStatus(SearchStatus.Loaded))
+  }
 
-    const upperUTC = Date.parse(upper)
-    dispatch(setCurrentTailUpperBound(upperUTC))
-
-    const logSeries = await getTableData(executeQueryAsync, {
-      lower,
-      upper,
-      filters,
-      source: currentSource,
-      config: tableQueryConfig,
-    })
-
-    const currentForwardBufferDuration = upperUTC - tailLowerBound
-    const maxTailBufferDurationMs = getMaxTailBufferDurationMs(state)
-    const isMaxTailBufferDurationExceeded =
-      currentForwardBufferDuration >= maxTailBufferDurationMs
-
-    if (isMaxTailBufferDurationExceeded) {
-      dispatch(flushTailBuffer())
-      await dispatch(setNextTailLowerBound(upperUTC))
-    } else {
-      await dispatch(setTableForwardData(logSeries))
-    }
+  if (isMaxTailBufferDurationExceeded) {
+    dispatch(flushTailBuffer())
+    await dispatch(setNextTailLowerBound(upperTailBound))
   } else {
-    throw new Error(
-      `Missing params required to fetch tail logs. Maybe there's a race condition with setting buckets?`
-    )
+    await dispatch(setTableForwardData(logSeries))
   }
 }
 
-export const flushTailBuffer = () => (
+export const flushTailBuffer = () => async (
   dispatch: Dispatch<SetTableBackwardDataAction | SetTableForwardDataAction>,
   getState: GetState
 ) => {
@@ -475,8 +687,8 @@ export const flushTailBuffer = () => (
 
   const combinedBackward = combineTableData(currentTailBuffer, currentBackward)
 
-  dispatch(setTableBackwardData(combinedBackward))
-  dispatch(setTableForwardData(defaultTableData))
+  await dispatch(setTableBackwardData(combinedBackward))
+  await dispatch(setTableForwardData(defaultTableData))
 }
 
 export const setTableQueryConfigAsync = () => async (
@@ -509,4 +721,101 @@ export const clearAllTimeBounds = () => (
 const combineTableData = (...tableDatas: TableData[]) => ({
   columns: tableDatas[0].columns,
   values: _.flatMap(tableDatas, t => t.values),
+})
+
+// Fetch Older Data
+export const startFetchingOlder = () => async (
+  dispatch:
+    | Dispatch<SetCurrentOlderBatchIDAction>
+    | ThunkDispatch<typeof fetchOlderChunkAsync>,
+  getState: GetState
+) => {
+  const state = getState()
+  const currentOlderBatchID = getCurrentOlderBatchID(state)
+
+  if (currentOlderBatchID !== undefined) {
+    return
+  }
+
+  const olderBatchID = uuid.v4()
+  const initialSize = getBackwardTableDataValues(state).length
+
+  const isCurrentBatch = () =>
+    olderBatchID === getCurrentOlderBatchID(getState())
+
+  const isBatchLoading = () => {
+    const currentSize = getBackwardTableDataValues(getState()).length
+
+    return currentSize - initialSize <= OLDER_BATCH_SIZE_LIMIT
+  }
+
+  await dispatch(setCurrentOlderBatchID(olderBatchID))
+
+  while (isCurrentBatch() && isBatchLoading()) {
+    await dispatch(fetchOlderChunkAsync(olderBatchID))
+  }
+
+  dispatch(setCurrentOlderBatchID(undefined))
+}
+
+export const stopFetchingOlder = () => async (
+  dispatch: Dispatch<SetCurrentOlderBatchIDAction>
+) => {
+  dispatch(setCurrentOlderBatchID(undefined))
+}
+
+export const fetchOlderChunkAsync = (olderBatchID: string) => async (
+  dispatch:
+    | Dispatch<SetNextOlderUpperBoundAction | ConcatMoreLogsAction>
+    | ThunkDispatch<typeof updateOlderLogs>,
+  getState: GetState
+): Promise<void> => {
+  const state = getState()
+  const olderLogQuery = getOlderLogQuery(state)
+  const currentOlderBatchID = getCurrentOlderBatchID(state)
+  const {logQuery, error} = validateOlderQuery(
+    olderLogQuery,
+    olderBatchID,
+    currentOlderBatchID
+  )
+
+  if (error) {
+    return
+  }
+  const nextOlderUpperBound = new Date(logQuery.lower).valueOf()
+  await dispatch(setNextOlderUpperBound(nextOlderUpperBound))
+
+  const logSeries = await getTableData(executeQueryAsync, logQuery)
+
+  if (logSeries.values.length > 0) {
+    await dispatch(updateOlderLogs(logSeries, olderBatchID))
+  }
+}
+
+export const updateOlderLogs = (logSeries: TableData, olderBatchID: string) => (
+  dispatch: Dispatch<ConcatMoreLogsAction | SetSearchStatusAction>,
+  getState: GetState
+) => {
+  const state = getState()
+  const searchStatus = getSearchStatus(state)
+  const currentOlderBatchID = getCurrentOlderBatchID(state)
+
+  if (!currentOlderBatchID || olderBatchID !== currentOlderBatchID) {
+    return
+  }
+
+  dispatch(concatMoreLogs(logSeries))
+
+  if (
+    searchStatus !== SearchStatus.Loaded &&
+    logSeries.values &&
+    logSeries.values.length > 0
+  ) {
+    dispatch(setSearchStatus(SearchStatus.Loaded))
+  }
+}
+
+export const concatMoreLogs = (series: TableData): ConcatMoreLogsAction => ({
+  type: ActionTypes.ConcatMoreLogs,
+  payload: {series},
 })
