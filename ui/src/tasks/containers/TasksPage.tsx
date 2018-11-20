@@ -24,8 +24,13 @@ import {
 import {allOrganizationsID} from 'src/tasks/constants'
 
 // Types
-import {Task, TaskStatus} from 'src/types/v2/tasks'
-import {Organization} from 'src/types/v2'
+import {Task as TaskAPI, User, Organization} from 'src/api'
+
+interface Task extends TaskAPI {
+  organization: Organization
+  owner?: User
+  delay?: string
+}
 
 interface PassedInProps {
   router: InjectedRouter
@@ -119,7 +124,7 @@ class TasksPage extends PureComponent<Props> {
         .includes(searchTerm.toLowerCase())
       let activeFilter = true
       if (!showInactive) {
-        activeFilter = t.status === TaskStatus.Active
+        activeFilter = t.status === TaskAPI.StatusEnum.Active
       }
       let orgIDFilter = true
       if (dropdownOrgID && dropdownOrgID !== allOrganizationsID) {

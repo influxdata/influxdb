@@ -6,7 +6,7 @@ import _ from 'lodash'
 import {Dropdown} from 'src/clockface'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/api'
 
 interface Props {
   orgs: Organization[]

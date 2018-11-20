@@ -22,3 +22,9 @@ ui/node_modules
 ui/yarn-error.log
 ui/build
 ui/.cache
+
+ui/src/api/.gitignore
+ui/src/api/.openapi-generator-ignore
+ui/src/api/.openapi-generator/VERSION
+ui/src/api/git_push.sh
+

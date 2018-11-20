@@ -15,9 +15,13 @@ import {
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
+import {Task as TaskAPI, User, Organization} from 'src/api'
 
-// Types
-import {Task, TaskStatus} from 'src/types/v2/tasks'
+interface Task extends TaskAPI {
+  organization: Organization
+  owner?: User
+  delay?: string
+}
 
 interface Props {
   task: Task
@@ -91,7 +95,7 @@ class TaskRow extends PureComponent<Props & WithRouterProps> {
 
   private get isTaskActive(): boolean {
     const {task} = this.props
-    if (task.status === TaskStatus.Active) {
+    if (task.status === TaskAPI.StatusEnum.Active) {
       return true
     }
     return false
@@ -99,10 +103,10 @@ class TaskRow extends PureComponent<Props & WithRouterProps> {
 
   private changeToggle = () => {
     const {task, onActivate} = this.props
-    if (task.status === TaskStatus.Active) {
-      task.status = TaskStatus.Inactive
+    if (task.status === TaskAPI.StatusEnum.Active) {
+      task.status = TaskAPI.StatusEnum.Inactive
     } else {
-      task.status = TaskStatus.Active
+      task.status = TaskAPI.StatusEnum.Active
     }
     onActivate(task)
   }

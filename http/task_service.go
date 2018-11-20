@@ -215,11 +215,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !req.Task.Owner.ID.Valid() {
-		if err != nil {
-			EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
-			return
-		}
-		req.Task.Owner.ID = auth.Identifier()
+		req.Task.Owner.ID = auth.GetUserID()
 	}
 
 	if err := h.TaskService.CreateTask(ctx, req.Task); err != nil {
@@ -245,6 +241,7 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 	if err := json.NewDecoder(r.Body).Decode(task); err != nil {
 		return nil, err
 	}
+
 	return &postTaskRequest{
 		Task: task,
 	}, nil

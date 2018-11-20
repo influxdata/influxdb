@@ -80,7 +80,19 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 
 	// TODO(mr): decide whether we allow user to configure scheduleAfter. https://github.com/influxdata/platform/issues/595
 	scheduleAfter := time.Now().Unix()
-	req := backend.CreateTaskRequest{Org: t.Organization, User: t.Owner.ID, Script: t.Flux, ScheduleAfter: scheduleAfter}
+
+	if t.Status == "" {
+		t.Status = string(backend.DefaultTaskStatus)
+	}
+
+	req := backend.CreateTaskRequest{
+		Org:           t.Organization,
+		User:          t.Owner.ID,
+		Script:        t.Flux,
+		ScheduleAfter: scheduleAfter,
+		Status:        backend.TaskStatus(t.Status),
+	}
+
 	id, err := p.s.CreateTask(ctx, req)
 	if err != nil {
 		return err
