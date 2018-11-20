@@ -19,8 +19,8 @@ const setup = (override?) => {
   const children = jest.fn(() => <div />)
   const props = {
     list: users,
-    sortKeys: [],
-    directions: [],
+    sortKey: 'user.name',
+    direction: Sort.Ascending,
     children,
     ...override,
   }
@@ -39,17 +39,17 @@ describe('SortingHat', () => {
   })
 
   describe('sorting', () => {
-    it('can sort a nested object by multiple columns', () => {
-      const sortKeys = ['user.name', 'age']
-      const directions = [Sort.Ascending, Sort.Descending]
+    it('can sort a nested object by sort key', () => {
+      const sortKey = 'user.name'
+      const direction = Sort.Ascending
       const expected = [
-        {user: {name: 'barney'}, age: 36},
         {user: {name: 'barney'}, age: 34},
+        {user: {name: 'barney'}, age: 36},
         {user: {name: 'fred'}, age: 48},
         {user: {name: 'fred'}, age: 40},
       ]
 
-      const {children} = setup({sortKeys, directions})
+      const {children} = setup({sortKey, direction})
 
       expect(children).toBeCalledWith(expected)
     })

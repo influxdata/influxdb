@@ -8,7 +8,8 @@ import TaskList from 'src/organizations/components/TaskList'
 import FilterList from 'src/organizations/components/Filter'
 
 // Types
-import {Task, TaskStatus} from 'src/types/v2/tasks'
+import {Task} from 'src/types/v2/tasks'
+import {dummyTasks} from 'src/tasks/dummyData'
 
 interface Props {
   tasks: Task[]
@@ -54,38 +55,7 @@ export default class Tasks extends PureComponent<Props, State> {
 
   // TODO: use real tasks
   private get tempTasks(): Task[] {
-    return [
-      {
-        every: '2m',
-        id: '1',
-        name: 'swoggles task',
-        status: TaskStatus.Active,
-        organizationId: '1',
-        organization: {
-          id: '1',
-          name: 'swoggle org',
-        },
-        owner: {
-          id: '1',
-          name: 'watts',
-        },
-      },
-      {
-        every: '2m',
-        id: '2',
-        name: 'plerps task',
-        status: TaskStatus.Active,
-        organizationId: '1',
-        organization: {
-          id: '1',
-          name: 'plerps org',
-        },
-        owner: {
-          id: '1',
-          name: 'alexxx',
-        },
-      },
-    ]
+    return dummyTasks
   }
 
   private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {

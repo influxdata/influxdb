@@ -1,0 +1,123 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`TasksList rendering renders 1`] = `
+<IndexList>
+  <IndexListHeader>
+    <IndexListHeaderCell
+      alignment="left"
+      columnName="name"
+      onClick={[Function]}
+      sort="none"
+      sortKey="name"
+      width="20%"
+    />
+    <IndexListHeaderCell
+      alignment="left"
+      columnName="active"
+      onClick={[Function]}
+      sort="none"
+      sortKey="status"
+      width="10%"
+    />
+    <IndexListHeaderCell
+      alignment="left"
+      columnName="schedule"
+      onClick={[Function]}
+      sort="none"
+      sortKey="every"
+      width="20%"
+    />
+    <IndexListHeaderCell
+      alignment="left"
+      columnName="organization"
+      onClick={[Function]}
+      sort="none"
+      sortKey="organization.name"
+      width="15%"
+    />
+    <IndexListHeaderCell
+      alignment="left"
+      columnName=""
+      width="35%"
+    />
+  </IndexListHeader>
+  <IndexListBody
+    columnCount={5}
+    emptyState={
+      <EmptyTasksLists
+        onCreate={[Function]}
+        searchTerm=""
+      />
+    }
+  >
+    <SortingHat
+      direction="desc"
+      list={
+        Array [
+          Object {
+            "cron": "2 0 * * *",
+            "flux": "option task = {
+  name: \\"pasdlak\\",
+  cron: \\"2 0 * * *\\"
+}
+from(bucket: \\"inbucket\\") 
+|> range(start: -1h)",
+            "id": "02ef9deff2141000",
+            "name": "pasdlak",
+            "organization": Object {
+              "id": "02ee9e2a29d73000",
+              "links": Object {
+                "buckets": "/api/v2/buckets?org=RadicalOrganization",
+                "dashboards": "/api/v2/dashboards?org=RadicalOrganization",
+                "log": "/api/v2/orgs/02ee9e2a29d73000/log",
+                "members": "/api/v2/orgs/02ee9e2a29d73000/members",
+                "self": "/api/v2/orgs/02ee9e2a29d73000",
+                "tasks": "/api/v2/tasks?org=RadicalOrganization",
+              },
+              "name": "RadicalOrganization",
+            },
+            "organizationId": "02ee9e2a29d73000",
+            "owner": Object {
+              "id": "02ee9e2a19d73000",
+              "name": "",
+            },
+            "status": "active",
+          },
+          Object {
+            "every": "1m0s",
+            "flux": "option task = {
+  name: \\"somename\\",
+  every: 1m,
+}
+from(bucket: \\"inbucket\\") 
+|> range(start: -task.every)",
+            "id": "02f12c50dba72000",
+            "name": "somename",
+            "organization": Object {
+              "id": "02ee9e2a29d73000",
+              "links": Object {
+                "buckets": "/api/v2/buckets?org=RadicalOrganization",
+                "dashboards": "/api/v2/dashboards?org=RadicalOrganization",
+                "log": "/api/v2/orgs/02ee9e2a29d73000/log",
+                "members": "/api/v2/orgs/02ee9e2a29d73000/members",
+                "self": "/api/v2/orgs/02ee9e2a29d73000",
+                "tasks": "/api/v2/tasks?org=RadicalOrganization",
+              },
+              "name": "RadicalOrganization",
+            },
+            "organizationId": "02ee9e2a29d73000",
+            "owner": Object {
+              "id": "02ee9e2a19d73000",
+              "name": "",
+            },
+            "status": "active",
+          },
+        ]
+      }
+      sortKey={null}
+    >
+      <Component />
+    </SortingHat>
+  </IndexListBody>
+</IndexList>
+`;

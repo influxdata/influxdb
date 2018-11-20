@@ -7,8 +7,8 @@ import {Sort} from 'src/clockface/types'
 
 interface Props<T> {
   list: T[]
-  sortKeys?: string[]
-  directions?: Sort[]
+  sortKey?: string
+  direction?: Sort
   children: (sortedList: T[]) => JSX.Element
 }
 
@@ -18,8 +18,8 @@ export default class SortingHat<T> extends PureComponent<Props<T>> {
   }
 
   private get sorted(): T[] {
-    const {list, sortKeys, directions} = this.props
+    const {list, sortKey, direction} = this.props
 
-    return orderBy(list, sortKeys, directions)
+    return orderBy(list, [sortKey], [direction])
   }
 }
