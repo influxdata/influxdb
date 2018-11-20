@@ -1,3 +1,5 @@
+import {Organization} from 'src/types/v2/orgs'
+
 export interface Task {
   every?: string
   cron?: string
@@ -6,10 +8,7 @@ export interface Task {
   name: string
   status: TaskStatus
   organizationId: string
-  organization: {
-    id: string
-    name: string
-  }
+  organization: Organization
   owner: {
     id: string
     name: string

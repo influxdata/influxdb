@@ -14,12 +14,10 @@ import {
   Alignment,
 } from 'src/clockface'
 import TableRows from 'src/dashboards/components/dashboard_index/TableRows'
-import TableHeader from 'src/dashboards/components/dashboard_index/TableHeader'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import {Sort} from 'src/clockface'
-import {IndexHeaderCellProps} from 'src/clockface/components/index_views/IndexListHeaderCell'
 import {Dashboard} from 'src/types/v2'
 
 interface Props {
@@ -33,17 +31,19 @@ interface Props {
   onSetDefaultDashboard: (dashboardLink: string) => void
 }
 
-type Column = IndexHeaderCellProps
-
 interface State {
-  columns: Column[]
+  sortKey: SortKey
+  sortDirection: Sort
 }
+
+type SortKey = keyof Dashboard | 'modified' | 'owner' // owner and modified are currently hardcoded
 
 class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {
     super(props)
     this.state = {
-      columns: this.defaultColumns,
+      sortKey: null,
+      sortDirection: Sort.Descending,
     }
   }
 
@@ -56,18 +56,50 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onCloneDashboard,
       onDeleteDashboard,
     } = this.props
+    const {sortKey, sortDirection} = this.state
+    const headerKeys: SortKey[] = ['name', 'owner', 'modified', 'default']
 
     return (
       <IndexList>
-        <TableHeader
-          columns={this.state.columns}
-          onClickColumn={this.handleClickColumn}
-        />
+        <IndexList.Header>
+          <IndexList.HeaderCell
+            columnName={headerKeys[0]}
+            sortKey={headerKeys[0]}
+            sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
+            width="50%"
+            onClick={this.handleClickColumn}
+          />
+          <IndexList.HeaderCell
+            columnName={headerKeys[1]}
+            sortKey={headerKeys[1]}
+            sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
+            width="10%"
+            onClick={this.handleClickColumn}
+          />
+          <IndexList.HeaderCell
+            columnName={headerKeys[2]}
+            sortKey={headerKeys[2]}
+            sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
+            width="10%"
+            onClick={this.handleClickColumn}
+          />
+          <IndexList.HeaderCell
+            columnName={headerKeys[3]}
+            sortKey={headerKeys[3]}
+            width="10%"
+          />
+          <IndexList.HeaderCell
+            columnName=""
+            width="10%"
+            alignment={Alignment.Right}
+          />
+          <IndexList.HeaderCell columnName="" width="35%" />
+        </IndexList.Header>
         <IndexList.Body emptyState={this.emptyState} columnCount={5}>
           <SortingHat<Dashboard>
             list={dashboards}
-            sortKeys={this.sortKeys}
-            directions={this.directions}
+            sortKey={sortKey}
+            direction={sortDirection}
           >
             {ds => (
               <TableRows
@@ -85,57 +117,8 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
     )
   }
 
-  private get sortKeys(): string[] {
-    return this.state.columns.map(c => c.sortKey)
-  }
-
-  private get directions(): Sort[] {
-    return this.state.columns.map(c => c.sort)
-  }
-
-  private handleClickColumn = (nextSort: Sort, sortKey: string) => {
-    const columns = this.state.columns.map(h => {
-      if (h.sortKey === sortKey) {
-        return {...h, sort: nextSort}
-      }
-
-      return h
-    })
-
-    this.setState({columns})
-  }
-
-  private get defaultColumns(): Column[] {
-    return [
-      {
-        columnName: 'name',
-        sortKey: 'name',
-        sort: Sort.Descending,
-        width: '50%',
-      },
-      {
-        columnName: 'owner',
-        sortKey: 'owner',
-        sort: Sort.Descending,
-        width: '10%',
-      },
-      {
-        columnName: 'modified',
-        sortKey: 'modified',
-        sort: Sort.Descending,
-        width: '10%',
-      },
-      {
-        columnName: 'default',
-        sortKey: 'default',
-        width: '10%',
-      },
-      {
-        columnName: '',
-        width: '20%',
-        alignment: Alignment.Right,
-      },
-    ]
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    this.setState({sortKey, sortDirection: nextSort})
   }
 
   private get emptyState(): JSX.Element {
