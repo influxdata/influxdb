@@ -11,6 +11,7 @@
   transition: height 200ms ease;
 }
 .react-grid-item {
+  z-index: $z--cell-default;
   transition: all 200ms ease;
   transition-property: left, top;
 }
@@ -18,14 +19,14 @@
   transition-property: transform;
 }
 .react-grid-item.resizing {
-  z-index: 1;
+  z-index: $z--cell-resizing;
   will-change: width, height;
 }
 
 .react-grid-item.react-draggable-dragging {
   transition: none;
-  z-index: 3;
-  will-change: transform;
+  z-index: $z--cell-dragging;
+  will-change: top, left;
 }
 
 .react-grid-item.react-grid-placeholder {
@@ -34,7 +35,7 @@
   opacity: 0.3;
   border-radius: $ix-radius !important;
   transition-duration: 100ms;
-  z-index: 2;
+  z-index: $z--cell-default;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
@@ -49,6 +50,7 @@
   bottom: 0;
   right: 0;
   cursor: se-resize;
+  z-index: $z--cell-resizer;
 }
 
 .react-grid-item > .react-resizable-handle::after {

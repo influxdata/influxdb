@@ -20,7 +20,16 @@ $z--notifications: 9999;
 $z--overlays: 9990;
 $z--drag-n-drop: 5000;
 $z--dygraph-legend: 4000;
+
+$z--cell-default: 1;
+$z--cell-dragging: 3;
+$z--cell-resizing: 3;
 $z--cell-gradient-border: 1000;
+$z--cell-view: 1;
+$z--cell-header: 2;
+$z--cell-context: 3;
+$z--cell-context-hover: 100;
+$z--cell-resizer: 5;
 
 /* Motifs */
 
@@ -40,6 +49,8 @@ $ix-marg-f: 128px;
 $ix-border: 2px;
 $ix-radius: 4px;
 $ix-radius-sm: 3px;
+
+/* Typography */
 
 $ix-link-default: $c-pool;
 $ix-link-default-hover: $c-laser;

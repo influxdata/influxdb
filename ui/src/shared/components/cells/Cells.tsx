@@ -72,7 +72,7 @@ class Cells extends Component<Props & WithRouterProps, State> {
         cols={12}
         layout={this.cells}
         rowHeight={rowHeight}
-        useCSSTransforms={false}
+        useCSSTransforms={true}
         containerPadding={[0, 0]}
         margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         onLayoutChange={this.handleLayoutChange}
