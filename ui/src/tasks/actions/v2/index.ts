@@ -259,9 +259,8 @@ export const selectTaskByID = (id: string) => async (
       links: {tasks: url},
     } = getState()
 
-    const org = orgs.find(org => org.id === task.organizationId)
-
     const task = await getTask(url, id)
+    const org = orgs.find(org => org.id === task.organizationId)
 
     return dispatch(setCurrentTask({...task, organization: org}))
   } catch (e) {
