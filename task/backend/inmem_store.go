@@ -262,6 +262,7 @@ func (s *inmem) DeleteTask(_ context.Context, id platform.ID) (deleted bool, err
 
 	// Delete entry from slice.
 	s.tasks = append(s.tasks[:idx], s.tasks[idx+1:]...)
+	delete(s.runners, id.String())
 	return true, nil
 }
 

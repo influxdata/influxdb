@@ -706,9 +706,12 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatal("previously deleted task reported as deleted")
 		}
 
-		// The deleted task should not be found.
+		// Neither the deleted task nor its meta should not be found.
 		if _, err := s.FindTaskByID(context.Background(), id); err != backend.ErrTaskNotFound {
 			t.Fatalf("expected task not to be found, got %v", err)
+		}
+		if _, err := s.FindTaskMetaByID(context.Background(), id); err != backend.ErrTaskNotFound {
+			t.Fatalf("expected task meta not to be found, got %v", err)
 		}
 
 		// It's safe to reuse the same name, for the same org with a new user, after deleting the original.

@@ -201,6 +201,7 @@ type Store interface {
 	FindTaskByID(ctx context.Context, id platform.ID) (*StoreTask, error)
 
 	// FindTaskMetaByID returns the metadata about a task.
+	// If no task meta matches the ID, the returned meta is nil and ErrTaskNotFound is returned.
 	FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTaskMeta, error)
 
 	// FindTaskByIDWithMeta combines finding the task and the meta into a single call.
