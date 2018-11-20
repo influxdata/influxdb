@@ -23,7 +23,7 @@ interface State {
 }
 
 @ErrorHandling
-class CellMenu extends Component<Props, State> {
+class ContextMenu extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
     color: ComponentColor.Primary,
   }
@@ -122,4 +122,4 @@ class CellMenu extends Component<Props, State> {
   }
 }
 
-export default CellMenu
+export default ContextMenu

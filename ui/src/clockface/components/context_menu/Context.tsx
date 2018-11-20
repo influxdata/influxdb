@@ -25,7 +25,7 @@ interface State {
 }
 
 @ErrorHandling
-class CellContext extends PureComponent<Props, State> {
+class Context extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     align: Alignment.Right,
   }
@@ -79,4 +79,4 @@ class CellContext extends PureComponent<Props, State> {
   }
 }
 
-export default CellContext
+export default Context

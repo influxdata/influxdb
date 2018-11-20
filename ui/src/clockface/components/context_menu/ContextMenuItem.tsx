@@ -9,7 +9,7 @@ interface Props {
   disabled?: boolean
 }
 
-class CellContextMenuItem extends Component<Props> {
+class ContextMenuItem extends Component<Props> {
   public render() {
     const {label, disabled} = this.props
 
@@ -44,4 +44,4 @@ class CellContextMenuItem extends Component<Props> {
   }
 }
 
-export default CellContextMenuItem
+export default ContextMenuItem
