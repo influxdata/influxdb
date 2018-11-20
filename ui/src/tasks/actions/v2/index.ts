@@ -221,11 +221,11 @@ export const populateTasks = () => async (
   try {
     const {
       orgs,
-      links: {tasks: url, me: meUrl},
+      links: {me: meUrl},
     } = getState()
 
     const user = await getMe(meUrl)
-    const tasks = await getUserTasks(url, user)
+    const tasks = await getUserTasks(user)
 
     const mappedTasks = tasks.map(task => {
       const org = orgs.find(org => org.id === task.organizationId)

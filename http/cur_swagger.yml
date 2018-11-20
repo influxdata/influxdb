@@ -2490,10 +2490,10 @@ paths:
               schema:
                 type: object
                 properties:
-                  runs:
+                  tasks:
                     type: array
                     items:
-                      $ref: "#/components/schemas/Tasks"
+                      $ref: "#/components/schemas/Task"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -2562,7 +2562,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Task"
+              $ref: "#/components/schemas/TaskUpdateRequest"
       parameters:
         - in: path
           name: taskID
@@ -3756,6 +3756,18 @@ components:
           description: The Flux script to run for this task.
           type: string
       required: [organizationId, flux]
+    TaskUpdateRequest:
+      properties:
+        status:
+          description: Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
+        flux:
+          description: The Flux script to run for this task.
+          type: string
     Task:
       properties:
         id:

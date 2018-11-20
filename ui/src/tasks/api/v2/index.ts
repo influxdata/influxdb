@@ -41,13 +41,11 @@ export const updateTaskStatus = async (
   return data
 }
 
-export const getUserTasks = async (url, user): Promise<Task[]> => {
-  const completeUrl = `${url}?user=${user.id}`
+export const getUserTasks = async (user): Promise<Task[]> => {
+  const api = createTaskAPI()
+  const {data} = await api.tasksGet('', user.id)
 
-  const {
-    data: {tasks},
-  } = await AJAX({url: completeUrl})
-  return tasks
+  return data.tasks
 }
 
 export const getTask = async (url, id): Promise<Task> => {

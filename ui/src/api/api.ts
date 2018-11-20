@@ -984,10 +984,10 @@ export interface InlineResponse200 {
     links?: Links;
     /**
      * 
-     * @type {Array<Tasks>}
+     * @type {Array<Task>}
      * @memberof InlineResponse200
      */
-    runs?: Array<Tasks>;
+    tasks?: Array<Task>;
 }
 
 /**
