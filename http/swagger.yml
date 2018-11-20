@@ -2478,26 +2478,19 @@ paths:
           name: user
           schema:
             type: string
-          description: filter tasks to a specific user name
+          description: filter tasks to a specific user ID
         - in: query
           name: org
           schema:
             type: string
-          description: filter tasks to a specific organization name
+          description: filter tasks to a specific organization ID
       responses:
         '200':
           description: A list of tasks
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  runs:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Tasks"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                 $ref: "#/components/schemas/Tasks"
         default:
           description: unexpected error
           content:
@@ -3750,11 +3743,12 @@ components:
           description: Link to the full logs for a run.
           type: string
     Task:
+      type: object
       properties:
         id:
           readOnly: true
           type: string
-        organization:
+        organizationId:
           description: The ID of the organization that owns this Task.
           type: string
         name:
@@ -3767,8 +3761,6 @@ components:
           enum:
             - active
             - inactive
-        owners:
-          $ref: "#/components/schemas/Owners"
         flux:
           description: The Flux script to run for this task.
           type: string
@@ -3778,11 +3770,41 @@ components:
         cron:
           description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
           type: string
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/tasks/1"
+            owners: "/api/v2/tasks/1/owners"
+            members: "/api/v2/tasks/1/members"
+            runs: "/api/v2/tasks/1/runs"
+            logs: "/api/v2/tasks/1/logs"
+          properties:
+            self:
+              type: string
+              format: uri
+            owners:
+              type: string
+              format: uri
+            members:
+              type: string
+              format: uri
+            runs:
+              type: string
+              format: uri
+            logs:
+              type: string
+              format: uri
       required: [name, organization, flux]
     Tasks:
-      type: array
-      items:
-        $ref: "#/components/schemas/Task"
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+        links:
+          $ref: "#/components/schemas/Links"
     UserResponse:
       type: object
       properties:
