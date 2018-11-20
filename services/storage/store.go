@@ -22,7 +22,9 @@ var (
 	ErrMissingReadSource = errors.New("missing ReadSource")
 )
 
-func getReadSource(req *datatypes.ReadRequest) (*ReadSource, error) {
+// GetReadSource will attempt to unmarshal a ReadSource from the ReadRequest or
+// return an error if no valid resource is present.
+func GetReadSource(req *datatypes.ReadRequest) (*ReadSource, error) {
 	if req.ReadSource == nil {
 		return nil, ErrMissingReadSource
 	}
@@ -120,7 +122,7 @@ func (s *Store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.Res
 		req.PointsLimit = math.MaxInt64
 	}
 
-	source, err := getReadSource(req)
+	source, err := GetReadSource(req)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +172,7 @@ func (s *Store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 		req.PointsLimit = math.MaxInt64
 	}
 
-	source, err := getReadSource(req)
+	source, err := GetReadSource(req)
 	if err != nil {
 		return nil, err
 	}
