@@ -119,13 +119,11 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	)
 
 	h.WriteHandler = NewWriteHandler(b.PointsWriter)
-	h.WriteHandler.AuthorizationService = b.AuthorizationService
 	h.WriteHandler.OrganizationService = b.OrganizationService
 	h.WriteHandler.BucketService = b.BucketService
 	h.WriteHandler.Logger = b.Logger.With(zap.String("handler", "write"))
 
 	h.QueryHandler = NewFluxHandler()
-	h.QueryHandler.AuthorizationService = b.AuthorizationService
 	h.QueryHandler.OrganizationService = b.OrganizationService
 	h.QueryHandler.Logger = b.Logger.With(zap.String("handler", "query"))
 	h.QueryHandler.ProxyQueryService = b.ProxyQueryService

@@ -12,8 +12,8 @@ import (
 // Request respresents the query to run.
 type Request struct {
 	// Scope
-	Authorization  *platform.Authorization `json:"authorization,omitempty"`
-	OrganizationID platform.ID             `json:"organization_id"`
+	Authorizer     platform.Authorizer `json:"authorization,omitempty"`
+	OrganizationID platform.ID         `json:"organization_id"`
 
 	// Command
 

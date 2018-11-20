@@ -58,7 +58,7 @@ func (qlr *QueryLogReader) ListLogs(ctx context.Context, logFilter platform.LogF
 	if auth.Kind() != "authorization" {
 		return nil, errAuthorizerNotSupported
 	}
-	request := &query.Request{Authorization: auth.(*platform.Authorization), OrganizationID: *logFilter.Org, Compiler: lang.FluxCompiler{Query: listScript}}
+	request := &query.Request{Authorizer: auth.(*platform.Authorization), OrganizationID: *logFilter.Org, Compiler: lang.FluxCompiler{Query: listScript}}
 
 	ittr, err := qlr.queryService.Query(ctx, request)
 	if err != nil {
@@ -136,7 +136,7 @@ join(tables: {main: main, supl: supl}, on: ["_start", "_stop", "orgID", "taskID"
 	if auth.Kind() != "authorization" {
 		return nil, errAuthorizerNotSupported
 	}
-	request := &query.Request{Authorization: auth.(*platform.Authorization), OrganizationID: *runFilter.Org, Compiler: lang.FluxCompiler{Query: listScript}}
+	request := &query.Request{Authorizer: auth.(*platform.Authorization), OrganizationID: *runFilter.Org, Compiler: lang.FluxCompiler{Query: listScript}}
 
 	ittr, err := qlr.queryService.Query(ctx, request)
 	if err != nil {
@@ -184,7 +184,7 @@ logs |> yield(name: "logs")
 	if auth.Kind() != "authorization" {
 		return nil, errAuthorizerNotSupported
 	}
-	request := &query.Request{Authorization: auth.(*platform.Authorization), OrganizationID: orgID, Compiler: lang.FluxCompiler{Query: showScript}}
+	request := &query.Request{Authorizer: auth.(*platform.Authorization), OrganizationID: orgID, Compiler: lang.FluxCompiler{Query: showScript}}
 
 	ittr, err := qlr.queryService.Query(ctx, request)
 	if err != nil {

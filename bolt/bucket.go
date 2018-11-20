@@ -282,7 +282,11 @@ func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 			return err
 		}
 
-		return c.putBucket(ctx, tx, b)
+		if err := c.putBucket(ctx, tx, b); err != nil {
+			return err
+		}
+
+		return c.createBucketUserResourceMappings(ctx, tx, b)
 	})
 }
 
@@ -291,6 +295,29 @@ func (c *Client) PutBucket(ctx context.Context, b *platform.Bucket) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		return c.putBucket(ctx, tx, b)
 	})
+}
+
+func (c *Client) createBucketUserResourceMappings(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) error {
+	ms, err := c.findUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+		ResourceType: platform.OrgResourceType,
+		ResourceID:   b.OrganizationID,
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, m := range ms {
+		if err := c.createUserResourceMapping(ctx, tx, &platform.UserResourceMapping{
+			ResourceType: platform.BucketResourceType,
+			ResourceID:   b.ID,
+			UserID:       m.UserID,
+			UserType:     m.UserType,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (c *Client) putBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) error {
