@@ -2489,6 +2489,12 @@ export interface Task {
      */
     cron?: string;
     /**
+     * How long to wait before running the task
+     * @type {string}
+     * @memberof Task
+     */
+    delay?: string;
+    /**
      * A simple task repetition schedule; parsed from Flux.
      * @type {string}
      * @memberof Task

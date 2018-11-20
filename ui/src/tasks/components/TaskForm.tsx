@@ -1,6 +1,8 @@
+// Libraries
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 
+// Components
 import {
   ComponentSpacer,
   Form,
@@ -13,10 +15,10 @@ import TaskOptionsOrgDropdown from 'src/tasks/components/TasksOptionsOrgDropdown
 import FluxEditor from 'src/shared/components/FluxEditor'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 
+// Types
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-
+import {Alignment, Direction, ComponentStatus} from 'src/clockface/types'
 import {Organization} from 'src/api'
-import {Alignment, Direction} from 'src/clockface/types'
 
 interface Props {
   script: string
@@ -25,15 +27,10 @@ interface Props {
   onChangeScheduleType: (schedule: TaskSchedule) => void
   onChangeScript: (script: string) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
-  onChangeScheduleUnit: (unit: string, scheduleType: string) => void
   onChangeTaskOrgID: (orgID: string) => void
 }
 
 interface State {
-  selectedIntervalUnit: string
-  cron: string
-  selectedDelayUnit: string
-  delayTime: string
   retryAttempts: string
   schedule: TaskSchedule
 }
@@ -43,10 +40,6 @@ export default class TaskForm extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      cron: '',
-      selectedIntervalUnit: 'd',
-      delayTime: '20',
-      selectedDelayUnit: 'm',
       retryAttempts: '1',
       schedule: props.taskOptions.taskScheduleType,
     }
@@ -58,16 +51,7 @@ export default class TaskForm extends PureComponent<Props, State> {
       onChangeInput,
       onChangeScript,
       onChangeTaskOrgID,
-      taskOptions: {
-        name,
-        taskScheduleType,
-        intervalTime,
-        intervalUnit,
-        delayTime,
-        delayUnit,
-        cron,
-        orgID,
-      },
+      taskOptions: {name, taskScheduleType, interval, delay, cron, orgID},
       orgs,
     } = this.props
 
@@ -101,10 +85,10 @@ export default class TaskForm extends PureComponent<Props, State> {
                     id="interval"
                     active={taskScheduleType === TaskSchedule.interval}
                     value={TaskSchedule.interval}
-                    titleText="Interval + Delay"
+                    titleText="Interval"
                     onClick={this.handleChangeScheduleType}
                   >
-                    Interval + Delay
+                    Interval
                   </Radio.Button>
                   <Radio.Button
                     id="cron"
@@ -119,11 +103,8 @@ export default class TaskForm extends PureComponent<Props, State> {
                 <TaskScheduleFormField
                   onChangeInput={onChangeInput}
                   schedule={taskScheduleType}
-                  intervalTime={intervalTime}
-                  intervalUnit={intervalUnit}
-                  delayTime={delayTime}
-                  delayUnit={delayUnit}
-                  onChangeTaskScheduleUnit={this.handleChangeTaskScheduleUnit}
+                  interval={interval}
+                  delay={delay}
                   cron={cron}
                 />
               </ComponentSpacer>
@@ -134,6 +115,7 @@ export default class TaskForm extends PureComponent<Props, State> {
                 name="retry"
                 placeholder=""
                 onChange={this.handleChangeRetry}
+                status={ComponentStatus.Disabled}
                 value={this.state.retryAttempts}
               />
             </Form.Element>
@@ -159,12 +141,5 @@ export default class TaskForm extends PureComponent<Props, State> {
 
   private handleChangeScheduleType = (schedule: TaskSchedule): void => {
     this.props.onChangeScheduleType(schedule)
-  }
-
-  private handleChangeTaskScheduleUnit = (
-    unit: string,
-    scheduleType: string
-  ) => {
-    this.props.onChangeScheduleUnit(unit, scheduleType)
   }
 }
