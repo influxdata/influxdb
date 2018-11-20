@@ -307,3 +307,36 @@ func (s *sliceSeriesCursor) Next() *reads.SeriesRow {
 	}
 	return nil
 }
+
+func BenchmarkNewGroupResultSet_GroupBy(b *testing.B) {
+	card := []int{10, 10, 10}
+	vals := make([]gen.Sequence, len(card))
+	for i := range card {
+		vals[i] = gen.NewCounterByteSequenceCount(card[i])
+	}
+
+	tags := gen.NewTagsValuesSequenceValues("tag", vals)
+	rows := make([]reads.SeriesRow, tags.Count())
+	for i := range rows {
+		tags.Next()
+		t := tags.Value().Clone()
+		rows[i].SeriesTags = t
+		rows[i].Tags = t
+		rows[i].Name = []byte("m0")
+	}
+
+	cur := &sliceSeriesCursor{rows: rows}
+	newCursor := func() (reads.SeriesCursor, error) {
+		cur.i = 0
+		return cur, nil
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		var hints datatypes.HintFlags
+		hints.SetHintSchemaAllTime()
+		rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag2"}, Hints: hints}, newCursor)
+		rs.Close()
+	}
+}
