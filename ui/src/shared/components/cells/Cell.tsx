@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import CellMenu from 'src/shared/components/cells/CellMenu'
 import CellHeader from 'src/shared/components/cells/CellHeader'
+import CellContext from 'src/shared/components/cells/CellContext'
 import ViewComponent from 'src/shared/components/cells/View'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -13,8 +13,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {readView} from 'src/dashboards/actions/v2/views'
 
 // Types
-import {DashboardQuery, RemoteDataState, TimeRange} from 'src/types'
+import {RemoteDataState, TimeRange} from 'src/types'
 import {Cell, View, AppState} from 'src/types/v2'
+
+// Styles
+import './Cell.scss'
 
 interface StateProps {
   view: View
@@ -50,31 +53,29 @@ class CellComponent extends Component<Props> {
   }
 
   public render() {
-    const {cell, isEditable, onDeleteCell, onCloneCell, onEditCell} = this.props
+    const {isEditable, onEditCell, onDeleteCell, onCloneCell, cell} = this.props
 
     return (
-      <div className="dash-graph">
-        <CellMenu
+      <>
+        <CellHeader name={this.viewName} isEditable={isEditable} />
+        <CellContext
+          visible={isEditable}
           cell={cell}
-          dataExists={false}
-          queries={this.queries}
-          isEditable={isEditable}
-          onDelete={onDeleteCell}
-          onClone={onCloneCell}
-          onEdit={onEditCell}
+          onDeleteCell={onDeleteCell}
+          onCloneCell={onCloneCell}
+          onEditCell={onEditCell}
           onCSVDownload={this.handleCSVDownload}
         />
-        <CellHeader cellName={this.viewName} isEditable={isEditable} />
-        <div className="dash-graph--container">{this.view}</div>
-      </div>
+        <div className="cell--view">{this.view}</div>
+      </>
     )
   }
 
-  private get queries(): DashboardQuery[] {
-    const {view} = this.props
+  // private get queries(): DashboardQuery[] {
+  //   const {view} = this.props
 
-    return _.get(view, ['properties.queries'], [])
-  }
+  //   return _.get(view, ['properties.queries'], [])
+  // }
 
   private get viewName(): string {
     const {view} = this.props

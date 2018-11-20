@@ -6,6 +6,7 @@ import ReactGridLayout, {WidthProvider, Layout} from 'react-grid-layout'
 // Components
 const Grid = WidthProvider(ReactGridLayout)
 import CellComponent from 'src/shared/components/cells/Cell'
+import GradientBorder from 'src/shared/components/cells/GradientBorder'
 
 // Utils
 import {fastMap} from 'src/utils/fast'
@@ -22,6 +23,9 @@ import {
 // Types
 import {Cell} from 'src/types/v2'
 import {TimeRange} from 'src/types'
+
+// Styles
+import './react-grid-layout.scss'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -68,16 +72,16 @@ class Cells extends Component<Props & WithRouterProps, State> {
         cols={12}
         layout={this.cells}
         rowHeight={rowHeight}
-        useCSSTransforms={false}
+        useCSSTransforms={true}
         containerPadding={[0, 0]}
         margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         onLayoutChange={this.handleLayoutChange}
-        draggableHandle={'.dash-graph--draggable'}
+        draggableHandle={'.cell--draggable'}
         isDraggable={this.isDashboard}
         isResizable={this.isDashboard}
       >
         {fastMap(cells, cell => (
-          <div key={cell.id}>
+          <div key={cell.id} className="cell">
             <CellComponent
               cell={cell}
               onZoom={onZoom}
@@ -89,10 +93,17 @@ class Cells extends Component<Props & WithRouterProps, State> {
               onDeleteCell={onDeleteCell}
               onEditCell={this.handleEditCell(cell)}
             />
+            {this.cellBorder}
           </div>
         ))}
       </Grid>
     )
+  }
+
+  private get cellBorder(): JSX.Element {
+    if (this.isDashboard) {
+      return <GradientBorder />
+    }
   }
 
   private get cells(): Layout[] {
