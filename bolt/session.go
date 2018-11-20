@@ -55,6 +55,18 @@ func (c *Client) findSession(ctx context.Context, tx *bolt.Tx, key string) (*pla
 		return nil, err
 	}
 
+	// TODO(desa): these values should be cached so it's not so expensive to lookup each time.
+	f := platform.UserResourceMappingFilter{UserID: s.UserID}
+	mappings, err := c.findUserResourceMappings(ctx, tx, f)
+	if err != nil {
+		return nil, err
+	}
+
+	ps := make([]platform.Permission, 0, len(mappings))
+	for _, m := range mappings {
+		ps = append(ps, m.ToPermissions()...)
+	}
+	s.Permissions = ps
 	return s, nil
 }
 

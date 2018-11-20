@@ -47,7 +47,7 @@ type REPLQuerier struct {
 
 func (q *REPLQuerier) Query(ctx context.Context, compiler flux.Compiler) (flux.ResultIterator, error) {
 	req := &Request{
-		Authorization:  q.Authorization,
+		Authorizer:     q.Authorization,
 		OrganizationID: q.OrganizationID,
 		Compiler:       compiler,
 	}

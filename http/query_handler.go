@@ -35,10 +35,9 @@ type FluxHandler struct {
 
 	Logger *zap.Logger
 
-	Now                  func() time.Time
-	AuthorizationService platform.AuthorizationService
-	OrganizationService  platform.OrganizationService
-	ProxyQueryService    query.ProxyQueryService
+	Now                 func() time.Time
+	OrganizationService platform.OrganizationService
+	ProxyQueryService   query.ProxyQueryService
 }
 
 // NewFluxHandler returns a new handler at /api/v2/query for flux queries.
@@ -60,24 +59,14 @@ func NewFluxHandler() *FluxHandler {
 
 func (h *FluxHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
 	a, err := pcontext.GetAuthorizer(ctx)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	auth, err := h.AuthorizationService.FindAuthorizationByID(ctx, a.Identifier())
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	if !auth.IsActive() {
-		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for query"), w)
-		return
-	}
-
-	req, err := decodeProxyQueryRequest(ctx, r, auth, h.OrganizationService)
+	req, err := decodeProxyQueryRequest(ctx, r, a, h.OrganizationService)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return

@@ -31,19 +31,31 @@ type Log struct {
 
 // Redact removes any sensitive information before logging
 func (q *Log) Redact() {
-	if q.ProxyRequest != nil && q.ProxyRequest.Request.Authorization != nil {
+	if q.ProxyRequest != nil && q.ProxyRequest.Request.Authorizer != nil {
 		// Make shallow copy of request
 		request := new(ProxyRequest)
 		*request = *q.ProxyRequest
 
-		// Make shallow copy of authorization
-		auth := new(platform.Authorization)
-		*auth = *q.ProxyRequest.Request.Authorization
-		// Redact authorization token
-		auth.Token = ""
+		var az platform.Authorizer
+		switch a := q.ProxyRequest.Request.Authorizer.(type) {
+		case *platform.Authorization:
+			// Make shallow copy of authorization
+			auth := new(platform.Authorization)
+			*auth = *a
+			// Redact authorization token
+			auth.Token = ""
+			az = auth
+		case *platform.Session:
+			// Make shallow copy of Session
+			sess := new(platform.Session)
+			*sess = *a
+			// Redact session key
+			sess.Key = ""
+			az = sess
+		}
 
-		// Apply redacted authorization
-		request.Request.Authorization = auth
+		// Apply redacted autorizer
+		request.Request.Authorizer = az
 
 		// Apply redacted request
 		q.ProxyRequest = request

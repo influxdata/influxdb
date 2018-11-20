@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 type UserType string
@@ -65,4 +66,34 @@ type UserResourceMappingFilter struct {
 	ResourceType ResourceType
 	UserID       ID
 	UserType     UserType
+}
+
+var ownerActions = []action{WriteAction, CreateAction, DeleteAction}
+var memberActions = []action{ReadAction}
+
+// ToPermission converts a user resource mapping into a set of permissions.
+func (m *UserResourceMapping) ToPermissions() []Permission {
+	// TODO(desa): we'll have to do something more fine-grained eventually
+	// but this should be good enough for now.
+	ps := []Permission{}
+	r := resource(fmt.Sprintf("%s/%s", m.ResourceType, m.ResourceID))
+	if m.UserType == Owner {
+		for _, a := range ownerActions {
+			p := Permission{
+				Resource: r,
+				Action:   a,
+			}
+			ps = append(ps, p)
+		}
+	}
+
+	for _, a := range memberActions {
+		p := Permission{
+			Resource: r,
+			Action:   a,
+		}
+		ps = append(ps, p)
+	}
+
+	return ps
 }

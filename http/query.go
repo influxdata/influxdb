@@ -222,7 +222,7 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.Organ
 	return &req, err
 }
 
-func decodeProxyQueryRequest(ctx context.Context, r *http.Request, auth *platform.Authorization, svc platform.OrganizationService) (*query.ProxyRequest, error) {
+func decodeProxyQueryRequest(ctx context.Context, r *http.Request, auth platform.Authorizer, svc platform.OrganizationService) (*query.ProxyRequest, error) {
 	req, err := decodeQueryRequest(ctx, r, svc)
 	if err != nil {
 		return nil, err
@@ -233,6 +233,6 @@ func decodeProxyQueryRequest(ctx context.Context, r *http.Request, auth *platfor
 		return nil, err
 	}
 
-	pr.Request.Authorization = auth
+	pr.Request.Authorizer = auth
 	return pr, nil
 }

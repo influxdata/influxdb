@@ -25,9 +25,8 @@ type WriteHandler struct {
 
 	Logger *zap.Logger
 
-	AuthorizationService platform.AuthorizationService
-	BucketService        platform.BucketService
-	OrganizationService  platform.OrganizationService
+	BucketService       platform.BucketService
+	OrganizationService platform.OrganizationService
 
 	PointsWriter storage.PointsWriter
 }
@@ -64,12 +63,6 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a, err := pcontext.GetAuthorizer(ctx)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	auth, err := h.AuthorizationService.FindAuthorizationByID(ctx, a.Identifier())
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -134,7 +127,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		bucket = b
 	}
 
-	if !auth.Allowed(platform.WriteBucketPermission(bucket.ID)) {
+	if !a.Allowed(platform.WriteBucketPermission(bucket.ID)) {
 		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for write"), w)
 		return
 	}
