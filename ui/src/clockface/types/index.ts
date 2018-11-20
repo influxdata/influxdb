@@ -171,3 +171,8 @@ export enum Sort {
   Ascending = 'asc',
   None = 'none',
 }
+
+export enum Direction {
+  Horizontal = 'horizontal',
+  Vertical = 'vertical',
+}

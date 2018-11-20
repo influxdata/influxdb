@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {Component, MouseEvent} from 'react'
 import classnames from 'classnames'
 
 // Types
@@ -41,7 +41,8 @@ class DropdownItem extends Component<Props> {
     )
   }
 
-  private handleClick = (): void => {
+  private handleClick = (e: MouseEvent<HTMLElement>): void => {
+    e.preventDefault()
     const {onClick, value} = this.props
 
     onClick(value)

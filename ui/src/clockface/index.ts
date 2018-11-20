@@ -31,6 +31,7 @@ import {
   IconFont,
   Columns,
   Alignment,
+  Direction,
   ButtonType,
   Sort,
 } from './types'
@@ -41,6 +42,7 @@ export {
   Button,
   ButtonType,
   ComponentSpacer,
+  Direction,
   Dropdown,
   DropdownMode,
   MultiSelectDropdown,
