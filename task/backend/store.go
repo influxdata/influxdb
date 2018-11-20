@@ -64,6 +64,7 @@ const (
 	RunSuccess
 	RunFail
 	RunCanceled
+	RunScheduled
 )
 
 func (r RunStatus) String() string {
@@ -76,6 +77,8 @@ func (r RunStatus) String() string {
 		return "failed"
 	case RunCanceled:
 		return "canceled"
+	case RunScheduled:
+		return "scheduled"
 	}
 	panic(fmt.Sprintf("unknown RunStatus: %d", r))
 }
@@ -223,7 +226,7 @@ type Store interface {
 	// ManuallyRunTimeRange enqueues a request to run the task with the given ID for all schedules no earlier than start and no later than end (Unix timestamps).
 	// requestedAt is the Unix timestamp when the request was initiated.
 	// ManuallyRunTimeRange must delegate to an underlying StoreTaskMeta's ManuallyRunTimeRange method.
-	ManuallyRunTimeRange(ctx context.Context, taskID platform.ID, start, end, requestedAt int64) error
+	ManuallyRunTimeRange(ctx context.Context, taskID platform.ID, start, end, requestedAt int64) (*StoreTaskMetaManualRun, error)
 
 	// DeleteOrg deletes the org.
 	DeleteOrg(ctx context.Context, orgID platform.ID) error

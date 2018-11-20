@@ -1,6 +1,8 @@
 package platform
 
-import "context"
+import (
+	"context"
+)
 
 // Task is a task. 🎊
 type Task struct {
@@ -62,7 +64,7 @@ type TaskService interface {
 
 	// RetryRun creates and returns a new run (which is a retry of another run).
 	// The requestedAt parameter is the Unix timestamp that will be recorded for the retry.
-	RetryRun(ctx context.Context, taskID, runID ID, requestedAt int64) error
+	RetryRun(ctx context.Context, taskID, runID ID, requestedAt int64) (*Run, error)
 }
 
 // TaskUpdate represents updates to a task

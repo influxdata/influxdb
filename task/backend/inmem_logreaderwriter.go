@@ -120,7 +120,6 @@ func (r *runReaderWriter) ListRuns(ctx context.Context, runFilter platform.RunFi
 func (r *runReaderWriter) FindRunByID(ctx context.Context, orgID, runID platform.ID) (*platform.Run, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
 	run, ok := r.byRunID[runID.String()]
 	if !ok {
 		return nil, ErrRunNotFound

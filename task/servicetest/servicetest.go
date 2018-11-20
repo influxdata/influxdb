@@ -324,10 +324,23 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[1].FinishedAt)
 		}
 
+		// look for a run that doesn't exit.
+		_, err = sys.ts.FindRunByID(sys.Ctx, task.ID, platform.ID(math.MaxUint64))
+		if err == nil {
+			t.Fatalf("expected %s but got %s instead", backend.ErrRunNotFound, err)
+		}
+
+		// look for a taskID that doesn't exist.
+		_, err = sys.ts.FindRunByID(sys.Ctx, platform.ID(math.MaxUint64), runs[0].ID)
+		if err == nil {
+			t.Fatalf("expected %s but got %s instead", backend.ErrRunNotFound, err)
+		}
+
 		foundRun0, err := sys.ts.FindRunByID(sys.Ctx, task.ID, runs[0].ID)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if diff := cmp.Diff(foundRun0, runs[0]); diff != "" {
 			t.Fatalf("difference between listed run and found run: %s", diff)
 		}
@@ -356,7 +369,8 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Non-existent ID should return the right error.
-		if err := sys.ts.RetryRun(sys.Ctx, task.ID, platform.ID(math.MaxUint64), 0); err != backend.ErrRunNotFound {
+		m, err := sys.ts.RetryRun(sys.Ctx, task.ID, platform.ID(math.MaxUint64), 0)
+		if err != backend.ErrRunNotFound {
 			t.Errorf("expected retrying run that doesn't exist to return %v, got %v", backend.ErrRunNotFound, err)
 		}
 
@@ -390,9 +404,24 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Now retry the run.
-		if err := sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix); err != nil {
+		m, err = sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix)
+		if err != nil {
 			t.Fatal(err)
 		}
+		if m.TaskID != task.ID {
+			t.Fatalf("wrong task ID on retried run: got %s, want %s", m.TaskID, task.ID)
+		}
+		if m.Status != "scheduled" {
+			t.Fatal("expected new retried run to have status of scheduled")
+		}
+		nowTime, err := time.Parse(time.RFC3339, m.ScheduledFor)
+		if err != nil {
+			t.Fatalf("expected scheduledFor to be a parsable time in RFC3339, but got %s", m.ScheduledFor)
+		}
+		if nowTime.Unix() != rc.Created.Now {
+			t.Fatalf("wrong scheduledFor on task: got %s, want %s", m.ScheduledFor, time.Unix(rc.Created.Now, 0).Format(time.RFC3339))
+		}
+
 		// Ensure the retry is added on the store task meta.
 		meta, err := sys.S.FindTaskMetaByID(sys.Ctx, task.ID)
 		if err != nil {
@@ -410,8 +439,10 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatalf("didn't find matching manual run after successful RetryRun call; got: %v", meta.ManualRuns)
 		}
 
+		exp := backend.RetryAlreadyQueuedError{Start: rc.Created.Now, End: rc.Created.Now}
+
 		// Retrying a run which has been queued but not started, should be rejected.
-		if exp, err := (backend.RetryAlreadyQueuedError{Start: rc.Created.Now, End: rc.Created.Now}), sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix); err != exp {
+		if _, err = sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix); err != exp {
 			t.Fatalf("subsequent retry should have been rejected with %v; got %v", exp, err)
 		}
 	})

@@ -682,20 +682,22 @@ func (s *Store) FinishRun(ctx context.Context, taskID, runID platform.ID) error 
 	})
 }
 
-func (s *Store) ManuallyRunTimeRange(_ context.Context, taskID platform.ID, start, end, requestedAt int64) error {
+func (s *Store) ManuallyRunTimeRange(_ context.Context, taskID platform.ID, start, end, requestedAt int64) (*backend.StoreTaskMetaManualRun, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var mRun *backend.StoreTaskMetaManualRun
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	if err = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
 		stmBytes := b.Bucket(taskMetaPath).Get(encodedID)
 		var stm backend.StoreTaskMeta
 		if err := stm.Unmarshal(stmBytes); err != nil {
 			return err
 		}
-		if err := stm.ManuallyRunTimeRange(start, end, requestedAt); err != nil {
+		makeID := func() (platform.ID, error) { return s.idGen.ID(), nil }
+		if err := stm.ManuallyRunTimeRange(start, end, requestedAt, makeID); err != nil {
 			return err
 		}
 
@@ -703,9 +705,13 @@ func (s *Store) ManuallyRunTimeRange(_ context.Context, taskID platform.ID, star
 		if err != nil {
 			return err
 		}
+		mRun = stm.ManualRuns[len(stm.ManualRuns)-1]
 
 		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(encodedID, stmBytes)
-	})
+	}); err != nil {
+		return nil, err
+	}
+	return mRun, nil
 }
 
 // Close closes the store

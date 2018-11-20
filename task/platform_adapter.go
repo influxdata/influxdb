@@ -175,27 +175,37 @@ func (p pAdapter) FindRunByID(ctx context.Context, taskID, id platform.ID) (*pla
 	return p.r.FindRunByID(ctx, task.Org, id)
 }
 
-func (p pAdapter) RetryRun(ctx context.Context, taskID, id platform.ID, requestedAt int64) error {
+func (p pAdapter) RetryRun(ctx context.Context, taskID, id platform.ID, requestedAt int64) (*platform.Run, error) {
 	task, err := p.s.FindTaskByID(ctx, taskID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	run, err := p.r.FindRunByID(ctx, task.Org, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if run.Status == backend.RunStarted.String() {
-		return backend.ErrRunNotFinished
+		return nil, backend.ErrRunNotFinished
 	}
 
 	scheduledTime, err := time.Parse(time.RFC3339, run.ScheduledFor)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	t := scheduledTime.UTC().Unix()
 
-	return p.s.ManuallyRunTimeRange(ctx, run.TaskID, t, t, requestedAt)
+	m, err := p.s.ManuallyRunTimeRange(ctx, run.TaskID, t, t, requestedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &platform.Run{
+		ID:           platform.ID(m.RunID),
+		TaskID:       run.TaskID,
+		RequestedAt:  time.Unix(requestedAt, 0).Format(time.RFC3339),
+		Status:       backend.RunScheduled.String(),
+		ScheduledFor: run.ScheduledFor,
+	}, nil
 }
 
 func (p pAdapter) CancelRun(ctx context.Context, taskID, runID platform.ID) error {

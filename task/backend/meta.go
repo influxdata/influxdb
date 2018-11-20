@@ -127,10 +127,16 @@ func (stm *StoreTaskMeta) createNextRunFromQueue(now, nextDue int64, sch cron.Sc
 	runNow := sch.Next(time.Unix(latest, 0)).Unix()
 
 	// Already validated that we have room to create another run, in CreateNextRun.
-	id, err := makeID()
-	if err != nil {
-		return RunCreation{}, err
+	id := platform.ID(q.RunID)
+
+	if !id.Valid() {
+		var err error
+		id, err = makeID()
+		if err != nil {
+			return RunCreation{}, err
+		}
 	}
+
 	stm.CurrentlyRunning = append(stm.CurrentlyRunning, &StoreTaskMetaRun{
 		Now:   runNow,
 		Try:   1,
@@ -183,7 +189,7 @@ func (stm *StoreTaskMeta) NextDueRun() (int64, error) {
 // requestedAt is the Unix timestamp indicating when this run range was requested.
 //
 // If adding the range would exceed the queue size, ManuallyRunTimeRange returns ErrManualQueueFull.
-func (stm *StoreTaskMeta) ManuallyRunTimeRange(start, end, requestedAt int64) error {
+func (stm *StoreTaskMeta) ManuallyRunTimeRange(start, end, requestedAt int64, makeID func() (platform.ID, error)) error {
 	// Arbitrarily chosen upper limit that seems unlikely to be reached except in pathological cases.
 	const maxQueueSize = 32
 	if len(stm.ManualRuns) >= maxQueueSize {
@@ -206,8 +212,14 @@ func (stm *StoreTaskMeta) ManuallyRunTimeRange(start, end, requestedAt int64) er
 		LatestCompleted: lc,
 		RequestedAt:     requestedAt,
 	}
+	if start == end && makeID != nil {
+		id, err := makeID()
+		if err != nil {
+			return err
+		}
+		run.RunID = uint64(id)
+	}
 	stm.ManualRuns = append(stm.ManualRuns, run)
-
 	return nil
 }
 

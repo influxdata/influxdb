@@ -64,4 +64,7 @@ message StoreTaskMetaManualRun {
 
   // requested_at is the unix timestamp indicating when this run was requested.
   int64 requested_at = 4;
+
+  // run_id is set ahead of time for retries of individual runs. Manually run time ranges do not receive an ID.
+  uint64 run_id = 5 [(gogoproto.customname) = "RunID"];
 }

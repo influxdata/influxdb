@@ -807,12 +807,12 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 
 		// Task is set to every minute. Should schedule once on 0 and once on 60.
-		if err := s.ManuallyRunTimeRange(context.Background(), taskID, 0, 60, 3000); err != nil {
+		if _, err := s.ManuallyRunTimeRange(context.Background(), taskID, 0, 60, 3000); err != nil {
 			t.Fatal(err)
 		}
 
 		// Should schedule once exactly on 180.
-		if err := s.ManuallyRunTimeRange(context.Background(), taskID, 180, 180, 3001); err != nil {
+		if _, err := s.ManuallyRunTimeRange(context.Background(), taskID, 180, 180, 3001); err != nil {
 			t.Fatal(err)
 		}
 
@@ -925,7 +925,7 @@ from(bucket:"test") |> range(start:-1h)`
 		t.Fatal(err)
 	}
 
-	if err := s.ManuallyRunTimeRange(context.Background(), taskID, 1, 10, 0); err != nil {
+	if _, err := s.ManuallyRunTimeRange(context.Background(), taskID, 1, 10, 0); err != nil {
 		t.Fatal(err)
 	}
 

@@ -101,11 +101,11 @@ func TestMeta_CreateNextRun_Queue(t *testing.T) {
 	}
 
 	// Should run on 0, 60, and 120.
-	if err := stm.ManuallyRunTimeRange(0, 120, 3005); err != nil {
+	if err := stm.ManuallyRunTimeRange(0, 120, 3005, nil); err != nil {
 		t.Fatal(err)
 	}
 	// Should run once: 240.
-	if err := stm.ManuallyRunTimeRange(240, 240, 3005); err != nil {
+	if err := stm.ManuallyRunTimeRange(240, 240, 3005, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -228,7 +228,7 @@ func TestMeta_ManuallyRunTimeRange(t *testing.T) {
 
 	for i := int64(0); i < maxQueueSize; i++ {
 		j := i * 10
-		if err := stm.ManuallyRunTimeRange(j, j+5, j+now); err != nil {
+		if err := stm.ManuallyRunTimeRange(j, j+5, j+now, nil); err != nil {
 			t.Fatal(err)
 		}
 		if int64(len(stm.ManualRuns)) != i+1 {
@@ -251,7 +251,7 @@ func TestMeta_ManuallyRunTimeRange(t *testing.T) {
 	}
 
 	// One more should cause ErrManualQueueFull.
-	if err := stm.ManuallyRunTimeRange(maxQueueSize*100, maxQueueSize*200, maxQueueSize+now); err != backend.ErrManualQueueFull {
+	if err := stm.ManuallyRunTimeRange(maxQueueSize*100, maxQueueSize*200, maxQueueSize+now, nil); err != backend.ErrManualQueueFull {
 		t.Fatalf("expected ErrManualQueueFull, got %v", err)
 	}
 	if len(stm.ManualRuns) != maxQueueSize {
@@ -262,18 +262,18 @@ func TestMeta_ManuallyRunTimeRange(t *testing.T) {
 	stm.ManualRuns = stm.ManualRuns[:0]
 
 	// Duplicate manual run with single timestamp should be rejected.
-	if err := stm.ManuallyRunTimeRange(1, 1, 2); err != nil {
+	if err := stm.ManuallyRunTimeRange(1, 1, 2, nil); err != nil {
 		t.Fatal(err)
 	}
-	if exp, err := (backend.RetryAlreadyQueuedError{Start: 1, End: 1}), stm.ManuallyRunTimeRange(1, 1, 3); err != exp {
+	if exp, err := (backend.RetryAlreadyQueuedError{Start: 1, End: 1}), stm.ManuallyRunTimeRange(1, 1, 3, func() (platform.ID, error) { return platform.ID(1099), nil }); err != exp {
 		t.Fatalf("expected %v, got %v", exp, err)
 	}
 
 	// Duplicate manual run with time range should be rejected.
-	if err := stm.ManuallyRunTimeRange(100, 200, 201); err != nil {
+	if err := stm.ManuallyRunTimeRange(100, 200, 201, nil); err != nil {
 		t.Fatal(err)
 	}
-	if exp, err := (backend.RetryAlreadyQueuedError{Start: 100, End: 200}), stm.ManuallyRunTimeRange(100, 200, 202); err != exp {
+	if exp, err := (backend.RetryAlreadyQueuedError{Start: 100, End: 200}), stm.ManuallyRunTimeRange(100, 200, 202, nil); err != exp {
 		t.Fatalf("expected %v, got %v", exp, err)
 	}
 
