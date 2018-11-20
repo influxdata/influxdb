@@ -94,7 +94,7 @@
   opacity: 1;
 }
 
-.react-grid-item.resizing .react-resizable-handle
+.react-grid-item.resizing .react-resizable-handle,
 .react-grid-item.react-draggable-dragging .react-resizable-handle {
   opacity: 1;
   border-right-color: $c-comet;

@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Context, IconFont, ComponentColor, Alignment} from 'src/clockface'
+import {Context, IconFont, ComponentColor} from 'src/clockface'
 
 // Types
 import {Cell} from 'src/types/v2'
