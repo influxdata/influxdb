@@ -10,38 +10,33 @@ const getBasePath = () => {
   return `${protocol}//${host}:${port}/api/v2`
 }
 
+const createTaskAPI = () => {
+  return new TasksApi({basePath: getBasePath()})
+}
+
 export const submitNewTask = async (
   organizationId: string,
   flux: string
 ): Promise<Task> => {
-  const api = new TasksApi({basePath: getBasePath()})
+  const api = createTaskAPI()
   const {data} = await api.tasksPost({organizationId, flux})
 
   return data
 }
 
-export const updateTaskFlux = async (url, id, flux: string): Promise<Task> => {
-  const completeUrl = `${url}/${id}`
-  const request = {
-    flux,
-  }
-
-  const {data} = await AJAX({url: completeUrl, data: request, method: 'PATCH'})
+export const updateTaskFlux = async (id, flux: string): Promise<Task> => {
+  const api = createTaskAPI()
+  const {data} = await api.tasksTaskIDPatch(id, {flux})
 
   return data
 }
 
 export const updateTaskStatus = async (
-  url: string,
   id: string,
-  status: string
+  status: Task.StatusEnum
 ): Promise<Task> => {
-  const completeUrl = `${url}/${id}`
-  const request = {
-    status,
-  }
-
-  const {data} = await AJAX({url: completeUrl, data: request, method: 'PATCH'})
+  const api = createTaskAPI()
+  const {data} = await api.tasksTaskIDPatch(id, {status})
 
   return data
 }

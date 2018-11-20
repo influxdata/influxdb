@@ -185,15 +185,9 @@ export const setScheduleUnit = (
   payload: {unit, schedule},
 })
 
-export const updateTaskStatus = (task: Task) => async (
-  dispatch,
-  getState: GetStateFunc
-) => {
+export const updateTaskStatus = (task: Task) => async dispatch => {
   try {
-    const {
-      links: {tasks: url},
-    } = getState()
-    await updateTaskStatusAPI(url, task.id, task.status)
+    await updateTaskStatusAPI(task.id, task.status)
 
     dispatch(populateTasks())
   } catch (e) {
@@ -286,11 +280,10 @@ export const cancelUpdateTask = () => async dispatch => {
 export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
   try {
     const {
-      links: {tasks: url},
       tasks: {currentScript: script, currentTask: task},
     } = getState()
 
-    await updateTaskFlux(url, task.id, script)
+    await updateTaskFlux(task.id, script)
 
     dispatch(setCurrentTask(null))
     dispatch(goToTasks())
