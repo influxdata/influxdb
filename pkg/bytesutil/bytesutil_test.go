@@ -3,6 +3,7 @@ package bytesutil_test
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -79,6 +80,69 @@ func TestContains(t *testing.T) {
 			got := bytesutil.Contains(in, []byte(test.x))
 			if got != test.exp {
 				t.Errorf("got %t, expected %t", got, test.exp)
+			}
+		})
+	}
+}
+
+// ss returns a sorted slice of byte slices.
+func ss(s ...string) [][]byte {
+	r := make([][]byte, len(s))
+	for i := range s {
+		r[i] = []byte(s[i])
+	}
+	bytesutil.Sort(r)
+	return r
+}
+
+func TestCompareSlice(t *testing.T) {
+	name := func(a, b [][]byte, exp int) string {
+		return fmt.Sprintf("%s <=> %s is %d", bytes.Join(a, nil), bytes.Join(b, nil), exp)
+	}
+	tests := []struct {
+		a, b [][]byte
+		exp  int
+	}{
+		{
+			a:   ss("aaa", "bbb", "ccc"),
+			b:   ss("aaa", "bbb", "ccc"),
+			exp: 0,
+		},
+
+		{
+			a:   ss("aaa", "bbb", "ccc", "ddd"),
+			b:   ss("aaa", "bbb", "ccc"),
+			exp: 1,
+		},
+
+		{
+			a:   ss("aaa", "bbb"),
+			b:   ss("aaa", "bbb", "ccc"),
+			exp: -1,
+		},
+
+		{
+			a:   ss("aaa", "bbbb"),
+			b:   ss("aaa", "bbb", "ccc"),
+			exp: 1,
+		},
+
+		{
+			a:   ss("aaa", "ccc"),
+			b:   ss("aaa", "bbb", "ccc"),
+			exp: 1,
+		},
+
+		{
+			a:   ss("aaa", "aaa"),
+			b:   ss("aaa", "bbb", "ccc"),
+			exp: -1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(name(test.a, test.b, test.exp), func(t *testing.T) {
+			if got := bytesutil.CompareSlice(test.a, test.b); got != test.exp {
+				t.Errorf("unexpected result, -got/+exp\n%s", cmp.Diff(got, test.exp))
 			}
 		})
 	}

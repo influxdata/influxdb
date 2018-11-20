@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
@@ -21,11 +20,12 @@ type groupResultSet struct {
 	agg *datatypes.Aggregate
 	mb  multiShardCursors
 
-	i    int
-	rows []*SeriesRow
-	keys [][]byte
-	rgc  groupByCursor
-	km   keyMerger
+	i       int
+	rows    []*SeriesRow
+	keys    [][]byte
+	nilSort []byte
+	rgc     groupByCursor
+	km      keyMerger
 
 	newCursorFn func() (SeriesCursor, error)
 	nextGroupFn func(c *groupResultSet) GroupCursor
@@ -34,13 +34,28 @@ type groupResultSet struct {
 	eof bool
 }
 
-func NewGroupResultSet(ctx context.Context, req *datatypes.ReadRequest, newCursorFn func() (SeriesCursor, error)) GroupResultSet {
+type GroupOption func(g *groupResultSet)
+
+// GroupOptionNilSortLo configures nil values to be sorted lower than any
+// other value
+func GroupOptionNilSortLo() GroupOption {
+	return func(g *groupResultSet) {
+		g.nilSort = nilSortLo
+	}
+}
+
+func NewGroupResultSet(ctx context.Context, req *datatypes.ReadRequest, newCursorFn func() (SeriesCursor, error), opts ...GroupOption) GroupResultSet {
 	g := &groupResultSet{
 		ctx:         ctx,
 		req:         req,
 		agg:         req.Aggregate,
 		keys:        make([][]byte, len(req.GroupKeys)),
+		nilSort:     nilSortHi,
 		newCursorFn: newCursorFn,
+	}
+
+	for _, o := range opts {
+		o(g)
 	}
 
 	g.mb = newMultiShardArrayCursors(ctx, req.TimestampRange.Start, req.TimestampRange.End, !req.Descending, req.PointsLimit)
@@ -76,7 +91,16 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadRequest, newCurso
 	return g
 }
 
-var nilKey = [...]byte{0xff}
+// nilSort values determine the lexicographical order of nil values in the
+// partition key
+var (
+	// nil sorts lowest
+	nilSortLo = []byte{0x00}
+	// nil sorts highest
+	nilSortHi = []byte{0xff} // sort nil values
+)
+
+func (g *groupResultSet) Err() error { return nil }
 
 func (g *groupResultSet) Close() {}
 
@@ -248,7 +272,7 @@ func groupBySort(g *groupResultSet) (int, error) {
 		for i, k := range g.keys {
 			vals[i] = nr.Tags.Get(k)
 			if len(vals[i]) == 0 {
-				vals[i] = nilKey[:] // if there was no value, ensure it sorts last
+				vals[i] = g.nilSort
 			}
 			l += len(vals[i])
 		}
@@ -281,6 +305,7 @@ type groupNoneCursor struct {
 	keys [][]byte
 }
 
+func (c *groupNoneCursor) Err() error                 { return nil }
 func (c *groupNoneCursor) Tags() models.Tags          { return c.row.Tags }
 func (c *groupNoneCursor) Keys() [][]byte             { return c.keys }
 func (c *groupNoneCursor) PartitionKeyVals() [][]byte { return nil }
@@ -320,6 +345,7 @@ func (c *groupByCursor) reset(rows []*SeriesRow) {
 	c.rows = rows
 }
 
+func (c *groupByCursor) Err() error                 { return nil }
 func (c *groupByCursor) Keys() [][]byte             { return c.keys }
 func (c *groupByCursor) PartitionKeyVals() [][]byte { return c.vals }
 func (c *groupByCursor) Tags() models.Tags          { return c.rows[c.i-1].Tags }
@@ -339,86 +365,4 @@ func (c *groupByCursor) Cursor() cursors.Cursor {
 		cur = c.mb.newAggregateCursor(c.ctx, c.agg, cur)
 	}
 	return cur
-}
-
-// keyMerger is responsible for determining a merged set of tag keys
-type keyMerger struct {
-	i    int
-	keys [2][][]byte
-}
-
-func (km *keyMerger) clear() {
-	km.i = 0
-	km.keys[0] = km.keys[0][:0]
-}
-
-func (km *keyMerger) get() [][]byte { return km.keys[km.i&1] }
-
-func (km *keyMerger) String() string {
-	var s []string
-	for _, k := range km.get() {
-		s = append(s, string(k))
-	}
-	return strings.Join(s, ",")
-}
-
-func (km *keyMerger) mergeTagKeys(tags models.Tags) {
-	keys := km.keys[km.i&1]
-	i, j := 0, 0
-	for i < len(keys) && j < len(tags) && bytes.Equal(keys[i], tags[j].Key) {
-		i++
-		j++
-	}
-
-	if j == len(tags) {
-		// no new tags
-		return
-	}
-
-	km.i = (km.i + 1) & 1
-	l := len(keys) + len(tags)
-	if cap(km.keys[km.i]) < l {
-		km.keys[km.i] = make([][]byte, l)
-	} else {
-		km.keys[km.i] = km.keys[km.i][:l]
-	}
-
-	keya := km.keys[km.i]
-
-	// back up the pointers
-	if i > 0 {
-		i--
-		j--
-	}
-
-	k := i
-	copy(keya[:k], keys[:k])
-
-	for i < len(keys) && j < len(tags) {
-		cmp := bytes.Compare(keys[i], tags[j].Key)
-		if cmp < 0 {
-			keya[k] = keys[i]
-			i++
-		} else if cmp > 0 {
-			keya[k] = tags[j].Key
-			j++
-		} else {
-			keya[k] = keys[i]
-			i++
-			j++
-		}
-		k++
-	}
-
-	if i < len(keys) {
-		k += copy(keya[k:], keys[i:])
-	}
-
-	for j < len(tags) {
-		keya[k] = tags[j].Key
-		j++
-		k++
-	}
-
-	km.keys[km.i] = keya[:k]
 }

@@ -191,7 +191,7 @@ READ:
 		table.Close()
 		table = nil
 	}
-	return nil
+	return rs.Err()
 }
 
 func (bi *tableIterator) handleReadNoPoints(f func(flux.Table) error, rs ResultSet) error {
@@ -233,7 +233,7 @@ READ:
 		table.Close()
 		table = nil
 	}
-	return nil
+	return rs.Err()
 }
 
 func (bi *tableIterator) handleGroupRead(f func(flux.Table) error, rs GroupResultSet) error {
@@ -316,7 +316,7 @@ READ:
 
 		gc = rs.Next()
 	}
-	return nil
+	return rs.Err()
 }
 
 func (bi *tableIterator) handleGroupReadNoPoints(f func(flux.Table) error, rs GroupResultSet) error {
@@ -363,7 +363,7 @@ READ:
 
 		gc = rs.Next()
 	}
-	return nil
+	return rs.Err()
 }
 
 func determineAggregateMethod(agg string) (datatypes.Aggregate_AggregateType, error) {

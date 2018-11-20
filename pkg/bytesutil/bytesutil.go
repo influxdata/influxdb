@@ -130,6 +130,31 @@ func Intersect(a, b [][]byte) [][]byte {
 	return other
 }
 
+// CompareSlice returns an integer comparing two sorted slices of byte slices
+// lexicographically.
+// The result will be 0 if a==b, -1 if a < b, and +1 if a > b.
+func CompareSlice(a, b [][]byte) int {
+	i := 0
+	for i < len(a) && i < len(b) {
+		if v := bytes.Compare(a[i], b[i]); v == 0 {
+			i++
+			continue
+		} else {
+			return v
+		}
+	}
+
+	if i < len(b) {
+		// b is longer, so assume a is less
+		return -1
+	} else if i < len(a) {
+		// a is longer, so assume b is less
+		return 1
+	} else {
+		return 0
+	}
+}
+
 // Clone returns a copy of b.
 func Clone(b []byte) []byte {
 	if b == nil {
