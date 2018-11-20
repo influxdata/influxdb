@@ -8,6 +8,8 @@ import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
 import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {OverlayTechnology} from 'src/clockface'
+import ImportTaskOverlay from 'src/tasks/components/ImportTaskOverlay'
 
 // Actions
 import {
@@ -18,6 +20,7 @@ import {
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
   setDropdownOrgID as setDropdownOrgIDAction,
+  importScript,
 } from 'src/tasks/actions/v2'
 
 // Constants
@@ -44,6 +47,7 @@ interface ConnectedDispatchProps {
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
   setDropdownOrgID: typeof setDropdownOrgIDAction
+  importScript: typeof importScript
 }
 
 interface ConnectedStateProps {
@@ -56,8 +60,12 @@ interface ConnectedStateProps {
 
 type Props = ConnectedDispatchProps & PassedInProps & ConnectedStateProps
 
+interface State {
+  isOverlayVisible: boolean
+}
+
 @ErrorHandling
-class TasksPage extends PureComponent<Props> {
+class TasksPage extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
@@ -66,6 +74,8 @@ class TasksPage extends PureComponent<Props> {
       props.setShowInactive()
     }
     props.setDropdownOrgID(null)
+
+    this.state = {isOverlayVisible: false}
   }
 
   public render(): JSX.Element {
@@ -75,27 +85,32 @@ class TasksPage extends PureComponent<Props> {
       setShowInactive,
       showInactive,
     } = this.props
+
     return (
-      <Page>
-        <TasksHeader
-          onCreateTask={this.handleCreateTask}
-          setSearchTerm={setSearchTerm}
-          setShowInactive={setShowInactive}
-          showInactive={showInactive}
-        />
-        <Page.Contents fullWidth={false} scrollable={true}>
-          <div className="col-xs-12">
-            <TasksList
-              searchTerm={searchTerm}
-              tasks={this.filteredTasks}
-              onActivate={this.handleActivate}
-              onDelete={this.handleDelete}
-              onCreate={this.handleCreateTask}
-              onSelect={this.props.selectTask}
-            />
-          </div>
-        </Page.Contents>
-      </Page>
+      <>
+        <Page>
+          <TasksHeader
+            onCreateTask={this.handleCreateTask}
+            setSearchTerm={setSearchTerm}
+            setShowInactive={setShowInactive}
+            showInactive={showInactive}
+            toggleOverlay={this.handleToggleOverlay}
+          />
+          <Page.Contents fullWidth={false} scrollable={true}>
+            <div className="col-xs-12">
+              <TasksList
+                searchTerm={searchTerm}
+                tasks={this.filteredTasks}
+                onActivate={this.handleActivate}
+                onDelete={this.handleDelete}
+                onCreate={this.handleCreateTask}
+                onSelect={this.props.selectTask}
+              />
+            </div>
+          </Page.Contents>
+        </Page>
+        {this.renderImportOverlay}
+      </>
     )
   }
 
@@ -114,6 +129,27 @@ class TasksPage extends PureComponent<Props> {
     const {router} = this.props
 
     router.push('/tasks/new')
+  }
+
+  private handleToggleOverlay = () => {
+    this.setState({isOverlayVisible: !this.state.isOverlayVisible})
+  }
+
+  private handleSave = (script: string, fileName: string) => {
+    this.props.importScript(script, fileName)
+  }
+
+  private get renderImportOverlay(): JSX.Element {
+    const {isOverlayVisible} = this.state
+
+    return (
+      <OverlayTechnology visible={isOverlayVisible}>
+        <ImportTaskOverlay
+          onDismissOverlay={this.handleToggleOverlay}
+          onSave={this.handleSave}
+        />
+      </OverlayTechnology>
+    )
   }
 
   private get filteredTasks(): Task[] {
@@ -158,6 +194,7 @@ const mdtp: ConnectedDispatchProps = {
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,
   setDropdownOrgID: setDropdownOrgIDAction,
+  importScript,
 }
 
 export default connect<

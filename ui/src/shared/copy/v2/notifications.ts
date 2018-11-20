@@ -1,5 +1,5 @@
 import {Notification} from 'src/types'
-import {TEN_SECONDS} from 'src/shared/constants/index'
+import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
 
 type NotificationExcludingMessage = Pick<
   Notification,
@@ -35,4 +35,19 @@ export const taskDeleteFailed = (): Notification => ({
 export const taskUpdateFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to update task',
+})
+
+export const taskImportFailed = (
+  fileName: string,
+  errorMessage: string
+): Notification => ({
+  ...defaultErrorNotification,
+  duration: INFINITE,
+  message: `Failed to import Task from file ${fileName}: ${errorMessage}.`,
+})
+
+export const taskImportSuccess = (fileName: string): Notification => ({
+  ...defaultErrorNotification,
+  duration: FIVE_SECONDS,
+  message: `Successfully imported file ${fileName}.`,
 })

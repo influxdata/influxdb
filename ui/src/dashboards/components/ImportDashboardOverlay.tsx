@@ -15,18 +15,9 @@ interface Props {
   onImportDashboard: (dashboard: Dashboard) => void
   notify: (message: Notification) => void
 }
-
-interface State {
-  isImportable: boolean
-}
-
-class ImportDashboardOverlay extends PureComponent<Props, State> {
+class ImportDashboardOverlay extends PureComponent<Props> {
   constructor(props: Props) {
     super(props)
-
-    this.state = {
-      isImportable: false,
-    }
   }
 
   public render() {

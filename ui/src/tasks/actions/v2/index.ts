@@ -1,5 +1,6 @@
 import {AppState} from 'src/types/v2'
 import {push} from 'react-router-redux'
+import _ from 'lodash'
 
 import {Task as TaskAPI, Organization} from 'src/api'
 import {
@@ -18,6 +19,8 @@ import {
   taskDeleteFailed,
   taskNotFound,
   taskUpdateFailed,
+  taskImportFailed,
+  taskImportSuccess,
 } from 'src/shared/copy/v2/notifications'
 import {getDeep} from 'src/utils/wrappers'
 
@@ -309,8 +312,47 @@ export const saveNewScript = () => async (
     dispatch(setNewScript(''))
     dispatch(clearTaskOptions())
     dispatch(goToTasks())
+    dispatch(populateTasks())
   } catch (e) {
     console.error(e)
     dispatch(notify(taskNotCreated(e.headers['x-influx-error'])))
+  }
+}
+
+export const importScript = (script: string, fileName: string) => async (
+  dispatch,
+  getState: GetStateFunc
+): Promise<void> => {
+  try {
+    const validFileExtension = '.flux'
+
+    const fileExtensionRegex = new RegExp(`${validFileExtension}$`)
+
+    if (!fileName.match(fileExtensionRegex)) {
+      dispatch(notify(taskImportFailed(fileName, 'Please import a .flux file')))
+      return
+    }
+
+    if (_.isEmpty(script)) {
+      dispatch(notify(taskImportFailed(fileName, 'No Flux found in file')))
+      return
+    }
+
+    const {orgs} = await getState()
+    const orgID = getDeep<string>(orgs, '0.id', '') // TODO org selection by user.
+
+    await submitNewTask(orgID, script)
+
+    dispatch(populateTasks())
+
+    dispatch(notify(taskImportSuccess(fileName)))
+  } catch (error) {
+    console.error(error)
+    const explanation = getDeep<string>(
+      error,
+      'response.headers.x-influx-error',
+      ''
+    )
+    dispatch(notify(taskImportFailed(fileName, explanation)))
   }
 }

@@ -23,6 +23,9 @@ interface Task extends TaskAPI {
   delay?: string
 }
 
+// Constants
+import {IconFont} from 'src/clockface/types/index'
+
 interface Props {
   task: Task
   onActivate: (task: Task) => void
@@ -57,8 +60,8 @@ class TaskRow extends PureComponent<Props & WithRouterProps> {
           <ComponentSpacer align={Alignment.Right}>
             <Button
               size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Default}
               text="Export"
+              icon={IconFont.Export}
               onClick={this.handleExport}
             />
             <Button
