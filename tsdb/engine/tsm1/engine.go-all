@@ -1498,7 +1498,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			overlapsTimeRangeMinMax = true
 		}
 		return nil
-	})
+	});
 
 	if !overlapsTimeRangeMinMax && e.Cache.store.count() > 0 {
 		overlapsTimeRangeMinMax = true
@@ -1592,7 +1592,11 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// Note: this is inherently racy if writes are occurring to the same measurement/series are
 	// being removed.  A write could occur and exist in the cache at this point, but we
 	// would delete it from the index.
+	// minKey := make([]byte, len(seriesKeys[0])+1)
+	// copy(seriesKeys[0], minKey)
+	// minKey[len(seriesKeys[0])] = '#'
 	minKey := seriesKeys[0]
+	fmt.Printf("%s: minKey: %s\n", e.path, minKey)
 
 	// Apply runs this func concurrently.  The seriesKeys slice is mutated concurrently
 	// by different goroutines setting positions to nil.
@@ -1601,26 +1605,53 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		var j int
 
 		// Start from the min deleted key that exists in this file.
-		for i := r.Seek(minKey); i < n; i++ {
+		pos := r.Seek(minKey)
+		indexKey, _ := r.KeyAt(pos)
+		seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
+		fmt.Printf("%s: r.Seek(%s) returned %v, %s, %s\n", r.Path(), minKey, pos, indexKey, seriesKey)
+		indexKeyMinus, _ := r.KeyAt(pos - 1)
+		seriesKeyMinus, _ := SeriesAndFieldFromCompositeKey(indexKey)
+		fmt.Printf("%s: r.Seek(%s - 1) returned %v, %s, %s\n", r.Path(), minKey, pos, indexKeyMinus, seriesKeyMinus)
+
+		// for pos > 0 {
+		// 	indexKey, _ := r.KeyAt(pos - 1)
+		// 	seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
+		// 	cmp := bytes.Compare(minKey, seriesKey)
+		// 	fmt.Printf("%s: r.KeyAt(pos-1): %s, %s, cmp=%v\n", r.Path(), indexKey, seriesKey, cmp)
+		// 	if cmp > 0 {
+		// 		fmt.Printf("%s: r.KeyAt(pos-1) breaking out\n", r.Path())
+		// 		break
+		// 	}
+		// 	pos--
+		// }
+
+		for i := pos; i < n; i++ {
 			if j >= len(seriesKeys) {
+				fmt.Printf("%s: return nil: path (1): %s\n", r.Path(), e.path)
 				return nil
 			}
 
 			indexKey, _ := r.KeyAt(i)
 			seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
+			fmt.Printf("%s: At index %v mapping from indexKey to series: %s -> %s\n", r.Path(), i, indexKey, seriesKey)
 
 			// Skip over any deleted keys that are less than our tsm key
+			fmt.Printf("%s: Compare %s with %s: path: %s\n", r.Path(), seriesKeys[j], seriesKey, e.path)
 			cmp := bytes.Compare(seriesKeys[j], seriesKey)
 			for j < len(seriesKeys) && cmp < 0 {
 				j++
 				if j >= len(seriesKeys) {
+					fmt.Printf("%s: return nil (2) an apply (%v >= %v): path: %s\n", r.Path(), j, len(seriesKeys), e.path)
 					return nil
 				}
+				fmt.Printf("%s: Compare %s with %s: path: %s\n", r.Path(), seriesKeys[j], seriesKey, e.path)
 				cmp = bytes.Compare(seriesKeys[j], seriesKey)
 			}
+			fmt.Printf("%s: Done: j=%v\n", r.Path(), j)
 
 			// We've found a matching key, cross it out so we do not remove it from the index.
 			if j < len(seriesKeys) && cmp == 0 {
+				fmt.Printf("%s: Crossing out %s: path: %s\n", r.Path(), seriesKey, e.path)
 				seriesKeys[j] = emptyBytes
 				j++
 			}
@@ -1630,16 +1661,36 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return err
 	}
 
+	// The seriesKeys slice is mutated if they are still found in the cache.
+	cacheKeys := e.Cache.Keys()
+	for i := 0; i < len(seriesKeys); i++ {
+		seriesKey := seriesKeys[i]
+		// Already crossed out
+		if len(seriesKey) == 0 {
+			continue
+		}
+
+		j := bytesutil.SearchBytes(cacheKeys, seriesKey)
+		if j < len(cacheKeys) {
+			cacheSeriesKey, _ := SeriesAndFieldFromCompositeKey(cacheKeys[j])
+			if bytes.Equal(seriesKey, cacheSeriesKey) {
+				seriesKeys[i] = emptyBytes
+			}
+		}
+	}
+
 	// Have we deleted all values for the series? If so, we need to remove
 	// the series from the index.
 	hasDeleted := false
 	for _, k := range seriesKeys {
 		if len(k) > 0 {
+			fmt.Printf("%s: hasDeleted: key: '%s', len(k)=%v\n", e.path, k, len(k))
 			hasDeleted = true
 			break
 		}
 	}
 	if hasDeleted {
+		fmt.Printf("%s: ***INSIDE***\n", e.path)
 		buf := make([]byte, 1024) // For use when accessing series file.
 		ids := tsdb.NewSeriesIDSet()
 		measurements := make(map[string]struct{}, 1)
