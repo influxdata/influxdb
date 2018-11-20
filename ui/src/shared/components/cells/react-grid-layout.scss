@@ -43,23 +43,60 @@
   user-select: none;
 }
 
-.react-grid-item > .react-resizable-handle {
+.react-resizable-handle {
   position: absolute;
-  width: 20px;
-  height: 20px;
+  background-image: none;
+  cursor: nwse-resize;
+  border: 15px solid transparent;
+  border-right-color: $g6-smoke;
+  border-bottom-color: $g6-smoke;
+  border-bottom-right-radius: $ix-radius;
+  z-index: $z--cell-resizer;
+  transition: border-color 0.25s ease, opacity 0.25s ease;
+  width: 30px;
+  height: 30px;
   bottom: 0;
   right: 0;
-  cursor: se-resize;
-  z-index: $z--cell-resizer;
+  opacity: 0;
+  
+  &:before,
+  &:after {
+    content: '';
+    display: block;
+    position: absolute;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g0-obsidian;
+    transition: background-color 0.25s ease;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    border: 0;
+  }
+
+  &:before {
+    width: 12px;
+    top: 7px;
+    left: 7px;
+  }
+
+  &:after {
+    width: 20px;
+    top: 4px;
+    left: 4px;
+  }
+
+  &:hover {
+    border-right-color: $c-comet;
+    border-bottom-color: $c-comet;
+  }
 }
 
-.react-grid-item > .react-resizable-handle::after {
-  content: "";
-  position: absolute;
-  right: 3px;
-  bottom: 3px;
-  width: 5px;
-  height: 5px;
-  border-right: 2px solid rgba(0, 0, 0, 0.4);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+.cell:hover .react-resizable-handle {
+  opacity: 1;
+}
+
+.react-grid-item.resizing .react-resizable-handle
+.react-grid-item.react-draggable-dragging .react-resizable-handle {
+  opacity: 1;
+  border-right-color: $c-comet;
+  border-bottom-color: $c-comet;
 }

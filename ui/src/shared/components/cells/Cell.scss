@@ -115,3 +115,10 @@ $cell--header-size: 36px;
     opacity: 0;
   }
 }
+
+/* Presentation Mode */
+.presentation-mode {
+  .cell--context {
+    display: none;
+  }
+}
