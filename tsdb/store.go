@@ -88,6 +88,10 @@ type Store struct {
 	// This prevents new shards from being created while old ones are being deleted.
 	pendingShardDeletes map[uint64]struct{}
 
+	// Epoch tracker helps serialize writes and deletes that may conflict. It
+	// is stored by shard.
+	epochs map[uint64]*epochTracker
+
 	EngineOptions EngineOptions
 
 	baseLogger *zap.Logger
@@ -108,6 +112,7 @@ func NewStore(path string) *Store {
 		sfiles:              make(map[string]*SeriesFile),
 		indexes:             make(map[string]interface{}),
 		pendingShardDeletes: make(map[uint64]struct{}),
+		epochs:              make(map[uint64]*epochTracker),
 		EngineOptions:       NewEngineOptions(),
 		Logger:              logger,
 		baseLogger:          logger,
@@ -418,6 +423,7 @@ func (s *Store) loadShards() error {
 			continue
 		}
 		s.shards[res.s.id] = res.s
+		s.epochs[res.s.id] = newEpochTracker()
 		if _, ok := s.databases[res.s.database]; !ok {
 			s.databases[res.s.database] = new(databaseState)
 		}
@@ -639,6 +645,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	}
 
 	s.shards[shardID] = shard
+	s.epochs[shardID] = newEpochTracker()
 	if _, ok := s.databases[database]; !ok {
 		s.databases[database] = new(databaseState)
 	}
@@ -696,6 +703,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return nil
 	}
 	delete(s.shards, shardID)
+	delete(s.epochs, shardID)
 	s.pendingShardDeletes[shardID] = struct{}{}
 
 	db := sh.Database()
@@ -834,6 +842,7 @@ func (s *Store) DeleteDatabase(name string) error {
 
 	for _, sh := range shards {
 		delete(s.shards, sh.id)
+		delete(s.epochs, sh.id)
 	}
 
 	// Remove database from store list of databases
@@ -916,6 +925,13 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 	return s.walkShards(shards, func(sh *Shard) error {
 		limit.Take()
 		defer limit.Release()
+
+		// install our guard and wait for any prior deletes to finish. the
+		// guard ensures future deletes that could conflict wait for us.
+		guard := newGuard(influxql.MinTime, influxql.MaxTime, []string{name}, nil)
+		waiter := s.epochs[sh.id].WaitDelete(guard)
+		waiter.Wait()
+		defer waiter.Done()
 
 		return sh.DeleteMeasurement([]byte(name))
 	})
@@ -1300,6 +1316,12 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		limit.Take()
 		defer limit.Release()
 
+		// install our guard and wait for any prior deletes to finish. the
+		// guard ensures future deletes that could conflict wait for us.
+		waiter := s.epochs[sh.id].WaitDelete(newGuard(min, max, names, condition))
+		waiter.Wait()
+		defer waiter.Done()
+
 		index, err := sh.Index()
 		if err != nil {
 			return err
@@ -1352,6 +1374,17 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 		return ErrShardNotFound
 	}
 	s.mu.RUnlock()
+
+	// enter the epoch tracker
+	guards, gen := s.epochs[shardID].StartWrite()
+	defer s.epochs[shardID].EndWrite(gen)
+
+	// wait for any guards before writing the points.
+	for _, guard := range guards {
+		if guard.Matches(points) {
+			guard.Wait()
+		}
+	}
 
 	// Ensure snapshot compactions are enabled since the shard might have been cold
 	// and disabled by the monitor.
