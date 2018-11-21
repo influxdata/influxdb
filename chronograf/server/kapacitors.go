@@ -26,7 +26,7 @@ package server
 //		return fmt.Errorf("invalid source URI: %v", err)
 //	}
 //	if len(url.Scheme) == 0 {
-//		return fmt.Errorf("Invalid URL; no URL scheme defined")
+//		return fmt.Errorf("invalid URL; no URL scheme defined")
 //	}
 //
 //	return nil
@@ -95,7 +95,7 @@ package server
 //	}
 //
 //	if srv, err = s.Store.Servers(ctx).Add(ctx, srv); err != nil {
-//		msg := fmt.Errorf("Error storing kapacitor %v: %v", req, err)
+//		msg := fmt.Errorf("error storing kapacitor %v: %v", req, err)
 //		unknownErrorWithMessage(w, msg, s.Logger)
 //		return
 //	}
@@ -227,7 +227,7 @@ package server
 //			return fmt.Errorf("invalid source URI: %v", err)
 //		}
 //		if len(url.Scheme) == 0 {
-//			return fmt.Errorf("Invalid URL; no URL scheme defined")
+//			return fmt.Errorf("invalid URL; no URL scheme defined")
 //		}
 //	}
 //	return nil
@@ -604,7 +604,7 @@ package server
 //	if k.Status == "enabled" || k.Status == "disabled" {
 //		return nil
 //	}
-//	return fmt.Errorf("Invalid Kapacitor status: %s", k.Status)
+//	return fmt.Errorf("invalid Kapacitor status: %s", k.Status)
 //}
 //
 //// KapacitorRulesStatus proxies PATCH to kapacitor to enable/disable tasks

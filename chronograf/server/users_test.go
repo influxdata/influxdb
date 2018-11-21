@@ -61,7 +61,7 @@ func TestService_UserID(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -354,7 +354,7 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/platform/chronograf/issues/2601 for more information."}`,
+			wantBody:        `{"code":401,"message":"user does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/platform/chronograf/issues/2601 for more information."}`,
 		},
 		{
 			name: "Create a new SuperAdmin User - as superadmin",
@@ -600,7 +600,7 @@ func TestService_RemoveUser(t *testing.T) {
 								Scheme:   "oauth2",
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 					DeleteF: func(ctx context.Context, user *chronograf.User) error {
@@ -640,7 +640,7 @@ func TestService_RemoveUser(t *testing.T) {
 								Scheme:   "oauth2",
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 					DeleteF: func(ctx context.Context, user *chronograf.User) error {
@@ -755,7 +755,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -821,7 +821,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -895,7 +895,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -954,7 +954,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -1023,7 +1023,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -1089,7 +1089,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -1162,7 +1162,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -1231,7 +1231,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -1264,7 +1264,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":401,"message":"User does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/platform/chronograf/issues/2601 for more information."}`,
+			wantBody:        `{"code":401,"message":"user does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/platform/chronograf/issues/2601 for more information."}`,
 		},
 		{
 			name: "Update a Chronograf user to super admin - with super admin context",
@@ -1300,7 +1300,7 @@ func TestService_UpdateUser(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, fmt.Errorf("User with ID %d not found", *q.ID)
+							return nil, fmt.Errorf("user with ID %d not found", *q.ID)
 						}
 					},
 				},
@@ -1550,7 +1550,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Name required on Chronograf User request body"),
+			err:     fmt.Errorf("name required on Chronograf User request body"),
 		},
 		{
 			name: "Invalid – Provider missing",
@@ -1568,7 +1568,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Provider required on Chronograf User request body"),
+			err:     fmt.Errorf("provider required on Chronograf User request body"),
 		},
 		{
 			name: "Invalid – Scheme missing",
@@ -1586,7 +1586,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Scheme required on Chronograf User request body"),
+			err:     fmt.Errorf("scheme required on Chronograf User request body"),
 		},
 		{
 			name: "Invalid roles - bad role name",
@@ -1605,7 +1605,7 @@ func TestUserRequest_ValidCreate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Unknown role BilliettaSpecialRole. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'"),
+			err:     fmt.Errorf("unknown role BilliettaSpecialRole. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'"),
 		},
 		{
 			name: "Invalid roles - missing organization",
@@ -1676,7 +1676,7 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 				u: &userRequest{},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("No Roles to update"),
+			err:     fmt.Errorf("no Roles to update"),
 		},
 		{
 			name: "Invalid - bad role name",
@@ -1695,7 +1695,7 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Unknown role BillietaSpecialOrg. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'"),
+			err:     fmt.Errorf("unknown role BillietaSpecialOrg. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'"),
 		},
 		{
 			name: "Valid – roles empty",
@@ -1727,7 +1727,7 @@ func TestUserRequest_ValidUpdate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			err:     fmt.Errorf("Unknown role BillietaSpecialOrg. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'"),
+			err:     fmt.Errorf("unknown role BillietaSpecialOrg. Valid roles are 'member', 'viewer', 'editor', 'admin', and '*'"),
 		},
 		{
 			name: "Invalid - duplicate organization",

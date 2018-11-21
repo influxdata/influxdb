@@ -35,7 +35,7 @@ var ErrDBReadOnly = errors.New("db is read only")
 
 // ErrMaxConcurrency is an error for when the max concurrency is already
 // reached for a task when you try to schedule a task.
-var ErrMaxConcurrency = errors.New("MaxConcurrency reached")
+var ErrMaxConcurrency = errors.New("maxConcurrency reached")
 
 // ErrRunNotFound is an error for when a run isn't found in a FinishRun method.
 var ErrRunNotFound = errors.New("run not found")
@@ -280,7 +280,7 @@ func (s *Store) UpdateTask(ctx context.Context, req backend.UpdateTaskRequest) (
 // ListTasks lists the tasks based on a filter.
 func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) ([]backend.StoreTaskWithMeta, error) {
 	if params.Org.Valid() && params.User.Valid() {
-		return nil, errors.New("ListTasks: org and user filters are mutually exclusive")
+		return nil, errors.New("listTasks: org and user filters are mutually exclusive")
 	}
 
 	const (
@@ -288,10 +288,10 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 		maxPageSize     = 500
 	)
 	if params.PageSize < 0 {
-		return nil, errors.New("ListTasks: PageSize must be positive")
+		return nil, errors.New("listTasks: PageSize must be positive")
 	}
 	if params.PageSize > maxPageSize {
-		return nil, fmt.Errorf("ListTasks: PageSize exceeds maximum of %d", maxPageSize)
+		return nil, fmt.Errorf("listTasks: PageSize exceeds maximum of %d", maxPageSize)
 	}
 	lim := params.PageSize
 	if lim == 0 {

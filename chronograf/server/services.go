@@ -40,7 +40,7 @@ func (p *postServiceRequest) Valid(defaultOrgID string) error {
 		return fmt.Errorf("invalid source URI: %v", err)
 	}
 	if len(url.Scheme) == 0 {
-		return fmt.Errorf("Invalid URL; no URL scheme defined")
+		return fmt.Errorf("invalid URL; no URL scheme defined")
 	}
 
 	return nil
@@ -145,7 +145,7 @@ func (s *Service) NewService(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if srv, err = s.Store.Servers(ctx).Add(ctx, srv); err != nil {
-		msg := fmt.Errorf("Error storing service %v: %v", req, err)
+		msg := fmt.Errorf("error storing service %v: %v", req, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
 	}
@@ -255,12 +255,12 @@ func (p *patchServiceRequest) Valid() error {
 			return fmt.Errorf("invalid service URI: %v", err)
 		}
 		if len(url.Scheme) == 0 {
-			return fmt.Errorf("Invalid URL; no URL scheme defined")
+			return fmt.Errorf("invalid URL; no URL scheme defined")
 		}
 	}
 
 	if p.Type != nil && *p.Type == "" {
-		return fmt.Errorf("Invalid type; type must not be an empty string")
+		return fmt.Errorf("invalid type; type must not be an empty string")
 	}
 
 	return nil

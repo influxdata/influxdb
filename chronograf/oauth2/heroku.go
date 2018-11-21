@@ -72,7 +72,7 @@ func (h *Heroku) PrincipalID(provider *http.Client) (string, error) {
 	resp, err := provider.Do(req)
 	if resp.StatusCode/100 != 2 {
 		err := fmt.Errorf(
-			"Unable to GET user data from %s. Status: %s",
+			"unable to GET user data from %s. Status: %s",
 			HerokuAccountRoute,
 			resp.Status,
 		)

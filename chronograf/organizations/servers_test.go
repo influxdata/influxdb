@@ -40,7 +40,7 @@ func TestServers_All(t *testing.T) {
 			fields: fields{
 				ServersStore: &mocks.ServersStore{
 					AllF: func(ctx context.Context) ([]chronograf.Server, error) {
-						return nil, fmt.Errorf("No Servers")
+						return nil, fmt.Errorf("no Servers")
 					},
 				},
 			},

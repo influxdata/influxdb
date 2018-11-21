@@ -462,7 +462,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  400,
 				contentType: "application/json",
-				body:        `{"code":400,"message":"Invalid log viewer config: must have at least 1 column"}`,
+				body:        `{"code":400,"message":"invalid log viewer config: must have at least 1 column"}`,
 			},
 		},
 		{
@@ -527,7 +527,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  400,
 				contentType: "application/json",
-				body:        `{"code":400,"message":"Invalid log viewer config: Duplicate column name procid"}`,
+				body:        `{"code":400,"message":"invalid log viewer config: Duplicate column name procid"}`,
 			},
 		},
 		{
@@ -592,7 +592,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  400,
 				contentType: "application/json",
-				body:        `{"code":400,"message":"Invalid log viewer config: Multiple columns with same position value"}`,
+				body:        `{"code":400,"message":"invalid log viewer config: Multiple columns with same position value"}`,
 			},
 		},
 		{
@@ -662,7 +662,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  400,
 				contentType: "application/json",
-				body:        `{"code":400,"message":"Invalid log viewer config: missing visibility encoding in column severity"}`,
+				body:        `{"code":400,"message":"invalid log viewer config: missing visibility encoding in column severity"}`,
 			},
 		},
 	}

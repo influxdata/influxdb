@@ -102,7 +102,7 @@ func (e *StringDecoder) Read() string {
 	// Read the length of the string
 	length, n := binary.Uvarint(e.b[e.i:])
 	if n <= 0 {
-		e.err = fmt.Errorf("StringDecoder: invalid encoded string length")
+		e.err = fmt.Errorf("stringDecoder: invalid encoded string length")
 		return ""
 	}
 
@@ -112,11 +112,11 @@ func (e *StringDecoder) Read() string {
 	lower := e.i + n
 	upper := lower + int(length)
 	if upper < lower {
-		e.err = fmt.Errorf("StringDecoder: length overflow")
+		e.err = fmt.Errorf("stringDecoder: length overflow")
 		return ""
 	}
 	if upper > len(e.b) {
-		e.err = fmt.Errorf("StringDecoder: not enough data to represent encoded string")
+		e.err = fmt.Errorf("stringDecoder: not enough data to represent encoded string")
 		return ""
 	}
 

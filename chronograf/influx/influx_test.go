@@ -80,7 +80,7 @@ func Test_Influx_AuthorizationBearer(t *testing.T) {
 		tokenString := strings.Split(auth, " ")[1]
 		token, err := gojwt.Parse(tokenString, func(token *gojwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*gojwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
 			return []byte("42"), nil
 		})

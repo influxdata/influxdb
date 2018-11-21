@@ -116,12 +116,12 @@ type JWKS struct {
 func (j *JWT) KeyFuncRS256(token *gojwt.Token) (interface{}, error) {
 	// Don't forget to validate the alg is what you expect:
 	if _, ok := token.Method.(*gojwt.SigningMethodRSA); !ok {
-		return nil, fmt.Errorf("Unsupported signing method: %v", token.Header["alg"])
+		return nil, fmt.Errorf("unsupported signing method: %v", token.Header["alg"])
 	}
 
 	// read JWKS document from key discovery service
 	if j.Jwksurl == "" {
-		return nil, fmt.Errorf("JWKSURL not specified, cannot validate RS256 signature")
+		return nil, fmt.Errorf("token JWKSURL not specified, cannot validate RS256 signature")
 	}
 
 	rr, err := http.Get(j.Jwksurl)

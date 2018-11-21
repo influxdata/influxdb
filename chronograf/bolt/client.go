@@ -13,17 +13,6 @@ import (
 	"github.com/influxdata/platform/chronograf/id"
 )
 
-const (
-	// ErrUnableToOpen means we had an issue establishing a connection (or creating the database)
-	ErrUnableToOpen = "Unable to open boltdb; is there a chronograf already running?  %v"
-	// ErrUnableToBackup means we couldn't copy the db file into ./backup
-	ErrUnableToBackup = "Unable to backup your database prior to migrations:  %v"
-	// ErrUnableToInitialize means we couldn't create missing Buckets (maybe a timeout)
-	ErrUnableToInitialize = "Unable to boot boltdb:  %v"
-	// ErrUnableToMigrate means we had an issue changing the db schema
-	ErrUnableToMigrate = "Unable to migrate boltdb:  %v"
-)
-
 // Client is a client for the boltDB data store.
 type Client struct {
 	Path      string
@@ -104,7 +93,7 @@ func (c *Client) Open(ctx context.Context, logger chronograf.Logger, build chron
 		// Open database file.
 		db, err := bolt.Open(c.Path, 0600, &bolt.Options{Timeout: 1 * time.Second})
 		if err != nil {
-			return fmt.Errorf(ErrUnableToOpen, err)
+			return fmt.Errorf("unable to open boltdb; is there a chronograf already running?  %v", err)
 		}
 		c.db = db
 		c.logger = logger
@@ -112,17 +101,17 @@ func (c *Client) Open(ctx context.Context, logger chronograf.Logger, build chron
 		for _, opt := range opts {
 			if opt.Backup() {
 				if err = c.backup(ctx, build); err != nil {
-					return fmt.Errorf(ErrUnableToBackup, err)
+					return fmt.Errorf("unable to backup your database prior to migrations:  %v", err)
 				}
 			}
 		}
 	}
 
 	if err := c.initialize(ctx); err != nil {
-		return fmt.Errorf(ErrUnableToInitialize, err)
+		return fmt.Errorf("unable to boot boltdb:  %v", err)
 	}
 	if err := c.migrate(ctx, build); err != nil {
-		return fmt.Errorf(ErrUnableToMigrate, err)
+		return fmt.Errorf("unable to migrate boltdb:  %v", err)
 	}
 
 	return nil

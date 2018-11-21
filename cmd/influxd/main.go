@@ -145,7 +145,7 @@ func (m *Main) Shutdown(ctx context.Context) {
 func (m *Main) Run(ctx context.Context, args ...string) error {
 	dir, err := fs.InfluxDir()
 	if err != nil {
-		return fmt.Errorf("Failed to determine influx directory: %v", err)
+		return fmt.Errorf("failed to determine influx directory: %v", err)
 	}
 
 	prog := &cli.Program{

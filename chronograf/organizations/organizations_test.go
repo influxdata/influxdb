@@ -39,7 +39,7 @@ func TestOrganizations_All(t *testing.T) {
 			fields: fields{
 				OrganizationsStore: &mocks.OrganizationsStore{
 					AllF: func(ctx context.Context) ([]chronograf.Organization, error) {
-						return nil, fmt.Errorf("No Organizations")
+						return nil, fmt.Errorf("no Organizations")
 					},
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{

@@ -66,7 +66,7 @@ func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.Res
 
 func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (reads.GroupResultSet, error) {
 	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
-		return nil, errors.New("GroupRead: SeriesLimit and SeriesOffset not supported when Grouping")
+		return nil, errors.New("groupRead: SeriesLimit and SeriesOffset not supported when Grouping")
 	}
 
 	if req.Hints.NoPoints() {

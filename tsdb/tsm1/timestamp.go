@@ -294,7 +294,7 @@ func (d *TimeDecoder) decode(b []byte) {
 
 func (d *TimeDecoder) decodePacked(b []byte) {
 	if len(b) < 9 {
-		d.err = fmt.Errorf("TimeDecoder: not enough data to decode packed timestamps")
+		d.err = fmt.Errorf("timeDecoder: not enough data to decode packed timestamps")
 		return
 	}
 	div := uint64(math.Pow10(int(b[0] & 0xF)))
@@ -331,7 +331,7 @@ func (d *TimeDecoder) decodePacked(b []byte) {
 
 func (d *TimeDecoder) decodeRLE(b []byte) {
 	if len(b) < 9 {
-		d.err = fmt.Errorf("TimeDecoder: not enough data for initial RLE timestamp")
+		d.err = fmt.Errorf("timeDecoder: not enough data for initial RLE timestamp")
 		return
 	}
 
@@ -348,7 +348,7 @@ func (d *TimeDecoder) decodeRLE(b []byte) {
 	// Next 1-10 bytes is our (scaled down by factor of 10) run length values
 	value, n := binary.Uvarint(b[i:])
 	if n <= 0 {
-		d.err = fmt.Errorf("TimeDecoder: invalid run length in decodeRLE")
+		d.err = fmt.Errorf("timeDecoder: invalid run length in decodeRLE")
 		return
 	}
 
@@ -359,7 +359,7 @@ func (d *TimeDecoder) decodeRLE(b []byte) {
 	// Last 1-10 bytes is how many times the value repeats
 	count, n := binary.Uvarint(b[i:])
 	if n <= 0 {
-		d.err = fmt.Errorf("TimeDecoder: invalid repeat value in decodeRLE")
+		d.err = fmt.Errorf("timeDecoder: invalid repeat value in decodeRLE")
 		return
 	}
 

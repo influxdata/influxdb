@@ -102,7 +102,7 @@ func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, re
 
 func (s *SourceProxyQueryService) influxQuery(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
 	if len(s.URL) == 0 {
-		return 0, fmt.Errorf("URL from source cannot be empty if the compiler type is influxql")
+		return 0, fmt.Errorf("uRL from source cannot be empty if the compiler type is influxql")
 	}
 
 	u, err := newURL(s.URL, "/query")

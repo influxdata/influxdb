@@ -1338,10 +1338,10 @@ func NewMockClient(code int, body []byte, headers http.Header, err error) *MockC
 
 func (c *MockClient) Do(URL *url.URL, path, method string, authorizer influx.Authorizer, params map[string]string, body io.Reader) (*http.Response, error) {
 	if c == nil {
-		return nil, fmt.Errorf("NIL MockClient")
+		return nil, fmt.Errorf("nIL MockClient")
 	}
 	if URL == nil {
-		return nil, fmt.Errorf("NIL url")
+		return nil, fmt.Errorf("nIL url")
 	}
 	if c.Err != nil {
 		return nil, c.Err

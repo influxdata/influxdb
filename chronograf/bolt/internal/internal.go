@@ -735,7 +735,7 @@ func UnmarshalConfig(data []byte, c *chronograf.Config) error {
 		return err
 	}
 	if pb.Auth == nil {
-		return fmt.Errorf("Auth config is nil")
+		return fmt.Errorf("auth config is nil")
 	}
 	c.Auth.SuperAdminNewUsers = pb.Auth.SuperAdminNewUsers
 
@@ -791,7 +791,7 @@ func UnmarshalOrganizationConfig(data []byte, c *chronograf.OrganizationConfig) 
 	}
 
 	if pb.LogViewer == nil {
-		return fmt.Errorf("Log Viewer config is nil")
+		return fmt.Errorf("log Viewer config is nil")
 	}
 
 	c.OrganizationID = pb.OrganizationID

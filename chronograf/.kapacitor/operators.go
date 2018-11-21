@@ -67,12 +67,12 @@ func rangeOperators(operator string) ([]string, error) {
 
 func chronoRangeOperators(ops []string) (string, error) {
 	if len(ops) != 3 {
-		return "", fmt.Errorf("Unknown operators")
+		return "", fmt.Errorf("unknown operators")
 	}
 	if ops[0] == ">=" && ops[1] == "AND" && ops[2] == "<=" {
 		return insideRange, nil
 	} else if ops[0] == "<" && ops[1] == "OR" && ops[2] == ">" {
 		return outsideRange, nil
 	}
-	return "", fmt.Errorf("Unknown operators")
+	return "", fmt.Errorf("unknown operators")
 }

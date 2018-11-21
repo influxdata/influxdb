@@ -240,7 +240,7 @@ func (d *IntegerDecoder) decodeRLE() {
 	}
 
 	if len(d.bytes) < 8 {
-		d.err = fmt.Errorf("IntegerDecoder: not enough data to decode RLE starting value")
+		d.err = fmt.Errorf("integerDecoder: not enough data to decode RLE starting value")
 		return
 	}
 
@@ -253,7 +253,7 @@ func (d *IntegerDecoder) decodeRLE() {
 	// Next 1-10 bytes is the delta value
 	value, n := binary.Uvarint(d.bytes[i:])
 	if n <= 0 {
-		d.err = fmt.Errorf("IntegerDecoder: invalid RLE delta value")
+		d.err = fmt.Errorf("integerDecoder: invalid RLE delta value")
 		return
 	}
 	i += n
@@ -261,7 +261,7 @@ func (d *IntegerDecoder) decodeRLE() {
 	// Last 1-10 bytes is how many times the value repeats
 	count, n := binary.Uvarint(d.bytes[i:])
 	if n <= 0 {
-		d.err = fmt.Errorf("IntegerDecoder: invalid RLE repeat value")
+		d.err = fmt.Errorf("integerDecoder: invalid RLE repeat value")
 		return
 	}
 
@@ -283,7 +283,7 @@ func (d *IntegerDecoder) decodePacked() {
 	}
 
 	if len(d.bytes) < 8 {
-		d.err = fmt.Errorf("IntegerDecoder: not enough data to decode packed value")
+		d.err = fmt.Errorf("integerDecoder: not enough data to decode packed value")
 		return
 	}
 
@@ -313,7 +313,7 @@ func (d *IntegerDecoder) decodeUncompressed() {
 	}
 
 	if len(d.bytes) < 8 {
-		d.err = fmt.Errorf("IntegerDecoder: not enough data to decode uncompressed value")
+		d.err = fmt.Errorf("integerDecoder: not enough data to decode uncompressed value")
 		return
 	}
 

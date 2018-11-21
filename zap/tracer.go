@@ -217,7 +217,7 @@ func convertField(field log.Field) zapcore.Field {
 
 func (s *Span) LogKV(keyValues ...interface{}) {
 	if len(keyValues)%2 != 0 {
-		s.LogFields(log.Error(fmt.Errorf("Non-even keyValues len: %v", len(keyValues))))
+		s.LogFields(log.Error(fmt.Errorf("non-even keyValues len: %v", len(keyValues))))
 		return
 	}
 	fields, err := log.InterleavedKVToFields(keyValues...)

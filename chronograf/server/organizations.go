@@ -19,7 +19,7 @@ type organizationRequest struct {
 
 func (r *organizationRequest) ValidCreate() error {
 	if r.Name == "" {
-		return fmt.Errorf("Name required on Chronograf Organization request body")
+		return fmt.Errorf("name required on Chronograf Organization request body")
 	}
 
 	return r.ValidDefaultRole()
@@ -27,7 +27,7 @@ func (r *organizationRequest) ValidCreate() error {
 
 func (r *organizationRequest) ValidUpdate() error {
 	if r.Name == "" && r.DefaultRole == "" {
-		return fmt.Errorf("No fields to update")
+		return fmt.Errorf("no fields to update")
 	}
 
 	if r.DefaultRole != "" {

@@ -110,7 +110,7 @@ func (s *inmem) UpdateTask(_ context.Context, req UpdateTaskRequest) (UpdateTask
 		break
 	}
 	if !found {
-		return res, fmt.Errorf("ModifyTask: record not found for %s", idStr)
+		return res, fmt.Errorf("modifyTask: record not found for %s", idStr)
 	}
 
 	stm, ok := s.runners[idStr]
@@ -131,7 +131,7 @@ func (s *inmem) UpdateTask(_ context.Context, req UpdateTaskRequest) (UpdateTask
 
 func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTaskWithMeta, error) {
 	if params.Org.Valid() && params.User.Valid() {
-		return nil, errors.New("ListTasks: org and user filters are mutually exclusive")
+		return nil, errors.New("listTasks: org and user filters are mutually exclusive")
 	}
 
 	const (
@@ -140,10 +140,10 @@ func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTa
 	)
 
 	if params.PageSize < 0 {
-		return nil, errors.New("ListTasks: PageSize must be positive")
+		return nil, errors.New("listTasks: PageSize must be positive")
 	}
 	if params.PageSize > maxPageSize {
-		return nil, fmt.Errorf("ListTasks: PageSize exceeds maximum of %d", maxPageSize)
+		return nil, fmt.Errorf("listTasks: PageSize exceeds maximum of %d", maxPageSize)
 	}
 
 	lim := params.PageSize

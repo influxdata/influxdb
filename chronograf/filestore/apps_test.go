@@ -40,7 +40,7 @@ func TestAll(t *testing.T) {
 		},
 		{
 			Existing: nil,
-			Err:      errors.New("Error"),
+			Err:      errors.New("error"),
 		},
 	}
 	for i, test := range tests {
@@ -92,7 +92,7 @@ func TestAdd(t *testing.T) {
 				Application: "newbie",
 			},
 			ExpectedID: "",
-			Err:        errors.New("Error"),
+			Err:        errors.New("error"),
 		},
 	}
 	for i, test := range tests {
@@ -143,7 +143,7 @@ func TestDelete(t *testing.T) {
 			Existing: nil,
 			DeleteID: "1",
 			Expected: map[string]chronograf.Layout{},
-			Err:      errors.New("Error"),
+			Err:      errors.New("error"),
 		},
 	}
 	for i, test := range tests {

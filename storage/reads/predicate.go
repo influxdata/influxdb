@@ -386,7 +386,7 @@ func (v *nodeToExprVisitor) Visit(n *datatypes.Node) NodeVisitor {
 
 	case datatypes.NodeTypeParenExpression:
 		if len(n.Children) != 1 {
-			v.err = errors.New("ParenExpression expects one child")
+			v.err = errors.New("parenExpression expects one child")
 			return nil
 		}
 
@@ -405,7 +405,7 @@ func (v *nodeToExprVisitor) Visit(n *datatypes.Node) NodeVisitor {
 		WalkChildren(v, n)
 
 		if len(v.exprs) < 2 {
-			v.err = errors.New("ComparisonExpression expects two children")
+			v.err = errors.New("comparisonExpression expects two children")
 			return nil
 		}
 

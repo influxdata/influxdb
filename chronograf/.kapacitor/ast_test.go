@@ -1551,16 +1551,16 @@ trigger
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := Reverse(tt.script)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Reverse() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("reverse error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Reverse() = %s", cmp.Diff(got, tt.want))
+				t.Errorf("reverse = %s", cmp.Diff(got, tt.want))
 				if tt.want.Query != nil {
 					if got.Query == nil {
-						t.Errorf("Reverse() = got nil QueryConfig")
+						t.Errorf("reverse = got nil QueryConfig")
 					} else if !cmp.Equal(*got.Query, *tt.want.Query) {
-						t.Errorf("Reverse() = QueryConfig not equal %s", cmp.Diff(*got.Query, *tt.want.Query))
+						t.Errorf("reverse = QueryConfig not equal %s", cmp.Diff(*got.Query, *tt.want.Query))
 					}
 				}
 			}

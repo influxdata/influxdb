@@ -113,13 +113,13 @@ func (s *Service) Annotations(w http.ResponseWriter, r *http.Request) {
 
 	ts, err := s.TimeSeries(src)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
@@ -127,7 +127,7 @@ func (s *Service) Annotations(w http.ResponseWriter, r *http.Request) {
 	store := influx.NewAnnotationStore(ts)
 	annotations, err := store.All(ctx, start, stop)
 	if err != nil {
-		msg := fmt.Errorf("Error loading annotations: %v", err)
+		msg := fmt.Errorf("error loading annotations: %v", err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
 	}
@@ -158,13 +158,13 @@ func (s *Service) Annotation(w http.ResponseWriter, r *http.Request) {
 
 	ts, err := s.TimeSeries(src)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
@@ -173,7 +173,7 @@ func (s *Service) Annotation(w http.ResponseWriter, r *http.Request) {
 	anno, err := store.Get(ctx, annoID)
 	if err != nil {
 		if err != chronograf.ErrAnnotationNotFound {
-			msg := fmt.Errorf("Error loading annotation: %v", err)
+			msg := fmt.Errorf("error loading annotation: %v", err)
 			unknownErrorWithMessage(w, msg, s.Logger)
 			return
 		}
@@ -249,13 +249,13 @@ func (s *Service) NewAnnotation(w http.ResponseWriter, r *http.Request) {
 
 	ts, err := s.TimeSeries(src)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
@@ -306,13 +306,13 @@ func (s *Service) RemoveAnnotation(w http.ResponseWriter, r *http.Request) {
 
 	ts, err := s.TimeSeries(src)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
@@ -399,13 +399,13 @@ func (s *Service) UpdateAnnotation(w http.ResponseWriter, r *http.Request) {
 
 	ts, err := s.TimeSeries(src)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}

@@ -33,14 +33,14 @@ func TestService_Queries(t *testing.T) {
 			ID:   "1",
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest("POST", "/queries", bytes.NewReader([]byte(`howdy`))),
-			want: `{"code":400,"message":"Unparsable JSON"}`,
+			want: `{"code":400,"message":"unparsable JSON"}`,
 		},
 		{
 			name: "bad id",
 			ID:   "howdy",
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest("POST", "/queries", bytes.NewReader([]byte{})),
-			want: `{"code":422,"message":"Error converting ID howdy"}`,
+			want: `{"code":422,"message":"error converting ID howdy"}`,
 		},
 		{
 			name: "query with no template vars",

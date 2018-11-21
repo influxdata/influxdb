@@ -26,13 +26,13 @@ func (store *KapacitorStore) All(ctx context.Context) ([]chronograf.Server, erro
 
 // Add does not have any effect
 func (store *KapacitorStore) Add(ctx context.Context, kap chronograf.Server) (chronograf.Server, error) {
-	return chronograf.Server{}, fmt.Errorf("In-memory KapacitorStore does not support adding a Kapacitor")
+	return chronograf.Server{}, fmt.Errorf("in-memory KapacitorStore does not support adding a Kapacitor")
 }
 
 // Delete removes the in-memory configured Kapacitor if its ID matches what's provided
 func (store *KapacitorStore) Delete(ctx context.Context, kap chronograf.Server) error {
 	if store.Kapacitor == nil || store.Kapacitor.ID != kap.ID {
-		return fmt.Errorf("Unable to find Kapacitor with id %d", kap.ID)
+		return fmt.Errorf("unable to find Kapacitor with id %d", kap.ID)
 	}
 	store.Kapacitor = nil
 	return nil
@@ -41,7 +41,7 @@ func (store *KapacitorStore) Delete(ctx context.Context, kap chronograf.Server) 
 // Get returns the in-memory Kapacitor if its ID matches what's provided
 func (store *KapacitorStore) Get(ctx context.Context, id int) (chronograf.Server, error) {
 	if store.Kapacitor == nil || store.Kapacitor.ID != id {
-		return chronograf.Server{}, fmt.Errorf("Unable to find Kapacitor with id %d", id)
+		return chronograf.Server{}, fmt.Errorf("unable to find Kapacitor with id %d", id)
 	}
 	return *store.Kapacitor, nil
 }
@@ -49,7 +49,7 @@ func (store *KapacitorStore) Get(ctx context.Context, id int) (chronograf.Server
 // Update overwrites the in-memory configured Kapacitor if its ID matches what's provided
 func (store *KapacitorStore) Update(ctx context.Context, kap chronograf.Server) error {
 	if store.Kapacitor == nil || store.Kapacitor.ID != kap.ID {
-		return fmt.Errorf("Unable to find Kapacitor with id %d", kap.ID)
+		return fmt.Errorf("unable to find Kapacitor with id %d", kap.ID)
 	}
 	store.Kapacitor = &kap
 	return nil

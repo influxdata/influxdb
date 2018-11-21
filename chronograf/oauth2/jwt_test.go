@@ -155,8 +155,8 @@ func TestSigningMethod(t *testing.T) {
 	j := oauth2.JWT{}
 	if _, err := j.ValidPrincipal(context.Background(), token, 0); err == nil {
 		t.Error("Error was expected while validating incorrectly signed token")
-	} else if err.Error() != "JWKSURL not specified, cannot validate RS256 signature" {
-		t.Errorf("Error wanted 'JWKSURL not specified, cannot validate RS256 signature', got %s", err.Error())
+	} else if err.Error() != "token JWKSURL not specified, cannot validate RS256 signature" {
+		t.Errorf("Error wanted 'token JWKSURL not specified, cannot validate RS256 signature', got %s", err.Error())
 	}
 }
 

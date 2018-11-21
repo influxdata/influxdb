@@ -348,7 +348,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	}
 
 	if !validBasepath(s.Basepath) {
-		err := fmt.Errorf("Invalid basepath, must follow format \"/mybasepath\"")
+		err := fmt.Errorf("invalid basepath, must follow format \"/mybasepath\"")
 		logger.
 			WithField("component", "server").
 			WithField("basepath", "invalid").

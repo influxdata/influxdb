@@ -111,9 +111,8 @@ func (g *Generic) PrincipalID(provider *http.Client) (string, error) {
 	if len(g.Domains) > 0 {
 		// If not in the domain deny permission
 		if ok := ofDomain(g.Domains, email); !ok {
-			msg := "Not a member of required domain"
-			g.Logger.Error(msg)
-			return "", fmt.Errorf(msg)
+			g.Logger.Error("Not a member of required domain.")
+			return "", fmt.Errorf("not a member of required domain")
 		}
 	}
 
@@ -193,7 +192,7 @@ func (g *Generic) primaryEmail(emails []*UserEmail) (string, error) {
 			return *m.Email, nil
 		}
 	}
-	return "", errors.New("No primary email address")
+	return "", errors.New("no primary email address")
 }
 
 // ofDomain makes sure that the email is in one of the required domains

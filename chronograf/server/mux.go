@@ -427,11 +427,11 @@ func invalidData(w http.ResponseWriter, err error, logger chronograf.Logger) {
 }
 
 func invalidJSON(w http.ResponseWriter, logger chronograf.Logger) {
-	Error(w, http.StatusBadRequest, "Unparsable JSON", logger)
+	Error(w, http.StatusBadRequest, "unparsable JSON", logger)
 }
 
 func unknownErrorWithMessage(w http.ResponseWriter, err error, logger chronograf.Logger) {
-	Error(w, http.StatusInternalServerError, fmt.Sprintf("Unknown error: %v", err), logger)
+	Error(w, http.StatusInternalServerError, fmt.Sprintf("unknown error: %v", err), logger)
 }
 
 func notFound(w http.ResponseWriter, id interface{}, logger chronograf.Logger) {
@@ -443,7 +443,7 @@ func paramID(key string, r *http.Request) (int, error) {
 	param := jhttprouter.ParamsFromContext(ctx).ByName(key)
 	id, err := strconv.Atoi(param)
 	if err != nil {
-		return -1, fmt.Errorf("Error converting ID %s", param)
+		return -1, fmt.Errorf("error converting ID %s", param)
 	}
 	return id, nil
 }

@@ -3197,7 +3197,7 @@ func (p *parser) callonUnicodeClassEscape13() (interface{}, error) {
 }
 
 func (c *current) onUnicodeClassEscape19() (interface{}, error) {
-	return nil, errors.New("Unicode class not terminated")
+	return nil, errors.New("unicode class not terminated")
 
 }
 

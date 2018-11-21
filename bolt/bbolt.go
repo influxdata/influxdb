@@ -14,17 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	// ErrUnableToOpen means we had an issue establishing a connection (or creating the database)
-	ErrUnableToOpen = "Unable to open boltdb; is there a chronograf already running?  %v"
-	// ErrUnableToBackup means we couldn't copy the db file into ./backup
-	ErrUnableToBackup = "Unable to backup your database prior to migrations:  %v"
-	// ErrUnableToInitialize means we couldn't create missing Buckets (maybe a timeout)
-	ErrUnableToInitialize = "Unable to boot boltdb:  %v"
-	// ErrUnableToMigrate means we had an issue changing the db schema
-	ErrUnableToMigrate = "Unable to migrate boltdb:  %v"
-)
-
 // OpPrefix is the prefix for bolt ops
 const OpPrefix = "bolt/"
 
@@ -84,7 +73,7 @@ func (c *Client) Open(ctx context.Context) error {
 	// Open database file.
 	db, err := bolt.Open(c.Path, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
-		return fmt.Errorf(ErrUnableToOpen, err)
+		return fmt.Errorf("unable to open boltdb; is there a chronograf already running?  %v", err)
 	}
 	c.db = db
 

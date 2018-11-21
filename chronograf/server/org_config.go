@@ -127,7 +127,7 @@ func (s *Service) ReplaceOrganizationLogViewerConfig(w http.ResponseWriter, r *h
 // at least one severity format of type icon, text, or both
 func validLogViewerConfig(c chronograf.LogViewerConfig) error {
 	if len(c.Columns) == 0 {
-		return fmt.Errorf("Invalid log viewer config: must have at least 1 column")
+		return fmt.Errorf("invalid log viewer config: must have at least 1 column")
 	}
 
 	nameMatcher := map[string]bool{}
@@ -140,11 +140,11 @@ func validLogViewerConfig(c chronograf.LogViewerConfig) error {
 
 		// check that each column has a unique value for the name and position properties
 		if _, ok := nameMatcher[clm.Name]; ok {
-			return fmt.Errorf("Invalid log viewer config: Duplicate column name %s", clm.Name)
+			return fmt.Errorf("invalid log viewer config: Duplicate column name %s", clm.Name)
 		}
 		nameMatcher[clm.Name] = true
 		if _, ok := positionMatcher[clm.Position]; ok {
-			return fmt.Errorf("Invalid log viewer config: Multiple columns with same position value")
+			return fmt.Errorf("invalid log viewer config: Multiple columns with same position value")
 		}
 		positionMatcher[clm.Position] = true
 
@@ -152,7 +152,7 @@ func validLogViewerConfig(c chronograf.LogViewerConfig) error {
 			if e.Type == "visibility" {
 				visibility++
 				if !(e.Value == "visible" || e.Value == "hidden") {
-					return fmt.Errorf("Invalid log viewer config: invalid visibility in column %s", clm.Name)
+					return fmt.Errorf("invalid log viewer config: invalid visibility in column %s", clm.Name)
 				}
 			}
 
@@ -166,12 +166,12 @@ func validLogViewerConfig(c chronograf.LogViewerConfig) error {
 		}
 
 		if visibility != 1 {
-			return fmt.Errorf("Invalid log viewer config: missing visibility encoding in column %s", clm.Name)
+			return fmt.Errorf("invalid log viewer config: missing visibility encoding in column %s", clm.Name)
 		}
 
 		if clm.Name == "severity" {
 			if iconCount+textCount == 0 || iconCount > 1 || textCount > 1 {
-				return fmt.Errorf("Invalid log viewer config: invalid number of severity format encodings in column %s", clm.Name)
+				return fmt.Errorf("invalid log viewer config: invalid number of severity format encodings in column %s", clm.Name)
 			}
 		}
 	}

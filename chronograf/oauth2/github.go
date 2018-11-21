@@ -180,7 +180,7 @@ func primaryEmail(emails []*github.UserEmail) (string, error) {
 			return *m.Email, nil
 		}
 	}
-	return "", errors.New("No primary email address")
+	return "", errors.New("no primary email address")
 }
 
 func getPrimary(m *github.UserEmail) bool {

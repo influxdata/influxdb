@@ -259,7 +259,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		// If we do not have a function, but we have a field option,
 		// return the appropriate error message if there is something wrong with the flux.
 		if interval > 0 {
-			return nil, errors.New("GROUP BY requires at least one aggregate function")
+			return nil, errors.New("using GROUP BY requires at least one aggregate function")
 		}
 
 		// TODO(jsternberg): Fill needs to be somewhere and it's probably here somewhere.

@@ -72,7 +72,7 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 			"0.0", // deadman threshold hardcoded to zero
 		), nil
 	default:
-		return "", fmt.Errorf("Unknown trigger mechanism")
+		return "", fmt.Errorf("unknown trigger mechanism")
 	}
 }
 
@@ -207,7 +207,7 @@ func idVar(q *chronograf.QueryConfig) string {
 
 func field(q *chronograf.QueryConfig) (string, error) {
 	if q == nil {
-		return "", fmt.Errorf("No fields set in query")
+		return "", fmt.Errorf("no fields set in query")
 	}
 	if len(q.Fields) != 1 {
 		return "", fmt.Errorf("expect only one field but found %d", len(q.Fields))
@@ -223,7 +223,7 @@ func field(q *chronograf.QueryConfig) (string, error) {
 				return f, nil
 			}
 		}
-		return "", fmt.Errorf("No fields set in query")
+		return "", fmt.Errorf("no fields set in query")
 	}
 	f, ok := field.Value.(string)
 	if !ok {

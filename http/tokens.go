@@ -11,8 +11,8 @@ const tokenScheme = "Token " // TODO(goller): I'd like this to be Bearer
 
 // errors
 var (
-	ErrAuthHeaderMissing = errors.New("Authorization Header is missing")
-	ErrAuthBadScheme     = errors.New("Authorization Header Scheme is invalid")
+	ErrAuthHeaderMissing = errors.New("authorization Header is missing")
+	ErrAuthBadScheme     = errors.New("authorization Header Scheme is invalid")
 )
 
 // GetToken will parse the token from http Authorization Header.

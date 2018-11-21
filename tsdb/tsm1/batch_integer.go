@@ -167,7 +167,7 @@ func UnsignedArrayDecodeAll(b []byte, dst []uint64) ([]uint64, error) {
 func integerBatchDecodeAllUncompressed(b []byte, dst []int64) ([]int64, error) {
 	b = b[1:]
 	if len(b)&0x7 != 0 {
-		return []int64{}, fmt.Errorf("IntegerArrayDecodeAll: expected multiple of 8 bytes")
+		return []int64{}, fmt.Errorf("integerArrayDecodeAll: expected multiple of 8 bytes")
 	}
 
 	count := len(b) / 8
@@ -189,7 +189,7 @@ func integerBatchDecodeAllUncompressed(b []byte, dst []int64) ([]int64, error) {
 func integerBatchDecodeAllSimple(b []byte, dst []int64) ([]int64, error) {
 	b = b[1:]
 	if len(b) < 8 {
-		return []int64{}, fmt.Errorf("IntegerArrayDecodeAll: not enough data to decode packed value")
+		return []int64{}, fmt.Errorf("integerArrayDecodeAll: not enough data to decode packed value")
 	}
 
 	count, err := simple8b.CountBytes(b[8:])
@@ -214,7 +214,7 @@ func integerBatchDecodeAllSimple(b []byte, dst []int64) ([]int64, error) {
 		return []int64{}, err
 	}
 	if n != count-1 {
-		return []int64{}, fmt.Errorf("IntegerArrayDecodeAll: unexpected number of values decoded; got=%d, exp=%d", n, count-1)
+		return []int64{}, fmt.Errorf("integerArrayDecodeAll: unexpected number of values decoded; got=%d, exp=%d", n, count-1)
 	}
 
 	// calculate prefix sum
@@ -230,7 +230,7 @@ func integerBatchDecodeAllSimple(b []byte, dst []int64) ([]int64, error) {
 func integerBatchDecodeAllRLE(b []byte, dst []int64) ([]int64, error) {
 	b = b[1:]
 	if len(b) < 8 {
-		return []int64{}, fmt.Errorf("IntegerArrayDecodeAll: not enough data to decode RLE starting value")
+		return []int64{}, fmt.Errorf("integerArrayDecodeAll: not enough data to decode RLE starting value")
 	}
 
 	var k, n int
@@ -242,7 +242,7 @@ func integerBatchDecodeAllRLE(b []byte, dst []int64) ([]int64, error) {
 	// Next 1-10 bytes is the delta value
 	value, n := binary.Uvarint(b[k:])
 	if n <= 0 {
-		return []int64{}, fmt.Errorf("IntegerArrayDecodeAll: invalid RLE delta value")
+		return []int64{}, fmt.Errorf("integerArrayDecodeAll: invalid RLE delta value")
 	}
 	k += n
 
@@ -251,7 +251,7 @@ func integerBatchDecodeAllRLE(b []byte, dst []int64) ([]int64, error) {
 	// Last 1-10 bytes is how many times the value repeats
 	count, n := binary.Uvarint(b[k:])
 	if n <= 0 {
-		return []int64{}, fmt.Errorf("IntegerArrayDecodeAll: invalid RLE repeat value")
+		return []int64{}, fmt.Errorf("integerArrayDecodeAll: invalid RLE repeat value")
 	}
 
 	count += 1

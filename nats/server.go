@@ -9,7 +9,7 @@ import (
 
 const ServerName = "platform"
 
-var ErrNoNatsConnection = errors.New("Nats connection has not been established. Call Open() first.")
+var ErrNoNatsConnection = errors.New("nats connection has not been established. Call Open() first.")
 
 // Server wraps a connection to a NATS streaming server
 type Server struct {

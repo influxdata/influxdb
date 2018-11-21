@@ -39,7 +39,7 @@ func TestDashboards_All(t *testing.T) {
 			fields: fields{
 				DashboardsStore: &mocks.DashboardsStore{
 					AllF: func(ctx context.Context) ([]chronograf.Dashboard, error) {
-						return nil, fmt.Errorf("No Dashboards")
+						return nil, fmt.Errorf("no Dashboards")
 					},
 				},
 			},

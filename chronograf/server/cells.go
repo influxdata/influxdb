@@ -71,7 +71,7 @@ func newCellResponses(dID chronograf.DashboardID, dcells []chronograf.DashboardC
 // have the correct axes specified
 func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
 	if c == nil {
-		return fmt.Errorf("Chronograf dashboard cell was nil")
+		return fmt.Errorf("chronograf dashboard cell was nil")
 	}
 
 	CorrectWidthHeight(c)
