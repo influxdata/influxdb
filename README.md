@@ -11,3 +11,9 @@ For information about modules, please refer to the [wiki](https://github.com/gol
 ## Introducing Flux
 
 We recently announced Flux, the MIT-licensed data scripting language (and rename for IFQL). The source for Flux is [in this repository under `query`](query#flux---influx-data-language). Learn more about Flux from [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
+
+## CI and Static Analysis
+
+This project uses the following static analysis tools. Failure during the running of any of these tools results in a failed build.
+Generally, code must be adjusted to satisfy these tools, though there are exceptions.
+

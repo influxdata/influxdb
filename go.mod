@@ -2,13 +2,13 @@ module github.com/influxdata/platform
 
 require (
 	github.com/BurntSushi/toml v0.3.1
+	github.com/Masterminds/semver v1.4.2 // indirect
 	github.com/NYTimes/gziphandler v1.0.1
 	github.com/RoaringBitmap/roaring v0.4.16
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
 	github.com/apex/log v1.1.0 // indirect
 	github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da // indirect
 	github.com/aws/aws-sdk-go v1.15.59 // indirect
-	github.com/benbjohnson/tmpl v1.0.0 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/bouk/httprouter v0.0.0-20160817010721-ee8b3818a7f5
 	github.com/caarlos0/ctrlc v1.0.0 // indirect
