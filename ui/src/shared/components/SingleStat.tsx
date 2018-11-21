@@ -9,6 +9,9 @@ import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 import {ViewType} from 'src/types/v2/dashboards'
 import {SingleStatView} from 'src/types/v2/dashboards'
 
+// Styles
+import 'src/shared/components/SingleStat.scss'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
