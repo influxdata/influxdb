@@ -2544,10 +2544,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  task:
-                    $ref: "#/components/schemas/Task"
+                $ref: "#/components/schemas/Task"
         default:
           description: unexpected error
           content:
@@ -3800,6 +3797,31 @@ components:
         cron:
           description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
           type: string
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/tasks/1"
+            owners: "/api/v2/tasks/1/owners"
+            members: "/api/v2/tasks/1/members"
+            runs: "/api/v2/tasks/1/runs"
+            logs: "/api/v2/tasks/1/logs"
+          properties:
+            self:
+              type: string
+              format: uri
+            owners:
+              type: string
+              format: uri
+            members:
+              type: string
+              format: uri
+            runs:
+              type: string
+              format: uri
+            logs:
+              type: string
+              format: uri
       required: [name, organization, flux]
     UserResponse:
       type: object
