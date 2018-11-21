@@ -125,7 +125,7 @@ func newGetMembersHandler(s platform.UserResourceMappingService, userType platfo
 
 		filter := platform.UserResourceMappingFilter{
 			ResourceID: req.ResourceID,
-			UserType:   platform.Member,
+			UserType:   userType,
 		}
 
 		opts := platform.FindOptions{}
