@@ -998,28 +998,14 @@ export interface InlineResponse200 {
 export interface InlineResponse2001 {
     /**
      * 
-     * @type {Task}
-     * @memberof InlineResponse2001
-     */
-    task?: Task;
-}
-
-/**
- * 
- * @export
- * @interface InlineResponse2002
- */
-export interface InlineResponse2002 {
-    /**
-     * 
      * @type {Links}
-     * @memberof InlineResponse2002
+     * @memberof InlineResponse2001
      */
     links?: Links;
     /**
      * 
      * @type {Array<Run>}
-     * @memberof InlineResponse2002
+     * @memberof InlineResponse2001
      */
     runs?: Array<Run>;
 }
@@ -2521,6 +2507,12 @@ export interface Task {
      */
     id?: string;
     /**
+     * 
+     * @type {TaskLinks}
+     * @memberof Task
+     */
+    links?: TaskLinks;
+    /**
      * A description of the task.
      * @type {string}
      * @memberof Task
@@ -2600,6 +2592,44 @@ export namespace TaskCreateRequest {
         Active = 'active',
         Inactive = 'inactive'
     }
+}
+
+/**
+ * 
+ * @export
+ * @interface TaskLinks
+ */
+export interface TaskLinks {
+    /**
+     * 
+     * @type {string}
+     * @memberof TaskLinks
+     */
+    logs?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof TaskLinks
+     */
+    members?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof TaskLinks
+     */
+    owners?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof TaskLinks
+     */
+    runs?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof TaskLinks
+     */
+    self?: string;
 }
 
 /**
@@ -9585,7 +9615,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        tasksTaskIDGet(taskID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2001> {
+        tasksTaskIDGet(taskID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Task> {
             const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksTaskIDGet(taskID, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -9720,7 +9750,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        tasksTaskIDRunsGet(taskID: string, after?: string, limit?: number, afterTime?: Date, beforeTime?: Date, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2002> {
+        tasksTaskIDRunsGet(taskID: string, after?: string, limit?: number, afterTime?: Date, beforeTime?: Date, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2001> {
             const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksTaskIDRunsGet(taskID, after, limit, afterTime, beforeTime, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})

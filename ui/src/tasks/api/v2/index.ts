@@ -35,7 +35,7 @@ export const getUserTasks = async (user): Promise<Task[]> => {
 export const getTask = async (id): Promise<Task> => {
   const {data} = await taskAPI.tasksTaskIDGet(id)
 
-  return data.task
+  return data
 }
 
 export const deleteTask = (taskID: string) => {
