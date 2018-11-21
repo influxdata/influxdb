@@ -95,6 +95,12 @@ series: _m=cpu,tag0=val1
 			name: "all data types",
 			stream: newStreamReader(
 				response(
+					seriesF(Boolean, "cpu,tag0=booleans"),
+					booleanF(booleanS{
+						3: false,
+						4: true,
+						5: true,
+					}),
 					seriesF(Float, "cpu,tag0=floats"),
 					floatF(floatS{
 						0: 1.0,
@@ -107,27 +113,26 @@ series: _m=cpu,tag0=val1
 						2: 2,
 						3: 3,
 					}),
-					seriesF(Unsigned, "cpu,tag0=unsigned"),
-					unsignedF(unsignedS{
-						2: 55,
-						3: 56,
-						4: 57,
-					}),
-					seriesF(Boolean, "cpu,tag0=booleans"),
-					booleanF(booleanS{
-						3: false,
-						4: true,
-						5: true,
-					}),
 					seriesF(String, "cpu,tag0=strings"),
 					stringF(stringS{
 						33: "thing 1",
 						34: "thing 2",
 						35: "things",
 					}),
+					seriesF(Unsigned, "cpu,tag0=unsigned"),
+					unsignedF(unsignedS{
+						2: 55,
+						3: 56,
+						4: 57,
+					}),
 				),
 			),
-			exp: `series: _m=cpu,tag0=floats
+			exp: `series: _m=cpu,tag0=booleans
+  cursor:Boolean
+                     3 | false
+                     4 | true
+                     5 | true
+series: _m=cpu,tag0=floats
   cursor:Float
                      0 |               1.00
                      1 |               2.00
@@ -137,21 +142,16 @@ series: _m=cpu,tag0=integers
                      1 |                    1
                      2 |                    2
                      3 |                    3
-series: _m=cpu,tag0=unsigned
-  cursor:Unsigned
-                     2 |                   55
-                     3 |                   56
-                     4 |                   57
-series: _m=cpu,tag0=booleans
-  cursor:Boolean
-                     3 | false
-                     4 | true
-                     5 | true
 series: _m=cpu,tag0=strings
   cursor:String
                     33 |              thing 1
                     34 |              thing 2
                     35 |               things
+series: _m=cpu,tag0=unsigned
+  cursor:Unsigned
+                     2 |                   55
+                     3 |                   56
+                     4 |                   57
 `,
 		},
 
@@ -169,23 +169,23 @@ series: _m=cpu,tag0=strings
 			name: "no points frames",
 			stream: newStreamReader(
 				response(
+					seriesF(Boolean, "cpu,tag0=booleans"),
 					seriesF(Float, "cpu,tag0=floats"),
 					seriesF(Integer, "cpu,tag0=integers"),
-					seriesF(Unsigned, "cpu,tag0=unsigned"),
-					seriesF(Boolean, "cpu,tag0=booleans"),
 					seriesF(String, "cpu,tag0=strings"),
+					seriesF(Unsigned, "cpu,tag0=unsigned"),
 				),
 			),
-			exp: `series: _m=cpu,tag0=floats
+			exp: `series: _m=cpu,tag0=booleans
+  cursor:Boolean
+series: _m=cpu,tag0=floats
   cursor:Float
 series: _m=cpu,tag0=integers
   cursor:Integer
-series: _m=cpu,tag0=unsigned
-  cursor:Unsigned
-series: _m=cpu,tag0=booleans
-  cursor:Boolean
 series: _m=cpu,tag0=strings
   cursor:String
+series: _m=cpu,tag0=unsigned
+  cursor:Unsigned
 `,
 		},
 
@@ -215,6 +215,20 @@ series: _m=cpu,tag0=strings
   cursor err: floatCursorStreamReader: unexpected frame type *datatypes.ReadResponse_Frame_IntegerPoints
 `,
 			expErr: errors.New("floatCursorStreamReader: unexpected frame type *datatypes.ReadResponse_Frame_IntegerPoints"),
+		},
+
+		{
+			name: "invalid series key order",
+			stream: newStreamReader(
+				response(
+					seriesF(Float, "cpu,tag0=val1"),
+					seriesF(Float, "cpu,tag0=val0"),
+				),
+			),
+			exp: `series: _m=cpu,tag0=val1
+  cursor:Float
+`,
+			expErr: reads.ErrSeriesKeyOrder,
 		},
 	}
 	for _, tt := range tests {
@@ -425,6 +439,70 @@ group:
       cursor err: floatCursorStreamReader: unexpected frame type *datatypes.ReadResponse_Frame_IntegerPoints
 `,
 			expErr: errors.New("floatCursorStreamReader: unexpected frame type *datatypes.ReadResponse_Frame_IntegerPoints"),
+		},
+		{
+			name: "partition key order",
+			stream: newStreamReader(
+				response(
+					groupF("_m,tag0", "cpu,val1"),
+					groupF("_m,tag0", "cpu,val0"),
+				),
+			),
+			exp: `group:
+  tag key      : _m,tag0
+  partition key: cpu,val1
+`,
+			expErr: reads.ErrPartitionKeyOrder,
+		},
+		{
+			name: "partition key order",
+			stream: newStreamReader(
+				response(
+					groupF("_m", "cpu,"),
+					groupF("_m,tag0", "cpu,val0"),
+				),
+			),
+			exp: `group:
+  tag key      : _m
+  partition key: cpu,<nil>
+`,
+			expErr: reads.ErrPartitionKeyOrder,
+		},
+		{
+			name: "partition key order",
+			stream: newStreamReader(
+				response(
+					groupF("_m,tag0", ",val0"),
+					groupF("_m,tag0", "cpu,val0"),
+				),
+			),
+			exp: `group:
+  tag key      : _m,tag0
+  partition key: <nil>,val0
+`,
+			expErr: reads.ErrPartitionKeyOrder,
+		},
+		{
+			name: "partition key order",
+			stream: newStreamReader(
+				response(
+					groupF("_m,tag0", "cpu,val0"),
+					groupF("_m,tag0", "cpu,val1"),
+					groupF("_m,tag0", ","),
+					groupF("_m,tag0", ",val0"),
+				),
+			),
+			exp: `group:
+  tag key      : _m,tag0
+  partition key: cpu,val0
+group:
+  tag key      : _m,tag0
+  partition key: cpu,val1
+group:
+  tag key      : _m,tag0
+  partition key: <nil>,<nil>
+`,
+			expErr: reads.ErrPartitionKeyOrder,
 		},
 	}
 	for _, tt := range tests {

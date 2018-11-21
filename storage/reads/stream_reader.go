@@ -1,12 +1,23 @@
 package reads
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/storage/reads/datatypes"
 	"github.com/influxdata/platform/tsdb/cursors"
+)
+
+var (
+	// ErrSeriesKeyOrder means the series keys for a ResultSetStreamReader were
+	// incorrectly ordered.
+	ErrSeriesKeyOrder = errors.New("invalid series key order")
+
+	// ErrPartitionKeyOrder means the partition keys for a
+	// GroupResultSetStreamReader were incorrectly ordered.
+	ErrPartitionKeyOrder = errors.New("invalid partition key order")
 )
 
 type StreamReader interface {
@@ -18,6 +29,7 @@ type ResultSetStreamReader struct {
 	cur cursorReaders
 
 	tags models.Tags
+	prev models.Tags
 }
 
 func NewResultSetStreamReader(stream StreamReader) *ResultSetStreamReader {
@@ -54,6 +66,8 @@ func (r *ResultSetStreamReader) readSeriesFrame() bool {
 	if sf, ok := f.Data.(*datatypes.ReadResponse_Frame_Series); ok {
 		r.fr.state = stateReadPoints
 
+		r.prev, r.tags = r.tags, r.prev
+
 		if cap(r.tags) < len(sf.Series.Tags) {
 			r.tags = make(models.Tags, len(sf.Series.Tags))
 		} else {
@@ -65,12 +79,14 @@ func (r *ResultSetStreamReader) readSeriesFrame() bool {
 			r.tags[i].Value = sf.Series.Tags[i].Value
 		}
 
-		r.cur.nextType = sf.Series.DataType
-
-		return true
+		if models.CompareTags(r.tags, r.prev) == 1 || r.prev == nil {
+			r.cur.nextType = sf.Series.DataType
+			return true
+		}
+		r.fr.setErr(ErrSeriesKeyOrder)
+	} else {
+		r.fr.setErr(fmt.Errorf("expected series frame, got %T", f.Data))
 	}
-
-	r.fr.setErr(fmt.Errorf("expected series frame, got %T", f.Data))
 
 	return false
 }
@@ -124,6 +140,8 @@ func (r *GroupResultSetStreamReader) readGroupFrame() GroupCursor {
 		}
 		copy(r.gc.tagKeys, sf.Group.TagKeys)
 
+		r.gc.partitionKeyVals, r.gc.prevKey = r.gc.prevKey, r.gc.partitionKeyVals
+
 		if cap(r.gc.partitionKeyVals) < len(sf.Group.PartitionKeyVals) {
 			r.gc.partitionKeyVals = make([][]byte, len(sf.Group.PartitionKeyVals))
 		} else {
@@ -132,10 +150,14 @@ func (r *GroupResultSetStreamReader) readGroupFrame() GroupCursor {
 
 		copy(r.gc.partitionKeyVals, sf.Group.PartitionKeyVals)
 
-		return &r.gc
-	}
+		if comparePartitionKey(r.gc.partitionKeyVals, r.gc.prevKey, nilSortHi) == 1 || r.gc.prevKey == nil {
+			return &r.gc
+		}
 
-	r.fr.setErr(fmt.Errorf("expected group frame, got %T", f.Data))
+		r.fr.setErr(ErrPartitionKeyOrder)
+	} else {
+		r.fr.setErr(fmt.Errorf("expected group frame, got %T", f.Data))
+	}
 
 	return nil
 }
@@ -150,6 +172,7 @@ type groupCursorStreamReader struct {
 
 	tagKeys          [][]byte
 	partitionKeyVals [][]byte
+	prevKey          [][]byte
 	tags             models.Tags
 }
 
