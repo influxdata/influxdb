@@ -30,6 +30,8 @@ func NewResultSet(ctx context.Context, req *datatypes.ReadRequest, cur SeriesCur
 	}
 }
 
+func (r *resultSet) Err() error { return nil }
+
 // Close closes the result set. Close is idempotent.
 func (r *resultSet) Close() {
 	if r == nil {
