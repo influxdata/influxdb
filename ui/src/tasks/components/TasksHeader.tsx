@@ -20,6 +20,7 @@ interface Props {
   setSearchTerm: (searchTerm: string) => void
   setShowInactive: () => void
   showInactive: boolean
+  toggleOverlay: () => void
 }
 
 export default class TasksHeader extends PureComponent<Props> {
@@ -29,6 +30,7 @@ export default class TasksHeader extends PureComponent<Props> {
       setSearchTerm,
       setShowInactive,
       showInactive,
+      toggleOverlay,
     } = this.props
 
     return (
@@ -37,7 +39,7 @@ export default class TasksHeader extends PureComponent<Props> {
           <Page.Title title="Tasks" />
         </Page.Header.Left>
         <Page.Header.Right>
-          <label className="tasks-status-toggle">Show Inactive Tasks</label>
+          <label className="tasks-status-toggle">Show Inactive</label>
           <SlideToggle
             active={showInactive}
             size={ComponentSize.ExtraSmall}
@@ -48,6 +50,11 @@ export default class TasksHeader extends PureComponent<Props> {
             onSearch={setSearchTerm}
           />
           <TaskOrgDropdown />
+          <Button
+            text="Import"
+            icon={IconFont.Import}
+            onClick={toggleOverlay}
+          />
           <Button
             color={ComponentColor.Primary}
             onClick={onCreateTask}
