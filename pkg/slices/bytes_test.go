@@ -82,11 +82,15 @@ func TestCopyChunkedByteSlices_multipleChunks(t *testing.T) {
 	}
 }
 
+const NIL = "<nil>"
+
 // ss returns a sorted slice of byte slices.
 func ss(s ...string) [][]byte {
 	r := make([][]byte, len(s))
 	for i := range s {
-		r[i] = []byte(s[i])
+		if s[i] != NIL {
+			r[i] = []byte(s[i])
+		}
 	}
 	bytesutil.Sort(r)
 	return r
@@ -94,7 +98,19 @@ func ss(s ...string) [][]byte {
 
 func TestCompareSlice(t *testing.T) {
 	name := func(a, b [][]byte, exp int) string {
-		return fmt.Sprintf("%s <=> %s is %d", bytes.Join(a, nil), bytes.Join(b, nil), exp)
+		var as string
+		if a != nil {
+			as = string(bytes.Join(a, nil))
+		} else {
+			as = NIL
+		}
+		var bs string
+		if b != nil {
+			bs = string(bytes.Join(b, nil))
+		} else {
+			bs = NIL
+		}
+		return fmt.Sprintf("%s <=> %s is %d", as, bs, exp)
 	}
 	tests := []struct {
 		a, b [][]byte
@@ -131,9 +147,51 @@ func TestCompareSlice(t *testing.T) {
 		},
 
 		{
+			a:   ss("aaa", "bbb", NIL),
+			b:   ss("aaa", "bbb", "ccc"),
+			exp: -1,
+		},
+
+		{
+			a:   ss("aaa", NIL, "ccc"),
+			b:   ss("aaa", NIL, "ccc"),
+			exp: 0,
+		},
+
+		{
+			a:   ss(NIL, "bbb", "ccc"),
+			b:   ss("aaa", "bbb", "ccc"),
+			exp: -1,
+		},
+
+		{
 			a:   ss("aaa", "aaa"),
 			b:   ss("aaa", "bbb", "ccc"),
 			exp: -1,
+		},
+
+		{
+			a:   nil,
+			b:   ss("aaa", "bbb", "ccc"),
+			exp: -1,
+		},
+
+		{
+			a:   ss("aaa", "bbb"),
+			b:   nil,
+			exp: 1,
+		},
+
+		{
+			a:   nil,
+			b:   nil,
+			exp: 0,
+		},
+
+		{
+			a:   [][]byte{},
+			b:   nil,
+			exp: 0,
 		},
 	}
 	for _, test := range tests {
