@@ -233,6 +233,12 @@ func decodeProxyQueryRequest(ctx context.Context, r *http.Request, auth platform
 		return nil, err
 	}
 
-	pr.Request.Authorizer = auth
+	a, ok := auth.(*platform.Authorization)
+	if !ok {
+		// TODO(desa): this should go away once we're using platform.Authorizers everywhere.
+		return pr, platform.ErrAuthorizerNotSupported
+	}
+
+	pr.Request.Authorization = a
 	return pr, nil
 }

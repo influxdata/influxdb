@@ -67,7 +67,7 @@ func (h *FluxHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req, err := decodeProxyQueryRequest(ctx, r, a, h.OrganizationService)
-	if err != nil {
+	if err != nil && err != platform.ErrAuthorizerNotSupported {
 		EncodeError(ctx, err, w)
 		return
 	}
