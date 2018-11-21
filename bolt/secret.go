@@ -162,7 +162,7 @@ func encodeSecretKey(orgID platform.ID, k string) ([]byte, error) {
 func decodeSecretKey(key []byte) (platform.ID, string, error) {
 	if len(key) < platform.IDLength {
 		// This should not happen.
-		return platform.InvalidID(), "", errors.New("provided key is too short to contain an ID. Please report this error.")
+		return platform.InvalidID(), "", errors.New("provided key is too short to contain an ID. Please report this error")
 	}
 
 	var id platform.ID
