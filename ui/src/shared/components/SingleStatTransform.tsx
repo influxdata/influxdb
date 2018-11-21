@@ -2,11 +2,17 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
+// Components
+import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
+
 // Parsing
 import getLastValues from 'src/shared/parsing/flux/fluxToSingleStat'
 
 // Types
 import {FluxTable} from 'src/types'
+
+const NON_NUMERIC_ERROR =
+  'Could not display single stat because your values are non-numeric'
 
 interface Props {
   tables: FluxTable[]
@@ -18,11 +24,7 @@ export default class SingleStatTransform extends PureComponent<Props> {
     const lastValue = +this.lastValue
 
     if (!_.isFinite(lastValue)) {
-      return (
-        <div>
-          Could not display single stat because your values are non-numeric
-        </div>
-      )
+      return <EmptyGraphMessage message={NON_NUMERIC_ERROR} />
     }
 
     return this.props.children(lastValue)
