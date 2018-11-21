@@ -5,7 +5,10 @@ import React, {SFC, CSSProperties} from 'react'
 import {Dropdown, DropdownMenuColors} from 'src/clockface'
 
 // Constants
-import {LINE_COLOR_SCALES} from 'src/shared/constants/graphColorPalettes'
+import {
+  LINE_COLOR_SCALES,
+  DEFAULT_LINE_COLORS,
+} from 'src/shared/constants/graphColorPalettes'
 
 // Styles
 import 'src/shared/components/ColorSchemeDropdown.scss'
@@ -31,7 +34,11 @@ const findSelectedScaleID = (colors: Color[]) => {
   const needle = key(colors)
   const selectedScale = LINE_COLOR_SCALES.find(d => key(d.colors) === needle)
 
-  return selectedScale.id
+  if (selectedScale) {
+    return selectedScale.id
+  } else {
+    return DEFAULT_LINE_COLORS[0].id
+  }
 }
 
 const ColorSchemeDropdown: SFC<Props> = ({value, onChange}) => {

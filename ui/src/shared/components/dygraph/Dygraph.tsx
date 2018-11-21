@@ -224,7 +224,7 @@ class Dygraph extends Component<Props, State> {
 
   private get colors(): string[] {
     const {timeSeries, colors} = this.props
-    const numSeries = get(timeSeries, '0.length', colors.length)
+    const numSeries: number = get(timeSeries, '0.length', colors.length)
     const resolvedColors = getLineColorsHexes(colors, numSeries)
 
     return resolvedColors
