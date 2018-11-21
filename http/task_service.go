@@ -106,25 +106,25 @@ type tasksResponse struct {
 func newTasksResponse(ts []*platform.Task) tasksResponse {
 	// TODO: impl paging links
 	/*
-			In swagger, paging links are embedded in a map, like this:
-			"links": {
-		    	"next": {
-		      		"href": "string"
-		    	},
-		    	"self": {
-		      		"href": "string"
-		    	},
-		    	"prev": {
-		      		"href": "string"
-		    	}
-			}
+	   In swagger, paging links are embedded in a map, like this:
+	   "links": {
+	       "next": {
+	           "href": "string"
+	       },
+	       "self": {
+	           "href": "string"
+	       },
+	       "prev": {
+	           "href": "string"
+	       }
+	   }
 
-			But in http services (auth, org, bucket...), links are flat:
-			"links": {
-		    	"self": "string"
-			}
+	   But in http services (auth, org, bucket...), links are flat:
+	   "links": {
+	       "self": "string"
+	   }
 
-			Them need to be unified.
+	   Them need to be unified.
 	*/
 
 	rs := tasksResponse{
@@ -253,7 +253,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !req.Task.Owner.ID.Valid() {
-		req.Task.Owner.ID = auth.Identifier()
+		req.Task.Owner.ID = auth.GetUserID()
 	}
 
 	if err := h.TaskService.CreateTask(ctx, req.Task); err != nil {
