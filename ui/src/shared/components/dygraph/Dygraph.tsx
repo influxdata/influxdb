@@ -142,6 +142,10 @@ class Dygraph extends Component<Props, State> {
     if (dygraph.isZoomed('x') && timeRangeChanged) {
       dygraph.resetZoom()
     }
+
+    if (optionsChanged) {
+      setTimeout(this.resize, 0)
+    }
   }
 
   public render() {
