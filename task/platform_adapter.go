@@ -134,6 +134,7 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 		Flux:   res.NewTask.Script,
 		Every:  opts.Every.String(),
 		Cron:   opts.Cron,
+		Delay:  opts.Delay.String(),
 	}
 
 	t, err := p.s.FindTaskByID(ctx, id)
@@ -220,6 +221,9 @@ func toPlatformTask(t backend.StoreTask, m *backend.StoreTaskMeta) (*platform.Ta
 	}
 	if opts.Every != 0 {
 		pt.Every = opts.Every.String()
+	}
+	if opts.Delay != 0 {
+		pt.Delay = opts.Delay.String()
 	}
 	if m != nil {
 		pt.Status = string(m.Status)

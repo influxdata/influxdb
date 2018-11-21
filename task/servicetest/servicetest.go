@@ -158,6 +158,9 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		if f.Cron != "* * * * *" {
 			t.Fatalf(`%s: wrong cron returned; want "* * * * *", got %q`, fn, f.Cron)
 		}
+		if f.Delay != "5s" {
+			t.Fatalf(`%s: wrong delay returned; want "5s", got %q`, fn, f.Delay)
+		}
 		if f.Every != "" {
 			t.Fatalf(`%s: wrong every returned; want "", got %q`, fn, f.Every)
 		}
@@ -681,6 +684,7 @@ func creds(t *testing.T, s *System) (orgID, userID platform.ID, token string) {
 const scriptFmt = `option task = {
 	name: "task #%d",
 	cron: "* * * * *",
+	delay: 5s,
 	concurrency: 100,
 }
 from(bucket:"b") |> toHTTP(url:"http://example.com")`
