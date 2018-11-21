@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/influxdata/platform/pkg/bytesutil"
+	"github.com/influxdata/platform/pkg/slices"
 )
 
 // groupNoneMergedGroupResultSet produces a single GroupCursor, merging all
@@ -155,7 +155,7 @@ func (r *groupByMergedGroupResultSet) next() {
 	}
 
 	sort.Slice(r.items, func(i, j int) bool {
-		return ComparePartitionKey(r.items[i].gc.PartitionKeyVals(), r.items[j].gc.PartitionKeyVals(), r.nilVal) == -1
+		return comparePartitionKey(r.items[i].gc.PartitionKeyVals(), r.items[j].gc.PartitionKeyVals(), r.nilVal) == -1
 	})
 
 	r.groupCursors = r.groupCursors[:1]
@@ -167,7 +167,7 @@ func (r *groupByMergedGroupResultSet) next() {
 	r.items[0].gc = nil
 
 	for i := 1; i < len(r.items); i++ {
-		if bytesutil.CompareSlice(first.PartitionKeyVals(), r.items[i].gc.PartitionKeyVals()) == 0 {
+		if slices.CompareSlice(first.PartitionKeyVals(), r.items[i].gc.PartitionKeyVals()) == 0 {
 			r.groupCursors = append(r.groupCursors, r.items[i].gc)
 			r.resultSets = append(r.resultSets, r.items[i].gc)
 			r.items[i].gc = nil
@@ -221,7 +221,7 @@ type groupCursorItem struct {
 	gc  GroupCursor
 }
 
-func ComparePartitionKey(a, b [][]byte, nilVal []byte) int {
+func comparePartitionKey(a, b [][]byte, nilVal []byte) int {
 	i := 0
 	for i < len(a) && i < len(b) {
 		av, bv := a[i], b[i]
