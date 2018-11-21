@@ -1,6 +1,9 @@
 import React, {Component, MouseEvent} from 'react'
 import ReactDOM from 'react-dom'
 
+// Utils
+import moment from 'moment'
+
 // Components
 import {Dropdown} from 'src/clockface'
 import timePoints from 'src/logs/data/timePoints'
@@ -19,6 +22,9 @@ interface State {
   isTimeSelectorOpen: boolean
 }
 
+const dateFormat = 'YYYY-MM-DD HH:mm'
+const format = (t: string) => moment(t.replace(/\'/g, '')).format(dateFormat)
+
 @ErrorHandling
 class TimeRangeDropdown extends Component<Props, State> {
   constructor(props) {
@@ -33,9 +39,10 @@ class TimeRangeDropdown extends Component<Props, State> {
     return (
       <div style={{display: 'inline'}}>
         <Dropdown
+          titleText={this.timeInputValue}
           selectedID={this.timeInputValue}
           onChange={this.handleSelection}
-          widthPixels={100}
+          widthPixels={this.width}
           customClass="time-range-dropdown logs-viewer--search-dropdown"
         >
           {this.timeItems}
@@ -45,6 +52,14 @@ class TimeRangeDropdown extends Component<Props, State> {
     )
   }
 
+  private get width(): number {
+    if (!this.props.customTime) {
+      return 100
+    }
+
+    return 150
+  }
+
   private get timeItems(): JSX.Element[] {
     const relativeItems = timePoints.map(({text, value}) => (
       <Dropdown.Item key={text} value={value} id={text}>
@@ -52,7 +67,20 @@ class TimeRangeDropdown extends Component<Props, State> {
       </Dropdown.Item>
     ))
 
-    return [this.customTimeItem, ...relativeItems]
+    return [
+      <Dropdown.Divider
+        text="Absolute"
+        key="custom-divider"
+        id="custom-divider"
+      />,
+      this.customTimeItem,
+      <Dropdown.Divider
+        text="Relative"
+        key="relative-divider"
+        id="relative-divider"
+      />,
+      ...relativeItems,
+    ]
   }
 
   private get customTimeItem(): JSX.Element {
@@ -106,7 +134,7 @@ class TimeRangeDropdown extends Component<Props, State> {
       return 'now'
     }
 
-    return 'custom'
+    return format(this.props.customTime)
   }
 
   private handleCloseCustomTime = () => {

@@ -51,6 +51,7 @@ export interface LogsConfigState {
 export interface LogsTableDataState {
   currentTailID: number | undefined
   currentOlderBatchID: string | undefined
+  tableTime: TableTime
   currentTailUpperBound: number | undefined
   nextTailLowerBound: number | undefined
   nextOlderUpperBound: number | undefined
@@ -260,3 +261,8 @@ export interface State {
 }
 
 export type GetState = () => State
+
+export interface TableTime {
+  custom?: string
+  relative?: number
+}

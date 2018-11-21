@@ -25,6 +25,10 @@ export const defaultState: LogsState = {
   currentBuckets: [],
   currentBucket: null,
   tableQueryConfig: null,
+  tableTime: {
+    custom: '',
+    relative: 0,
+  },
   filters: [],
   queryCount: 0,
   logConfig: {
@@ -171,6 +175,10 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, nextOlderLowerBound: action.payload.lower}
     case ActionTypes.ConcatMoreLogs:
       return concatMoreLogs(state, action)
+    case ActionTypes.SetTableCustomTime:
+      return {...state, tableTime: {custom: action.payload.time}}
+    case ActionTypes.SetTableRelativeTime:
+      return {...state, tableTime: {relative: action.payload.time}}
     case ActionTypes.SetTableForwardData:
       return {
         ...state,

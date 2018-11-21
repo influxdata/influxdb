@@ -37,6 +37,7 @@ import {
   SeverityFormatOptions,
   LogsTableColumn,
   TableData,
+  TableTime,
   ScrollMode,
 } from 'src/types/logs'
 
@@ -69,11 +70,13 @@ interface DispatchTableConfigProps {
 
 // Connected Table Data
 interface TableDataStateProps {
+  tableTime: TableTime
   tableInfiniteData: {
     forward: TableData
     backward: TableData
   }
   currentTailUpperBound: number | undefined
+  nextOlderUpperBound: number | undefined
   nextTailLowerBound: number | undefined
 }
 
@@ -83,6 +86,8 @@ interface DispatchTableDataProps {
   setNextTailLowerBound: typeof logActions.setNextTailLowerBound
   clearSearchData: typeof logActions.clearSearchData
   startFetchingOlder: typeof logActions.startFetchingOlder
+  setTableCustomTime: typeof logActions.setTableCustomTime
+  setTableRelativeTime: typeof logActions.setTableRelativeTime
 }
 
 type StateProps = TableConfigStateProps & TableDataStateProps
@@ -93,8 +98,6 @@ interface State {
   isOverlayVisible: boolean
   scrollMode: ScrollMode
 }
-
-const RELATIVE_TIME = 0
 
 class LogsPage extends Component<Props, State> {
   constructor(props: Props) {
@@ -137,8 +140,10 @@ class LogsPage extends Component<Props, State> {
       notify,
       filters,
       searchStatus,
+      nextOlderUpperBound,
       currentTailUpperBound,
       nextTailLowerBound,
+      tableTime,
     } = this.props
 
     return (
@@ -147,8 +152,8 @@ class LogsPage extends Component<Props, State> {
         <div className="page-contents logs-viewer">
           <SearchBar
             onSearch={this.handleSubmitSearch}
-            customTime={null}
-            relativeTime={RELATIVE_TIME}
+            customTime={tableTime.custom}
+            relativeTime={tableTime.relative}
             onChooseCustomTime={this.handleChooseCustomTime}
             onChooseRelativeTime={this.handleChooseRelativeTime}
           />
@@ -178,7 +183,7 @@ class LogsPage extends Component<Props, State> {
             notify={notify}
             searchStatus={searchStatus}
             upper={currentTailUpperBound || nextTailLowerBound}
-            lower={nextTailLowerBound}
+            lower={nextOlderUpperBound || nextTailLowerBound}
           />
         </div>
         {this.configOverlay}
@@ -463,9 +468,10 @@ class LogsPage extends Component<Props, State> {
    * Handle choosing a custom time
    * @param time the custom date selected
    */
-  private handleChooseCustomTime = async (__: string) => {
+  private handleChooseCustomTime = async (time: string) => {
     this.setState({scrollMode: ScrollMode.TimeSelected})
-    // TODO: handle updating custom time in LogState
+    this.props.setTableCustomTime(time)
+    this.updateTableData(SearchStatus.UpdatingTimeBounds)
   }
 
   /**
@@ -474,13 +480,17 @@ class LogsPage extends Component<Props, State> {
    */
   private handleChooseRelativeTime = async (time: number) => {
     if (time === NOW) {
-      this.startLogsTailFetchingInterval()
       this.setState({scrollMode: ScrollMode.TailTop})
     } else {
-      this.updateTableData(SearchStatus.UpdatingTimeBounds)
       this.setState({scrollMode: ScrollMode.TimeSelected})
     }
-    // TODO: handle updating time in LogState
+
+    if (this.shouldLiveUpdate && time === NOW) {
+      this.startLogsTailFetchingInterval()
+    } else {
+      this.updateTableData(SearchStatus.UpdatingTimeBounds)
+      await this.props.setTableRelativeTime(time)
+    }
   }
 
   private handleToggleOverlay = (): void => {
@@ -506,8 +516,7 @@ class LogsPage extends Component<Props, State> {
    * Checks if logs time is set to now
    */
   private get shouldLiveUpdate(): boolean {
-    // Todo: check table time is set to now
-    return true
+    return this.props.tableTime.relative === NOW
   }
 
   private get isSourcesEmpty(): boolean {
@@ -528,6 +537,8 @@ const mstp = (state: AppState): StateProps => {
       tableInfiniteData,
       nextTailLowerBound,
       currentTailUpperBound,
+      nextOlderUpperBound,
+      tableTime,
     },
   } = state
 
@@ -538,6 +549,7 @@ const mstp = (state: AppState): StateProps => {
     sources,
     filters,
     logConfig,
+    tableTime,
     searchStatus,
     currentSource,
     currentBucket,
@@ -545,6 +557,7 @@ const mstp = (state: AppState): StateProps => {
     tableInfiniteData,
     nextTailLowerBound,
     currentTailUpperBound,
+    nextOlderUpperBound,
   }
 }
 
@@ -566,6 +579,8 @@ const mdtp: DispatchProps = {
   startFetchingOlder: logActions.startFetchingOlder,
   setNextTailLowerBound: logActions.setNextTailLowerBound,
   clearSearchData: logActions.clearSearchData,
+  setTableRelativeTime: logActions.setTableRelativeTime,
+  setTableCustomTime: logActions.setTableCustomTime,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

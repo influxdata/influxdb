@@ -71,6 +71,8 @@ export enum ActionTypes {
   SetNextOlderLowerBound = 'SET_NEXT_OLDER_LOWER_BOUND',
   SetCurrentOlderBatchID = 'SET_CURRENT_OLDER_BATCH_ID',
   ConcatMoreLogs = 'LOGS_CONCAT_MORE_LOGS',
+  SetTableRelativeTime = 'SET_TABLE_RELATIVE_TIME',
+  SetTableCustomTime = 'SET_TABLE_CUSTOM_TIME',
 }
 
 const getIsTruncated = (state: State): boolean =>
@@ -209,6 +211,20 @@ export interface SetCurrentTailIDAction {
   }
 }
 
+export interface SetTableRelativeTimeAction {
+  type: ActionTypes.SetTableRelativeTime
+  payload: {
+    time: number
+  }
+}
+
+export interface SetTableCustomTimeAction {
+  type: ActionTypes.SetTableCustomTime
+  payload: {
+    time: string
+  }
+}
+
 export type Action =
   | SetSourceAction
   | SetBucketsAction
@@ -230,6 +246,8 @@ export type Action =
   | SetNextOlderLowerBoundAction
   | SetNextOlderUpperBoundAction
   | ConcatMoreLogsAction
+  | SetTableCustomTimeAction
+  | SetTableRelativeTimeAction
 
 /**
  * Sets the search status corresponding to the current fetch request.
@@ -391,12 +409,25 @@ export const clearTableData = () => ({
   type: ActionTypes.ClearTableData,
 })
 
+export const setTableCustomTime = (time: string): SetTableCustomTimeAction => ({
+  type: ActionTypes.SetTableCustomTime,
+  payload: {time},
+})
+
+export const setTableRelativeTime = (
+  time: number
+): SetTableRelativeTimeAction => ({
+  type: ActionTypes.SetTableRelativeTime,
+  payload: {time},
+})
+
 export const clearSearchData = (
   searchStatus: SearchStatus
 ) => async dispatch => {
   await dispatch(setSearchStatus(SearchStatus.Clearing))
   await dispatch(stopCurrentTail())
   await dispatch(stopFetchingOlder())
+  await dispatch(clearAllTimeBounds())
   await dispatch(clearTableData())
   await dispatch(setSearchStatus(searchStatus))
 }
@@ -707,11 +738,18 @@ export const setTableQueryConfigAsync = () => async (
 
 export const clearAllTimeBounds = () => (
   dispatch: Dispatch<
-    SetCurrentTailUpperBoundAction | SetNextTailLowerBoundAction
+    | SetNextOlderUpperBoundAction
+    | SetNextOlderLowerBoundAction
+    | SetCurrentTailUpperBoundAction
+    | SetNextTailLowerBoundAction
   >
 ) => {
-  dispatch(setCurrentTailUpperBound(undefined))
-  dispatch(setNextTailLowerBound(undefined))
+  return Promise.all([
+    dispatch(setNextOlderUpperBound(undefined)),
+    dispatch(setNextOlderLowerBound(undefined)),
+    dispatch(setCurrentTailUpperBound(undefined)),
+    dispatch(setNextTailLowerBound(undefined)),
+  ])
 }
 
 /**
@@ -755,13 +793,15 @@ export const startFetchingOlder = () => async (
     await dispatch(fetchOlderChunkAsync(olderBatchID))
   }
 
-  dispatch(setCurrentOlderBatchID(undefined))
+  if (isCurrentBatch()) {
+    dispatch(setCurrentOlderBatchID(undefined))
+  }
 }
 
 export const stopFetchingOlder = () => async (
   dispatch: Dispatch<SetCurrentOlderBatchIDAction>
 ) => {
-  dispatch(setCurrentOlderBatchID(undefined))
+  return dispatch(setCurrentOlderBatchID(undefined))
 }
 
 export const fetchOlderChunkAsync = (olderBatchID: string) => async (
@@ -786,13 +826,15 @@ export const fetchOlderChunkAsync = (olderBatchID: string) => async (
   await dispatch(setNextOlderUpperBound(nextOlderUpperBound))
 
   const logSeries = await getTableData(executeQueryAsync, logQuery)
-
   if (logSeries.values.length > 0) {
     await dispatch(updateOlderLogs(logSeries, olderBatchID))
   }
 }
 
-export const updateOlderLogs = (logSeries: TableData, olderBatchID: string) => (
+export const updateOlderLogs = (
+  logSeries: TableData,
+  olderBatchID: string
+) => async (
   dispatch: Dispatch<ConcatMoreLogsAction | SetSearchStatusAction>,
   getState: GetState
 ) => {
@@ -804,7 +846,7 @@ export const updateOlderLogs = (logSeries: TableData, olderBatchID: string) => (
     return
   }
 
-  dispatch(concatMoreLogs(logSeries))
+  await dispatch(concatMoreLogs(logSeries))
 
   if (
     searchStatus !== SearchStatus.Loaded &&
