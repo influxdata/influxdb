@@ -445,8 +445,8 @@
   revision = "32c6aa80de5eb09d190ad284a8214a531c6bce57"
 
 [[projects]]
-  branch = "sgc-reader"
-  digest = "1:5ccd307fd1a6cdbf945564dacb2dbd8fef20eb90366ba1a33ebd037341d4d67a"
+  branch = "master"
+  digest = "1:36f02a06637b25f92a55d5bb128fd496d34eaf2b9614b53e4be6cd1ab5bda6f4"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
@@ -457,6 +457,7 @@
     "pkg/escape",
     "pkg/mmap",
     "pkg/rhh",
+    "pkg/slices",
     "pkg/snowflake",
     "query/functions/inputs/storage",
     "storage/reads",
@@ -468,7 +469,7 @@
     "tsdb/cursors",
   ]
   pruneopts = "UT"
-  revision = "852740e1c3eae1aa858e1c690f7204134c91a37d"
+  revision = "f001c303cdda3eedd4cc29b89532987e59fac7ca"
 
 [[projects]]
   branch = "master"
