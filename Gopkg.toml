@@ -73,7 +73,3 @@
 [[constraint]]
   name = "github.com/influxdata/flux"
   version = "0.7.0"
-
-[[constraint]]
-  name = "github.com/influxdata/platform"
-  branch = "sgc-reader"
