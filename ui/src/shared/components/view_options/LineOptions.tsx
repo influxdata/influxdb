@@ -28,6 +28,9 @@ import {
   setGeom,
 } from 'src/shared/actions/v2/timeMachines'
 
+// Styles
+import 'src/shared/components/view_options/LineOptions.scss'
+
 // Types
 import {ViewType} from 'src/types/v2'
 import {Axes, DecimalPlaces, XYViewGeom} from 'src/types/v2/dashboards'
@@ -79,7 +82,7 @@ class LineOptions extends PureComponent<Props> {
     const [min, max] = bounds
 
     return (
-      <Form>
+      <Form className="line-options">
         {geom && <Geom geom={geom} onSetGeom={onSetGeom} />}
         <YAxisTitle label={label} onUpdateYAxisLabel={onUpdateYAxisLabel} />
         <ColorSelector colors={colors} onUpdateColors={onUpdateColors} />

@@ -1,9 +1,8 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import FormElement from 'src/clockface/components/form_layout/FormElement'
-import OptIn from 'src/shared/components/OptIn'
+import {Input, FormElement} from 'src/clockface'
 
 interface Props {
   label: string
@@ -11,22 +10,19 @@ interface Props {
 }
 class YAxisTitle extends PureComponent<Props> {
   public render() {
-    const {label, onUpdateYAxisLabel} = this.props
+    const {label} = this.props
 
     return (
       <FormElement label="Title">
-        <OptIn
-          type="text"
-          customValue={label}
-          onSetValue={onUpdateYAxisLabel}
-          customPlaceholder={this.defaultYLabel || 'y-axis title'}
-        />
+        <Input value={label} onChange={this.handleChange} />
       </FormElement>
     )
   }
 
-  private get defaultYLabel() {
-    return ''
+  private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const {onUpdateYAxisLabel} = this.props
+
+    onUpdateYAxisLabel(e.target.value)
   }
 }
 

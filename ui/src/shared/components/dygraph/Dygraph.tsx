@@ -1,6 +1,6 @@
 // Libraries
-import React, {Component, CSSProperties, MouseEvent} from 'react'
-import {filter, isEqual} from 'lodash'
+import React, {Component, MouseEvent} from 'react'
+import {get, filter, isEqual} from 'lodash'
 import NanoDate from 'nano-date'
 import ReactResizeDetector from 'react-resize-detector'
 import memoizeOne from 'memoize-one'
@@ -35,24 +35,14 @@ import {DashboardQuery} from 'src/types/v2/dashboards'
 const getRangeMemoizedY = memoizeOne(getRange)
 
 const DEFAULT_DYGRAPH_OPTIONS = {
-  rightGap: 0,
   yRangePad: 10,
   labelsKMB: true,
-  fillGraph: true,
-  gridLineWidth: 1,
-  axisLineWidth: 2,
   colors: LINE_COLORS,
-  axisLabelWidth: 60,
   animatedZooms: true,
   drawAxesAtZero: true,
   highlightCircleSize: 3,
   axisLineColor: '#383846',
   gridLineColor: '#383846',
-  labelsSeparateLines: false,
-  hideOverlayOnMouseOut: false,
-  connectSeparatedPoints: true,
-  highlightSeriesBackgroundAlpha: 1.0,
-  highlightSeriesBackgroundColor: 'rgb(41, 41, 51)',
 }
 
 interface OwnProps {
@@ -180,7 +170,6 @@ class Dygraph extends Component<Props, State> {
           id={`graph-ref-${viewID}`}
           className="dygraph-child-container"
           ref={this.graphRef}
-          style={this.style}
         >
           <ReactResizeDetector
             resizableElementId={`graph-ref-${viewID}`}
@@ -205,16 +194,6 @@ class Dygraph extends Component<Props, State> {
     }
 
     return null
-  }
-
-  private get style(): CSSProperties {
-    return {
-      width: 'calc(100% - 32px)',
-      height: 'calc(100% - 16px)',
-      position: 'absolute',
-      top: '8px',
-      zIndex: 2,
-    }
   }
 
   private get labelWidth() {
@@ -253,6 +232,10 @@ class Dygraph extends Component<Props, State> {
     }
 
     return coloredDygraphSeries
+  }
+
+  private get yLabel(): string | null {
+    return get(this.props, 'axes.y.label', null)
   }
 
   private getYRange = (timeSeries: DygraphData): [number, number] => {
@@ -362,6 +345,7 @@ class Dygraph extends Component<Props, State> {
       timeSeries,
       labelWidth,
       formatYVal,
+      yLabel,
     } = this
 
     const options = {
@@ -373,6 +357,7 @@ class Dygraph extends Component<Props, State> {
       fillGraph: isGraphFilled,
       logscale: y.scale === LOG,
       series: colorDygraphSeries,
+      ylabel: yLabel,
       axes: {
         y: {
           axisLabelWidth: labelWidth,

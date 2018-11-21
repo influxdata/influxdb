@@ -4,10 +4,28 @@
   Overrides out-of-the-box styles
 */
 
+$dygraph--padding: 10px;
+
 .dygraph {
+  position: relative;
+  width: 100%;
+  height: 100%;
+
   &:hover {
     cursor: default;
   }
+}
+
+.dygraph-child, .dygraph-child-container {
+  position: absolute;
+  top: $dygraph--padding;
+  right: $dygraph--padding;
+  bottom: $dygraph--padding;
+  left: $dygraph--padding;
+}
+
+.dygraph-child-container {
+  z-index: 2;
 }
 
 /* Axis Labels */
@@ -37,18 +55,20 @@
   width: 100%;
   text-align: center;
   font-size: 11px;
-  top: -12px !important;
+  top: -12px;
   color: $g11-sidewalk;
   font-weight: 600;
-  padding: 0 0 2px 0 !important;
-  border-bottom: 2px solid $g4-onyx !important;
+  padding-bottom: 2px;
+  border-bottom: 2px solid $g4-onyx;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
 .dygraph-ylabel {
   transform: rotate(-90deg);
 }
+
 .dygraph-y2label {
   transform: rotate(90deg);
 }
