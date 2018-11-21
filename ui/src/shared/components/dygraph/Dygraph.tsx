@@ -9,6 +9,7 @@ import memoizeOne from 'memoize-one'
 import Dygraphs from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import Crosshair from 'src/shared/components/crosshair/Crosshair'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Utils
 import getRange, {getStackedRange} from 'src/shared/parsing/getRangeForDygraph'
@@ -16,23 +17,22 @@ import {numberValueFormatter} from 'src/utils/formatting'
 import {withHoverTime, InjectedHoverProps} from 'src/dashboards/utils/hoverTime'
 
 // Constants
+import {LINE_COLORS, LABEL_WIDTH, CHAR_PIXELS} from 'src/shared/graphs/helpers'
+import {getLineColorsHexes} from 'src/shared/constants/graphColorPalettes'
 import {
   AXES_SCALE_OPTIONS,
   DEFAULT_AXIS,
 } from 'src/dashboards/constants/cellEditor'
-import {LINE_COLORS, LABEL_WIDTH, CHAR_PIXELS} from 'src/shared/graphs/helpers'
-import {getLineColorsHexes} from 'src/shared/constants/graphColorPalettes'
-const {LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
-
-import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {Axes, TimeRange} from 'src/types'
-import {DygraphData, DygraphSeries, Options} from 'src/external/dygraph'
+import {DygraphData, Options} from 'src/external/dygraph'
 import {Color} from 'src/types/colors'
 import {DashboardQuery} from 'src/types/v2/dashboards'
 
 const getRangeMemoizedY = memoizeOne(getRange)
+
+const {LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
 const DEFAULT_DYGRAPH_OPTIONS = {
   yRangePad: 10,
@@ -51,7 +51,6 @@ interface OwnProps {
   timeSeries: DygraphData
   labels: string[]
   options?: Partial<Options>
-  dygraphSeries?: DygraphSeries
   colors: Color[]
   timeRange?: TimeRange
   axes?: Axes
@@ -88,7 +87,6 @@ class Dygraph extends Component<Props, State> {
     isGraphFilled: true,
     onZoom: () => {},
     underlayCallback: () => {},
-    dygraphSeries: {},
     options: {},
   }
 
@@ -220,26 +218,16 @@ class Dygraph extends Component<Props, State> {
     return timeSeries && timeSeries.length ? timeSeries : [[0]]
   }
 
-  private get colorDygraphSeries() {
-    const {dygraphSeries, colors} = this.props
-    const numSeries = Object.keys(dygraphSeries).length
-    const dygraphSeriesKeys = Object.keys(dygraphSeries).sort()
-    const lineColors = getLineColorsHexes(colors, numSeries)
-    const coloredDygraphSeries = {}
-
-    for (const seriesName in dygraphSeries) {
-      if (dygraphSeries.hasOwnProperty(seriesName)) {
-        const series = dygraphSeries[seriesName]
-        const color = lineColors[dygraphSeriesKeys.indexOf(seriesName)]
-        coloredDygraphSeries[seriesName] = {...series, color}
-      }
-    }
-
-    return coloredDygraphSeries
-  }
-
   private get yLabel(): string | null {
     return get(this.props, 'axes.y.label', null)
+  }
+
+  private get colors(): string[] {
+    const {timeSeries, colors} = this.props
+    const numSeries = get(timeSeries, '0.length', colors.length)
+    const resolvedColors = getLineColorsHexes(colors, numSeries)
+
+    return resolvedColors
   }
 
   private getYRange = (timeSeries: DygraphData): [number, number] => {
@@ -343,24 +331,24 @@ class Dygraph extends Component<Props, State> {
     } = this.props
 
     const {
-      colorDygraphSeries,
       handleDraw,
       handleZoom,
       timeSeries,
       labelWidth,
       formatYVal,
       yLabel,
+      colors,
     } = this
 
     const options = {
       labels,
       underlayCallback,
+      colors,
       file: timeSeries as any,
       zoomCallback: handleZoom,
       drawCallback: handleDraw,
       fillGraph: isGraphFilled,
       logscale: y.scale === LOG,
-      series: colorDygraphSeries,
       ylabel: yLabel,
       axes: {
         y: {
