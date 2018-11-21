@@ -16,7 +16,8 @@ interface Props {
 export default class SingleStatTransform extends PureComponent<Props> {
   public render() {
     const lastValue = +this.lastValue
-    if (!_.isNumber(lastValue)) {
+
+    if (!_.isFinite(lastValue)) {
       return (
         <div>
           Could not display single stat because your values are non-numeric
