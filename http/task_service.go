@@ -819,9 +819,9 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 		return nil, 0, err
 	}
 
-	tasks := make([]*platform.Task, 0, len(tr.Tasks))
-	for _, t := range tr.Tasks {
-		tasks = append(tasks, &t.Task)
+	tasks := make([]*platform.Task, len(tr.Tasks))
+	for i, _ := range tr.Tasks {
+		tasks[i] = &tr.Tasks[i].Task
 	}
 	return tasks, len(tasks), nil
 }
