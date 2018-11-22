@@ -756,20 +756,20 @@ func (i *Index) dropMeasurement(name string) error {
 
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
 // series for the measurment.
-func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
+func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
 	m := i.measurements[string(name)]
 	if m == nil {
-		return nil
+		return false, nil
 	}
 
 	if m.HasSeries() {
-		return nil
+		return false, nil
 	}
 
-	return i.dropMeasurement(string(name))
+	return true, i.dropMeasurement(string(name))
 }
 
 // DropSeriesGlobal removes the series key and its tags from the index.
@@ -1110,7 +1110,7 @@ func (idx *ShardIndex) DropSeries(seriesID uint64, _ []byte, _ bool) error {
 
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
 // series for the measurment.
-func (idx *ShardIndex) DropMeasurementIfSeriesNotExist(name []byte) error {
+func (idx *ShardIndex) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
 	return idx.Index.DropMeasurementIfSeriesNotExist(name)
 }
 
