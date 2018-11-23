@@ -330,7 +330,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("X-Influxdb-Version", h.Version)
 	w.Header().Add("X-Influxdb-Build", h.BuildType)
 
-	if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
+	if strings.HasPrefix(r.URL.Path, "/debug/pprof/") && h.Config.PprofEnabled {
 		h.handleProfiles(w, r)
 	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
 		h.serveExpvar(w, r)
