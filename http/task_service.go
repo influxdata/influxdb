@@ -560,14 +560,26 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 		req.filter.Limit = i
 	}
 
-	if time := qp.Get("afterTime"); time != "" {
-		// TODO (jm): verify valid RFC3339
-		req.filter.AfterTime = time
+	var afterTime, beforeTime time.Time
+	if at := qp.Get("afterTime"); at != "" {
+		afterTime, err = time.Parse(time.RFC3339, at)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.AfterTime = at
+
 	}
 
-	if time := qp.Get("beforeTime"); time != "" {
-		// TODO (jm): verify valid RFC3339
-		req.filter.BeforeTime = time
+	if bt := qp.Get("beforeTime"); bt != "" {
+		beforeTime, err = time.Parse(time.RFC3339, bt)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.BeforeTime = bt
+	}
+
+	if &afterTime != nil && &beforeTime != nil && afterTime.Sub(beforeTime).Nanoseconds() > 0 {
+		return nil, kerrors.InvalidDataf("beforeTime must be greater than afterTime")
 	}
 
 	return req, nil
