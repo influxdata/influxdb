@@ -52,6 +52,10 @@ func (r *responseIterator) Err() error {
 	return nil
 }
 
+func (r *responseIterator) Statistics() flux.Statistics {
+	return flux.Statistics{}
+}
+
 // seriesIterator is a simple wrapper for Result that implements flux.Result and flux.TableIterator.
 type seriesIterator struct {
 	result *Result
@@ -91,6 +95,10 @@ func (r *seriesIterator) Do(f func(flux.Table) error) error {
 	return nil
 }
 
+func (r *seriesIterator) Statistics() flux.Statistics {
+	return flux.Statistics{}
+}
+
 // queryTable implements flux.Table and flux.ColReader.
 type queryTable struct {
 	row      *Row
@@ -107,6 +115,10 @@ func newQueryTable(r *Row) (*queryTable, error) {
 		return nil, err
 	}
 	return t, nil
+}
+
+func (t *queryTable) Statistics() flux.Statistics {
+	return flux.Statistics{}
 }
 
 // Data in a column is laid out in the following way:
