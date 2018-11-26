@@ -10,28 +10,55 @@ import {getTelegrafConfigTOML, createTelegrafConfig} from 'src/onboarding/apis'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Button} from 'src/clockface'
+import DataStreaming from 'src/onboarding/components/DataStreaming'
 
 // Constants
 import {getTelegrafConfigFailed} from 'src/shared/copy/v2/notifications'
 
 // Types
-import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
+import {DataSource} from 'src/types/v2/dataSources'
+import {NotificationAction} from 'src/types'
 
-export interface Props extends OnboardingStepProps {
-  dataSource: string
+export interface Props {
+  dataSources: DataSource[]
+  currentIndex: number
+  org: string
+  username: string
+  bucket: string
+  notify: NotificationAction
 }
 
 @ErrorHandling
 class ConfigureDataSourceSwitcher extends PureComponent<Props> {
   public render() {
-    const {dataSource} = this.props
+    const {org, bucket, username} = this.props
 
-    return (
-      <div>
-        {dataSource}
-        <Button text="Click to Download Config" onClick={this.handleDownload} />
-      </div>
-    )
+    switch (this.configurationStep) {
+      case 'Listening':
+        return <DataStreaming org={org} username={username} bucket={bucket} />
+      case 'CSV':
+      case 'Line Protocol':
+      default:
+        return (
+          <div>
+            {this.configurationStep}
+            <Button
+              text="Click to Download Config"
+              onClick={this.handleDownload}
+            />
+          </div>
+        )
+    }
+  }
+
+  private get configurationStep() {
+    const {currentIndex, dataSources} = this.props
+
+    if (currentIndex === dataSources.length) {
+      return 'Listening'
+    }
+
+    return dataSources[currentIndex].name
   }
 
   private handleDownload = async () => {

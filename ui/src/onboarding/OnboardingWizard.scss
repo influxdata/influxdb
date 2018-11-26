@@ -70,3 +70,44 @@
   color: $g11-sidewalk;
   @include no-user-select();
 }
+
+.wizard-step--body, .wizard-step--body-streaming{
+background-color: $g5-pepper;
+color: $g20-white;
+padding: 25px;
+margin-left: 60px;
+margin-right: 60px;
+margin-top: 30px;
+text-align: left;
+border-radius: $radius;
+
+  > h6 {
+    color: $g15-platinum;
+  }
+
+  > p {
+    color: $g11-sidewalk;
+    padding-bottom: 10px;
+  }
+}
+
+.wizard-step--body-streaming {
+  text-align: center;
+  .loading{
+    color: $c-star
+  }
+  .success{
+    color: $c-rainforest
+  }
+  .error{
+    color: $c-fire
+  }
+}
+
+.wizard-step--body-snippet{
+  background-color: $g3-castle;
+  border-radius: $radius;
+  margin: $ix-marg-a 0;
+  padding: $ix-marg-b;
+  font-family: "RobotoMono", monospace;
+}

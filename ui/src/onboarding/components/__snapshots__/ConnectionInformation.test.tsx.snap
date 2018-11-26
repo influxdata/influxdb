@@ -1,0 +1,40 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Onboarding.Components.ConnectionInformation matches snapshot if error 1`] = `
+<Fragment>
+  <h4
+    className="error"
+  >
+    Connection Not Found
+  </h4>
+  <p>
+    Check config and try again
+  </p>
+</Fragment>
+`;
+
+exports[`Onboarding.Components.ConnectionInformation matches snapshot if loading 1`] = `
+<Fragment>
+  <h4
+    className="loading"
+  >
+    Awaiting Connection...
+  </h4>
+  <p>
+    Timeout in 60 seconds
+  </p>
+</Fragment>
+`;
+
+exports[`Onboarding.Components.ConnectionInformation matches snapshot if success 1`] = `
+<Fragment>
+  <h4
+    className="success"
+  >
+    Connection Found!
+  </h4>
+  <p>
+    defbuck is recieving data load and clear!
+  </p>
+</Fragment>
+`;

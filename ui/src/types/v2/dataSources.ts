@@ -7,6 +7,13 @@ export enum ConfigurationState {
   Error = 'error',
 }
 
+export enum DataSourceType {
+  CSV = 'CSV',
+  Streaming = 'Streaming',
+  LineProtocol = 'Line Protocol',
+  Empty = '',
+}
+
 export interface DataSource {
   name: string
   configured: ConfigurationState

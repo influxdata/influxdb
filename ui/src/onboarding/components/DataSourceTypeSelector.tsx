@@ -7,19 +7,21 @@ import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 
 // Types
-import {DataSource} from 'src/types/v2/dataSources'
-import {StreamingOptions} from 'src/onboarding/components/SelectDataSourceStep'
+import {DataSourceType} from 'src/types/v2/dataSources'
 
 export interface Props {
-  dataSources: DataSource[]
   onSelectDataSource: (dataSource: string) => void
-  streaming: StreamingOptions
+  type: DataSourceType
 }
 
-const DATA_SOURCES_OPTIONS = ['CSV', 'Streaming', 'Line Protocol']
+const DATA_SOURCES_OPTIONS = [
+  DataSourceType.CSV,
+  DataSourceType.Streaming,
+  DataSourceType.LineProtocol,
+]
 
 @ErrorHandling
-class DataSourceSelector extends PureComponent<Props> {
+class DataSourceTypeSelector extends PureComponent<Props> {
   public render() {
     return (
       <GridSizer>
@@ -31,7 +33,7 @@ class DataSourceSelector extends PureComponent<Props> {
               name={ds}
               label={ds}
               checked={this.isCardChecked(ds)}
-              onClick={this.handleToggle(ds)}
+              onClick={this.handleClick(ds)}
             />
           )
         })}
@@ -39,21 +41,15 @@ class DataSourceSelector extends PureComponent<Props> {
     )
   }
 
-  private isCardChecked(dataSource: string) {
-    const {dataSources, streaming} = this.props
-    if (dataSource === 'Streaming') {
-      return streaming === StreamingOptions.Selected
-    }
+  private isCardChecked(dataSource: DataSourceType) {
+    const {type} = this.props
 
-    if (dataSources.find(ds => ds.name === dataSource)) {
-      return true
-    }
-    return false
+    return dataSource === type
   }
 
-  private handleToggle = (dataSource: string) => () => {
+  private handleClick = (dataSource: string) => () => {
     this.props.onSelectDataSource(dataSource)
   }
 }
 
-export default DataSourceSelector
+export default DataSourceTypeSelector

@@ -2,8 +2,10 @@ import _ from 'lodash'
 
 import AJAX from 'src/utils/ajax'
 
+import {telegrafsAPI, authorizationsAPI} from 'src/utils/api'
 import {Telegraf, TelegrafRequest, TelegrafRequestPlugins} from 'src/api'
-import {telegrafsApi} from 'src/utils/api'
+
+import {getDeep} from 'src/utils/wrappers'
 
 export const getSetupStatus = async (url: string): Promise<boolean> => {
   try {
@@ -28,7 +30,7 @@ export const getTelegrafConfigTOML = async (
     },
   }
 
-  const response = await telegrafsApi.telegrafsTelegrafIDGet(
+  const response = await telegrafsAPI.telegrafsTelegrafIDGet(
     telegrafID,
     options
   )
@@ -49,7 +51,7 @@ export const createTelegrafConfig = async (): Promise<Telegraf> => {
       },
     ],
   }
-  const {data} = await telegrafsApi.telegrafsPost('123', telegrafRequest)
+  const {data} = await telegrafsAPI.telegrafsPost('123', telegrafRequest)
   return data
 }
 
@@ -106,5 +108,26 @@ export const trySources = async (url: string): Promise<boolean> => {
   } catch (error) {
     console.error('Sign in has failed', error)
     return false
+  }
+}
+
+export const getTelegrafConfigs = async (org: string): Promise<Telegraf[]> => {
+  try {
+    const data = await telegrafsAPI.telegrafsGet(org)
+
+    return getDeep<Telegraf[]>(data, 'data.configurations', [])
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+export const getAuthorizationToken = async (
+  username: string
+): Promise<string> => {
+  try {
+    const data = await authorizationsAPI.authorizationsGet(undefined, username)
+    return getDeep<string>(data, 'data.auths.0.token', '')
+  } catch (error) {
+    console.error(error)
   }
 }

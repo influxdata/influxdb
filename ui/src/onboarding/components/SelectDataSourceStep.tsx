@@ -9,29 +9,28 @@ import {
   ComponentSize,
   ComponentStatus,
 } from 'src/clockface'
-import DataSourceSelector from 'src/onboarding/components/DataSourceSelector'
+import DataSourceTypeSelector from 'src/onboarding/components/DataSourceTypeSelector'
 import StreamingDataSourceSelector from 'src/onboarding/components/StreamingDataSourcesSelector'
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {DataSource, ConfigurationState} from 'src/types/v2/dataSources'
+import {
+  DataSource,
+  DataSourceType,
+  ConfigurationState,
+} from 'src/types/v2/dataSources'
 
 export interface Props extends OnboardingStepProps {
   bucket: string
   dataSources: DataSource[]
+  type: DataSourceType
   onAddDataSource: (dataSource: DataSource) => void
   onRemoveDataSource: (dataSource: string) => void
-  onSetDataSources: (dataSources: DataSource[]) => void
-}
-
-export enum StreamingOptions {
-  NotSelected = 'not selected',
-  Selected = 'selected',
-  Show = 'show',
+  onSetDataLoadersType: (type: DataSourceType) => void
 }
 
 interface State {
-  streaming: StreamingOptions
+  showStreamingSources: boolean
 }
 
 @ErrorHandling
@@ -39,7 +38,7 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
-    this.state = {streaming: StreamingOptions.NotSelected}
+    this.state = {showStreamingSources: false}
   }
 
   public render() {
@@ -77,7 +76,10 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
   }
 
   private get selector(): JSX.Element {
-    if (this.state.streaming === StreamingOptions.Show) {
+    if (
+      this.props.type === DataSourceType.Streaming &&
+      this.state.showStreamingSources
+    ) {
       return (
         <StreamingDataSourceSelector
           dataSources={this.props.dataSources}
@@ -86,17 +88,19 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
       )
     }
     return (
-      <DataSourceSelector
-        dataSources={this.props.dataSources}
+      <DataSourceTypeSelector
         onSelectDataSource={this.handleSelectDataSource}
-        streaming={this.state.streaming}
+        type={this.props.type}
       />
     )
   }
 
   private handleClickNext = () => {
-    if (this.state.streaming === StreamingOptions.Selected) {
-      this.setState({streaming: StreamingOptions.Show})
+    if (
+      this.props.type === DataSourceType.Streaming &&
+      !this.state.showStreamingSources
+    ) {
+      this.setState({showStreamingSources: true})
       return
     }
 
@@ -104,32 +108,17 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
   }
 
   private handleClickBack = () => {
-    if (this.state.streaming === StreamingOptions.Show) {
-      this.setState({streaming: StreamingOptions.NotSelected})
+    if (this.props.type === DataSourceType.Streaming) {
+      this.setState({showStreamingSources: false})
       return
     }
 
     this.props.onDecrementCurrentStepIndex()
   }
 
-  private handleSelectDataSource = (dataSource: string) => {
-    switch (dataSource) {
-      case 'Streaming':
-        this.setState({streaming: StreamingOptions.Selected})
-        this.props.onSetDataSources([])
-        break
-      default:
-        this.setState({streaming: StreamingOptions.NotSelected})
-        this.props.onSetDataSources([
-          {
-            name: dataSource,
-            configured: ConfigurationState.Unconfigured,
-            active: true,
-            configs: null,
-          },
-        ])
-        break
-    }
+  private handleSelectDataSource = (dataSource: DataSourceType) => {
+    this.props.onSetDataLoadersType(dataSource)
+    return
   }
 
   private handleToggleDataSource = (
