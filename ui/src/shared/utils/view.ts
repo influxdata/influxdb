@@ -11,7 +11,7 @@ import {
   MarkdownView,
   NewView,
   ViewProperties,
-  InfluxLanguage,
+  DashboardQuery,
 } from 'src/types/v2/dashboards'
 
 function defaultView() {
@@ -179,22 +179,28 @@ export function convertView<T extends View | NewView>(
   return newView
 }
 
-export function replaceQuery<T extends View | NewView>(
-  view: T,
-  text,
-  type = InfluxLanguage.Flux
-): T {
+// Replaces the text of the first query in a view
+export function replaceQuery<T extends View | NewView>(view: T, text): T {
   const anyView: any = view
+  const queries = anyView.properties.queries
 
-  if (!anyView.properties.queries) {
-    return
+  if (!queries) {
+    return view
   }
+
+  const newQueries = queries.map((query: DashboardQuery, i) => {
+    if (i !== 0) {
+      return query
+    }
+
+    return {...query, text}
+  })
 
   return {
     ...anyView,
     properties: {
       ...anyView.properties,
-      queries: [{type, text, source: ''}],
+      queries: newQueries,
     },
   }
 }

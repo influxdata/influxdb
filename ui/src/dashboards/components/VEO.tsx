@@ -55,7 +55,11 @@ class VEO extends PureComponent<Props, {}> {
   private handleSave = (): void => {
     const {draftView, draftScript, onSave} = this.props
 
-    onSave(replaceQuery(draftView, draftScript))
+    // Ensure that the latest script is saved with the view, even if it hasn't
+    // been submitted yet
+    const view = replaceQuery(draftView, draftScript)
+
+    onSave(view)
   }
 }
 

@@ -12,7 +12,7 @@ import {
 
 // Types
 import {TimeRange} from 'src/types/v2'
-import {NewView} from 'src/types/v2/dashboards'
+import {NewView, DashboardQuery} from 'src/types/v2/dashboards'
 import {Action} from 'src/shared/actions/v2/timeMachines'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 
@@ -22,6 +22,7 @@ export interface TimeMachineState {
   draftScript: string
   isViewingRawData: boolean
   activeTab: TimeMachineTab
+  activeQueryIndex: number | null
 }
 
 export interface TimeMachinesState {
@@ -37,6 +38,7 @@ const initialStateHelper = (): TimeMachineState => ({
   draftScript: '',
   isViewingRawData: false,
   activeTab: TimeMachineTab.Queries,
+  activeQueryIndex: 0,
 })
 
 const INITIAL_STATE: TimeMachinesState = {
@@ -242,6 +244,35 @@ const timeMachineReducer = (
       const {staticLegend} = action.payload
 
       return setViewProperties(state, {staticLegend})
+    }
+
+    case 'SET_QUERY_SOURCE': {
+      const {sourceID} = action.payload
+      const {activeQueryIndex} = state
+      const view: any = state.view
+      const selectedQuery: string | undefined = get(
+        view,
+        `properties.queries.${activeQueryIndex}`
+      )
+
+      if (!selectedQuery) {
+        return state
+      }
+
+      const queries = view.properties.queries.map(
+        (query: DashboardQuery, i) => {
+          if (i !== activeQueryIndex) {
+            return query
+          }
+
+          return {
+            ...query,
+            source: sourceID,
+          }
+        }
+      )
+
+      return setViewProperties(state, {queries})
     }
   }
 

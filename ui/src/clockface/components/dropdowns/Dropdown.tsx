@@ -1,6 +1,7 @@
 // Libraries
 import React, {Component, CSSProperties, MouseEvent} from 'react'
 import classnames from 'classnames'
+import {isUndefined, isNull} from 'lodash'
 
 // Components
 import {ClickOutside} from 'src/shared/components/ClickOutside'
@@ -57,7 +58,6 @@ class Dropdown extends Component<Props, State> {
     menuColor: DropdownMenuColors.Sapphire,
     mode: DropdownMode.Radio,
     titleText: '',
-    selectedID: '',
   }
 
   public static Button = DropdownButton
@@ -234,7 +234,10 @@ class Dropdown extends Component<Props, State> {
       throw new Error('Dropdowns in ActionList mode require a titleText prop.')
     }
 
-    if (mode === DropdownMode.Radio && selectedID === '') {
+    if (
+      mode === DropdownMode.Radio &&
+      (isUndefined(selectedID) || isNull(selectedID))
+    ) {
       throw new Error('Dropdowns in Radio mode require a selectedID prop.')
     }
   }

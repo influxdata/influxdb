@@ -26,6 +26,7 @@ export type Action =
   | SetYAxisSuffix
   | SetYAxisBase
   | SetYAxisScale
+  | SetQuerySourceAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -235,4 +236,14 @@ export const setDecimalPlaces = (
 ): SetDecimalPlaces => ({
   type: 'SET_DECIMAL_PLACES',
   payload: {decimalPlaces},
+})
+
+interface SetQuerySourceAction {
+  type: 'SET_QUERY_SOURCE'
+  payload: {sourceID: string}
+}
+
+export const setQuerySource = (sourceID: string): SetQuerySourceAction => ({
+  type: 'SET_QUERY_SOURCE',
+  payload: {sourceID},
 })

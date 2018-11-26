@@ -6,6 +6,7 @@ import {connect} from 'react-redux'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import CSVExportButton from 'src/shared/components/CSVExportButton'
 import {SlideToggle, ComponentSize} from 'src/clockface'
+import TimeMachineSourceDropdown from 'src/shared/components/TimeMachineSourceDropdown'
 
 // Actions
 import {
@@ -47,7 +48,9 @@ class TimeMachineControls extends PureComponent<Props> {
 
     return (
       <div className="time-machine-controls">
-        <div className="time-machine-controls--lhs" />
+        <div className="time-machine-controls--lhs">
+          <TimeMachineSourceDropdown />
+        </div>
         <div className="time-machine-controls--rhs">
           <label>
             <SlideToggle
