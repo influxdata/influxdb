@@ -16,8 +16,9 @@ $cell--header-size: 36px;
 .cell--view {
   position: absolute;
   width: 100%;
-  height: calc(100% - $cell--header-size);
-  top: $cell--header-size;
+  height: 100%;
+  padding-top: $cell--header-size;
+  top: 0;
   left: 0;
   bottom: 0;
   left: 0;
