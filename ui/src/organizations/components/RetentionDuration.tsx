@@ -42,7 +42,7 @@ export default class RetentionDuration extends PureComponent<Props> {
         <Form.Element label="Hours" colsXS={Columns.Two}>
           <Input
             name={DurationKey.Hours}
-            min="0"
+            min={0}
             type={InputType.Number}
             value={`${hours}`}
             onChange={onChangeInput}
@@ -51,7 +51,7 @@ export default class RetentionDuration extends PureComponent<Props> {
         <Form.Element label="Minutes" colsXS={Columns.Two}>
           <Input
             name={DurationKey.Minutes}
-            min="0"
+            min={0}
             type={InputType.Number}
             value={`${minutes}`}
             onChange={onChangeInput}
@@ -60,7 +60,7 @@ export default class RetentionDuration extends PureComponent<Props> {
         <Form.Element label="Seconds" colsXS={Columns.Two}>
           <Input
             name={DurationKey.Seconds}
-            min="0"
+            min={0}
             type={InputType.Number}
             value={`${seconds}`}
             onChange={onChangeInput}

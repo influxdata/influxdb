@@ -1,16 +1,21 @@
+// Libraries
 import React, {PureComponent} from 'react'
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import OptIn from 'src/shared/components/OptIn'
+
+// Components
+import {Form, Columns, AutoInput} from 'src/clockface'
+
+// Constants
 import {MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
 
+// Types
 import {DecimalPlaces} from 'src/types/v2/dashboards'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props extends DecimalPlaces {
   onDecimalPlacesChange: (decimalPlaces: DecimalPlaces) => void
 }
-
-const fixedValueString = 'fixed'
-const defaultPlaceholder = 'unlimited'
 
 @ErrorHandling
 class DecimalPlacesOption extends PureComponent<Props> {
@@ -18,60 +23,35 @@ class DecimalPlacesOption extends PureComponent<Props> {
     super(props)
   }
 
-  public handleSetValue = (valueFromSelector: string): void => {
-    let digits
-    let isEnforced
-    if (valueFromSelector === fixedValueString) {
-      digits = this.props.digits
-      isEnforced = false
-    } else if (valueFromSelector === '') {
-      digits = this.props.digits
-      isEnforced = true
-    } else {
-      digits = Number(valueFromSelector)
-      if (digits < 0) {
-        digits = 0
-      }
-      isEnforced = true
-    }
-    this.props.onDecimalPlacesChange({digits, isEnforced})
-  }
-
   public render() {
     return (
-      <div className="form-group col-xs-6">
-        <label> Decimal Places </label>
-        <OptIn
-          min={MIN_DECIMAL_PLACES}
-          max={MAX_DECIMAL_PLACES}
-          type="number"
-          fixedPlaceholder=""
-          customValue={this.value}
-          fixedValue={fixedValueString}
-          onSetValue={this.handleSetValue}
-          customPlaceholder={this.placeholder}
+      <Form.Element label="Decimal Places" colsXS={Columns.Six}>
+        <AutoInput
+          name="decimal-places"
+          inputPlaceholder="Enter a number"
+          onChange={this.handleSetValue}
+          value={this.value}
+          min={Number(MIN_DECIMAL_PLACES)}
+          max={Number(MAX_DECIMAL_PLACES)}
         />
-      </div>
+      </Form.Element>
     )
   }
 
-  private get placeholder(): string {
-    const {isEnforced, digits} = this.props
+  public handleSetValue = (value: number): void => {
+    const digits = Math.max(value, 0)
+    const isEnforced = true
 
-    if (!isEnforced) {
-      return defaultPlaceholder
-    }
-
-    return `${digits}`
+    this.props.onDecimalPlacesChange({digits, isEnforced})
   }
 
-  private get value(): string {
+  private get value(): number {
     const {isEnforced, digits} = this.props
     if (!isEnforced) {
-      return ''
+      return
     }
 
-    return `${digits}`
+    return digits
   }
 }
 

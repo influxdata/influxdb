@@ -1,4 +1,5 @@
 // Import Components
+import AutoInput from './components/auto_input/AutoInput'
 import Button from './components/Button'
 import Dropdown, {DropdownMode} from './components/dropdowns/Dropdown'
 import MultiSelectDropdown from './components/dropdowns/MultiSelectDropdown'
@@ -41,6 +42,7 @@ import {
 // Fire de lazer
 export {
   Alignment,
+  AutoInput,
   Button,
   ButtonType,
   ComponentSpacer,
