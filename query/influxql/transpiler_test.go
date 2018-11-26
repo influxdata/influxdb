@@ -104,6 +104,7 @@ func TestTranspiler_Compile(t *testing.T) {
 		{s: `SELECT max(bottom) FROM (SELECT bottom(value, host, 1) FROM cpu) GROUP BY region`},
 		{s: `SELECT percentile(value, 75) FROM cpu`},
 		{s: `SELECT percentile(value, 75.0) FROM cpu`},
+		{s: `SELECT median(value) FROM cpu`},
 		{s: `SELECT sample(value, 2) FROM cpu`},
 		{s: `SELECT sample(*, 2) FROM cpu`},
 		{s: `SELECT sample(/val/, 2) FROM cpu`},
