@@ -110,6 +110,10 @@ type resultErrorIterator struct {
 	Error string
 }
 
+func (*resultErrorIterator) Statistics() flux.Statistics {
+	return flux.Statistics{}
+}
+
 func (*resultErrorIterator) Release()          {}
 func (*resultErrorIterator) More() bool        { return false }
 func (*resultErrorIterator) Next() flux.Result { panic("no results") }

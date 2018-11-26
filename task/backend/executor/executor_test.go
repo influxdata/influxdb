@@ -198,6 +198,10 @@ func newFakeResult() *fakeResult {
 	return &fakeResult{name: "res", table: t}
 }
 
+func (r *fakeResult) Statistics() flux.Statistics {
+	return flux.Statistics{}
+}
+
 func (r *fakeResult) Name() string               { return r.name }
 func (r *fakeResult) Tables() flux.TableIterator { return tables{r.table} }
 
