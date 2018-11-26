@@ -95,26 +95,26 @@ func TestFromStatus(t *testing.T) {
 		},
 		{
 			name: "OK status returns nil error",
-			s: status.New(codes.OK, ""),
+			s:    status.New(codes.OK, ""),
 		},
 		{
 			name: "status message that is not JSON is internal error",
-			s: status.New(codes.Internal, "bad"),
+			s:    status.New(codes.Internal, "bad"),
 			want: &platform.Error{
-				Err: fmt.Errorf("bad"),
+				Err:  fmt.Errorf("bad"),
 				Code: platform.EInternal,
 			},
-		},	
+		},
 		{
 			name: "status message with embedded platform error",
-			s: status.New(codes.Internal, `{"code":"unavailable","msg":"howdy","op":"kit/grpc","err":"error"}`),
+			s:    status.New(codes.Internal, `{"code":"unavailable","msg":"howdy","op":"kit/grpc","err":"error"}`),
 			want: &platform.Error{
-				Err: fmt.Errorf("error"),
+				Err:  fmt.Errorf("error"),
 				Code: platform.EUnavailable,
-				Msg: "howdy",
-				Op: "kit/grpc",
+				Msg:  "howdy",
+				Op:   "kit/grpc",
 			},
-		},	
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

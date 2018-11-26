@@ -86,6 +86,7 @@ func CursorToString(wr io.Writer, cur cursors.Cursor, opts ...optionFn) {
 }
 
 const nilVal = "<nil>"
+
 var (
 	nilValBytes = []byte(nilVal)
 )

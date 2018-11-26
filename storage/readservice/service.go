@@ -28,7 +28,6 @@ func NewProxyQueryService(engine *storage.Engine, bucketSvc platform.BucketServi
 		ConcurrencyQuota:     concurrencyQuota,
 		MemoryBytesQuota:     int64(memoryBytesQuota),
 		Logger:               logger,
-		Verbose:              false,
 	}
 
 	bucketLookupSvc := query.FromBucketService(bucketSvc)
