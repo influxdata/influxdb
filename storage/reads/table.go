@@ -53,6 +53,10 @@ func newTable(
 	}
 }
 
+func (t *table) Statistics() flux.Statistics {
+	return flux.Statistics{}
+}
+
 func (t *table) Key() flux.GroupKey   { return t.key }
 func (t *table) Cols() []flux.ColMeta { return t.cols }
 func (t *table) RefCount(n int)       {}
