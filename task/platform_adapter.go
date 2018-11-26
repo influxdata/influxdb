@@ -17,7 +17,7 @@ type RunController interface {
 
 // PlatformAdapter wraps a task.Store into the platform.TaskService interface.
 func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController) platform.TaskService {
-	return pAdapter{s: s, r: r}
+	return pAdapter{s: s, r: r, rc: rc}
 }
 
 type pAdapter struct {
