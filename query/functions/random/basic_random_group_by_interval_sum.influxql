@@ -1,0 +1,1 @@
+SELECT sum(f) FROM m WHERE time >= 0 AND time <= 20h GROUP BY time(5h)
