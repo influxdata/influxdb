@@ -1974,7 +1974,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			level1Groups := e.CompactionPlan.PlanLevel(1)
 			level2Groups := e.CompactionPlan.PlanLevel(2)
 			level3Groups := e.CompactionPlan.PlanLevel(3)
-			level4Groups := e.CompactionPlan.Plan(e.FileStore.LastModified())
+			level4Groups := e.CompactionPlan.Plan(e.LastModified())
 			atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(level4Groups)))
 
 			// If no full compactions are need, see if an optimize is needed
