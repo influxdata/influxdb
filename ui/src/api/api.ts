@@ -344,6 +344,12 @@ export interface Cell {
     h?: number;
     /**
      * 
+     * @type {string}
+     * @memberof Cell
+     */
+    id?: string;
+    /**
+     * 
      * @type {CellLinks}
      * @memberof Cell
      */
@@ -354,12 +360,6 @@ export interface Cell {
      * @memberof Cell
      */
     name?: string;
-    /**
-     * 
-     * @type {number}
-     * @memberof Cell
-     */
-    _true?: number;
     /**
      * The reference to a view from the views API
      * @type {string}
@@ -378,6 +378,12 @@ export interface Cell {
      * @memberof Cell
      */
     x?: number;
+    /**
+     * 
+     * @type {number}
+     * @memberof Cell
+     */
+    y?: number;
 }
 
 /**
@@ -475,12 +481,6 @@ export interface CreateCell {
      */
     name?: string;
     /**
-     * 
-     * @type {number}
-     * @memberof CreateCell
-     */
-    _true?: number;
-    /**
      * makes a copy of the provided view
      * @type {string}
      * @memberof CreateCell
@@ -504,6 +504,12 @@ export interface CreateCell {
      * @memberof CreateCell
      */
     x?: number;
+    /**
+     * 
+     * @type {number}
+     * @memberof CreateCell
+     */
+    y?: number;
 }
 
 /**

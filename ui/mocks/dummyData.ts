@@ -189,10 +189,8 @@ export const dashboard: Dashboard = {
   id: '1',
   cells: [],
   name: 'd1',
-  default: false,
   links: {
     self: 'self/link',
-    copy: 'copy/link',
     cells: 'cells/link',
   },
 }
@@ -206,7 +204,6 @@ export const cell: Cell = {
   id: '0246e457-916b-43e3-be99-211c4cbc03e8',
   links: {
     self: 'self/link',
-    copy: 'copy/link',
     view: 'view/link',
   },
 }

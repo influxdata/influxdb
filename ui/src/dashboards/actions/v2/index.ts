@@ -12,7 +12,6 @@ import {
   updateCells as updateCellsAJAX,
   addCell as addCellAJAX,
   deleteCell as deleteCellAJAX,
-  copyCell as copyCellAJAX,
 } from 'src/dashboards/apis/v2'
 import {createView as createViewAJAX} from 'src/dashboards/apis/v2/view'
 
@@ -37,8 +36,9 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
-import {Dashboard, Cell, AppState} from 'src/types/v2'
+import {Dashboard, Cell} from 'src/api'
 import {NewView} from 'src/types/v2/dashboards'
+import {AppState} from 'src/types/v2'
 
 export enum ActionTypes {
   LoadDashboards = 'LOAD_DASHBOARDS',
@@ -150,11 +150,11 @@ export const deleteCell = (
 
 // Thunks
 
-export const getDashboardsAsync = (url: string) => async (
+export const getDashboardsAsync = () => async (
   dispatch: Dispatch<Action>
 ): Promise<Dashboard[]> => {
   try {
-    const dashboards = await getDashboardsAJAX(url)
+    const dashboards = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards))
     return dashboards
   } catch (error) {
@@ -169,7 +169,7 @@ export const importDashboardAsync = (
 ) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
     await createDashboardAJAX(url, dashboard)
-    const dashboards = await getDashboardsAJAX(url)
+    const dashboards = await getDashboardsAJAX()
 
     dispatch(loadDashboards(dashboards))
     dispatch(notify(copy.dashboardImported(name)))
@@ -264,7 +264,7 @@ export const createCellWithView = (
 
     const createdCell = await addCellAJAX(dashboard.links.cells, cell)
 
-    let updatedDashboard = {
+    let updatedDashboard: Dashboard = {
       ...dashboard,
       cells: [...dashboard.cells, createdCell],
     }
@@ -312,10 +312,9 @@ export const copyDashboardCellAsync = (
 ) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
     const clonedCell = getClonedDashboardCell(dashboard, cell)
-    const cellFromServer = await copyCellAJAX(cell.links.copy, clonedCell)
     const updatedDashboard = {
       ...dashboard,
-      cells: [...dashboard.cells, cellFromServer],
+      cells: [...dashboard.cells, clonedCell],
     }
 
     dispatch(loadDashboard(updatedDashboard))

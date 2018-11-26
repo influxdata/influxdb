@@ -21,7 +21,7 @@ import {
 } from 'src/shared/constants'
 
 // Types
-import {Cell} from 'src/types/v2'
+import {Cell} from 'src/api'
 import {TimeRange} from 'src/types'
 
 // Styles
@@ -107,7 +107,14 @@ class Cells extends Component<Props & WithRouterProps, State> {
   }
 
   private get cells(): Layout[] {
-    return this.props.cells.map(c => ({...c, i: c.id}))
+    return this.props.cells.map(c => ({
+      ...c,
+      x: c.x,
+      y: c.y,
+      h: c.h,
+      w: c.w,
+      i: c.id,
+    }))
   }
 
   private get isDashboard(): boolean {

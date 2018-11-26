@@ -4513,7 +4513,7 @@ components:
         x:
           type: integer
           format: int32
-        y:
+        "y":
           type: integer
           format: int32
         w:
@@ -4531,6 +4531,8 @@ components:
     Cell:
       type: object
       properties:
+        id:
+          type: string
         links:
           type: object
           properties:
@@ -4543,7 +4545,7 @@ components:
         x:
           type: integer
           format: int32
-        y:
+        "y":
           type: integer
           format: int32
         w:

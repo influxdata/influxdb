@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {addCellAsync} from 'src/dashboards/actions/v2'
 
 // Types
-import {Dashboard} from 'src/types/v2/dashboards'
+import {Dashboard} from 'src/api'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
