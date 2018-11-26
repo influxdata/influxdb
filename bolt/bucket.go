@@ -29,10 +29,12 @@ func (c *Client) initializeBuckets(ctx context.Context, tx *bolt.Tx) error {
 	return nil
 }
 
-func (c *Client) setOrganizationOnBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) error {
+func (c *Client) setOrganizationOnBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) *platform.Error {
 	o, err := c.findOrganizationByID(ctx, tx, b.OrganizationID)
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 	b.Organization = o.Name
 	return nil
@@ -41,10 +43,13 @@ func (c *Client) setOrganizationOnBucket(ctx context.Context, tx *bolt.Tx, b *pl
 // FindBucketByID retrieves a bucket by id.
 func (c *Client) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
 	var b *platform.Bucket
+	var err error
 
-	err := c.db.View(func(tx *bolt.Tx) error {
-		bkt, err := c.findBucketByID(ctx, tx, id)
-		if err != nil {
+	err = c.db.View(func(tx *bolt.Tx) error {
+		bkt, pe := c.findBucketByID(ctx, tx, id)
+		if pe != nil {
+			pe.Op = getOp(platform.OpFindBucketByID)
+			err = pe
 			return err
 		}
 		b = bkt
@@ -58,26 +63,35 @@ func (c *Client) FindBucketByID(ctx context.Context, id platform.ID) (*platform.
 	return b, nil
 }
 
-func (c *Client) findBucketByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Bucket, error) {
+func (c *Client) findBucketByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Bucket, *platform.Error) {
 	var b platform.Bucket
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 
 	v := tx.Bucket(bucketBucket).Get(encodedID)
 	if len(v) == 0 {
-		// TODO: Make standard error
-		return nil, fmt.Errorf("bucket not found")
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "bucket not found",
+		}
 	}
 
 	if err := json.Unmarshal(v, &b); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	if err := c.setOrganizationOnBucket(ctx, tx, &b); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	return &b, nil
@@ -87,10 +101,13 @@ func (c *Client) findBucketByID(ctx context.Context, tx *bolt.Tx, id platform.ID
 // TODO: have method for finding bucket using organization name and bucket name.
 func (c *Client) FindBucketByName(ctx context.Context, orgID platform.ID, n string) (*platform.Bucket, error) {
 	var b *platform.Bucket
+	var err error
 
-	err := c.db.View(func(tx *bolt.Tx) error {
-		bkt, err := c.findBucketByName(ctx, tx, orgID, n)
-		if err != nil {
+	err = c.db.View(func(tx *bolt.Tx) error {
+		bkt, pe := c.findBucketByName(ctx, tx, orgID, n)
+		if pe != nil {
+			pe.Op = getOp(platform.OpFindBucket)
+			err = pe
 			return err
 		}
 		b = bkt
@@ -100,25 +117,32 @@ func (c *Client) FindBucketByName(ctx context.Context, orgID platform.ID, n stri
 	return b, err
 }
 
-func (c *Client) findBucketByName(ctx context.Context, tx *bolt.Tx, orgID platform.ID, n string) (*platform.Bucket, error) {
+func (c *Client) findBucketByName(ctx context.Context, tx *bolt.Tx, orgID platform.ID, n string) (*platform.Bucket, *platform.Error) {
 	b := &platform.Bucket{
 		OrganizationID: orgID,
 		Name:           n,
 	}
 	key, err := bucketIndexKey(b)
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 
 	buf := tx.Bucket(bucketIndex).Get(key)
 	if buf == nil {
-		// TODO: Make standard error
-		return nil, fmt.Errorf("bucket not found")
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "bucket not found",
+		}
 	}
 
 	var id platform.ID
 	if err := id.Decode(buf); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 	return c.findBucketByID(ctx, tx, id)
 }
@@ -127,16 +151,25 @@ func (c *Client) findBucketByName(ctx context.Context, tx *bolt.Tx, orgID platfo
 // Filters using ID, or OrganizationID and bucket Name should be efficient.
 // Other filters will do a linear scan across buckets until it finds a match.
 func (c *Client) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
+	var b *platform.Bucket
+	var err error
+
 	if filter.ID != nil {
-		return c.FindBucketByID(ctx, *filter.ID)
+		b, err = c.FindBucketByID(ctx, *filter.ID)
+		if err != nil {
+			return nil, &platform.Error{
+				Op:  getOp(platform.OpFindBucket),
+				Err: err,
+			}
+		}
+		return b, nil
 	}
 
 	if filter.Name != nil && filter.OrganizationID != nil {
 		return c.FindBucketByName(ctx, *filter.OrganizationID, *filter.Name)
 	}
 
-	var b *platform.Bucket
-	err := c.db.View(func(tx *bolt.Tx) error {
+	err = c.db.View(func(tx *bolt.Tx) error {
 		if filter.Organization != nil {
 			o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
 			if err != nil {
@@ -156,11 +189,17 @@ func (c *Client) FindBucket(ctx context.Context, filter platform.BucketFilter) (
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Op:  getOp(platform.OpFindBucket),
+			Err: err,
+		}
 	}
 
 	if b == nil {
-		return nil, fmt.Errorf("bucket not found")
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "bucket not found",
+		}
 	}
 
 	return b, nil
@@ -233,12 +272,14 @@ func (c *Client) FindBuckets(ctx context.Context, filter platform.BucketFilter, 
 	return bs, len(bs), nil
 }
 
-func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.BucketFilter) ([]*platform.Bucket, error) {
+func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.BucketFilter) ([]*platform.Bucket, *platform.Error) {
 	bs := []*platform.Bucket{}
 	if filter.Organization != nil {
 		o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
 		if err != nil {
-			return nil, err
+			return nil, &platform.Error{
+				Err: err,
+			}
 		}
 		filter.OrganizationID = &o.ID
 	}
@@ -252,7 +293,9 @@ func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.B
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	return bs, nil
@@ -260,6 +303,8 @@ func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.B
 
 // CreateBucket creates a platform bucket and sets b.ID.
 func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
+	var err error
+	op := getOp(platform.OpCreateBucket)
 	return c.db.Update(func(tx *bolt.Tx) error {
 		if !b.OrganizationID.Valid() {
 			o, err := c.findOrganizationByName(ctx, tx, b.Organization)
@@ -273,37 +318,56 @@ func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 
 		if !unique {
 			// TODO: make standard error
-			return fmt.Errorf("bucket with name %s already exists", b.Name)
+			return &platform.Error{
+				Code: platform.EConflict,
+				Op:   op,
+				Msg:  fmt.Sprintf("bucket with name %s already exists", b.Name),
+			}
 		}
 
 		b.ID = c.IDGenerator.ID()
 
-		if err := c.appendBucketEventToLog(ctx, tx, b.ID, bucketCreatedEvent); err != nil {
-			return err
+		if err = c.appendBucketEventToLog(ctx, tx, b.ID, bucketCreatedEvent); err != nil {
+			return &platform.Error{
+				Op:  op,
+				Err: err,
+			}
 		}
 
-		if err := c.putBucket(ctx, tx, b); err != nil {
-			return err
+		if pe := c.putBucket(ctx, tx, b); pe != nil {
+			pe.Op = op
+			err = pe
 		}
 
-		return c.createBucketUserResourceMappings(ctx, tx, b)
+		if pe := c.createBucketUserResourceMappings(ctx, tx, b); pe != nil {
+			pe.Op = op
+			err = pe
+		}
+		return nil
 	})
 }
 
 // PutBucket will put a bucket without setting an ID.
 func (c *Client) PutBucket(ctx context.Context, b *platform.Bucket) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.putBucket(ctx, tx, b)
+		var err error
+		pe := c.putBucket(ctx, tx, b)
+		if pe != nil {
+			err = pe
+		}
+		return err
 	})
 }
 
-func (c *Client) createBucketUserResourceMappings(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) error {
+func (c *Client) createBucketUserResourceMappings(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) *platform.Error {
 	ms, err := c.findUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
 		ResourceType: platform.OrgResourceType,
 		ResourceID:   b.OrganizationID,
 	})
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 
 	for _, m := range ms {
@@ -313,42 +377,55 @@ func (c *Client) createBucketUserResourceMappings(ctx context.Context, tx *bolt.
 			UserID:       m.UserID,
 			UserType:     m.UserType,
 		}); err != nil {
-			return err
+			return &platform.Error{
+				Err: err,
+			}
 		}
 	}
 
 	return nil
 }
 
-func (c *Client) putBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) error {
+func (c *Client) putBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) *platform.Error {
 	b.Organization = ""
 	v, err := json.Marshal(b)
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 
 	encodedID, err := b.ID.Encode()
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
-	key, err := bucketIndexKey(b)
+	key, pe := bucketIndexKey(b)
 	if err != nil {
-		return err
+		return pe
 	}
 
 	if err := tx.Bucket(bucketIndex).Put(key, encodedID); err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 	if err := tx.Bucket(bucketBucket).Put(encodedID, v); err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 	return c.setOrganizationOnBucket(ctx, tx, b)
 }
 
-func bucketIndexKey(b *platform.Bucket) ([]byte, error) {
+func bucketIndexKey(b *platform.Bucket) ([]byte, *platform.Error) {
 	orgID, err := b.OrganizationID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 	k := make([]byte, platform.IDLength+len(b.Name))
 	copy(k, orgID)
@@ -439,34 +516,51 @@ func (c *Client) updateBucket(ctx context.Context, tx *bolt.Tx, id platform.ID, 
 // DeleteBucket deletes a bucket and prunes it from the index.
 func (c *Client) DeleteBucket(ctx context.Context, id platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.deleteBucket(ctx, tx, id)
+		var err error
+		if pe := c.deleteBucket(ctx, tx, id); pe != nil {
+			pe.Op = getOp(platform.OpDeleteBucket)
+			err = pe
+		}
+		return err
 	})
 }
 
-func (c *Client) deleteBucket(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
-	b, err := c.findBucketByID(ctx, tx, id)
-	if err != nil {
-		return err
+func (c *Client) deleteBucket(ctx context.Context, tx *bolt.Tx, id platform.ID) *platform.Error {
+	b, pe := c.findBucketByID(ctx, tx, id)
+	if pe != nil {
+		return pe
 	}
-	key, err := bucketIndexKey(b)
-	if err != nil {
-		return err
+	key, pe := bucketIndexKey(b)
+	if pe != nil {
+		return pe
 	}
 	// make lowercase deleteBucket with tx
 	if err := tx.Bucket(bucketIndex).Delete(key); err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 	encodedID, err := id.Encode()
 	if err != nil {
-		return err
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 	if err := tx.Bucket(bucketBucket).Delete(encodedID); err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
-	return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+	if err := c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
 		ResourceID:   id,
 		ResourceType: platform.BucketResourceType,
-	})
+	}); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+	return nil
 }
 
 const bucketOperationLogKeyPrefix = "bucket"
