@@ -1,7 +1,7 @@
 import Deferred from 'src/utils/Deferred'
 
 import {InfluxLanguage} from 'src/types/v2/dashboards'
-import {DashboardQuery} from 'src/types/v2/dashboards'
+import {URLQuery} from 'src/types/v2/dashboards'
 
 const CHECK_LIMIT_INTERVAL = 200
 const MAX_ROWS = 50000
@@ -133,10 +133,11 @@ export const executeQuery = async (
 }
 
 export const executeQueries = async (
-  url: string,
-  queries: DashboardQuery[]
+  queries: URLQuery[]
 ): Promise<ExecuteFluxQueryResult[]> => {
-  return Promise.all(
-    queries.map(({type, text}) => executeQuery(url, text, type))
+  const promise = Promise.all(
+    queries.map(({url, text, type}) => executeQuery(url, text, type))
   )
+
+  return promise
 }

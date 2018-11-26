@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -9,16 +8,14 @@ import EmptyRefreshingView from 'src/shared/components/EmptyRefreshingView'
 import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
 
 // Utils
-import {getActiveSource} from 'src/sources/selectors'
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 
 // Types
 import {TimeRange} from 'src/types'
-import {AppState} from 'src/types/v2'
 import {DashboardQuery} from 'src/types/v2/dashboards'
 import {RefreshingViewProperties, ViewType} from 'src/types/v2/dashboards'
 
-interface OwnProps {
+interface Props {
   timeRange: TimeRange
   viewID: string
   inView: boolean
@@ -26,14 +23,6 @@ interface OwnProps {
   onZoom: (range: TimeRange) => void
   properties: RefreshingViewProperties
 }
-
-interface StateProps {
-  link: string
-}
-
-interface DispatchProps {}
-
-type Props = OwnProps & StateProps & DispatchProps
 
 class RefreshingView extends PureComponent<Props> {
   public static defaultProps: Partial<Props> = {
@@ -43,7 +32,6 @@ class RefreshingView extends PureComponent<Props> {
 
   public render() {
     const {
-      link,
       inView,
       onZoom,
       viewID,
@@ -54,7 +42,6 @@ class RefreshingView extends PureComponent<Props> {
 
     return (
       <TimeSeries
-        link={link}
         inView={inView}
         autoRefresher={GlobalAutoRefresher}
         queries={this.queries}
@@ -100,15 +87,4 @@ class RefreshingView extends PureComponent<Props> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
-  const link = getActiveSource(state).links.query
-
-  return {link}
-}
-
-const mdtp = {}
-
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(RefreshingView)
+export default RefreshingView

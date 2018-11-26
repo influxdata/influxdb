@@ -13,7 +13,6 @@ import TimeMachineVis from 'src/shared/components/TimeMachineVis'
 import TimeSeries from 'src/shared/components/TimeSeries'
 
 // Utils
-import {getActiveSource} from 'src/sources/selectors'
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 
 // Constants
@@ -23,16 +22,15 @@ import {HANDLE_HORIZONTAL} from 'src/shared/constants'
 import {AppState, DashboardQuery} from 'src/types/v2'
 
 interface StateProps {
-  queryLink: string
   queries: DashboardQuery[]
 }
 
 const TimeMachine: SFC<StateProps> = props => {
-  const {queryLink, queries} = props
+  const {queries} = props
 
   return (
     <div className="time-machine">
-      <TimeSeries link={queryLink} queries={queries}>
+      <TimeSeries queries={queries}>
         {queriesState => {
           const divisions: DivisionProps[] = [
             {
@@ -71,9 +69,8 @@ const TimeMachine: SFC<StateProps> = props => {
 const mstp = (state: AppState) => {
   const timeMachine = getActiveTimeMachine(state)
   const queries = get(timeMachine, 'view.properties.queries', [])
-  const queryLink = getActiveSource(state).links.query
 
-  return {queryLink, queries}
+  return {queries}
 }
 
 export default connect<StateProps, {}, {}>(

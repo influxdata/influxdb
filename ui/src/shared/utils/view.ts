@@ -12,6 +12,7 @@ import {
   NewView,
   ViewProperties,
   DashboardQuery,
+  InfluxLanguage,
 } from 'src/types/v2/dashboards'
 
 function defaultView() {
@@ -20,8 +21,14 @@ function defaultView() {
   }
 }
 
-function defaultViewQueries() {
-  return []
+function defaultViewQueries(): DashboardQuery[] {
+  return [
+    {
+      text: '',
+      type: InfluxLanguage.Flux,
+      source: '',
+    },
+  ]
 }
 
 function defaultLineViewProperties() {

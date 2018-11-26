@@ -1,18 +1,21 @@
 // Library
 import {Component} from 'react'
 import {isEqual, flatten} from 'lodash'
+import {connect} from 'react-redux'
 
 // API
 import {executeQueries} from 'src/shared/apis/v2/query'
 
 // Types
 import {RemoteDataState, FluxTable} from 'src/types'
-import {DashboardQuery} from 'src/types/v2/dashboards'
+import {DashboardQuery, URLQuery} from 'src/types/v2/dashboards'
+import {AppState, Source} from 'src/types/v2'
 
 // Utils
 import {AutoRefresher} from 'src/utils/AutoRefresher'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {restartable, CancellationError} from 'src/utils/restartable'
+import {getSources, getActiveSource} from 'src/sources/selectors'
 
 export const DEFAULT_TIME_SERIES = [{response: {results: []}}]
 
@@ -24,13 +27,19 @@ export interface QueriesState {
   isInitialFetch: boolean
 }
 
-interface Props {
-  link: string
+interface StateProps {
+  dynamicSourceURL: string
+  sources: Source[]
+}
+
+interface OwnProps {
   queries: DashboardQuery[]
   autoRefresher?: AutoRefresher
   inView?: boolean
   children: (r: QueriesState) => JSX.Element
 }
+
+type Props = StateProps & OwnProps
 
 interface State {
   loading: RemoteDataState
@@ -93,8 +102,20 @@ class TimeSeries extends Component<Props, State> {
     })
   }
 
+  private get queries(): URLQuery[] {
+    const {sources, queries, dynamicSourceURL} = this.props
+
+    return queries.filter(query => !!query.text).map(query => {
+      const source = sources.find(source => source.id === query.source)
+      const url: string = source ? source.links.query : dynamicSourceURL
+
+      return {url, text: query.text, type: query.type}
+    })
+  }
+
   private reload = async () => {
-    const {link, inView, queries} = this.props
+    const {inView} = this.props
+    const queries = this.queries
 
     if (!inView) {
       return
@@ -112,7 +133,7 @@ class TimeSeries extends Component<Props, State> {
     })
 
     try {
-      const results = await this.executeQueries(link, queries)
+      const results = await this.executeQueries(queries)
       const tables = flatten(results.map(r => parseResponse(r.csv)))
       const files = results.map(r => r.csv)
 
@@ -134,11 +155,11 @@ class TimeSeries extends Component<Props, State> {
   }
 
   private shouldReload(prevProps: Props) {
-    if (prevProps.link !== this.props.link) {
+    if (!isEqual(prevProps.queries, this.props.queries)) {
       return true
     }
 
-    if (!isEqual(prevProps.queries, this.props.queries)) {
+    if (prevProps.dynamicSourceURL !== this.props.dynamicSourceURL) {
       return true
     }
 
@@ -146,4 +167,14 @@ class TimeSeries extends Component<Props, State> {
   }
 }
 
-export default TimeSeries
+const mstp = (state: AppState) => {
+  const sources = getSources(state)
+  const dynamicSourceURL = getActiveSource(state).links.query
+
+  return {sources, dynamicSourceURL}
+}
+
+export default connect<StateProps, {}, OwnProps>(
+  mstp,
+  null
+)(TimeSeries)
