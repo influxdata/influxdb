@@ -363,48 +363,11 @@ func (LogViewProperties) viewProperties()            {}
 // Old Chronograf Types
 /////////////////////////////
 
-// DashboardQuery includes state for the query builder.  This is a transition
-// struct while we move to the full InfluxQL AST
-// TODO(desa): this should be platform.ID
+// DashboardQuery represents a query used in a dashboard cell
 type DashboardQuery struct {
-	Label  string `json:"label,omitempty"` // Label is the Y-Axis label for the data
-	Range  *Range `json:"range,omitempty"` // Range is the default Y-Axis range for the data
-	Text   string `json:"text"`
-	Type   string `json:"type"`
-	Source string `json:"source"` // Source is the optional URI to the data source for this queryConfig
-}
-
-// Range represents an upper and lower bound for data
-type Range struct {
-	Upper int64 `json:"upper"` // Upper is the upper bound
-	Lower int64 `json:"lower"` // Lower is the lower bound
-}
-
-// TimeShift represents a shift to apply to an influxql query's time range
-type TimeShift struct {
-	Label    string `json:"label"`    // Label user facing description
-	Unit     string `json:"unit"`     // Unit influxql time unit representation i.e. ms, s, m, h, d
-	Quantity string `json:"quantity"` // Quantity number of units
-}
-
-// Field represent influxql fields and functions from the UI
-type Field struct {
-	Value interface{} `json:"value"`
-	Type  string      `json:"type"`
-	Alias string      `json:"alias"`
-	Args  []Field     `json:"args,omitempty"`
-}
-
-// GroupBy represents influxql group by tags from the UI
-type GroupBy struct {
-	Time string   `json:"time"`
-	Tags []string `json:"tags"`
-}
-
-// DurationRange represents the lower and upper durations of the query config
-type DurationRange struct {
-	Upper string `json:"upper"`
-	Lower string `json:"lower"`
+	Text     string `json:"text"`
+	Type     string `json:"type"`
+	SourceID string `json:"sourceID"`
 }
 
 // Axis represents the visible extents of a visualization

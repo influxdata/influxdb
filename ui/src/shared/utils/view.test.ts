@@ -5,7 +5,7 @@ import {View, XYView, InfluxLanguage} from 'src/types/v2/dashboards'
 
 describe('convertView', () => {
   test('should preserve view queries if they exist', () => {
-    const queries = [{type: InfluxLanguage.Flux, text: '1 + 1', source: ''}]
+    const queries = [{type: InfluxLanguage.Flux, text: '1 + 1', sourceID: ''}]
     const xyView = createView<XYView>(ViewType.XY)
 
     xyView.properties.queries = queries
@@ -16,7 +16,7 @@ describe('convertView', () => {
   })
 
   test('should not preserve view queries if they do not exist', () => {
-    const queries = [{type: InfluxLanguage.Flux, text: '1 + 1', source: ''}]
+    const queries = [{type: InfluxLanguage.Flux, text: '1 + 1', sourceID: ''}]
     const xyView = createView<XYView>(ViewType.XY)
 
     xyView.properties.queries = queries

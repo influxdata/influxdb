@@ -43,7 +43,7 @@ export enum InfluxLanguage {
 export interface DashboardQuery {
   text: string
   type: InfluxLanguage
-  source: string // ID of source to use when running the query; may be empty, which means “use the dynamic source”
+  sourceID: string // Which source to use when running the query; may be empty, which means “use the dynamic source”
 }
 
 export interface URLQuery {

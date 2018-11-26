@@ -106,7 +106,7 @@ class TimeSeries extends Component<Props, State> {
     const {sources, queries, dynamicSourceURL} = this.props
 
     return queries.filter(query => !!query.text).map(query => {
-      const source = sources.find(source => source.id === query.source)
+      const source = sources.find(source => source.id === query.sourceID)
       const url: string = source ? source.links.query : dynamicSourceURL
 
       return {url, text: query.text, type: query.type}

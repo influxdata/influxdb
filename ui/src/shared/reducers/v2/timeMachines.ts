@@ -265,10 +265,7 @@ const timeMachineReducer = (
             return query
           }
 
-          return {
-            ...query,
-            source: sourceID,
-          }
+          return {...query, sourceID}
         }
       )
 

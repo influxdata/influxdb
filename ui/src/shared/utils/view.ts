@@ -26,7 +26,7 @@ function defaultViewQueries(): DashboardQuery[] {
     {
       text: '',
       type: InfluxLanguage.Flux,
-      source: '',
+      sourceID: '',
     },
   ]
 }

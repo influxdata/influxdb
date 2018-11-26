@@ -54,7 +54,7 @@ const mstp = (state: AppState) => {
   const {activeQueryIndex, view} = getActiveTimeMachine(state)
   const selectedSourceID: string = get(
     view,
-    `properties.queries.${activeQueryIndex}.source`,
+    `properties.queries.${activeQueryIndex}.sourceID`,
     ''
   )
 
