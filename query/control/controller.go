@@ -1,3 +1,4 @@
+// Package control provides a query controller.
 package control
 
 import (
@@ -36,4 +37,9 @@ func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query,
 // PrometheusCollectors satisifies the prom.PrometheusCollector interface.
 func (c *Controller) PrometheusCollectors() []prometheus.Collector {
 	return c.c.PrometheusCollectors()
+}
+
+// Shutdown shuts down the underlying Controller.
+func (c *Controller) Shutdown(ctx context.Context) error {
+	return c.c.Shutdown(ctx)
 }

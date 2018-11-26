@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/flux/control"
+	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/chronograf/server"
@@ -25,6 +27,7 @@ import (
 	"github.com/influxdata/platform/nats"
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
+	pcontrol "github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/snowflake"
 	"github.com/influxdata/platform/source"
 	"github.com/influxdata/platform/storage"
@@ -77,6 +80,8 @@ type Main struct {
 	boltClient *bolt.Client
 	engine     *storage.Engine
 
+	queryController *pcontrol.Controller
+
 	httpPort   int
 	httpServer *nethttp.Server
 
@@ -119,6 +124,11 @@ func (m *Main) Shutdown(ctx context.Context) {
 	m.logger.Info("Stopping", zap.String("service", "bolt"))
 	if err := m.boltClient.Close(); err != nil {
 		m.logger.Info("failed closing bolt", zap.Error(err))
+	}
+
+	m.logger.Info("Stopping", zap.String("service", "query"))
+	if err := m.queryController.Shutdown(ctx); err != nil {
+		m.logger.Info("Failed closing query service", zap.Error(err))
 	}
 
 	m.logger.Info("Stopping", zap.String("service", "storage-engine"))
@@ -250,12 +260,9 @@ func (m *Main) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	var storageQueryService query.ProxyQueryService
 	var pointsWriter storage.PointsWriter
 	{
-		config := storage.NewConfig()
-
-		m.engine = storage.NewEngine(m.enginePath, config, storage.WithRetentionEnforcer(bucketSvc))
+		m.engine = storage.NewEngine(m.enginePath, storage.NewConfig(), storage.WithRetentionEnforcer(bucketSvc))
 		m.engine.WithLogger(m.logger)
 		reg.MustRegister(m.engine.PrometheusCollectors()...)
 
@@ -266,17 +273,30 @@ func (m *Main) run(ctx context.Context) (err error) {
 
 		pointsWriter = m.engine
 
-		service, err := readservice.NewProxyQueryService(
-			m.engine, bucketSvc, orgSvc, m.logger.With(zap.String("service", "storage-reads")))
-		if err != nil {
-			m.logger.Error("failed to create query service", zap.Error(err))
+		const (
+			concurrencyQuota = 10
+			memoryBytesQuota = 1e6
+		)
+
+		cc := control.Config{
+			ExecutorDependencies: make(execute.Dependencies),
+			ConcurrencyQuota:     concurrencyQuota,
+			MemoryBytesQuota:     int64(memoryBytesQuota),
+			Logger:               m.logger.With(zap.String("service", "storage-reads")),
+		}
+
+		if err := readservice.AddControllerConfigDependencies(
+			&cc, m.engine, bucketSvc, orgSvc,
+		); err != nil {
+			m.logger.Error("Failed to configure query controller dependencies", zap.Error(err))
 			return err
 		}
 
-		storageQueryService = service
+		m.queryController = pcontrol.New(cc)
+		reg.MustRegister(m.queryController.PrometheusCollectors()...)
 	}
 
-	var queryService query.QueryService = storageQueryService.(query.ProxyQueryServiceBridge).QueryService
+	var storageQueryService query.ProxyQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
 		boltStore, err := taskbolt.New(m.boltClient.DB(), "tasks")
@@ -285,13 +305,14 @@ func (m *Main) run(ctx context.Context) (err error) {
 			return err
 		}
 
-		executor := taskexecutor.NewQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), queryService, boltStore)
+		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, boltStore)
 
 		lw := taskbackend.NewPointLogWriter(pointsWriter)
 		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, time.Second), taskbackend.WithLogger(m.logger))
 		m.scheduler.Start(ctx)
 		reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
+		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
 		lr := taskbackend.NewQueryLogReader(queryService)
 		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler)
 		// TODO(lh): Add in `taskSvc = task.NewValidator(taskSvc)` once we have Authentication coming in the context.

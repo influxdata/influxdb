@@ -1,12 +1,16 @@
 package backend_test
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/influxdata/flux/control"
+	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/platform/inmem"
 	"github.com/influxdata/platform/query"
+	pcontrol "github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/storage/readservice"
 	"github.com/influxdata/platform/task/backend"
@@ -45,11 +49,16 @@ type fullStackAwareLogReaderWriter struct {
 	*backend.PointLogWriter
 	*backend.QueryLogReader
 
+	queryController *pcontrol.Controller
+
 	rootDir       string
 	storageEngine *storage.Engine
 }
 
 func (lrw *fullStackAwareLogReaderWriter) Close(t *testing.T) {
+	if err := lrw.queryController.Shutdown(context.Background()); err != nil {
+		t.Error(err)
+	}
 	if err := lrw.storageEngine.Close(); err != nil {
 		t.Error(err)
 	}
@@ -82,21 +91,32 @@ func newFullStackAwareLogReaderWriter(t *testing.T) *fullStackAwareLogReaderWrit
 
 	svc := inmem.NewService()
 
-	storageQueryService, err := readservice.NewProxyQueryService(
-		engine,
-		svc,
-		svc,
-		logger.With(zap.String("service", "storage-reads")),
+	const (
+		concurrencyQuota = 10
+		memoryBytesQuota = 1e6
 	)
-	if err != nil {
+
+	cc := control.Config{
+		ExecutorDependencies: make(execute.Dependencies),
+		ConcurrencyQuota:     concurrencyQuota,
+		MemoryBytesQuota:     int64(memoryBytesQuota),
+		Logger:               logger.With(zap.String("service", "storage-reads")),
+		Verbose:              false,
+	}
+
+	if err := readservice.AddControllerConfigDependencies(
+		&cc, engine, svc, svc,
+	); err != nil {
 		t.Fatal(err)
 	}
 
-	var queryService query.QueryService = storageQueryService.(query.ProxyQueryServiceBridge).QueryService
+	queryController := pcontrol.New(cc)
 
 	return &fullStackAwareLogReaderWriter{
 		PointLogWriter: backend.NewPointLogWriter(engine),
-		QueryLogReader: backend.NewQueryLogReader(queryService),
+		QueryLogReader: backend.NewQueryLogReader(query.QueryServiceBridge{AsyncQueryService: queryController}),
+
+		queryController: queryController,
 
 		rootDir:       rootDir,
 		storageEngine: engine,
