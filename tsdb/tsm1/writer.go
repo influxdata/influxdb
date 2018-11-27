@@ -789,7 +789,7 @@ func (t *tsmWriter) writeStatsFile() error {
 		return nil
 	}
 
-	f, err := os.OpenFile(StatsFilename(fw.Name()), os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
+	f, err := os.Create(StatsFilename(fw.Name()))
 	if err != nil {
 		return err
 	}
