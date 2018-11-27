@@ -10,7 +10,7 @@ describe('timeMachinesReducer', () => {
     test('replaces the first queries text if it exists', () => {
       const state = initialState()
       const timeMachine = state.timeMachines[DE_TIME_MACHINE_ID]
-      const viewProps: any = timeMachine.view.properties
+      const viewProps = timeMachine.view.properties
       const initialQuery: DashboardQuery = {
         text: 'foo',
         type: InfluxLanguage.Flux,
@@ -21,7 +21,7 @@ describe('timeMachinesReducer', () => {
       timeMachine.draftScript = 'baz'
 
       const nextState = timeMachinesReducer(state, submitScript())
-      const nextViewProps: any =
+      const nextViewProps =
         nextState.timeMachines[DE_TIME_MACHINE_ID].view.properties
 
       expect(nextViewProps.queries[0]).toEqual({...initialQuery, text: 'baz'})
@@ -30,13 +30,13 @@ describe('timeMachinesReducer', () => {
     test('inserts a query if no queries exist', () => {
       const state = initialState()
       const timeMachine = state.timeMachines[DE_TIME_MACHINE_ID]
-      const viewProps: any = timeMachine.view.properties
+      const viewProps = timeMachine.view.properties
 
       viewProps.queries = []
       timeMachine.draftScript = 'baz'
 
       const nextState = timeMachinesReducer(state, submitScript())
-      const nextViewProps: any =
+      const nextViewProps =
         nextState.timeMachines[DE_TIME_MACHINE_ID].view.properties
 
       expect(nextViewProps.queries[0]).toEqual({
@@ -51,12 +51,12 @@ describe('timeMachinesReducer', () => {
     test('replaces the sourceID for the active query', () => {
       const state = initialState()
       const timeMachine = state.timeMachines[DE_TIME_MACHINE_ID]
-      const viewProps: any = timeMachine.view.properties
+      const viewProps = timeMachine.view.properties
 
       expect(viewProps.queries[0].sourceID).toEqual('')
 
       const nextState = timeMachinesReducer(state, setQuerySource('howdy'))
-      const nextViewProps: any =
+      const nextViewProps =
         nextState.timeMachines[DE_TIME_MACHINE_ID].view.properties
 
       expect(nextViewProps.queries[0].sourceID).toEqual('howdy')
@@ -65,12 +65,12 @@ describe('timeMachinesReducer', () => {
     test('does nothing if the no active query exists', () => {
       const state = initialState()
       const timeMachine = state.timeMachines[DE_TIME_MACHINE_ID]
-      const viewProps: any = timeMachine.view.properties
+      const viewProps = timeMachine.view.properties
 
       viewProps.queries = []
 
       const nextState = timeMachinesReducer(state, setQuerySource('howdy'))
-      const nextViewProps: any =
+      const nextViewProps =
         nextState.timeMachines[DE_TIME_MACHINE_ID].view.properties
 
       expect(nextViewProps.queries).toEqual([])

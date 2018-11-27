@@ -49,7 +49,7 @@ import {
   TimeRange,
   DashboardSwitcherLinks,
 } from 'src/types/v2'
-import {NewView, XYView} from 'src/types/v2/dashboards'
+import {NewView, XYView, QueryViewProperties} from 'src/types/v2/dashboards'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
@@ -304,10 +304,12 @@ class DashboardPage extends Component<Props, State> {
       throw new Error(`Can't edit non-existant view with ID "${viewID}"`)
     }
 
-    this.showVEO(entry.view)
+    this.showVEO(entry.view as View<QueryViewProperties>)
   }
 
-  private showVEO = (view: View | NewView): void => {
+  private showVEO = (
+    view: View<QueryViewProperties> | NewView<QueryViewProperties>
+  ): void => {
     const {onSetActiveTimeMachine} = this.props
     const draftScript: string = get(view, 'properties.queries.0.text', '')
 
