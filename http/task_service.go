@@ -141,7 +141,7 @@ func newTasksResponse(ts []*platform.Task) tasksResponse {
 }
 
 type runResponse struct {
-	Links map[string]string `json:"links"`
+	Links map[string]string `json:"links,omitempty"`
 	Run   platform.Run      `json:"run"`
 }
 
@@ -684,12 +684,15 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 		req.RequestedAt = &now
 	}
 
-	if err := h.TaskService.RetryRun(ctx, req.TaskID, req.RunID, *req.RequestedAt); err != nil {
+	run, err := h.TaskService.RetryRun(ctx, req.TaskID, req.RunID, *req.RequestedAt)
+	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
-
-	w.WriteHeader(http.StatusNoContent)
+	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
 }
 
 type retryRunRequest struct {
@@ -1061,20 +1064,19 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 
 		return nil, err
 	}
-
-	var r runResponse
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+	var rs = &runResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(rs); err != nil {
 		return nil, err
 	}
-	return &r.Run, nil
+	return &rs.Run, nil
 }
 
 // RetryRun creates and returns a new run (which is a retry of another run).
-func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID, requestedAt int64) error {
+func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID, requestedAt int64) (*platform.Run, error) {
 	p := path.Join(taskIDRunIDPath(taskID, runID), "retry")
 	u, err := newURL(t.Addr, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	val := url.Values{}
@@ -1083,7 +1085,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID, re
 
 	req, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	SetToken(t.Token, req)
@@ -1092,7 +1094,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID, re
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
@@ -1100,18 +1102,22 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID, re
 		if err.Error() == backend.ErrRunNotFound.Error() {
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
-			return backend.ErrRunNotFound
+			return nil, backend.ErrRunNotFound
 		}
 
 		// RetryAlreadyQueuedError is also part of the contract.
 		if e := backend.ParseRetryAlreadyQueuedError(err.Error()); e != nil {
-			return *e
+			return nil, *e
 		}
 
-		return err
+		return nil, err
 	}
 
-	return nil
+	rs := &runResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(rs); err != nil {
+		return nil, err
+	}
+	return &rs.Run, nil
 }
 
 func cancelPath(taskID, runID platform.ID) string {

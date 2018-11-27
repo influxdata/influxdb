@@ -2706,8 +2706,12 @@ paths:
           required: true
           description: run ID
       responses:
-        '204':
-          description: retry has been queued
+        '200':
+          description: run that has been queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
         default:
           description: unexpected error
           content:

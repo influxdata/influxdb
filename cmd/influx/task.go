@@ -617,10 +617,11 @@ func runRetryF(cmd *cobra.Command, args []string) {
 	}
 
 	ctx := context.TODO()
-	if err := s.RetryRun(ctx, taskID, runID, time.Now().Unix()); err != nil {
+	newRun, err := s.RetryRun(ctx, taskID, runID, time.Now().Unix())
+	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Retry for task %s's run %s queued.\n", taskID, runID)
+	fmt.Printf("Retry for task %s's run %s queued as run %s.\n", taskID, runID, newRun.ID)
 }

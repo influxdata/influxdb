@@ -313,7 +313,7 @@ func (s *inmem) FinishRun(ctx context.Context, taskID, runID platform.ID) error 
 	return nil
 }
 
-func (s *inmem) ManuallyRunTimeRange(_ context.Context, taskID platform.ID, start, end, requestedAt int64) error {
+func (s *inmem) ManuallyRunTimeRange(_ context.Context, taskID platform.ID, start, end, requestedAt int64) (*StoreTaskMetaManualRun, error) {
 	tid := taskID.String()
 
 	s.mu.Lock()
@@ -321,15 +321,16 @@ func (s *inmem) ManuallyRunTimeRange(_ context.Context, taskID platform.ID, star
 
 	stm, ok := s.runners[tid]
 	if !ok {
-		return errors.New("task not found")
+		return nil, errors.New("task not found")
 	}
 
-	if err := stm.ManuallyRunTimeRange(start, end, requestedAt); err != nil {
-		return err
+	if err := stm.ManuallyRunTimeRange(start, end, requestedAt, func() (platform.ID, error) { return s.idgen.ID(), nil }); err != nil {
+		return nil, err
 	}
 
 	s.runners[tid] = stm
-	return nil
+	mr := stm.ManualRuns[len(stm.ManualRuns)-1]
+	return mr, nil
 }
 
 func (s *inmem) delete(ctx context.Context, id platform.ID, f func(StoreTask) platform.ID) error {
