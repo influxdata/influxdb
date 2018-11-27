@@ -101,7 +101,6 @@ func newFullStackAwareLogReaderWriter(t *testing.T) *fullStackAwareLogReaderWrit
 		ConcurrencyQuota:     concurrencyQuota,
 		MemoryBytesQuota:     int64(memoryBytesQuota),
 		Logger:               logger.With(zap.String("service", "storage-reads")),
-		Verbose:              false,
 	}
 
 	if err := readservice.AddControllerConfigDependencies(
