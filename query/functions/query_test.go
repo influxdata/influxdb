@@ -28,7 +28,7 @@ import (
 	"github.com/andreyvit/diff"
 )
 
-const generatedInfluxQLDataDir = "random"
+const generatedInfluxQLDataDir = "testdata"
 
 var dbrpMappingSvc = mock.NewDBRPMappingService()
 
@@ -53,9 +53,21 @@ func init() {
 }
 
 var skipTests = map[string]string{
-	"hardcoded_literal_1":     "transpiler count query is off by 1 (https://github.com/influxdata/platform/issues/1278)",
-	"hardcoded_literal_3":     "transpiler count query is off by 1 (https://github.com/influxdata/platform/issues/1278)",
-	"fuzz_join_within_cursor": "transpiler does not implement joining fields within a cursor (https://github.com/influxdata/platform/issues/1340)",
+	"hardcoded_literal_1":      "transpiler count query is off by 1 (https://github.com/influxdata/platform/issues/1278)",
+	"hardcoded_literal_3":      "transpiler count query is off by 1 (https://github.com/influxdata/platform/issues/1278)",
+	"fuzz_join_within_cursor":  "transpiler does not implement joining fields within a cursor (https://github.com/influxdata/platform/issues/1340)",
+	"derivative_count":         "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_first":         "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_last":          "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_max":           "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_mean":          "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_median":        "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_min":           "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_mode":          "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_percentile_10": "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_percentile_50": "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_percentile_90": "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"derivative_sum":           "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
 }
 
 var querier = querytest.NewQuerier()
@@ -250,10 +262,10 @@ func testGeneratedInfluxQL(t testing.TB, prefix, queryExt string) {
 	outFile := prefix + ".out.json"
 
 	out, err := jsonToResultIterator(outFile)
-	defer out.Release()
 	if err != nil {
 		t.Fatalf("failed to read expected JSON results: %v", err)
 	}
+	defer out.Release()
 
 	var exp []flux.Result
 	for out.More() {
@@ -261,10 +273,10 @@ func testGeneratedInfluxQL(t testing.TB, prefix, queryExt string) {
 	}
 
 	res, err := resultsFromQuerier(querier, influxQLCompiler(string(q), inFile))
-	defer res.Release()
 	if err != nil {
 		t.Fatalf("failed to run query: %v", err)
 	}
+	defer res.Release()
 
 	var got []flux.Result
 	for res.More() {
