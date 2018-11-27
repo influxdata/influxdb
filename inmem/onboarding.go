@@ -97,7 +97,7 @@ func (s *Service) Generate(ctx context.Context, req *platform.OnboardingRequest)
 		Permissions: []platform.Permission{
 			platform.CreateUserPermission,
 			platform.DeleteUserPermission,
-			platform.Permission{
+			{
 				Resource: platform.OrganizationResource,
 				Action:   platform.WriteAction,
 			},

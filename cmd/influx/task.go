@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/platform"
@@ -625,7 +624,7 @@ func runRetryF(cmd *cobra.Command, args []string) {
 	}
 
 	ctx := context.TODO()
-	newRun, err := s.RetryRun(ctx, taskID, runID, time.Now().Unix())
+	newRun, err := s.RetryRun(ctx, taskID, runID)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

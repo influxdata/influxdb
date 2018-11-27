@@ -704,12 +704,8 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 		EncodeError(ctx, err, w)
 		return
 	}
-	if req.RequestedAt == nil {
-		now := time.Now().Unix()
-		req.RequestedAt = &now
-	}
 
-	run, err := h.TaskService.RetryRun(ctx, req.TaskID, req.RunID, *req.RequestedAt)
+	run, err := h.TaskService.RetryRun(ctx, req.TaskID, req.RunID)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -722,7 +718,6 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 
 type retryRunRequest struct {
 	RunID, TaskID platform.ID
-	RequestedAt   *int64
 }
 
 func decodeRetryRunRequest(ctx context.Context, r *http.Request) (*retryRunRequest, error) {
@@ -744,19 +739,9 @@ func decodeRetryRunRequest(ctx context.Context, r *http.Request) (*retryRunReque
 		return nil, err
 	}
 
-	var t *int64
-	if ra := r.URL.Query().Get("requestedAt"); ra != "" {
-		tu, err := strconv.ParseInt(ra, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		t = &tu
-	}
-
 	return &retryRunRequest{
-		RunID:       ri,
-		TaskID:      ti,
-		RequestedAt: t,
+		RunID:  ri,
+		TaskID: ti,
 	}, nil
 }
 
@@ -1100,16 +1085,12 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 }
 
 // RetryRun creates and returns a new run (which is a retry of another run).
-func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID, requestedAt int64) (*platform.Run, error) {
+func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
 	p := path.Join(taskIDRunIDPath(taskID, runID), "retry")
 	u, err := newURL(t.Addr, p)
 	if err != nil {
 		return nil, err
 	}
-
-	val := url.Values{}
-	val.Set("requestedAt", strconv.FormatInt(requestedAt, 10))
-	u.RawQuery = val.Encode()
 
 	req, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {

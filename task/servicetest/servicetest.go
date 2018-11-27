@@ -369,7 +369,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Non-existent ID should return the right error.
-		_, err = sys.ts.RetryRun(sys.Ctx, task.ID, platform.ID(math.MaxUint64), 0)
+		_, err = sys.ts.RetryRun(sys.Ctx, task.ID, platform.ID(math.MaxUint64))
 		if err != backend.ErrRunNotFound {
 			t.Errorf("expected retrying run that doesn't exist to return %v, got %v", backend.ErrRunNotFound, err)
 		}
@@ -404,7 +404,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Now retry the run.
-		m, err := sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix)
+		m, err := sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -430,7 +430,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 		found := false
 		for _, mr := range meta.ManualRuns {
-			if mr.Start == mr.End && mr.Start == rc.Created.Now && mr.RequestedAt == requestedAtUnix {
+			if mr.Start == mr.End && mr.Start == rc.Created.Now {
 				found = true
 				break
 			}
@@ -442,7 +442,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		exp := backend.RetryAlreadyQueuedError{Start: rc.Created.Now, End: rc.Created.Now}
 
 		// Retrying a run which has been queued but not started, should be rejected.
-		if _, err = sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix); err != exp {
+		if _, err = sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID); err != exp {
 			t.Fatalf("subsequent retry should have been rejected with %v; got %v", exp, err)
 		}
 	})
