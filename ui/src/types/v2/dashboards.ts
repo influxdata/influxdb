@@ -88,7 +88,7 @@ export interface ViewLinks {
 
 export type DygraphViewProperties = XYView | LinePlusSingleStatView
 
-export type RefreshingViewProperties =
+export type QueryViewProperties =
   | XYView
   | LinePlusSingleStatView
   | SingleStatView
@@ -96,7 +96,7 @@ export type RefreshingViewProperties =
   | GaugeView
 
 export type ViewProperties =
-  | RefreshingViewProperties
+  | QueryViewProperties
   | MarkdownView
   | EmptyView
   | LogViewerView

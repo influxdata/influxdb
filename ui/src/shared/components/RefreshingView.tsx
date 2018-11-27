@@ -4,8 +4,8 @@ import _ from 'lodash'
 
 // Components
 import TimeSeries from 'src/shared/components/TimeSeries'
-import EmptyRefreshingView from 'src/shared/components/EmptyRefreshingView'
-import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
+import EmptyQueryView from 'src/shared/components/EmptyQueryView'
+import QueryViewSwitcher from 'src/shared/components/QueryViewSwitcher'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
@@ -13,7 +13,7 @@ import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 // Types
 import {TimeRange} from 'src/types'
 import {DashboardQuery} from 'src/types/v2/dashboards'
-import {RefreshingViewProperties, ViewType} from 'src/types/v2/dashboards'
+import {QueryViewProperties, ViewType} from 'src/types/v2/dashboards'
 
 interface Props {
   timeRange: TimeRange
@@ -21,7 +21,7 @@ interface Props {
   inView: boolean
   manualRefresh: number
   onZoom: (range: TimeRange) => void
-  properties: RefreshingViewProperties
+  properties: QueryViewProperties
 }
 
 class RefreshingView extends PureComponent<Props> {
@@ -49,14 +49,14 @@ class RefreshingView extends PureComponent<Props> {
       >
         {({tables, loading, error, isInitialFetch}) => {
           return (
-            <EmptyRefreshingView
+            <EmptyQueryView
               error={error}
               tables={tables}
               loading={loading}
               isInitialFetch={isInitialFetch}
               queries={this.queries}
             >
-              <RefreshingViewSwitcher
+              <QueryViewSwitcher
                 tables={tables}
                 viewID={viewID}
                 onZoom={onZoom}
@@ -64,7 +64,7 @@ class RefreshingView extends PureComponent<Props> {
                 timeRange={timeRange}
                 properties={properties}
               />
-            </EmptyRefreshingView>
+            </EmptyQueryView>
           )
         }}
       </TimeSeries>

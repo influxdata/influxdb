@@ -10,7 +10,7 @@ import DygraphContainer from 'src/shared/components/DygraphContainer'
 
 // Types
 import {
-  RefreshingViewProperties,
+  QueryViewProperties,
   ViewType,
   SingleStatView,
   XYView,
@@ -22,12 +22,12 @@ interface Props {
   viewID: string
   tables: FluxTable[]
   loading: RemoteDataState
-  properties: RefreshingViewProperties
+  properties: QueryViewProperties
   timeRange?: TimeRange
   onZoom?: (range: TimeRange) => void
 }
 
-export default class RefreshingViewSwitcher extends PureComponent<Props> {
+export default class QueryViewSwitcher extends PureComponent<Props> {
   public render() {
     const {properties, loading, viewID, tables, onZoom, timeRange} = this.props
 

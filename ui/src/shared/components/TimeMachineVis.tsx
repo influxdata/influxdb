@@ -5,8 +5,8 @@ import {get} from 'lodash'
 import {AutoSizer} from 'react-virtualized'
 
 // Components
-import EmptyRefreshingView from 'src/shared/components/EmptyRefreshingView'
-import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
+import EmptyQueryView from 'src/shared/components/EmptyQueryView'
+import QueryViewSwitcher from 'src/shared/components/QueryViewSwitcher'
 import RawFluxDataTable from 'src/shared/components/RawFluxDataTable'
 
 // Actions
@@ -17,7 +17,7 @@ import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 
 // Types
 import {View, NewView, TimeRange, DashboardQuery, AppState} from 'src/types/v2'
-import {RefreshingViewProperties} from 'src/types/v2/dashboards'
+import {QueryViewProperties} from 'src/types/v2/dashboards'
 import {QueriesState} from 'src/shared/components/TimeSeries'
 
 interface StateProps {
@@ -45,7 +45,7 @@ const TimeMachineVis: SFC<Props> = props => {
     <div className="time-machine-top">
       <div className="time-machine-vis">
         <div className="graph-container">
-          <EmptyRefreshingView
+          <EmptyQueryView
             error={error}
             tables={tables}
             loading={loading}
@@ -63,15 +63,15 @@ const TimeMachineVis: SFC<Props> = props => {
                 )}
               </AutoSizer>
             ) : (
-              <RefreshingViewSwitcher
+              <QueryViewSwitcher
                 tables={tables}
                 viewID="time-machine-view"
                 loading={loading}
                 timeRange={timeRange}
-                properties={view.properties as RefreshingViewProperties}
+                properties={view.properties as QueryViewProperties}
               />
             )}
-          </EmptyRefreshingView>
+          </EmptyQueryView>
         </div>
       </div>
     </div>

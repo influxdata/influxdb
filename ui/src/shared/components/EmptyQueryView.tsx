@@ -19,7 +19,7 @@ interface Props {
   queries: DashboardQuery[]
 }
 
-export default class EmptyRefreshingView extends PureComponent<Props> {
+export default class EmptyQueryView extends PureComponent<Props> {
   public render() {
     const {error, isInitialFetch, loading, tables, queries} = this.props
 
