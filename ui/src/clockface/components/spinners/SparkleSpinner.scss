@@ -1,0 +1,79 @@
+/*
+   Sparkle Spinner
+   -----------------------------------------------------------------------------
+*/
+
+.sparkle-spinner {
+  height: 100%;
+  width: 100%;
+}
+
+.sparkle-spinner--stroke {
+  fill: none;
+  stroke-width: 1.3802;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-miterlimit: 10;
+}
+
+.sparkle-spinner--stroke-light {
+  transition: stroke .5s ease;
+  stroke: $g8-storm;
+}
+
+.sparkle-spinner--stroke-medium {
+  transition: stroke .5s ease;
+  stroke: $g7-graphite;
+}
+
+.sparkle-spinner--stroke-dark {
+  transition: stroke .5s ease;
+  stroke: $g6-smoke;
+}
+
+.sparkle-spinner--fill-light {
+  transition: fill .5s ease;
+  fill: $g8-storm;
+}
+
+.sparkle-spinner--fill-medium {
+  transition: fill .5s ease;
+  fill: $g7-graphite;
+}
+
+.sparkle-spinner--fill-dark {
+  transition: fill .5s ease;
+  fill: $g6-smoke;
+}
+
+.sparkle-spinner--fill-error {
+  transition: all .5s ease;
+  fill: $c-curacao;
+}
+
+.sparkle-spinner--fill-done {
+  transition: all .5s ease;
+  fill: $c-rainforest;
+}
+
+@keyframes sparkleAnimation {
+  0%   { opacity: 1; }
+  50%  { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.sparkle-spinner--animate-sparkle {
+  animation: sparkleAnimation 2.1s infinite;
+}
+
+.sparkle-spinner--delay-1 {
+  animation-delay: .3s;
+}
+
+.sparkle-spinner--delay-2 {
+  animation-delay: .6s;
+}
+
+.sparkle-spinner--delay-3 {
+  animation-delay: .9s;
+}
