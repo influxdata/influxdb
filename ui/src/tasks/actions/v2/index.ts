@@ -24,7 +24,10 @@ import {
 } from 'src/shared/copy/v2/notifications'
 import {getDeep} from 'src/utils/wrappers'
 
-import {taskOptionsToFluxScript} from 'src/utils/taskOptionsToFluxScript'
+import {
+  taskOptionsToFluxScript,
+  TaskOptionKeys,
+} from 'src/utils/taskOptionsToFluxScript'
 
 export type Action =
   | SetNewScript
@@ -36,26 +39,22 @@ export type Action =
   | SetDropdownOrgID
   | SetTaskInterval
   | SetTaskCron
-  | ClearTaskOptions
+  | ClearTask
   | SetTaskOption
-  | SetScheduleUnit
+  | SetAllTaskOptions
 
 type GetStateFunc = () => AppState
 interface Task extends TaskAPI {
   organization: Organization
 }
 
-export enum ActionTypes {
-  SetNewScript = 'SET_NEW_SCRIPT',
-  SetTasks = 'SET_TASKS',
-  SetSearchTerm = 'SET_TASKS_SEARCH_TERM',
-  SetCurrentScript = 'SET_CURRENT_SCRIPT',
-  SetCurrentTask = 'SET_CURRENT_TASK',
-  SetShowInactive = 'SET_TASKS_SHOW_INACTIVE',
-  SetDropdownOrgID = 'SET_DROPDOWN_ORG_ID',
+export interface SetAllTaskOptions {
+  type: 'SET_ALL_TASK_OPTIONS'
+  payload: Task
 }
-export interface ClearTaskOptions {
-  type: 'CLEAR_TASK_OPTIONS'
+
+export interface ClearTask {
+  type: 'CLEAR_TASK'
 }
 
 export interface SetTaskInterval {
@@ -120,29 +119,26 @@ export interface SetDropdownOrgID {
 export interface SetTaskOption {
   type: 'SET_TASK_OPTION'
   payload: {
-    key: string
+    key: TaskOptionKeys
     value: string
   }
 }
 
-export interface SetScheduleUnit {
-  type: 'SET_SCHEDULE_UNIT'
-  payload: {
-    schedule: string
-    unit: string
-  }
-}
-
 export const setTaskOption = (taskOption: {
-  key: string
+  key: TaskOptionKeys
   value: string
 }): SetTaskOption => ({
   type: 'SET_TASK_OPTION',
   payload: {...taskOption},
 })
 
-export const clearTaskOptions = (): ClearTaskOptions => ({
-  type: 'CLEAR_TASK_OPTIONS',
+export const setAllTaskOptions = (task: Task): SetAllTaskOptions => ({
+  type: 'SET_ALL_TASK_OPTIONS',
+  payload: {...task},
+})
+
+export const clearTask = (): ClearTask => ({
+  type: 'CLEAR_TASK',
 })
 
 export const setNewScript = (script: string): SetNewScript => ({
@@ -178,14 +174,6 @@ export const setShowInactive = (): SetShowInactive => ({
 export const setDropdownOrgID = (dropdownOrgID: string): SetDropdownOrgID => ({
   type: 'SET_DROPDOWN_ORG_ID',
   payload: {dropdownOrgID},
-})
-
-export const setScheduleUnit = (
-  unit: string,
-  schedule: string
-): SetScheduleUnit => ({
-  type: 'SET_SCHEDULE_UNIT',
-  payload: {unit, schedule},
 })
 
 export const updateTaskStatus = (task: Task) => async dispatch => {
@@ -310,7 +298,7 @@ export const saveNewScript = () => async (
     await submitNewTask(getDeep<string>(org, 'id', ''), scriptWithOptions)
 
     dispatch(setNewScript(''))
-    dispatch(clearTaskOptions())
+    dispatch(clearTask())
     dispatch(goToTasks())
     dispatch(populateTasks())
   } catch (e) {

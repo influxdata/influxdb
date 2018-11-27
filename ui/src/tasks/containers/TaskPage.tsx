@@ -14,9 +14,13 @@ import {
   saveNewScript,
   goToTasks,
   setTaskOption,
-  setScheduleUnit,
+  clearTask,
 } from 'src/tasks/actions/v2'
-import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
+import {
+  TaskOptions,
+  TaskOptionKeys,
+  TaskSchedule,
+} from 'src/utils/taskOptionsToFluxScript'
 import {Organization} from 'src/types/v2'
 
 interface PassedInProps {
@@ -35,7 +39,7 @@ interface ConnectDispatchProps {
   saveNewScript: typeof saveNewScript
   goToTasks: typeof goToTasks
   setTaskOption: typeof setTaskOption
-  setScheduleUnit: typeof setScheduleUnit
+  clearTask: typeof clearTask
 }
 
 class TaskPage extends PureComponent<
@@ -43,6 +47,17 @@ class TaskPage extends PureComponent<
 > {
   constructor(props) {
     super(props)
+  }
+
+  public componentDidMount() {
+    this.props.setTaskOption({
+      key: 'taskScheduleType',
+      value: TaskSchedule.interval,
+    })
+  }
+
+  public componentWillUnmount() {
+    this.props.clearTask()
   }
 
   public render(): JSX.Element {
@@ -63,7 +78,6 @@ class TaskPage extends PureComponent<
             onChangeInput={this.handleChangeInput}
             onChangeScheduleType={this.handleChangeScheduleType}
             onChangeScript={this.handleChangeScript}
-            onChangeScheduleUnit={this.handleChangeScheduleUnit}
             onChangeTaskOrgID={this.handleChangeTaskOrgID}
           />
         </Page.Contents>
@@ -88,13 +102,10 @@ class TaskPage extends PureComponent<
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
-    const {name: key, value} = e.target
+    const {name, value} = e.target
+    const key = name as TaskOptionKeys
 
     this.props.setTaskOption({key, value})
-  }
-
-  private handleChangeScheduleUnit = (unit: string, scheduleType: string) => {
-    this.props.setScheduleUnit(unit, scheduleType)
   }
 
   private handleChangeTaskOrgID = (orgID: string) => {
@@ -124,7 +135,7 @@ const mdtp: ConnectDispatchProps = {
   saveNewScript,
   goToTasks,
   setTaskOption,
-  setScheduleUnit,
+  clearTask,
 }
 
 export default connect<ConnectStateProps, ConnectDispatchProps, {}>(

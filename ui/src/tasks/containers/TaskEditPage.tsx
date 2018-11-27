@@ -1,30 +1,40 @@
+// Libraries
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
 
+// Components
 import TaskForm from 'src/tasks/components/TaskForm'
 import TaskHeader from 'src/tasks/components/TaskHeader'
 import {Page} from 'src/pageLayout'
 import {Task as TaskAPI, User, Organization} from 'src/api'
 
-interface Task extends TaskAPI {
-  organization: Organization
-  owner?: User
-  delay?: string
-}
-
-import {Links} from 'src/types/v2/links'
-import {State as TasksState} from 'src/tasks/reducers/v2'
+// Actions
 import {
   updateScript,
   selectTaskByID,
   setCurrentScript,
   cancelUpdateTask,
   setTaskOption,
-  setScheduleUnit,
+  clearTask,
+  setAllTaskOptions,
 } from 'src/tasks/actions/v2'
-import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
+
+// Types
+import {Links} from 'src/types/v2/links'
+import {State as TasksState} from 'src/tasks/reducers/v2'
+import {
+  TaskOptions,
+  TaskOptionKeys,
+  TaskSchedule,
+} from 'src/utils/taskOptionsToFluxScript'
+
+interface Task extends TaskAPI {
+  organization: Organization
+  owner?: User
+  delay?: string
+}
 
 interface PassedInProps {
   router: InjectedRouter
@@ -45,7 +55,8 @@ interface ConnectDispatchProps {
   updateScript: typeof updateScript
   cancelUpdateTask: typeof cancelUpdateTask
   selectTaskByID: typeof selectTaskByID
-  setScheduleUnit: typeof setScheduleUnit
+  clearTask: typeof clearTask
+  setAllTaskOptions: typeof setAllTaskOptions
 }
 
 class TaskPage extends PureComponent<
@@ -55,8 +66,19 @@ class TaskPage extends PureComponent<
     super(props)
   }
 
-  public componentDidMount() {
-    this.props.selectTaskByID(this.props.params.id)
+  public async componentDidMount() {
+    const {
+      params: {id},
+    } = this.props
+    await this.props.selectTaskByID(id)
+
+    const {currentTask} = this.props
+
+    this.props.setAllTaskOptions(currentTask)
+  }
+
+  public componentWillUnmount() {
+    this.props.clearTask()
   }
 
   public render(): JSX.Element {
@@ -77,7 +99,6 @@ class TaskPage extends PureComponent<
             onChangeScript={this.handleChangeScript}
             onChangeScheduleType={this.handleChangeScheduleType}
             onChangeInput={this.handleChangeInput}
-            onChangeScheduleUnit={this.handleChangeScheduleUnit}
             onChangeTaskOrgID={this.handleChangeTaskOrgID}
           />
         </Page.Contents>
@@ -102,13 +123,10 @@ class TaskPage extends PureComponent<
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
-    const {name: key, value} = e.target
+    const {name, value} = e.target
+    const key = name as TaskOptionKeys
 
     this.props.setTaskOption({key, value})
-  }
-
-  private handleChangeScheduleUnit = (unit: string, scheduleType: string) => {
-    this.props.setScheduleUnit(unit, scheduleType)
   }
 
   private handleChangeTaskOrgID = (orgID: string) => {
@@ -140,7 +158,8 @@ const mdtp: ConnectDispatchProps = {
   updateScript,
   cancelUpdateTask,
   selectTaskByID,
-  setScheduleUnit,
+  setAllTaskOptions,
+  clearTask,
 }
 
 export default connect<ConnectStateProps, ConnectDispatchProps, {}>(

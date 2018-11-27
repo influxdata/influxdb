@@ -15,18 +15,15 @@ export interface State {
   searchTerm: string
   showInactive: boolean
   dropdownOrgID: string
-  interval: string
   taskOptions: TaskOptions
 }
 
 const defaultTaskOptions: TaskOptions = {
   name: '',
-  intervalTime: '1',
-  intervalUnit: 'd',
-  delayTime: '20',
-  delayUnit: 'm',
+  interval: '',
+  delay: '',
   cron: '',
-  taskScheduleType: TaskSchedule.interval,
+  taskScheduleType: TaskSchedule.unselected,
   orgID: null,
 }
 
@@ -37,16 +34,36 @@ const defaultState: State = {
   searchTerm: '',
   showInactive: true,
   dropdownOrgID: null,
-  interval: '1d',
   taskOptions: defaultTaskOptions,
 }
 
 export default (state: State = defaultState, action: Action): State => {
   switch (action.type) {
-    case 'CLEAR_TASK_OPTIONS':
+    case 'CLEAR_TASK':
       return {
         ...state,
         taskOptions: defaultTaskOptions,
+        currentScript: '',
+        newScript: '',
+      }
+    case 'SET_ALL_TASK_OPTIONS':
+      const {name, every, cron, organizationId, delay} = action.payload
+      let taskScheduleType = TaskSchedule.interval
+      if (cron) {
+        taskScheduleType = TaskSchedule.cron
+      }
+
+      return {
+        ...state,
+        taskOptions: {
+          ...state.taskOptions,
+          name,
+          cron,
+          interval: every,
+          orgID: organizationId,
+          taskScheduleType,
+          delay,
+        },
       }
     case 'SET_TASK_OPTION':
       const {key, value} = action.payload
@@ -54,13 +71,6 @@ export default (state: State = defaultState, action: Action): State => {
       return {
         ...state,
         taskOptions: {...state.taskOptions, [key]: value},
-      }
-    case 'SET_SCHEDULE_UNIT':
-      const {unit, schedule} = action.payload
-
-      return {
-        ...state,
-        taskOptions: {...state.taskOptions, [schedule]: unit},
       }
     case 'SET_NEW_SCRIPT':
       return {...state, newScript: action.payload.script}
