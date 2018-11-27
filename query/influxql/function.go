@@ -47,7 +47,7 @@ func parseFunction(expr *influxql.Call) (*function, error) {
 		default:
 			return nil, fmt.Errorf("expected field argument in %s()", expr.Name)
 		}
-	case "min", "max", "sum", "first", "last", "mean":
+	case "min", "max", "sum", "first", "last", "mean", "median":
 		if exp, got := 1, len(expr.Args); exp != got {
 			return nil, fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
 		}
@@ -186,6 +186,21 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
 		cur.id = t.op("mean", &transformations.MeanOpSpec{
+			AggregateConfig: execute.AggregateConfig{
+				Columns: []string{value},
+			},
+		}, in.ID())
+		cur.value = value
+		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
+	case "median":
+		value, ok := in.Value(call.Args[0])
+		if !ok {
+			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
+		}
+		cur.id = t.op("median", &transformations.PercentileOpSpec{
+			Percentile:  0.5,
+			Compression: 0,
+			Method:      "exact_mean",
 			AggregateConfig: execute.AggregateConfig{
 				Columns: []string{value},
 			},
