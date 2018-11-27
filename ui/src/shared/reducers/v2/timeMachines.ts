@@ -41,16 +41,16 @@ const initialStateHelper = (): TimeMachineState => ({
   activeQueryIndex: 0,
 })
 
-const INITIAL_STATE: TimeMachinesState = {
+export const initialState = (): TimeMachinesState => ({
   activeTimeMachineID: DE_TIME_MACHINE_ID,
   timeMachines: {
     [VEO_TIME_MACHINE_ID]: initialStateHelper(),
     [DE_TIME_MACHINE_ID]: initialStateHelper(),
   },
-}
+})
 
 const timeMachinesReducer = (
-  state = INITIAL_STATE,
+  state: TimeMachinesState = initialState(),
   action: Action
 ): TimeMachinesState => {
   if (action.type === 'SET_ACTIVE_TIME_MACHINE') {
