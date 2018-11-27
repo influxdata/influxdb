@@ -180,7 +180,8 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
     height: 100%;
   }
   .threesizer--header+& {
-    flex: 1 0 0;
+    flex: 1 1 0;
+    overflow: hidden;
   }
 }
 

@@ -9,6 +9,7 @@ import {setType} from 'src/shared/actions/v2/timeMachines'
 import ViewTypeSelector from 'src/shared/components/ViewTypeSelector'
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import OptionsSwitcher from 'src/shared/components/view_options/OptionsSwitcher'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Utils
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
@@ -43,17 +44,23 @@ class ViewOptions extends PureComponent<Props> {
         name: 'Visualization Type',
         headerButtons: [],
         render: () => (
-          <ViewTypeSelector
-            type={view.properties.type}
-            onUpdateType={onUpdateType}
-          />
+          <FancyScrollbar>
+            <ViewTypeSelector
+              type={view.properties.type}
+              onUpdateType={onUpdateType}
+            />
+          </FancyScrollbar>
         ),
         headerOrientation: HANDLE_VERTICAL,
       },
       {
         name: 'Customize',
         headerButtons: [],
-        render: () => <OptionsSwitcher view={view} />,
+        render: () => (
+          <FancyScrollbar>
+            <OptionsSwitcher view={view} />
+          </FancyScrollbar>
+        ),
         headerOrientation: HANDLE_VERTICAL,
       },
     ]
