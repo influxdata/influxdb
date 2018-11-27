@@ -1,0 +1,1 @@
+SELECT last(f) FROM m WHERE time >= 0 AND time < 100s GROUP BY time(20s)

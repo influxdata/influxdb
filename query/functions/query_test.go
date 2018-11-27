@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
 	ifql "github.com/influxdata/flux/influxql"
 	"github.com/influxdata/flux/lang"
@@ -68,6 +69,84 @@ var skipTests = map[string]string{
 	"derivative_percentile_50": "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
 	"derivative_percentile_90": "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
 	"derivative_sum":           "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"regex_measurement_0":      "Transpiler: regex on measurements not evaluated (https://github.com/influxdata/platform/issues/1592)",
+	"regex_measurement_1":      "Transpiler: regex on measurements not evaluated (https://github.com/influxdata/platform/issues/1592)",
+	"regex_measurement_2":      "Transpiler: regex on measurements not evaluated (https://github.com/influxdata/platform/issues/1592)",
+	"regex_measurement_3":      "Transpiler: regex on measurements not evaluated (https://github.com/influxdata/platform/issues/1592)",
+	"regex_measurement_4":      "Transpiler: regex on measurements not evaluated (https://github.com/influxdata/platform/issues/1592)",
+	"regex_measurement_5":      "Transpiler: regex on measurements not evaluated (https://github.com/influxdata/platform/issues/1592)",
+	"regex_tag_0":              "Transpiler: Returns results in wrong sort order for regex filter on tags (https://github.com/influxdata/platform/issues/1596)",
+	"regex_tag_1":              "Transpiler: Returns results in wrong sort order for regex filter on tags (https://github.com/influxdata/platform/issues/1596)",
+	"regex_tag_2":              "Transpiler: Returns results in wrong sort order for regex filter on tags (https://github.com/influxdata/platform/issues/1596)",
+	"regex_tag_3":              "Transpiler: Returns results in wrong sort order for regex filter on tags (https://github.com/influxdata/platform/issues/1596)",
+	"explicit_type_0":          "Transpiler should remove _start column (https://github.com/influxdata/platform/issues/1360)",
+	"explicit_type_1":          "Transpiler should remove _start column (https://github.com/influxdata/platform/issues/1360)",
+	"fills_0":                  "need fill/Interpolate function (https://github.com/influxdata/platform/issues/272)",
+	"random_math_0":            "transpiler does not implement joining fields within a cursor (https://github.com/influxdata/platform/issues/1340)",
+	"selector_0":               "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"selector_1":               "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"selector_2":               "Transpiler: first function uses different series than influxQL (https://github.com/influxdata/platform/issues/1605)",
+	"selector_6":               "Transpiler: first function uses different series than influxQL (https://github.com/influxdata/platform/issues/1605)",
+	"selector_7":               "Transpiler: first function uses different series than influxQL (https://github.com/influxdata/platform/issues/1605)",
+	"selector_8":               "Transpiler: selectors with group by produce different time values than influxQL (https://github.com/influxdata/platform/issues/1606)",
+	"selector_9":               "Transpiler: selectors with group by produce different time values than influxQL (https://github.com/influxdata/platform/issues/1606)",
+	"series_agg_0":             "Transpiler: Implement difference (https://github.com/influxdata/platform/issues/1609)",
+	"series_agg_1":             "Transpiler: Implement stddev (https://github.com/influxdata/platform/issues/1610)",
+	"series_agg_2":             "Transpiler: Implement spread (https://github.com/influxdata/platform/issues/1611)",
+	"series_agg_3":             "Transpiler: Implement elapsed (https://github.com/influxdata/platform/issues/1612)",
+	"series_agg_4":             "Transpiler: Implement cumulative_sum (https://github.com/influxdata/platform/issues/1613)",
+	"series_agg_5":             "add derivative support to the transpiler (https://github.com/influxdata/platform/issues/93)",
+	"series_agg_6":             "Transpiler: Implement non_negative_derivative (https://github.com/influxdata/platform/issues/1614)",
+	"series_agg_7":             "Transpiler should remove _start column (https://github.com/influxdata/platform/issues/1360)",
+	"series_agg_8":             "Transpiler should remove _start column (https://github.com/influxdata/platform/issues/1360)",
+	"series_agg_9":             "Transpiler should remove _start column (https://github.com/influxdata/platform/issues/1360)",
+	"Subquery_0":               "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"Subquery_1":               "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"Subquery_2":               "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"Subquery_3":               "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"Subquery_4":               "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"Subquery_5":               "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"NestedSubquery_0":         "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"NestedSubquery_1":         "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"NestedSubquery_2":         "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"NestedSubquery_3":         "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"SimulatedHTTP_0":          "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"SimulatedHTTP_1":          "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"SimulatedHTTP_2":          "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"SimulatedHTTP_3":          "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"SimulatedHTTP_4":          "Implement subqueries in the transpiler (https://github.com/influxdata/platform/issues/194)",
+	"SelectorMath_0":           "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_1":           "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_2":           "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_3":           "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_4":           "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_5":           "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_6":           "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_7":           "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_8":           "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_9":           "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_10":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_11":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_12":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_13":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_14":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_15":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_16":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_17":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_18":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_19":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_20":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_21":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_22":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_23":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_24":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_25":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_26":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_27":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_28":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_29":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_30":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
+	"SelectorMath_31":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
 }
 
 var querier = querytest.NewQuerier()
@@ -285,6 +364,23 @@ func testGeneratedInfluxQL(t testing.TB, prefix, queryExt string) {
 
 	if ok, err := executetest.EqualResults(exp, got); !ok {
 		t.Errorf("result not as expected: %v", err)
+
+		expBuffer := new(bytes.Buffer)
+		for _, e := range exp {
+			e.Tables().Do(func(tbl flux.Table) error {
+				_, err := execute.NewFormatter(tbl, nil).WriteTo(expBuffer)
+				return err
+			})
+		}
+
+		gotBuffer := new(bytes.Buffer)
+		for _, e := range got {
+			e.Tables().Do(func(tbl flux.Table) error {
+				_, err := execute.NewFormatter(tbl, nil).WriteTo(gotBuffer)
+				return err
+			})
+		}
+		t.Logf("\nExpected Tables:\n%s\nActualTables:\n%s\n", expBuffer.String(), gotBuffer.String())
 	}
 }
 

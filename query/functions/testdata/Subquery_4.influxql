@@ -1,0 +1,1 @@
+SELECT mean(f) FROM (SELECT f, t0 FROM m WHERE t1 = '0') WHERE t0 = '0'

@@ -1,0 +1,1 @@
+SELECT mean(n), sum(n), count(n), spread(n) FROM (SELECT bottom(n, 5) AS n FROM (SELECT top(n, 10) AS n FROM requests WHERE time >=0 AND time <= 168h GROUP BY time(5m), *) GROUP BY *) GROUP BY *
