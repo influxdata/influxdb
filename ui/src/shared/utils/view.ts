@@ -186,13 +186,29 @@ export function convertView<T extends View | NewView>(
   return newView
 }
 
-// Replaces the text of the first query in a view
+// Replaces the text of the first query in a view, inserting a query if none exist
 export function replaceQuery<T extends View | NewView>(view: T, text): T {
   const anyView: any = view
   const queries = anyView.properties.queries
 
   if (!queries) {
     return view
+  }
+
+  if (!queries[0]) {
+    const query: DashboardQuery = {
+      text,
+      type: InfluxLanguage.Flux,
+      sourceID: '',
+    }
+
+    return {
+      ...anyView,
+      properties: {
+        ...anyView.properties,
+        queries: [query],
+      },
+    }
   }
 
   const newQueries = queries.map((query: DashboardQuery, i) => {
