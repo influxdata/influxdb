@@ -13,11 +13,22 @@ import {
 interface Props {
   searchTerm: string
   onCreate: () => void
+  totalCount: number
 }
 
 export default class EmptyTasksLists extends PureComponent<Props> {
   public render() {
-    const {searchTerm, onCreate} = this.props
+    const {searchTerm, onCreate, totalCount} = this.props
+
+    if (totalCount && searchTerm === '') {
+      return (
+        <EmptyState size={ComponentSize.Large}>
+          <EmptyState.Text
+            text={`All ${totalCount} of your Tasks are inactive`}
+          />
+        </EmptyState>
+      )
+    }
 
     if (searchTerm === '') {
       return (
@@ -35,6 +46,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
         </EmptyState>
       )
     }
+
     return (
       <EmptyState size={ComponentSize.Large}>
         <EmptyState.Text text={'No tasks match your search term'} />

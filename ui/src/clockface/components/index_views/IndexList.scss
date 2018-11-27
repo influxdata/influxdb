@@ -96,6 +96,7 @@
   a:visited,
   a:hover,
   a:active {
+    transition: color 0.25s ease, opacity 0.25s ease;
     opacity: 0.7;
   }
 }
@@ -104,6 +105,13 @@
 .index-list--row.index-list--row-disabled:hover .index-list--row-cell .index-list--cell {
   background-color: rgba($g3-castle, 0.7);
   color: $g15-platinum;
+
+  a:link,
+  a:visited,
+  a:hover,
+  a:active {
+    opacity: 0.9;
+  }
 }
 
 // Empty state

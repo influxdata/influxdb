@@ -101,11 +101,13 @@ class TasksPage extends PureComponent<Props, State> {
               <TasksList
                 searchTerm={searchTerm}
                 tasks={this.filteredTasks}
+                totalCount={this.totalTaskCount}
                 onActivate={this.handleActivate}
                 onDelete={this.handleDelete}
                 onCreate={this.handleCreateTask}
                 onSelect={this.props.selectTask}
               />
+              {this.hiddenTaskAlert}
             </div>
           </Page.Contents>
         </Page>
@@ -170,6 +172,33 @@ class TasksPage extends PureComponent<Props, State> {
     })
 
     return matchingTasks
+  }
+
+  private get totalTaskCount(): number {
+    return this.props.tasks.length
+  }
+
+  private get hiddenTaskAlert(): JSX.Element {
+    const {showInactive, tasks} = this.props
+
+    const hiddenCount = tasks.filter(
+      t => t.status === TaskAPI.StatusEnum.Inactive
+    ).length
+
+    const allTasksAreHidden = hiddenCount === tasks.length
+
+    if (allTasksAreHidden || showInactive) {
+      return null
+    }
+
+    if (hiddenCount) {
+      const pluralizer = hiddenCount === 1 ? '' : 's'
+      const verb = hiddenCount === 1 ? 'is' : 'are'
+
+      return (
+        <div className="hidden-tasks-alert">{`${hiddenCount} inactive task${pluralizer} ${verb} hidden from view`}</div>
+      )
+    }
   }
 }
 

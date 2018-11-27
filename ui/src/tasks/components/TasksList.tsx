@@ -24,6 +24,7 @@ interface Props {
   onDelete: (task: Task) => void
   onCreate: () => void
   onSelect: (task: Task) => void
+  totalCount: number
 }
 
 type SortKey = keyof Task | 'organization.name'
@@ -43,7 +44,7 @@ export default class TasksList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {searchTerm, onCreate, tasks} = this.props
+    const {searchTerm, onCreate, totalCount} = this.props
     const {sortKey, sortDirection} = this.state
 
     const headerKeys: SortKey[] = [
@@ -88,17 +89,15 @@ export default class TasksList extends PureComponent<Props, State> {
         </IndexList.Header>
         <IndexList.Body
           emptyState={
-            <EmptyTasksList searchTerm={searchTerm} onCreate={onCreate} />
+            <EmptyTasksList
+              searchTerm={searchTerm}
+              onCreate={onCreate}
+              totalCount={totalCount}
+            />
           }
           columnCount={5}
         >
-          <SortingHat<Task>
-            list={tasks}
-            sortKey={sortKey}
-            direction={sortDirection}
-          >
-            {this.rows}
-          </SortingHat>
+          {this.sortedRows}
         </IndexList.Body>
       </IndexList>
     )
@@ -124,5 +123,24 @@ export default class TasksList extends PureComponent<Props, State> {
       </>
     )
     return taskrows
+  }
+
+  private get sortedRows(): JSX.Element {
+    const {tasks} = this.props
+    const {sortKey, sortDirection} = this.state
+
+    if (tasks.length) {
+      return (
+        <SortingHat<Task>
+          list={tasks}
+          sortKey={sortKey}
+          direction={sortDirection}
+        >
+          {this.rows}
+        </SortingHat>
+      )
+    }
+
+    return null
   }
 }
