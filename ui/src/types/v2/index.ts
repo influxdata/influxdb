@@ -3,9 +3,7 @@ import {Bucket, RetentionRule, RetentionRuleTypes} from 'src/types/v2/buckets'
 import {RangeState} from 'src/dashboards/reducers/v2/ranges'
 import {ViewsState} from 'src/dashboards/reducers/v2/views'
 import {
-  Dashboard,
   DashboardSwitcherLinks,
-  Cell,
   NewCell,
   View,
   NewView,
@@ -15,6 +13,8 @@ import {
   ViewProperties,
   DashboardQuery,
 } from 'src/types/v2/dashboards'
+
+import {Cell, Dashboard} from 'src/api'
 import {Task} from 'src/types/v2/tasks'
 import {Member} from 'src/types/v2/members'
 import {Organization} from 'src/types/v2/orgs'

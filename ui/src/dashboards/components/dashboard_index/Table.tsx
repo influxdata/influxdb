@@ -18,7 +18,7 @@ import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import {Sort} from 'src/clockface'
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/api'
 
 interface Props {
   searchTerm: string
@@ -36,7 +36,7 @@ interface State {
   sortDirection: Sort
 }
 
-type SortKey = keyof Dashboard | 'modified' | 'owner' // owner and modified are currently hardcoded
+type SortKey = keyof Dashboard | 'modified' | 'owner' | 'default' // owner and modified are currently hardcoded
 
 class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {

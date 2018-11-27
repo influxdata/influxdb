@@ -350,13 +350,10 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private getDashboardLinks = async (): Promise<void> => {
-    const {links, dashboard: activeDashboard} = this.props
+    const {dashboard: activeDashboard} = this.props
 
     try {
-      const dashboardLinks = await loadDashboardLinks(
-        links.dashboards,
-        activeDashboard
-      )
+      const dashboardLinks = await loadDashboardLinks(activeDashboard)
 
       this.setState({
         dashboardLinks,

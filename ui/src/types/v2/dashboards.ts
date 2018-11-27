@@ -1,4 +1,5 @@
 import {Color} from 'src/types/colors'
+import {Dashboard} from 'src/api'
 
 export interface Axis {
   label: string
@@ -202,21 +203,6 @@ export enum ViewType {
   Table = 'table',
   Markdown = 'markdown',
   LogViewer = 'log-viewer',
-}
-
-interface DashboardLinks {
-  self: string
-  cells: string
-  copy: string
-}
-
-export interface Dashboard {
-  id: string
-  cells: Cell[]
-  name: string
-  default: boolean
-  links: DashboardLinks
-  meta?: {[x: string]: any}
 }
 
 export interface DashboardFile {

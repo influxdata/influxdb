@@ -3,7 +3,8 @@ import {
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
 import {Cell} from 'src/types'
-import {Dashboard, DecimalPlaces} from 'src/types/v2/dashboards'
+import {DecimalPlaces} from 'src/types/v2/dashboards'
+import {Dashboard} from 'src/api'
 
 export const UNTITLED_GRAPH: string = 'Untitled Graph'
 
@@ -69,7 +70,6 @@ type EmptyDefaultDashboard = Pick<
 export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
   id: '0',
   name: '',
-  default: false,
   cells: [
     {
       x: 0,

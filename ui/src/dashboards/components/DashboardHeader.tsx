@@ -12,7 +12,8 @@ import {Button, ButtonShape, ComponentColor, IconFont} from 'src/clockface'
 // Types
 import * as AppActions from 'src/types/actions/app'
 import * as QueriesModels from 'src/types/queries'
-import {Dashboard, DashboardSwitcherLinks} from 'src/types/v2/dashboards'
+import {Dashboard} from 'src/api'
+import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
 
 interface Props {
   activeDashboard: string

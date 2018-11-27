@@ -216,7 +216,6 @@ export const cell: Cell = {
   links: {
     self: '/chronograf/v1/dashboards/9/cells/67435',
     view: '1',
-    copy: '12',
   },
 }
 

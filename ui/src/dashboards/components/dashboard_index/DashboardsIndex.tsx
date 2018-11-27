@@ -42,8 +42,9 @@ import {
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {DashboardFile, Cell} from 'src/types/v2/dashboards'
-import {Links, Dashboard} from 'src/types/v2'
+import {DashboardFile} from 'src/types/v2/dashboards'
+import {Cell, Dashboard} from 'src/api'
+import {Links} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -77,8 +78,8 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {handleGetDashboards, dashboards, links} = this.props
-    await handleGetDashboards(links.dashboards)
+    const {handleGetDashboards, dashboards} = this.props
+    await handleGetDashboards()
     const dashboardIDs = dashboards.map(d => d.id)
     this.props.retainRangesDashTimeV1(dashboardIDs)
   }
