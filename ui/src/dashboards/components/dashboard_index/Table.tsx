@@ -48,14 +48,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   }
 
   public render() {
-    const {
-      dashboards,
-      onSetDefaultDashboard,
-      defaultDashboardLink,
-      onExportDashboard,
-      onCloneDashboard,
-      onDeleteDashboard,
-    } = this.props
     const {sortKey, sortDirection} = this.state
     const headerKeys: SortKey[] = ['name', 'owner', 'modified', 'default']
 
@@ -87,31 +79,16 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
             columnName={headerKeys[3]}
             sortKey={headerKeys[3]}
             width="10%"
+            alignment={Alignment.Center}
           />
           <IndexList.HeaderCell
             columnName=""
-            width="10%"
+            width="20%"
             alignment={Alignment.Right}
           />
-          <IndexList.HeaderCell columnName="" width="35%" />
         </IndexList.Header>
         <IndexList.Body emptyState={this.emptyState} columnCount={5}>
-          <SortingHat<Dashboard>
-            list={dashboards}
-            sortKey={sortKey}
-            direction={sortDirection}
-          >
-            {ds => (
-              <TableRows
-                dashboards={ds}
-                onCloneDashboard={onCloneDashboard}
-                onExportDashboard={onExportDashboard}
-                onDeleteDashboard={onDeleteDashboard}
-                defaultDashboardLink={defaultDashboardLink}
-                onSetDefaultDashboard={onSetDefaultDashboard}
-              />
-            )}
-          </SortingHat>
+          {this.sortedRows}
         </IndexList.Body>
       </IndexList>
     )
@@ -119,6 +96,41 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
     this.setState({sortKey, sortDirection: nextSort})
+  }
+
+  private get sortedRows(): JSX.Element {
+    const {
+      dashboards,
+      onSetDefaultDashboard,
+      defaultDashboardLink,
+      onExportDashboard,
+      onCloneDashboard,
+      onDeleteDashboard,
+    } = this.props
+    const {sortKey, sortDirection} = this.state
+
+    if (dashboards.length) {
+      return (
+        <SortingHat<Dashboard>
+          list={dashboards}
+          sortKey={sortKey}
+          direction={sortDirection}
+        >
+          {ds => (
+            <TableRows
+              dashboards={ds}
+              onCloneDashboard={onCloneDashboard}
+              onExportDashboard={onExportDashboard}
+              onDeleteDashboard={onDeleteDashboard}
+              defaultDashboardLink={defaultDashboardLink}
+              onSetDefaultDashboard={onSetDefaultDashboard}
+            />
+          )}
+        </SortingHat>
+      )
+    }
+
+    return null
   }
 
   private get emptyState(): JSX.Element {
