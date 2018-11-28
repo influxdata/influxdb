@@ -134,7 +134,7 @@ func newTasksResponse(ts []*platform.Task) tasksResponse {
 		Tasks: make([]taskResponse, len(ts)),
 	}
 
-	for i, _ := range ts {
+	for i := range ts {
 		rs.Tasks[i] = newTaskResponse(*ts[i])
 	}
 	return rs
@@ -823,7 +823,7 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	}
 
 	tasks := make([]*platform.Task, len(tr.Tasks))
-	for i, _ := range tr.Tasks {
+	for i := range tr.Tasks {
 		tasks[i] = &tr.Tasks[i].Task
 	}
 	return tasks, len(tasks), nil

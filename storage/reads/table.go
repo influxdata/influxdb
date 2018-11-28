@@ -33,8 +33,6 @@ type table struct {
 	err error
 
 	cancelled int32
-
-	stats flux.Statistics
 }
 
 func newTable(
