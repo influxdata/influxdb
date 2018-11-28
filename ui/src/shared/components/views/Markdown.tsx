@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {PureComponent} from 'react'
 import ReactMarkdown from 'react-markdown'
 
 // Components
@@ -16,7 +16,7 @@ interface Props {
 }
 
 @ErrorHandling
-class Markdown extends Component<Props> {
+class Markdown extends PureComponent<Props> {
   public render() {
     const {text} = this.props
 

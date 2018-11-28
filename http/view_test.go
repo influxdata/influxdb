@@ -84,7 +84,9 @@ func TestService_handleGetViews(t *testing.T) {
         "type": "xy",
         "colors": null,
         "legend": {},
-				"geom": ""
+        "geom": "",
+		"note": "",
+        "showNoteWhenEmpty": false
       }
     },
     {
@@ -330,7 +332,9 @@ func TestService_handlePostViews(t *testing.T) {
     "type": "xy",
     "colors": null,
     "legend": {},
-    "geom": ""
+    "geom": "",
+	"note": "",
+    "showNoteWhenEmpty": false
   }
 }
 `,
@@ -530,7 +534,9 @@ func TestService_handlePatchView(t *testing.T) {
     "type": "xy",
     "colors": null,
     "legend": {},
-		"geom": ""
+	"geom": "",
+	"note": "",
+    "showNoteWhenEmpty": false
   }
 }
 `,

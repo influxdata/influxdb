@@ -1,0 +1,9 @@
+@import "src/style/modules";
+
+.note-editor-text {
+  overflow: hidden;
+
+  .react-codemirror2 {
+    padding: 10px;
+  }
+}

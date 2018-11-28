@@ -37,6 +37,8 @@ function defaultLineViewProperties() {
     queries: defaultViewQueries(),
     colors: [],
     legend: {},
+    note: '',
+    showNoteWhenEmpty: false,
     axes: {
       x: {
         bounds: ['', ''] as [string, string],
@@ -72,6 +74,8 @@ function defaultGaugeViewProperties() {
     colors: DEFAULT_GAUGE_COLORS,
     prefix: '',
     suffix: '',
+    note: '',
+    showNoteWhenEmpty: false,
     decimalPlaces: {
       isEnforced: true,
       digits: 2,
@@ -137,6 +141,8 @@ const NEW_VIEW_CREATORS = {
         digits: 2,
       },
       timeFormat: 'YYYY-MM-DD HH:mm:ss',
+      note: '',
+      showNoteWhenEmpty: false,
     },
   }),
   [ViewType.Markdown]: (): NewView<MarkdownView> => ({
@@ -144,7 +150,7 @@ const NEW_VIEW_CREATORS = {
     properties: {
       type: ViewType.Markdown,
       shape: ViewShape.ChronografV2,
-      text: '',
+      note: '',
     },
   }),
 }

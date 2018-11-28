@@ -1,42 +1,27 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {SFC} from 'react'
 import classnames from 'classnames'
 
-import {ErrorHandling} from 'src/shared/decorators/errors'
+// Components
+import CellHeaderNote from 'src/shared/components/cells/CellHeaderNote'
 
 interface Props {
   name: string
-  isEditable: boolean
+  note: string
 }
 
-@ErrorHandling
-class CellHeader extends PureComponent<Props> {
-  public render() {
-    const {isEditable, name} = this.props
+const CellHeader: SFC<Props> = ({name, note}) => {
+  const className = classnames('cell--header cell--draggable', {
+    'cell--header-note': !!note,
+  })
 
-    if (isEditable) {
-      return (
-        <div className="cell--header cell--draggable">
-          <label className={this.cellNameClass}>{name}</label>
-          <div className="cell--header-bar" />
-        </div>
-      )
-    }
-
-    return (
-      <div className="cell--header">
-        <label className="cell--name">{name}</label>
-      </div>
-    )
-  }
-
-  private get cellNameClass(): string {
-    const {name} = this.props
-
-    const isNameBlank = !!name.trim()
-
-    return classnames('cell--name', {'cell--name__blank': isNameBlank})
-  }
+  return (
+    <div className={className}>
+      <label className="cell--name">{name}</label>
+      <div className="cell--header-bar" />
+      {note && <CellHeaderNote note={note} />}
+    </div>
+  )
 }
 
 export default CellHeader

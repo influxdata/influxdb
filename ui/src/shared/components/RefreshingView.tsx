@@ -55,6 +55,7 @@ class RefreshingView extends PureComponent<Props> {
               loading={loading}
               isInitialFetch={isInitialFetch}
               queries={this.queries}
+              fallbackNote={this.fallbackNote}
             >
               <QueryViewSwitcher
                 tables={tables}
@@ -84,6 +85,12 @@ class RefreshingView extends PureComponent<Props> {
     }
 
     return queries
+  }
+
+  private get fallbackNote(): string {
+    const {note, showNoteWhenEmpty} = this.props.properties
+
+    return showNoteWhenEmpty ? note : null
   }
 }
 

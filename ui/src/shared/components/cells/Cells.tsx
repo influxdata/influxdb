@@ -85,7 +85,6 @@ class Cells extends Component<Props & WithRouterProps, State> {
             <CellComponent
               cell={cell}
               onZoom={onZoom}
-              isEditable={true}
               autoRefresh={autoRefresh}
               manualRefresh={manualRefresh}
               timeRange={timeRange}

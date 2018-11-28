@@ -65,6 +65,8 @@ class DashboardComponent extends PureComponent<Props> {
           ) : (
             <DashboardEmpty dashboard={dashboard} />
           )}
+          {/* This element is used as a portal container for note tooltips in cell headers */}
+          <div className="cell-header-note-tooltip-container" />
         </div>
       </FancyScrollbar>
     )

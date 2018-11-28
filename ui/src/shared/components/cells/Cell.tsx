@@ -1,7 +1,7 @@
 // Libraries
 import React, {Component, ComponentClass} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import CellHeader from 'src/shared/components/cells/CellHeader'
@@ -14,13 +14,13 @@ import {readView} from 'src/dashboards/actions/v2/views'
 
 // Types
 import {RemoteDataState, TimeRange} from 'src/types'
-import {Cell, View, AppState} from 'src/types/v2'
+import {Cell, View, AppState, ViewType} from 'src/types/v2'
 
 // Styles
 import './Cell.scss'
 
 interface StateProps {
-  view: View
+  view: View | null
   viewStatus: RemoteDataState
 }
 
@@ -37,7 +37,6 @@ interface PassedProps {
   onCloneCell: (cell: Cell) => void
   onEditCell: () => void
   onZoom: (range: TimeRange) => void
-  isEditable: boolean
 }
 
 type Props = StateProps & DispatchProps & PassedProps
@@ -53,35 +52,51 @@ class CellComponent extends Component<Props> {
   }
 
   public render() {
-    const {isEditable, onEditCell, onDeleteCell, onCloneCell, cell} = this.props
+    const {onEditCell, onDeleteCell, onCloneCell, cell, view} = this.props
 
     return (
       <>
-        <CellHeader name={this.viewName} isEditable={isEditable} />
-        <CellContext
-          visible={isEditable}
-          cell={cell}
-          onDeleteCell={onDeleteCell}
-          onCloneCell={onCloneCell}
-          onEditCell={onEditCell}
-          onCSVDownload={this.handleCSVDownload}
-        />
+        <CellHeader name={this.viewName} note={this.viewNote} />
+        {view && (
+          <CellContext
+            cell={cell}
+            view={view}
+            onDeleteCell={onDeleteCell}
+            onCloneCell={onCloneCell}
+            onEditCell={onEditCell}
+            onCSVDownload={this.handleCSVDownload}
+          />
+        )}
         <div className="cell--view">{this.view}</div>
       </>
     )
   }
 
-  // private get queries(): DashboardQuery[] {
-  //   const {view} = this.props
-
-  //   return _.get(view, ['properties.queries'], [])
-  // }
-
   private get viewName(): string {
     const {view} = this.props
-    const viewName = view ? view.name : ''
 
-    return viewName
+    if (view && view.properties.type !== ViewType.Markdown) {
+      return view.name
+    }
+
+    return ''
+  }
+
+  private get viewNote(): string {
+    const {view} = this.props
+
+    if (!view) {
+      return ''
+    }
+
+    const isMarkdownView = view.properties.type === ViewType.Markdown
+    const showNoteWhenEmpty = get(view, 'properties.showNoteWhenEmpty')
+
+    if (isMarkdownView || showNoteWhenEmpty) {
+      return ''
+    }
+
+    return get(view, 'properties.note', '')
   }
 
   private get view(): JSX.Element {
@@ -112,16 +127,7 @@ class CellComponent extends Component<Props> {
   }
 
   private handleCSVDownload = (): void => {
-    // TODO: get data from link
-    // const {cellData, cell} = this.props
-    // const joinedName = cell.name.split(' ').join('_')
-    // const {data} = timeSeriesToTableGraph(cellData)
-    // try {
-    //   download(dataToCSV(data), `${joinedName}.csv`, 'text/plain')
-    // } catch (error) {
-    //   notify(csvDownloadFailed())
-    //   console.error(error)
-    // }
+    throw new Error('csv download not implemented')
   }
 }
 

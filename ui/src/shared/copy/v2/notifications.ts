@@ -56,3 +56,9 @@ export const getTelegrafConfigFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to get telegraf config',
 })
+
+export const savingNoteFailed = (error): Notification => ({
+  ...defaultErrorNotification,
+  duration: FIVE_SECONDS,
+  message: `Failed to save note: ${error}`,
+})

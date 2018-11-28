@@ -63,11 +63,6 @@ export interface DecimalPlaces {
   digits: number
 }
 
-export interface MarkDownProperties {
-  type: ViewType.Markdown
-  text: string
-}
-
 export interface View<T extends ViewProperties = ViewProperties> {
   id: string
   name: string
@@ -121,6 +116,8 @@ export interface XYView {
   axes: Axes
   colors: Color[]
   legend: Legend
+  note: string
+  showNoteWhenEmpty: boolean
 }
 
 export interface LinePlusSingleStatView {
@@ -133,6 +130,8 @@ export interface LinePlusSingleStatView {
   prefix: string
   suffix: string
   decimalPlaces: DecimalPlaces
+  note: string
+  showNoteWhenEmpty: boolean
 }
 
 export interface SingleStatView {
@@ -143,6 +142,8 @@ export interface SingleStatView {
   prefix: string
   suffix: string
   decimalPlaces: DecimalPlaces
+  note: string
+  showNoteWhenEmpty: boolean
 }
 
 export interface GaugeView {
@@ -153,6 +154,8 @@ export interface GaugeView {
   prefix: string
   suffix: string
   decimalPlaces: DecimalPlaces
+  note: string
+  showNoteWhenEmpty: boolean
 }
 
 export interface TableView {
@@ -164,12 +167,14 @@ export interface TableView {
   fieldOptions: FieldOption[]
   decimalPlaces: DecimalPlaces
   timeFormat: string
+  note: string
+  showNoteWhenEmpty: boolean
 }
 
 export interface MarkdownView {
   type: ViewType.Markdown
   shape: ViewShape.ChronografV2
-  text: string
+  note: string
 }
 
 export interface LogViewerView {
@@ -249,4 +254,9 @@ export interface DashboardSwitcherLinks {
 
 export interface ViewParams {
   type: ViewType
+}
+
+export enum NoteEditorMode {
+  Adding = 'adding',
+  Editing = 'editing',
 }

@@ -71,6 +71,23 @@ $cell--header-size: 36px;
   transform: translateY(-50%);
   width: 100%;
   pointer-events: none;
+  
+  .cell--header-note & {
+    margin-left: 25px;
+  }
+}
+
+.cell-header-note {
+  position: absolute;
+  top: 7px;
+  left: 10px;
+  z-index: 10;
+  cursor: default;
+  color: $g14-chromium;
+
+  &:hover {
+    color: $g20-white;
+  }
 }
 
 .cell--header-bar {

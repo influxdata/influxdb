@@ -251,3 +251,51 @@ export const modeInfluxQL = {
     lineComment: '//',
   },
 }
+
+export const modeMarkdown = {
+  start: [
+    {
+      regex: /[*](\s|\w)+[*]/,
+      token: 'italic',
+    },
+    {
+      regex: /[*][*](\s|\w)+[*][*]/,
+      token: 'bold',
+    },
+    {
+      regex: /[~][~](\s|\w)+[~][~]/,
+      token: 'strikethrough',
+    },
+    {
+      regex: /\#+\s.+(?=$)/gm,
+      token: 'heading',
+    },
+    {
+      regex: /\>.+(?=$)/gm,
+      token: 'blockquote',
+    },
+    {
+      regex: /\[.+\]\(.+\)/,
+      token: 'link',
+    },
+    {
+      regex: /[!]\[.+\]\(.+\)/,
+      token: 'image',
+    },
+  ],
+  comment: [
+    {
+      regex: /.*?\*\//,
+      token: 'comment',
+      next: 'start',
+    },
+    {
+      regex: /.*/,
+      token: 'comment',
+    },
+  ],
+  meta: {
+    dontIndentStates: ['comment'],
+    lineComment: '//',
+  },
+}

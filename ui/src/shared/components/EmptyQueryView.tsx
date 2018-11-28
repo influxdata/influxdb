@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
+import Markdown from 'src/shared/components/views/Markdown'
 
 // Constants
 import {emptyGraphCopy} from 'src/shared/copy/cell'
@@ -17,11 +18,19 @@ interface Props {
   loading: RemoteDataState
   tables: FluxTable[]
   queries: DashboardQuery[]
+  fallbackNote?: string
 }
 
 export default class EmptyQueryView extends PureComponent<Props> {
   public render() {
-    const {error, isInitialFetch, loading, tables, queries} = this.props
+    const {
+      error,
+      isInitialFetch,
+      loading,
+      tables,
+      queries,
+      fallbackNote,
+    } = this.props
 
     if (!queries.length) {
       return <EmptyGraphMessage message={emptyGraphCopy} />
@@ -35,7 +44,13 @@ export default class EmptyQueryView extends PureComponent<Props> {
       return <EmptyGraphMessage message="Loading..." />
     }
 
-    if (!tables.some(d => !!d.data.length)) {
+    const hasNoResults = !tables.some(d => !!d.data.length)
+
+    if (hasNoResults && fallbackNote) {
+      return <Markdown text={fallbackNote} />
+    }
+
+    if (hasNoResults) {
       return <EmptyGraphMessage message="No Results" />
     }
 

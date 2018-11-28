@@ -13,6 +13,7 @@ import ManualRefresh from 'src/shared/components/ManualRefresh'
 import VEO from 'src/dashboards/components/VEO'
 import {OverlayTechnology} from 'src/clockface'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
+import NoteEditorContainer from 'src/dashboards/components/NoteEditorContainer'
 
 // Actions
 import * as dashboardActions from 'src/dashboards/actions/v2'
@@ -222,6 +223,7 @@ class DashboardPage extends Component<Props, State> {
             />
           </OverlayTechnology>
         </HoverTimeProvider>
+        <NoteEditorContainer />
       </Page>
     )
   }

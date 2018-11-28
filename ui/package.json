@@ -140,7 +140,7 @@
     "react-dnd-html5-backend": "^2.6.0",
     "react-dom": "^16.3.1",
     "react-grid-layout": "^0.16.6",
-    "react-markdown": "^3.6.0",
+    "react-markdown": "^4.0.3",
     "react-redux": "^5.0.7",
     "react-resize-detector": "^2.3.0",
     "react-router": "^3.0.2",

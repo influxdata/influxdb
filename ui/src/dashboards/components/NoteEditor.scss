@@ -1,0 +1,42 @@
+@import "src/style/modules";
+
+.note-editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  .note-editor-text, .note-editor-preview {
+    flex: 1 1 0;
+    border: 2px solid $g6-smoke;
+    border-radius: 4px;
+  }
+
+  .note-editor-preview {
+    padding: 15px;
+  }
+}
+
+.note-editor--controls {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  &.centered {
+    justify-content: center;
+  }
+}
+
+.note-editor--toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: $g13-mist;
+
+  .slide-toggle {
+    margin-left: 10px;
+    margin-top: 2px;
+  }
+}

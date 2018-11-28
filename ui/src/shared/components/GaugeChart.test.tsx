@@ -33,6 +33,8 @@ const properties: GaugeView = {
   type: ViewType.Gauge,
   prefix: '',
   suffix: '',
+  note: '',
+  showNoteWhenEmpty: false,
   decimalPlaces: {
     digits: 10,
     isEnforced: false,

@@ -2,6 +2,7 @@ import {
   modeFlux,
   modeTickscript,
   modeInfluxQL,
+  modeMarkdown,
 } from 'src/shared/constants/codeMirrorModes'
 import 'codemirror/addon/hint/show-hint'
 
@@ -326,3 +327,4 @@ function indentFunction(states, meta) {
 CodeMirror.defineSimpleMode('flux', modeFlux)
 CodeMirror.defineSimpleMode('tickscript', modeTickscript)
 CodeMirror.defineSimpleMode('influxQL', modeInfluxQL)
+CodeMirror.defineSimpleMode('markdown', modeMarkdown)

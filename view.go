@@ -129,6 +129,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = tv
+		case "markdown":
+			var mv MarkdownViewProperties
+			if err := json.Unmarshal(v.B, &mv); err != nil {
+				return nil, err
+			}
+			vis = mv
 		case "log-viewer": // happens in log viewer stays in log viewer.
 			var lv LogViewProperties
 			if err := json.Unmarshal(v.B, &lv); err != nil {
@@ -198,6 +204,14 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 		}{
 			Shape:                        "chronograf-v2",
 			LinePlusSingleStatProperties: vis,
+		}
+	case MarkdownViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			MarkdownViewProperties
+		}{
+			Shape:                  "chronograf-v2",
+			MarkdownViewProperties: vis,
 		}
 	case LogViewProperties:
 		s = struct {
@@ -281,55 +295,70 @@ func (u ViewUpdate) MarshalJSON() ([]byte, error) {
 
 // LinePlusSingleStatProperties represents options for line plus single stat view in Chronograf
 type LinePlusSingleStatProperties struct {
-	Queries       []DashboardQuery `json:"queries"`
-	Axes          map[string]Axis  `json:"axes"`
-	Type          string           `json:"type"`
-	Legend        Legend           `json:"legend"`
-	ViewColors    []ViewColor      `json:"colors"`
-	Prefix        string           `json:"prefix"`
-	Suffix        string           `json:"suffix"`
-	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
+	Queries           []DashboardQuery `json:"queries"`
+	Axes              map[string]Axis  `json:"axes"`
+	Type              string           `json:"type"`
+	Legend            Legend           `json:"legend"`
+	ViewColors        []ViewColor      `json:"colors"`
+	Prefix            string           `json:"prefix"`
+	Suffix            string           `json:"suffix"`
+	DecimalPlaces     DecimalPlaces    `json:"decimalPlaces"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 }
 
 // XYViewProperties represents options for line, bar, step, or stacked view in Chronograf
 type XYViewProperties struct {
-	Queries    []DashboardQuery `json:"queries"`
-	Axes       map[string]Axis  `json:"axes"`
-	Type       string           `json:"type"`
-	Legend     Legend           `json:"legend"`
-	Geom       string           `json:"geom"` // Either "line", "step", "stacked", or "bar"
-	ViewColors []ViewColor      `json:"colors"`
+	Queries           []DashboardQuery `json:"queries"`
+	Axes              map[string]Axis  `json:"axes"`
+	Type              string           `json:"type"`
+	Legend            Legend           `json:"legend"`
+	Geom              string           `json:"geom"` // Either "line", "step", "stacked", or "bar"
+	ViewColors        []ViewColor      `json:"colors"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 }
 
 // SingleStatViewProperties represents options for single stat view in Chronograf
 type SingleStatViewProperties struct {
-	Type          string           `json:"type"`
-	Queries       []DashboardQuery `json:"queries"`
-	Prefix        string           `json:"prefix"`
-	Suffix        string           `json:"suffix"`
-	ViewColors    []ViewColor      `json:"colors"`
-	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
+	Type              string           `json:"type"`
+	Queries           []DashboardQuery `json:"queries"`
+	Prefix            string           `json:"prefix"`
+	Suffix            string           `json:"suffix"`
+	ViewColors        []ViewColor      `json:"colors"`
+	DecimalPlaces     DecimalPlaces    `json:"decimalPlaces"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 }
 
 // GaugeViewProperties represents options for gauge view in Chronograf
 type GaugeViewProperties struct {
-	Type          string           `json:"type"`
-	Queries       []DashboardQuery `json:"queries"`
-	Prefix        string           `json:"prefix"`
-	Suffix        string           `json:"suffix"`
-	ViewColors    []ViewColor      `json:"colors"`
-	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
+	Type              string           `json:"type"`
+	Queries           []DashboardQuery `json:"queries"`
+	Prefix            string           `json:"prefix"`
+	Suffix            string           `json:"suffix"`
+	ViewColors        []ViewColor      `json:"colors"`
+	DecimalPlaces     DecimalPlaces    `json:"decimalPlaces"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 }
 
 // TableViewProperties represents options for table view in Chronograf
 type TableViewProperties struct {
-	Type          string           `json:"type"`
-	Queries       []DashboardQuery `json:"queries"`
-	ViewColors    []ViewColor      `json:"colors"`
-	TableOptions  TableOptions     `json:"tableOptions"`
-	FieldOptions  []RenamableField `json:"fieldOptions"`
-	TimeFormat    string           `json:"timeFormat"`
-	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
+	Type              string           `json:"type"`
+	Queries           []DashboardQuery `json:"queries"`
+	ViewColors        []ViewColor      `json:"colors"`
+	TableOptions      TableOptions     `json:"tableOptions"`
+	FieldOptions      []RenamableField `json:"fieldOptions"`
+	TimeFormat        string           `json:"timeFormat"`
+	DecimalPlaces     DecimalPlaces    `json:"decimalPlaces"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+}
+
+type MarkdownViewProperties struct {
+	Type string `json:"type"`
+	Note string `json:"note"`
 }
 
 // LogViewProperties represents options for log viewer in Chronograf.
@@ -357,6 +386,7 @@ func (LinePlusSingleStatProperties) viewProperties() {}
 func (SingleStatViewProperties) viewProperties()     {}
 func (GaugeViewProperties) viewProperties()          {}
 func (TableViewProperties) viewProperties()          {}
+func (MarkdownViewProperties) viewProperties()       {}
 func (LogViewProperties) viewProperties()            {}
 
 /////////////////////////////

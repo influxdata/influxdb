@@ -1,5 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {Page} from 'src/pageLayout'
@@ -9,13 +10,16 @@ import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenameDashboard from 'src/dashboards/components/rename_dashboard/RenameDashboard'
 import {Button, ButtonShape, ComponentColor, IconFont} from 'src/clockface'
 
+// Actions
+import {addNote} from 'src/dashboards/actions/v2/notes'
+
 // Types
 import * as AppActions from 'src/types/actions/app'
 import * as QueriesModels from 'src/types/queries'
 import {Dashboard} from 'src/api'
 import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
 
-interface Props {
+interface OwnProps {
   activeDashboard: string
   dashboard: Dashboard
   timeRange: QueriesModels.TimeRange
@@ -31,6 +35,12 @@ interface Props {
   dashboardLinks: DashboardSwitcherLinks
   isHidden: boolean
 }
+
+interface DispatchProps {
+  onAddNote: typeof addNote
+}
+
+type Props = OwnProps & DispatchProps
 
 class DashboardHeader extends Component<Props> {
   public static defaultProps: Partial<Props> = {
@@ -49,6 +59,7 @@ class DashboardHeader extends Component<Props> {
       timeRange: {upper, lower},
       zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
       isHidden,
+      onAddNote,
     } = this.props
 
     return (
@@ -57,6 +68,11 @@ class DashboardHeader extends Component<Props> {
         <Page.Header.Right>
           <GraphTips />
           {this.addCellButton}
+          <Button
+            icon={IconFont.TextBlock}
+            text="Add Note"
+            onClick={onAddNote}
+          />
           <AutoRefreshDropdown
             onChoose={handleChooseAutoRefresh}
             onManualRefresh={onManualRefresh}
@@ -90,10 +106,10 @@ class DashboardHeader extends Component<Props> {
     if (dashboard) {
       return (
         <Button
-          shape={ButtonShape.Square}
           icon={IconFont.AddCell}
           color={ComponentColor.Primary}
           onClick={onAddCell}
+          text="Add Cell"
           titleText="Add cell to dashboard"
         />
       )
@@ -113,4 +129,11 @@ class DashboardHeader extends Component<Props> {
   }
 }
 
-export default DashboardHeader
+const mdtp = {
+  onAddNote: addNote,
+}
+
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(DashboardHeader)

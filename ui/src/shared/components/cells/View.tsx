@@ -5,9 +5,6 @@ import React, {Component} from 'react'
 import Markdown from 'src/shared/components/views/Markdown'
 import RefreshingView from 'src/shared/components/RefreshingView'
 
-// Constants
-import {text} from 'src/shared/components/views/gettingsStarted'
-
 // Types
 import {TimeRange} from 'src/types'
 import {View, ViewType, ViewShape} from 'src/types/v2'
@@ -37,7 +34,7 @@ class ViewComponent extends Component<Props> {
       case ViewType.LogViewer:
         return this.emptyGraph
       case ViewType.Markdown:
-        return <Markdown text={text} />
+        return <Markdown text={view.properties.note} />
       default:
         return (
           <RefreshingView
