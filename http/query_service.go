@@ -125,6 +125,30 @@ type QueryService struct {
 	InsecureSkipVerify bool
 }
 
+// Ping checks to see if the server is responding to a ping request.
+func (s *QueryService) Ping(ctx context.Context) error {
+	u, err := newURL(s.Addr, "/ping")
+	if err != nil {
+		return err
+	}
+
+	hreq, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	SetToken(s.Token, hreq)
+	hreq = hreq.WithContext(ctx)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(hreq)
+	if err != nil {
+		return err
+	}
+
+	return CheckError(resp)
+}
+
+// Query calls the query route with the requested query and returns a result iterator.
 func (s *QueryService) Query(ctx context.Context, req *query.Request) (flux.ResultIterator, error) {
 	u, err := newURL(s.Addr, queryPath)
 	if err != nil {
