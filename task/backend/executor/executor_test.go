@@ -219,6 +219,8 @@ func (ts tables) Do(f func(flux.Table) error) error {
 	return nil
 }
 
+func (ts tables) Statistics() flux.Statistics { return flux.Statistics{} }
+
 type system struct {
 	name string
 	svc  *fakeQueryService

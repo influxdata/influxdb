@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/influxdata/platform/tsdb"
+	"github.com/influxdata/platform/tsdb/cursors"
 )
 
 // Array Cursors
@@ -26,8 +27,9 @@ type {{$type}} struct {
 		keyCursor *KeyCursor
 	}
 
-	end int64
-	res {{$arrayType}}
+	end   int64
+	res   {{$arrayType}}
+	stats cursors.CursorStats
 }
 
 func new{{$Type}}() *{{$type}} {
@@ -46,7 +48,7 @@ c.end = end
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
+	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] >= seek
 	})
@@ -63,6 +65,8 @@ func (c *{{$type}}) Close() {
 	c.cache.values = nil
 	c.tsm.values = nil
 }
+
+func (c *{{$type}}) Stats() cursors.CursorStats { return c.stats }
 
 // Next returns the next key/value for the cursor.
 func (c *{{$type}}) Next() {{$arrayType}} {
@@ -139,14 +143,28 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 	c.res.Timestamps = c.res.Timestamps[:pos]
 	c.res.Values = c.res.Values[:pos]
 
+	c.stats.ScannedValues += len(c.res.Values)
+	{{if eq .Name "String" }}
+		for _, v := range c.res.Values {
+			c.stats.ScannedBytes += len(v)
+		}
+	{{else}}
+		c.stats.ScannedBytes += len(c.res.Values) * {{.Size}}
+	{{end}}
+
 	return c.res
 }
 
 func (c *{{$type}}) nextTSM() {{$arrayType}} {
 	c.tsm.keyCursor.Next()
-	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
+	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = 0
 	return c.tsm.values
+}
+
+func (c *{{$type}}) readArrayBlock() {{$arrayType}} {
+	values, _ := c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
+	return values
 }
 
 {{$type := print .name "ArrayDescendingCursor"}}
@@ -165,8 +183,9 @@ type {{$type}} struct {
 		keyCursor *KeyCursor
 	}
 
-	end int64
-	res {{$arrayType}}
+	end   int64
+	res   {{$arrayType}}
+	stats cursors.CursorStats
 }
 
 func new{{$Type}}() *{{$type}} {
@@ -194,7 +213,7 @@ func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *Key
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
+	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = sort.Search(c.tsm.values.Len(), func(i int) bool {
 		return c.tsm.values.Timestamps[i] >= seek
 	})
@@ -219,6 +238,8 @@ func (c *{{$type}}) Close() {
 	c.cache.values = nil
 	c.tsm.values = nil
 }
+
+func (c *{{$type}}) Stats() cursors.CursorStats { return c.stats }
 
 func (c *{{$type}}) Next() {{$arrayType}} {
 	pos := 0
@@ -294,9 +315,24 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 
 func (c *{{$type}}) nextTSM() {{$arrayType}} {
 	c.tsm.keyCursor.Next()
-	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
+	c.tsm.values = c.readArrayBlock()
 	c.tsm.pos = len(c.tsm.values.Timestamps) - 1
 	return c.tsm.values
+}
+
+func (c *{{$type}}) readArrayBlock() {{$arrayType}} {
+	values, _ := c.tsm.keyCursor.Read{{.Name}}ArrayBlock(c.tsm.buf)
+
+	c.stats.ScannedValues += len(values.Values)
+	{{if eq .Name "String" }}
+		for _, v := range values.Values {
+			c.stats.ScannedBytes += len(v)
+		}
+	{{else}}
+		c.stats.ScannedBytes += len(values.Values) * {{.Size}}
+	{{end}}
+
+	return values
 }
 
 {{end}}

@@ -55,6 +55,20 @@ func (t *floatTable) Close() {
 	t.mu.Unlock()
 }
 
+func (t *floatTable) Statistics() flux.Statistics {
+	t.mu.Lock()
+	cur := t.cur
+	t.mu.Unlock()
+	if cur == nil {
+		return flux.Statistics{}
+	}
+	cs := cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
+}
+
 func (t *floatTable) Do(f func(flux.ColReader) error) error {
 	t.mu.Lock()
 	defer func() {
@@ -223,6 +237,17 @@ func (t *floatGroupTable) advanceCursor() bool {
 	return false
 }
 
+func (t *floatGroupTable) Statistics() flux.Statistics {
+	if t.cur == nil {
+		return flux.Statistics{}
+	}
+	cs := t.cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
+}
+
 //
 // *********** Integer ***********
 //
@@ -260,6 +285,20 @@ func (t *integerTable) Close() {
 		t.cur = nil
 	}
 	t.mu.Unlock()
+}
+
+func (t *integerTable) Statistics() flux.Statistics {
+	t.mu.Lock()
+	cur := t.cur
+	t.mu.Unlock()
+	if cur == nil {
+		return flux.Statistics{}
+	}
+	cs := cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
 }
 
 func (t *integerTable) Do(f func(flux.ColReader) error) error {
@@ -430,6 +469,17 @@ func (t *integerGroupTable) advanceCursor() bool {
 	return false
 }
 
+func (t *integerGroupTable) Statistics() flux.Statistics {
+	if t.cur == nil {
+		return flux.Statistics{}
+	}
+	cs := t.cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
+}
+
 //
 // *********** Unsigned ***********
 //
@@ -467,6 +517,20 @@ func (t *unsignedTable) Close() {
 		t.cur = nil
 	}
 	t.mu.Unlock()
+}
+
+func (t *unsignedTable) Statistics() flux.Statistics {
+	t.mu.Lock()
+	cur := t.cur
+	t.mu.Unlock()
+	if cur == nil {
+		return flux.Statistics{}
+	}
+	cs := cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
 }
 
 func (t *unsignedTable) Do(f func(flux.ColReader) error) error {
@@ -637,6 +701,17 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 	return false
 }
 
+func (t *unsignedGroupTable) Statistics() flux.Statistics {
+	if t.cur == nil {
+		return flux.Statistics{}
+	}
+	cs := t.cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
+}
+
 //
 // *********** String ***********
 //
@@ -674,6 +749,20 @@ func (t *stringTable) Close() {
 		t.cur = nil
 	}
 	t.mu.Unlock()
+}
+
+func (t *stringTable) Statistics() flux.Statistics {
+	t.mu.Lock()
+	cur := t.cur
+	t.mu.Unlock()
+	if cur == nil {
+		return flux.Statistics{}
+	}
+	cs := cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
 }
 
 func (t *stringTable) Do(f func(flux.ColReader) error) error {
@@ -844,6 +933,17 @@ func (t *stringGroupTable) advanceCursor() bool {
 	return false
 }
 
+func (t *stringGroupTable) Statistics() flux.Statistics {
+	if t.cur == nil {
+		return flux.Statistics{}
+	}
+	cs := t.cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
+}
+
 //
 // *********** Boolean ***********
 //
@@ -881,6 +981,20 @@ func (t *booleanTable) Close() {
 		t.cur = nil
 	}
 	t.mu.Unlock()
+}
+
+func (t *booleanTable) Statistics() flux.Statistics {
+	t.mu.Lock()
+	cur := t.cur
+	t.mu.Unlock()
+	if cur == nil {
+		return flux.Statistics{}
+	}
+	cs := cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
 }
 
 func (t *booleanTable) Do(f func(flux.ColReader) error) error {
@@ -1049,4 +1163,15 @@ func (t *booleanGroupTable) advanceCursor() bool {
 		}
 	}
 	return false
+}
+
+func (t *booleanGroupTable) Statistics() flux.Statistics {
+	if t.cur == nil {
+		return flux.Statistics{}
+	}
+	cs := t.cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
 }

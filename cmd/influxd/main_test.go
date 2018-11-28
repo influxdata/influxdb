@@ -47,13 +47,13 @@ func TestMain_Setup(t *testing.T) {
 	}
 }
 
-func TestMain_Write(t *testing.T) {
+func TestMain_WriteAndQuery(t *testing.T) {
 	m := RunMainOrFail(t, ctx)
 	m.SetupOrFail(t)
 	defer m.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
-	if resp, err := nethttp.DefaultClient.Do(m.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", m.Org.ID, m.Bucket.ID), `m,k=v f=0i 946684800000000000`)); err != nil {
+	if resp, err := nethttp.DefaultClient.Do(m.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", m.Org.ID, m.Bucket.ID), `m,k=v f=100i 946684800000000000`)); err != nil {
 		t.Fatal(err)
 	} else if err := resp.Body.Close(); err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestMain_Write(t *testing.T) {
 	// Query server to ensure write persists.
 	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
 	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
-		`,result,table,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,0,f,m,v` + "\r\n\r\n"
+		`,result,table,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v` + "\r\n\r\n"
 
 	var buf bytes.Buffer
 	req := (http.QueryRequest{Query: qs, Org: m.Org}).WithDefaults()
@@ -178,6 +178,7 @@ func (m *Main) MustNewHTTPRequest(method, rawurl, body string) *nethttp.Request 
 	if err != nil {
 		panic(err)
 	}
+
 	req.Header.Set("Authorization", "Token "+m.Auth.Token)
 	return req
 }

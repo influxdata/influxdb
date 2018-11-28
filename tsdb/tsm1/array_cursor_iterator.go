@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
+	"github.com/influxdata/platform/tsdb/cursors"
 )
 
 type arrayCursorIterator struct {
@@ -69,4 +70,32 @@ func (q *arrayCursorIterator) seriesFieldKeyBytes(name []byte, tags models.Tags,
 	q.key = append(q.key, keyFieldSeparatorBytes...)
 	q.key = append(q.key, field...)
 	return q.key
+}
+
+// Stats returns the cumulative stats for all cursors.
+func (q *arrayCursorIterator) Stats() cursors.CursorStats {
+	var stats cursors.CursorStats
+	if cur := q.asc.Float; cur != nil {
+		stats.Add(cur.Stats())
+	} else if cur := q.asc.Integer; cur != nil {
+		stats.Add(cur.Stats())
+	} else if cur := q.asc.Unsigned; cur != nil {
+		stats.Add(cur.Stats())
+	} else if cur := q.asc.Boolean; cur != nil {
+		stats.Add(cur.Stats())
+	} else if cur := q.asc.String; cur != nil {
+		stats.Add(cur.Stats())
+	}
+	if cur := q.desc.Float; cur != nil {
+		stats.Add(cur.Stats())
+	} else if cur := q.desc.Integer; cur != nil {
+		stats.Add(cur.Stats())
+	} else if cur := q.desc.Unsigned; cur != nil {
+		stats.Add(cur.Stats())
+	} else if cur := q.desc.Boolean; cur != nil {
+		stats.Add(cur.Stats())
+	} else if cur := q.desc.String; cur != nil {
+		stats.Add(cur.Stats())
+	}
+	return stats
 }

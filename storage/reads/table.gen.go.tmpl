@@ -49,6 +49,20 @@ func (t *{{.name}}Table) Close() {
 	t.mu.Unlock()
 }
 
+func (t *{{.name}}Table) Statistics() flux.Statistics {
+	t.mu.Lock()
+	cur := t.cur
+	t.mu.Unlock()
+	if cur == nil {
+		return flux.Statistics{}
+	}
+	cs := cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
+}
+
 func (t *{{.name}}Table) Do(f func(flux.ColReader) error) error {
 	t.mu.Lock()
 	defer func() {
@@ -215,6 +229,17 @@ func (t *{{.name}}GroupTable) advanceCursor() bool {
 		}
 	}
 	return false
+}
+
+func (t *{{.name}}GroupTable) Statistics() flux.Statistics {
+	if t.cur == nil {
+		return flux.Statistics{}
+	}
+	cs := t.cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
 }
 
 {{end}}

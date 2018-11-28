@@ -369,7 +369,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Non-existent ID should return the right error.
-		m, err := sys.ts.RetryRun(sys.Ctx, task.ID, platform.ID(math.MaxUint64), 0)
+		_, err = sys.ts.RetryRun(sys.Ctx, task.ID, platform.ID(math.MaxUint64), 0)
 		if err != backend.ErrRunNotFound {
 			t.Errorf("expected retrying run that doesn't exist to return %v, got %v", backend.ErrRunNotFound, err)
 		}
@@ -404,7 +404,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Now retry the run.
-		m, err = sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix)
+		m, err := sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID, requestedAtUnix)
 		if err != nil {
 			t.Fatal(err)
 		}

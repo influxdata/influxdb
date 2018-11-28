@@ -38,9 +38,10 @@ func NewResultSetStreamReader(stream StreamReader) *ResultSetStreamReader {
 	return r
 }
 
-func (r *ResultSetStreamReader) Err() error             { return r.fr.err }
-func (r *ResultSetStreamReader) Close()                 { r.fr.state = stateDone }
-func (r *ResultSetStreamReader) Cursor() cursors.Cursor { return r.cur.cursor() }
+func (r *ResultSetStreamReader) Err() error                 { return r.fr.err }
+func (r *ResultSetStreamReader) Close()                     { r.fr.state = stateDone }
+func (r *ResultSetStreamReader) Cursor() cursors.Cursor     { return r.cur.cursor() }
+func (r *ResultSetStreamReader) Stats() cursors.CursorStats { return cursors.CursorStats{} }
 
 func (r *ResultSetStreamReader) Next() bool {
 	if r.fr.state == stateReadSeries {
@@ -181,6 +182,7 @@ func (gc *groupCursorStreamReader) Tags() models.Tags          { return gc.tags 
 func (gc *groupCursorStreamReader) Keys() [][]byte             { return gc.tagKeys }
 func (gc *groupCursorStreamReader) PartitionKeyVals() [][]byte { return gc.partitionKeyVals }
 func (gc *groupCursorStreamReader) Cursor() cursors.Cursor     { return gc.cur.cursor() }
+func (gc *groupCursorStreamReader) Stats() cursors.CursorStats { return cursors.CursorStats{} }
 
 func (gc *groupCursorStreamReader) Next() bool {
 	if gc.fr.state == stateReadSeries {
