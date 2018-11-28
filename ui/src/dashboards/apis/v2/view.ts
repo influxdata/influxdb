@@ -1,56 +1,35 @@
-// Libraries
-import AJAX from 'src/utils/ajax'
-
 // Utils
-import {getDeep} from 'src/utils/wrappers'
+import {viewsAPI} from 'src/utils/api'
 
 // Types
-import {View, ViewParams} from 'src/types/v2'
+import {View} from 'src/api'
 import {NewView} from 'src/types/v2/dashboards'
 
-export const readView = async (url: string): Promise<View> => {
-  const {data} = await AJAX({url})
+export const readView = async (id: string): Promise<View> => {
+  const {data} = await viewsAPI.viewsViewIDGet(id)
 
   return data
 }
 
-export const createView = async (url: string, view: NewView): Promise<View> => {
-  const {data} = await AJAX({
-    url,
-    method: 'POST',
-    data: view,
-  })
+export const createView = async (
+  view: NewView,
+  org: string = ''
+): Promise<View> => {
+  const {data} = await viewsAPI.viewsPost(org, view)
 
   return data
 }
 
 export const updateView = async (
-  url: string,
+  id: string,
   view: Partial<View>
 ): Promise<View> => {
-  const {data} = await AJAX({
-    url,
-    method: 'PATCH',
-    data: view,
-  })
+  const {data} = await viewsAPI.viewsViewIDPatch(id, view)
 
   return data
 }
 
-export const readViews = async (
-  url: string,
-  params?: ViewParams
-): Promise<View[]> => {
-  try {
-    const response = await AJAX({
-      method: 'GET',
-      url,
-      params,
-    })
-
-    return getDeep<View[]>(response, 'data.views', [])
-  } catch (error) {
-    console.error(error)
-    return []
-  }
+export const readViews = async (org: string = ''): Promise<View[]> => {
+  const {data} = await viewsAPI.viewsGet(org)
+  return data.views
 }

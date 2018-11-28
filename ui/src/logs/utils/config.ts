@@ -15,12 +15,13 @@ import {
 } from 'src/types/logs'
 
 import {
-  View,
   NewView,
   LogViewerView,
   LogViewerColumn,
   LogViewerColumnSetting,
 } from 'src/types/v2/dashboards'
+
+import {View} from 'src/api'
 
 import {
   DEFAULT_TRUNCATION,

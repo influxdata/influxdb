@@ -5,7 +5,7 @@ export enum ActionTypes {
   SetMe = 'SET_ME',
 }
 
-type GetStateFunc = () => Promise<AppState>
+type GetStateFunc = () => AppState
 
 export interface SetMe {
   type: ActionTypes.SetMe
@@ -30,7 +30,7 @@ export const getMe = () => async (dispatch, getState: GetStateFunc) => {
   try {
     const {
       links: {me: url},
-    } = await getState()
+    } = getState()
 
     const user = await getMeAPI(url)
 

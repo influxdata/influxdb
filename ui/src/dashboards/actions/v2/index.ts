@@ -38,7 +38,6 @@ import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
 import {Dashboard, Cell} from 'src/api'
 import {NewView} from 'src/types/v2/dashboards'
-import {AppState} from 'src/types/v2'
 
 export enum ActionTypes {
   LoadDashboards = 'LOAD_DASHBOARDS',
@@ -249,13 +248,9 @@ export const addCellAsync = (dashboard: Dashboard) => async (
 export const createCellWithView = (
   dashboard: Dashboard,
   view: NewView
-) => async (
-  dispatch: Dispatch<Action>,
-  getState: () => AppState
-): Promise<void> => {
+) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
-    const viewsLink = getState().links.views
-    const createdView = await createViewAJAX(viewsLink, view)
+    const createdView = await createViewAJAX(view)
 
     const cell = {
       ...getNewDashboardCell(dashboard),

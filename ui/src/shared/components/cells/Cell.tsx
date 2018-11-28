@@ -14,7 +14,8 @@ import {readView} from 'src/dashboards/actions/v2/views'
 
 // Types
 import {RemoteDataState, TimeRange} from 'src/types'
-import {Cell, View, AppState, ViewType} from 'src/types/v2'
+import {AppState, ViewType} from 'src/types/v2'
+import {Cell, View} from 'src/api'
 
 // Styles
 import './Cell.scss'
@@ -47,7 +48,7 @@ class CellComponent extends Component<Props> {
     const {viewStatus, cell, onReadView} = this.props
 
     if (viewStatus === RemoteDataState.NotStarted) {
-      onReadView(cell.links.view, cell.viewID)
+      onReadView(cell.viewID)
     }
   }
 

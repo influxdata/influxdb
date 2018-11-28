@@ -1,5 +1,5 @@
 import {Color} from 'src/types/colors'
-import {Dashboard} from 'src/api'
+import {Dashboard, View as ViewAPI} from 'src/api'
 
 export interface Axis {
   label: string
@@ -69,11 +69,14 @@ export interface DecimalPlaces {
   digits: number
 }
 
-export interface View<T extends ViewProperties = ViewProperties> {
-  id: string
-  name: string
-  properties: T
-  links: ViewLinks
+export interface MarkDownProperties {
+  type: ViewType.Markdown
+  text: string
+}
+
+export interface View<T extends ViewProperties = ViewProperties>
+  extends ViewAPI {
+  properties?: T
 }
 
 type Omit<K, V> = Pick<K, Exclude<keyof K, V>>

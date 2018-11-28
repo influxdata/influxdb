@@ -1,7 +1,7 @@
 // Types
 import {Action} from 'src/dashboards/actions/v2/views'
 import {RemoteDataState} from 'src/types'
-import {View} from 'src/types/v2'
+import {View} from 'src/api'
 
 export interface ViewsState {
   [viewID: string]: {

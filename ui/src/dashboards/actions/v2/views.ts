@@ -6,7 +6,7 @@ import {
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {View} from 'src/types/v2'
+import {View} from 'src/api'
 import {Dispatch} from 'redux'
 
 export type Action = SetViewAction
@@ -29,13 +29,13 @@ export const setView = (
   payload: {id, view, status},
 })
 
-export const readView = (url: string, id: string) => async (
+export const readView = (id: string) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
   dispatch(setView(id, null, RemoteDataState.Loading))
 
   try {
-    const view = await readViewAJAX(url)
+    const view = await readViewAJAX(id)
 
     dispatch(setView(id, view, RemoteDataState.Done))
   } catch {
@@ -43,13 +43,13 @@ export const readView = (url: string, id: string) => async (
   }
 }
 
-export const updateView = (url: string, view: View) => async (
+export const updateView = (view: View) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
   dispatch(setView(view.id, null, RemoteDataState.Loading))
 
   try {
-    const newView = await updateViewAJAX(url, view)
+    const newView = await updateViewAJAX(view.id, view)
 
     dispatch(setView(view.id, newView, RemoteDataState.Done))
   } catch {

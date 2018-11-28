@@ -288,7 +288,7 @@ class DashboardPage extends Component<Props, State> {
 
     try {
       if (view.id) {
-        await onUpdateView(view.links.self, view)
+        await onUpdateView(view)
       } else {
         await onCreateCellWithView(dashboard, view)
       }
