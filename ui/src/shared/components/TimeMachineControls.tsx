@@ -7,6 +7,7 @@ import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import CSVExportButton from 'src/shared/components/CSVExportButton'
 import {SlideToggle, ComponentSize} from 'src/clockface'
 import TimeMachineSourceDropdown from 'src/shared/components/TimeMachineSourceDropdown'
+import TimeMachineRefreshDropdown from 'src/shared/components/TimeMachineRefreshDropdown'
 
 // Actions
 import {
@@ -61,6 +62,7 @@ class TimeMachineControls extends PureComponent<Props> {
             View Raw Data
           </label>
           <CSVExportButton files={files} />
+          <TimeMachineRefreshDropdown />
           <TimeRangeDropdown
             timeRange={timeRange}
             onSetTimeRange={onSetTimeRange}

@@ -7,7 +7,7 @@
   display: flex;
   flex-wrap: nowrap;
 
-  &.paused .dropdown {
+  .dropdown {
     margin-right: $ix-marg-a;
   }
 

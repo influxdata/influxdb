@@ -23,14 +23,15 @@ import {AppState, DashboardQuery} from 'src/types/v2'
 
 interface StateProps {
   queries: DashboardQuery[]
+  submitToken: number
 }
 
 const TimeMachine: SFC<StateProps> = props => {
-  const {queries} = props
+  const {queries, submitToken} = props
 
   return (
     <div className="time-machine">
-      <TimeSeries queries={queries}>
+      <TimeSeries queries={queries} submitToken={submitToken}>
         {queriesState => {
           const divisions: DivisionProps[] = [
             {
@@ -69,8 +70,9 @@ const TimeMachine: SFC<StateProps> = props => {
 const mstp = (state: AppState) => {
   const timeMachine = getActiveTimeMachine(state)
   const queries = get(timeMachine, 'view.properties.queries', [])
+  const submitToken = timeMachine.submitToken
 
-  return {queries}
+  return {queries, submitToken}
 }
 
 export default connect<StateProps, {}, {}>(

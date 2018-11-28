@@ -12,7 +12,6 @@ import {DashboardQuery, URLQuery} from 'src/types/v2/dashboards'
 import {AppState, Source} from 'src/types/v2'
 
 // Utils
-import {AutoRefresher} from 'src/utils/AutoRefresher'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {restartable, CancellationError} from 'src/utils/restartable'
 import {getSources, getActiveSource} from 'src/sources/selectors'
@@ -34,7 +33,7 @@ interface StateProps {
 
 interface OwnProps {
   queries: DashboardQuery[]
-  autoRefresher?: AutoRefresher
+  submitToken: number
   inView?: boolean
   children: (r: QueriesState) => JSX.Element
 }
@@ -68,20 +67,6 @@ class TimeSeries extends Component<Props, State> {
 
   public async componentDidMount() {
     this.reload()
-
-    const {autoRefresher} = this.props
-
-    if (autoRefresher) {
-      autoRefresher.subscribe(this.reload)
-    }
-  }
-
-  public componentWillUnmount() {
-    const {autoRefresher} = this.props
-
-    if (autoRefresher) {
-      autoRefresher.unsubscribe(this.reload)
-    }
   }
 
   public async componentDidUpdate(prevProps: Props) {
@@ -155,6 +140,10 @@ class TimeSeries extends Component<Props, State> {
   }
 
   private shouldReload(prevProps: Props) {
+    if (prevProps.submitToken !== this.props.submitToken) {
+      return true
+    }
+
     if (!isEqual(prevProps.queries, this.props.queries)) {
       return true
     }

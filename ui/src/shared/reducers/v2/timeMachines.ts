@@ -28,6 +28,7 @@ export interface TimeMachineState {
   isViewingRawData: boolean
   activeTab: TimeMachineTab
   activeQueryIndex: number | null
+  submitToken: number
 }
 
 export interface TimeMachinesState {
@@ -44,6 +45,7 @@ const initialStateHelper = (): TimeMachineState => ({
   isViewingRawData: false,
   activeTab: TimeMachineTab.Queries,
   activeQueryIndex: 0,
+  submitToken: 0,
 })
 
 export const initialState = (): TimeMachinesState => ({
@@ -157,6 +159,7 @@ const timeMachineReducer = (
       return {
         ...state,
         view: replaceQuery(view, draftScript),
+        submitToken: Date.now(),
       }
     }
 
@@ -286,6 +289,13 @@ const timeMachineReducer = (
       )
 
       return setViewProperties(state, {queries})
+    }
+
+    case 'INCREMENT_SUBMIT_TOKEN': {
+      return {
+        ...state,
+        submitToken: Date.now(),
+      }
     }
   }
 

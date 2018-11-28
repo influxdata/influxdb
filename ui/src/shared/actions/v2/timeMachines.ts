@@ -29,6 +29,7 @@ export type Action =
   | SetQuerySourceAction
   | SetPrefix
   | SetSuffix
+  | IncrementSubmitToken
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -268,4 +269,12 @@ interface SetQuerySourceAction {
 export const setQuerySource = (sourceID: string): SetQuerySourceAction => ({
   type: 'SET_QUERY_SOURCE',
   payload: {sourceID},
+})
+
+interface IncrementSubmitToken {
+  type: 'INCREMENT_SUBMIT_TOKEN'
+}
+
+export const incrementSubmitToken = (): IncrementSubmitToken => ({
+  type: 'INCREMENT_SUBMIT_TOKEN',
 })

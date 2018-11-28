@@ -24,10 +24,28 @@ interface Props {
   properties: QueryViewProperties
 }
 
-class RefreshingView extends PureComponent<Props> {
+interface State {
+  submitToken: number
+}
+
+class RefreshingView extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     inView: true,
     manualRefresh: 0,
+  }
+
+  constructor(props) {
+    super(props)
+
+    this.state = {submitToken: 0}
+  }
+
+  public componentDidMount() {
+    GlobalAutoRefresher.subscribe(this.incrementSubmitToken)
+  }
+
+  public componentWillUnmount() {
+    GlobalAutoRefresher.unsubscribe(this.incrementSubmitToken)
   }
 
   public render() {
@@ -39,11 +57,12 @@ class RefreshingView extends PureComponent<Props> {
       properties,
       manualRefresh,
     } = this.props
+    const {submitToken} = this.state
 
     return (
       <TimeSeries
         inView={inView}
-        autoRefresher={GlobalAutoRefresher}
+        submitToken={submitToken}
         queries={this.queries}
         key={manualRefresh}
       >
@@ -91,6 +110,10 @@ class RefreshingView extends PureComponent<Props> {
     const {note, showNoteWhenEmpty} = this.props.properties
 
     return showNoteWhenEmpty ? note : null
+  }
+
+  private incrementSubmitToken = () => {
+    this.setState({submitToken: Date.now()})
   }
 }
 
