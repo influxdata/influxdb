@@ -1,8 +1,8 @@
 // Types
-import {DataSourceType, ConfigurationState} from 'src/types/v2/dataSources'
+import {DataLoaderType, ConfigurationState} from 'src/types/v2/dataSources'
 
-export const getInitialDataSources = (type: DataSourceType) => {
-  if (type === DataSourceType.Streaming) {
+export const getInitialDataSources = (type: DataLoaderType) => {
+  if (type === DataLoaderType.Streaming) {
     return []
   }
 

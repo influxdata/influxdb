@@ -27,6 +27,7 @@ import {
   setDataLoadersType,
   addDataSource,
   removeDataSource,
+  setActiveDataSource,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Constants
@@ -35,9 +36,10 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 // Types
 import {Links} from 'src/types/v2/links'
 import {SetupParams} from 'src/onboarding/apis'
-import {DataSource, DataSourceType} from 'src/types/v2/dataSources'
+import {DataSource, DataLoaderType} from 'src/types/v2/dataSources'
 import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types/v2'
+import OnboardingSideBar from 'src/onboarding/components/OnboardingSideBar'
 
 export interface OnboardingStepProps {
   links: Links
@@ -71,11 +73,12 @@ interface DispatchProps {
   onSetDataLoadersType: typeof setDataLoadersType
   onAddDataSource: typeof addDataSource
   onRemoveDataSource: typeof removeDataSource
+  onSetActiveDataSource: typeof setActiveDataSource
 }
 
 interface DataLoadersProps {
   dataSources: DataSource[]
-  type: DataSourceType
+  type: DataLoaderType
 }
 
 interface StateProps {
@@ -108,26 +111,36 @@ class OnboardingWizard extends PureComponent<Props> {
     const {
       currentStepIndex,
       dataLoaders,
+      dataLoaders: {dataSources},
       onSetDataLoadersType,
       onRemoveDataSource,
       onAddDataSource,
       setupParams,
+      notify,
     } = this.props
-    const currentStepTitle = this.stepTitles[currentStepIndex]
 
     return (
       <WizardFullScreen>
         {this.progressHeader}
-        <div className="wizard-step--container">
-          <OnboardingStepSwitcher
-            onboardingStepProps={this.onboardingStepProps}
-            stepTitle={currentStepTitle}
-            setupParams={setupParams}
-            dataLoaders={dataLoaders}
-            onSetDataLoadersType={onSetDataLoadersType}
-            onAddDataSource={onAddDataSource}
-            onRemoveDataSource={onRemoveDataSource}
+        <div className="wizard-contents">
+          <OnboardingSideBar
+            notify={notify}
+            dataSources={dataSources}
+            onTabClick={this.handleClickSideBarTab}
+            title="Selected Sources"
+            visible={this.sideBarVisible}
           />
+          <div className="wizard-step--container">
+            <OnboardingStepSwitcher
+              currentStepIndex={currentStepIndex}
+              onboardingStepProps={this.onboardingStepProps}
+              setupParams={setupParams}
+              dataLoaders={dataLoaders}
+              onSetDataLoadersType={onSetDataLoadersType}
+              onAddDataSource={onAddDataSource}
+              onRemoveDataSource={onRemoveDataSource}
+            />
+          </div>
         </div>
       </WizardFullScreen>
     )
@@ -164,6 +177,30 @@ class OnboardingWizard extends PureComponent<Props> {
     )
   }
 
+  private get sideBarVisible() {
+    const {currentStepIndex, dataLoaders} = this.props
+    const {dataSources, type} = dataLoaders
+
+    const isStreaming = type === DataLoaderType.Streaming
+    const isNotEmpty = dataSources.length > 0
+    const isSideBarStep =
+      (currentStepIndex === 2 && isNotEmpty) || currentStepIndex === 3
+
+    return isStreaming && isSideBarStep
+  }
+
+  private handleClickSideBarTab = (dataSourceID: string) => {
+    const {onSetCurrentStepIndex, onSetActiveDataSource} = this.props
+    onSetCurrentStepIndex(3)
+    onSetActiveDataSource(dataSourceID)
+  }
+
+  private handleExit = () => {
+    const {router, onCompleteSetup} = this.props
+    onCompleteSetup()
+    router.push(`/sources`)
+  }
+
   private get onboardingStepProps(): OnboardingStepProps {
     const {
       stepStatuses,
@@ -195,12 +232,6 @@ class OnboardingWizard extends PureComponent<Props> {
       onExit: this.handleExit,
     }
   }
-
-  private handleExit = () => {
-    const {router, onCompleteSetup} = this.props
-    onCompleteSetup()
-    router.push(`/sources`)
-  }
 }
 
 const mstp = ({
@@ -227,6 +258,7 @@ const mdtp: DispatchProps = {
   onSetDataLoadersType: setDataLoadersType,
   onAddDataSource: addDataSource,
   onRemoveDataSource: removeDataSource,
+  onSetActiveDataSource: setActiveDataSource,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

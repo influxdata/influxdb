@@ -1,0 +1,13 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`SideBarTab rendering renders! wee! 1`] = `
+<div
+  className="side-bar--tab active"
+  onClick={[Function]}
+>
+  <span
+    className="side-bar--icon icon circle-thick"
+  />
+  label
+</div>
+`;

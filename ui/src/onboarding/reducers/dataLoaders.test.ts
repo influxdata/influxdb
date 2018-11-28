@@ -11,16 +11,16 @@ import {
   removeDataSource,
 } from 'src/onboarding/actions/dataLoaders'
 
-import {DataSourceType, ConfigurationState} from 'src/types/v2/dataSources'
+import {DataLoaderType, ConfigurationState} from 'src/types/v2/dataSources'
 
 describe('dataLoader reducer', () => {
   describe('if type is streaming', () => {
     it('can set a type', () => {
       const actual = dataLoadersReducer(
         INITIAL_STATE,
-        setDataLoadersType(DataSourceType.Streaming)
+        setDataLoadersType(DataLoaderType.Streaming)
       )
-      const expected = {dataSources: [], type: DataSourceType.Streaming}
+      const expected = {dataSources: [], type: DataLoaderType.Streaming}
 
       expect(actual).toEqual(expected)
     })
@@ -30,7 +30,7 @@ describe('dataLoader reducer', () => {
     it('cant set a type not streaming', () => {
       const actual = dataLoadersReducer(
         INITIAL_STATE,
-        setDataLoadersType(DataSourceType.CSV)
+        setDataLoadersType(DataLoaderType.CSV)
       )
       const expected = {
         dataSources: [
@@ -41,7 +41,7 @@ describe('dataLoader reducer', () => {
             configs: null,
           },
         ],
-        type: DataSourceType.CSV,
+        type: DataLoaderType.CSV,
       }
 
       expect(actual).toEqual(expected)
@@ -68,7 +68,7 @@ describe('dataLoader reducer', () => {
             configs: null,
           },
         ],
-        type: DataSourceType.Empty,
+        type: DataLoaderType.Empty,
       }
 
       expect(actual).toEqual(expected)
@@ -77,7 +77,7 @@ describe('dataLoader reducer', () => {
 
   it('can add a streaming data source', () => {
     const actual = dataLoadersReducer(
-      {...INITIAL_STATE, type: DataSourceType.Streaming},
+      {...INITIAL_STATE, type: DataLoaderType.Streaming},
       addDataSource({
         name: 'CPU',
         configured: ConfigurationState.Unconfigured,
@@ -94,7 +94,7 @@ describe('dataLoader reducer', () => {
           configs: null,
         },
       ],
-      type: DataSourceType.Streaming,
+      type: DataLoaderType.Streaming,
     }
 
     expect(actual).toEqual(expected)
@@ -104,7 +104,7 @@ describe('dataLoader reducer', () => {
     const actual = dataLoadersReducer(
       {
         ...INITIAL_STATE,
-        type: DataSourceType.Streaming,
+        type: DataLoaderType.Streaming,
         dataSources: [
           {
             name: 'CPU',
@@ -118,7 +118,7 @@ describe('dataLoader reducer', () => {
     )
     const expected = {
       dataSources: [],
-      type: DataSourceType.Streaming,
+      type: DataLoaderType.Streaming,
     }
 
     expect(actual).toEqual(expected)
