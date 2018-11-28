@@ -1,0 +1,1 @@
+SELECT derivative(first(f), 10s) FROM d WHERE time >= 0 AND time <= 100s GROUP BY time(20s)
