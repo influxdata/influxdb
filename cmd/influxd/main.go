@@ -272,7 +272,7 @@ func (m *Main) run(ctx context.Context) (err error) {
 			return err
 		}
 		// The Engine's metrics must be registered after it opens.
-		reg.MustRegister(engine.PrometheusCollectors()...)
+		reg.MustRegister(m.engine.PrometheusCollectors()...)
 
 		pointsWriter = m.engine
 
