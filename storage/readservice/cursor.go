@@ -3,10 +3,10 @@ package readservice
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/storage/reads"
 	"github.com/influxdata/platform/storage/reads/datatypes"

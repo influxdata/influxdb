@@ -38,7 +38,6 @@ require (
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/influxdata/flux v0.7.1-0.20181121233512-adb2411fee9c
-	github.com/influxdata/influxdb v0.0.0-20181017211453-9520b8d95606
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jessevdk/go-flags v1.4.0
@@ -79,7 +78,6 @@ require (
 	github.com/tinylib/msgp v1.0.2 // indirect
 	github.com/tylerb/graceful v1.2.15
 	github.com/willf/bitset v1.1.9 // indirect
-	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6 // indirect
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20181015023909-0c41d7ab0a0e
 	golang.org/x/net v0.0.0-20181023162649-9b4f9f5ad519

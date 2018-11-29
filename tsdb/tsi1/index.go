@@ -17,10 +17,10 @@ import (
 	"sort"
 
 	"github.com/cespare/xxhash"
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/slices"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/tsdb"
 	"go.uber.org/zap"
 )
