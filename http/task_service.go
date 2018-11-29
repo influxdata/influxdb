@@ -225,6 +225,19 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request) (*getTasksReque
 		req.filter.User = id
 	}
 
+	if limit := qp.Get("limit"); limit != "" {
+		lim, err := strconv.Atoi(limit)
+		if err != nil {
+			return nil, err
+		}
+		if lim < 1 || lim > platform.TaskMaxPageSize {
+			return nil, kerrors.InvalidDataf("limit must be between 1 and %d", platform.TaskMaxPageSize)
+		}
+		req.filter.Limit = lim
+	} else {
+		req.filter.Limit = platform.TaskDefaultPageSize
+	}
+
 	return req, nil
 }
 
@@ -808,6 +821,9 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	}
 	if filter.User != nil {
 		val.Add("user", filter.User.String())
+	}
+	if filter.Limit != 0 {
+		val.Add("limit", strconv.Itoa(filter.Limit))
 	}
 
 	u.RawQuery = val.Encode()

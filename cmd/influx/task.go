@@ -173,6 +173,7 @@ type TaskFindFlags struct {
 	user  string
 	id    string
 	orgID string
+	limit int
 }
 
 var taskFindFlags TaskFindFlags
@@ -187,6 +188,7 @@ func init() {
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.orgID, "org-id", "", "", "task organization ID")
+	taskFindCmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", platform.TaskDefaultPageSize, "the number of tasks to find")
 
 	taskCmd.AddCommand(taskFindCmd)
 }
@@ -215,6 +217,12 @@ func taskFindF(cmd *cobra.Command, args []string) {
 		}
 		filter.Organization = id
 	}
+
+	if taskFindFlags.limit < 1 || taskFindFlags.limit > platform.TaskMaxPageSize {
+		fmt.Printf("limit must be between 1 and %d \n", platform.TaskMaxPageSize)
+		os.Exit(1)
+	}
+	filter.Limit = taskFindFlags.limit
 
 	var tasks []*platform.Task
 	var err error
