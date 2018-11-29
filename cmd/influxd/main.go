@@ -265,7 +265,6 @@ func (m *Main) run(ctx context.Context) (err error) {
 	{
 		m.engine = storage.NewEngine(m.enginePath, storage.NewConfig(), storage.WithRetentionEnforcer(bucketSvc))
 		m.engine.WithLogger(m.logger)
-		reg.MustRegister(m.engine.PrometheusCollectors()...)
 
 		if err := m.engine.Open(); err != nil {
 			m.logger.Error("failed to open engine", zap.Error(err))

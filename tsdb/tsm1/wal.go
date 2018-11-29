@@ -583,7 +583,7 @@ func (l *WAL) newSegmentFile() error {
 type walTracker struct {
 	metrics *walMetrics
 
-	oldSegmentBytes     uint64
+	oldSegmentBytes uint64
 }
 
 func newWALTracker(metrics *walMetrics) *walTracker {
