@@ -1,6 +1,15 @@
-import {TasksApi, UsersApi, DashboardsApi, CellsApi} from 'src/api'
+import {
+  TasksApi,
+  UsersApi,
+  DashboardsApi,
+  CellsApi,
+  TelegrafsApi,
+} from 'src/api'
 
-export const taskAPI = new TasksApi({basePath: '/api/v2'})
-export const usersAPI = new UsersApi({basePath: '/api/v2'})
-export const dashboardsAPI = new DashboardsApi({basePath: '/api/v2'})
-export const cellsAPI = new CellsApi({basePath: '/api/v1'})
+const basePath = '/api/v2'
+
+export const taskAPI = new TasksApi({basePath})
+export const usersAPI = new UsersApi({basePath})
+export const dashboardsAPI = new DashboardsApi({basePath})
+export const cellsAPI = new CellsApi({basePath})
+export const telegrafsApi = new TelegrafsApi({basePath})

@@ -51,3 +51,8 @@ export const taskImportSuccess = (fileName: string): Notification => ({
   duration: FIVE_SECONDS,
   message: `Successfully imported file ${fileName}.`,
 })
+
+export const getTelegrafConfigFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to get telegraf config',
+})
