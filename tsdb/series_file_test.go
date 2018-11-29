@@ -119,7 +119,7 @@ func TestSeriesFileCompactor(t *testing.T) {
 	// Compact in-place for each partition.
 	for _, p := range sfile.Partitions() {
 		compactor := tsdb.NewSeriesPartitionCompactor()
-		if err := compactor.Compact(p); err != nil {
+		if _, err := compactor.Compact(p); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -267,7 +267,7 @@ func (f *SeriesFile) Reopen() error {
 // ForceCompact executes an immediate compaction across all partitions.
 func (f *SeriesFile) ForceCompact() error {
 	for _, p := range f.Partitions() {
-		if err := tsdb.NewSeriesPartitionCompactor().Compact(p); err != nil {
+		if _, err := tsdb.NewSeriesPartitionCompactor().Compact(p); err != nil {
 			return err
 		}
 	}

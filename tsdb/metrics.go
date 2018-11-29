@@ -27,7 +27,7 @@ type seriesFileMetrics struct {
 
 // newSeriesFileMetrics initialises the prometheus metrics for tracking the Series File.
 func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
-	var names []string
+	names := []string{"partition_id"} // All metrics have this label.
 	for k := range labels {
 		names = append(names, k)
 	}

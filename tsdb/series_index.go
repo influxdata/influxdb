@@ -64,7 +64,8 @@ func NewSeriesIndex(path string) *SeriesIndex {
 	}
 }
 
-// setMetrics sets the metrics
+// setMetrics sets the metrics for this index. The partition id has to be injected
+// into the RHH metric labels.
 func (idx *SeriesIndex) setMetrics(metrics *rhh.Metrics, id int) {
 	idx.metrics = metrics
 	idx.metrics.Lab = idx.metrics.Labels()           // Copy labels

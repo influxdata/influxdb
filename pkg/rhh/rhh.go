@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"sort"
 	"time"
+	"fmt"
 
 	"github.com/cespare/xxhash"
 	"github.com/prometheus/client_golang/prometheus"
@@ -311,6 +312,7 @@ func (t *rhhTracker) SetProbeCount(length float64) {
 func (t *rhhTracker) incGet(status string) {
 	labels := t.metrics.Labels()
 	labels["status"] = status
+	fmt.Println(labels)
 	t.metrics.Gets.With(labels).Inc()
 }
 

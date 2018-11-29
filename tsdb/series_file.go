@@ -55,8 +55,10 @@ type SeriesFile struct {
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
 	return &SeriesFile{
-		path:   path,
-		Logger: zap.NewNop(),
+		path:             path,
+		partitionMetrics: newSeriesFileMetrics(nil),
+		indexMetrics:     rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", nil),
+		Logger:           zap.NewNop(),
 	}
 }
 
@@ -72,7 +74,8 @@ func (f *SeriesFile) SetDefaultMetricLabels(labels prometheus.Labels) {
 	for k, v := range labels {
 		f.defaultMetricLabels[k] = v
 	}
-	f.defaultMetricLabels["partition_id"] = "" // All metrics have partition_id as a label.
+	f.partitionMetrics = newSeriesFileMetrics(labels)
+	f.indexMetrics = rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", labels)
 }
 
 // Open memory maps the data file at the file's path.
@@ -89,9 +92,11 @@ func (f *SeriesFile) Open() error {
 		return err
 	}
 
-	f.partitionMetrics = newSeriesFileMetrics(f.defaultMetricLabels) // All partitions must share the same metrics.
-	f.indexMetrics = rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", f.defaultMetricLabels)
+	// Ensure the that RHH metrics have the correct partition label.
+	newLabels := f.indexMetrics.Labels()
+	newLabels["partition_id"] = "" // Each partition index will set this when setMetrics is called.
 
+	f.indexMetrics = rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", newLabels)
 	// Open partitions.
 	f.partitions = make([]*SeriesPartition, 0, SeriesFilePartitionN)
 	for i := 0; i < SeriesFilePartitionN; i++ {
