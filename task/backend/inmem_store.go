@@ -134,21 +134,16 @@ func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTa
 		return nil, errors.New("ListTasks: org and user filters are mutually exclusive")
 	}
 
-	const (
-		defaultPageSize = 100
-		maxPageSize     = 500
-	)
-
 	if params.PageSize < 0 {
 		return nil, errors.New("ListTasks: PageSize must be positive")
 	}
-	if params.PageSize > maxPageSize {
-		return nil, fmt.Errorf("ListTasks: PageSize exceeds maximum of %d", maxPageSize)
+	if params.PageSize > platform.TaskMaxPageSize {
+		return nil, fmt.Errorf("ListTasks: PageSize exceeds maximum of %d", platform.TaskMaxPageSize)
 	}
 
 	lim := params.PageSize
 	if lim == 0 {
-		lim = defaultPageSize
+		lim = platform.TaskDefaultPageSize
 	}
 
 	out := make([]StoreTaskWithMeta, 0, lim)
