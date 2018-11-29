@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdata/platform"
@@ -267,6 +268,10 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 	b, err := h.BucketService.FindBucketByID(ctx, req.BucketID)
 	if err != nil {
+		// TODO(desa): fix this when using real errors library
+		if strings.Contains(err.Error(), "not found") {
+			err = errors.New(err.Error(), errors.NotFound)
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -310,6 +315,10 @@ func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := h.BucketService.DeleteBucket(ctx, req.BucketID); err != nil {
+		// TODO(desa): fix this when using real errors library
+		if strings.Contains(err.Error(), "not found") {
+			err = errors.New(err.Error(), errors.NotFound)
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -409,6 +418,10 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 
 	b, err := h.BucketService.UpdateBucket(ctx, req.BucketID, req.Update)
 	if err != nil {
+		// TODO(desa): fix this when using real errors library
+		if strings.Contains(err.Error(), "not found") {
+			err = errors.New(err.Error(), errors.NotFound)
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -461,9 +474,6 @@ type BucketService struct {
 	Addr               string
 	Token              string
 	InsecureSkipVerify bool
-	// OpPrefix is an additional property for error
-	// find bucket service, when finds nothing.
-	OpPrefix string
 }
 
 // FindBucketByID returns a single bucket by ID.
@@ -485,7 +495,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 		return nil, err
 	}
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -505,11 +515,7 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 	}
 
 	if n == 0 {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Op:   s.OpPrefix + platform.OpFindBucket,
-			Err:  ErrNotFound,
-		}
+		return nil, ErrNotFound
 	}
 
 	return bs[0], nil
@@ -551,7 +557,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 		return nil, 0, err
 	}
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -602,7 +608,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 	}
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -648,7 +654,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 		return nil, err
 	}
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -678,7 +684,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	if err != nil {
 		return err
 	}
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 func bucketIDPath(id platform.ID) string {

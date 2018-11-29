@@ -40,13 +40,13 @@ type BucketFields struct {
 }
 
 type bucketServiceF func(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (platform.BucketService, func()),
 	t *testing.T,
 )
 
 // BucketService tests all the service functions.
 func BucketService(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (platform.BucketService, func()),
 	t *testing.T,
 ) {
 	tests := []struct {
@@ -87,7 +87,7 @@ func BucketService(
 
 // CreateBucket testing
 func CreateBucket(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (platform.BucketService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -272,11 +272,7 @@ func CreateBucket(
 						OrganizationID: MustIDBase16(orgOneID),
 					},
 				},
-				err: &platform.Error{
-					Code: platform.EConflict,
-					Op:   platform.OpCreateBucket,
-					Msg:  fmt.Sprintf("bucket with name bucket1 already exists"),
-				},
+				err: fmt.Errorf("bucket with name bucket1 already exists"),
 			},
 		},
 		{
@@ -332,11 +328,22 @@ func CreateBucket(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.CreateBucket(ctx, tt.args.bucket)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			if (err != nil) != (tt.wants.err != nil) {
+				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
+			}
+			if tt.wants.err == nil && !tt.args.bucket.ID.Valid() {
+				t.Fatalf("bucket ID not set from CreateBucket")
+			}
+
+			if err != nil && tt.wants.err != nil {
+				if err.Error() != tt.wants.err.Error() {
+					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
+				}
+			}
 
 			// Delete only newly created buckets - ie., with a not nil ID
 			// if tt.args.bucket.ID.Valid() {
@@ -356,7 +363,7 @@ func CreateBucket(
 
 // FindBucketByID testing
 func FindBucketByID(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (platform.BucketService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -407,49 +414,24 @@ func FindBucketByID(
 				},
 			},
 		},
-		{
-			name: "find bucket by id not exist",
-			fields: BucketFields{
-				Buckets: []*platform.Bucket{
-					{
-						ID:             MustIDBase16(bucketOneID),
-						OrganizationID: MustIDBase16(orgOneID),
-						Name:           "bucket1",
-					},
-					{
-						ID:             MustIDBase16(bucketTwoID),
-						OrganizationID: MustIDBase16(orgOneID),
-						Name:           "bucket2",
-					},
-				},
-				Organizations: []*platform.Organization{
-					{
-						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
-					},
-				},
-			},
-			args: args{
-				id: MustIDBase16(threeID),
-			},
-			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpFindBucketByID,
-					Msg:  "bucket not found",
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
 			bucket, err := s.FindBucketByID(ctx, tt.args.id)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			if (err != nil) != (tt.wants.err != nil) {
+				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
+			}
+
+			if err != nil && tt.wants.err != nil {
+				if err.Error() != tt.wants.err.Error() {
+					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
+				}
+			}
 
 			if diff := cmp.Diff(bucket, tt.wants.bucket, bucketCmpOptions...); diff != "" {
 				t.Errorf("bucket is different -got/+want\ndiff %s", diff)
@@ -460,7 +442,7 @@ func FindBucketByID(
 
 // FindBuckets testing
 func FindBuckets(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (platform.BucketService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -718,7 +700,7 @@ func FindBuckets(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
@@ -737,7 +719,15 @@ func FindBuckets(
 			}
 
 			buckets, _, err := s.FindBuckets(ctx, filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			if (err != nil) != (tt.wants.err != nil) {
+				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
+			}
+
+			if err != nil && tt.wants.err != nil {
+				if err.Error() != tt.wants.err.Error() {
+					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
+				}
+			}
 
 			if diff := cmp.Diff(buckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
 				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
@@ -748,7 +738,7 @@ func FindBuckets(
 
 // DeleteBucket testing
 func DeleteBucket(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (platform.BucketService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -827,11 +817,7 @@ func DeleteBucket(
 				ID: "1234567890654321",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Op:   platform.OpDeleteBucket,
-					Msg:  "bucket not found",
-					Code: platform.ENotFound,
-				},
+				err: fmt.Errorf("bucket not found"),
 				buckets: []*platform.Bucket{
 					{
 						Name:           "A",
@@ -852,11 +838,19 @@ func DeleteBucket(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.DeleteBucket(ctx, MustIDBase16(tt.args.ID))
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			if (err != nil) != (tt.wants.err != nil) {
+				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
+			}
+
+			if err != nil && tt.wants.err != nil {
+				if err.Error() != tt.wants.err.Error() {
+					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
+				}
+			}
 
 			filter := platform.BucketFilter{}
 			buckets, _, err := s.FindBuckets(ctx, filter)
@@ -872,7 +866,7 @@ func DeleteBucket(
 
 // FindBucket testing
 func FindBucket(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (platform.BucketService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -942,18 +936,14 @@ func FindBucket(
 				organizationID: MustIDBase16(orgOneID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpFindBucket,
-					Msg:  "no results found",
-				},
+				err: fmt.Errorf("no results found"),
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			filter := platform.BucketFilter{}
@@ -965,7 +955,9 @@ func FindBucket(
 			}
 
 			bucket, err := s.FindBucket(ctx, filter)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			if (err != nil) != (tt.wants.err != nil) {
+				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
+			}
 
 			if diff := cmp.Diff(bucket, tt.wants.bucket, bucketCmpOptions...); diff != "" {
 				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
@@ -976,7 +968,7 @@ func FindBucket(
 
 // UpdateBucket testing
 func UpdateBucket(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (platform.BucketService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -1107,7 +1099,7 @@ func UpdateBucket(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
+			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
@@ -1121,7 +1113,15 @@ func UpdateBucket(
 			}
 
 			bucket, err := s.UpdateBucket(ctx, tt.args.id, upd)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+			if (err != nil) != (tt.wants.err != nil) {
+				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
+			}
+
+			if err != nil && tt.wants.err != nil {
+				if err.Error() != tt.wants.err.Error() {
+					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
+				}
+			}
 
 			if diff := cmp.Diff(bucket, tt.wants.bucket, bucketCmpOptions...); diff != "" {
 				t.Errorf("bucket is different -got/+want\ndiff %s", diff)
