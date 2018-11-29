@@ -113,7 +113,7 @@ type Index struct {
 
 	defaultLabels prometheus.Labels
 
-	tagValueCache *TagValueSeriesIDCache
+	tagValueCache    *TagValueSeriesIDCache
 	partitionMetrics *partitionMetrics // Maintain a single set of partition metrics to be shared by partition.
 
 	// The following may be set when initializing an Index.
@@ -141,13 +141,13 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, c Config, options ...IndexOption) *Index {
 	idx := &Index{
-		tagValueCache:  NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
+		tagValueCache:    NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
 		partitionMetrics: newPartitionMetrics(nil),
-		maxLogFileSize: int64(c.MaxIndexLogFileSize),
-		logger:         zap.NewNop(),
-		version:        Version,
-		sfile:          sfile,
-		PartitionN:     DefaultPartitionN,
+		maxLogFileSize:   int64(c.MaxIndexLogFileSize),
+		logger:           zap.NewNop(),
+		version:          Version,
+		sfile:            sfile,
+		PartitionN:       DefaultPartitionN,
 	}
 
 	for _, option := range options {

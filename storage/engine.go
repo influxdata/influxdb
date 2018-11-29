@@ -1,10 +1,10 @@
 package storage
 
 import (
-	"fmt"
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -202,7 +202,7 @@ func (e *Engine) Open() error {
 	// For now we will just run on an interval as we only have the retention
 	// policy enforcer.
 	e.runRetentionEnforcer()
-	
+
 	return nil
 }
 

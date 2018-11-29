@@ -959,7 +959,7 @@ func (p *Partition) compact() {
 func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-chan struct{}) {
 	assert(len(files) >= 2, "at least two index files are required for compaction")
 	assert(level > 0, "cannot compact level zero")
-	
+
 	var err error
 	var start time.Time
 
@@ -974,7 +974,7 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		success := err == nil
 		p.tracker.CompactionAttempted(level, success, time.Since(start))
 	}()
-	
+
 	// Build a logger for this compaction.
 	log, logEnd := logger.NewOperation(p.logger, "TSI level compaction", "tsi1_compact_to_level", zap.Int("tsi1_level", level))
 	defer logEnd()
@@ -998,7 +998,7 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	// Create new index file.
 	path := filepath.Join(p.path, FormatIndexFileName(p.NextSequence(), level))
 	var f *os.File
-	if f, err = os.Create(path);err != nil {
+	if f, err = os.Create(path); err != nil {
 		log.Error("Cannot create compaction files", zap.Error(err))
 		return
 	}
