@@ -1172,12 +1172,6 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
 		q.Done()
 	}()
 
-	// Setup headers
-	//stats, hasStats := results.(flux.Statisticser)
-	//if hasStats {
-	//	w.Header().Set("Trailer", statsTrailer)
-	//}
-
 	// NOTE: We do not write out the headers here.
 	// It is possible that if the encoding step fails
 	// that we can write an error header so long as
@@ -1199,23 +1193,13 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
 		results := flux.NewResultIteratorFromQuery(q)
 		n, err := encoder.Encode(w, results)
 		if err != nil {
-			results.Cancel()
+			results.Release()
 			if n == 0 {
 				// If the encoder did not write anything, we can write an error header.
 				h.httpError(w, err.Error(), http.StatusInternalServerError)
 			}
 		}
 	}
-
-	//if hasStats {
-	//	data, err := json.Marshal(stats.Statistics())
-	//	if err != nil {
-	//		h.Logger.Info("Failed to encode statistics", zap.Error(err))
-	//		return
-	//	}
-	//	// Write statisitcs trailer
-	//	w.Header().Set(statsTrailer, string(data))
-	//}
 }
 
 // serveExpvar serves internal metrics in /debug/vars format over HTTP.
