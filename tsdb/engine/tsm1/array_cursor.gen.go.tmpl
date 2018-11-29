@@ -54,6 +54,10 @@ c.end = end
 
 func (c *{{$type}}) Err() error        { return nil }
 
+func (c *{{$type}}) Stats() tsdb.CursorStats {
+	return tsdb.CursorStats{}
+}
+
 // close closes the cursor and any dependent cursors.
 func (c *{{$type}}) Close() {
 	if c.tsm.keyCursor != nil {
@@ -210,6 +214,10 @@ func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *Key
 }
 
 func (c *{{$type}}) Err() error        { return nil }
+
+func (c *{{$type}}) Stats() tsdb.CursorStats {
+	return tsdb.CursorStats{}
+}
 
 func (c *{{$type}}) Close() {
 	if c.tsm.keyCursor != nil {

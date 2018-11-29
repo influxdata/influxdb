@@ -23,7 +23,6 @@ func NewController(mc MetaClient, reader fstorage.Reader, logger *zap.Logger) *c
 		ConcurrencyQuota:     concurrencyQuota,
 		MemoryBytesQuota:     int64(memoryBytesQuota),
 		Logger:               logger,
-		Verbose:              false,
 	}
 
 	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, inputs.Dependencies{Reader: reader, MetaClient: mc})

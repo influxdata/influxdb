@@ -21,6 +21,7 @@ type (
 	BooleanArrayCursor  = cursors.BooleanArrayCursor
 
 	Cursor          = cursors.Cursor
+	CursorStats     = cursors.CursorStats
 	CursorRequest   = cursors.CursorRequest
 	CursorIterator  = cursors.CursorIterator
 	CursorIterators = cursors.CursorIterators
