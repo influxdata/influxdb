@@ -584,7 +584,6 @@ type walTracker struct {
 	metrics *walMetrics
 
 	oldSegmentBytes     uint64
-	currentSegmentBytes uint64
 }
 
 func newWALTracker(metrics *walMetrics) *walTracker {
