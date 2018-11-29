@@ -27,16 +27,6 @@ type Bucket struct {
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
 }
 
-// ops for buckets error and buckets op logs.
-var (
-	OpFindBucketByID = "FindBucketByID"
-	OpFindBucket     = "FindBucket"
-	OpFindBuckets    = "FindBuckets"
-	OpCreateBucket   = "CreateBucket"
-	OpUpdateBucket   = "UpdateBucket"
-	OpDeleteBucket   = "DeleteBucket"
-)
-
 // BucketService represents a service for managing bucket data.
 type BucketService interface {
 	// FindBucketByID returns a single bucket by ID.

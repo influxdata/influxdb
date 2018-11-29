@@ -202,18 +202,18 @@ func TestService_handleGetBucket(t *testing.T) {
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `
-		{
-		  "links": {
-		    "org": "/api/v2/orgs/020f755c3c082000",
-		    "self": "/api/v2/buckets/020f755c3c082000",
-		    "log": "/api/v2/buckets/020f755c3c082000/log"
-		  },
-		  "id": "020f755c3c082000",
-		  "organizationID": "020f755c3c082000",
-		  "name": "hello",
-		  "retentionRules": [{"type": "expire", "everySeconds": 30}]
-		}
-		`,
+{
+  "links": {
+    "org": "/api/v2/orgs/020f755c3c082000",
+    "self": "/api/v2/buckets/020f755c3c082000",
+    "log": "/api/v2/buckets/020f755c3c082000/log"
+  },
+  "id": "020f755c3c082000",
+  "organizationID": "020f755c3c082000",
+  "name": "hello",
+  "retentionRules": [{"type": "expire", "everySeconds": 30}]
+}
+`,
 			},
 		},
 		{
@@ -221,10 +221,7 @@ func TestService_handleGetBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
-						return nil, &platform.Error{
-							Code: platform.ENotFound,
-							Msg:  "bucket not found",
-						}
+						return nil, fmt.Errorf("bucket not found")
 					},
 				},
 			},
@@ -410,10 +407,7 @@ func TestService_handleDeleteBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					DeleteBucketFn: func(ctx context.Context, id platform.ID) error {
-						return &platform.Error{
-							Code: platform.ENotFound,
-							Msg:  "bucket not found",
-						}
+						return fmt.Errorf("bucket not found")
 					},
 				},
 			},
@@ -541,10 +535,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
-						return nil, &platform.Error{
-							Code: platform.ENotFound,
-							Msg:  "bucket not found",
-						}
+						return nil, fmt.Errorf("not found")
 					},
 				},
 			},
@@ -630,10 +621,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 							return d, nil
 						}
 
-						return nil, &platform.Error{
-							Code: platform.ENotFound,
-							Msg:  "bucket not found",
-						}
+						return nil, fmt.Errorf("not found")
 					},
 				},
 			},
@@ -682,10 +670,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 							return d, nil
 						}
 
-						return nil, &platform.Error{
-							Code: platform.ENotFound,
-							Msg:  "bucket not found",
-						}
+						return nil, fmt.Errorf("not found")
 					},
 				},
 			},
@@ -753,7 +738,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 	}
 }
 
-func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, string, func()) {
+func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, func()) {
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
 
@@ -774,12 +759,11 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 	handler.BucketService = svc
 	server := httptest.NewServer(handler)
 	client := BucketService{
-		Addr:     server.URL,
-		OpPrefix: inmem.OpPrefix,
+		Addr: server.URL,
 	}
 	done := server.Close
 
-	return &client, inmem.OpPrefix, done
+	return &client, done
 }
 
 func TestBucketService(t *testing.T) {
