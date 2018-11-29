@@ -8,22 +8,30 @@ import (
 )
 
 var (
-	errBucketNotFound = fmt.Errorf("bucket not found")
+	errBucketNotFound = "bucket not found"
 )
 
-func (c *Service) loadBucket(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
-	i, ok := c.bucketKV.Load(id.String())
+func (s *Service) loadBucket(ctx context.Context, id platform.ID) (*platform.Bucket, *platform.Error) {
+	i, ok := s.bucketKV.Load(id.String())
 	if !ok {
-		return nil, errBucketNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  errBucketNotFound,
+		}
 	}
 
 	b, ok := i.(platform.Bucket)
 	if !ok {
-		return nil, fmt.Errorf("type %T is not a bucket", i)
+		return nil, &platform.Error{
+			Code: platform.EInternal,
+			Msg:  fmt.Sprintf("type %T is not a bucket", i),
+		}
 	}
 
-	if err := c.setOrganizationNameOnBucket(ctx, &b); err != nil {
-		return nil, err
+	if err := s.setOrganizationNameOnBucket(ctx, &b); err != nil {
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	return &b, nil
@@ -41,7 +49,15 @@ func (c *Service) setOrganizationNameOnBucket(ctx context.Context, b *platform.B
 
 // FindBucketByID returns a single bucket by ID.
 func (s *Service) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
-	return s.loadBucket(ctx, id)
+	var b *platform.Bucket
+	var pe *platform.Error
+	var err error
+
+	if b, pe = s.loadBucket(ctx, id); pe != nil {
+		pe.Op = OpPrefix + platform.OpFindBucketByID
+		err = pe
+	}
+	return b, err
 }
 
 func (c *Service) forEachBucket(ctx context.Context, fn func(b *platform.Bucket) bool) error {
@@ -76,13 +92,28 @@ func (s *Service) filterBuckets(ctx context.Context, fn func(b *platform.Bucket)
 
 // FindBucket returns the first bucket that matches filter.
 func (s *Service) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
+	op := OpPrefix + platform.OpFindBucket
+	var err error
+	var b *platform.Bucket
+
 	if filter.ID == nil && filter.Name == nil && filter.OrganizationID == nil {
-		return nil, fmt.Errorf("no filter parameters provided")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   op,
+			Msg:  "no filter parameters provided",
+		}
 	}
 
 	// filter by bucket id
 	if filter.ID != nil {
-		return s.FindBucketByID(ctx, *filter.ID)
+		b, err = s.FindBucketByID(ctx, *filter.ID)
+		if err != nil {
+			return nil, &platform.Error{
+				Op:  op,
+				Err: err,
+			}
+		}
+		return b, nil
 	}
 
 	bs, n, err := s.FindBuckets(ctx, filter)
@@ -91,18 +122,24 @@ func (s *Service) FindBucket(ctx context.Context, filter platform.BucketFilter) 
 	}
 
 	if n < 1 {
-		return nil, fmt.Errorf("bucket not found")
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Op:   op,
+			Msg:  "bucket not found",
+		}
 	}
 
 	return bs[0], nil
 }
 
-func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, error) {
+func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, *platform.Error) {
 	// filter by bucket id
 	if filter.ID != nil {
 		b, err := s.FindBucketByID(ctx, *filter.ID)
 		if err != nil {
-			return nil, err
+			return nil, &platform.Error{
+				Err: err,
+			}
 		}
 
 		return []*platform.Bucket{b}, nil
@@ -111,7 +148,9 @@ func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter,
 	if filter.Organization != nil {
 		o, err := s.findOrganizationByName(ctx, *filter.Organization)
 		if err != nil {
-			return nil, err
+			return nil, &platform.Error{
+				Err: err,
+			}
 		}
 		filter.OrganizationID = &o.ID
 	}
@@ -136,7 +175,9 @@ func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter,
 
 	bs, err := s.filterBuckets(ctx, filterFunc)
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 	return bs, nil
 }
@@ -144,8 +185,11 @@ func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter,
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
 func (s *Service) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
-	bs, err := s.findBuckets(ctx, filter, opt...)
-	if err != nil {
+	var err error
+	bs, pe := s.findBuckets(ctx, filter, opt...)
+	if pe != nil {
+		pe.Op = OpPrefix + platform.OpFindBuckets
+		err = pe
 		return nil, 0, err
 	}
 	for _, b := range bs {
@@ -170,7 +214,11 @@ func (s *Service) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 		OrganizationID: &b.OrganizationID,
 	}
 	if _, err := s.FindBucket(ctx, filter); err == nil {
-		return fmt.Errorf("bucket with name %s already exists", b.Name)
+		return &platform.Error{
+			Code: platform.EConflict,
+			Op:   OpPrefix + platform.OpCreateBucket,
+			Msg:  fmt.Sprintf("bucket with name %s already exists", b.Name),
+		}
 	}
 	b.ID = s.IDGenerator.ID()
 	return s.PutBucket(ctx, b)
@@ -187,7 +235,10 @@ func (s *Service) PutBucket(ctx context.Context, b *platform.Bucket) error {
 func (s *Service) UpdateBucket(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
 	b, err := s.FindBucketByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Op:  OpPrefix + platform.OpUpdateBucket,
+			Err: err,
+		}
 	}
 
 	if upd.Name != nil {
@@ -206,7 +257,10 @@ func (s *Service) UpdateBucket(ctx context.Context, id platform.ID, upd platform
 // DeleteBucket removes a bucket by ID.
 func (s *Service) DeleteBucket(ctx context.Context, id platform.ID) error {
 	if _, err := s.FindBucketByID(ctx, id); err != nil {
-		return err
+		return &platform.Error{
+			Op:  OpPrefix + platform.OpDeleteBucket,
+			Err: err,
+		}
 	}
 	s.bucketKV.Delete(id.String())
 	return nil
