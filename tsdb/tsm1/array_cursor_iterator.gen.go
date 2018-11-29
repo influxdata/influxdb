@@ -9,8 +9,8 @@ package tsm1
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/tsdb"
 )
 

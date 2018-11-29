@@ -3,7 +3,7 @@ package tsm1
 import (
 	"fmt"
 
-	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/tsdb"
 	"go.uber.org/zap"
 )

@@ -15,8 +15,8 @@ import (
 
 	"github.com/influxdata/platform/pkg/slices"
 
-	"github.com/influxdata/influxdb/pkg/bloom"
 	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/pkg/bloom"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/tsi1"
 )

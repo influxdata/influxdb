@@ -12,11 +12,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/influxdata/influxdb/pkg/metrics"
-	"github.com/influxdata/influxdb/pkg/tracing"
-	"github.com/influxdata/influxdb/pkg/tracing/fields"
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/tsdb"
 	"go.uber.org/zap"
 )
@@ -148,36 +145,6 @@ func (itr *floatFinalizerIterator) closeGC() {
 
 func (itr *floatFinalizerIterator) Close() error {
 	runtime.SetFinalizer(itr, nil)
-	return itr.FloatIterator.Close()
-}
-
-type floatInstrumentedIterator struct {
-	query.FloatIterator
-	span  *tracing.Span
-	group *metrics.Group
-}
-
-func newFloatInstrumentedIterator(inner query.FloatIterator, span *tracing.Span, group *metrics.Group) *floatInstrumentedIterator {
-	return &floatInstrumentedIterator{FloatIterator: inner, span: span, group: group}
-}
-
-func (itr *floatInstrumentedIterator) Close() error {
-	var f fields.Fields
-	itr.group.ForEach(func(v metrics.Metric) {
-		switch m := v.(type) {
-		case *metrics.Counter:
-			f = append(f, fields.Int64(m.Name(), m.Value()))
-
-		case *metrics.Timer:
-			f = append(f, fields.Duration(m.Name(), m.Value()))
-
-		default:
-			panic("unexpected metrics")
-		}
-	})
-	itr.span.SetFields(f)
-	itr.span.Finish()
-
 	return itr.FloatIterator.Close()
 }
 
@@ -629,36 +596,6 @@ func (itr *integerFinalizerIterator) Close() error {
 	return itr.IntegerIterator.Close()
 }
 
-type integerInstrumentedIterator struct {
-	query.IntegerIterator
-	span  *tracing.Span
-	group *metrics.Group
-}
-
-func newIntegerInstrumentedIterator(inner query.IntegerIterator, span *tracing.Span, group *metrics.Group) *integerInstrumentedIterator {
-	return &integerInstrumentedIterator{IntegerIterator: inner, span: span, group: group}
-}
-
-func (itr *integerInstrumentedIterator) Close() error {
-	var f fields.Fields
-	itr.group.ForEach(func(v metrics.Metric) {
-		switch m := v.(type) {
-		case *metrics.Counter:
-			f = append(f, fields.Int64(m.Name(), m.Value()))
-
-		case *metrics.Timer:
-			f = append(f, fields.Duration(m.Name(), m.Value()))
-
-		default:
-			panic("unexpected metrics")
-		}
-	})
-	itr.span.SetFields(f)
-	itr.span.Finish()
-
-	return itr.IntegerIterator.Close()
-}
-
 type integerIterator struct {
 	cur   integerCursor
 	aux   []cursorAt
@@ -1104,36 +1041,6 @@ func (itr *unsignedFinalizerIterator) closeGC() {
 
 func (itr *unsignedFinalizerIterator) Close() error {
 	runtime.SetFinalizer(itr, nil)
-	return itr.UnsignedIterator.Close()
-}
-
-type unsignedInstrumentedIterator struct {
-	query.UnsignedIterator
-	span  *tracing.Span
-	group *metrics.Group
-}
-
-func newUnsignedInstrumentedIterator(inner query.UnsignedIterator, span *tracing.Span, group *metrics.Group) *unsignedInstrumentedIterator {
-	return &unsignedInstrumentedIterator{UnsignedIterator: inner, span: span, group: group}
-}
-
-func (itr *unsignedInstrumentedIterator) Close() error {
-	var f fields.Fields
-	itr.group.ForEach(func(v metrics.Metric) {
-		switch m := v.(type) {
-		case *metrics.Counter:
-			f = append(f, fields.Int64(m.Name(), m.Value()))
-
-		case *metrics.Timer:
-			f = append(f, fields.Duration(m.Name(), m.Value()))
-
-		default:
-			panic("unexpected metrics")
-		}
-	})
-	itr.span.SetFields(f)
-	itr.span.Finish()
-
 	return itr.UnsignedIterator.Close()
 }
 
@@ -1585,36 +1492,6 @@ func (itr *stringFinalizerIterator) Close() error {
 	return itr.StringIterator.Close()
 }
 
-type stringInstrumentedIterator struct {
-	query.StringIterator
-	span  *tracing.Span
-	group *metrics.Group
-}
-
-func newStringInstrumentedIterator(inner query.StringIterator, span *tracing.Span, group *metrics.Group) *stringInstrumentedIterator {
-	return &stringInstrumentedIterator{StringIterator: inner, span: span, group: group}
-}
-
-func (itr *stringInstrumentedIterator) Close() error {
-	var f fields.Fields
-	itr.group.ForEach(func(v metrics.Metric) {
-		switch m := v.(type) {
-		case *metrics.Counter:
-			f = append(f, fields.Int64(m.Name(), m.Value()))
-
-		case *metrics.Timer:
-			f = append(f, fields.Duration(m.Name(), m.Value()))
-
-		default:
-			panic("unexpected metrics")
-		}
-	})
-	itr.span.SetFields(f)
-	itr.span.Finish()
-
-	return itr.StringIterator.Close()
-}
-
 type stringIterator struct {
 	cur   stringCursor
 	aux   []cursorAt
@@ -2060,36 +1937,6 @@ func (itr *booleanFinalizerIterator) closeGC() {
 
 func (itr *booleanFinalizerIterator) Close() error {
 	runtime.SetFinalizer(itr, nil)
-	return itr.BooleanIterator.Close()
-}
-
-type booleanInstrumentedIterator struct {
-	query.BooleanIterator
-	span  *tracing.Span
-	group *metrics.Group
-}
-
-func newBooleanInstrumentedIterator(inner query.BooleanIterator, span *tracing.Span, group *metrics.Group) *booleanInstrumentedIterator {
-	return &booleanInstrumentedIterator{BooleanIterator: inner, span: span, group: group}
-}
-
-func (itr *booleanInstrumentedIterator) Close() error {
-	var f fields.Fields
-	itr.group.ForEach(func(v metrics.Metric) {
-		switch m := v.(type) {
-		case *metrics.Counter:
-			f = append(f, fields.Int64(m.Name(), m.Value()))
-
-		case *metrics.Timer:
-			f = append(f, fields.Duration(m.Name(), m.Value()))
-
-		default:
-			panic("unexpected metrics")
-		}
-	})
-	itr.span.SetFields(f)
-	itr.span.Finish()
-
 	return itr.BooleanIterator.Close()
 }
 
