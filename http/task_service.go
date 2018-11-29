@@ -578,7 +578,7 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 		req.filter.BeforeTime = bt
 	}
 
-	if at != "" && bt != "" && !beforeTime.After(afterTime) 0 {
+	if at != "" && bt != "" && !beforeTime.After(afterTime) {
 		return nil, kerrors.InvalidDataf("beforeTime must be later than afterTime")
 	}
 
