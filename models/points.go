@@ -1378,7 +1378,7 @@ func pointKey(measurement string, tags Tags, fields Fields, t time.Time) ([]byte
 				return nil, fmt.Errorf("+/-Inf is an unsupported value for field %s", key)
 			}
 			if math.IsNaN(value) {
-				return nil, fmt.Errorf("naN is an unsupported value for field %s", key)
+				return nil, fmt.Errorf("NAN is an unsupported value for field %s", key)
 			}
 		case float32:
 			// Ensure the caller validates and handles invalid field values
@@ -1386,7 +1386,7 @@ func pointKey(measurement string, tags Tags, fields Fields, t time.Time) ([]byte
 				return nil, fmt.Errorf("+/-Inf is an unsupported value for field %s", key)
 			}
 			if math.IsNaN(float64(value)) {
-				return nil, fmt.Errorf("naN is an unsupported value for field %s", key)
+				return nil, fmt.Errorf("NAN is an unsupported value for field %s", key)
 			}
 		}
 		if len(key) == 0 {
