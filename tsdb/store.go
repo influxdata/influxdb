@@ -347,6 +347,12 @@ func (s *Store) loadShards() error {
 			}
 
 			for _, sh := range shardDirs {
+				// Series file should not be in a retention policy but skip just in case.
+				if sh.Name() == SeriesFileDirectory {
+					log.Warn("Skipping series file in retention policy dir", zap.String("path", filepath.Join(s.path, db.Name(), rp.Name())))
+					continue
+				}
+
 				n++
 				go func(db, rp, sh string) {
 					t.Take()
