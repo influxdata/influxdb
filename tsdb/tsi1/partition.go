@@ -704,7 +704,9 @@ func (p *Partition) createSeriesListIfNotExists(collection *tsdb.SeriesCollectio
 	if totalNew > 0 {
 		p.tracker.AddSeriesCreated(totalNew, time.Since(now))
 		p.tracker.AddSeries(totalNew)
+		p.mu.RLock()
 		p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
+		p.mu.RUnlock()
 	}
 	return ids, nil
 }
