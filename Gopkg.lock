@@ -396,7 +396,7 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:52077b5df7c796b5ee7685b3b3a91b5b9b8b6dd5ce5ed5109f7ff46d67df72af"
+  digest = "1:d5919f2880c18c7932e0a65208389b58d40ec7b5cb313bfde56b4ca791bfa380"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -414,6 +414,7 @@
     "interpreter",
     "iocounter",
     "lang",
+    "memory",
     "options",
     "parser",
     "plan",
@@ -422,8 +423,8 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "69370f6c35cb0b6a7745a137bca7d76b409a62c1"
-  version = "v0.7.0"
+  revision = "adb2411fee9ccc65d671d4ce29861eb387174f6b"
+  version = "v0.7.1"
 
 [[projects]]
   branch = "master"
@@ -446,7 +447,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:36f02a06637b25f92a55d5bb128fd496d34eaf2b9614b53e4be6cd1ab5bda6f4"
+  digest = "1:423e244b01a2d7c36072f68f589643a41b814c1868865c2009b7bee49983ab04"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
@@ -459,6 +460,7 @@
     "pkg/rhh",
     "pkg/slices",
     "pkg/snowflake",
+    "query",
     "query/functions/inputs/storage",
     "storage/reads",
     "storage/reads/datatypes",
@@ -469,7 +471,7 @@
     "tsdb/cursors",
   ]
   pruneopts = "UT"
-  revision = "f001c303cdda3eedd4cc29b89532987e59fac7ca"
+  revision = "dc5616e3f9ed409490e465a02ee3f1da50ad2e13"
 
 [[projects]]
   branch = "master"
@@ -1064,6 +1066,7 @@
     "github.com/influxdata/flux/functions/outputs",
     "github.com/influxdata/flux/functions/transformations",
     "github.com/influxdata/flux/lang",
+    "github.com/influxdata/flux/memory",
     "github.com/influxdata/flux/options",
     "github.com/influxdata/flux/plan",
     "github.com/influxdata/flux/repl",
