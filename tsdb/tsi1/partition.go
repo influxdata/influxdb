@@ -968,6 +968,8 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	p.tracker.IncActiveCompaction(level)
 	// Set the relevant metrics at the end of any compaction.
 	defer func() {
+		p.mu.RLock()
+		defer p.mu.RUnlock()
 		p.tracker.SetFiles(uint64(len(p.fileSet.IndexFiles())), "index")
 		p.tracker.SetFiles(uint64(len(p.fileSet.LogFiles())), "log")
 		p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
@@ -1133,6 +1135,14 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 	if p.isClosing() {
 		return
 	}
+
+	defer func() {
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		p.tracker.SetFiles(uint64(len(p.fileSet.IndexFiles())), "index")
+		p.tracker.SetFiles(uint64(len(p.fileSet.LogFiles())), "log")
+		p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
+	}()
 
 	p.mu.Lock()
 	interrupt := p.compactionInterrupt
