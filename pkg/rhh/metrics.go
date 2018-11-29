@@ -19,7 +19,7 @@ type Metrics struct {
 
 	// These metrics have an extra label status = {"hit", "miss"}
 	Gets *prometheus.CounterVec // Number of times item retrieved.
-	Puts *prometheus.CounterVec // Number of times item retrieved.
+	Puts *prometheus.CounterVec // Number of times item inserted.
 }
 
 // NewMetrics initialises prometheus metrics for tracking an RHH hashmap.

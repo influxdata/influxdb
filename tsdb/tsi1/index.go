@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"bytes"
 	"sort"
 
@@ -109,7 +111,10 @@ type Index struct {
 	partitions []*Partition
 	opened     bool
 
+	defaultLabels prometheus.Labels
+
 	tagValueCache *TagValueSeriesIDCache
+	partitionMetrics *partitionMetrics // Maintain a single set of partition metrics to be shared by partition.
 
 	// The following may be set when initializing an Index.
 	path               string      // Root directory of the index partitions.
@@ -137,6 +142,7 @@ func (i *Index) UniqueReferenceID() uintptr {
 func NewIndex(sfile *tsdb.SeriesFile, c Config, options ...IndexOption) *Index {
 	idx := &Index{
 		tagValueCache:  NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
+		partitionMetrics: newPartitionMetrics(nil),
 		maxLogFileSize: int64(c.MaxIndexLogFileSize),
 		logger:         zap.NewNop(),
 		version:        Version,
@@ -149,6 +155,16 @@ func NewIndex(sfile *tsdb.SeriesFile, c Config, options ...IndexOption) *Index {
 	}
 
 	return idx
+}
+
+// SetDefaultMetricLabels sets the default labels on the trackers.
+func (i *Index) SetDefaultMetricLabels(labels prometheus.Labels) {
+	i.defaultLabels = make(prometheus.Labels, len(labels))
+	for k, v := range labels {
+		i.defaultLabels[k] = v
+	}
+	i.tagValueCache.tracker = newCacheTracker(newCacheMetrics(labels))
+	i.partitionMetrics = newPartitionMetrics(labels)
 }
 
 // Bytes estimates the memory footprint of this Index, in bytes.
@@ -218,6 +234,7 @@ func (i *Index) Open() error {
 		p.nosync = i.disableFsync
 		p.logbufferSize = i.logfileBufferSize
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
+		p.tracker = newPartitionTracker(i.partitionMetrics, j)
 		i.partitions[j] = p
 	}
 
@@ -1515,6 +1532,14 @@ func (i *Index) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byte, 
 		return nil, err
 	}
 	return tsdb.DifferenceSeriesIDIterators(mitr, tsdb.MergeSeriesIDIterators(itrs...)), nil
+}
+
+// PrometheusCollectors returns all of the metrics for the index.
+func (i *Index) PrometheusCollectors() []prometheus.Collector {
+	var collectors []prometheus.Collector
+	collectors = append(collectors, i.tagValueCache.PrometheusCollectors()...)
+	collectors = append(collectors, i.partitionMetrics.PrometheusCollectors()...)
+	return collectors
 }
 
 // IsIndexDir returns true if directory contains at least one partition directory.

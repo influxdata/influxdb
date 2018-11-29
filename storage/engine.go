@@ -138,6 +138,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	// Set default metrics labels.
 	e.engine.SetDefaultMetricLabels(e.defaultMetricLabels)
 	e.sfile.SetDefaultMetricLabels(e.defaultMetricLabels)
+	e.index.SetDefaultMetricLabels(e.defaultMetricLabels)
 
 	return e
 }
@@ -165,8 +166,8 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 // the engine and its components.
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
-	// TODO(edd): Get prom metrics for index.
 	metrics = append(metrics, e.sfile.PrometheusCollectors()...)
+	metrics = append(metrics, e.index.PrometheusCollectors()...)
 	metrics = append(metrics, e.engine.PrometheusCollectors()...)
 	metrics = append(metrics, e.retentionEnforcer.PrometheusCollectors()...)
 	return metrics

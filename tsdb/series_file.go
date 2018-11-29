@@ -5,12 +5,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/influxdata/platform/logger"
-	"github.com/influxdata/platform/pkg/rhh"
 	"os"
 	"path/filepath"
 	"sort"
 	"sync"
+
+	"github.com/influxdata/platform/logger"
+	"github.com/influxdata/platform/pkg/rhh"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/platform/models"
@@ -67,7 +68,10 @@ func (f *SeriesFile) WithLogger(log *zap.Logger) {
 // SetDefaultMetricLabels sets the default labels for metrics on the Series File.
 // It must be called before the SeriesFile is opened.
 func (f *SeriesFile) SetDefaultMetricLabels(labels prometheus.Labels) {
-	f.defaultMetricLabels = labels
+	f.defaultMetricLabels = make(prometheus.Labels, len(labels))
+	for k, v := range labels {
+		f.defaultMetricLabels[k] = v
+	}
 	f.defaultMetricLabels["partition_id"] = "" // All metrics have partition_id as a label.
 }
 

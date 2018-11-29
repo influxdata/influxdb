@@ -70,7 +70,7 @@ func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
 			Subsystem: seriesFileSubsystem,
 			Name:      "index_compactions_active",
 			Help:      "Number of active index compactions.",
-		}, names),
+		}, durationCompaction),
 		CompactionDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: namespace,
 			Subsystem: seriesFileSubsystem,
