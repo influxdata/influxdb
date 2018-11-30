@@ -2467,7 +2467,6 @@ paths:
       tags:
         - Tasks
       summary: List tasks.
-      description: Lists tasks, limit 100
       parameters:
         - in: query
           name: after
@@ -2484,6 +2483,14 @@ paths:
           schema:
             type: string
           description: filter tasks to a specific organization ID
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+          description: the number of tasks to return
       responses:
         '200':
           description: A list of tasks

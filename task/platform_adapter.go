@@ -43,9 +43,7 @@ func (p pAdapter) FindTaskByID(ctx context.Context, id platform.ID) (*platform.T
 }
 
 func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
-	const pageSize = 100 // According to the platform.TaskService.FindTasks API.
-
-	params := backend.TaskSearchParams{PageSize: pageSize}
+	params := backend.TaskSearchParams{PageSize: filter.Limit}
 	if filter.Organization != nil {
 		params.Org = *filter.Organization
 	}
@@ -68,8 +66,7 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 		}
 	}
 
-	totalResults := len(pts) // TODO(mr): don't lie about the total results. Update ListTasks signature?
-	return pts, totalResults, nil
+	return pts, len(pts), nil
 }
 
 func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {

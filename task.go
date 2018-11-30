@@ -4,6 +4,11 @@ import (
 	"context"
 )
 
+const (
+	TaskDefaultPageSize = 100
+	TaskMaxPageSize     = 500
+)
+
 // Task is a task. 🎊
 type Task struct {
 	ID           ID     `json:"id,omitempty"`
@@ -78,6 +83,7 @@ type TaskFilter struct {
 	After        *ID
 	Organization *ID
 	User         *ID
+	Limit        int
 }
 
 // RunFilter represents a set of filters that restrict the returned results
