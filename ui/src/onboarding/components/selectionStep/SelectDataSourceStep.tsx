@@ -9,8 +9,8 @@ import {
   ComponentSize,
   ComponentStatus,
 } from 'src/clockface'
-import DataSourceTypeSelector from 'src/onboarding/components/DataSourceTypeSelector'
-import StreamingDataSourceSelector from 'src/onboarding/components/StreamingDataSourcesSelector'
+import DataSourceTypeSelector from 'src/onboarding/components/selectionStep/TypeSelector'
+import StreamingDataSourceSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
@@ -18,7 +18,7 @@ import {
   DataSource,
   DataLoaderType,
   ConfigurationState,
-} from 'src/types/v2/dataSources'
+} from 'src/types/v2/dataLoaders'
 
 export interface Props extends OnboardingStepProps {
   bucket: string

@@ -11,7 +11,7 @@ import {
   removeDataSource,
 } from 'src/onboarding/actions/dataLoaders'
 
-import {DataLoaderType, ConfigurationState} from 'src/types/v2/dataSources'
+import {DataLoaderType, ConfigurationState} from 'src/types/v2/dataLoaders'
 
 describe('dataLoader reducer', () => {
   describe('if type is streaming', () => {

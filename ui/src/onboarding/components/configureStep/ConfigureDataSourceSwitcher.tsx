@@ -3,10 +3,10 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import DataStreaming from 'src/onboarding/components/DataStreaming'
+import DataStreaming from 'src/onboarding/components/configureStep/streaming/DataStreaming'
 
 // Types
-import {DataSource} from 'src/types/v2/dataSources'
+import {DataSource} from 'src/types/v2/dataLoaders'
 
 export interface Props {
   dataSources: DataSource[]
