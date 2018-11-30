@@ -7,7 +7,7 @@ import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 
 // Types
-import {DataSource} from 'src/types/v2/dataSources'
+import {DataSource} from 'src/types/v2/dataLoaders'
 
 export interface Props {
   dataSources: DataSource[]

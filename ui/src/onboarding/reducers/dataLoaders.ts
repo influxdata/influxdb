@@ -3,7 +3,7 @@ import {getInitialDataSources} from 'src/onboarding/utils/dataLoaders'
 
 // Types
 import {Action} from 'src/onboarding/actions/dataLoaders'
-import {DataSource, DataLoaderType} from 'src/types/v2/dataSources'
+import {DataSource, DataLoaderType} from 'src/types/v2/dataLoaders'
 
 export interface DataLoadersState {
   dataSources: DataSource[]

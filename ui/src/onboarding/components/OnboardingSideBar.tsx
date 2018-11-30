@@ -16,7 +16,7 @@ import {getTelegrafConfigTOML, createTelegrafConfig} from 'src/onboarding/apis'
 
 // Types
 import {IconFont} from 'src/clockface'
-import {DataSource, ConfigurationState} from 'src/types/v2/dataSources'
+import {DataSource, ConfigurationState} from 'src/types/v2/dataLoaders'
 import {NotificationAction} from 'src/types'
 
 interface Props {

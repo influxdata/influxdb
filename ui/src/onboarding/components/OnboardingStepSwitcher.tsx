@@ -5,8 +5,8 @@ import _ from 'lodash'
 // Components
 import InitStep from 'src/onboarding/components/InitStep'
 import AdminStep from 'src/onboarding/components/AdminStep'
-import SelectDataSourceStep from 'src/onboarding/components/SelectDataSourceStep'
-import ConfigureDataSourceStep from 'src/onboarding/components/ConfigureDataSourceStep'
+import SelectDataSourceStep from 'src/onboarding/components/selectionStep/SelectDataSourceStep'
+import ConfigureDataSourceStep from 'src/onboarding/components/configureStep/ConfigureDataSourceStep'
 import CompletionStep from 'src/onboarding/components/CompletionStep'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -19,7 +19,7 @@ import {
 
 // Types
 import {SetupParams} from 'src/onboarding/apis'
-import {DataSource, DataLoaderType} from 'src/types/v2/dataSources'
+import {DataSource, DataLoaderType} from 'src/types/v2/dataLoaders'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 interface Props {

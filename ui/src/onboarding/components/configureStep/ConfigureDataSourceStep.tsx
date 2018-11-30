@@ -10,11 +10,11 @@ import {
   ComponentSize,
   ComponentStatus,
 } from 'src/clockface'
-import ConfigureDataSourceSwitcher from 'src/onboarding/components/ConfigureDataSourceSwitcher'
+import ConfigureDataSourceSwitcher from 'src/onboarding/components/configureStep/ConfigureDataSourceSwitcher'
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {DataSource, DataLoaderType} from 'src/types/v2/dataSources'
+import {DataSource, DataLoaderType} from 'src/types/v2/dataLoaders'
 
 export interface Props extends OnboardingStepProps {
   dataSources: DataSource[]

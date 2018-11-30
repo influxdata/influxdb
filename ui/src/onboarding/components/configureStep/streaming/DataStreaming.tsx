@@ -3,10 +3,10 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import TelegrafInstructions from 'src/onboarding/components/TelegrafInstructions'
-import FetchConfigID from 'src/onboarding/components/FetchConfigID'
-import FetchAuthToken from 'src/onboarding/components/FetchAuthToken'
-import DataListening from 'src/onboarding/components/DataListening'
+import TelegrafInstructions from 'src/onboarding/components/configureStep/streaming/TelegrafInstructions'
+import FetchConfigID from 'src/onboarding/components/configureStep/streaming/FetchConfigID'
+import FetchAuthToken from 'src/onboarding/components/configureStep/streaming/FetchAuthToken'
+import DataListening from 'src/onboarding/components/configureStep/streaming/DataListening'
 
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'

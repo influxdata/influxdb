@@ -10,7 +10,7 @@ import {
 } from 'src/types'
 import {Links} from 'src/types/v2/links'
 import {Task, TaskStatus} from 'src/types/v2/tasks'
-import {DataSource, ConfigurationState} from 'src/types/v2/dataSources'
+import {DataSource, ConfigurationState} from 'src/types/v2/dataLoaders'
 
 export const links: Links = {
   authorizations: '/api/v2/authorizations',
