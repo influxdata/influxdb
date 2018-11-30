@@ -26,7 +26,7 @@ interface Props {
   min?: number
   max?: number
   name?: string
-  value?: string
+  value?: string | number
   placeholder?: string
   autocomplete?: AutoComplete
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void
@@ -40,12 +40,13 @@ interface Props {
   status?: ComponentStatus
   autoFocus?: boolean
   spellCheck?: boolean
-  type?: InputType
+  type: InputType
   widthPixels?: number
   titleText?: string
   disabledTitleText?: string
   customClass?: string
   maxLength?: number
+  tabIndex?: number
 }
 
 class Input extends Component<Props> {
@@ -60,7 +61,6 @@ class Input extends Component<Props> {
     status: ComponentStatus.Default,
     autoFocus: false,
     spellCheck: false,
-    type: InputType.Text,
   }
 
   public render() {
@@ -68,9 +68,8 @@ class Input extends Component<Props> {
       min,
       max,
       name,
-      status,
       type,
-      value,
+      status,
       placeholder,
       autoFocus,
       spellCheck,
@@ -82,6 +81,7 @@ class Input extends Component<Props> {
       onKeyDown,
       maxLength,
       autocomplete,
+      tabIndex,
     } = this.props
 
     return (
@@ -93,7 +93,7 @@ class Input extends Component<Props> {
           autoComplete={autocomplete}
           name={name}
           type={type}
-          value={value}
+          value={this.transformedValue}
           placeholder={placeholder}
           autoFocus={autoFocus}
           spellCheck={spellCheck}
@@ -106,11 +106,22 @@ class Input extends Component<Props> {
           className="input-field"
           disabled={status === ComponentStatus.Disabled}
           maxLength={maxLength}
+          tabIndex={tabIndex}
         />
         {this.icon}
         {this.statusIndicator}
       </div>
     )
+  }
+
+  private get transformedValue(): string | number {
+    const {value, type} = this.props
+
+    if (type === InputType.Number) {
+      return Number(value)
+    }
+
+    return `${value}`
   }
 
   private get icon(): JSX.Element {

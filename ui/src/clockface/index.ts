@@ -4,7 +4,7 @@ import Button from './components/Button'
 import Dropdown, {DropdownMode} from './components/dropdowns/Dropdown'
 import MultiSelectDropdown from './components/dropdowns/MultiSelectDropdown'
 import Form from './components/form_layout/Form'
-import Input, {InputType} from './components/inputs/Input'
+import Input, {InputType, AutoComplete} from './components/inputs/Input'
 import OverlayTechnology from './components/overlays/OverlayTechnology'
 import OverlayContainer from './components/overlays/OverlayContainer'
 import OverlayHeading from './components/overlays/OverlayHeading'
@@ -43,6 +43,7 @@ import {
 // Fire de lazer
 export {
   Alignment,
+  AutoComplete,
   AutoInput,
   Button,
   ButtonType,
