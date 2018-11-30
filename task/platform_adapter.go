@@ -172,7 +172,7 @@ func (p pAdapter) FindRunByID(ctx context.Context, taskID, id platform.ID) (*pla
 	return p.r.FindRunByID(ctx, task.Org, id)
 }
 
-func (p pAdapter) RetryRun(ctx context.Context, taskID, id platform.ID, requestedAt int64) (*platform.Run, error) {
+func (p pAdapter) RetryRun(ctx context.Context, taskID, id platform.ID) (*platform.Run, error) {
 	task, err := p.s.FindTaskByID(ctx, taskID)
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ func (p pAdapter) RetryRun(ctx context.Context, taskID, id platform.ID, requeste
 		return nil, err
 	}
 	t := scheduledTime.UTC().Unix()
-
+	requestedAt := time.Now().Unix()
 	m, err := p.s.ManuallyRunTimeRange(ctx, run.TaskID, t, t, requestedAt)
 	if err != nil {
 		return nil, err

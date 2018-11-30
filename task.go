@@ -68,8 +68,7 @@ type TaskService interface {
 	CancelRun(ctx context.Context, taskID, runID ID) error
 
 	// RetryRun creates and returns a new run (which is a retry of another run).
-	// The requestedAt parameter is the Unix timestamp that will be recorded for the retry.
-	RetryRun(ctx context.Context, taskID, runID ID, requestedAt int64) (*Run, error)
+	RetryRun(ctx context.Context, taskID, runID ID) (*Run, error)
 }
 
 // TaskUpdate represents updates to a task
