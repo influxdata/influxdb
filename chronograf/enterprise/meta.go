@@ -147,7 +147,7 @@ func (m *MetaClient) User(ctx context.Context, name string) (*User, error) {
 	for _, user := range users.Users {
 		return &user, nil
 	}
-	return nil, fmt.Errorf("No user found")
+	return nil, fmt.Errorf("no user found")
 }
 
 // CreateUser adds a user to Influx Enterprise
@@ -279,7 +279,7 @@ func (m *MetaClient) Role(ctx context.Context, name string) (*Role, error) {
 	for _, role := range roles.Roles {
 		return &role, nil
 	}
-	return nil, fmt.Errorf("No role found")
+	return nil, fmt.Errorf("no role found")
 }
 
 // CreateRole adds a role to Influx Enterprise

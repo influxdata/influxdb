@@ -110,7 +110,7 @@ func (s *inmem) UpdateTask(_ context.Context, req UpdateTaskRequest) (UpdateTask
 		break
 	}
 	if !found {
-		return res, fmt.Errorf("ModifyTask: record not found for %s", idStr)
+		return res, fmt.Errorf("modifyTask: record not found for %s", idStr)
 	}
 
 	stm, ok := s.runners[idStr]

@@ -62,7 +62,7 @@ func (b *BearerJWT) Set(r *http.Request) error {
 	if b.SharedSecret != "" && b.Username != "" {
 		token, err := b.Token(b.Username)
 		if err != nil {
-			return fmt.Errorf("Unable to create token")
+			return fmt.Errorf("unable to create token")
 		}
 		r.Header.Set("Authorization", "Bearer "+token)
 	}

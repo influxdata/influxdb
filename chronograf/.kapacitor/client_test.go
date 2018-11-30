@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/platform/chronograf"
 	client "github.com/influxdata/kapacitor/client/v1"
+	"github.com/influxdata/platform/chronograf"
 )
 
 type MockKapa struct {
@@ -424,7 +424,7 @@ func TestClient_Get(t *testing.T) {
 			},
 			taskOptions: nil,
 			wantErr:     true,
-			resError:    fmt.Errorf("No such task"),
+			resError:    fmt.Errorf("no such task"),
 			link: client.Link{
 				Href: "/kapacitor/v1/tasks/myid",
 			},

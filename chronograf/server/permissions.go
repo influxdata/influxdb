@@ -24,13 +24,13 @@ func (s *Service) Permissions(w http.ResponseWriter, r *http.Request) {
 
 	ts, err := s.TimeSeries(src)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
@@ -60,10 +60,10 @@ func validPermissions(perms *chronograf.Permissions) error {
 	}
 	for _, perm := range *perms {
 		if perm.Scope != chronograf.AllScope && perm.Scope != chronograf.DBScope {
-			return fmt.Errorf("Invalid permission scope")
+			return fmt.Errorf("invalid permission scope")
 		}
 		if perm.Scope == chronograf.DBScope && perm.Name == "" {
-			return fmt.Errorf("Database scoped permission requires a name")
+			return fmt.Errorf("database scoped permission requires a name")
 		}
 	}
 	return nil

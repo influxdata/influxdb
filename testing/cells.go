@@ -444,7 +444,7 @@ func DeleteView(
 				ID: MustIDBase16(viewThreeID),
 			},
 			wants: wants{
-				err: fmt.Errorf("View not found"),
+				err: fmt.Errorf("view not found"),
 				views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{

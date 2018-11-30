@@ -171,7 +171,7 @@ func (c *Client) Users(ctx context.Context) chronograf.UsersStore {
 
 // Roles aren't support in OSS
 func (c *Client) Roles(ctx context.Context) (chronograf.RolesStore, error) {
-	return nil, fmt.Errorf("Roles not support in open-source InfluxDB.  Roles are support in Influx Enterprise")
+	return nil, fmt.Errorf("roles not support in open-source InfluxDB.  Roles are support in Influx Enterprise")
 }
 
 // Ping hits the influxdb ping endpoint and returns the type of influx

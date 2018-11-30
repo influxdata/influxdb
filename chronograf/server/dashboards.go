@@ -107,7 +107,7 @@ func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if dashboard, err = s.Store.Dashboards(ctx).Add(r.Context(), dashboard); err != nil {
-		msg := fmt.Errorf("Error storing dashboard %v: %v", dashboard, err)
+		msg := fmt.Errorf("error storing dashboard %v: %v", dashboard, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
 	}
@@ -221,7 +221,7 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 		orig.Cells = req.Cells
 	} else {
-		invalidData(w, fmt.Errorf("Update must include either name or cells"), s.Logger)
+		invalidData(w, fmt.Errorf("update must include either name or cells"), s.Logger)
 		return
 	}
 

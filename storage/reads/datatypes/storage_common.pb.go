@@ -549,7 +549,7 @@ func _ReadResponse_Frame_OneofMarshaler(msg proto.Message, b *proto.Buffer) erro
 		}
 	case nil:
 	default:
-		return fmt.Errorf("ReadResponse_Frame.Data has unexpected type %T", x)
+		return fmt.Errorf("readResponse_Frame.Data has unexpected type %T", x)
 	}
 	return nil
 }

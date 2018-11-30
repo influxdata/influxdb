@@ -22,7 +22,7 @@ func Build(promql string, opts ...Option) (*flux.Spec, error) {
 	}
 	builder, ok := parsed.(QueryBuilder)
 	if !ok {
-		return nil, fmt.Errorf("Unable to build as %t is not a QueryBuilder", parsed)
+		return nil, fmt.Errorf("unable to build as %t is not a QueryBuilder", parsed)
 	}
 	return builder.QuerySpec()
 }

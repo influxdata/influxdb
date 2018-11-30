@@ -59,8 +59,8 @@ jobs:
       # TODO(#544): fix the remaining static check in the generated promql file, and enable exit-non-zero.
       # Not yet sure if that's a bug in staticcheck or if we need to submit a patch to pigeon to fix the generator.
       - run: GO111MODULE=on go mod vendor # megacheck isn't module-aware yet, so install module dependencies to vendor.
-      - run: GO111MODULE=on go install honnef.co/go/tools/cmd/megacheck # Install megacheck from the version we specify in go.mod.
-      - run: megacheck -staticcheck.exit-non-zero=false ./...
+      - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
+      - run: staticcheck ./...
 
       - save_cache:
           name: Saving GOCACHE

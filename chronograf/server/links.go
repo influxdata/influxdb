@@ -38,10 +38,10 @@ func NewCustomLinks(links map[string]string) ([]CustomLink, error) {
 	customLinks := make([]CustomLink, 0, len(links))
 	for name, link := range links {
 		if name == "" {
-			return nil, errors.New("CustomLink missing key for Name")
+			return nil, errors.New("customLink missing key for Name")
 		}
 		if link == "" {
-			return nil, errors.New("CustomLink missing value for URL")
+			return nil, errors.New("customLink missing value for URL")
 		}
 		_, err := url.Parse(link)
 		if err != nil {

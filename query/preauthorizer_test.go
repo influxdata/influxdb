@@ -21,7 +21,7 @@ func newBucketServiceWithOneBucket(bucket platform.Bucket) platform.BucketServic
 			return &bucket, nil
 		}
 
-		return nil, errors.New("Unknown bucket")
+		return nil, errors.New("unknown bucket")
 	}
 
 	return bs

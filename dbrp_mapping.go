@@ -39,19 +39,19 @@ type DBRPMapping struct {
 // Validate reports any validation errors for the mapping.
 func (m DBRPMapping) Validate() error {
 	if !validName(m.Cluster) {
-		return errors.New("Cluster must contain at least one character and only be letters, numbers, '_', '-', and '.'")
+		return errors.New("cluster must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
 	if !validName(m.Database) {
-		return errors.New("Database must contain at least one character and only be letters, numbers, '_', '-', and '.'")
+		return errors.New("database must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
 	if !validName(m.RetentionPolicy) {
-		return errors.New("RetentionPolicy must contain at least one character and only be letters, numbers, '_', '-', and '.'")
+		return errors.New("retentionPolicy must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
 	if !m.OrganizationID.Valid() {
-		return errors.New("OrganizationID is required")
+		return errors.New("organizationID is required")
 	}
 	if !m.BucketID.Valid() {
-		return errors.New("BucketID is required")
+		return errors.New("bucketID is required")
 	}
 	return nil
 }

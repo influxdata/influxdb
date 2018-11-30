@@ -24,7 +24,7 @@ var (
 	// ErrAuthentication means that oauth2 exchange failed
 	ErrAuthentication = errors.New("user not authenticated")
 	// ErrOrgMembership means that the user is not in the OAuth2 filtered group
-	ErrOrgMembership = errors.New("Not a member of the required organization")
+	ErrOrgMembership = errors.New("not a member of the required organization")
 )
 
 /* Types */

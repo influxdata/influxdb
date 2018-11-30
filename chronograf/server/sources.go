@@ -141,7 +141,7 @@ func (s *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 
 	src.Type = dbType
 	if src, err = s.Store.Sources(ctx).Add(ctx, src); err != nil {
-		msg := fmt.Errorf("Error storing source %v: %v", src, err)
+		msg := fmt.Errorf("error storing source %v: %v", src, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
 	}
@@ -403,7 +403,7 @@ func ValidSourceRequest(s *chronograf.Source, defaultOrgID string) error {
 		return fmt.Errorf("invalid source URI: %v", err)
 	}
 	if len(url.Scheme) == 0 {
-		return fmt.Errorf("Invalid URL; no URL scheme defined")
+		return fmt.Errorf("invalid URL; no URL scheme defined")
 	}
 
 	return nil
@@ -664,13 +664,13 @@ func (s *Service) sourcesSeries(ctx context.Context, w http.ResponseWriter, r *h
 
 	ts, err := s.TimeSeries(src)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return 0, nil, err
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return 0, nil, err
 	}
@@ -705,10 +705,10 @@ type sourceUserRequest struct {
 
 func (r *sourceUserRequest) ValidCreate() error {
 	if r.Username == "" {
-		return fmt.Errorf("Username required")
+		return fmt.Errorf("username required")
 	}
 	if r.Password == "" {
-		return fmt.Errorf("Password required")
+		return fmt.Errorf("password required")
 	}
 	return validPermissions(&r.Permissions)
 }
@@ -719,7 +719,7 @@ type sourceUsersResponse struct {
 
 func (r *sourceUserRequest) ValidUpdate() error {
 	if r.Password == "" && r.Permissions == nil && r.Roles == nil {
-		return fmt.Errorf("No fields to update")
+		return fmt.Errorf("no fields to update")
 	}
 	return validPermissions(&r.Permissions)
 }
@@ -956,11 +956,11 @@ type sourceRoleRequest struct {
 
 func (r *sourceRoleRequest) ValidCreate() error {
 	if r.Name == "" || len(r.Name) > 254 {
-		return fmt.Errorf("Name is required for a role")
+		return fmt.Errorf("name is required for a role")
 	}
 	for _, user := range r.Users {
 		if user.Name == "" {
-			return fmt.Errorf("Username required")
+			return fmt.Errorf("username required")
 		}
 	}
 	return validPermissions(&r.Permissions)
@@ -968,11 +968,11 @@ func (r *sourceRoleRequest) ValidCreate() error {
 
 func (r *sourceRoleRequest) ValidUpdate() error {
 	if len(r.Name) > 254 {
-		return fmt.Errorf("Username too long; must be less than 254 characters")
+		return fmt.Errorf("username too long; must be less than 254 characters")
 	}
 	for _, user := range r.Users {
 		if user.Name == "" {
-			return fmt.Errorf("Username required")
+			return fmt.Errorf("username required")
 		}
 	}
 	return validPermissions(&r.Permissions)

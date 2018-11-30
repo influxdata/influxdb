@@ -199,7 +199,7 @@ func (d *DesiredState) CreateNextRun(_ context.Context, taskID platform.ID, now 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if !taskID.Valid() {
-		return backend.RunCreation{}, errors.New("Invalid task id")
+		return backend.RunCreation{}, errors.New("invalid task id")
 	}
 	tid := taskID.String()
 

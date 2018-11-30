@@ -7,7 +7,6 @@
 package tsm1
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/influxdata/platform/tsdb"
@@ -30,29 +29,6 @@ func (a Values) Size() int {
 		sz += v.Size()
 	}
 	return sz
-}
-
-func (a Values) ordered() bool {
-	if len(a) <= 1 {
-		return true
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			return false
-		}
-	}
-	return true
-}
-
-func (a Values) assertOrdered() {
-	if len(a) <= 1 {
-		return
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			panic(fmt.Sprintf("not ordered: %d %d >= %d", i, av, ab))
-		}
-	}
 }
 
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
@@ -256,29 +232,6 @@ func (a FloatValues) Size() int {
 		sz += v.Size()
 	}
 	return sz
-}
-
-func (a FloatValues) ordered() bool {
-	if len(a) <= 1 {
-		return true
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			return false
-		}
-	}
-	return true
-}
-
-func (a FloatValues) assertOrdered() {
-	if len(a) <= 1 {
-		return
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			panic(fmt.Sprintf("not ordered: %d %d >= %d", i, av, ab))
-		}
-	}
 }
 
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
@@ -551,29 +504,6 @@ func (a IntegerValues) Size() int {
 	return sz
 }
 
-func (a IntegerValues) ordered() bool {
-	if len(a) <= 1 {
-		return true
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			return false
-		}
-	}
-	return true
-}
-
-func (a IntegerValues) assertOrdered() {
-	if len(a) <= 1 {
-		return
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			panic(fmt.Sprintf("not ordered: %d %d >= %d", i, av, ab))
-		}
-	}
-}
-
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.  The returned
 // Values are sorted if necessary.
@@ -842,29 +772,6 @@ func (a UnsignedValues) Size() int {
 		sz += v.Size()
 	}
 	return sz
-}
-
-func (a UnsignedValues) ordered() bool {
-	if len(a) <= 1 {
-		return true
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			return false
-		}
-	}
-	return true
-}
-
-func (a UnsignedValues) assertOrdered() {
-	if len(a) <= 1 {
-		return
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			panic(fmt.Sprintf("not ordered: %d %d >= %d", i, av, ab))
-		}
-	}
 }
 
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
@@ -1137,29 +1044,6 @@ func (a StringValues) Size() int {
 	return sz
 }
 
-func (a StringValues) ordered() bool {
-	if len(a) <= 1 {
-		return true
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			return false
-		}
-	}
-	return true
-}
-
-func (a StringValues) assertOrdered() {
-	if len(a) <= 1 {
-		return
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			panic(fmt.Sprintf("not ordered: %d %d >= %d", i, av, ab))
-		}
-	}
-}
-
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.  The returned
 // Values are sorted if necessary.
@@ -1428,29 +1312,6 @@ func (a BooleanValues) Size() int {
 		sz += v.Size()
 	}
 	return sz
-}
-
-func (a BooleanValues) ordered() bool {
-	if len(a) <= 1 {
-		return true
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			return false
-		}
-	}
-	return true
-}
-
-func (a BooleanValues) assertOrdered() {
-	if len(a) <= 1 {
-		return
-	}
-	for i := 1; i < len(a); i++ {
-		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
-			panic(fmt.Sprintf("not ordered: %d %d >= %d", i, av, ab))
-		}
-	}
 }
 
 // Deduplicate returns a new slice with any values that have the same timestamp removed.

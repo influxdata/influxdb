@@ -192,7 +192,7 @@ func (c *Client) forEachLogEntry(ctx context.Context, tx *bolt.Tx, k []byte, opt
 
 	k, v := cur.Seek(startKey)
 	if !bytes.Equal(k, startKey) {
-		return fmt.Errorf("the first key not the key found in the log bounds. This should be impossible. Please report this error.")
+		return fmt.Errorf("the first key not the key found in the log bounds. This should be impossible. Please report this error")
 	}
 
 	count := 0

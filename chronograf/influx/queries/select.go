@@ -26,7 +26,7 @@ func ParseSelect(q string) (*SelectStatement, error) {
 	}
 	s, ok := stmt.(*influxql.SelectStatement)
 	if !ok {
-		return nil, fmt.Errorf("Error parsing query: not a SELECT statement")
+		return nil, fmt.Errorf("error parsing query: not a SELECT statement")
 	}
 	return &SelectStatement{s}, nil
 }
@@ -252,7 +252,7 @@ func MarshalJSON(v interface{}) ([]byte, error) {
 		return json.Marshal(&Wildcard{v.(*influxql.Wildcard)})
 	default:
 		t := reflect.TypeOf(v)
-		return nil, fmt.Errorf("Error marshaling query: unknown type %s", t)
+		return nil, fmt.Errorf("error marshaling query: unknown type %s", t)
 	}
 }
 
@@ -282,7 +282,7 @@ func (s *Source) MarshalJSON() ([]byte, error) {
 		}
 		return json.Marshal(m)
 	default:
-		return nil, fmt.Errorf("Error marshaling source.  Subqueries not supported yet")
+		return nil, fmt.Errorf("error marshaling source.  Subqueries not supported yet")
 	}
 }
 

@@ -119,7 +119,7 @@ func (e *BooleanDecoder) SetBytes(b []byte) {
 	b = b[1:]
 	count, n := binary.Uvarint(b)
 	if n <= 0 {
-		e.err = fmt.Errorf("BooleanDecoder: invalid count")
+		e.err = fmt.Errorf("booleanDecoder: invalid count")
 		return
 	}
 

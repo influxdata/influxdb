@@ -70,12 +70,12 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 
 	if writeFlags.Org != "" && writeFlags.OrgID != "" {
 		cmd.Usage()
-		return fmt.Errorf("Please specify one of org or org-id")
+		return fmt.Errorf("please specify one of org or org-id")
 	}
 
 	if writeFlags.Bucket != "" && writeFlags.BucketID != "" {
 		cmd.Usage()
-		return fmt.Errorf("Please specify one of bucket or bucket-id")
+		return fmt.Errorf("please specify one of bucket or bucket-id")
 	}
 
 	if !models.ValidPrecision(writeFlags.Precision) {

@@ -49,7 +49,7 @@ func BooleanArrayDecodeAll(b []byte, dst []bool) ([]bool, error) {
 	b = b[1:]
 	val, n := binary.Uvarint(b)
 	if n <= 0 {
-		return nil, fmt.Errorf("BooleanBatchDecoder: invalid count")
+		return nil, fmt.Errorf("booleanBatchDecoder: invalid count")
 	}
 
 	count := int(val)

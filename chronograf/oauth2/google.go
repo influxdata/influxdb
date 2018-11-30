@@ -86,7 +86,7 @@ func (g *Google) PrincipalID(provider *http.Client) (string, error) {
 		}
 	}
 	g.Logger.Error("Domain '", info.Hd, "' is not a member of required Google domain(s): ", g.Domains)
-	return "", fmt.Errorf("Not in required domain")
+	return "", fmt.Errorf("not in required domain")
 }
 
 // Group returns the string of domain a user belongs to in Google

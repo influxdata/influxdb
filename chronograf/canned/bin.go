@@ -45,12 +45,12 @@ func (s *BinLayoutsStore) All(ctx context.Context) ([]chronograf.Layout, error) 
 
 // Add is not support by BinLayoutsStore
 func (s *BinLayoutsStore) Add(ctx context.Context, layout chronograf.Layout) (chronograf.Layout, error) {
-	return chronograf.Layout{}, fmt.Errorf("Add to BinLayoutsStore not supported")
+	return chronograf.Layout{}, fmt.Errorf("add to BinLayoutsStore not supported")
 }
 
 // Delete is not support by BinLayoutsStore
 func (s *BinLayoutsStore) Delete(ctx context.Context, layout chronograf.Layout) error {
-	return fmt.Errorf("Delete to BinLayoutsStore not supported")
+	return fmt.Errorf("delete to BinLayoutsStore not supported")
 }
 
 // Get retrieves Layout if `ID` exists.
@@ -79,5 +79,5 @@ func (s *BinLayoutsStore) Get(ctx context.Context, ID string) (chronograf.Layout
 
 // Update not supported
 func (s *BinLayoutsStore) Update(ctx context.Context, layout chronograf.Layout) error {
-	return fmt.Errorf("Update to BinLayoutsStore not supported")
+	return fmt.Errorf("update to BinLayoutsStore not supported")
 }

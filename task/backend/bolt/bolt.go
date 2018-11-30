@@ -35,7 +35,7 @@ var ErrDBReadOnly = errors.New("db is read only")
 
 // ErrMaxConcurrency is an error for when the max concurrency is already
 // reached for a task when you try to schedule a task.
-var ErrMaxConcurrency = errors.New("MaxConcurrency reached")
+var ErrMaxConcurrency = errors.New("max concurrency reached")
 
 // ErrRunNotFound is an error for when a run isn't found in a FinishRun method.
 var ErrRunNotFound = errors.New("run not found")

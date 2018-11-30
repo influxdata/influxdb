@@ -31,7 +31,7 @@ func TestService_Annotations(t *testing.T) {
 			name: "error no id",
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest("GET", "/chronograf/v1/sources/1/annotations", bytes.NewReader([]byte(`howdy`))),
-			want: `{"code":422,"message":"Error converting ID "}`,
+			want: `{"code":422,"message":"error converting ID "}`,
 		},
 		{
 			name: "no since parameter",
@@ -84,7 +84,7 @@ func TestService_Annotations(t *testing.T) {
 			ID:   "1",
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest("GET", "/chronograf/v1/sources/1/annotations?since=1985-04-12T23:20:50.52Z", bytes.NewReader([]byte(`howdy`))),
-			want: `{"code":400,"message":"Unable to connect to source 1: error)"}`,
+			want: `{"code":400,"message":"unable to connect to source 1: error)"}`,
 		},
 		{
 			name: "error returned when annotations are invalid",
@@ -110,7 +110,7 @@ func TestService_Annotations(t *testing.T) {
 			ID:   "1",
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest("GET", "/chronograf/v1/sources/1/annotations?since=1985-04-12T23:20:50.52Z", bytes.NewReader([]byte(`howdy`))),
-			want: `{"code":500,"message":"Unknown error: Error loading annotations: invalid character '[' looking for beginning of object key string"}`,
+			want: `{"code":500,"message":"unknown error: error loading annotations: invalid character '[' looking for beginning of object key string"}`,
 		},
 		{
 			name: "error is returned connect is an error",

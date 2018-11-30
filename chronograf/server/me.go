@@ -64,7 +64,7 @@ func getScheme(ctx context.Context) (string, error) {
 func getPrincipal(ctx context.Context) (oauth2.Principal, error) {
 	principal, ok := ctx.Value(oauth2.PrincipalKey).(oauth2.Principal)
 	if !ok {
-		return oauth2.Principal{}, fmt.Errorf("Token not found")
+		return oauth2.Principal{}, fmt.Errorf("token not found")
 	}
 
 	return principal, nil
@@ -76,10 +76,10 @@ func getValidPrincipal(ctx context.Context) (oauth2.Principal, error) {
 		return p, err
 	}
 	if p.Subject == "" {
-		return oauth2.Principal{}, fmt.Errorf("Token not found")
+		return oauth2.Principal{}, fmt.Errorf("token not found")
 	}
 	if p.Issuer == "" {
-		return oauth2.Principal{}, fmt.Errorf("Token not found")
+		return oauth2.Principal{}, fmt.Errorf("token not found")
 	}
 	return p, nil
 }

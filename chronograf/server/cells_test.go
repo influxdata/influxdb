@@ -620,7 +620,7 @@ func TestService_ReplaceDashboardCell(t *testing.T) {
 			},
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest("PUT", "/chronograf/v1/dashboards/1/cells/3c5c4102-fa40-4585-a8f9-917c77e37192", nil),
-			want: `{"code":400,"message":"Unparsable JSON"}`,
+			want: `{"code":400,"message":"unparsable JSON"}`,
 		},
 		{
 			name: "not able to update store returns error message",

@@ -304,7 +304,7 @@ type Aggregate struct {
 
 func (a *Aggregate) QuerySpec() (*flux.Operation, error) {
 	if a.Without {
-		return nil, fmt.Errorf("Unable to merge using `without`")
+		return nil, fmt.Errorf("unable to merge using `without`")
 	}
 	keys := make([]string, len(a.Labels))
 	for i := range a.Labels {
@@ -373,7 +373,7 @@ type Operator struct {
 func (o *Operator) QuerySpec() (*flux.Operation, error) {
 	switch o.Kind {
 	case CountValuesKind, BottomKind, QuantileKind, StdVarKind:
-		return nil, fmt.Errorf("Unable to run %d yet", o.Kind)
+		return nil, fmt.Errorf("unable to run %d yet", o.Kind)
 	case CountKind:
 		return &flux.Operation{
 			ID:   "count",
@@ -410,7 +410,7 @@ func (o *Operator) QuerySpec() (*flux.Operation, error) {
 	//		Spec: &transformations.StddevOpSpec{},
 	//	}, nil
 	default:
-		return nil, fmt.Errorf("Unknown Op kind %d", o.Kind)
+		return nil, fmt.Errorf("unknown Op kind %d", o.Kind)
 	}
 }
 
@@ -479,7 +479,7 @@ type Comment struct {
 }
 
 func (c *Comment) QuerySpec() (*flux.Spec, error) {
-	return nil, fmt.Errorf("Unable to represent comments in the AST")
+	return nil, fmt.Errorf("unable to represent comments in the AST")
 }
 
 func toIfaceSlice(v interface{}) []interface{} {

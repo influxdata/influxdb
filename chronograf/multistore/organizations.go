@@ -59,7 +59,7 @@ func (multi *OrganizationsStore) Add(ctx context.Context, org *chronograf.Organi
 		}
 		errors = append(errors, err.Error())
 	}
-	return nil, fmt.Errorf("Unknown error while adding organization: %s", strings.Join(errors, " "))
+	return nil, fmt.Errorf("unknown error while adding organization: %s", strings.Join(errors, " "))
 }
 
 // Delete delegates to all Stores, returns success if one Store is successful
@@ -72,7 +72,7 @@ func (multi *OrganizationsStore) Delete(ctx context.Context, org *chronograf.Org
 		}
 		errors = append(errors, err.Error())
 	}
-	return fmt.Errorf("Unknown error while deleting organization: %s", strings.Join(errors, " "))
+	return fmt.Errorf("unknown error while deleting organization: %s", strings.Join(errors, " "))
 }
 
 // Get finds the Organization by id among all contained Stores
@@ -98,7 +98,7 @@ func (multi *OrganizationsStore) Update(ctx context.Context, org *chronograf.Org
 		}
 		errors = append(errors, err.Error())
 	}
-	return fmt.Errorf("Unknown error while updating organization: %s", strings.Join(errors, " "))
+	return fmt.Errorf("unknown error while updating organization: %s", strings.Join(errors, " "))
 }
 
 // CreateDefault makes a default organization in the first responsive Store
@@ -111,7 +111,7 @@ func (multi *OrganizationsStore) CreateDefault(ctx context.Context) error {
 		}
 		errors = append(errors, err.Error())
 	}
-	return fmt.Errorf("Unknown error while creating default organization: %s", strings.Join(errors, " "))
+	return fmt.Errorf("unknown error while creating default organization: %s", strings.Join(errors, " "))
 }
 
 // DefaultOrganization returns the first successful DefaultOrganization
@@ -124,6 +124,6 @@ func (multi *OrganizationsStore) DefaultOrganization(ctx context.Context) (*chro
 		}
 		errors = append(errors, err.Error())
 	}
-	return nil, fmt.Errorf("Unknown error while getting default organization: %s", strings.Join(errors, " "))
+	return nil, fmt.Errorf("unknown error while getting default organization: %s", strings.Join(errors, " "))
 
 }

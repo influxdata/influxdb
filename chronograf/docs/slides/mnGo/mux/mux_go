@@ -226,7 +226,7 @@ func invalidData(w http.ResponseWriter, err error, logger chronograf.Logger) {
 }
 
 func invalidJSON(w http.ResponseWriter, logger chronograf.Logger) {
-	Error(w, http.StatusBadRequest, "Unparsable JSON", logger)
+	Error(w, http.StatusBadRequest, "unparsable JSON", logger)
 }
 
 func unknownErrorWithMessage(w http.ResponseWriter, err error, logger chronograf.Logger) {
@@ -242,7 +242,7 @@ func paramID(key string, r *http.Request) (int, error) {
 	param := httprouter.GetParamFromContext(ctx, key)
 	id, err := strconv.Atoi(param)
 	if err != nil {
-		return -1, fmt.Errorf("Error converting ID %s", param)
+		return -1, fmt.Errorf("error converting ID %s", param)
 	}
 	return id, nil
 }

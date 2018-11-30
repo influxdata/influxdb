@@ -9,9 +9,9 @@ import (
 )
 
 var (
-	errStringBatchDecodeInvalidStringLength = fmt.Errorf("StringArrayDecodeAll: invalid encoded string length")
-	errStringBatchDecodeLengthOverflow      = fmt.Errorf("StringArrayDecodeAll: length overflow")
-	errStringBatchDecodeShortBuffer         = fmt.Errorf("StringArrayDecodeAll: short buffer")
+	errStringBatchDecodeInvalidStringLength = fmt.Errorf("stringArrayDecodeAll: invalid encoded string length")
+	errStringBatchDecodeLengthOverflow      = fmt.Errorf("stringArrayDecodeAll: length overflow")
+	errStringBatchDecodeShortBuffer         = fmt.Errorf("stringArrayDecodeAll: short buffer")
 )
 
 // StringArrayEncodeAll encodes src into b, returning b and any error encountered.

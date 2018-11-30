@@ -3,6 +3,8 @@
 // Package promql implements a promql parser to build flux query specifications from promql.
 package promql
 
+//lint:file-ignore SA6001 Ignore all unused code, it's generated
+
 import (
 	"bytes"
 	"errors"
@@ -3197,7 +3199,7 @@ func (p *parser) callonUnicodeClassEscape13() (interface{}, error) {
 }
 
 func (c *current) onUnicodeClassEscape19() (interface{}, error) {
-	return nil, errors.New("Unicode class not terminated")
+	return nil, errors.New("unicode class not terminated")
 
 }
 

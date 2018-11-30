@@ -115,12 +115,12 @@ func (s *Service) DefaultRP(ctx context.Context, qc *chronograf.QueryConfig, src
 
 	db := s.Databases
 	if err := db.Connect(ctx, src); err != nil {
-		return fmt.Errorf("Unable to connect to source: %v", err)
+		return fmt.Errorf("unable to connect to source: %v", err)
 	}
 
 	rps, err := db.AllRP(ctx, qc.Database)
 	if err != nil {
-		return fmt.Errorf("Unable to load RPs from DB %s: %v", qc.Database, err)
+		return fmt.Errorf("unable to load RPs from DB %s: %v", qc.Database, err)
 	}
 
 	for _, rp := range rps {

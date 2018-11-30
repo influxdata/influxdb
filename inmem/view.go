@@ -10,7 +10,7 @@ import (
 func (s *Service) loadView(ctx context.Context, id platform.ID) (*platform.View, error) {
 	i, ok := s.viewKV.Load(id.String())
 	if !ok {
-		return nil, fmt.Errorf("View not found")
+		return nil, fmt.Errorf("view not found")
 	}
 
 	d, ok := i.(*platform.View)

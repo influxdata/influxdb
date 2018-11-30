@@ -423,7 +423,7 @@ func TestClient_Update(t *testing.T) {
 			fields: fields{
 				Ctrl: &mockCtrl{
 					changePassword: func(ctx context.Context, name, passwd string) error {
-						return fmt.Errorf("Ronald Reagan, the actor?! Ha Then who’s Vice President Jerry Lewis? I suppose Jane Wyman is First Lady")
+						return fmt.Errorf("ronald Reagan, the actor?! Ha Then who’s Vice President Jerry Lewis? I suppose Jane Wyman is First Lady")
 					},
 				},
 			},
@@ -501,7 +501,7 @@ func TestClient_Update(t *testing.T) {
 			fields: fields{
 				Ctrl: &mockCtrl{
 					setUserPerms: func(ctx context.Context, name string, perms enterprise.Permissions) error {
-						return fmt.Errorf("They found me, I don't know how, but they found me.")
+						return fmt.Errorf("they found me, I don't know how, but they found me.")
 					},
 					userRoles: func(ctx context.Context) (map[string]enterprise.Roles, error) {
 						return map[string]enterprise.Roles{}, nil

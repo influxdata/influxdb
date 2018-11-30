@@ -113,7 +113,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -137,7 +137,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -169,7 +169,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -193,7 +193,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -225,7 +225,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -249,7 +249,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -281,7 +281,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -305,7 +305,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -337,7 +337,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -361,7 +361,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -393,7 +393,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -417,7 +417,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -449,7 +449,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -473,7 +473,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -505,7 +505,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -529,7 +529,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -557,7 +557,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -581,7 +581,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -613,7 +613,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -637,7 +637,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -669,7 +669,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -693,7 +693,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -721,7 +721,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -745,7 +745,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -773,7 +773,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -797,7 +797,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -829,7 +829,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -848,7 +848,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -876,7 +876,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -895,7 +895,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -923,7 +923,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -942,7 +942,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -970,7 +970,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -993,7 +993,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1021,7 +1021,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -1039,7 +1039,7 @@ func TestAuthorizedUser(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1072,7 +1072,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -1095,7 +1095,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1123,7 +1123,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -1147,7 +1147,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1175,7 +1175,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -1199,7 +1199,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1227,7 +1227,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -1251,7 +1251,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1279,7 +1279,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:         1337,
@@ -1304,7 +1304,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1336,7 +1336,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:         1337,
@@ -1361,7 +1361,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1393,7 +1393,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:         1337,
@@ -1418,7 +1418,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1450,7 +1450,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:         1337,
@@ -1475,7 +1475,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1507,7 +1507,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -1531,7 +1531,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1555,7 +1555,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -1579,7 +1579,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1606,7 +1606,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -1630,7 +1630,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",
@@ -1658,7 +1658,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						return &chronograf.User{
 							ID:       1337,
@@ -1682,7 +1682,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						switch *q.ID {
 						case "1338":
@@ -1715,7 +1715,7 @@ func TestAuthorizedUser(t *testing.T) {
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						if q.Name == nil || q.Provider == nil || q.Scheme == nil {
-							return nil, fmt.Errorf("Invalid user query: missing Name, Provider, and/or Scheme")
+							return nil, fmt.Errorf("invalid user query: missing Name, Provider, and/or Scheme")
 						}
 						switch *q.Name {
 						case "billysteve":
@@ -1744,7 +1744,7 @@ func TestAuthorizedUser(t *testing.T) {
 					},
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						if q.ID == nil {
-							return nil, fmt.Errorf("Invalid organization query: missing ID")
+							return nil, fmt.Errorf("invalid organization query: missing ID")
 						}
 						return &chronograf.Organization{
 							ID:   "1337",

@@ -40,7 +40,7 @@ func TestSources_All(t *testing.T) {
 			fields: fields{
 				SourcesStore: &mocks.SourcesStore{
 					AllF: func(ctx context.Context) ([]chronograf.Source, error) {
-						return nil, fmt.Errorf("No Sources")
+						return nil, fmt.Errorf("no Sources")
 					},
 				},
 			},

@@ -241,7 +241,7 @@ func TestTranspiler_Compile(t *testing.T) {
 		{s: `SELECT percentile(field1) FROM myseries`, err: `invalid number of arguments for percentile, expected 2, got 1`},
 		{s: `SELECT percentile(field1, foo) FROM myseries`, err: `expected float argument in percentile()`},
 		{s: `SELECT percentile(max(field1), 75) FROM myseries`, err: `expected field argument in percentile()`},
-		{s: `SELECT field1 FROM foo group by time(1s)`, err: `GROUP BY requires at least one aggregate function`},
+		{s: `SELECT field1 FROM foo group by time(1s)`, err: `using GROUP BY requires at least one aggregate function`},
 		{s: `SELECT field1 FROM foo fill(none)`, err: `fill(none) must be used with a function`},
 		{s: `SELECT field1 FROM foo fill(linear)`, err: `fill(linear) must be used with a function`},
 		{s: `SELECT count(value), value FROM foo`, err: `mixing aggregate and non-aggregate queries is not supported`},

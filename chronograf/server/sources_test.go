@@ -730,7 +730,7 @@ func TestService_NewSourceUser(t *testing.T) {
 					UsersF: func(ctx context.Context) chronograf.UsersStore {
 						return &mocks.UsersStore{
 							AddF: func(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
-								return nil, fmt.Errorf("Weight Has Nothing to Do With It")
+								return nil, fmt.Errorf("weight Has Nothing to Do With It")
 							},
 						}
 					},
@@ -739,7 +739,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			ID:              "1",
 			wantStatus:      http.StatusBadRequest,
 			wantContentType: "application/json",
-			wantBody:        `{"code":400,"message":"Weight Has Nothing to Do With It"}`,
+			wantBody:        `{"code":400,"message":"weight Has Nothing to Do With It"}`,
 		},
 		{
 			name: "Failure connecting to user store",
@@ -767,14 +767,14 @@ func TestService_NewSourceUser(t *testing.T) {
 				},
 				TimeSeries: &mocks.TimeSeries{
 					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
-						return fmt.Errorf("Biff just happens to be my supervisor")
+						return fmt.Errorf("my supervisor is Biff")
 					},
 				},
 			},
 			ID:              "1",
 			wantStatus:      http.StatusBadRequest,
 			wantContentType: "application/json",
-			wantBody:        `{"code":400,"message":"Unable to connect to source 1: Biff just happens to be my supervisor"}`,
+			wantBody:        `{"code":400,"message":"unable to connect to source 1: my supervisor is Biff"}`,
 		},
 		{
 			name: "Failure getting source",
@@ -791,7 +791,7 @@ func TestService_NewSourceUser(t *testing.T) {
 				Logger:  log.New(log.DebugLevel),
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
-						return chronograf.Source{}, fmt.Errorf("No McFly ever amounted to anything in the history of Hill Valley")
+						return chronograf.Source{}, fmt.Errorf("no McFly ever amounted to anything in the history of Hill Valley")
 					},
 				},
 			},
@@ -817,7 +817,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			ID:              "BAD",
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"Error converting ID BAD"}`,
+			wantBody:        `{"code":422,"message":"error converting ID BAD"}`,
 		},
 		{
 			name: "Bad name",
@@ -836,7 +836,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			ID:              "BAD",
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"Username required"}`,
+			wantBody:        `{"code":422,"message":"username required"}`,
 		},
 		{
 			name: "Bad JSON",
@@ -855,7 +855,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			ID:              "BAD",
 			wantStatus:      http.StatusBadRequest,
 			wantContentType: "application/json",
-			wantBody:        `{"code":400,"message":"Unparsable JSON"}`,
+			wantBody:        `{"code":400,"message":"unparsable JSON"}`,
 		},
 	}
 	for _, tt := range tests {
@@ -1473,7 +1473,7 @@ func TestService_UpdateSourceUser(t *testing.T) {
 			UID:             "marty",
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"No fields to update"}`,
+			wantBody:        `{"code":422,"message":"no fields to update"}`,
 		},
 	}
 	for _, tt := range tests {
@@ -1545,7 +1545,7 @@ func TestService_NewSourceRole(t *testing.T) {
 			},
 			wantStatus:      http.StatusBadRequest,
 			wantContentType: "application/json",
-			wantBody:        `{"code":400,"message":"Unparsable JSON"}`,
+			wantBody:        `{"code":400,"message":"unparsable JSON"}`,
 		},
 		{
 			name: "Invalid request",
@@ -1563,7 +1563,7 @@ func TestService_NewSourceRole(t *testing.T) {
 			ID:              "1",
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"Name is required for a role"}`,
+			wantBody:        `{"code":422,"message":"name is required for a role"}`,
 		},
 		{
 			name: "Invalid source ID",
@@ -1581,7 +1581,7 @@ func TestService_NewSourceRole(t *testing.T) {
 			ID:              "BADROLE",
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"Error converting ID BADROLE"}`,
+			wantBody:        `{"code":422,"message":"error converting ID BADROLE"}`,
 		},
 		{
 			name: "Source doesn't support roles",
@@ -1653,7 +1653,7 @@ func TestService_NewSourceRole(t *testing.T) {
 								return nil, fmt.Errorf("server had and issue")
 							},
 							GetF: func(ctx context.Context, name string) (*chronograf.Role, error) {
-								return nil, fmt.Errorf("No such role")
+								return nil, fmt.Errorf("no such role")
 							},
 						}, nil
 					},

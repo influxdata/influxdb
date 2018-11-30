@@ -53,13 +53,13 @@ func (s *Service) Influx(w http.ResponseWriter, r *http.Request) {
 
 	ts, err := s.TimeSeries(src)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d: %v", id, err)
+		msg := fmt.Sprintf("unable to connect to source %d: %v", id, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}

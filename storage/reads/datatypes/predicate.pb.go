@@ -373,7 +373,7 @@ func _Node_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
 		_ = b.EncodeVarint(uint64(x.Comparison))
 	case nil:
 	default:
-		return fmt.Errorf("Node.Value has unexpected type %T", x)
+		return fmt.Errorf("node.Value has unexpected type %T", x)
 	}
 	return nil
 }

@@ -105,7 +105,7 @@ func Trigger(rule chronograf.AlertRule) (string, error) {
 			trigger, err = thresholdRangeTrigger(rule)
 		}
 	default:
-		trigger, err = "", fmt.Errorf("Unknown trigger type: %s", rule.Trigger)
+		trigger, err = "", fmt.Errorf("unknown trigger type: %s", rule.Trigger)
 	}
 
 	if err != nil {
@@ -137,7 +137,7 @@ func relativeTrigger(rule chronograf.AlertRule) (string, error) {
 	} else if rule.TriggerValues.Change == ChangeAmount {
 		return fmt.Sprintf(RelativeAbsoluteTrigger, op), nil
 	} else {
-		return "", fmt.Errorf("Unknown change type %s", rule.TriggerValues.Change)
+		return "", fmt.Errorf("unknown change type %s", rule.TriggerValues.Change)
 	}
 }
 

@@ -56,7 +56,7 @@ func TestService_OrganizationID(t *testing.T) {
 								Name: "The Good Place",
 							}, nil
 						default:
-							return nil, fmt.Errorf("Organization with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("organization with ID %s not found", *q.ID)
 						}
 					},
 				},
@@ -87,7 +87,7 @@ func TestService_OrganizationID(t *testing.T) {
 								Name: "The Good Place",
 							}, nil
 						default:
-							return nil, fmt.Errorf("Organization with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("organization with ID %s not found", *q.ID)
 						}
 					},
 				},
@@ -295,7 +295,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"No fields to update"}`,
+			wantBody:        `{"code":422,"message":"no fields to update"}`,
 		},
 		{
 			name: "Update Organization default role",
@@ -355,7 +355,7 @@ func TestService_UpdateOrganization(t *testing.T) {
 			id:              "1337",
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"No fields to update"}`,
+			wantBody:        `{"code":422,"message":"no fields to update"}`,
 		},
 		{
 			name: "Update Organization - invalid role",
@@ -466,7 +466,7 @@ func TestService_RemoveOrganization(t *testing.T) {
 								Name: "The Good Place",
 							}, nil
 						default:
-							return nil, fmt.Errorf("Organization with ID %s not found", *q.ID)
+							return nil, fmt.Errorf("organization with ID %s not found", *q.ID)
 						}
 					},
 				},
@@ -604,7 +604,7 @@ func TestService_NewOrganization(t *testing.T) {
 			},
 			wantStatus:      http.StatusUnprocessableEntity,
 			wantContentType: "application/json",
-			wantBody:        `{"code":422,"message":"Name required on Chronograf Organization request body"}`,
+			wantBody:        `{"code":422,"message":"name required on Chronograf Organization request body"}`,
 		},
 		{
 			name: "Create Organization - no user on context",

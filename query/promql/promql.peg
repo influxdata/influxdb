@@ -107,7 +107,7 @@ UnicodeClassEscape = 'p' (
         return nil, nil
     }
     / '{' IdentifierName ( ']' / EOL / EOF ) {
-        return nil, errors.New("Unicode class not terminated")
+        return nil, errors.New("unicode class not terminated")
     }
 )
 
