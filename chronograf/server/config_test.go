@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
 )
 
@@ -52,7 +51,7 @@ func TestConfig(t *testing.T) {
 				Store: &mocks.Store{
 					ConfigStore: tt.fields.ConfigStore,
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()
@@ -117,7 +116,7 @@ func TestAuthConfig(t *testing.T) {
 				Store: &mocks.Store{
 					ConfigStore: tt.fields.ConfigStore,
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()
@@ -191,7 +190,7 @@ func TestReplaceAuthConfig(t *testing.T) {
 				Store: &mocks.Store{
 					ConfigStore: tt.fields.ConfigStore,
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()

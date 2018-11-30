@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
 	"github.com/julienschmidt/httprouter"
 )
@@ -547,7 +546,7 @@ func TestService_Measurements(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger := log.New(log.DebugLevel)
+			logger := &chronograf.NoopLogger{}
 			h := &Service{
 				Store: &mocks.Store{
 					SourcesStore: tt.fields.SourcesStore,

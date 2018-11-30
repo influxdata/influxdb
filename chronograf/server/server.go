@@ -21,7 +21,6 @@ import (
 	"github.com/influxdata/platform/chronograf/bolt"
 	idgen "github.com/influxdata/platform/chronograf/id"
 	"github.com/influxdata/platform/chronograf/influx"
-	clog "github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/oauth2"
 	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
@@ -323,7 +322,7 @@ func (s *Server) newBuilders(logger chronograf.Logger) builders {
 
 // Serve starts and runs the chronograf server
 func (s *Server) Serve(ctx context.Context) error {
-	logger := clog.New(clog.ParseLevel(s.LogLevel))
+	logger := &chronograf.NoopLogger{}
 	_, err := NewCustomLinks(s.CustomLinks)
 	if err != nil {
 		logger.

@@ -10,7 +10,6 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
 	"github.com/influxdata/platform/chronograf/roles"
 )
@@ -60,7 +59,7 @@ func TestMappings_All(t *testing.T) {
 				Store: &mocks.Store{
 					MappingsStore: tt.fields.MappingsStore,
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()
@@ -146,7 +145,7 @@ func TestMappings_Add(t *testing.T) {
 					MappingsStore:      tt.fields.MappingsStore,
 					OrganizationsStore: tt.fields.OrganizationsStore,
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()
@@ -236,7 +235,7 @@ func TestMappings_Update(t *testing.T) {
 					MappingsStore:      tt.fields.MappingsStore,
 					OrganizationsStore: tt.fields.OrganizationsStore,
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()
@@ -322,7 +321,7 @@ func TestMappings_Remove(t *testing.T) {
 				Store: &mocks.Store{
 					MappingsStore: tt.fields.MappingsStore,
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()

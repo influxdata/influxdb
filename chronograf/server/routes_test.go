@@ -6,11 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/platform/chronograf/log"
+	"github.com/influxdata/platform/chronograf"
 )
 
 func TestAllRoutes(t *testing.T) {
-	logger := log.New(log.DebugLevel)
+	logger := &chronograf.NoopLogger{}
 	handler := &AllRoutes{
 		Logger: logger,
 	}
@@ -43,7 +43,7 @@ func TestAllRoutes(t *testing.T) {
 }
 
 func TestAllRoutesWithAuth(t *testing.T) {
-	logger := log.New(log.DebugLevel)
+	logger := &chronograf.NoopLogger{}
 	handler := &AllRoutes{
 		AuthRoutes: []AuthRoute{
 			{
@@ -88,7 +88,7 @@ func TestAllRoutesWithExternalLinks(t *testing.T) {
 	customLinks := map[string]string{
 		"cubeapple": "https://cube.apple",
 	}
-	logger := log.New(log.DebugLevel)
+	logger := &chronograf.NoopLogger{}
 	handler := &AllRoutes{
 		StatusFeed:  statusFeedURL,
 		CustomLinks: customLinks,

@@ -12,7 +12,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
 	"github.com/julienschmidt/httprouter"
 )
@@ -439,7 +438,7 @@ func TestService_SourcesID(t *testing.T) {
 						}, nil
 					},
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			},
 			ID:              "1",
 			wantStatusCode:  200,
@@ -529,7 +528,7 @@ func TestService_UpdateSource(t *testing.T) {
 						}, nil
 					},
 				},
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			},
 			ID:              "1",
 			wantStatusCode:  200,
@@ -619,7 +618,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -665,7 +664,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -711,7 +710,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -753,7 +752,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -788,7 +787,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{}, fmt.Errorf("no McFly ever amounted to anything in the history of Hill Valley")
@@ -812,7 +811,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 			},
 			ID:              "BAD",
 			wantStatus:      http.StatusUnprocessableEntity,
@@ -831,7 +830,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 			},
 			ID:              "BAD",
 			wantStatus:      http.StatusUnprocessableEntity,
@@ -850,7 +849,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 			},
 			ID:              "BAD",
 			wantStatus:      http.StatusBadRequest,
@@ -927,7 +926,7 @@ func TestService_SourceUsers(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -983,7 +982,7 @@ func TestService_SourceUsers(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -1097,7 +1096,7 @@ func TestService_SourceUserID(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -1152,7 +1151,7 @@ func TestService_SourceUserID(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -1265,7 +1264,7 @@ func TestService_RemoveSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -1363,7 +1362,7 @@ func TestService_UpdateSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -1415,7 +1414,7 @@ func TestService_UpdateSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -1467,7 +1466,7 @@ func TestService_UpdateSourceUser(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 			},
 			ID:              "1",
 			UID:             "marty",
@@ -1541,7 +1540,7 @@ func TestService_NewSourceRole(t *testing.T) {
 						bytes.NewReader([]byte(`{BAD}`)))),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			},
 			wantStatus:      http.StatusBadRequest,
 			wantContentType: "application/json",
@@ -1558,7 +1557,7 @@ func TestService_NewSourceRole(t *testing.T) {
 						bytes.NewReader([]byte(`{"name": ""}`)))),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			},
 			ID:              "1",
 			wantStatus:      http.StatusUnprocessableEntity,
@@ -1576,7 +1575,7 @@ func TestService_NewSourceRole(t *testing.T) {
 						bytes.NewReader([]byte(`{"name": "newrole"}`)))),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			},
 			ID:              "BADROLE",
 			wantStatus:      http.StatusUnprocessableEntity,
@@ -1594,7 +1593,7 @@ func TestService_NewSourceRole(t *testing.T) {
 						bytes.NewReader([]byte(`{"name": "role"}`)))),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -1631,7 +1630,7 @@ func TestService_NewSourceRole(t *testing.T) {
 						bytes.NewReader([]byte(`{"name": "role"}`)))),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -1675,7 +1674,7 @@ func TestService_NewSourceRole(t *testing.T) {
 						bytes.NewReader([]byte(`{"name": "biffsgang","users": [{"name": "match"},{"name": "skinhead"},{"name": "3-d"}]}`)))),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -1777,7 +1776,7 @@ func TestService_UpdateSourceRole(t *testing.T) {
 						bytes.NewReader([]byte(`{"name": "biffsgang","users": [{"name": "match"},{"name": "skinhead"},{"name": "3-d"}]}`)))),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -1893,7 +1892,7 @@ func TestService_SourceRoleID(t *testing.T) {
 					nil),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -2013,7 +2012,7 @@ func TestService_RemoveSourceRole(t *testing.T) {
 					nil),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{
@@ -2101,7 +2100,7 @@ func TestService_SourceRoles(t *testing.T) {
 					nil),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{

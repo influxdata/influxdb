@@ -1492,6 +1492,10 @@ paths:
           description: Abstract syntax tree of flux query.
           content:
             application/json: #TODO(goller): document the AST JSON schema
+              schema:
+                properties:
+                  todo:
+                    type: string # swagger editor was yelling at me here
         default:
           description: Any response other than 200 is an internal server error
           content:
@@ -2284,6 +2288,89 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Organization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/secrets':
+    get:
+      tags:
+        - Secrets
+        - Organizations
+      summary: List all secret keys for an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      responses:
+        '200':
+          description: a list of all secret keys
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecretKeys"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Secrets
+        - Organizations
+      summary: Apply patch to the provided secrets
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      requestBody:
+        description: secret key value pairs to update/add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Secrets"
+      responses:
+        '204':
+          description: keys successfully patched
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/secrets/delete': # had to make this because swagger wouldn't let me have a request body with a DELETE
+    post:
+      tags:
+        - Secrets
+        - Organizations
+      summary: delete provided secrets
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      requestBody:
+        description: secret key to deleted
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SecretKeys"
+      responses:
+        '204':
+          description: keys successfully patched
         default:
           description: unexpected error
           content:
@@ -4620,6 +4707,24 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/Cell"
+    Secrets:
+      additionalProperties:
+        type: string
+      example:
+        apikey: abc123xyz
+    SecretKeys:
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+            org:
+              type: string
+        secrets:
+          type: array
+          items:
+            type: string
     Dashboard:
       properties:
         links:

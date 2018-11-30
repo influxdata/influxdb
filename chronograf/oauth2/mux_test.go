@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	clog "github.com/influxdata/platform/chronograf/log"
+	"github.com/influxdata/platform/chronograf"
 )
 
 var testTime = time.Date(1985, time.October, 25, 18, 0, 0, 0, time.UTC)
@@ -53,7 +53,7 @@ func setupMuxTest(response interface{}, selector func(*AuthMux) http.Handler) (*
 
 	useidtoken := false
 
-	jm := NewAuthMux(mp, auth, mt, "", clog.New(clog.ParseLevel("debug")), useidtoken)
+	jm := NewAuthMux(mp, auth, mt, "", &chronograf.NoopLogger{}, useidtoken)
 	ts := httptest.NewServer(selector(jm))
 	jar, _ := cookiejar.New(nil)
 	hc := http.Client{

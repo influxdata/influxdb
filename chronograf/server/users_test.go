@@ -12,7 +12,6 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
 	"github.com/influxdata/platform/chronograf/roles"
 )
@@ -46,7 +45,7 @@ func TestService_UserID(t *testing.T) {
 				),
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						switch *q.ID {
@@ -147,7 +146,7 @@ func TestService_NewUser(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -197,7 +196,7 @@ func TestService_NewUser(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -275,7 +274,7 @@ func TestService_NewUser(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -332,7 +331,7 @@ func TestService_NewUser(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -380,7 +379,7 @@ func TestService_NewUser(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -428,7 +427,7 @@ func TestService_NewUser(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -473,7 +472,7 @@ func TestService_NewUser(t *testing.T) {
 				},
 			},
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
 						Auth: chronograf.AuthConfig{
@@ -588,7 +587,7 @@ func TestService_RemoveUser(t *testing.T) {
 		{
 			name: "Delete a Chronograf User",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						switch *q.ID {
@@ -628,7 +627,7 @@ func TestService_RemoveUser(t *testing.T) {
 		{
 			name: "Deleting yourself",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					GetF: func(ctx context.Context, q chronograf.UserQuery) (*chronograf.User, error) {
 						switch *q.ID {
@@ -734,7 +733,7 @@ func TestService_UpdateUser(t *testing.T) {
 		{
 			name: "Update a Chronograf user - no roles",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
@@ -787,7 +786,7 @@ func TestService_UpdateUser(t *testing.T) {
 		{
 			name: "Update a Chronograf user",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
@@ -858,7 +857,7 @@ func TestService_UpdateUser(t *testing.T) {
 		{
 			name: "Update a Chronograf user roles different orgs",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
@@ -936,7 +935,7 @@ func TestService_UpdateUser(t *testing.T) {
 		{
 			name: "Update a Chronograf user roles same org",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					UpdateF: func(ctx context.Context, user *chronograf.User) error {
 						return nil
@@ -988,7 +987,7 @@ func TestService_UpdateUser(t *testing.T) {
 		{
 			name: "SuperAdmin modifying their own SuperAdmin Status - user missing from context",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
@@ -1054,7 +1053,7 @@ func TestService_UpdateUser(t *testing.T) {
 		{
 			name: "SuperAdmin modifying their own SuperAdmin Status",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
@@ -1127,7 +1126,7 @@ func TestService_UpdateUser(t *testing.T) {
 		{
 			name: "Update a SuperAdmin's Roles - without super admin context",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
@@ -1200,7 +1199,7 @@ func TestService_UpdateUser(t *testing.T) {
 		{
 			name: "Update a Chronograf user to super admin - without super admin context",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
@@ -1269,7 +1268,7 @@ func TestService_UpdateUser(t *testing.T) {
 		{
 			name: "Update a Chronograf user to super admin - with super admin context",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					GetF: func(ctx context.Context, q chronograf.OrganizationQuery) (*chronograf.Organization, error) {
 						switch *q.ID {
@@ -1402,7 +1401,7 @@ func TestService_Users(t *testing.T) {
 		{
 			name: "Get all Chronograf users",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					AllF: func(ctx context.Context) ([]chronograf.User, error) {
 						return []chronograf.User{
@@ -1440,7 +1439,7 @@ func TestService_Users(t *testing.T) {
 		{
 			name: "Get all Chronograf users, ensuring order of users in response",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				UsersStore: &mocks.UsersStore{
 					AllF: func(ctx context.Context) ([]chronograf.User, error) {
 						return []chronograf.User{

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	clog "github.com/influxdata/platform/chronograf/log"
+	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/oauth2"
 )
 
@@ -30,7 +30,7 @@ func TestGooglePrincipalID(t *testing.T) {
 	}))
 	defer mockAPI.Close()
 
-	logger := clog.New(clog.ParseLevel("debug"))
+	logger := &chronograf.NoopLogger{}
 	prov := oauth2.Google{
 		Logger: logger,
 	}
@@ -75,7 +75,7 @@ func TestGooglePrincipalIDDomain(t *testing.T) {
 	}))
 	defer mockAPI.Close()
 
-	logger := clog.New(clog.ParseLevel("debug"))
+	logger := &chronograf.NoopLogger{}
 	prov := oauth2.Google{
 		Logger:  logger,
 		Domains: []string{"Hill Valley Preservation Society"},

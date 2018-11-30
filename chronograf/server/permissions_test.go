@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
 	"github.com/julienschmidt/httprouter"
 )
@@ -46,7 +45,7 @@ func TestService_Permissions(t *testing.T) {
 			},
 			fields: fields{
 				UseAuth: true,
-				Logger:  log.New(log.DebugLevel),
+				Logger:  &chronograf.NoopLogger{},
 				SourcesStore: &mocks.SourcesStore{
 					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
 						return chronograf.Source{

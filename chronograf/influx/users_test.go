@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 )
 
 func TestClient_userPermissions(t *testing.T) {
@@ -75,7 +74,7 @@ func TestClient_userPermissions(t *testing.T) {
 		u, _ := url.Parse(ts.URL)
 		c := &Client{
 			URL:    u,
-			Logger: log.New(log.DebugLevel),
+			Logger: &chronograf.NoopLogger{},
 		}
 		defer ts.Close()
 
@@ -194,7 +193,7 @@ func TestClient_Add(t *testing.T) {
 		u, _ := url.Parse(ts.URL)
 		c := &Client{
 			URL:    u,
-			Logger: log.New(log.DebugLevel),
+			Logger: &chronograf.NoopLogger{},
 		}
 		defer ts.Close()
 		got, err := c.Add(tt.args.ctx, tt.args.u)
@@ -289,7 +288,7 @@ func TestClient_Delete(t *testing.T) {
 		u, _ := url.Parse(ts.URL)
 		c := &Client{
 			URL:    u,
-			Logger: log.New(log.DebugLevel),
+			Logger: &chronograf.NoopLogger{},
 		}
 		defer ts.Close()
 
@@ -389,7 +388,7 @@ func TestClient_Get(t *testing.T) {
 		u, _ := url.Parse(ts.URL)
 		c := &Client{
 			URL:    u,
-			Logger: log.New(log.DebugLevel),
+			Logger: &chronograf.NoopLogger{},
 		}
 		defer ts.Close()
 		got, err := c.Get(tt.args.ctx, chronograf.UserQuery{Name: &tt.args.name})
@@ -476,7 +475,7 @@ func TestClient_grantPermission(t *testing.T) {
 		u, _ := url.Parse(ts.URL)
 		c := &Client{
 			URL:    u,
-			Logger: log.New(log.DebugLevel),
+			Logger: &chronograf.NoopLogger{},
 		}
 		defer ts.Close()
 		if err := c.grantPermission(tt.args.ctx, tt.args.username, tt.args.perm); (err != nil) != tt.wantErr {
@@ -561,7 +560,7 @@ func TestClient_revokePermission(t *testing.T) {
 		u, _ := url.Parse(ts.URL)
 		c := &Client{
 			URL:    u,
-			Logger: log.New(log.DebugLevel),
+			Logger: &chronograf.NoopLogger{},
 		}
 		defer ts.Close()
 		if err := c.revokePermission(tt.args.ctx, tt.args.username, tt.args.perm); (err != nil) != tt.wantErr {
@@ -655,7 +654,7 @@ func TestClient_Num(t *testing.T) {
 		u, _ := url.Parse(ts.URL)
 		c := &Client{
 			URL:    u,
-			Logger: log.New(log.DebugLevel),
+			Logger: &chronograf.NoopLogger{},
 		}
 		defer ts.Close()
 		got, err := c.Num(tt.args.ctx)
@@ -771,7 +770,7 @@ func TestClient_All(t *testing.T) {
 		u, _ := url.Parse(ts.URL)
 		c := &Client{
 			URL:    u,
-			Logger: log.New(log.DebugLevel),
+			Logger: &chronograf.NoopLogger{},
 		}
 		defer ts.Close()
 		got, err := c.All(tt.args.ctx)
@@ -1108,7 +1107,7 @@ func TestClient_Update(t *testing.T) {
 		u, _ := url.Parse(ts.URL)
 		c := &Client{
 			URL:    u,
-			Logger: log.New(log.DebugLevel),
+			Logger: &chronograf.NoopLogger{},
 		}
 		defer ts.Close()
 		if err := c.Update(tt.args.ctx, tt.args.u); (err != nil) != tt.wantErr {

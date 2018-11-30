@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 )
 
 func TestEnvironment(t *testing.T) {
@@ -44,7 +43,7 @@ func TestEnvironment(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Service{
 				Env:    tt.fields.Environment,
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 			}
 
 			w := httptest.NewRecorder()

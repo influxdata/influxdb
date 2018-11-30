@@ -8,7 +8,6 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
 	"github.com/influxdata/platform/chronograf/oauth2"
 )
@@ -35,7 +34,7 @@ func TestRouteMatchesPrincipal(t *testing.T) {
 		{
 			name: "route matches request params",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -65,7 +64,7 @@ func TestRouteMatchesPrincipal(t *testing.T) {
 		{
 			name: "route does not match request params",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -95,7 +94,7 @@ func TestRouteMatchesPrincipal(t *testing.T) {
 		{
 			name: "missing principal",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{
@@ -121,7 +120,7 @@ func TestRouteMatchesPrincipal(t *testing.T) {
 		{
 			name: "not using auth",
 			fields: fields{
-				Logger: log.New(log.DebugLevel),
+				Logger: &chronograf.NoopLogger{},
 				OrganizationsStore: &mocks.OrganizationsStore{
 					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
 						return &chronograf.Organization{

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	clog "github.com/influxdata/platform/chronograf/log"
+	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/oauth2"
 )
 
@@ -94,7 +94,7 @@ func Test_Auth0_PrincipalID_RestrictsByOrganization(t *testing.T) {
 			}))
 			defer mockAPI.Close()
 
-			logger := clog.New(clog.ParseLevel("debug"))
+			logger := &chronograf.NoopLogger{}
 			prov, err := oauth2.NewAuth0(mockAPI.URL, "id", "secret", mockAPI.URL+"/callback", test.allowedOrgs, logger)
 			if err != nil {
 				tt.Fatal("Unexpected error instantiating Auth0 provider: err:", err)
@@ -131,7 +131,7 @@ func Test_Auth0_PrincipalID_RestrictsByOrganization(t *testing.T) {
 func Test_Auth0_ErrsWithBadDomain(t *testing.T) {
 	t.Parallel()
 
-	logger := clog.New(clog.ParseLevel("debug"))
+	logger := &chronograf.NoopLogger{}
 	_, err := oauth2.NewAuth0("!!@#$!@$%@#$%", "id", "secret", "http://example.com", []string{}, logger)
 	if err == nil {
 		t.Fatal("Expected err with bad domain but received none")

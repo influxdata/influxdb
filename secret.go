@@ -12,4 +12,13 @@ type SecretService interface {
 
 	// PutSecret stores the secret pair (k,v) for the organization orgID.
 	PutSecret(ctx context.Context, orgID ID, k string, v string) error
+
+	// PutSecrets puts all provided secrets and overwrites any previous values.
+	PutSecrets(ctx context.Context, orgID ID, m map[string]string) error
+
+	// PatchSecrets patches all provided secrets and updates any previous values.
+	PatchSecrets(ctx context.Context, orgID ID, m map[string]string) error
+
+	// DeleteSecret removes a single secret from the secret store.
+	DeleteSecret(ctx context.Context, orgID ID, ks ...string) error
 }
