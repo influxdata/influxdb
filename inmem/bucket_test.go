@@ -8,7 +8,7 @@ import (
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, func()) {
+func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, string, func()) {
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
 	ctx := context.Background()
@@ -22,29 +22,9 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 			t.Fatalf("failed to populate buckets")
 		}
 	}
-	return s, func() {}
+	return s, OpPrefix, func() {}
 }
 
-func TestBucketService_CreateBucket(t *testing.T) {
-	platformtesting.CreateBucket(initBucketService, t)
-}
-
-func TestBucketService_FindBucketByID(t *testing.T) {
-	platformtesting.FindBucketByID(initBucketService, t)
-}
-
-func TestBucketService_FindBuckets(t *testing.T) {
-	platformtesting.FindBuckets(initBucketService, t)
-}
-
-func TestBucketService_DeleteBucket(t *testing.T) {
-	platformtesting.DeleteBucket(initBucketService, t)
-}
-
-func TestBucketService_FindBucket(t *testing.T) {
-	platformtesting.FindBucket(initBucketService, t)
-}
-
-func TestBucketService_UpdateBucket(t *testing.T) {
-	platformtesting.UpdateBucket(initBucketService, t)
+func TestBucketService(t *testing.T) {
+	platformtesting.BucketService(initBucketService, t)
 }
