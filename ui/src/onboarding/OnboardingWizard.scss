@@ -3,21 +3,36 @@
   ------------------------------------------------------------------------------
 */
 
-.wizard-step--container {
-  position: relative;
-  overflow: hidden;
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+.wizard-contents {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  border-radius: $radius;
+  background-color: $g2-kevlar;
   margin: $ix-marg-d;
   margin-top: $ix-marg-a;
   flex-grow: 1;
   width: 80%;
   max-width: 1000px;
+}
+
+.wizard-step--container {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
   background-color: $g3-castle;
   border-radius: $radius;
+  flex: 1 0 100%;
+  transition: flex 0.4s ease;
+  transform: translate3d(0,0,0);
+}
+
+.side-bar.show + .wizard-step--container {
+  flex: 1 0 calc(100% - 240px);
 }
 
 .wizard-button-bar {

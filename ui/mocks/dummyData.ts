@@ -10,6 +10,7 @@ import {
 } from 'src/types'
 import {Links} from 'src/types/v2/links'
 import {Task, TaskStatus} from 'src/types/v2/tasks'
+import {DataSource, ConfigurationState} from 'src/types/v2/dataSources'
 
 export const links: Links = {
   authorizations: '/api/v2/authorizations',
@@ -252,5 +253,20 @@ export const tasks: Task[] = [
       id: '02ee9e2a29d73000',
       name: 'RadicalOrganization',
     },
+  },
+]
+
+export const dataSources: DataSource[] = [
+  {
+    name: 'bestDataSource',
+    configured: ConfigurationState.Unconfigured,
+    active: true,
+    configs: {},
+  },
+  {
+    name: 'secondBestDataSource',
+    configured: ConfigurationState.Done,
+    active: true,
+    configs: {},
   },
 ]

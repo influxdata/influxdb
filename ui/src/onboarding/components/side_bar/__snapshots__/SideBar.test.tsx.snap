@@ -1,0 +1,95 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`SideBar rendering renders with children, and renders its children 1`] = `
+<div
+  className="side-bar show"
+>
+  <div
+    className="side-bar--container"
+  >
+    <h3
+      className="side-bar--title"
+    >
+      titleString
+    </h3>
+    <div
+      className="side-bar--contents"
+    >
+      <div
+        className="side-bar--tabs"
+      >
+        <SideBarTab
+          active={true}
+          id="a"
+          key=".0:$a"
+          label="a"
+          onClick={[MockFunction]}
+          status="default"
+        />
+        <SideBarTab
+          active={false}
+          id="b"
+          key=".0:$b"
+          label="b"
+          onClick={[MockFunction]}
+          status="default"
+        />
+      </div>
+      <div
+        className="side-bar--buttons"
+      >
+        <ComponentSpacer
+          align="left"
+          direction="vertical"
+        >
+          <SideBarButton
+            color="secondary"
+            icon="download"
+            key=".0:$a"
+            text="a"
+            titleText="a"
+          />
+          <SideBarButton
+            color="default"
+            icon="plus"
+            key=".0:$b"
+            text="b"
+            titleText="b"
+          />
+        </ComponentSpacer>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`SideBar rendering renders with no children 1`] = `
+<div
+  className="side-bar show"
+>
+  <div
+    className="side-bar--container"
+  >
+    <h3
+      className="side-bar--title"
+    >
+      titleString
+    </h3>
+    <div
+      className="side-bar--contents"
+    >
+      <div
+        className="side-bar--tabs"
+      />
+      <div
+        className="side-bar--buttons"
+      >
+        <ComponentSpacer
+          align="left"
+          direction="vertical"
+        />
+      </div>
+    </div>
+  </div>
+</div>
+`;

@@ -3,16 +3,16 @@ import {getInitialDataSources} from 'src/onboarding/utils/dataLoaders'
 
 // Types
 import {Action} from 'src/onboarding/actions/dataLoaders'
-import {DataSource, DataSourceType} from 'src/types/v2/dataSources'
+import {DataSource, DataLoaderType} from 'src/types/v2/dataSources'
 
 export interface DataLoadersState {
   dataSources: DataSource[]
-  type: DataSourceType
+  type: DataLoaderType
 }
 
 export const INITIAL_STATE: DataLoadersState = {
   dataSources: [],
-  type: DataSourceType.Empty,
+  type: DataLoaderType.Empty,
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
@@ -34,6 +34,16 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
         dataSources: state.dataSources.filter(
           ds => ds.name !== action.payload.dataSource
         ),
+      }
+    case 'SET_ACTIVE_DATA_SOURCE':
+      return {
+        ...state,
+        dataSources: state.dataSources.map(ds => {
+          if (ds.name === action.payload.dataSource) {
+            return {...ds, active: true}
+          }
+          return {...ds, active: false}
+        }),
       }
     default:
       return state

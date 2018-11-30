@@ -1,15 +1,19 @@
 // Types
-import {DataSource, DataSourceType} from 'src/types/v2/dataSources'
+import {DataSource, DataLoaderType} from 'src/types/v2/dataSources'
 
-export type Action = SetDataLoadersType | AddDataSource | RemoveDataSource
+export type Action =
+  | SetDataLoadersType
+  | AddDataSource
+  | RemoveDataSource
+  | SetActiveDataSource
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
-  payload: {type: DataSourceType}
+  payload: {type: DataLoaderType}
 }
 
 export const setDataLoadersType = (
-  type: DataSourceType
+  type: DataLoaderType
 ): SetDataLoadersType => ({
   type: 'SET_DATA_LOADERS_TYPE',
   payload: {type},
@@ -32,5 +36,17 @@ interface RemoveDataSource {
 
 export const removeDataSource = (dataSource: string): RemoveDataSource => ({
   type: 'REMOVE_DATA_SOURCE',
+  payload: {dataSource},
+})
+
+interface SetActiveDataSource {
+  type: 'SET_ACTIVE_DATA_SOURCE'
+  payload: {dataSource: string}
+}
+
+export const setActiveDataSource = (
+  dataSource: string
+): SetActiveDataSource => ({
+  type: 'SET_ACTIVE_DATA_SOURCE',
   payload: {dataSource},
 })

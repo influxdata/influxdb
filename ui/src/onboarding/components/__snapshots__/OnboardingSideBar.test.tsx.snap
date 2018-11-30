@@ -1,0 +1,40 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`OnboardingSideBar rendering renders! wee! 1`] = `
+<SideBar
+  title="title"
+  visible={true}
+>
+  <SideBarTab
+    active={true}
+    id="bestDataSource"
+    key="bestDataSource"
+    label="bestDataSource"
+    onClick={[MockFunction]}
+    status="default"
+  />
+  <SideBarTab
+    active={true}
+    id="secondBestDataSource"
+    key="secondBestDataSource"
+    label="secondBestDataSource"
+    onClick={[MockFunction]}
+    status="success"
+  />
+  <SideBarButton
+    color="secondary"
+    icon="download"
+    key="Download Config File"
+    onClick={[Function]}
+    text="Download Config File"
+    titleText="Download Config File"
+  />
+  <SideBarButton
+    color="default"
+    icon="plus"
+    key="Add New Source"
+    text="Add New Source"
+    titleText="Add New Source"
+  />
+</SideBar>
+`;

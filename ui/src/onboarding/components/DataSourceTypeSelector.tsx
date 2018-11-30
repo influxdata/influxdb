@@ -7,17 +7,17 @@ import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 
 // Types
-import {DataSourceType} from 'src/types/v2/dataSources'
+import {DataLoaderType} from 'src/types/v2/dataSources'
 
 export interface Props {
   onSelectDataSource: (dataSource: string) => void
-  type: DataSourceType
+  type: DataLoaderType
 }
 
 const DATA_SOURCES_OPTIONS = [
-  DataSourceType.CSV,
-  DataSourceType.Streaming,
-  DataSourceType.LineProtocol,
+  DataLoaderType.CSV,
+  DataLoaderType.Streaming,
+  DataLoaderType.LineProtocol,
 ]
 
 @ErrorHandling
@@ -41,7 +41,7 @@ class DataSourceTypeSelector extends PureComponent<Props> {
     )
   }
 
-  private isCardChecked(dataSource: DataSourceType) {
+  private isCardChecked(dataSource: DataLoaderType) {
     const {type} = this.props
 
     return dataSource === type

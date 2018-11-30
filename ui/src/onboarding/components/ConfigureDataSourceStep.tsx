@@ -14,11 +14,11 @@ import ConfigureDataSourceSwitcher from 'src/onboarding/components/ConfigureData
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {DataSource, DataSourceType} from 'src/types/v2/dataSources'
+import {DataSource, DataLoaderType} from 'src/types/v2/dataSources'
 
 export interface Props extends OnboardingStepProps {
   dataSources: DataSource[]
-  type: DataSourceType
+  type: DataLoaderType
 }
 
 interface State {
@@ -36,7 +36,7 @@ class ConfigureDataSourceStep extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {setupParams, dataSources, notify} = this.props
+    const {setupParams, dataSources} = this.props
 
     return (
       <div className="onboarding-step">
@@ -46,9 +46,7 @@ class ConfigureDataSourceStep extends PureComponent<Props, State> {
           org={_.get(setupParams, 'org', '')}
           username={_.get(setupParams, 'username', '')}
           bucket={_.get(setupParams, 'bucket', '')}
-          notify={notify}
         />
-
         <div className="wizard-button-bar">
           <Button
             color={ComponentColor.Default}

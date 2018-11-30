@@ -1,0 +1,131 @@
+/*
+  Side Bar Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+$sidebar-width: 240px;
+
+.side-bar {
+  @include no-user-select();
+  overflow: hidden;
+  transform: translate3d(0,0,0);
+  flex: 1 0 0;
+  transition: flex 0.4s ease;
+
+  &.show {
+    flex: 1 0 $sidebar-width
+  }
+}
+
+.side-bar--container {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  height: 100%;
+  width: $sidebar-width;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: $ix-marg-d;
+  padding-top: $ix-marg-d * 2;
+  padding-right: 0;
+}
+
+.side-bar.show .side-bar--container {
+  opacity: 1;
+}
+
+.side-bar--title {
+  margin: 0;
+  margin-bottom: $ix-marg-d;
+  color: $g13-mist;
+}
+
+.side-bar--contents {
+  display: flex;
+  flex: 1 0 0;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.side-bar--tabs {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.side-bar--tab {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  border-radius: $radius 0 0 $radius;
+  font-size: 15px;
+  font-weight: 600;
+  padding-left: 13px;
+  color: $g10-wolf;
+  background-color: transparent;
+  white-space: nowrap;
+  transition: color 0.25s ease, background-color 0.25s ease;
+
+  &:hover {
+    color: $g15-platinum;
+    cursor: pointer;
+    background-color: rgba($g3-castle, 0.6);
+  }
+
+  &.active {
+    color: $g15-platinum;
+    background-color: $g3-castle;
+  }
+}
+
+.side-bar--icon {
+  width: 16px;
+  color: $g7-graphite;
+  display: inline-block;
+  font-size: 16px;
+  margin-right: 13px;
+  transition: color 0.25s ease;
+
+  .side-bar--tab:hover & {
+    color: $g11-sidewalk;
+  }
+
+  .side-bar--tab.active & {
+    color: $c-pool;
+  }
+}
+
+// Tab Status Coloration
+.side-bar--tab__success,
+.side-bar--tab__success:hover {
+  &,
+  & .side-bar--icon {
+    color: $c-rainforest;
+  }
+}
+
+.side-bar--tab__pending,
+.side-bar--tab__pending:hover {
+  &,
+  & .side-bar--icon {
+    color: $c-pineapple;
+  }
+}
+
+.side-bar--tab__error,
+.side-bar--tab__error:hover {
+  &,
+  & .side-bar--icon {
+    color: $c-dreamsicle;
+  }
+}
+
+.side-bar--buttons {
+  padding-right: $ix-marg-d;
+}
+
+.side-bar--button {
+  width: 100%;
+}

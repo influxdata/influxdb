@@ -19,7 +19,7 @@ import {
 
 // Types
 import {SetupParams} from 'src/onboarding/apis'
-import {DataSource, DataSourceType} from 'src/types/v2/dataSources'
+import {DataSource, DataLoaderType} from 'src/types/v2/dataSources'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 interface Props {
@@ -28,16 +28,16 @@ interface Props {
   onRemoveDataSource: typeof removeDataSource
   onSetDataLoadersType: typeof setDataLoadersType
   setupParams: SetupParams
-  dataLoaders: {dataSources: DataSource[]; type: DataSourceType}
-  stepTitle: string
+  dataLoaders: {dataSources: DataSource[]; type: DataLoaderType}
+  currentStepIndex: number
 }
 
 @ErrorHandling
 class OnboardingStepSwitcher extends PureComponent<Props> {
   public render() {
     const {
+      currentStepIndex,
       onboardingStepProps,
-      stepTitle,
       setupParams,
       dataLoaders,
       onSetDataLoadersType,
@@ -45,12 +45,12 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
       onRemoveDataSource,
     } = this.props
 
-    switch (stepTitle) {
-      case 'Welcome':
+    switch (currentStepIndex) {
+      case 0:
         return <InitStep {...onboardingStepProps} />
-      case 'Admin Setup':
+      case 1:
         return <AdminStep {...onboardingStepProps} />
-      case 'Select Data Sources':
+      case 2:
         return (
           <SelectDataSourceStep
             {...onboardingStepProps}
@@ -61,11 +61,11 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
             onRemoveDataSource={onRemoveDataSource}
           />
         )
-      case 'Configure Data Sources':
+      case 3:
         return (
           <ConfigureDataSourceStep {...onboardingStepProps} {...dataLoaders} />
         )
-      case 'Complete':
+      case 4:
         return <CompletionStep {...onboardingStepProps} />
       default:
         return <div />

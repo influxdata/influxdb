@@ -7,7 +7,7 @@ export enum ConfigurationState {
   Error = 'error',
 }
 
-export enum DataSourceType {
+export enum DataLoaderType {
   CSV = 'CSV',
   Streaming = 'Streaming',
   LineProtocol = 'Line Protocol',
