@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/snowflake"
@@ -59,18 +58,7 @@ func (s *inmem) CreateTask(_ context.Context, req CreateTaskRequest) (platform.I
 	defer s.mu.Unlock()
 
 	s.tasks = append(s.tasks, task)
-
-	stm := StoreTaskMeta{
-		MaxConcurrency:  int32(o.Concurrency),
-		Status:          string(req.Status),
-		LatestCompleted: req.ScheduleAfter,
-		EffectiveCron:   o.EffectiveCronString(),
-		Delay:           int32(o.Delay / time.Second),
-	}
-	if stm.Status == "" {
-		stm.Status = string(DefaultTaskStatus)
-	}
-	s.meta[id] = stm
+	s.meta[id] = NewStoreTaskMeta(req, o)
 
 	return id, nil
 }

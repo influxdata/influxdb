@@ -601,6 +601,43 @@ from(bucket:"test") |> range(start:-1h)`
 			}
 		}
 	})
+
+	t.Run("schedule alignment with 'every' option", func(t *testing.T) {
+		s := create(t)
+		defer destroy(t, s)
+
+		const secondsPerDay = 60 * 60 * 24
+		const scriptFmt = `option task = {
+	name: "task with every",
+	every: %s,
+}
+from(bucket: "b") |> range(start:-1h) |> toHTTP(url: "http://example.com")`
+
+		for _, tc := range []struct {
+			e  string // every option in task
+			sa int64  // ScheduleAfter when creating
+			lc int64  // expected meta.LatestCompleted
+		}{
+			{e: "1m", sa: 65, lc: 60},
+			{e: "1m", sa: 60, lc: 120},
+			{e: "10s", sa: 27, lc: 20},
+			{e: "2d", sa: (2 * secondsPerDay) + 1, lc: 2 * secondsPerDay},
+		} {
+			script := fmt.Sprintf(scriptFmt, tc.e)
+			id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script, ScheduleAfter: tc.sa})
+			if err != nil {
+				t.Fatal(err)
+			}
+			meta, err := s.FindTaskMetaByID(context.Background(), id)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if meta.LatestCompleted != tc.lc {
+				t.Errorf("with every = %q, Create.ScheduleAfter = %d: got LatestCompleted %d, expected %d", tc.e, tc.sa, meta.LatestCompleted, tc.lc)
+			}
+		}
+	})
 }
 
 func testStoreFindByIDWithMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {

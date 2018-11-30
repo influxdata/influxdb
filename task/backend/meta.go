@@ -6,10 +6,39 @@ import (
 	"time"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/task/options"
 	cron "gopkg.in/robfig/cron.v2"
 )
 
 // This file contains helper methods for the StoreTaskMeta type defined in protobuf.
+
+// NewStoreTaskMeta returns a new StoreTaskMeta based on the given request and parsed options.
+func NewStoreTaskMeta(req CreateTaskRequest, o options.Options) StoreTaskMeta {
+	stm := StoreTaskMeta{
+		MaxConcurrency:  int32(o.Concurrency),
+		Status:          string(req.Status),
+		LatestCompleted: req.ScheduleAfter,
+		EffectiveCron:   o.EffectiveCronString(),
+		Delay:           int32(o.Delay / time.Second),
+	}
+
+	if stm.Status == "" {
+		stm.Status = string(DefaultTaskStatus)
+	}
+
+	if o.Every != 0 {
+		t := time.Unix(stm.LatestCompleted, 0).Truncate(o.Every).Unix()
+		if t == stm.LatestCompleted {
+			// For example, every 1m truncates to exactly on the minute.
+			// But the input request is schedule after, not "on or after".
+			// Add one interval.
+			t += int64(o.Every / time.Second)
+		}
+		stm.LatestCompleted = t
+	}
+
+	return stm
+}
 
 // FinishRun removes the run matching runID from m's CurrentlyRunning slice,
 // and if that run's Now value is greater than m's LatestCompleted value,
