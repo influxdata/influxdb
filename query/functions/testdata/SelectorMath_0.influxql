@@ -1,0 +1,1 @@
+SELECT top(f3), f3 FROM m 

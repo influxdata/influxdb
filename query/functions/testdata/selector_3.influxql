@@ -1,0 +1,1 @@
+SELECT last(f) FROM m

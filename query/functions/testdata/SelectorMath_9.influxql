@@ -1,0 +1,1 @@
+SELECT bottom(f3, 3), f3 FROM m 

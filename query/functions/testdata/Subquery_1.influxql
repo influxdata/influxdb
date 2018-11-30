@@ -1,0 +1,1 @@
+SELECT mean(f) FROM (SELECT f FROM m WHERE f > 0.25) WHERE f < 0.75
