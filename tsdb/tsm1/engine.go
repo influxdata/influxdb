@@ -1161,7 +1161,6 @@ func (t *compactionTracker) SetOptimiseQueue(length uint64) { t.SetQueue(4, leng
 // SetFullQueue sets the queue depth for Full compactions.
 func (t *compactionTracker) SetFullQueue(length uint64) { t.SetQueue(5, length) }
 
->>>>>>> Convert TSM compaction stats to Prom metrics
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
 func (e *Engine) WriteSnapshot() error {
 	// Lock and grab the cache snapshot along with all the closed WAL
