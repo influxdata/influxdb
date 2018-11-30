@@ -588,10 +588,10 @@ export interface DashboardColor {
     type?: DashboardColor.TypeEnum;
     /**
      * Value is the data value mapped to this color
-     * @type {string}
+     * @type {number}
      * @memberof DashboardColor
      */
-    value?: string;
+    value?: number;
 }
 
 /**

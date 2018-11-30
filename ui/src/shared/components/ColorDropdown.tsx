@@ -1,22 +1,26 @@
-import React, {Component, MouseEvent} from 'react'
+// Libraries
+import React, {Component} from 'react'
 import classnames from 'classnames'
 
+// Components
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+
+// Utils
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+// Constants
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
-import {SEVERITY_COLORS} from 'src/logs/constants'
 
-import {SeverityColor, SeverityColorOptions} from 'src/types/logs'
-import {capitalize} from 'src/logs/utils/config'
+// Types
+import {ColorLabel} from 'src/types/colors'
 
 interface Props {
-  selected: SeverityColor
+  selected: ColorLabel
   disabled?: boolean
   stretchToFit?: boolean
-  onChoose: (severityLevel: string, colors: SeverityColor) => void
-  severityLevel: string
+  colors: ColorLabel[]
+  onChoose: (colors: ColorLabel) => void
 }
 
 interface State {
@@ -30,13 +34,7 @@ export default class ColorDropdown extends Component<Props, State> {
     disabled: false,
   }
 
-  constructor(props) {
-    super(props)
-
-    this.state = {
-      expanded: false,
-    }
-  }
+  public state: State = {expanded: false}
 
   public render() {
     const {expanded} = this.state
@@ -83,7 +81,7 @@ export default class ColorDropdown extends Component<Props, State> {
   }
 
   private get renderMenu(): JSX.Element {
-    const {selected} = this.props
+    const {colors, selected} = this.props
 
     return (
       <div className="color-dropdown--menu">
@@ -92,16 +90,15 @@ export default class ColorDropdown extends Component<Props, State> {
           autoHeight={true}
           maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
         >
-          {SEVERITY_COLORS.map((color, i) => (
+          {colors.map((color, i) => (
             <div
-              className={classnames('color-dropdown--item', {
-                active: color.name === selected.name,
-              })}
-              data-tag-key={color.name}
-              data-tag-value={color.hex}
+              className={
+                color.name === selected.name
+                  ? 'color-dropdown--item active'
+                  : 'color-dropdown--item'
+              }
               key={i}
-              onClick={this.handleColorClick}
-              title={color.name}
+              onClick={this.handleColorClick(color)}
             >
               <span
                 className="color-dropdown--swatch"
@@ -128,15 +125,8 @@ export default class ColorDropdown extends Component<Props, State> {
     this.setState({expanded: false})
   }
 
-  private handleColorClick = (e: MouseEvent<HTMLElement>): void => {
-    const target = e.target as HTMLElement
-    const hex = target.dataset.tagValue || target.parentElement.dataset.tagValue
-    const nameString =
-      target.dataset.tagKey || target.parentElement.dataset.tagKey
-    const name = SeverityColorOptions[capitalize(nameString)]
-
-    const color: SeverityColor = {name, hex}
-    this.props.onChoose(this.props.severityLevel, color)
+  private handleColorClick = color => (): void => {
+    this.props.onChoose(color)
     this.setState({expanded: false})
   }
 }

@@ -4174,7 +4174,8 @@ components:
           type: string
         value:
           description: Value is the data value mapped to this color
-          type: string
+          type: number
+          format: float
     RenamableField:
       description: Describes a field that can be renamed and made visible or invisible
       type: object

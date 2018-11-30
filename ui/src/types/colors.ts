@@ -3,10 +3,17 @@ export interface Color {
   hex: string
   id: string
   name: string
-  value: string
+  value: number
 }
 
-export interface ThresholdColor {
+export interface ColorLabel {
   hex: string
   name: string
+}
+
+export interface ColorConfig {
+  color: Color
+  label?: string
+  isDeletable?: boolean
+  disableColor?: boolean
 }

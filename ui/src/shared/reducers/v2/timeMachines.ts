@@ -233,6 +233,18 @@ const timeMachineReducer = (
       return setYAxis(state, {scale})
     }
 
+    case 'SET_PREFIX': {
+      const {prefix} = action.payload
+
+      return setYAxis(state, {prefix})
+    }
+
+    case 'SET_SUFFIX': {
+      const {suffix} = action.payload
+
+      return setYAxis(state, {suffix})
+    }
+
     case 'SET_COLORS': {
       const {colors} = action.payload
 

@@ -27,6 +27,8 @@ export type Action =
   | SetYAxisBase
   | SetYAxisScale
   | SetQuerySourceAction
+  | SetPrefix
+  | SetSuffix
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -204,6 +206,26 @@ interface SetYAxisScale {
 export const setYAxisScale = (scale: string): SetYAxisScale => ({
   type: 'SET_Y_AXIS_SCALE',
   payload: {scale},
+})
+
+interface SetPrefix {
+  type: 'SET_PREFIX'
+  payload: {prefix: string}
+}
+
+export const setPrefix = (prefix: string): SetPrefix => ({
+  type: 'SET_PREFIX',
+  payload: {prefix},
+})
+
+interface SetSuffix {
+  type: 'SET_SUFFIX'
+  payload: {suffix: string}
+}
+
+export const setSuffix = (suffix: string): SetSuffix => ({
+  type: 'SET_SUFFIX',
+  payload: {suffix},
 })
 
 interface SetStaticLegend {

@@ -383,11 +383,11 @@ type Axis struct {
 
 // ViewColor represents the encoding of data into visualizations
 type ViewColor struct {
-	ID    string `json:"id"`    // ID is the unique id of the View color
-	Type  string `json:"type"`  // Type is how the color is used. Accepted (min,max,threshold)
-	Hex   string `json:"hex"`   // Hex is the hex number of the color
-	Name  string `json:"name"`  // Name is the user-facing name of the hex color
-	Value string `json:"value"` // Value is the data value mapped to this color
+	ID    string  `json:"id"`    // ID is the unique id of the View color
+	Type  string  `json:"type"`  // Type is how the color is used. Accepted (min,max,threshold)
+	Hex   string  `json:"hex"`   // Hex is the hex number of the color
+	Name  string  `json:"name"`  // Name is the user-facing name of the hex color
+	Value float64 `json:"value"` // Value is the data value mapped to this color
 }
 
 // Legend represents the encoding of data into a legend

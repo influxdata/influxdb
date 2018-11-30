@@ -15,7 +15,7 @@
 
 // Components
 // TODO: Import these styles into their respective components instead of this stylesheet
-@import "src/shared/components/color_dropdown/color-dropdown";
+@import "src/shared/components/ColorDropdown";
 @import "src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown";
 @import "src/shared/components/profile_page/ProfilePage";
 @import "src/shared/components/avatar/Avatar";
@@ -43,6 +43,7 @@
 @import "src/onboarding/OnboardingWizard.scss";
 @import "src/shared/components/RawFluxDataTable.scss";
 @import "src/shared/components/flux_functions_toolbar/FluxFunctionsToolbar.scss";
+@import "src/shared/components/view_options/options/ThresholdList";
 
 @import "src/logs/containers/logs_page/LogsPage";
 @import "src/logs/components/loading_status/LoadingStatus";

@@ -183,21 +183,21 @@ export const lineColors: Color[] = [
     type: 'scale',
     hex: '#31C0F6',
     name: 'Nineteen Eighty Four',
-    value: '0',
+    value: 0,
   },
   {
     id: '3b9750f9-d41d-4100-8ee6-bd2785237f35',
     type: 'scale',
     hex: '#A500A5',
     name: 'Nineteen Eighty Four',
-    value: '0',
+    value: 0,
   },
   {
     id: '8d39064f-8124-4967-ae22-ffe14e425781',
     type: 'scale',
     hex: '#FF7E27',
     name: 'Nineteen Eighty Four',
-    value: '0',
+    value: 0,
   },
 ]
 
@@ -396,7 +396,7 @@ export const thresholdsListColors: Color[] = [
     hex: '#00C9FF',
     id: 'base',
     name: 'laser',
-    value: '-1000000000000000000',
+    value: -1000000000000000000,
   },
 ]
 
@@ -406,13 +406,13 @@ export const gaugeColors: Color[] = [
     hex: '#00C9FF',
     id: '0',
     name: 'laser',
-    value: '0',
+    value: 0,
   },
   {
     type: 'max',
     hex: '#9394FF',
     id: '1',
     name: 'comet',
-    value: '100',
+    value: 100,
   },
 ]

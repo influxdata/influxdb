@@ -2,7 +2,7 @@ import React, {SFC} from 'react'
 import uuid from 'uuid'
 
 import {Button, IconFont, ButtonShape} from 'src/clockface'
-import ColorDropdown from 'src/shared/components/color_dropdown/ColorDropdown'
+import SeverityColorDropdown from 'src/logs/components/SeverityColorDropdown'
 import SeverityColumnFormat from 'src/logs/components/options_overlay/SeverityColumnFormat'
 
 import {
@@ -38,7 +38,7 @@ const SeverityConfig: SFC<Props> = ({
               <div className="logs-options--color-label">{lc.level}</div>
             </div>
             <div className="logs-options--color-column">
-              <ColorDropdown
+              <SeverityColorDropdown
                 selected={color}
                 onChoose={onChangeSeverityLevel}
                 stretchToFit={true}

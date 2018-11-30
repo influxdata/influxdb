@@ -14,6 +14,7 @@ import {
   DashboardQuery,
   InfluxLanguage,
 } from 'src/types/v2/dashboards'
+import {DEFAULT_GAUGE_COLORS} from 'src/shared/constants/thresholds'
 
 function defaultView() {
   return {
@@ -68,7 +69,7 @@ function defaultLineViewProperties() {
 function defaultGaugeViewProperties() {
   return {
     queries: defaultViewQueries(),
-    colors: [],
+    colors: DEFAULT_GAUGE_COLORS,
     prefix: '',
     suffix: '',
     decimalPlaces: {
