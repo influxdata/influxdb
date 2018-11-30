@@ -32,7 +32,7 @@ func newCacheMetrics(labels prometheus.Labels) *cacheMetrics {
 	}
 	sort.Strings(names)
 
-	statusNames := append(names, "status")
+	statusNames := append(append([]string(nil), names...), "status")
 	sort.Strings(statusNames)
 
 	return &cacheMetrics{
@@ -120,15 +120,15 @@ func newPartitionMetrics(labels prometheus.Labels) *partitionMetrics {
 	sort.Strings(names)
 
 	// type = {"index", "log"}
-	fileNames := append(names, "type")
+	fileNames := append(append([]string(nil), names...), "type")
 	sort.Strings(fileNames)
 
 	// level = [0, 7]
-	compactionNames := append(names, "level")
+	compactionNames := append(append([]string(nil), names...), "level")
 	sort.Strings(compactionNames)
 
 	// status = {"ok", "error"}
-	attemptedCompactionNames := append(compactionNames, "status")
+	attemptedCompactionNames := append(append([]string(nil), compactionNames...), "status")
 	sort.Strings(attemptedCompactionNames)
 
 	return &partitionMetrics{

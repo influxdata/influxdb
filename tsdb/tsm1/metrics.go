@@ -59,12 +59,13 @@ type compactionMetrics struct {
 
 // newCompactionMetrics initialises the prometheus metrics for compactions.
 func newCompactionMetrics(labels prometheus.Labels) *compactionMetrics {
-	compactionNames := []string{"level"} // All compaction metrics have a `level` label.
+	names := []string{"level"} // All compaction metrics have a `level` label.
 	for k := range labels {
-		compactionNames = append(compactionNames, k)
+		names = append(names, k)
 	}
-	sort.Strings(compactionNames)
-	totalCompactionsNames := append(compactionNames, "status")
+	sort.Strings(names)
+
+	totalCompactionsNames := append(append([]string(nil), names...), "status")
 	sort.Strings(totalCompactionsNames)
 
 	return &compactionMetrics{
@@ -80,7 +81,7 @@ func newCompactionMetrics(labels prometheus.Labels) *compactionMetrics {
 			Subsystem: compactionSubsystem,
 			Name:      "active",
 			Help:      "Number of active compactions.",
-		}, compactionNames),
+		}, names),
 		CompactionDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: namespace,
 			Subsystem: compactionSubsystem,
@@ -88,13 +89,13 @@ func newCompactionMetrics(labels prometheus.Labels) *compactionMetrics {
 			Help:      "Time taken for a successful compaction or snapshot.",
 			// 30 buckets spaced exponentially between 5s and ~53 minutes.
 			Buckets: prometheus.ExponentialBuckets(5.0, 1.25, 30),
-		}, compactionNames),
+		}, names),
 		CompactionQueue: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: compactionSubsystem,
 			Name:      "queued",
 			Help:      "Number of queued compactions.",
-		}, compactionNames),
+		}, names),
 	}
 }
 
@@ -191,7 +192,7 @@ func newCacheMetrics(labels prometheus.Labels) *cacheMetrics {
 	}
 	sort.Strings(names)
 
-	writeNames := append(names, "status")
+	writeNames := append(append([]string(nil), names...), "status")
 	sort.Strings(writeNames)
 
 	return &cacheMetrics{
@@ -280,7 +281,7 @@ func newWALMetrics(labels prometheus.Labels) *walMetrics {
 	}
 	sort.Strings(names)
 
-	writeNames := append(names, "status")
+	writeNames := append(append([]string(nil), names...), "status")
 	sort.Strings(writeNames)
 
 	return &walMetrics{

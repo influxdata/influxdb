@@ -30,7 +30,7 @@ func NewMetrics(namespace, subsystem string, labels prometheus.Labels) *Metrics 
 	}
 	sort.Strings(names)
 
-	getPutNames := append(names, "status")
+	getPutNames := append(append([]string(nil), names...), "status")
 	sort.Strings(getPutNames)
 
 	return &Metrics{

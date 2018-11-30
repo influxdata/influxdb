@@ -33,10 +33,10 @@ func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
 	}
 	sort.Strings(names)
 
-	totalCompactions := append(names, "status")
+	totalCompactions := append(append([]string(nil), names...), "status")
 	sort.Strings(totalCompactions)
 
-	durationCompaction := append(names, "component")
+	durationCompaction := append(append([]string(nil), names...), "component")
 	sort.Strings(durationCompaction)
 
 	return &seriesFileMetrics{
