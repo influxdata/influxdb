@@ -41,9 +41,15 @@ export enum InfluxLanguage {
   Flux = 'flux',
 }
 
+export enum QueryEditMode {
+  Builder = 'builder',
+  Advanced = 'advanced',
+}
+
 export interface DashboardQuery {
   text: string
   type: InfluxLanguage
+  editMode: QueryEditMode
   sourceID: string // Which source to use when running the query; may be empty, which means “use the dynamic source”
 }
 

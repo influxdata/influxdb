@@ -2,7 +2,6 @@
 import React, {Component, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
-import {get} from 'lodash'
 
 // Components
 import {Page} from 'src/pageLayout'
@@ -313,9 +312,8 @@ class DashboardPage extends Component<Props, State> {
     view: View<QueryViewProperties> | NewView<QueryViewProperties>
   ): void => {
     const {onSetActiveTimeMachine} = this.props
-    const draftScript: string = get(view, 'properties.queries.0.text', '')
 
-    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view, draftScript})
+    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
 
     this.setState({isShowingVEO: true})
   }

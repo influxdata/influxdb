@@ -6,3 +6,10 @@ export const getActiveTimeMachine = (state: AppState) => {
 
   return timeMachine
 }
+
+export const getActiveDraftScript = (state: AppState) => {
+  const {draftScripts, activeQueryIndex} = getActiveTimeMachine(state)
+  const activeDraftScript = draftScripts[activeQueryIndex]
+
+  return activeDraftScript
+}

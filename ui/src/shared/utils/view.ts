@@ -1,6 +1,4 @@
-import {get, cloneDeep} from 'lodash'
-
-import {View, ViewType, ViewShape} from 'src/types/v2'
+import {ViewType, ViewShape} from 'src/types/v2'
 import {
   XYView,
   XYViewGeom,
@@ -13,6 +11,7 @@ import {
   ViewProperties,
   DashboardQuery,
   InfluxLanguage,
+  QueryEditMode,
 } from 'src/types/v2/dashboards'
 import {DEFAULT_GAUGE_COLORS} from 'src/shared/constants/thresholds'
 
@@ -28,6 +27,7 @@ function defaultViewQueries(): DashboardQuery[] {
       text: '',
       type: InfluxLanguage.Flux,
       sourceID: '',
+      editMode: QueryEditMode.Builder,
     },
   ]
 }
@@ -165,72 +165,4 @@ export function createView<T extends ViewProperties = ViewProperties>(
   }
 
   return creator()
-}
-
-export function convertView<T extends View | NewView>(
-  view: T,
-  outType: ViewType
-): T {
-  const viewCreator = NEW_VIEW_CREATORS[outType]
-
-  if (!viewCreator) {
-    throw new Error(`no view creator exists for type ${outType}`)
-  }
-
-  const newView: any = viewCreator()
-
-  const oldViewQueries = get(view, 'properties.queries')
-  const newViewQueries = get(newView, 'properties.queries')
-
-  if (oldViewQueries && newViewQueries) {
-    newView.properties.queries = cloneDeep(oldViewQueries)
-  }
-
-  newView.name = view.name
-  newView.id = (view as any).id
-  newView.links = (view as any).links
-
-  return newView
-}
-
-// Replaces the text of the first query in a view, inserting a query if none exist
-export function replaceQuery<T extends View | NewView>(view: T, text): T {
-  const anyView: any = view
-  const queries = anyView.properties.queries
-
-  if (!queries) {
-    return view
-  }
-
-  if (!queries[0]) {
-    const query: DashboardQuery = {
-      text,
-      type: InfluxLanguage.Flux,
-      sourceID: '',
-    }
-
-    return {
-      ...anyView,
-      properties: {
-        ...anyView.properties,
-        queries: [query],
-      },
-    }
-  }
-
-  const newQueries = queries.map((query: DashboardQuery, i) => {
-    if (i !== 0) {
-      return query
-    }
-
-    return {...query, text}
-  })
-
-  return {
-    ...anyView,
-    properties: {
-      ...anyView.properties,
-      queries: newQueries,
-    },
-  }
 }

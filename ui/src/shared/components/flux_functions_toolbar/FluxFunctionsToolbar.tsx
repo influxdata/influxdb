@@ -13,7 +13,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {setDraftScript} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+import {getActiveDraftScript} from 'src/shared/selectors/timeMachines'
 
 // Constants
 import {FLUX_FUNCTIONS} from 'src/shared/constants/fluxFunctions'
@@ -78,9 +78,11 @@ class FluxFunctionsToolbar extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState) => ({
-  draftScript: getActiveTimeMachine(state).draftScript,
-})
+const mstp = (state: AppState) => {
+  const draftScript = getActiveDraftScript(state)
+
+  return {draftScript}
+}
 
 const mdtp = {
   onSetDraftScript: setDraftScript,

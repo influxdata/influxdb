@@ -1,0 +1,41 @@
+@import "src/style/modules";
+
+.query-builder {
+  background: $g2-kevlar;
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  padding: 10px;
+}
+
+.query-builder--panel {
+  margin-left: 5px;
+  height: 100%;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+
+  &:first-child {
+    margin-left: 0;
+  }
+}
+
+.query-builder--panel-header {
+  padding: 10px 0;
+  border-radius: 5px 5px 0 0;
+  text-transform: uppercase;
+  font-weight: 500;
+  font-size: 13px;
+  text-align: center;
+  color: $g8-storm;
+}
+
+.query-builder--panel-body {
+  border-radius: 4px;
+  background: $g3-castle;
+  height: 100%;
+  flex: 1 1 0;
+}

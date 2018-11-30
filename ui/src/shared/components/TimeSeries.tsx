@@ -115,6 +115,7 @@ class TimeSeries extends Component<Props, State> {
     this.setState({
       loading: RemoteDataState.Loading,
       fetchCount: this.state.fetchCount + 1,
+      error: null,
     })
 
     try {

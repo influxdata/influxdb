@@ -398,6 +398,7 @@ type DashboardQuery struct {
 	Text     string `json:"text"`
 	Type     string `json:"type"`
 	SourceID string `json:"sourceID"`
+	EditMode string `json:"editMode"` // Either "builder" or "advanced"
 }
 
 // Axis represents the visible extents of a visualization

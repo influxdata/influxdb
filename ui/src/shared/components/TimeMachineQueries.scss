@@ -1,0 +1,50 @@
+@import "src/style/modules";
+
+.time-machine-queries {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+}
+
+.time-machine-queries--controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 10px;
+}
+
+.time-machine-queries--tabs {
+  display: flex;
+  justify-content: flex-start;
+  height: 42px;
+  padding-top: 6px;
+}
+
+.time-machine-queries--new {
+  margin-top: 8px;
+  margin-left: 5px;
+}
+
+.time-machine-queries--buttons {
+  display: flex;
+
+  & > * {
+    margin-left: 5px;
+  }
+}
+
+.time-machine-queries--body {
+  border-top: 4px solid $g4-onyx;
+  flex-grow: 1;
+  position: relative;
+}
+
+.time-machine-influxql-editor {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}

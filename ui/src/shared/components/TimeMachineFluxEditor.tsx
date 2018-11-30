@@ -4,12 +4,6 @@ import {connect} from 'react-redux'
 
 // Components
 import FluxEditor from 'src/shared/components/FluxEditor'
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  ComponentStatus,
-} from 'src/clockface'
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/shared/components/flux_functions_toolbar/FluxFunctionsToolbar'
 
@@ -17,16 +11,15 @@ import FluxFunctionsToolbar from 'src/shared/components/flux_functions_toolbar/F
 import {setDraftScript, submitScript} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+import {getActiveDraftScript} from 'src/shared/selectors/timeMachines'
 
 // Constants
-import {HANDLE_VERTICAL} from 'src/shared/constants'
+import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
 
 // Types
 import {AppState} from 'src/types/v2'
-import {RemoteDataState} from 'src/types'
 
-import 'src/shared/components/TimeMachineQueryEditor.scss'
+import 'src/shared/components/TimeMachineFluxEditor.scss'
 
 interface StateProps {
   draftScript: string
@@ -37,40 +30,16 @@ interface DispatchProps {
   onSubmitScript: typeof submitScript
 }
 
-interface OwnProps {
-  queryStatus: RemoteDataState
-}
+type Props = StateProps & DispatchProps
 
-type Props = StateProps & DispatchProps & OwnProps
-
-class TimeMachineQueryEditor extends PureComponent<Props> {
+class TimeMachineFluxEditor extends PureComponent<Props> {
   public render() {
-    const {
-      queryStatus,
-      draftScript,
-      onSetDraftScript,
-      onSubmitScript,
-    } = this.props
-
-    const buttonStatus =
-      queryStatus === RemoteDataState.Loading
-        ? ComponentStatus.Loading
-        : ComponentStatus.Default
+    const {draftScript, onSetDraftScript, onSubmitScript} = this.props
 
     const divisions = [
       {
-        name: 'Script',
         size: 0.75,
-        headerButtons: [
-          <Button
-            key="foo"
-            text="Submit"
-            size={ComponentSize.ExtraSmall}
-            status={buttonStatus}
-            onClick={onSubmitScript}
-            color={ComponentColor.Primary}
-          />,
-        ],
+        handleDisplay: HANDLE_NONE,
         render: () => (
           <FluxEditor
             script={draftScript}
@@ -82,14 +51,14 @@ class TimeMachineQueryEditor extends PureComponent<Props> {
         ),
       },
       {
-        name: 'Flux Functions',
         render: () => <FluxFunctionsToolbar />,
+        handlePixels: 10,
         size: 0.25,
       },
     ]
 
     return (
-      <div className="time-machine-query-editor">
+      <div className="time-machine-flux-editor">
         <Threesizer orientation={HANDLE_VERTICAL} divisions={divisions} />
       </div>
     )
@@ -97,7 +66,7 @@ class TimeMachineQueryEditor extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  const {draftScript} = getActiveTimeMachine(state)
+  const draftScript = getActiveDraftScript(state)
 
   return {draftScript}
 }
@@ -107,7 +76,7 @@ const mdtp = {
   onSubmitScript: submitScript,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(TimeMachineQueryEditor)
+)(TimeMachineFluxEditor)

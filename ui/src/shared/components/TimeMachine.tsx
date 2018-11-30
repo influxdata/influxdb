@@ -33,6 +33,7 @@ const TimeMachine: SFC<StateProps> = props => {
     <div className="time-machine">
       <TimeSeries queries={queries} submitToken={submitToken}>
         {queriesState => {
+          // TODO: The `queriesState` might be better passed down via the context API
           const divisions: DivisionProps[] = [
             {
               handleDisplay: 'none',
@@ -41,7 +42,7 @@ const TimeMachine: SFC<StateProps> = props => {
               size: 0.33,
             },
             {
-              handlePixels: 12,
+              handlePixels: 10,
               render: () => (
                 <TimeMachineBottom queryStatus={queriesState.loading} />
               ),

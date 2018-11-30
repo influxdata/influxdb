@@ -1,11 +1,25 @@
-import {convertView, createView} from 'src/shared/utils/view'
+import {createView} from 'src/shared/utils/view'
+import {convertView} from 'src/shared/reducers/v2/timeMachines'
 
 import {ViewType} from 'src/types/v2'
-import {View, XYView, InfluxLanguage} from 'src/types/v2/dashboards'
+import {
+  View,
+  XYView,
+  InfluxLanguage,
+  QueryEditMode,
+} from 'src/types/v2/dashboards'
 
 describe('convertView', () => {
   test('should preserve view queries if they exist', () => {
-    const queries = [{type: InfluxLanguage.Flux, text: '1 + 1', sourceID: ''}]
+    const queries = [
+      {
+        type: InfluxLanguage.Flux,
+        text: '1 + 1',
+        sourceID: '',
+        editMode: QueryEditMode.Advanced,
+      },
+    ]
+
     const xyView = createView<XYView>(ViewType.XY)
 
     xyView.properties.queries = queries
@@ -16,7 +30,15 @@ describe('convertView', () => {
   })
 
   test('should not preserve view queries if they do not exist', () => {
-    const queries = [{type: InfluxLanguage.Flux, text: '1 + 1', sourceID: ''}]
+    const queries = [
+      {
+        type: InfluxLanguage.Flux,
+        text: '1 + 1',
+        sourceID: '',
+        editMode: QueryEditMode.Advanced,
+      },
+    ]
+
     const xyView = createView<XYView>(ViewType.XY)
 
     xyView.properties.queries = queries

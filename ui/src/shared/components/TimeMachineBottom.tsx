@@ -3,7 +3,7 @@ import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import TimeMachineQueryEditor from 'src/shared/components/TimeMachineQueryEditor'
+import TimeMachineQueries from 'src/shared/components/TimeMachineQueries'
 import ViewOptions from 'src/shared/components/view_options/ViewOptions'
 
 // Utils
@@ -26,7 +26,7 @@ type Props = StateProps & OwnProps
 
 const TimeMachineBottom: SFC<Props> = ({activeTab, queryStatus}) => {
   if (activeTab === TimeMachineTab.Queries) {
-    return <TimeMachineQueryEditor queryStatus={queryStatus} />
+    return <TimeMachineQueries queryStatus={queryStatus} />
   }
 
   if (activeTab === TimeMachineTab.Visualization) {

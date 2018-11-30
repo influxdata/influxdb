@@ -1,0 +1,30 @@
+@import "src/style/modules";
+
+.time-machine-query-tab {
+  background: $g2-kevlar;
+  border-radius: 5px 5px 0 0;
+  margin-right: 3px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 15px;
+  color: $g8-storm;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer !important;
+  @include no-user-select();
+
+  &.active {
+    background: $g4-onyx;
+    color: $g13-mist;
+  }
+}
+
+.time-machine-query-tab--close {
+  margin-left: 30px;
+  margin-bottom: 2px;
+
+  &:hover {
+    color: $g16-pearl;
+  }
+}

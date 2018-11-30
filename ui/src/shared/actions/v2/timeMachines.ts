@@ -30,6 +30,12 @@ export type Action =
   | SetPrefix
   | SetSuffix
   | IncrementSubmitToken
+  | SetActiveQueryIndexAction
+  | AddQueryAction
+  | RemoveQueryAction
+  | EditActiveQueryAsFluxAction
+  | EditActiveQueryAsInfluxQLAction
+  | EditActiveQueryWithBuilderAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -277,4 +283,58 @@ interface IncrementSubmitToken {
 
 export const incrementSubmitToken = (): IncrementSubmitToken => ({
   type: 'INCREMENT_SUBMIT_TOKEN',
+})
+
+interface EditActiveQueryWithBuilderAction {
+  type: 'EDIT_ACTIVE_QUERY_WITH_BUILDER'
+}
+
+export const editActiveQueryWithBuilder = (): EditActiveQueryWithBuilderAction => ({
+  type: 'EDIT_ACTIVE_QUERY_WITH_BUILDER',
+})
+
+interface EditActiveQueryAsFluxAction {
+  type: 'EDIT_ACTIVE_QUERY_AS_FLUX'
+}
+
+export const editActiveQueryAsFlux = (): EditActiveQueryAsFluxAction => ({
+  type: 'EDIT_ACTIVE_QUERY_AS_FLUX',
+})
+
+interface EditActiveQueryAsInfluxQLAction {
+  type: 'EDIT_ACTIVE_QUERY_AS_INFLUXQL'
+}
+
+export const editActiveQueryAsInfluxQL = (): EditActiveQueryAsInfluxQLAction => ({
+  type: 'EDIT_ACTIVE_QUERY_AS_INFLUXQL',
+})
+
+interface SetActiveQueryIndexAction {
+  type: 'SET_ACTIVE_QUERY_INDEX'
+  payload: {activeQueryIndex: number}
+}
+
+export const setActiveQueryIndex = (
+  activeQueryIndex: number
+): SetActiveQueryIndexAction => ({
+  type: 'SET_ACTIVE_QUERY_INDEX',
+  payload: {activeQueryIndex},
+})
+
+interface AddQueryAction {
+  type: 'ADD_QUERY'
+}
+
+export const addQuery = (): AddQueryAction => ({
+  type: 'ADD_QUERY',
+})
+
+interface RemoveQueryAction {
+  type: 'REMOVE_QUERY'
+  payload: {queryIndex: number}
+}
+
+export const removeQuery = (queryIndex: number): RemoveQueryAction => ({
+  type: 'REMOVE_QUERY',
+  payload: {queryIndex},
 })

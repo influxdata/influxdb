@@ -10,7 +10,7 @@ import TimeMachine from 'src/shared/components/TimeMachine'
 import {setName} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {replaceQuery} from 'src/shared/utils/view'
+import {replaceQueries} from 'src/shared/reducers/v2/timeMachines'
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 
 // Types
@@ -19,7 +19,7 @@ import {NewView, View} from 'src/types/v2/dashboards'
 
 interface StateProps {
   draftView: NewView
-  draftScript: string
+  draftScripts: string[]
 }
 
 interface DispatchProps {
@@ -53,20 +53,20 @@ class VEO extends PureComponent<Props, {}> {
   }
 
   private handleSave = (): void => {
-    const {draftView, draftScript, onSave} = this.props
+    const {draftView, draftScripts, onSave} = this.props
 
     // Ensure that the latest script is saved with the view, even if it hasn't
     // been submitted yet
-    const view = replaceQuery(draftView, draftScript)
+    const view = replaceQueries(draftView, draftScripts)
 
     onSave(view)
   }
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {view, draftScript} = getActiveTimeMachine(state)
+  const {view, draftScripts} = getActiveTimeMachine(state)
 
-  return {draftView: view, draftScript}
+  return {draftView: view, draftScripts}
 }
 
 const mdtp: DispatchProps = {
