@@ -159,7 +159,7 @@ export interface Authorizations {
      * @type {Array<Authorization>}
      * @memberof Authorizations
      */
-    authorizations?: Array<Authorization>;
+    auths?: Array<Authorization>;
     /**
      * 
      * @type {Links}

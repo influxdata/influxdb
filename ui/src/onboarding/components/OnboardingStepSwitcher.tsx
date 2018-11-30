@@ -6,7 +6,7 @@ import _ from 'lodash'
 import InitStep from 'src/onboarding/components/InitStep'
 import AdminStep from 'src/onboarding/components/AdminStep'
 import SelectDataSourceStep from 'src/onboarding/components/SelectDataSourceStep'
-import ConfigureDataSourceSwitcher from 'src/onboarding/components/ConfigureDataSourceSwitcher'
+import ConfigureDataSourceStep from 'src/onboarding/components/ConfigureDataSourceStep'
 import CompletionStep from 'src/onboarding/components/CompletionStep'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -14,21 +14,21 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   addDataSource,
   removeDataSource,
-  setDataSources,
-} from 'src/onboarding/actions/dataSources'
+  setDataLoadersType,
+} from 'src/onboarding/actions/dataLoaders'
 
 // Types
 import {SetupParams} from 'src/onboarding/apis'
-import {DataSource} from 'src/types/v2/dataSources'
+import {DataSource, DataSourceType} from 'src/types/v2/dataSources'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 interface Props {
   onboardingStepProps: OnboardingStepProps
   onAddDataSource: typeof addDataSource
   onRemoveDataSource: typeof removeDataSource
-  onSetDataSources: typeof setDataSources
+  onSetDataLoadersType: typeof setDataLoadersType
   setupParams: SetupParams
-  dataSources: DataSource[]
+  dataLoaders: {dataSources: DataSource[]; type: DataSourceType}
   stepTitle: string
 }
 
@@ -39,10 +39,10 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
       onboardingStepProps,
       stepTitle,
       setupParams,
-      dataSources,
+      dataLoaders,
+      onSetDataLoadersType,
       onAddDataSource,
       onRemoveDataSource,
-      onSetDataSources,
     } = this.props
 
     switch (stepTitle) {
@@ -54,19 +54,16 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
         return (
           <SelectDataSourceStep
             {...onboardingStepProps}
+            {...dataLoaders}
+            onSetDataLoadersType={onSetDataLoadersType}
             bucket={_.get(setupParams, 'bucket', '')}
-            dataSources={dataSources}
             onAddDataSource={onAddDataSource}
             onRemoveDataSource={onRemoveDataSource}
-            onSetDataSources={onSetDataSources}
           />
         )
       case 'Configure Data Sources':
         return (
-          <ConfigureDataSourceSwitcher
-            {...onboardingStepProps}
-            dataSource={_.get(dataSources, '0.name', '')}
-          />
+          <ConfigureDataSourceStep {...onboardingStepProps} {...dataLoaders} />
         )
       case 'Complete':
         return <CompletionStep {...onboardingStepProps} />

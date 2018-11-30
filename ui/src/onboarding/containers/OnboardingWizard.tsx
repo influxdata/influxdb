@@ -24,10 +24,10 @@ import {
   setStepStatus,
 } from 'src/onboarding/actions/steps'
 import {
+  setDataLoadersType,
   addDataSource,
   removeDataSource,
-  setDataSources,
-} from 'src/onboarding/actions/dataSources'
+} from 'src/onboarding/actions/dataLoaders'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
@@ -35,7 +35,7 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 // Types
 import {Links} from 'src/types/v2/links'
 import {SetupParams} from 'src/onboarding/apis'
-import {DataSource} from 'src/types/v2/dataSources'
+import {DataSource, DataSourceType} from 'src/types/v2/dataSources'
 import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types/v2'
 
@@ -68,9 +68,14 @@ interface DispatchProps {
   onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex
   onSetCurrentStepIndex: typeof setCurrentStepIndex
   onSetStepStatus: typeof setStepStatus
+  onSetDataLoadersType: typeof setDataLoadersType
   onAddDataSource: typeof addDataSource
   onRemoveDataSource: typeof removeDataSource
-  onSetDataSources: typeof setDataSources
+}
+
+interface DataLoadersProps {
+  dataSources: DataSource[]
+  type: DataSourceType
 }
 
 interface StateProps {
@@ -78,7 +83,7 @@ interface StateProps {
   currentStepIndex: number
   stepStatuses: StepStatus[]
   setupParams: SetupParams
-  dataSources: DataSource[]
+  dataLoaders: DataLoadersProps
 }
 
 type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
@@ -97,18 +102,15 @@ class OnboardingWizard extends PureComponent<Props> {
 
   constructor(props: Props) {
     super(props)
-    this.state = {
-      dataSources: [],
-    }
   }
 
   public render() {
     const {
       currentStepIndex,
-      dataSources,
+      dataLoaders,
+      onSetDataLoadersType,
       onRemoveDataSource,
       onAddDataSource,
-      onSetDataSources,
       setupParams,
     } = this.props
     const currentStepTitle = this.stepTitles[currentStepIndex]
@@ -121,10 +123,10 @@ class OnboardingWizard extends PureComponent<Props> {
             onboardingStepProps={this.onboardingStepProps}
             stepTitle={currentStepTitle}
             setupParams={setupParams}
-            dataSources={dataSources}
+            dataLoaders={dataLoaders}
+            onSetDataLoadersType={onSetDataLoadersType}
             onAddDataSource={onAddDataSource}
             onRemoveDataSource={onRemoveDataSource}
-            onSetDataSources={onSetDataSources}
           />
         </div>
       </WizardFullScreen>
@@ -205,14 +207,14 @@ const mstp = ({
   links,
   onboarding: {
     steps: {currentStepIndex, stepStatuses, setupParams},
-    dataSources,
+    dataLoaders,
   },
 }: AppState): StateProps => ({
   links,
   currentStepIndex,
   stepStatuses,
   setupParams,
-  dataSources,
+  dataLoaders,
 })
 
 const mdtp: DispatchProps = {
@@ -222,9 +224,9 @@ const mdtp: DispatchProps = {
   onIncrementCurrentStepIndex: incrementCurrentStepIndex,
   onSetCurrentStepIndex: setCurrentStepIndex,
   onSetStepStatus: setStepStatus,
+  onSetDataLoadersType: setDataLoadersType,
   onAddDataSource: addDataSource,
   onRemoveDataSource: removeDataSource,
-  onSetDataSources: setDataSources,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
