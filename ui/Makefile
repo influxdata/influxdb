@@ -1,45 +1,23 @@
-YARN := $(shell command -v yarn 2> /dev/null)
 UISOURCES := $(shell find . -type f -not \( -path ./build/\* -o -path ./node_modules/\* -o -path ./.cache/\* -o -name Makefile -prune \) )
 
 all: build
 
-node_modules: yarn.lock
-ifndef YARN
-	$(error Please install yarn 0.19.1+)
-else
-	yarn --no-progress --emoji false
-endif
+node_modules: package-lock.json
+	npm i
 
 build: node_modules $(UISOURCES)
-ifndef YARN
-	$(error Please install yarn 0.19.1+)
-else
-	yarn run build
-endif
+	npm run build
 
 lint: node_modules $(UISOURCES)
-ifndef YARN
-	$(error Please install yarn 0.19.1+)
-else
-	yarn run lint
-endif
-
+	npm run lint
 
 test:
-ifndef YARN
-	$(error Please install yarn 0.19.1+)
-else
-	yarn test --runInBand
-endif
+	npm test
 
 clean:
-ifndef YARN
-	$(error Please install yarn 0.19.1+)
-else
-	yarn run clean
-endif
+	npm run clean
 
 run:
-	yarn run start
+	npm start
 
 .PHONY: all clean test run lint

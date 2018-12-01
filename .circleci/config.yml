@@ -7,19 +7,18 @@ jobs:
     steps:
       - checkout
 
-      # Run yarn install, using Circle's cache if applicable.
+      # Run npm install, using Circle's cache if applicable.
       - restore_cache:
-          name: Restore Yarn package cache
+          name: Restore npm package cache
           keys:
-            # Only cache on exact yarn.lock match, as in Circle's yarn example:
-            # https://circleci.com/docs/2.0/yarn/
-            - chronograf-yarn-packages-{{ checksum "ui/yarn.lock" }}
+            # Only cache on exact package-lock.json match, as in Circle's yarn example:
+            - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - run: make node_modules
       - save_cache:
           name: Save Yarn package cache
-          key: chronograf-yarn-packages-{{ checksum "ui/yarn.lock" }}
+          key: chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
           paths:
-            - ~/.cache/yarn
+            - ~/.cache/npm
 
       - run: make test-js
       - run: make chronograf_lint
@@ -97,7 +96,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn package cache
           keys:
-            - chronograf-yarn-packages-{{ checksum "ui/yarn.lock" }}
+            - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
 
       - setup_remote_docker
       - run: make test-integration

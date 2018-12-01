@@ -25,10 +25,6 @@ RUN wget -q https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x
    tar -xvf node-${NODE_VERSION}-linux-x64.tar.gz -C / --strip-components=1; \
    rm -f node-${NODE_VERSION}-linux-x64.tar.gz
 
-RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
-    echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list &&  \
-    apt-get update && sudo apt-get install yarn
-
 # Install go
 ENV GOPATH /root/go
 ENV GO_VERSION 1.10
