@@ -22,23 +22,27 @@ type BucketHandler struct {
 	BucketService              platform.BucketService
 	BucketOperationLogService  platform.BucketOperationLogService
 	UserResourceMappingService platform.UserResourceMappingService
+	LabelService               platform.LabelService
 }
 
 const (
-	bucketsPath            = "/api/v2/buckets"
-	bucketsIDPath          = "/api/v2/buckets/:id"
-	bucketsIDLogPath       = "/api/v2/buckets/:id/log"
-	bucketsIDMembersPath   = "/api/v2/buckets/:id/members"
-	bucketsIDMembersIDPath = "/api/v2/buckets/:id/members/:userID"
-	bucketsIDOwnersPath    = "/api/v2/buckets/:id/owners"
-	bucketsIDOwnersIDPath  = "/api/v2/buckets/:id/owners/:userID"
+	bucketsPath             = "/api/v2/buckets"
+	bucketsIDPath           = "/api/v2/buckets/:id"
+	bucketsIDLogPath        = "/api/v2/buckets/:id/log"
+	bucketsIDMembersPath    = "/api/v2/buckets/:id/members"
+	bucketsIDMembersIDPath  = "/api/v2/buckets/:id/members/:userID"
+	bucketsIDOwnersPath     = "/api/v2/buckets/:id/owners"
+	bucketsIDOwnersIDPath   = "/api/v2/buckets/:id/owners/:userID"
+	bucketsIDLabelsPath     = "/api/v2/buckets/:id/labels"
+	bucketsIDLabelsNamePath = "/api/v2/buckets/:id/labels/:name"
 )
 
 // NewBucketHandler returns a new instance of BucketHandler.
-func NewBucketHandler(mappingService platform.UserResourceMappingService) *BucketHandler {
+func NewBucketHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService) *BucketHandler {
 	h := &BucketHandler{
 		Router:                     httprouter.New(),
 		UserResourceMappingService: mappingService,
+		LabelService:               labelService,
 	}
 
 	h.HandlerFunc("POST", bucketsPath, h.handlePostBucket)
@@ -55,6 +59,10 @@ func NewBucketHandler(mappingService platform.UserResourceMappingService) *Bucke
 	h.HandlerFunc("POST", bucketsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.BucketResourceType, platform.Owner))
 	h.HandlerFunc("GET", bucketsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
 	h.HandlerFunc("DELETE", bucketsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+
+	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(h.LabelService))
+	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", bucketsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }

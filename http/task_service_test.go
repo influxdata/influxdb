@@ -111,7 +111,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 			w := httptest.NewRecorder()
 
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), logger.New(os.Stdout))
+			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout))
 			h.TaskService = tt.fields.taskService
 			h.handleGetTasks(w, r)
 
@@ -211,7 +211,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), logger.New(os.Stdout))
+			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout))
 			h.TaskService = tt.fields.taskService
 			h.handlePostTask(w, r)
 
