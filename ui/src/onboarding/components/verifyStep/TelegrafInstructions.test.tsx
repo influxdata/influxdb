@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import TelegrafInstructions from 'src/onboarding/components/configureStep/streaming/TelegrafInstructions'
+import TelegrafInstructions from 'src/onboarding/components/verifyStep/TelegrafInstructions'
 
 let wrapper
 

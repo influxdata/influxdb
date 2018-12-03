@@ -8,6 +8,7 @@ import AdminStep from 'src/onboarding/components/AdminStep'
 import SelectDataSourceStep from 'src/onboarding/components/selectionStep/SelectDataSourceStep'
 import ConfigureDataSourceStep from 'src/onboarding/components/configureStep/ConfigureDataSourceStep'
 import CompletionStep from 'src/onboarding/components/CompletionStep'
+import VerifyDataStep from 'src/onboarding/components/verifyStep/VerifyDataStep'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
@@ -66,6 +67,8 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
           <ConfigureDataSourceStep {...onboardingStepProps} {...dataLoaders} />
         )
       case 4:
+        return <VerifyDataStep {...onboardingStepProps} {...dataLoaders} />
+      case 5:
         return <CompletionStep {...onboardingStepProps} />
       default:
         return <div />

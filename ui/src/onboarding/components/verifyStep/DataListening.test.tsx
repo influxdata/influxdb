@@ -3,8 +3,8 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import DataListening from 'src/onboarding/components/configureStep/streaming/DataListening'
-import ConnectionInformation from 'src/onboarding/components/configureStep/streaming/ConnectionInformation'
+import DataListening from 'src/onboarding/components/verifyStep/DataListening'
+import ConnectionInformation from 'src/onboarding/components/verifyStep/ConnectionInformation'
 import {Button} from 'src/clockface'
 
 const setup = (override = {}) => {
