@@ -1,6 +1,6 @@
 {
   "name": "chronograf-ui",
-  "version": "2.0",
+  "version": "2.0.0",
   "private": false,
   "license": "AGPL-3.0",
   "description": "",
@@ -12,13 +12,13 @@
     "src": "./src"
   },
   "scripts": {
-    "start": "yarn install -s && parcel watch -d build src/index.html",
+    "start": "npm i && parcel watch -d build src/index.html",
     "build": "parcel build -d build --no-source-maps --log-level 2 src/index.html",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules",
-    "test": "jest",
+    "test": "jest --maxWorkers=2",
     "test:watch": "jest --watch",
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch",
-    "lint": "yarn run tslint && yarn run tsc",
+    "lint": "npm run tslint && yarn run tsc",
     "tslint": "tslint -c ./tslint.json '{src,test}/**/*.ts?(x)'",
     "tslint:fix": "tslint --fix -c ./tslint.json '{src,test}/**/*.ts?(x)'",
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty",

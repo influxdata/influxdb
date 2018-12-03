@@ -4,7 +4,6 @@ VERSION ?= $(shell git describe --always --tags)
 COMMIT ?= $(shell git rev-parse --short=8 HEAD)
 GDM := $(shell command -v gdm 2> /dev/null)
 GOBINDATA := $(shell go list -f {{.Root}}  github.com/kevinburke/go-bindata 2> /dev/null)
-YARN := $(shell command -v yarn 2> /dev/null)
 
 SOURCES := $(shell find . -name '*.go' ! -name '*_gen.go')
 UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -prune \) )
@@ -68,13 +67,9 @@ endif
 	gdm restore
 	@touch .godep
 
-.jsdep: ui/yarn.lock
-ifndef YARN
-	$(error Please install yarn 0.19.1+)
-else
-	cd ui && yarn --no-progress --no-emoji
+.jsdep: ui/package-lock.json
+	cd ui && npm i
 	@touch .jsdep
-endif
 
 gen: bolt/internal/internal.proto
 	go generate -x ./bolt/internal

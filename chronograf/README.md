@@ -183,13 +183,12 @@ docker pull chronograf:1.5.0.0
 
 ### From Source
 
-* Chronograf works with go 1.10+, node 8.x, and yarn 1.5+.
+* Chronograf works with go 1.10+, node 8.x
 * Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor)
   1.2.x+ to create and store alerts.
 
 1. [Install Go](https://golang.org/doc/install)
 1. [Install Node and NPM](https://nodejs.org/en/download/)
-1. [Install yarn](https://yarnpkg.com/docs/install)
 1. [Setup your GOPATH](https://golang.org/doc/code.html#GOPATH)
 1. Build the Chronograf package:
     ```bash

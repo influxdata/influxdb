@@ -23,4 +23,4 @@ chronograf*.db
 *_gen.go
 canned/apps_gen.go
 npm-debug.log
-yarn-error.log
+npm-error.log

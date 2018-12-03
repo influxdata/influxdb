@@ -46,7 +46,7 @@ MAINTAINER = "contact@influxdb.com"
 VENDOR = "InfluxData"
 DESCRIPTION = "Open source monitoring and visualization UI for the entire TICK stack."
 
-prereqs = [ 'git', 'go', 'npm','yarn' ]
+prereqs = [ 'git', 'go', 'npm' ]
 go_vet_command = "go tool vet ./"
 optional_prereqs = [ 'fpm', 'rpmbuild', 'gpg' ]
 
