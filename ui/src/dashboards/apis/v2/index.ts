@@ -1,10 +1,9 @@
 // Libraries
-import AJAX from 'src/utils/ajax'
-import {dashboardsAPI} from 'src/utils/api'
+import {dashboardsAPI, cellsAPI} from 'src/utils/api'
 
 // Types
-import {Dashboard, Cell} from 'src/api'
-import {DashboardSwitcherLinks, NewCell} from 'src/types/v2/dashboards'
+import {Dashboard, Cell, CreateCell} from 'src/api'
+import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
 
 // Utils
 import {
@@ -20,62 +19,31 @@ export const getDashboards = async (): Promise<Dashboard[]> => {
 }
 
 export const getDashboard = async (id: string): Promise<Dashboard> => {
-  try {
-    const {data} = await AJAX({
-      url: `/api/v2/dashboards/${id}`,
-    })
+  const {data} = await dashboardsAPI.dashboardsDashboardIDGet(id)
 
-    return data
-  } catch (error) {
-    throw error
-  }
+  return data
 }
 
 export const createDashboard = async (
-  url: string,
   dashboard: Partial<Dashboard>
 ): Promise<Dashboard> => {
-  try {
-    const {data} = await AJAX({
-      method: 'POST',
-      url,
-      data: dashboard,
-    })
-
-    return data
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
+  const {data} = await dashboardsAPI.dashboardsPost('', dashboard)
+  return data
 }
 
-export const deleteDashboard = async (url: string): Promise<void> => {
-  try {
-    return await AJAX({
-      method: 'DELETE',
-      url,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
+export const deleteDashboard = async (dashboard: Dashboard): Promise<void> => {
+  await dashboardsAPI.dashboardsDashboardIDDelete(dashboard.id)
 }
 
 export const updateDashboard = async (
   dashboard: Dashboard
 ): Promise<Dashboard> => {
-  try {
-    const {data} = await AJAX({
-      method: 'PATCH',
-      url: dashboard.links.self,
-      data: dashboard,
-    })
+  const {data} = await dashboardsAPI.dashboardsDashboardIDPatch(
+    dashboard.id,
+    dashboard
+  )
 
-    return data
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
+  return data
 }
 
 export const loadDashboardLinks = async (
@@ -89,62 +57,23 @@ export const loadDashboardLinks = async (
   return dashboardLinks
 }
 
-export const addCell = async (url: string, cell: NewCell): Promise<Cell> => {
-  try {
-    const {data} = await AJAX({
-      method: 'POST',
-      url,
-      data: cell,
-    })
-
-    return data
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
+export const addCell = async (id, cell: CreateCell): Promise<Cell> => {
+  const {data} = await cellsAPI.dashboardsDashboardIDCellsPost(id, cell)
+  return data
 }
 
 export const updateCells = async (
-  url: string,
+  id: string,
   cells: Cell[]
 ): Promise<Cell[]> => {
-  try {
-    const {data} = await AJAX({
-      method: 'PUT',
-      url,
-      data: cells,
-    })
+  const {data} = await cellsAPI.dashboardsDashboardIDCellsPut(id, cells)
 
-    return data.cells
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
+  return data.cells
 }
 
-export const deleteCell = async (url: string): Promise<void> => {
-  try {
-    return await AJAX({
-      method: 'DELETE',
-      url,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
-}
-
-export const copyCell = async (url: string, cell: Cell): Promise<Cell> => {
-  try {
-    const {data} = await AJAX({
-      method: 'POST',
-      url,
-      data: cell,
-    })
-
-    return data
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
+export const deleteCell = async (
+  dashboardID: string,
+  cell: Cell
+): Promise<void> => {
+  await cellsAPI.dashboardsDashboardIDCellsCellIDDelete(dashboardID, cell.id)
 }

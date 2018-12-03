@@ -149,13 +149,13 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   private handleCreateDashboard = async (): Promise<void> => {
-    const {links, router, notify} = this.props
+    const {router, notify} = this.props
     try {
       const newDashboard = {
         name: 'Name this dashboard',
         cells: [],
       }
-      const data = await createDashboard(links.dashboards, newDashboard)
+      const data = await createDashboard(newDashboard)
       router.push(`/dashboards/${data.id}`)
     } catch (error) {
       notify(dashboardCreateFailed())
@@ -165,10 +165,10 @@ class DashboardIndex extends PureComponent<Props, State> {
   private handleCloneDashboard = async (
     dashboard: Dashboard
   ): Promise<void> => {
-    const {router, links, notify} = this.props
+    const {router, notify} = this.props
     const name = `${dashboard.name} (clone)`
     try {
-      const data = await createDashboard(links.dashboards, {
+      const data = await createDashboard({
         ...dashboard,
         name,
       })
@@ -215,7 +215,6 @@ class DashboardIndex extends PureComponent<Props, State> {
       h: 4,
     }
 
-    const {links} = this.props
     const name = _.get(dashboard, 'name', 'Name this dashboard')
     const cellsWithDefaultsApplied = getDeep<Cell[]>(
       dashboard,
@@ -223,7 +222,7 @@ class DashboardIndex extends PureComponent<Props, State> {
       []
     ).map(c => ({...defaultCell, ...c}))
 
-    await this.props.handleImportDashboard(links.dashboards, {
+    await this.props.handleImportDashboard({
       ...dashboard,
       name,
       cells: cellsWithDefaultsApplied,
