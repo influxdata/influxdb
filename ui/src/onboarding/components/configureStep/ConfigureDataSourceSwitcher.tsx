@@ -4,6 +4,7 @@ import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import LineProtocol from 'src/onboarding/components/configureStep/lineProtocol/LineProtocol'
 
 // Types
 import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
@@ -21,6 +22,7 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
         return <div />
       case 'CSV':
       case 'Line Protocol':
+        return <LineProtocol />
       default:
         return <div>{this.configurationStep}</div>
     }

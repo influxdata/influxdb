@@ -1,0 +1,25 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`LineProtocol rendering renders! 1`] = `
+<Fragment>
+  <h3
+    className="wizard-step--title"
+  >
+    Add Data via Line Protocol
+  </h3>
+  <h5
+    className="wizard-step--sub-title"
+  >
+    Need help writing InfluxDB Line Protocol? See Documentation
+  </h5>
+  <LineProtocolTabs
+    tabs={
+      Array [
+        "uploadFile",
+        "enterManually",
+        "enterURL",
+      ]
+    }
+  />
+</Fragment>
+`;

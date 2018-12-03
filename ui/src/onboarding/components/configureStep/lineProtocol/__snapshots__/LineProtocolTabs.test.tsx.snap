@@ -1,0 +1,54 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`LineProtocolTabs rendering renders! 1`] = `
+<Fragment>
+  <Radio
+    color="primary"
+    shape="none"
+    size="sm"
+  >
+    <RadioButton
+      active={true}
+      disabled={false}
+      disabledTitleText="This option is disabled"
+      id="uploadFile"
+      key="uploadFile"
+      onClick={[Function]}
+      titleText="uploadFile"
+      value="uploadFile"
+    >
+      uploadFile
+    </RadioButton>
+    <RadioButton
+      active={false}
+      disabled={false}
+      disabledTitleText="This option is disabled"
+      id="enterManually"
+      key="enterManually"
+      onClick={[Function]}
+      titleText="enterManually"
+      value="enterManually"
+    >
+      enterManually
+    </RadioButton>
+    <RadioButton
+      active={false}
+      disabled={false}
+      disabledTitleText="This option is disabled"
+      id="enterURL"
+      key="enterURL"
+      onClick={[Function]}
+      titleText="enterURL"
+      value="enterURL"
+    >
+      enterURL
+    </RadioButton>
+  </Radio>
+  <DragAndDrop
+    compact={false}
+    submitOnDrop={false}
+    submitOnUpload={false}
+    submitText="Upload File"
+  />
+</Fragment>
+`;

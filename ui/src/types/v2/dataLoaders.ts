@@ -17,3 +17,16 @@ export interface TelegrafPlugin extends TelegrafRequestPlugins {
   configured: ConfigurationState
   active: boolean
 }
+
+export enum LineProtocolTab {
+  UploadFile = 'uploadFile',
+  EnterManually = 'enterManually',
+  EnterURL = 'enterURL',
+}
+
+export enum LineProtocolStatus {
+  ImportData = 'importData',
+  Loading = 'enterManually',
+  Success = 'success',
+  Error = 'error',
+}
