@@ -38,7 +38,6 @@ import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
 import {Dashboard, Cell} from 'src/api'
 import {NewView} from 'src/types/v2/dashboards'
-import {AppState} from 'src/types/v2'
 
 export enum ActionTypes {
   LoadDashboards = 'LOAD_DASHBOARDS',
@@ -163,12 +162,11 @@ export const getDashboardsAsync = () => async (
   }
 }
 
-export const importDashboardAsync = (
-  url: string,
-  dashboard: Dashboard
-) => async (dispatch: Dispatch<Action>): Promise<void> => {
+export const importDashboardAsync = (dashboard: Dashboard) => async (
+  dispatch: Dispatch<Action>
+): Promise<void> => {
   try {
-    await createDashboardAJAX(url, dashboard)
+    await createDashboardAJAX(dashboard)
     const dashboards = await getDashboardsAJAX()
 
     dispatch(loadDashboards(dashboards))
@@ -188,7 +186,7 @@ export const deleteDashboardAsync = (dashboard: Dashboard) => async (
   dispatch(deleteTimeRange(dashboard.id))
 
   try {
-    await deleteDashboardAJAX(dashboard.links.self)
+    await deleteDashboardAJAX(dashboard)
     dispatch(notify(copy.dashboardDeleted(dashboard.name)))
   } catch (error) {
     dispatch(
@@ -249,13 +247,9 @@ export const addCellAsync = (dashboard: Dashboard) => async (
 export const createCellWithView = (
   dashboard: Dashboard,
   view: NewView
-) => async (
-  dispatch: Dispatch<Action>,
-  getState: () => AppState
-): Promise<void> => {
+) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
-    const viewsLink = getState().links.views
-    const createdView = await createViewAJAX(viewsLink, view)
+    const createdView = await createViewAJAX(view)
 
     const cell = {
       ...getNewDashboardCell(dashboard),
@@ -282,7 +276,7 @@ export const updateCellsAsync = (dashboard: Dashboard, cells: Cell[]) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
   try {
-    const updatedCells = await updateCellsAJAX(dashboard.links.cells, cells)
+    const updatedCells = await updateCellsAJAX(dashboard.id, cells)
     const updatedDashboard = {
       ...dashboard,
       cells: updatedCells,
@@ -298,7 +292,7 @@ export const deleteCellAsync = (dashboard: Dashboard, cell: Cell) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
   try {
-    await deleteCellAJAX(cell.links.self)
+    await deleteCellAJAX(dashboard.id, cell)
     dispatch(deleteCell(dashboard, cell))
     dispatch(notify(copy.cellDeleted()))
   } catch (error) {

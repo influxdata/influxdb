@@ -120,5 +120,5 @@ export const updateViewNote = () => async (dispatch, getState: GetState) => {
     properties: {...view.properties, note, showNoteWhenEmpty},
   }
 
-  return dispatch(updateView(view.links.self, updatedView))
+  return dispatch(updateView(updatedView))
 }

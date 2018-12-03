@@ -26,7 +26,8 @@ import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
 // Types
 import {Dispatch} from 'redux'
 import {ThunkDispatch} from 'redux-thunk'
-import {View, NewView, ViewType, TimeSeriesValue} from 'src/types/v2/dashboards'
+import {View} from 'src/api'
+import {NewView, TimeSeriesValue} from 'src/types/v2/dashboards'
 import {
   Filter,
   LogConfig,
@@ -347,13 +348,13 @@ export const getSourceAndPopulateBucketsAsync = (sourceURL: string) => async (
   }
 }
 
-export const getLogConfigAsync = (url: string) => async (
+export const getLogConfigAsync = () => async (
   dispatch: Dispatch<SetConfigAction>,
   getState: GetState
 ) => {
   const state = getState()
   const isTruncated = getIsTruncated(state)
-  const views = await readViewsAJAX(url, {type: ViewType.LogViewer})
+  const views = await readViewsAJAX()
   const logView: NewView | View = getDeep(views, '0', defaultLogView)
 
   const logConfig = {
@@ -364,13 +365,12 @@ export const getLogConfigAsync = (url: string) => async (
   await dispatch(setConfig(logConfig))
 }
 
-export const createLogConfigAsync = (
-  url: string,
-  newConfig: LogConfig
-) => async (dispatch: Dispatch<SetConfigAction>) => {
+export const createLogConfigAsync = (newConfig: LogConfig) => async (
+  dispatch: Dispatch<SetConfigAction>
+) => {
   const {isTruncated} = newConfig
   const {id, ...newLogView} = uiToServerConfig(newConfig)
-  const logView = await createViewAJAX(url, newLogView)
+  const logView = await createViewAJAX(newLogView)
   const logConfig = {
     ...serverToUIConfig(logView),
     isTruncated,
@@ -381,9 +381,9 @@ export const createLogConfigAsync = (
 export const updateLogConfigAsync = (updatedConfig: LogConfig) => async (
   dispatch: Dispatch<SetConfigAction>
 ) => {
-  const {isTruncated, link} = updatedConfig
+  const {isTruncated} = updatedConfig
   const updatedView = uiToServerConfig(updatedConfig)
-  const logView = await updateViewAJAX(link, updatedView)
+  const logView = await updateViewAJAX(updatedView.id, updatedView)
 
   const logConfig = {
     ...serverToUIConfig(logView),

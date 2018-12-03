@@ -119,7 +119,7 @@ class LogsPage extends Component<Props, State> {
   public async componentDidMount() {
     try {
       await this.setCurrentSource()
-      await this.props.getConfig(this.configLink)
+      await this.props.getConfig()
 
       if (this.props.searchStatus !== SearchStatus.SourceError) {
         this.setState({scrollMode: ScrollMode.TailTop})
@@ -283,7 +283,7 @@ class LogsPage extends Component<Props, State> {
     }
 
     if (!this.isLogConfigSaved) {
-      await this.props.createConfig(this.configLink, updatedConfig)
+      await this.props.createConfig(updatedConfig)
     } else {
       await this.props.updateConfig(updatedConfig)
     }
@@ -365,10 +365,6 @@ class LogsPage extends Component<Props, State> {
       ...logConfig,
       isTruncated,
     })
-  }
-
-  private get configLink(): string {
-    return getDeep<string>(this.props, 'links.views', '')
   }
 
   private get isTruncated(): boolean {
