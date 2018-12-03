@@ -3,7 +3,6 @@ v1.7.2 [unreleased]
 
 ### Bugfixes
 
--	[#10499](https://github.com/influxdata/influxdb/pull/10499): Fix ApplyEnvOverrides when a type that implements Unmarshaler is in a slice.
 -	[#10533](https://github.com/influxdata/influxdb/pull/10533): Update to Flux 0.7.1
 -	[#10531](https://github.com/influxdata/influxdb/pull/10531): tsdb: conflict based concurrency resolution.
 -	[#10528](https://github.com/influxdata/influxdb/pull/10528): Skip and warn series files in retention policy directory.
