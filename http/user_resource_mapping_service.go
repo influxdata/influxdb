@@ -261,16 +261,8 @@ func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Contex
 }
 
 func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Context, m *platform.UserResourceMapping) error {
-	if !m.ResourceID.Valid() {
-		return kerrors.InvalidDataf("resource ID is required")
-	}
-
-	if !m.UserID.Valid() {
-		return kerrors.InvalidDataf("user ID is required")
-	}
-
-	if m.UserType == "" {
-		return kerrors.InvalidDataf("user type is required")
+	if err := m.Validate(); err != nil {
+		return err
 	}
 
 	url, err := newURL(s.Addr, resourceIDPath(s.BasePath, m.ResourceID))

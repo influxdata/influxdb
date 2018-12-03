@@ -148,6 +148,11 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
+		// Always create labels bucket.
+		if err := c.initializeLabels(ctx, tx); err != nil {
+			return err
+		}
+
 		// Always create Session bucket.
 		if err := c.initializeSessions(ctx, tx); err != nil {
 			return err

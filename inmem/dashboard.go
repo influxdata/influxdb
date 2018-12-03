@@ -119,7 +119,7 @@ func (s *Service) DeleteDashboard(ctx context.Context, id platform.ID) error {
 		return err
 	}
 	s.dashboardKV.Delete(id.String())
-	return nil
+	return s.deleteLabel(ctx, platform.LabelFilter{ResourceID: id})
 }
 
 // AddDashboardCell adds a new cell to the dashboard.

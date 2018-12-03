@@ -29,6 +29,7 @@ type TaskHandler struct {
 	AuthorizationService       platform.AuthorizationService
 	OrganizationService        platform.OrganizationService
 	UserResourceMappingService platform.UserResourceMappingService
+	LabelService               platform.LabelService
 }
 
 const (
@@ -43,15 +44,18 @@ const (
 	tasksIDRunsIDPath      = "/api/v2/tasks/:tid/runs/:rid"
 	tasksIDRunsIDLogsPath  = "/api/v2/tasks/:tid/runs/:rid/logs"
 	tasksIDRunsIDRetryPath = "/api/v2/tasks/:tid/runs/:rid/retry"
+	tasksIDLabelsPath      = "/api/v2/tasks/:tid/labels"
+	tasksIDLabelsNamePath  = "/api/v2/tasks/:tid/labels/:name"
 )
 
 // NewTaskHandler returns a new instance of TaskHandler.
-func NewTaskHandler(mappingService platform.UserResourceMappingService, logger *zap.Logger) *TaskHandler {
+func NewTaskHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, logger *zap.Logger) *TaskHandler {
 	h := &TaskHandler{
 		logger: logger,
 		Router: httprouter.New(),
 
 		UserResourceMappingService: mappingService,
+		LabelService:               labelService,
 	}
 
 	h.HandlerFunc("GET", tasksPath, h.handleGetTasks)
@@ -76,6 +80,10 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, logger *
 	h.HandlerFunc("GET", tasksIDRunsIDPath, h.handleGetRun)
 	h.HandlerFunc("POST", tasksIDRunsIDRetryPath, h.handleRetryRun)
 	h.HandlerFunc("DELETE", tasksIDRunsIDPath, h.handleCancelRun)
+
+	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(h.LabelService))
+	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", tasksIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }

@@ -23,6 +23,7 @@ type Service struct {
 	macroKV               sync.Map
 	dbrpMappingKV         sync.Map
 	userResourceMappingKV sync.Map
+	labelKV               sync.Map
 	scraperTargetKV       sync.Map
 	telegrafConfigKV      sync.Map
 	onboardingKV          sync.Map
