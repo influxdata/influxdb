@@ -22,29 +22,25 @@ type DashboardHandler struct {
 	DashboardService             platform.DashboardService
 	DashboardOperationLogService platform.DashboardOperationLogService
 	UserResourceMappingService   platform.UserResourceMappingService
-	LabelService                 platform.LabelService
 }
 
 const (
-	dashboardsPath             = "/api/v2/dashboards"
-	dashboardsIDPath           = "/api/v2/dashboards/:id"
-	dashboardsIDCellsPath      = "/api/v2/dashboards/:id/cells"
-	dashboardsIDCellsIDPath    = "/api/v2/dashboards/:id/cells/:cellID"
-	dashboardsIDMembersPath    = "/api/v2/dashboards/:id/members"
-	dashboardsIDLogPath        = "/api/v2/dashboards/:id/log"
-	dashboardsIDMembersIDPath  = "/api/v2/dashboards/:id/members/:userID"
-	dashboardsIDOwnersPath     = "/api/v2/dashboards/:id/owners"
-	dashboardsIDOwnersIDPath   = "/api/v2/dashboards/:id/owners/:userID"
-	dashboardsIDLabelsPath     = "/api/v2/dashboards/:id/labels"
-	dashboardsIDLabelsNamePath = "/api/v2/dashboards/:id/labels/:name"
+	dashboardsPath            = "/api/v2/dashboards"
+	dashboardsIDPath          = "/api/v2/dashboards/:id"
+	dashboardsIDCellsPath     = "/api/v2/dashboards/:id/cells"
+	dashboardsIDCellsIDPath   = "/api/v2/dashboards/:id/cells/:cellID"
+	dashboardsIDMembersPath   = "/api/v2/dashboards/:id/members"
+	dashboardsIDLogPath       = "/api/v2/dashboards/:id/log"
+	dashboardsIDMembersIDPath = "/api/v2/dashboards/:id/members/:userID"
+	dashboardsIDOwnersPath    = "/api/v2/dashboards/:id/owners"
+	dashboardsIDOwnersIDPath  = "/api/v2/dashboards/:id/owners/:userID"
 )
 
 // NewDashboardHandler returns a new instance of DashboardHandler.
-func NewDashboardHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService) *DashboardHandler {
+func NewDashboardHandler(mappingService platform.UserResourceMappingService) *DashboardHandler {
 	h := &DashboardHandler{
 		Router:                     httprouter.New(),
 		UserResourceMappingService: mappingService,
-		LabelService:               labelService,
 	}
 
 	h.HandlerFunc("POST", dashboardsPath, h.handlePostDashboard)
@@ -66,19 +62,13 @@ func NewDashboardHandler(mappingService platform.UserResourceMappingService, lab
 	h.HandlerFunc("POST", dashboardsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.DashboardResourceType, platform.Owner))
 	h.HandlerFunc("GET", dashboardsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
 	h.HandlerFunc("DELETE", dashboardsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
-
-	h.HandlerFunc("GET", dashboardsIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", dashboardsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", dashboardsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-
 	return h
 }
 
 type dashboardLinks struct {
-	Self   string `json:"self"`
-	Cells  string `json:"cells"`
-	Log    string `json:"log"`
-	Labels string `json:"labels"`
+	Self  string `json:"self"`
+	Cells string `json:"cells"`
+	Log   string `json:"log"`
 }
 
 type dashboardResponse struct {
@@ -103,10 +93,9 @@ func (d dashboardResponse) toPlatform() *platform.Dashboard {
 func newDashboardResponse(d *platform.Dashboard) dashboardResponse {
 	res := dashboardResponse{
 		Links: dashboardLinks{
-			Self:   fmt.Sprintf("/api/v2/dashboards/%s", d.ID),
-			Cells:  fmt.Sprintf("/api/v2/dashboards/%s/cells", d.ID),
-			Log:    fmt.Sprintf("/api/v2/dashboards/%s/log", d.ID),
-			Labels: fmt.Sprintf("/api/v2/dashboards/%s/labels", d.ID),
+			Self:  fmt.Sprintf("/api/v2/dashboards/%s", d.ID),
+			Cells: fmt.Sprintf("/api/v2/dashboards/%s/cells", d.ID),
+			Log:   fmt.Sprintf("/api/v2/dashboards/%s/log", d.ID),
 		},
 		Dashboard: *d,
 		Cells:     []dashboardCellResponse{},

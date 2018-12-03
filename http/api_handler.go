@@ -46,7 +46,6 @@ type APIBackend struct {
 	UserService                     platform.UserService
 	OrganizationService             platform.OrganizationService
 	UserResourceMappingService      platform.UserResourceMappingService
-	LabelService                    platform.LabelService
 	DashboardService                platform.DashboardService
 	DashboardOperationLogService    platform.DashboardOperationLogService
 	BucketOperationLogService       platform.BucketOperationLogService
@@ -72,7 +71,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.SessionHandler.SessionService = b.SessionService
 	h.SessionHandler.Logger = b.Logger.With(zap.String("handler", "basicAuth"))
 
-	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService)
+	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService)
 	h.BucketHandler.BucketService = b.BucketService
 	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
 
@@ -86,7 +85,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.UserHandler.BasicAuthService = b.BasicAuthService
 	h.UserHandler.UserOperationLogService = b.UserOperationLogService
 
-	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService)
+	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService)
 	h.DashboardHandler.DashboardService = b.DashboardService
 	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
 
@@ -108,7 +107,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.SetupHandler = NewSetupHandler()
 	h.SetupHandler.OnboardingService = b.OnboardingService
 
-	h.TaskHandler = NewTaskHandler(b.UserResourceMappingService, b.LabelService, b.Logger)
+	h.TaskHandler = NewTaskHandler(b.UserResourceMappingService, b.Logger)
 	h.TaskHandler.TaskService = b.TaskService
 	h.TaskHandler.AuthorizationService = b.AuthorizationService
 	h.TaskHandler.UserResourceMappingService = b.UserResourceMappingService

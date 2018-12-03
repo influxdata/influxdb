@@ -19,8 +19,6 @@ const (
 	OrgResourceType       ResourceType = "org"
 	ViewResourceType      ResourceType = "view"
 	TelegrafResourceType  ResourceType = "telegraf"
-	TokenResourceType     ResourceType = "token"
-	UserResourceType      ResourceType = "user"
 )
 
 // UserResourceMappingService maps the relationships between users and resources

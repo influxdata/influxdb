@@ -252,7 +252,6 @@ func (m *Main) run(ctx context.Context) (err error) {
 		scraperTargetSvc platform.ScraperTargetStoreService       = m.boltClient
 		telegrafSvc      platform.TelegrafConfigStore             = m.boltClient
 		userResourceSvc  platform.UserResourceMappingService      = m.boltClient
-		labelSvc         platform.LabelService                    = m.boltClient
 	)
 
 	chronografSvc, err := server.NewServiceV2(ctx, m.boltClient.DB())
@@ -371,7 +370,6 @@ func (m *Main) run(ctx context.Context) (err error) {
 		UserService:                     userSvc,
 		OrganizationService:             orgSvc,
 		UserResourceMappingService:      userResourceSvc,
-		LabelService:                    labelSvc,
 		DashboardService:                dashboardSvc,
 		DashboardOperationLogService:    dashboardLogSvc,
 		BucketOperationLogService:       bucketLogSvc,

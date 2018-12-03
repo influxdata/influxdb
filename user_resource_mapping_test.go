@@ -20,15 +20,6 @@ func TestOwnerMappingValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "valid mapping",
-			fields: fields{
-				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
-				UserType:     platform.Owner,
-				ResourceType: platform.DashboardResourceType,
-				ResourceID:   platformtesting.MustIDBase16("020f755c3c082000"),
-			},
-		},
-		{
 			name: "mapping requires a resourceid",
 			fields: fields{
 				UserID:       platformtesting.MustIDBase16("debac1e0deadbeef"),
@@ -88,10 +79,9 @@ func TestOwnerMappingValidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := platform.UserResourceMapping{
-				ResourceID:   tt.fields.ResourceID,
-				ResourceType: tt.fields.ResourceType,
-				UserID:       tt.fields.UserID,
-				UserType:     tt.fields.UserType,
+				ResourceID: tt.fields.ResourceID,
+				UserID:     tt.fields.UserID,
+				UserType:   tt.fields.UserType,
 			}
 			if err := m.Validate(); (err != nil) != tt.wantErr {
 				t.Errorf("OwnerMapping.Validate() error = %v, wantErr %v", err, tt.wantErr)

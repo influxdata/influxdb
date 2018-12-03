@@ -469,12 +469,6 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 	if err := tx.Bucket(dashboardBucket).Delete(encodedID); err != nil {
 		return err
 	}
-
-	err = c.deleteLabels(ctx, tx, platform.LabelFilter{ResourceID: id})
-	if err != nil {
-		return err
-	}
-
 	// TODO(desa): add DeleteKeyValueLog method and use it here.
 	return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
 		ResourceID:   id,
