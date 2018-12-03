@@ -1,3 +1,23 @@
+// Types
+import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
+import {links} from 'mocks/dummyData'
+
+export const defaultOnboardingStepProps: OnboardingStepProps = {
+  links,
+  currentStepIndex: 0,
+  onSetCurrentStepIndex: jest.fn(),
+  onIncrementCurrentStepIndex: jest.fn(),
+  onDecrementCurrentStepIndex: jest.fn(),
+  handleSetStepStatus: jest.fn(),
+  stepStatuses: [],
+  stepTitles: [],
+  setupParams: {username: '', password: '', org: '', bucket: ''},
+  handleSetSetupParams: jest.fn(),
+  notify: jest.fn(),
+  onCompleteSetup: jest.fn(),
+  onExit: jest.fn(),
+}
+
 export const telegrafConfigID = '030358c935b18000'
 
 export const telegrafConfig = {

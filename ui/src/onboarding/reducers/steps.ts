@@ -13,7 +13,7 @@ export interface OnboardingStepsState {
 
 const INITIAL_STATE: OnboardingStepsState = {
   currentStepIndex: 0,
-  stepStatuses: new Array(5).fill(StepStatus.Incomplete),
+  stepStatuses: new Array(6).fill(StepStatus.Incomplete),
   setupParams: null,
 }
 

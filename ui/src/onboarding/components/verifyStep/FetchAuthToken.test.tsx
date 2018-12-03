@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import FetchAuthToken from 'src/onboarding/components/configureStep/streaming/FetchAuthToken'
+import FetchAuthToken from 'src/onboarding/components/verifyStep/FetchAuthToken'
 
 jest.mock('src/utils/api', () => require('src/onboarding/apis/mocks'))
 

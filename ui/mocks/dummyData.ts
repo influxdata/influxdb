@@ -19,29 +19,29 @@ export const links: Links = {
   external: {
     statusFeed: 'https://www.influxdata.com/feed/json',
   },
+  macros: '/api/v2/macros',
+  me: '/api/v2/me',
+  orgs: '/api/v2/orgs',
   query: {
-    self: '/api/v2/query',
     ast: '/api/v2/query/ast',
+    self: '/api/v2/query',
     spec: '/api/v2/query/spec',
     suggestions: '/api/v2/query/suggestions',
   },
-  orgs: '/api/v2/orgs',
   setup: '/api/v2/setup',
   signin: '/api/v2/signin',
   signout: '/api/v2/signout',
   sources: '/api/v2/sources',
   system: {
     debug: '/debug/pprof',
-    health: '/healthz',
+    health: '/health',
     metrics: '/metrics',
   },
   tasks: '/api/v2/tasks',
   users: '/api/v2/users',
-  write: '/api/v2/write',
-  macros: '/api/v2/macros',
   views: '/api/v2/views',
+  write: '/api/v2/write',
   defaultDashboard: '/v2/dashboards/029d13fda9c5b000',
-  me: '/api/v2/me',
 }
 
 export const queryConfig = {

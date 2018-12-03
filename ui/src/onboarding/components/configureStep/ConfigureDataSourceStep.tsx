@@ -36,16 +36,13 @@ class ConfigureDataSourceStep extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {setupParams, dataSources} = this.props
+    const {dataSources} = this.props
 
     return (
       <div className="onboarding-step">
         <ConfigureDataSourceSwitcher
           dataSources={dataSources}
           currentIndex={this.state.currentDataSourceIndex}
-          org={_.get(setupParams, 'org', '')}
-          username={_.get(setupParams, 'username', '')}
-          bucket={_.get(setupParams, 'bucket', '')}
         />
         <div className="wizard-button-bar">
           <Button
@@ -71,7 +68,7 @@ class ConfigureDataSourceStep extends PureComponent<Props, State> {
     const {onIncrementCurrentStepIndex, dataSources} = this.props
     const {currentDataSourceIndex} = this.state
 
-    if (currentDataSourceIndex >= dataSources.length) {
+    if (currentDataSourceIndex >= dataSources.length - 1) {
       onIncrementCurrentStepIndex()
     } else {
       this.setState({currentDataSourceIndex: currentDataSourceIndex + 1})

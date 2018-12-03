@@ -98,10 +98,11 @@ class OnboardingWizard extends PureComponent<Props> {
     'Admin Setup',
     'Select Data Sources',
     'Configure Data Sources',
+    'Verify',
     'Complete',
   ]
 
-  public stepSkippable = [false, false, false, false, false]
+  public stepSkippable = [false, false, false, false, false, false]
 
   constructor(props: Props) {
     super(props)
@@ -184,7 +185,9 @@ class OnboardingWizard extends PureComponent<Props> {
     const isStreaming = type === DataLoaderType.Streaming
     const isNotEmpty = dataSources.length > 0
     const isSideBarStep =
-      (currentStepIndex === 2 && isNotEmpty) || currentStepIndex === 3
+      (currentStepIndex === 2 && isNotEmpty) ||
+      currentStepIndex === 3 ||
+      currentStepIndex === 4
 
     return isStreaming && isSideBarStep
   }

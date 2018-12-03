@@ -13,7 +13,7 @@ import {
   ComponentSize,
   ComponentStatus,
 } from 'src/clockface'
-import ConnectionInformation from 'src/onboarding/components/configureStep/streaming/ConnectionInformation'
+import ConnectionInformation from 'src/onboarding/components/verifyStep/ConnectionInformation'
 
 // types
 import {RemoteDataState} from 'src/types'

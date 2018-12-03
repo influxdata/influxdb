@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import ConnectionInformation from 'src/onboarding/components/configureStep/streaming/ConnectionInformation'
+import ConnectionInformation from 'src/onboarding/components/verifyStep/ConnectionInformation'
 
 // Types
 import {RemoteDataState} from 'src/types'
