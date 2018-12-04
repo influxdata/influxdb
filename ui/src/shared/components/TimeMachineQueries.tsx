@@ -34,6 +34,7 @@ import {RemoteDataState} from 'src/types'
 import {TimeMachineEditor} from 'src/types/v2/timeMachine'
 
 interface StateProps {
+  activeQueryIndex: number
   activeQueryEditor: TimeMachineEditor
   queryCount: number
 }
@@ -52,6 +53,7 @@ type Props = StateProps & DispatchProps & OwnProps
 const TimeMachineQueries: SFC<Props> = props => {
   const {
     activeQueryEditor,
+    activeQueryIndex,
     queryStatus,
     queryCount,
     onAddQuery,
@@ -92,7 +94,7 @@ const TimeMachineQueries: SFC<Props> = props => {
       </div>
       <div className="time-machine-queries--body">
         {activeQueryEditor === TimeMachineEditor.QueryBuilder && (
-          <TimeMachineQueryBuilder />
+          <TimeMachineQueryBuilder key={activeQueryIndex} />
         )}
         {activeQueryEditor === TimeMachineEditor.FluxEditor && (
           <TimeMachineFluxEditor />
@@ -106,10 +108,12 @@ const TimeMachineQueries: SFC<Props> = props => {
 }
 
 const mstp = (state: AppState) => {
-  const {activeQueryEditor, view} = getActiveTimeMachine(state)
+  const {activeQueryEditor, view, activeQueryIndex} = getActiveTimeMachine(
+    state
+  )
   const queryCount: number = get(view, 'properties.queries.length', 0)
 
-  return {activeQueryEditor, queryCount}
+  return {activeQueryEditor, activeQueryIndex, queryCount}
 }
 
 const mdtp = {

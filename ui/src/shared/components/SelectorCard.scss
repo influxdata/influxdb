@@ -1,0 +1,62 @@
+@import "src/style/modules";
+
+.selector-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 200px;
+  background: $g3-castle;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.selector-card--header {
+  margin: 10px;
+  flex: 0 0 0;
+}
+
+.selector-card--items {
+  flex: 1 1 0;
+  overflow: scroll;
+}
+
+.selector-card--item {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  margin-bottom: 1px;
+  cursor: pointer;
+
+  &.selected {
+    background: $c-pool;
+  }
+
+  &.selected:hover {
+    background: $c-pool;
+    opacity: 0.9;
+  }
+
+  &:hover {
+    background: $g4-onyx;
+  }
+}
+
+.selector-card--empty {
+  position: absolute;
+  top: 50%;
+  transform: translate(0, -50%);
+  color: $g9-mountain;
+  font-weight: 500;
+  font-size: 16px;
+  text-transform: uppercase;
+  text-align: center;
+  width: 100%;
+  padding: 20px;
+
+  .waiting-text {
+    text-align: start;
+    width: 85px;
+    margin: 0 auto;
+
+  }
+}
