@@ -267,7 +267,7 @@ func FindLabels(
 				}
 			}
 
-			if diff := cmp.Diff(labels, tt.wants.labels, mappingCmpOptions...); diff != "" {
+			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
 				t.Errorf("labels are different -got/+want\ndiff %s", diff)
 			}
 		})
