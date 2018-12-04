@@ -1,9 +1,9 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Radio, ButtonShape} from 'src/clockface'
+import {Input, InputType, Radio, ButtonShape, Form} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import TextArea from 'src/clockface/components/inputs/TextArea'
 
@@ -15,6 +15,9 @@ import {
   setLineProtocolText,
   setActiveLPTab,
 } from 'src/onboarding/actions/dataLoaders'
+
+// Styles
+import 'src/clockface/components/auto_input/AutoInput.scss'
 
 interface OwnProps {
   tabs: LineProtocolTab[]
@@ -33,8 +36,8 @@ interface StateProps {
 }
 
 const lineProtocolTabsStyle = {
-  height: '400px',
-  width: '700px',
+  height: '280px',
+  width: '750px',
   marginTop: '30px',
 }
 
@@ -49,7 +52,8 @@ export class LineProtocolTabs extends PureComponent<Props> {
   }
 
   private handleTabClick = (tab: LineProtocolTab) => () => {
-    const {setActiveLPTab} = this.props
+    const {setActiveLPTab, setLineProtocolText} = this.props
+    setLineProtocolText('')
     setActiveLPTab(tab)
   }
 
@@ -93,7 +97,28 @@ export class LineProtocolTabs extends PureComponent<Props> {
         />
       )
     }
+    if (activeLPTab === LineProtocolTab.EnterURL) {
+      return (
+        <Form className="onboarding--admin-user-form">
+          <Form.Element label="File URL:">
+            <Input
+              titleText="File URL:"
+              type={InputType.Text}
+              placeholder="http://..."
+              widthPixels={700}
+              value={lineProtocolText}
+              onChange={this.handleChange}
+              autoFocus={true}
+            />
+          </Form.Element>
+        </Form>
+      )
+    }
     return
+  }
+  private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const {setLineProtocolText} = this.props
+    setLineProtocolText(e.target.value)
   }
 }
 
