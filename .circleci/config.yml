@@ -99,7 +99,6 @@ jobs:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
 
       - setup_remote_docker
-      - run: make test-integration
       - run: |
           docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
           make nightly
