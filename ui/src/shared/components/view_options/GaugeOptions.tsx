@@ -49,20 +49,28 @@ class GaugeOptions extends PureComponent<Props> {
     } = this.props
 
     return (
-      <Form>
-        <ThresholdList
-          colorConfigs={this.colorConfigs}
-          onUpdateColors={onUpdateColors}
-          onValidateNewColor={this.handleValidateNewColor}
-        />
-        <Affixes
-          prefix={prefix}
-          suffix={suffix}
-          onUpdatePrefix={onUpdatePrefix}
-          onUpdateSuffix={onUpdateSuffix}
-        />
-        {this.decimalPlaces}
-      </Form>
+      <>
+        <div className="col-md-5">
+          <h4 className="view-options--header">Customize Gauge</h4>
+          <Affixes
+            prefix={prefix}
+            suffix={suffix}
+            onUpdatePrefix={onUpdatePrefix}
+            onUpdateSuffix={onUpdateSuffix}
+          />
+          {this.decimalPlaces}
+        </div>
+        <div className="col-md-7 col-lg-4">
+          <h4 className="view-options--header">Colorized Thresholds</h4>
+          <Form>
+            <ThresholdList
+              colorConfigs={this.colorConfigs}
+              onUpdateColors={onUpdateColors}
+              onValidateNewColor={this.handleValidateNewColor}
+            />
+          </Form>
+        </div>
+      </>
     )
   }
 

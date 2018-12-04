@@ -33,7 +33,7 @@ interface Props {
 class ThresholdList extends PureComponent<Props> {
   public render() {
     return (
-      <FormElement label="Add Threshold">
+      <FormElement>
         <div className="threshold-list">
           <Button
             size={ComponentSize.Small}
@@ -41,6 +41,7 @@ class ThresholdList extends PureComponent<Props> {
             status={this.disableAddThreshold}
             icon={IconFont.Plus}
             type={ButtonType.Button}
+            text="Add a Threshold"
           />
           {this.sortedColorConfigs.map<JSX.Element>(colorConfig => {
             const {

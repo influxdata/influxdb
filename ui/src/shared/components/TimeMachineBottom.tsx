@@ -30,11 +30,7 @@ const TimeMachineBottom: SFC<Props> = ({activeTab, queryStatus}) => {
   }
 
   if (activeTab === TimeMachineTab.Visualization) {
-    return (
-      <div className="time-machine-customization">
-        <ViewOptions />
-      </div>
-    )
+    return <ViewOptions />
   }
 
   return null

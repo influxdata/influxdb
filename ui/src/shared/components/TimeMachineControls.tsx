@@ -5,9 +5,15 @@ import {connect} from 'react-redux'
 // Components
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import CSVExportButton from 'src/shared/components/CSVExportButton'
-import {SlideToggle, ComponentSize} from 'src/clockface'
+import {
+  SlideToggle,
+  ComponentSize,
+  ComponentSpacer,
+  Alignment,
+} from 'src/clockface'
 import TimeMachineSourceDropdown from 'src/shared/components/TimeMachineSourceDropdown'
 import TimeMachineRefreshDropdown from 'src/shared/components/TimeMachineRefreshDropdown'
+import ViewTypeDropdown from 'src/shared/components/view_options/ViewTypeDropdown'
 
 // Actions
 import {
@@ -50,7 +56,10 @@ class TimeMachineControls extends PureComponent<Props> {
     return (
       <div className="time-machine-controls">
         <div className="time-machine-controls--lhs">
-          <TimeMachineSourceDropdown />
+          <ComponentSpacer align={Alignment.Left}>
+            <TimeMachineSourceDropdown />
+            <ViewTypeDropdown />
+          </ComponentSpacer>
         </div>
         <div className="time-machine-controls--rhs">
           <label>
