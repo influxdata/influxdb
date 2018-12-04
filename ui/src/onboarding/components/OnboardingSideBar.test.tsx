@@ -4,8 +4,7 @@ import {shallow} from 'enzyme'
 
 // Components
 import OnboardingSideBar from 'src/onboarding/components/OnboardingSideBar'
-
-import {dataSources} from 'mocks/dummyData'
+import {cpuPlugin, influxDB2Plugin} from 'src/onboarding/resources'
 
 const onClick = jest.fn(() => {})
 
@@ -13,7 +12,7 @@ const setup = (override?) => {
   const props = {
     title: 'title',
     visible: true,
-    dataSources,
+    telegrafPlugins: [],
     onTabClick: onClick,
     ...override,
   }
@@ -26,7 +25,8 @@ const setup = (override?) => {
 describe('OnboardingSideBar', () => {
   describe('rendering', () => {
     it('renders! wee!', () => {
-      const {wrapper} = setup()
+      const {wrapper} = setup({telegrafPlugins: [cpuPlugin, influxDB2Plugin]})
+
       expect(wrapper.exists()).toBe(true)
       expect(wrapper).toMatchSnapshot()
     })

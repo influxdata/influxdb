@@ -1,10 +1,9 @@
+// Types
+import {TelegrafRequestPlugins} from 'src/api'
+
 export enum ConfigurationState {
   Unconfigured = 'unconfigured',
-  Verifying = 'verifying',
   Configured = 'configured',
-  Loading = 'loading',
-  Done = 'done',
-  Error = 'error',
 }
 
 export enum DataLoaderType {
@@ -14,9 +13,7 @@ export enum DataLoaderType {
   Empty = '',
 }
 
-export interface DataSource {
-  name: string
+export interface TelegrafPlugin extends TelegrafRequestPlugins {
   configured: ConfigurationState
   active: boolean
-  configs: any
 }

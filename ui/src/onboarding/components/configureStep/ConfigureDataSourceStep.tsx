@@ -14,10 +14,10 @@ import ConfigureDataSourceSwitcher from 'src/onboarding/components/configureStep
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {DataSource, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
 
 export interface Props extends OnboardingStepProps {
-  dataSources: DataSource[]
+  telegrafPlugins: TelegrafPlugin[]
   type: DataLoaderType
 }
 
@@ -36,12 +36,12 @@ class ConfigureDataSourceStep extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {dataSources} = this.props
+    const {telegrafPlugins} = this.props
 
     return (
       <div className="onboarding-step">
         <ConfigureDataSourceSwitcher
-          dataSources={dataSources}
+          telegrafPlugins={telegrafPlugins}
           currentIndex={this.state.currentDataSourceIndex}
         />
         <div className="wizard-button-bar">
@@ -65,10 +65,10 @@ class ConfigureDataSourceStep extends PureComponent<Props, State> {
   }
 
   private handleNext = () => {
-    const {onIncrementCurrentStepIndex, dataSources} = this.props
+    const {onIncrementCurrentStepIndex, telegrafPlugins} = this.props
     const {currentDataSourceIndex} = this.state
 
-    if (currentDataSourceIndex >= dataSources.length - 1) {
+    if (currentDataSourceIndex >= telegrafPlugins.length - 1) {
       onIncrementCurrentStepIndex()
     } else {
       this.setState({currentDataSourceIndex: currentDataSourceIndex + 1})

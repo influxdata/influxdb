@@ -1,11 +1,11 @@
 // Types
-import {DataSource, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
 
 export type Action =
   | SetDataLoadersType
-  | AddDataSource
-  | RemoveDataSource
-  | SetActiveDataSource
+  | AddTelegrafPlugin
+  | RemoveTelegrafPlugin
+  | SetActiveTelegrafPlugin
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -19,34 +19,38 @@ export const setDataLoadersType = (
   payload: {type},
 })
 
-interface AddDataSource {
-  type: 'ADD_DATA_SOURCE'
-  payload: {dataSource: DataSource}
+interface AddTelegrafPlugin {
+  type: 'ADD_TELEGRAF_PLUGIN'
+  payload: {telegrafPlugin: TelegrafPlugin}
 }
 
-export const addDataSource = (dataSource: DataSource): AddDataSource => ({
-  type: 'ADD_DATA_SOURCE',
-  payload: {dataSource},
+export const addTelegrafPlugin = (
+  telegrafPlugin: TelegrafPlugin
+): AddTelegrafPlugin => ({
+  type: 'ADD_TELEGRAF_PLUGIN',
+  payload: {telegrafPlugin},
 })
 
-interface RemoveDataSource {
-  type: 'REMOVE_DATA_SOURCE'
-  payload: {dataSource: string}
+interface RemoveTelegrafPlugin {
+  type: 'REMOVE_TELEGRAF_PLUGIN'
+  payload: {telegrafPlugin: string}
 }
 
-export const removeDataSource = (dataSource: string): RemoveDataSource => ({
-  type: 'REMOVE_DATA_SOURCE',
-  payload: {dataSource},
+export const removeTelegrafPlugin = (
+  telegrafPlugin: string
+): RemoveTelegrafPlugin => ({
+  type: 'REMOVE_TELEGRAF_PLUGIN',
+  payload: {telegrafPlugin},
 })
 
-interface SetActiveDataSource {
-  type: 'SET_ACTIVE_DATA_SOURCE'
-  payload: {dataSource: string}
+interface SetActiveTelegrafPlugin {
+  type: 'SET_ACTIVE_TELEGRAF_PLUGIN'
+  payload: {telegrafPlugin: string}
 }
 
-export const setActiveDataSource = (
-  dataSource: string
-): SetActiveDataSource => ({
-  type: 'SET_ACTIVE_DATA_SOURCE',
-  payload: {dataSource},
+export const setActiveTelegrafPlugin = (
+  telegrafPlugin: string
+): SetActiveTelegrafPlugin => ({
+  type: 'SET_ACTIVE_TELEGRAF_PLUGIN',
+  payload: {telegrafPlugin},
 })

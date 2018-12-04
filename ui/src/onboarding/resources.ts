@@ -18,7 +18,29 @@ export const defaultOnboardingStepProps: OnboardingStepProps = {
   onExit: jest.fn(),
 }
 
+export const token =
+  'm4aUjEIhM758JzJgRmI6f3KNOBw4ZO77gdwERucF0bj4QOLHViD981UWzjaxW9AbyA5THOMBp2SVZqzbui2Ehw=='
+
 export const telegrafConfigID = '030358c935b18000'
+
+export const cpuPlugin = {
+  name: 'cpu',
+  type: 'input',
+  comment: 'this is a test',
+  config: {},
+}
+
+export const influxDB2Plugin = {
+  name: 'influxdb_v2',
+  type: 'output',
+  comment: 'write to influxdb v2',
+  config: {
+    urls: ['http://127.0.0.1:9999'],
+    token,
+    organization: 'default',
+    bucket: 'defbuck',
+  },
+}
 
 export const telegrafConfig = {
   id: telegrafConfigID,
@@ -27,21 +49,7 @@ export const telegrafConfig = {
   lastModified: '2018-11-28T18:56:48.854337-08:00',
   lastModifiedBy: '030358b695318000',
   agent: {collectionInterval: 15},
-  plugins: [
-    {name: 'cpu', type: 'input', comment: 'this is a test', config: {}},
-    {
-      name: 'influxdb_v2',
-      type: 'output',
-      comment: 'write to influxdb v2',
-      config: {
-        urls: ['http://127.0.0.1:9999'],
-        token:
-          'm4aUjEIhM758JzJgRmI6f3KNOBw4ZO77gdwERucF0bj4QOLHViD981UWzjaxW9AbyA5THOMBp2SVZqzbui2Ehw==',
-        organization: 'default',
-        bucket: 'defbuck',
-      },
-    },
-  ],
+  plugins: [cpuPlugin, influxDB2Plugin],
 }
 
 export const telegrafConfigsResponse = {
@@ -68,9 +76,6 @@ export const telegrafConfigsResponse = {
   },
   request: {},
 }
-
-export const token =
-  'm4aUjEIhM758JzJgRmI6f3KNOBw4ZO77gdwERucF0bj4QOLHViD981UWzjaxW9AbyA5THOMBp2SVZqzbui2Ehw=='
 
 export const authResponse = {
   data: {

@@ -25,18 +25,19 @@ import {
 } from 'src/onboarding/actions/steps'
 import {
   setDataLoadersType,
-  addDataSource,
-  removeDataSource,
-  setActiveDataSource,
+  addTelegrafPlugin,
+  removeTelegrafPlugin,
+  setActiveTelegrafPlugin,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
 
 // Types
+
 import {Links} from 'src/types/v2/links'
 import {SetupParams} from 'src/onboarding/apis'
-import {DataSource, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
 import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types/v2'
 import OnboardingSideBar from 'src/onboarding/components/OnboardingSideBar'
@@ -71,13 +72,13 @@ interface DispatchProps {
   onSetCurrentStepIndex: typeof setCurrentStepIndex
   onSetStepStatus: typeof setStepStatus
   onSetDataLoadersType: typeof setDataLoadersType
-  onAddDataSource: typeof addDataSource
-  onRemoveDataSource: typeof removeDataSource
-  onSetActiveDataSource: typeof setActiveDataSource
+  onAddTelegrafPlugin: typeof addTelegrafPlugin
+  onRemoveTelegrafPlugin: typeof removeTelegrafPlugin
+  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
 }
 
 interface DataLoadersProps {
-  dataSources: DataSource[]
+  telegrafPlugins: TelegrafPlugin[]
   type: DataLoaderType
 }
 
@@ -112,10 +113,10 @@ class OnboardingWizard extends PureComponent<Props> {
     const {
       currentStepIndex,
       dataLoaders,
-      dataLoaders: {dataSources},
+      dataLoaders: {telegrafPlugins},
       onSetDataLoadersType,
-      onRemoveDataSource,
-      onAddDataSource,
+      onRemoveTelegrafPlugin,
+      onAddTelegrafPlugin,
       setupParams,
       notify,
     } = this.props
@@ -126,7 +127,7 @@ class OnboardingWizard extends PureComponent<Props> {
         <div className="wizard-contents">
           <OnboardingSideBar
             notify={notify}
-            dataSources={dataSources}
+            telegrafPlugins={telegrafPlugins}
             onTabClick={this.handleClickSideBarTab}
             title="Selected Sources"
             visible={this.sideBarVisible}
@@ -138,8 +139,8 @@ class OnboardingWizard extends PureComponent<Props> {
               setupParams={setupParams}
               dataLoaders={dataLoaders}
               onSetDataLoadersType={onSetDataLoadersType}
-              onAddDataSource={onAddDataSource}
-              onRemoveDataSource={onRemoveDataSource}
+              onAddTelegrafPlugin={onAddTelegrafPlugin}
+              onRemoveTelegrafPlugin={onRemoveTelegrafPlugin}
             />
           </div>
         </div>
@@ -180,10 +181,10 @@ class OnboardingWizard extends PureComponent<Props> {
 
   private get sideBarVisible() {
     const {currentStepIndex, dataLoaders} = this.props
-    const {dataSources, type} = dataLoaders
+    const {telegrafPlugins, type} = dataLoaders
 
     const isStreaming = type === DataLoaderType.Streaming
-    const isNotEmpty = dataSources.length > 0
+    const isNotEmpty = telegrafPlugins.length > 0
     const isSideBarStep =
       (currentStepIndex === 2 && isNotEmpty) ||
       currentStepIndex === 3 ||
@@ -192,10 +193,10 @@ class OnboardingWizard extends PureComponent<Props> {
     return isStreaming && isSideBarStep
   }
 
-  private handleClickSideBarTab = (dataSourceID: string) => {
-    const {onSetCurrentStepIndex, onSetActiveDataSource} = this.props
+  private handleClickSideBarTab = (telegrafPluginID: string) => {
+    const {onSetCurrentStepIndex, onSetActiveTelegrafPlugin} = this.props
     onSetCurrentStepIndex(3)
-    onSetActiveDataSource(dataSourceID)
+    onSetActiveTelegrafPlugin(telegrafPluginID)
   }
 
   private handleExit = () => {
@@ -259,9 +260,9 @@ const mdtp: DispatchProps = {
   onSetCurrentStepIndex: setCurrentStepIndex,
   onSetStepStatus: setStepStatus,
   onSetDataLoadersType: setDataLoadersType,
-  onAddDataSource: addDataSource,
-  onRemoveDataSource: removeDataSource,
-  onSetActiveDataSource: setActiveDataSource,
+  onAddTelegrafPlugin: addTelegrafPlugin,
+  onRemoveTelegrafPlugin: removeTelegrafPlugin,
+  onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

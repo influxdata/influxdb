@@ -7,11 +7,11 @@ import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 
 // Types
-import {DataSource} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
 
 export interface Props {
-  dataSources: DataSource[]
-  onToggleDataSource: (dataSource: string, isSelected: boolean) => void
+  telegrafPlugins: TelegrafPlugin[]
+  onToggleTelegrafPlugin: (telegrafPlugin: string, isSelected: boolean) => void
 }
 
 const STREAMING_DATA_SOURCES_OPTIONS = [
@@ -44,17 +44,20 @@ class StreamingDataSourcesSelector extends PureComponent<Props> {
     )
   }
 
-  private isCardChecked(dataSource: string) {
-    const {dataSources} = this.props
+  private isCardChecked(telegrafPlugin: string) {
+    const {telegrafPlugins} = this.props
 
-    if (dataSources.find(ds => ds.name === dataSource)) {
+    if (telegrafPlugins.find(ds => ds.name === telegrafPlugin)) {
       return true
     }
     return false
   }
 
-  private handleToggle = (dataSource: string) => () => {
-    this.props.onToggleDataSource(dataSource, this.isCardChecked(dataSource))
+  private handleToggle = (telegrafPlugin: string) => () => {
+    this.props.onToggleTelegrafPlugin(
+      telegrafPlugin,
+      this.isCardChecked(telegrafPlugin)
+    )
   }
 }
 
