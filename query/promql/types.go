@@ -313,7 +313,8 @@ func (a *Aggregate) QuerySpec() (*flux.Operation, error) {
 	return &flux.Operation{
 		ID: "merge",
 		Spec: &transformations.GroupOpSpec{
-			By: keys,
+			Columns: keys,
+			Mode:    "by",
 		},
 	}, nil
 }

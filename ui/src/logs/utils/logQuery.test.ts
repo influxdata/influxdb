@@ -68,7 +68,7 @@ describe('Logs.LogQuery', () => {
         |> range(start: 2018-10-10T22:46:24.859Z, stop: 2018-10-10T22:46:54.859Z)
         |> filter(fn: (r) => r._measurement == "syslog")
         |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-        |> group(none: true)
+        |> group()
         |> sort(columns: ["_time"])
         |> map(fn: (r) => ({time: r._time,
             severity: r.severity,

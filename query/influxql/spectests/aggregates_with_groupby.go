@@ -80,7 +80,8 @@ func init() {
 						{
 							ID: "group0",
 							Spec: &transformations.GroupOpSpec{
-								By: []string{"_measurement", "_start", "host"},
+								Columns: []string{"_measurement", "_start", "host"},
+								Mode:    "by",
 							},
 						},
 						&aggregate,

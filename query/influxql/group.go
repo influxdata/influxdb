@@ -366,7 +366,8 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 	// there is always something to group in influxql.
 	// TODO(jsternberg): A wildcard will skip this step.
 	id := t.op("group", &transformations.GroupOpSpec{
-		By: tags,
+		Columns: tags,
+		Mode:    "by",
 	}, in.ID())
 
 	if windowEvery > 0 {

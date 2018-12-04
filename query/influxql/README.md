@@ -119,7 +119,7 @@ We group together the streams based on the `GROUP BY` clause. As an example:
 
 ```
 > SELECT mean(usage_user) FROM telegraf..cpu WHERE time >= now() - 5m GROUP BY time(5m), host
-... |> group(by: ["_measurement", "_start", "host"]) |> window(every: 5m)
+... |> group(columns: ["_measurement", "_start", "host"]) |> window(every: 5m)
 ```
 
 If the `GROUP BY time(...)` doesn't exist, `window()` is skipped. Grouping will have a default of [`_measurement`, `_start`], regardless of whether a GROUP BY clause is present. If there are keys in the group by clause, they are concatenated with the default list. If a wildcard is used for grouping, then this step is skipped.
@@ -141,7 +141,7 @@ For an aggregate, the following is used instead:
 ```
 > SELECT mean(usage_user) FROM telegraf..cpu
 create_cursor(bucket: "telegraf/autogen", start: -5m, m: "cpu", f: "usage_user")
-    |> group(except: ["_field"])
+    |> group(columns: ["_field"], mode: "except")
     |> mean(timeSrc: "_start", columns: ["_value"])
 ```
 
@@ -316,9 +316,9 @@ At this point, we have a table with the partition key that is organized by the k
 We group by the measurement and the key and then use `distinct` on the values. After we find the distinct values, we group these values back by their measurements again so all of the tag values for a measurement are grouped together. We then rename the columns to the expected names.
 
 ```
-... |> group(by: ["_measurement", "_key"])
+... |> group(columns: ["_measurement", "_key"])
     |> distinct(column: "_value")
-    |> group(by: ["_measurement"])
+    |> group(columns: ["_measurement"])
     |> rename(columns: {_key: "key", _value: "value"})
 ```
 
