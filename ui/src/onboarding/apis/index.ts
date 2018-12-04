@@ -1,9 +1,12 @@
+// Libraries
 import _ from 'lodash'
 
+// Utils
 import AJAX from 'src/utils/ajax'
-
 import {telegrafsAPI, authorizationsAPI} from 'src/utils/api'
-import {Telegraf, TelegrafRequest, TelegrafRequestPlugins} from 'src/api'
+
+// Types
+import {Telegraf, TelegrafRequest, TelegrafPluginInputCpu} from 'src/api'
 
 import {getDeep} from 'src/utils/wrappers'
 
@@ -39,17 +42,16 @@ export const getTelegrafConfigTOML = async (
 }
 
 export const createTelegrafConfig = async (): Promise<Telegraf> => {
+  const plugin: TelegrafPluginInputCpu = {
+    name: TelegrafPluginInputCpu.NameEnum.Cpu,
+    type: TelegrafPluginInputCpu.TypeEnum.Input,
+    comment: 'this is a test',
+    config: {},
+  }
   const telegrafRequest: TelegrafRequest = {
     name: 'testName',
     agent: {interval: 1},
-    plugins: [
-      {
-        name: TelegrafRequestPlugins.NameEnum.Cpu,
-        type: TelegrafRequestPlugins.TypeEnum.Input,
-        comment: 'this is a test',
-        config: {},
-      },
-    ],
+    plugins: [plugin],
   }
   const {data} = await telegrafsAPI.telegrafsPost('123', telegrafRequest)
   return data

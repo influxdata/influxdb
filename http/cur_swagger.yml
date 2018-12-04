@@ -4677,29 +4677,533 @@ components:
         plugins:
           type: array
           items:
-            type: object
-            properties:
-              name:
-                type: string
-                enum: [cpu, disk, diskio, docker, file, kernel, kubernetes, logparser, mem, net_response, net, ngnix, processes, procstats, prometheus, redis, swap, syslog, system, tail, influxdb_v2]
-              type:
-                type: string
-                enum: [input, output, processor, aggregator]
-              comment:
-                type: string
-              config:
-                oneOf:
-                - $ref: '#/components/schemas/TelegrafPluginInput'
-                - $ref: '#/components/schemas/TelegrafPluginInputDocker'
-                - $ref: '#/components/schemas/TelegrafPluginInputFile'
-                - $ref: '#/components/schemas/TelegrafPluginInputKubernetes'
-                - $ref: '#/components/schemas/TelegrafPluginInputLogParser'
-                - $ref: '#/components/schemas/TelegrafPluginInputProcstat'
-                - $ref: '#/components/schemas/TelegrafPluginInputPrometheus'
-                - $ref: '#/components/schemas/TelegrafPluginInputRedis'
-                - $ref: '#/components/schemas/TelegrafPluginInputSyslog'
-                - $ref: '#/components/schemas/TelegrafPluginOutputFile'
-                - $ref: '#/components/schemas/TelegrafPluginOutputInfluxDBV2'
+            $ref: "#/components/schemas/TelegrafRequestPlugin"
+    TelegrafRequestPlugin:
+      type: object
+      discriminator: 
+        propertyName: "name"
+      required: 
+        - name
+      properties:
+        name:
+          type: string
+    TelegrafPluginInputCpu:
+      type: object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["cpu"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: "#/components/schemas/TelegrafPluginConfig"
+    TelegrafPluginInputCpuRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputCpu"
+    TelegrafPluginInputDisk:
+      type: object
+      required:
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["disk"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: "#/components/schemas/TelegrafPluginConfig"
+    TelegrafPluginInputDiskRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputDisk"
+    TelegrafPluginInputDiskio:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["diskio"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: "#/components/schemas/TelegrafPluginConfig"
+    TelegrafPluginInputDiskioRequest: 
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputDiskio"
+    TelegrafPluginInputDocker: 
+      type: 
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["docker"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginInputDockerConfig'
+    TelegrafPluginInputDockerRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputDocker"
+    TelegrafPluginInputFile:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["file"]
+        type:
+          type: string
+          enum: [input]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginInputFileConfig'
+    TelegrafPluginInputFileRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputFile"
+    TelegrafPluginInputKernel:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["kernel"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: "#/components/schemas/TelegrafPluginConfig"
+    TelegrafPluginInputKernelRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputKernel"
+    TelegrafPluginInputKubernetes:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["kubernetes"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginInputKubernetesConfig'
+    TelegrafPluginInputKubernetesRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputKubernetes"
+    TelegrafPluginInputLogParser:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["logparser"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginInputLogParserConfig'
+    TelegrafPluginInputLogParserRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputLogParser"
+    TelegrafPluginInputMem:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["mem"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: "#/components/schemas/TelegrafPluginConfig"
+    TelegrafPluginInputMemRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputMem"
+    TelegrafPluginInputNetResponse:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["net_response"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: "#/components/schemas/TelegrafPluginConfig"
+    TelegrafPluginInputNetResponseRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputNetResponse"
+    TelegrafPluginInputNet: 
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["net"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: "#/components/schemas/TelegrafPluginConfig"
+    TelegrafPluginInputNetRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputNet"
+    TelegrafPluginInputNgnix:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["ngnix"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: "#/components/schemas/TelegrafPluginConfig"
+    TelegrafPluginInputNgnixRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputNgnix"
+    TelegrafPluginInputProcesses:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["processes"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: "#/components/schemas/TelegrafPluginConfig"
+    TelegrafPluginInputProcessesRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputProcesses"
+    TelegrafPluginInputProcstat:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["procstat"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginInputProcstatConfig'
+    TelegrafPluginInputProcstatRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputProcstat"
+    TelegrafPluginInputPrometheus:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["prometheus"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginInputPrometheusConfig'
+    TelegrafPluginInputPrometheusRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginINputPrometheus"
+    TelegrafPluginInputRedis:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["redis"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginInputRedisConfig'
+    TelegrafPluginInputRedisRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputRedis"
+    TelegrafPluginInputSyslog:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["syslog"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginInputSyslogConfig'
+    TelegrafPluginInputSyslogRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputSyslog"
+    TelegrafPluginInputSwap:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["swap"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginConfig'
+    TelegrafPluginInputSwapRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputSwap"
+    TelegrafPluginInputSystem:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["system"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginConfig'
+    TelegrafPluginInputSystemRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputSystem"
+    TelegrafPluginInputTail:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["tail"]
+        type:
+          type: string
+          enum: ["input"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginConfig'
+    TelegrafPluginInputTailRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginInputTail"
+    TelegrafPluginOutputFile:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["file"]
+        type:
+          type: string
+          enum: ["output"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginOutputFileConfig'
+    TelegrafPluginOutputFileRequest:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginOutpuFile"
+    TelegrafPluginOutputInfluxDBV2:
+      type:
+        object
+      required: 
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          enum: ["influxdb_v2"]
+        type:
+          type: string
+          enum: ["output"]
+        comment:
+          type: string
+        config:
+          $ref: '#/components/schemas/TelegrafPluginOutputInfluxDBV2Config'
+    TelegrafPluginOutputInfluxDBV2Request:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/TelegrafRequestPlugin"
+        - $ref: "#/components/schemas/TelegrafPluginOutputInfluxDBV2"
+    TelegrafRequestConfig:
+      oneOf:
+        - $ref: '#/components/schemas/TelegrafPluginConfig'
+        - $ref: '#/components/schemas/TelegrafPluginInputDockerConfig'
+        - $ref: '#/components/schemas/TelegrafPluginInputFileConfig'
+        - $ref: '#/components/schemas/TelegrafPluginInputKubernetesConfig'
+        - $ref: '#/components/schemas/TelegrafPluginInputLogParserConfig'
+        - $ref: '#/components/schemas/TelegrafPluginInputProcstatConfig'
+        - $ref: '#/components/schemas/TelegrafPluginInputPrometheusConfig'
+        - $ref: '#/components/schemas/TelegrafPluginInputRedisConfig'
+        - $ref: '#/components/schemas/TelegrafPluginInputSyslogConfig'
+        - $ref: '#/components/schemas/TelegrafPluginOutputFileConfig'
+        - $ref: '#/components/schemas/TelegrafPluginOutputInfluxDBV2Config'
     Telegraf:
       type: object
       allOf:
@@ -4722,39 +5226,41 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Telegraf"
-    TelegrafPluginInput:
+    TelegrafPluginConfig:
       type: object
-    TelegrafPluginInputDocker:
+    TelegrafPluginInputDockerConfig:
       type: object
+      required: 
+        - endpoint
       properties:
         endpoint:
           type: string
-    TelegrafPluginInputFile:
+    TelegrafPluginInputFileConfig:
       type: object
       properties:
         files:
           type: array
           items:
             type: string
-    TelegrafPluginInputKubernetes:
+    TelegrafPluginInputKubernetesConfig:
       type: object
       properties:
         url:
           type: string
           format: uri
-    TelegrafPluginInputLogParser:
+    TelegrafPluginInputLogParserConfig:
       type: object
       properties:
         files:
           type: array
           items:
             type: string
-    TelegrafPluginInputProcstat:
+    TelegrafPluginInputProcstatConfig:
       type: object
       properties:
         exe:
           type: string
-    TelegrafPluginInputPrometheus:
+    TelegrafPluginInputPrometheusConfig:
       type: object
       properties:
         urls:
@@ -4762,7 +5268,7 @@ components:
           items:
             type: string
             format: uri
-    TelegrafPluginInputRedis:
+    TelegrafPluginInputRedisConfig:
       type: object
       properties:
         servers:
@@ -4771,12 +5277,12 @@ components:
             type: string
         password:
           type: string
-    TelegrafPluginInputSyslog:
+    TelegrafPluginInputSyslogConfig:
       type: object
       properties:
         server:
           type: string
-    TelegrafPluginOutputFile:
+    TelegrafPluginOutputFileConfig:
       type: object
       required:
         - files
@@ -4791,7 +5297,7 @@ components:
                 enum: [stdout, path]
               path:
                 type: string
-    TelegrafPluginOutputInfluxDBV2:
+    TelegrafPluginOutputInfluxDBV2Config:
       type: object
       required:
         - urls
@@ -4810,6 +5316,7 @@ components:
           type: string
         bucket:
           type: string
+          
     IsOnboarding:
       type: object
       properties:
