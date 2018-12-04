@@ -18,7 +18,10 @@ var labelCmpOptions = cmp.Options{
 	cmp.Transformer("Sort", func(in []*platform.Label) []*platform.Label {
 		out := append([]*platform.Label(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
-			return out[i].ResourceID.String() > out[j].ResourceID.String()
+			if out[i].Name != out[j].Name {
+				return out[i].Name < out[j].Name
+			}
+			return out[i].ResourceID.String() < out[j].ResourceID.String()
 		})
 		return out
 	}),
@@ -158,7 +161,7 @@ func CreateLabel(
 			if err != nil {
 				t.Fatalf("failed to retrieve labels: %v", err)
 			}
-			if diff := cmp.Diff(labels, tt.wants.labels, mappingCmpOptions...); diff != "" {
+			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
 				t.Errorf("labels are different -got/+want\ndiff %s", diff)
 			}
 		})
