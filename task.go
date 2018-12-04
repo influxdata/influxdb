@@ -25,7 +25,7 @@ type Task struct {
 // Run is a record created when a run of a task is scheduled.
 type Run struct {
 	ID           ID     `json:"id,omitempty"`
-	TaskID       ID     `json:"taskId"`
+	TaskID       ID     `json:"taskID"`
 	Status       string `json:"status"`
 	ScheduledFor string `json:"scheduledFor"`
 	StartedAt    string `json:"startedAt,omitempty"`

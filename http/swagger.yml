@@ -3878,9 +3878,10 @@ components:
           type: string
           enum: [
             "scheduled",
-            "executing",
+            "started",
             "failed",
-            "success"
+            "success",
+            "canceled"
           ]
         scheduledFor:
           description: Time used for run's "now" option, RFC3339.
@@ -3901,12 +3902,27 @@ components:
           description: Time run was manually requested, RFC3339Nano.
           type: string
           format: date-time
-        error:
-          $ref: "#/components/schemas/Error"
-        log:
+        links:
+          type: object
           readOnly: true
-          description: Link to the full logs for a run.
-          type: string
+          example:
+            self: "/api/v2/tasks/1/runs/1"
+            task: "/api/v2/tasks/1"
+            retry: "/api/v2/tasks/1/runs/1/retry"
+            logs: "/api/v2/tasks/1/runs/1/logs"
+          properties:
+            self:
+              type: string
+              format: uri
+            task:
+              type: string
+              format: uri
+            logs:
+              type: string
+              format: uri
+            retry:
+              type: string
+              format: uri
     Task:
       type: object
       properties:

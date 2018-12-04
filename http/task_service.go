@@ -150,7 +150,7 @@ func newTasksResponse(ts []*platform.Task) tasksResponse {
 
 type runResponse struct {
 	Links map[string]string `json:"links,omitempty"`
-	Run   platform.Run      `json:"run"`
+	platform.Run
 }
 
 func newRunResponse(r platform.Run) runResponse {
@@ -167,17 +167,23 @@ func newRunResponse(r platform.Run) runResponse {
 
 type runsResponse struct {
 	Links map[string]string `json:"links"`
-	Runs  []*platform.Run   `json:"runs"`
+	Runs  []*runResponse    `json:"runs"`
 }
 
 func newRunsResponse(rs []*platform.Run, taskID platform.ID) runsResponse {
-	return runsResponse{
+	r := runsResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/tasks/%s/runs", taskID),
 			"task": fmt.Sprintf("/api/v2/tasks/%s", taskID),
 		},
-		Runs: rs,
+		Runs: make([]*runResponse, len(rs)),
 	}
+
+	for i := range rs {
+		rs := newRunResponse(*rs[i])
+		r.Runs[i] = &rs
+	}
+	return r
 }
 
 func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
@@ -1050,7 +1056,11 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 		return nil, 0, err
 	}
 
-	runs := rs.Runs
+	runs := make([]*platform.Run, len(rs.Runs))
+	for i := range rs.Runs {
+		runs[i] = &rs.Runs[i].Run
+	}
+
 	return runs, len(runs), nil
 }
 
