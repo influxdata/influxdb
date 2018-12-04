@@ -1,6 +1,8 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
 
+import './DragAndDrop.scss'
+
 interface Props {
   fileTypesToAccept?: string
   containerClass?: string
