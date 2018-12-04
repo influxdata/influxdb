@@ -12,23 +12,15 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {LineProtocolTab, LineProtocolStatus} from 'src/types/v2/dataLoaders'
 
-interface Props {
-  activeCard?: LineProtocolStatus
-}
-
 interface State {
   activeCard: LineProtocolStatus
 }
 
 @ErrorHandling
-class LineProtocol extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
-    activeCard: LineProtocolStatus.ImportData,
-  }
-
+class LineProtocol extends PureComponent<{}, State> {
   constructor(props) {
     super(props)
-    this.state = {activeCard: this.props.activeCard}
+    this.state = {activeCard: LineProtocolStatus.ImportData}
   }
   public render() {
     const {activeCard} = this.state

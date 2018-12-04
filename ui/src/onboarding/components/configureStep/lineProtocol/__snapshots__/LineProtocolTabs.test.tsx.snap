@@ -44,11 +44,21 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
       enterURL
     </RadioButton>
   </Radio>
-  <DragAndDrop
-    compact={false}
-    submitOnDrop={false}
-    submitOnUpload={false}
-    submitText="Upload File"
-  />
+  <div
+    style={
+      Object {
+        "height": "400px",
+        "marginTop": "30px",
+        "width": "700px",
+      }
+    }
+  >
+    <DragAndDrop
+      compact={false}
+      submitOnDrop={false}
+      submitOnUpload={false}
+      submitText="Upload File"
+    />
+  </div>
 </Fragment>
 `;

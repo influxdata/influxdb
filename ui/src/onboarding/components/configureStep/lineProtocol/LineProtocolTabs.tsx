@@ -16,6 +16,12 @@ interface Props {
   tabs: LineProtocolTab[]
 }
 
+const lineProtocolTabsStyle = {
+  height: '400px',
+  width: '700px',
+  marginTop: '30px',
+}
+
 class LineProtocolTabs extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
@@ -25,7 +31,7 @@ class LineProtocolTabs extends PureComponent<Props, State> {
     return (
       <>
         {this.tabSelector}
-        {this.tabBody}
+        <div style={lineProtocolTabsStyle}>{this.tabBody}</div>
       </>
     )
   }
@@ -59,9 +65,8 @@ class LineProtocolTabs extends PureComponent<Props, State> {
     const {activeTab} = this.state
     if (activeTab === LineProtocolTab.UploadFile) {
       return <DragAndDrop submitText="Upload File" />
-    } else {
-      return null
     }
+    return
   }
 }
 
