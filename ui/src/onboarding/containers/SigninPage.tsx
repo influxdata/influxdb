@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import _, {get} from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -114,7 +114,13 @@ class SigninPage extends PureComponent<Props, State> {
       await signin(links.signin, {username, password})
       onSignInUser()
     } catch (error) {
-      notify(copy.SigninError)
+      const message = get(error, 'data.msg', '')
+
+      if (!message) {
+        return notify(copy.SigninError)
+      }
+
+      notify({...copy.SigninError, message})
     }
   }
 }

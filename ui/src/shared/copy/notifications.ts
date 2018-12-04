@@ -114,7 +114,7 @@ export const SigninSuccessful: Notification = {
 }
 export const SigninError: Notification = {
   ...defaultErrorNotification,
-  message: `OH Noes! Sign In did not work. :(`,
+  message: `Could not sign in`,
 }
 
 //  Hosts Page Notifications
