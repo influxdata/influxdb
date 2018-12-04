@@ -7,35 +7,39 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import LineProtocol from 'src/onboarding/components/configureStep/lineProtocol/LineProtocol'
 
 // Types
-import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
 
 export interface Props {
   telegrafPlugins: TelegrafPlugin[]
   currentIndex: number
+  dataLoaderType: DataLoaderType
 }
 
 @ErrorHandling
 class ConfigureDataSourceSwitcher extends PureComponent<Props> {
   public render() {
     switch (this.configurationStep) {
-      case 'Streaming':
+      case DataLoaderType.Streaming:
         return <div />
-      case 'CSV':
-      case 'Line Protocol':
+      case DataLoaderType.LineProtocol:
         return <LineProtocol />
+      case DataLoaderType.CSV:
+        return <div>{DataLoaderType.CSV}</div>
       default:
         return <div>{this.configurationStep}</div>
     }
   }
 
   private get configurationStep() {
-    const {currentIndex, telegrafPlugins} = this.props
-
-    return _.get(
-      telegrafPlugins,
-      `${currentIndex}.name`,
-      'Must select a data source'
-    )
+    const {currentIndex, telegrafPlugins, dataLoaderType} = this.props
+    if (dataLoaderType === DataLoaderType.Streaming) {
+      return _.get(
+        telegrafPlugins,
+        `${currentIndex}.name`,
+        'Must select a data source'
+      )
+    }
+    return dataLoaderType
   }
 }
 

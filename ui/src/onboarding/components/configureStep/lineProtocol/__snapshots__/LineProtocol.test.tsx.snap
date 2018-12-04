@@ -12,7 +12,7 @@ exports[`LineProtocol rendering renders! 1`] = `
   >
     Need help writing InfluxDB Line Protocol? See Documentation
   </h5>
-  <LineProtocolTabs
+  <Connect(LineProtocolTabs)
     tabs={
       Array [
         "uploadFile",

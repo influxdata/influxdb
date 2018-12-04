@@ -36,13 +36,14 @@ class ConfigureDataSourceStep extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {telegrafPlugins} = this.props
+    const {telegrafPlugins, type} = this.props
 
     return (
       <div className="onboarding-step">
         <ConfigureDataSourceSwitcher
           telegrafPlugins={telegrafPlugins}
           currentIndex={this.state.currentDataSourceIndex}
+          dataLoaderType={type}
         />
         <div className="wizard-button-bar">
           <Button

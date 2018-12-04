@@ -1,19 +1,35 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {Radio, ButtonShape} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
+import TextArea from 'src/clockface/components/inputs/TextArea'
 
 // Types
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 
-interface State {
-  activeTab: LineProtocolTab
+// Actions
+import {
+  setLineProtocolText,
+  setActiveLPTab,
+} from 'src/onboarding/actions/dataLoaders'
+
+interface OwnProps {
+  tabs: LineProtocolTab[]
 }
 
-interface Props {
-  tabs: LineProtocolTab[]
+type Props = OwnProps & DispatchProps & StateProps
+
+interface DispatchProps {
+  setLineProtocolText: typeof setLineProtocolText
+  setActiveLPTab: typeof setActiveLPTab
+}
+
+interface StateProps {
+  lineProtocolText: string
+  activeLPTab: LineProtocolTab
 }
 
 const lineProtocolTabsStyle = {
@@ -22,11 +38,7 @@ const lineProtocolTabsStyle = {
   marginTop: '30px',
 }
 
-class LineProtocolTabs extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-    this.state = {activeTab: this.props.tabs[0]}
-  }
+export class LineProtocolTabs extends PureComponent<Props> {
   public render() {
     return (
       <>
@@ -37,12 +49,12 @@ class LineProtocolTabs extends PureComponent<Props, State> {
   }
 
   private handleTabClick = (tab: LineProtocolTab) => () => {
-    this.setState({activeTab: tab})
+    const {setActiveLPTab} = this.props
+    setActiveLPTab(tab)
   }
 
   private get tabSelector(): JSX.Element {
-    const {tabs} = this.props
-    const {activeTab} = this.state
+    const {tabs, activeLPTab} = this.props
     return (
       <Radio shape={ButtonShape.Default}>
         {tabs.map(t => (
@@ -51,7 +63,7 @@ class LineProtocolTabs extends PureComponent<Props, State> {
             id={t}
             titleText={t}
             value={t}
-            active={activeTab === t}
+            active={activeLPTab === t}
             onClick={this.handleTabClick(t)}
           >
             {t}
@@ -62,12 +74,43 @@ class LineProtocolTabs extends PureComponent<Props, State> {
   }
 
   private get tabBody(): JSX.Element {
-    const {activeTab} = this.state
-    if (activeTab === LineProtocolTab.UploadFile) {
-      return <DragAndDrop submitText="Upload File" />
+    const {setLineProtocolText, lineProtocolText, activeLPTab} = this.props
+
+    if (activeLPTab === LineProtocolTab.UploadFile) {
+      return (
+        <DragAndDrop
+          submitText="Upload File"
+          handleSubmit={setLineProtocolText}
+        />
+      )
+    }
+    if (activeLPTab === LineProtocolTab.EnterManually) {
+      return (
+        <TextArea
+          value={lineProtocolText}
+          placeholder="Write text here"
+          handleSubmitText={setLineProtocolText}
+        />
+      )
     }
     return
   }
 }
 
-export default LineProtocolTabs
+const mstp = ({
+  onboarding: {
+    dataLoaders: {lineProtocolText, activeLPTab},
+  },
+}): StateProps => {
+  return {lineProtocolText, activeLPTab}
+}
+
+const mdtp: DispatchProps = {
+  setLineProtocolText,
+  setActiveLPTab,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(LineProtocolTabs)
