@@ -5,7 +5,7 @@ import classnames from 'classnames'
 // Components
 import SideBarTab from 'src/onboarding/components/side_bar/SideBarTab'
 import SideBarButton from 'src/onboarding/components/side_bar/SideBarButton'
-import {ComponentSpacer, Direction, Alignment} from 'src/clockface'
+import {ComponentSpacer, Stack, Alignment} from 'src/clockface'
 
 // Styles
 import './SideBar.scss'
@@ -39,7 +39,7 @@ class SideBar extends Component<Props> {
             <div className="side-bar--tabs">{this.childTabs}</div>
             <div className="side-bar--buttons">
               <ComponentSpacer
-                direction={Direction.Vertical}
+                stackChildren={Stack.Rows}
                 align={Alignment.Left}
               >
                 {this.childButtons}

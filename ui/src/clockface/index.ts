@@ -22,6 +22,7 @@ import SparkleSpinner from './components/spinners/SparkleSpinner'
 import IndexList from './components/index_views/IndexList'
 import Context from './components/context_menu/Context'
 import FormElement from 'src/clockface/components/form_layout/FormElement'
+import DraggableResizer from 'src/clockface/components/draggable_resizer/DraggableResizer'
 
 // Import Types
 import {
@@ -35,7 +36,7 @@ import {
   IconFont,
   Columns,
   Alignment,
-  Direction,
+  Stack,
   ButtonType,
   Sort,
 } from './types'
@@ -49,7 +50,8 @@ export {
   ButtonType,
   ComponentSpacer,
   Context,
-  Direction,
+  Stack,
+  DraggableResizer,
   Dropdown,
   DropdownMode,
   MultiSelectDropdown,

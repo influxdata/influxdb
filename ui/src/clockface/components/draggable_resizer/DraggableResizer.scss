@@ -1,0 +1,140 @@
+/*
+  Draggable Resizer
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.draggable-resizer {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  align-items: stretch;
+  flex-wrap: nowrap;
+
+  &.draggable-resizer--horizontal {
+    flex-direction: column;
+
+    &.draggable-resizer--dragging,
+    &.draggable-resizer--dragging:hover {
+      cursor: row-resize !important;
+    }
+  }
+
+  &.draggable-resizer--vertical {
+    flex-direction: row;
+
+    &.draggable-resizer--dragging,
+    &.draggable-resizer--dragging:hover {
+      cursor: col-resize !important;
+    }
+  }
+}
+
+.draggable-resizer--dragging {
+  position: relative;
+  z-index: $z--draggable-resizer-mask;
+  user-select: none;
+
+  &:after {
+    content: '';
+    z-index: -1;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+
+  .draggable-resizer--panel {
+    pointer-events: none;
+  }
+}
+
+.draggable-resizer--panel {
+  position: relative;
+}
+
+.draggable-resizer--handle {
+  flex: 0 0 8px;
+  background-color: transparent;
+  position: relative;
+
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 2px;
+  }
+  
+  &:before {
+    z-index: 1;
+    background-color: $g5-pepper;
+  }
+
+  &:after {
+    opacity: 0;
+    z-index: 2;
+    background-color: $c-pool;
+    transition: opacity 0.25s ease, height 0.2s ease, width 0.2s ease;
+  }
+
+  &:hover:after {
+    opacity: 1;
+  }
+
+  // Prevents adjacent handles from lighting up when one is being dragged
+  .draggable-resizer--dragging &:not(.draggable-resizer--handle-dragging):hover:after {
+    opacity: 0;
+  }
+}
+
+// Horizontal Handle Styles
+.draggable-resizer--horizontal .draggable-resizer--handle {
+  &:hover {
+    cursor: row-resize;
+  }
+
+  &:before,
+  &:after {
+    width: 60px;
+    height: 4px;
+  }
+  &:after {
+    @include gradient-h($c-pool, $c-comet);
+  }
+}
+
+// Vertical Handle Styles
+.draggable-resizer--vertical .draggable-resizer--handle {
+  &:hover {
+    cursor: col-resize;
+  }
+
+  &:before,
+  &:after {
+    width: 4px;
+    height: 60px;
+  }
+  &:after {
+    @include gradient-v($c-pool, $c-comet);
+  }
+}
+
+// Handle Dragging State
+.draggable-resizer--horizontal .draggable-resizer--handle-dragging:after,
+.draggable-resizer--vertical .draggable-resizer--handle-dragging:after {
+  opacity: 1;
+}
+
+.draggable-resizer--horizontal .draggable-resizer--handle-dragging:after {
+  width: calc(100% - 60px);
+}
+
+.draggable-resizer--vertical .draggable-resizer--handle-dragging:after {
+  height: calc(100% - 60px);
+}

@@ -17,7 +17,7 @@ import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 
 // Types
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {Alignment, Direction, ComponentStatus} from 'src/clockface/types'
+import {Alignment, Stack, ComponentStatus} from 'src/clockface/types'
 import {Organization} from 'src/api'
 
 interface Props {
@@ -78,7 +78,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             <Form.Element label="Schedule Task" colsXS={Columns.Twelve}>
               <ComponentSpacer
                 align={Alignment.Left}
-                direction={Direction.Vertical}
+                stackChildren={Stack.Rows}
               >
                 <Radio shape={ButtonShape.StretchToFit}>
                   <Radio.Button

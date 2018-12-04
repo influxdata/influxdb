@@ -40,7 +40,7 @@ exports[`SideBar rendering renders with children, and renders its children 1`] =
       >
         <ComponentSpacer
           align="left"
-          direction="vertical"
+          stackChildren="rows"
         >
           <SideBarButton
             color="secondary"
@@ -86,7 +86,7 @@ exports[`SideBar rendering renders with no children 1`] = `
       >
         <ComponentSpacer
           align="left"
-          direction="vertical"
+          stackChildren="rows"
         />
       </div>
     </div>
