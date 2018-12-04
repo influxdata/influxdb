@@ -56,6 +56,7 @@ v1.6.0 [2018-07-05]
 -	[#10215](https://github.com/influxdata/influxdb/pull/10215): Switch digests to use snappy compression.
 -	[#10321](https://github.com/influxdata/influxdb/pull/10321): Changes /ping route to return status code 200 instead of 204 when verbose is set.
 -	[#10300](https://github.com/influxdata/influxdb/pull/10300): Improve Compaction Performance.
+-	[#10130](https://github.com/influxdata/influxdb/pull/10130): client/v2: support custom dialer, not just socks proxy.
 
 ### Bugfixes
 
