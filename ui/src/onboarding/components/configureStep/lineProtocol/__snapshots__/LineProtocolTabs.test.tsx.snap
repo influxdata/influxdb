@@ -8,7 +8,7 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
     size="sm"
   >
     <RadioButton
-      active={true}
+      active={false}
       disabled={false}
       disabledTitleText="This option is disabled"
       id="uploadFile"
@@ -52,13 +52,6 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
         "width": "700px",
       }
     }
-  >
-    <DragAndDrop
-      compact={false}
-      submitOnDrop={false}
-      submitOnUpload={false}
-      submitText="Upload File"
-    />
-  </div>
+  />
 </Fragment>
 `;

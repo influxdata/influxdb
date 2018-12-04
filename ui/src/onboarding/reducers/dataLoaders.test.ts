@@ -22,7 +22,11 @@ describe('dataLoader reducer', () => {
       INITIAL_STATE,
       setDataLoadersType(DataLoaderType.Streaming)
     )
-    const expected = {telegrafPlugins: [], type: DataLoaderType.Streaming}
+    const expected = {
+      ...INITIAL_STATE,
+      telegrafPlugins: [],
+      type: DataLoaderType.Streaming,
+    }
 
     expect(actual).toEqual(expected)
   })
@@ -38,6 +42,7 @@ describe('dataLoader reducer', () => {
       })
     )
     const expected = {
+      ...INITIAL_STATE,
       telegrafPlugins: [
         {
           name: TelegrafRequestPlugins.NameEnum.Cpu,
@@ -76,6 +81,7 @@ describe('dataLoader reducer', () => {
     )
 
     const expected = {
+      ...INITIAL_STATE,
       type: DataLoaderType.Streaming,
       telegrafPlugins: [
         {
@@ -113,6 +119,7 @@ describe('dataLoader reducer', () => {
       removeTelegrafPlugin(TelegrafRequestPlugins.NameEnum.Cpu)
     )
     const expected = {
+      ...INITIAL_STATE,
       telegrafPlugins: [],
       type: DataLoaderType.Streaming,
     }

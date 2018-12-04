@@ -1,11 +1,17 @@
 // Types
-import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {
+  TelegrafPlugin,
+  DataLoaderType,
+  LineProtocolTab,
+} from 'src/types/v2/dataLoaders'
 
 export type Action =
   | SetDataLoadersType
   | AddTelegrafPlugin
   | RemoveTelegrafPlugin
   | SetActiveTelegrafPlugin
+  | SetLineProtocolText
+  | SetActiveLPTab
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -53,4 +59,28 @@ export const setActiveTelegrafPlugin = (
 ): SetActiveTelegrafPlugin => ({
   type: 'SET_ACTIVE_TELEGRAF_PLUGIN',
   payload: {telegrafPlugin},
+})
+
+interface SetLineProtocolText {
+  type: 'SET_LINE_PROTOCOL_TEXT'
+  payload: {lineProtocolText: string}
+}
+
+export const setLineProtocolText = (
+  lineProtocolText: string
+): SetLineProtocolText => ({
+  type: 'SET_LINE_PROTOCOL_TEXT',
+  payload: {lineProtocolText},
+})
+
+interface SetActiveLPTab {
+  type: 'SET_ACTIVE_LP_TAB'
+  payload: {activeLPTab: LineProtocolTab}
+}
+
+export const setActiveLPTab = (
+  activeLPTab: LineProtocolTab
+): SetActiveLPTab => ({
+  type: 'SET_ACTIVE_LP_TAB',
+  payload: {activeLPTab},
 })

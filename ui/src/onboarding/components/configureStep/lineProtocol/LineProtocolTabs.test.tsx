@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import LineProtocolTabs from 'src/onboarding/components/configureStep/lineProtocol/LineProtocolTabs'
+import {LineProtocolTabs} from 'src/onboarding/components/configureStep/lineProtocol/LineProtocolTabs'
 
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 
@@ -29,15 +29,6 @@ describe('LineProtocolTabs', () => {
       expect(wrapper.exists()).toBe(true)
 
       expect(wrapper).toMatchSnapshot()
-    })
-    it('selects first tab as activeTab on load', () => {
-      const reorderedTabs = [
-        LineProtocolTab.EnterManually,
-        LineProtocolTab.UploadFile,
-        LineProtocolTab.EnterURL,
-      ]
-      const {wrapper} = setup({tabs: reorderedTabs})
-      expect(wrapper.state('activeTab')).toBe(reorderedTabs[0])
     })
   })
 })

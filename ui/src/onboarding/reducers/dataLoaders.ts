@@ -1,15 +1,23 @@
 // Types
 import {Action} from 'src/onboarding/actions/dataLoaders'
-import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {
+  TelegrafPlugin,
+  DataLoaderType,
+  LineProtocolTab,
+} from 'src/types/v2/dataLoaders'
 
 export interface DataLoadersState {
   telegrafPlugins: TelegrafPlugin[]
   type: DataLoaderType
+  lineProtocolText: string
+  activeLPTab: LineProtocolTab
 }
 
 export const INITIAL_STATE: DataLoadersState = {
   telegrafPlugins: [],
   type: DataLoaderType.Empty,
+  lineProtocolText: '',
+  activeLPTab: LineProtocolTab.UploadFile,
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
@@ -43,6 +51,16 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
           }
           return {...tp, active: false}
         }),
+      }
+    case 'SET_LINE_PROTOCOL_TEXT':
+      return {
+        ...state,
+        lineProtocolText: action.payload.lineProtocolText,
+      }
+    case 'SET_ACTIVE_LP_TAB':
+      return {
+        ...state,
+        activeLPTab: action.payload.activeLPTab,
       }
     default:
       return state
