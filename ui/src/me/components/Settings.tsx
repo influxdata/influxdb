@@ -4,7 +4,7 @@ import React, {PureComponent} from 'react'
 // Components
 import {Button} from 'src/clockface'
 
-import {logout} from 'src/user/apis'
+import {logout} from 'src/me/apis'
 
 interface Props {
   signOutLink: string

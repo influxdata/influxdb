@@ -18,7 +18,7 @@ import {IconFont} from 'src/clockface'
 import '../PageLayout.scss'
 
 // MOCK DATA
-import {LeroyJenkins} from 'src/user/mockUserData'
+import {LeroyJenkins} from 'src/me/mockUserData'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -121,7 +121,7 @@ class SideNav extends PureComponent<Props> {
       {
         type: NavItemType.Avatar,
         title: 'My Profile',
-        link: '/user_profile',
+        link: '/me',
         image: LeroyJenkins.avatar,
         location: location.pathname,
         highlightWhen: ['user_profile'],

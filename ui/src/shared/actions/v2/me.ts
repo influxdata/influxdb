@@ -1,4 +1,5 @@
 import {AppState} from 'src/types/v2'
+import {MeState} from 'src/shared/reducers/v2/me'
 import {getMe as getMeAPI} from 'src/shared/apis/v2/user'
 
 export enum ActionTypes {
@@ -10,10 +11,7 @@ type GetStateFunc = () => AppState
 export interface SetMe {
   type: ActionTypes.SetMe
   payload: {
-    me: {
-      id: string
-      name: string
-    }
+    me: MeState
   }
 }
 

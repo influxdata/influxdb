@@ -1,12 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
+import {Link} from 'react-router'
 
 // Components
-import Support from 'src/user/components/Support'
-import Settings from 'src/user/components/Settings'
-import OrgsList from 'src/user/components/OrgsList'
-import DashboardsList from 'src/user/components/DashboardsList'
+import Support from 'src/me/components/Support'
+import Settings from 'src/me/components/Settings'
+import OrgsList from 'src/me/components/OrgsList'
+import DashboardsList from 'src/me/components/DashboardsList'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import {Panel, Spinner} from 'src/clockface'
 
@@ -14,19 +14,14 @@ import {Panel, Spinner} from 'src/clockface'
 import {getOrganizations, getDashboards} from 'src/organizations/apis'
 
 // Types
-import {Links, User, Organization, Dashboard, AppState} from 'src/types/v2'
+import {Links, Organization, Dashboard, MeState} from 'src/types/v2'
 
 const VERSION = process.env.npm_package_version
 
-interface OwnProps {
-  user: User
-}
-
-interface StateProps {
+interface Props {
+  me: MeState
   links: Links
 }
-
-type Props = OwnProps & StateProps
 
 class ResourceLists extends PureComponent<Props> {
   public render() {
@@ -35,11 +30,18 @@ class ResourceLists extends PureComponent<Props> {
     return (
       <>
         <Panel>
-          <Panel.Header title="User Settings">
+          <Panel.Header title="My Settings">
             <Settings signOutLink={links.signout} />
           </Panel.Header>
           <Panel.Body>
-            <span>Your Settings Here</span>
+            <ul className="link-list">
+              <li>
+                <Link to={`/account/settings`}>Account Settings</Link>
+              </li>
+              <li>
+                <Link to={`/account/tokens`}>Tokens</Link>
+              </li>
+            </ul>
           </Panel.Body>
         </Panel>
         <Panel>
@@ -86,8 +88,4 @@ class ResourceLists extends PureComponent<Props> {
   }
 }
 
-const mstp = ({links}: AppState): StateProps => ({
-  links,
-})
-
-export default connect<StateProps>(mstp)(ResourceLists)
+export default ResourceLists

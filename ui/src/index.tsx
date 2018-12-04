@@ -27,7 +27,7 @@ import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
-import {UserPage} from 'src/user'
+import {MePage, Account} from 'src/me'
 import {LogsPage} from 'src/logs'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
@@ -107,7 +107,8 @@ class Root extends PureComponent {
                             path="dashboards"
                             component={DashboardsIndex}
                           />
-                          <Route path="user_profile" component={UserPage} />
+                          <Route path="me" component={MePage} />
+                          <Route path="account/:tab" component={Account} />
                           <Route path="logs" component={LogsPage} />
                           <Route path="sources" component={SourcesPage} />
                         </Route>

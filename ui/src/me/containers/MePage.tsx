@@ -1,41 +1,37 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Styles
-import 'src/user/containers/UserPage.scss'
+import 'src/me/containers/MePage.scss'
 
 // Components
 import {Page} from 'src/pageLayout'
-import Resources from 'src/user/components/Resources'
-import Header from 'src/user/components/UserPageHeader'
-import Docs from 'src/user/components/Docs'
+import Resources from 'src/me/components/Resources'
+import Header from 'src/me/components/UserPageHeader'
+import Docs from 'src/me/components/Docs'
 
 // Types
-import {User} from 'src/types/v2'
+import {MeState, AppState, Links} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// MOCK DATA
-import {LeroyJenkins} from 'src/user/mockUserData'
 import {Panel} from 'src/clockface'
 
-interface Props {
-  user: User
+interface StateProps {
+  me: MeState
+  links: Links
 }
 
 @ErrorHandling
-export class UserPage extends PureComponent<Props> {
-  public static defaultProps: Partial<Props> = {
-    user: LeroyJenkins,
-  }
-
+export class MePage extends PureComponent<StateProps> {
   public render() {
-    const {user} = this.props
+    const {me, links} = this.props
 
     return (
       <Page className="user-page">
-        <Header title={`Howdy, ${user.name}!`} />
+        <Header title={`Howdy, ${me.name}!`} />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-8">
             <Panel>
@@ -47,7 +43,7 @@ export class UserPage extends PureComponent<Props> {
             <Docs />
           </div>
           <div className="col-xs-4">
-            <Resources user={user} />
+            <Resources me={me} links={links} />
           </div>
         </Page.Contents>
       </Page>
@@ -55,4 +51,13 @@ export class UserPage extends PureComponent<Props> {
   }
 }
 
-export default UserPage
+const mstp = (state: AppState): StateProps => {
+  const {me, links} = state
+
+  return {me, links}
+}
+
+export default connect<StateProps>(
+  mstp,
+  null
+)(MePage)
