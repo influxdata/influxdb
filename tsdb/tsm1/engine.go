@@ -499,11 +499,18 @@ func (e *Engine) DiskSize() int64 {
 	return e.FileStore.DiskSizeBytes() + walDiskSizeBytes
 }
 
+var _blockMetrics *blockMetrics
+var _mu sync.RWMutex
+
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
-	// Initialise metrics...
-	e.blockMetrics = newBlockMetrics(e.defaultMetricLabels)
+	// Initialise metrics if an engine has not done so already.
+	_mu.Lock()
+	if _blockMetrics == nil {
+		_blockMetrics = newBlockMetrics(e.defaultMetricLabels)
+	}
 
+	e.blockMetrics = _blockMetrics
 	// Propagate prometheus metrics down into trackers.
 	e.compactionTracker = newCompactionTracker(e.blockMetrics.compactionMetrics)
 	e.FileStore.tracker = newFileTracker(e.blockMetrics.fileMetrics)
@@ -513,6 +520,7 @@ func (e *Engine) Open() error {
 	if wal, ok := e.WAL.(*WAL); ok {
 		wal.tracker = newWALTracker(e.blockMetrics.walMetrics)
 	}
+	_mu.Unlock()
 
 	e.scheduler.setCompactionTracker(e.compactionTracker)
 
