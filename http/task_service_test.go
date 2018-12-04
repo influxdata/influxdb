@@ -316,7 +316,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), logger.New(os.Stdout))
+			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout))
 			h.TaskService = tt.fields.taskService
 			h.handleGetRun(w, r)
 
@@ -424,7 +424,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), logger.New(os.Stdout))
+			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout))
 			h.TaskService = tt.fields.taskService
 			h.handleGetRuns(w, r)
 
