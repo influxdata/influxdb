@@ -47,9 +47,9 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
   <div
     style={
       Object {
-        "height": "400px",
+        "height": "280px",
         "marginTop": "30px",
-        "width": "700px",
+        "width": "750px",
       }
     }
   />
