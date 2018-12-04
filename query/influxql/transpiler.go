@@ -202,11 +202,13 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 			"_value": "value",
 		},
 	}, t.op("group", &transformations.GroupOpSpec{
-		By: []string{"_measurement"},
+		Columns: []string{"_measurement"},
+		Mode:    "by",
 	}, t.op("distinct", &transformations.DistinctOpSpec{
 		Column: execute.DefaultValueColLabel,
 	}, t.op("group", &transformations.GroupOpSpec{
-		By: []string{"_measurement", "_key"},
+		Columns: []string{"_measurement", "_key"},
+		Mode:    "by",
 	}, op)))), nil
 }
 

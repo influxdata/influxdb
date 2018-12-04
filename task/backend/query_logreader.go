@@ -46,7 +46,7 @@ func (qlr *QueryLogReader) ListLogs(ctx context.Context, logFilter platform.LogF
   |> range(start: -100h)
   |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
   %s
-  |> group(by: ["taskID", "runID", "_measurement"])
+  |> group(columns: ["taskID", "runID", "_measurement"])
   `, filterPart)
 
 	auth, err := pctx.GetAuthorizer(ctx)
@@ -110,7 +110,7 @@ func (qlr *QueryLogReader) ListRuns(ctx context.Context, runFilter platform.RunF
   |> range(start: -24h)
   |> filter(fn: (r) => r._measurement == "records" and r.taskID == %q)
   |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-  |> group(by: ["scheduledFor"])
+  |> group(columns: ["scheduledFor"])
   |> filter(fn: (r) => r.scheduledFor < %q and r.scheduledFor > %q)
   |> sort(desc: true, columns: ["_start"]) |> limit(n: 1)
 
@@ -122,7 +122,7 @@ main = from(bucketID: "000000000000000a")
   |> filter(fn: (r) => r.runID > %q)
 
 join(tables: {main: main, supl: supl}, on: ["_start", "_stop", "orgID", "taskID", "runID", "_measurement"])
-  |> group(by: ["_measurement"])
+  |> group(columns: ["_measurement"])
   %s
   |> yield(name: "result")
   `, runFilter.Task.String(), scheduledBefore, scheduledAfter, runFilter.Task.String(), afterID, limit)
@@ -151,7 +151,7 @@ func (qlr *QueryLogReader) FindRunByID(ctx context.Context, orgID, runID platfor
   |> filter(fn: (r) => r._measurement == "records")
   |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
   |> filter(fn: (r) => r.runID == %q)
-  |> group(by: ["scheduledFor"])
+  |> group(columns: ["scheduledFor"])
   |> sort(desc: true, columns: ["_start"]) |> limit(n: 1)
 
 logs = from(bucketID: "000000000000000a")

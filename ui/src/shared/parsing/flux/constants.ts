@@ -72,7 +72,7 @@ From the following request:
 
     from(db: "telegraf")
       |> range(start: -24h)
-      |> group(none: true)
+      |> group()
       |> keys(except:["_time","_value","_start","_stop"])
       |> map(fn: (r) => r._value)
 */

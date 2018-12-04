@@ -366,7 +366,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     desc:
       'Groups records based on their values for specific columns. It produces tables with new group keys based on provided properties.',
-    example: 'group(by: ["host", "_measurement"])',
+    example: 'group(columns: ["host", "_measurement"])',
     category: 'Transformations',
     link:
       'https://docs.influxdata.com/flux/latest/functions/transformations/group',

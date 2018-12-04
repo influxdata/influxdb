@@ -3,11 +3,13 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/functions"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/platform"
 	"github.com/pkg/errors"
@@ -181,6 +183,20 @@ const (
 	// GroupModeExcept produces a table for the unique values of all keys, except those specified by GroupKeys.
 	GroupModeExcept
 )
+
+// ToGroupMode accepts the group mode from Flux and produces the appropriate storage group mode.
+func ToGroupMode(fluxMode functions.GroupMode) GroupMode {
+	switch fluxMode {
+	case functions.GroupModeNone:
+		return GroupModeDefault
+	case functions.GroupModeBy:
+		return GroupModeBy
+	case functions.GroupModeExcept:
+		return GroupModeExcept
+	default:
+		panic(fmt.Sprint("unknown group mode: ", fluxMode))
+	}
+}
 
 type ReadSpec struct {
 	OrganizationID platform.ID

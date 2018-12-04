@@ -31,7 +31,7 @@ const buildRowsQuery = (
     `range(start: ${lower}, stop: ${upper})`,
     `filter(fn: (${ROW_NAME}) => ${ROW_NAME}._measurement == "${measurement}")`,
     `pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")`,
-    `group(none: true)`,
+    `group()`,
   ]
 }
 
