@@ -13,11 +13,14 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
   public componentDidMount() {
     window.addEventListener('keydown', this.handleKeydown)
   }
+
   public componentWillUnmount() {
     window.removeEventListener('keydown', this.handleKeydown)
   }
+
   public render() {
-    const {onExit} = this.props
+    const {onExit, onDecrementCurrentStepIndex} = this.props
+
     return (
       <div className="onboarding-step">
         <div className="splash-logo secondary" />
@@ -28,7 +31,7 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
             color={ComponentColor.Default}
             text="Back"
             size={ComponentSize.Medium}
-            onClick={this.props.onDecrementCurrentStepIndex}
+            onClick={onDecrementCurrentStepIndex}
           />
           <Button
             color={ComponentColor.Success}

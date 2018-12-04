@@ -156,10 +156,7 @@ class OnboardingWizard extends PureComponent<Props> {
       onSetCurrentStepIndex,
     } = this.props
 
-    if (
-      currentStepIndex === 0 ||
-      currentStepIndex === stepStatuses.length - 1
-    ) {
+    if (currentStepIndex === 0) {
       return <div className="wizard--progress-header hidden" />
     }
 
