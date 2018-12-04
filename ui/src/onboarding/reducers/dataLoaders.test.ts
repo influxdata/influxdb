@@ -7,117 +7,113 @@ import dataLoadersReducer, {
 // Actions
 import {
   setDataLoadersType,
-  addDataSource,
-  removeDataSource,
+  addTelegrafPlugin,
+  removeTelegrafPlugin,
+  setActiveTelegrafPlugin,
 } from 'src/onboarding/actions/dataLoaders'
 
+// Types
+import {TelegrafRequestPlugins} from 'src/api'
 import {DataLoaderType, ConfigurationState} from 'src/types/v2/dataLoaders'
 
 describe('dataLoader reducer', () => {
-  describe('if type is streaming', () => {
-    it('can set a type', () => {
-      const actual = dataLoadersReducer(
-        INITIAL_STATE,
-        setDataLoadersType(DataLoaderType.Streaming)
-      )
-      const expected = {dataSources: [], type: DataLoaderType.Streaming}
-
-      expect(actual).toEqual(expected)
-    })
-  })
-
-  describe('if type is not streaming', () => {
-    it('cant set a type not streaming', () => {
-      const actual = dataLoadersReducer(
-        INITIAL_STATE,
-        setDataLoadersType(DataLoaderType.CSV)
-      )
-      const expected = {
-        dataSources: [
-          {
-            name: 'CSV',
-            configured: ConfigurationState.Unconfigured,
-            active: true,
-            configs: null,
-          },
-        ],
-        type: DataLoaderType.CSV,
-      }
-
-      expect(actual).toEqual(expected)
-    })
-  })
-
-  describe('if data source is added', () => {
-    it('can add a data source', () => {
-      const actual = dataLoadersReducer(
-        INITIAL_STATE,
-        addDataSource({
-          name: 'CSV',
-          configured: ConfigurationState.Unconfigured,
-          active: true,
-          configs: null,
-        })
-      )
-      const expected = {
-        dataSources: [
-          {
-            name: 'CSV',
-            configured: ConfigurationState.Unconfigured,
-            active: true,
-            configs: null,
-          },
-        ],
-        type: DataLoaderType.Empty,
-      }
-
-      expect(actual).toEqual(expected)
-    })
-  })
-
-  it('can add a streaming data source', () => {
+  it('can set a type', () => {
     const actual = dataLoadersReducer(
-      {...INITIAL_STATE, type: DataLoaderType.Streaming},
-      addDataSource({
-        name: 'CPU',
+      INITIAL_STATE,
+      setDataLoadersType(DataLoaderType.Streaming)
+    )
+    const expected = {telegrafPlugins: [], type: DataLoaderType.Streaming}
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can add a telegraf plugin', () => {
+    const actual = dataLoadersReducer(
+      INITIAL_STATE,
+      addTelegrafPlugin({
+        name: TelegrafRequestPlugins.NameEnum.Cpu,
         configured: ConfigurationState.Unconfigured,
         active: true,
-        configs: null,
+        config: null,
       })
     )
     const expected = {
-      dataSources: [
+      telegrafPlugins: [
         {
-          name: 'CPU',
+          name: TelegrafRequestPlugins.NameEnum.Cpu,
           configured: ConfigurationState.Unconfigured,
           active: true,
-          configs: null,
+          config: null,
         },
       ],
-      type: DataLoaderType.Streaming,
+      type: DataLoaderType.Empty,
     }
 
     expect(actual).toEqual(expected)
   })
 
-  it('can remove a streaming data source', () => {
+  it('can set the active telegraf plugin', () => {
     const actual = dataLoadersReducer(
       {
         ...INITIAL_STATE,
         type: DataLoaderType.Streaming,
-        dataSources: [
+        telegrafPlugins: [
           {
-            name: 'CPU',
+            name: TelegrafRequestPlugins.NameEnum.Cpu,
             configured: ConfigurationState.Unconfigured,
             active: true,
-            configs: null,
+            config: null,
+          },
+          {
+            name: TelegrafRequestPlugins.NameEnum.Disk,
+            configured: ConfigurationState.Unconfigured,
+            active: false,
+            config: null,
           },
         ],
       },
-      removeDataSource('CPU')
+      setActiveTelegrafPlugin(TelegrafRequestPlugins.NameEnum.Disk)
+    )
+
+    const expected = {
+      type: DataLoaderType.Streaming,
+      telegrafPlugins: [
+        {
+          name: TelegrafRequestPlugins.NameEnum.Cpu,
+          configured: ConfigurationState.Unconfigured,
+          active: false,
+          config: null,
+        },
+        {
+          name: TelegrafRequestPlugins.NameEnum.Disk,
+          configured: ConfigurationState.Unconfigured,
+          active: true,
+          config: null,
+        },
+      ],
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can remove a telegraf plugin', () => {
+    const actual = dataLoadersReducer(
+      {
+        ...INITIAL_STATE,
+        type: DataLoaderType.Streaming,
+        telegrafPlugins: [
+          {
+            name: TelegrafRequestPlugins.NameEnum.Cpu,
+            configured: ConfigurationState.Unconfigured,
+            active: true,
+            config: null,
+          },
+        ],
+      },
+      removeTelegrafPlugin(TelegrafRequestPlugins.NameEnum.Cpu)
     )
     const expected = {
-      dataSources: [],
+      telegrafPlugins: [],
       type: DataLoaderType.Streaming,
     }
 

@@ -1,17 +1,14 @@
-//  Utils
-import {getInitialDataSources} from 'src/onboarding/utils/dataLoaders'
-
 // Types
 import {Action} from 'src/onboarding/actions/dataLoaders'
-import {DataSource, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
 
 export interface DataLoadersState {
-  dataSources: DataSource[]
+  telegrafPlugins: TelegrafPlugin[]
   type: DataLoaderType
 }
 
 export const INITIAL_STATE: DataLoadersState = {
-  dataSources: [],
+  telegrafPlugins: [],
   type: DataLoaderType.Empty,
 }
 
@@ -21,28 +18,30 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
       return {
         ...state,
         type: action.payload.type,
-        dataSources: getInitialDataSources(action.payload.type),
       }
-    case 'ADD_DATA_SOURCE':
+    case 'ADD_TELEGRAF_PLUGIN':
       return {
         ...state,
-        dataSources: [...state.dataSources, action.payload.dataSource],
+        telegrafPlugins: [
+          ...state.telegrafPlugins,
+          action.payload.telegrafPlugin,
+        ],
       }
-    case 'REMOVE_DATA_SOURCE':
+    case 'REMOVE_TELEGRAF_PLUGIN':
       return {
         ...state,
-        dataSources: state.dataSources.filter(
-          ds => ds.name !== action.payload.dataSource
+        telegrafPlugins: state.telegrafPlugins.filter(
+          tp => tp.name !== action.payload.telegrafPlugin
         ),
       }
-    case 'SET_ACTIVE_DATA_SOURCE':
+    case 'SET_ACTIVE_TELEGRAF_PLUGIN':
       return {
         ...state,
-        dataSources: state.dataSources.map(ds => {
-          if (ds.name === action.payload.dataSource) {
-            return {...ds, active: true}
+        telegrafPlugins: state.telegrafPlugins.map(tp => {
+          if (tp.name === action.payload.telegrafPlugin) {
+            return {...tp, active: true}
           }
-          return {...ds, active: false}
+          return {...tp, active: false}
         }),
       }
     default:

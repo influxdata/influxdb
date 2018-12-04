@@ -13,19 +13,20 @@ import DataSourceTypeSelector from 'src/onboarding/components/selectionStep/Type
 import StreamingDataSourceSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
 
 // Types
+import {TelegrafRequestPlugins} from 'src/api'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {
-  DataSource,
+  TelegrafPlugin,
   DataLoaderType,
   ConfigurationState,
 } from 'src/types/v2/dataLoaders'
 
 export interface Props extends OnboardingStepProps {
   bucket: string
-  dataSources: DataSource[]
+  telegrafPlugins: TelegrafPlugin[]
   type: DataLoaderType
-  onAddDataSource: (dataSource: DataSource) => void
-  onRemoveDataSource: (dataSource: string) => void
+  onAddTelegrafPlugin: (telegrafPlugin: TelegrafPlugin) => void
+  onRemoveTelegrafPlugin: (TelegrafPlugin: string) => void
   onSetDataLoadersType: (type: DataLoaderType) => void
 }
 
@@ -85,14 +86,14 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     ) {
       return (
         <StreamingDataSourceSelector
-          dataSources={this.props.dataSources}
-          onToggleDataSource={this.handleToggleDataSource}
+          telegrafPlugins={this.props.telegrafPlugins}
+          onToggleTelegrafPlugin={this.handleToggleTelegrafPlugin}
         />
       )
     }
     return (
       <DataSourceTypeSelector
-        onSelectDataSource={this.handleSelectDataSource}
+        onSelectTelegrafPlugin={this.handleSelectTelegrafPlugin}
         type={this.props.type}
       />
     )
@@ -119,29 +120,29 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     this.props.onDecrementCurrentStepIndex()
   }
 
-  private handleSelectDataSource = (dataSource: DataLoaderType) => {
-    this.props.onSetDataLoadersType(dataSource)
+  private handleSelectTelegrafPlugin = (telegrafPlugin: DataLoaderType) => {
+    this.props.onSetDataLoadersType(telegrafPlugin)
     return
   }
 
-  private handleToggleDataSource = (
-    dataSource: string,
+  private handleToggleTelegrafPlugin = (
+    telegrafPlugin: TelegrafRequestPlugins.NameEnum,
     isSelected: boolean
   ) => {
-    const {dataSources} = this.props
+    const {telegrafPlugins} = this.props
 
     if (isSelected) {
-      this.props.onRemoveDataSource(dataSource)
+      this.props.onRemoveTelegrafPlugin(telegrafPlugin)
 
       return
     }
 
-    const active = dataSources.length === 0
-    this.props.onAddDataSource({
-      name: dataSource,
+    const active = telegrafPlugins.length === 0
+    this.props.onAddTelegrafPlugin({
+      name: telegrafPlugin,
       configured: ConfigurationState.Unconfigured,
       active,
-      configs: null,
+      config: {},
     })
   }
 }

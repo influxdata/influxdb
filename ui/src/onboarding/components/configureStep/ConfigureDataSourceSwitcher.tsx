@@ -6,10 +6,10 @@ import _ from 'lodash'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {DataSource} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
 
 export interface Props {
-  dataSources: DataSource[]
+  telegrafPlugins: TelegrafPlugin[]
   currentIndex: number
 }
 
@@ -17,6 +17,8 @@ export interface Props {
 class ConfigureDataSourceSwitcher extends PureComponent<Props> {
   public render() {
     switch (this.configurationStep) {
+      case 'Streaming':
+        return <div />
       case 'CSV':
       case 'Line Protocol':
       default:
@@ -25,10 +27,10 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
   }
 
   private get configurationStep() {
-    const {currentIndex, dataSources} = this.props
+    const {currentIndex, telegrafPlugins} = this.props
 
     return _.get(
-      dataSources,
+      telegrafPlugins,
       `${currentIndex}.name`,
       'Must select a data source'
     )

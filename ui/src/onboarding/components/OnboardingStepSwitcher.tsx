@@ -13,23 +13,23 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
 import {
-  addDataSource,
-  removeDataSource,
+  addTelegrafPlugin,
+  removeTelegrafPlugin,
   setDataLoadersType,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
 import {SetupParams} from 'src/onboarding/apis'
-import {DataSource, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 interface Props {
   onboardingStepProps: OnboardingStepProps
-  onAddDataSource: typeof addDataSource
-  onRemoveDataSource: typeof removeDataSource
+  onAddTelegrafPlugin: typeof addTelegrafPlugin
+  onRemoveTelegrafPlugin: typeof removeTelegrafPlugin
   onSetDataLoadersType: typeof setDataLoadersType
   setupParams: SetupParams
-  dataLoaders: {dataSources: DataSource[]; type: DataLoaderType}
+  dataLoaders: {telegrafPlugins: TelegrafPlugin[]; type: DataLoaderType}
   currentStepIndex: number
 }
 
@@ -42,8 +42,8 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
       setupParams,
       dataLoaders,
       onSetDataLoadersType,
-      onAddDataSource,
-      onRemoveDataSource,
+      onAddTelegrafPlugin,
+      onRemoveTelegrafPlugin,
     } = this.props
 
     switch (currentStepIndex) {
@@ -58,8 +58,8 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
             {...dataLoaders}
             onSetDataLoadersType={onSetDataLoadersType}
             bucket={_.get(setupParams, 'bucket', '')}
-            onAddDataSource={onAddDataSource}
-            onRemoveDataSource={onRemoveDataSource}
+            onAddTelegrafPlugin={onAddTelegrafPlugin}
+            onRemoveTelegrafPlugin={onRemoveTelegrafPlugin}
           />
         )
       case 3:

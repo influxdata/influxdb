@@ -16,13 +16,13 @@ import {getTelegrafConfigTOML, createTelegrafConfig} from 'src/onboarding/apis'
 
 // Types
 import {IconFont} from 'src/clockface'
-import {DataSource, ConfigurationState} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, ConfigurationState} from 'src/types/v2/dataLoaders'
 import {NotificationAction} from 'src/types'
 
 interface Props {
   title: string
   visible: boolean
-  dataSources: DataSource[]
+  telegrafPlugins: TelegrafPlugin[]
   notify: NotificationAction
   onTabClick: (tabID: string) => void
 }
@@ -31,16 +31,8 @@ const configStateToTabStatus = (cs: ConfigurationState): TabStatus => {
   switch (cs) {
     case ConfigurationState.Unconfigured:
       return TabStatus.Default
-    case ConfigurationState.Verifying:
-      return TabStatus.Pending
     case ConfigurationState.Configured:
-      return TabStatus.Default
-    case ConfigurationState.Loading:
-      return TabStatus.Pending
-    case ConfigurationState.Done:
       return TabStatus.Success
-    case ConfigurationState.Error:
-      return TabStatus.Error
   }
 }
 
@@ -55,8 +47,8 @@ class OnboardingSideBar extends Component<Props> {
   }
 
   private get tabs(): JSX.Element[] {
-    const {dataSources, onTabClick} = this.props
-    return dataSources.map(t => (
+    const {telegrafPlugins, onTabClick} = this.props
+    return telegrafPlugins.map(t => (
       <SideBar.Tab
         label={t.name}
         key={t.name}

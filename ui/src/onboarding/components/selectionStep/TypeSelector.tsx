@@ -10,7 +10,7 @@ import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 export interface Props {
-  onSelectDataSource: (dataSource: string) => void
+  onSelectTelegrafPlugin: (telegrafPlugin: string) => void
   type: DataLoaderType
 }
 
@@ -41,14 +41,14 @@ class DataSourceTypeSelector extends PureComponent<Props> {
     )
   }
 
-  private isCardChecked(dataSource: DataLoaderType) {
+  private isCardChecked(dataLoaderType: DataLoaderType) {
     const {type} = this.props
 
-    return dataSource === type
+    return dataLoaderType === type
   }
 
-  private handleClick = (dataSource: string) => () => {
-    this.props.onSelectDataSource(dataSource)
+  private handleClick = (telegrafPlugin: string) => () => {
+    this.props.onSelectTelegrafPlugin(telegrafPlugin)
   }
 }
 

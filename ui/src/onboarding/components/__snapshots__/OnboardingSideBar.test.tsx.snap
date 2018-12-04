@@ -6,20 +6,16 @@ exports[`OnboardingSideBar rendering renders! wee! 1`] = `
   visible={true}
 >
   <SideBarTab
-    active={true}
-    id="bestDataSource"
-    key="bestDataSource"
-    label="bestDataSource"
+    id="cpu"
+    key="cpu"
+    label="cpu"
     onClick={[MockFunction]}
-    status="default"
   />
   <SideBarTab
-    active={true}
-    id="secondBestDataSource"
-    key="secondBestDataSource"
-    label="secondBestDataSource"
+    id="influxdb_v2"
+    key="influxdb_v2"
+    label="influxdb_v2"
     onClick={[MockFunction]}
-    status="success"
   />
   <SideBarButton
     color="secondary"
