@@ -396,7 +396,7 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:d5919f2880c18c7932e0a65208389b58d40ec7b5cb313bfde56b4ca791bfa380"
+  digest = "1:e892d35e57d857a44c3f07e5fe4b4cdeb28c4b5cec5c62fe838894c11f631513"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -423,8 +423,8 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "adb2411fee9ccc65d671d4ce29861eb387174f6b"
-  version = "v0.7.1"
+  revision = "899c777004b1f39a95a1422beede164ea44877d2"
+  version = "v0.7.2"
 
 [[projects]]
   branch = "master"
