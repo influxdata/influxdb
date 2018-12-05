@@ -26,7 +26,7 @@ import {sourceCreationFailed} from 'src/shared/copy/notifications'
 import 'src/sources/components/CreateSourceOverlay.scss'
 
 // Types
-import {Source} from 'src/types/v2'
+import {Source, SourceType} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
 
 interface DispatchProps {
@@ -49,7 +49,7 @@ class CreateSourceOverlay extends PureComponent<Props, State> {
   public state: State = {
     draftSource: {
       name: '',
-      type: 'v1',
+      type: SourceType.V1,
       url: '',
     },
     creationStatus: RemoteDataState.NotStarted,
@@ -94,16 +94,16 @@ class CreateSourceOverlay extends PureComponent<Props, State> {
               <Form.Element label="Type">
                 <Radio>
                   <Radio.Button
-                    active={draftSource.type === 'v1'}
+                    active={draftSource.type === SourceType.V1}
                     onClick={this.handleChangeType}
-                    value="v1"
+                    value={SourceType.V1}
                   >
                     v1
                   </Radio.Button>
                   <Radio.Button
-                    active={draftSource.type === 'v2'}
+                    active={draftSource.type === SourceType.V2}
                     onClick={this.handleChangeType}
-                    value="v2"
+                    value={SourceType.V2}
                   >
                     v2
                   </Radio.Button>
@@ -144,7 +144,7 @@ class CreateSourceOverlay extends PureComponent<Props, State> {
     this.setState({draftSource})
   }
 
-  private handleChangeType = (type: 'v1' | 'v2') => {
+  private handleChangeType = (type: SourceType) => {
     const draftSource = {
       ...this.state.draftSource,
       type,

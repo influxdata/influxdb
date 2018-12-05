@@ -6,7 +6,7 @@ import {URLQuery} from 'src/types/v2/dashboards'
 const CHECK_LIMIT_INTERVAL = 200
 const MAX_ROWS = 50000
 
-interface ExecuteFluxQueryResult {
+export interface ExecuteFluxQueryResult {
   csv: string
   didTruncate: boolean
   rowCount: number

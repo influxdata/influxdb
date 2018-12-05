@@ -10,7 +10,7 @@ export enum SourceAuthenticationMethod {
 export interface Source {
   id: string
   name: string
-  type: string
+  type: SourceType
   username?: string
   password?: string
   sharedSecret?: string
@@ -30,4 +30,10 @@ export interface SourceLinks {
   query: string
   buckets: string
   health: string
+}
+
+export enum SourceType {
+  V1 = 'v1',
+  V2 = 'v2',
+  Self = 'self',
 }

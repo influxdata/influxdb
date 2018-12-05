@@ -1,34 +1,38 @@
 @import "src/style/modules";
 
-.selector-card {
+.builder-card {
   position: relative;
   overflow: hidden;
-  min-height: 200px;
+  min-height: 150px;
   background: $g3-castle;
   border-radius: 4px;
   display: flex;
   flex-direction: column;
+  font-size: 13px;
 }
 
-.selector-card--header {
+.builder-card-search-bar {
   margin: 10px;
-  flex: 0 0 0;
+  flex-grow: 0;
+  flex-shrink: 0;
 }
 
-.selector-card--items {
+.builder-card--items {
   flex: 1 1 0;
   overflow: scroll;
 }
 
-.selector-card--item {
-  font-size: 13px;
+.builder-card--item {
   font-weight: 500;
-  padding: 8px 16px;
+  padding: 5px 15px;
   margin-bottom: 1px;
   cursor: pointer;
+  color: $g14-chromium;
+  font-family: $code-font;
 
   &.selected {
     background: $c-pool;
+    color: $g18-cloud;
   }
 
   &.selected:hover {
@@ -41,7 +45,7 @@
   }
 }
 
-.selector-card--empty {
+.builder-card--empty {
   position: absolute;
   top: 50%;
   transform: translate(0, -50%);
@@ -59,4 +63,11 @@
     margin: 0 auto;
 
   }
+}
+
+.builder-card-limit-message {
+  padding: 15px;
+  color: $g9-mountain;
+  text-align: center;
+  font-style: italic;
 }

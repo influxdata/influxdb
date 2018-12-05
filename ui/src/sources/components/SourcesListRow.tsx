@@ -20,7 +20,7 @@ import 'src/sources/components/SourcesListRow.scss'
 
 // Types
 import {AppState} from 'src/types/v2'
-import {Source} from 'src/types/v2'
+import {Source, SourceType} from 'src/types/v2'
 
 interface StateProps {
   activeSourceID: string
@@ -43,7 +43,7 @@ const SourcesListRow: SFC<Props> = ({
   onSetActiveSource,
   onDeleteSource,
 }) => {
-  const canDelete = source.type !== 'self'
+  const canDelete = source.type !== SourceType.Self
   const isActiveSource = source.id === activeSourceID
   const onButtonClick = () => onSetActiveSource(source.id)
   const onDeleteClick = () => onDeleteSource(source.id)

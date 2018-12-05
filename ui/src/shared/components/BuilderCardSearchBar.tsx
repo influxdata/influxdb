@@ -2,13 +2,13 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Input, ComponentSize, ComponentStatus} from 'src/clockface'
+import {Input, ComponentSize} from 'src/clockface'
 
 // Utils
 import DefaultDebouncer, {Debouncer} from 'src/shared/utils/debouncer'
 import {CancellationError} from 'src/utils/restartable'
 
-const SEARCH_DEBOUNCE_MS = 500
+const SEARCH_DEBOUNCE_MS = 350
 
 interface Props {
   onSearch: (searchTerm: string) => Promise<void>
@@ -16,24 +16,22 @@ interface Props {
 
 interface State {
   searchTerm: string
-  status: ComponentStatus
 }
 
-class SelectorCardSearchBar extends PureComponent<Props, State> {
-  public state: State = {searchTerm: '', status: ComponentStatus.Default}
+class BuilderCardSearchBar extends PureComponent<Props, State> {
+  public state: State = {searchTerm: ''}
 
   private debouncer: Debouncer = new DefaultDebouncer()
 
   public render() {
-    const {searchTerm, status} = this.state
+    const {searchTerm} = this.state
 
     return (
-      <div className="selector-card-search-bar">
+      <div className="builder-card-search-bar">
         <Input
           size={ComponentSize.Small}
           placeholder="Search..."
           value={searchTerm}
-          status={status}
           onChange={this.handleChange}
         />
       </div>
@@ -41,9 +39,8 @@ class SelectorCardSearchBar extends PureComponent<Props, State> {
   }
 
   private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    this.setState(
-      {searchTerm: e.target.value, status: ComponentStatus.Loading},
-      () => this.debouncer.call(this.emitChange, SEARCH_DEBOUNCE_MS)
+    this.setState({searchTerm: e.target.value}, () =>
+      this.debouncer.call(this.emitChange, SEARCH_DEBOUNCE_MS)
     )
   }
 
@@ -53,19 +50,14 @@ class SelectorCardSearchBar extends PureComponent<Props, State> {
 
     try {
       await onSearch(searchTerm)
-
-      this.setState({status: ComponentStatus.Default})
     } catch (e) {
       if (e instanceof CancellationError) {
         return
       }
 
-      this.setState({
-        searchTerm: '',
-        status: ComponentStatus.Default,
-      })
+      this.setState({searchTerm: ''})
     }
   }
 }
 
-export default SelectorCardSearchBar
+export default BuilderCardSearchBar

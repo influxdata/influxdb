@@ -9,6 +9,7 @@
   bottom: 0;
   display: flex;
   padding: 10px;
+  @include no-user-select();
 }
 
 .query-builder--panel {
@@ -29,11 +30,22 @@
   text-transform: uppercase;
   font-weight: 500;
   font-size: 13px;
-  text-align: center;
   color: $g8-storm;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  small {
+    margin-left: 10px;
+    padding: 2px 4px 2px 3px;
+    border-radius: 2px;
+    background-color: $g4-onyx;
+    font-style: italic;
+    font-size: 11px;
+  }
 }
 
-.selector-card {
+.builder-card {
   height: 100%;
   flex: 1 1 0;
 }

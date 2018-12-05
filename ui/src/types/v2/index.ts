@@ -1,4 +1,4 @@
-import {Source} from 'src/types/v2/sources'
+import {Source, SourceType} from 'src/types/v2/sources'
 import {Bucket, RetentionRule, RetentionRuleTypes} from 'src/types/v2/buckets'
 import {RangeState} from 'src/dashboards/reducers/v2/ranges'
 import {ViewsState} from 'src/dashboards/reducers/v2/views'
@@ -12,6 +12,7 @@ import {
   ViewParams,
   ViewProperties,
   DashboardQuery,
+  InfluxLanguage,
 } from 'src/types/v2/dashboards'
 
 import {Cell, Dashboard} from 'src/api'
@@ -56,6 +57,7 @@ export type GetState = () => AppState
 
 export {
   Source,
+  SourceType,
   Member,
   Bucket,
   OverlayState,
@@ -77,4 +79,5 @@ export {
   Organization,
   Task,
   MeState,
+  InfluxLanguage,
 }
