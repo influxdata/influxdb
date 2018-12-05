@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/influxdata/influxdb/cmd"
 	"github.com/influxdata/influxdb/cmd/influx_tools/compact"
 	"github.com/influxdata/influxdb/cmd/influx_tools/export"
+	genexec "github.com/influxdata/influxdb/cmd/influx_tools/generate/exec"
+	geninit "github.com/influxdata/influxdb/cmd/influx_tools/generate/init"
 	"github.com/influxdata/influxdb/cmd/influx_tools/help"
 	"github.com/influxdata/influxdb/cmd/influx_tools/importer"
 	"github.com/influxdata/influxdb/cmd/influx_tools/server"
@@ -65,9 +68,20 @@ func (m *Main) Run(args ...string) error {
 			return fmt.Errorf("export failed: %s", err)
 		}
 	case "import":
-		cmd := importer.NewCommand(&ossServer{logger: zap.NewNop()})
-		if err := cmd.Run(args); err != nil {
+		c := importer.NewCommand(&ossServer{logger: zap.NewNop()})
+		if err := c.Run(args); err != nil {
 			return fmt.Errorf("import failed: %s", err)
+		}
+	case "gen-init":
+		c := geninit.NewCommand(&ossServer{logger: zap.NewNop()})
+		if err := c.Run(args); err != nil {
+			return fmt.Errorf("gen-init failed: %s", err)
+		}
+	case "gen-exec":
+		deps := genexec.Dependencies{Server: &ossServer{logger: zap.NewNop()}}
+		c := genexec.NewCommand(deps)
+		if err := c.Run(args); err != nil {
+			return fmt.Errorf("gen-exec failed: %s", err)
 		}
 	default:
 		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influx-tools help' for usage`+"\n\n", name)
@@ -81,6 +95,7 @@ type ossServer struct {
 	config   *run.Config
 	noClient bool
 	client   *meta.Client
+	mc       server.MetaClient
 }
 
 func (s *ossServer) Open(path string) (err error) {
@@ -103,6 +118,7 @@ func (s *ossServer) Open(path string) (err error) {
 		s.client = nil
 		return err
 	}
+	s.mc = &ossMetaClient{s.client}
 	return nil
 }
 
@@ -113,9 +129,10 @@ func (s *ossServer) Close() {
 	}
 }
 
-func (s *ossServer) MetaClient() server.MetaClient { return s.client }
+func (s *ossServer) MetaClient() server.MetaClient { return s.mc }
 func (s *ossServer) TSDBConfig() tsdb.Config       { return s.config.Data }
 func (s *ossServer) Logger() *zap.Logger           { return s.logger }
+func (s *ossServer) NodeID() uint64                { return 0 }
 
 // ParseConfig parses the config at path.
 // It returns a demo configuration if path is blank.
@@ -151,4 +168,14 @@ func (s *ossServer) resolvePath(path string) string {
 		}
 	}
 	return ""
+}
+
+type ossMetaClient struct {
+	*meta.Client
+}
+
+func (*ossMetaClient) NodeID() uint64 { return 0 }
+
+func (c *ossMetaClient) NodeShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+	return c.ShardGroupsByTimeRange(database, policy, min, max)
 }
