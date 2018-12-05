@@ -8,9 +8,6 @@ import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/Aut
 // Utils
 import {AutoRefresher} from 'src/utils/AutoRefresher'
 
-// Constants
-import {FIVE_SECONDS} from 'src/shared/constants'
-
 // Types
 import {incrementSubmitToken} from 'src/shared/actions/v2/timeMachines'
 
@@ -23,7 +20,7 @@ interface State {
 }
 
 class TimeMachineRefreshDropdown extends PureComponent<DispatchProps, State> {
-  public state: State = {autoRefreshInterval: FIVE_SECONDS}
+  public state: State = {autoRefreshInterval: 0}
   private autoRefresher = new AutoRefresher()
 
   public componentDidMount() {
@@ -53,6 +50,7 @@ class TimeMachineRefreshDropdown extends PureComponent<DispatchProps, State> {
       <AutoRefreshDropdown
         selected={autoRefreshInterval}
         onChoose={this.handleChooseInterval}
+        showManualRefresh={false}
       />
     )
   }
