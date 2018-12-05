@@ -28,7 +28,6 @@ import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import {MePage, Account} from 'src/me'
-import {LogsPage} from 'src/logs'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
@@ -109,7 +108,6 @@ class Root extends PureComponent {
                           />
                           <Route path="me" component={MePage} />
                           <Route path="account/:tab" component={Account} />
-                          <Route path="logs" component={LogsPage} />
                           <Route path="sources" component={SourcesPage} />
                         </Route>
                       </Route>

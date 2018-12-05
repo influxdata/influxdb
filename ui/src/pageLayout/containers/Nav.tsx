@@ -88,14 +88,6 @@ class SideNav extends PureComponent<Props> {
       },
       {
         type: NavItemType.Icon,
-        title: 'Logs',
-        link: '/logs',
-        icon: IconFont.Wood,
-        location: location.pathname,
-        highlightWhen: ['logs'],
-      },
-      {
-        type: NavItemType.Icon,
         title: 'Tasks',
         link: '/tasks',
         icon: IconFont.Alerts,

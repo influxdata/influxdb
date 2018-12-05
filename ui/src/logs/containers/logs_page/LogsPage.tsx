@@ -403,7 +403,8 @@ class LogsPage extends Component<Props, State> {
       this.startLogsTailFetchingInterval()
     }
 
-    this.props.startFetchingOlder()
+    // Todo: fix fetching older to handle missing query params
+    // this.props.startFetchingOlder()
   }
 
   private clearCurrentSearch = async (searchStatus: SearchStatus) => {
