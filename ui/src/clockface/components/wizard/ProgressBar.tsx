@@ -30,11 +30,10 @@ class ProgressBar extends PureComponent<Props, null> {
     const {stepStatuses, stepTitles, currentStepIndex} = this.props
 
     const lastIndex = stepStatuses.length - 1
-    const lastEleIndex = stepStatuses.length - 2
 
     const progressBar: JSX.Element[] = stepStatuses.reduce(
       (acc, stepStatus, i) => {
-        if (i === 0 || i === lastIndex) {
+        if (i === 0) {
           return [...acc]
         }
 
@@ -64,7 +63,7 @@ class ProgressBar extends PureComponent<Props, null> {
           </div>
         )
 
-        if (i === lastEleIndex) {
+        if (i === lastIndex) {
           return [...acc, stepEle]
         }
 
@@ -74,7 +73,7 @@ class ProgressBar extends PureComponent<Props, null> {
         if (i === currentStepIndex && stepStatus !== StepStatus.Error) {
           connectorStatus = ConnectorState.Some
         }
-        if (i === lastEleIndex || stepStatus === StepStatus.Complete) {
+        if (i === lastIndex || stepStatus === StepStatus.Complete) {
           connectorStatus = ConnectorState.Full
         }
         const connectorEle = (
