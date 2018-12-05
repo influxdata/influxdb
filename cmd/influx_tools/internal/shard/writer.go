@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/errlist"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+	"github.com/influxdata/platform/pkg/data/gen"
 )
 
 const (
@@ -22,6 +23,7 @@ type Writer struct {
 	files    []string
 	gen, seq int
 	err      error
+	buf      []byte
 	auto     bool
 }
 
@@ -62,6 +64,8 @@ func NewWriter(id uint64, path string, opts ...option) *Writer {
 		opt(w)
 	}
 
+	w.nextTSM()
+
 	return w
 }
 
@@ -70,8 +74,24 @@ func (w *Writer) Write(key []byte, values tsm1.Values) {
 		return
 	}
 
-	if w.tw == nil {
+	if w.tw.Size() > maxTSMFileSize {
+		w.closeTSM()
 		w.nextTSM()
+	}
+
+	if err := w.tw.Write(key, values); err != nil {
+		if err == tsm1.ErrMaxBlocksExceeded {
+			w.closeTSM()
+			w.nextTSM()
+		} else {
+			w.err = err
+		}
+	}
+}
+
+func (w *Writer) WriteV(key []byte, values gen.Values) {
+	if w.err != nil {
+		return
 	}
 
 	if w.tw.Size() > maxTSMFileSize {
@@ -79,7 +99,14 @@ func (w *Writer) Write(key []byte, values tsm1.Values) {
 		w.nextTSM()
 	}
 
-	if err := w.tw.Write(key, values); err != nil {
+	minT, maxT := values.MinTime(), values.MaxTime()
+	var err error
+	if w.buf, err = values.Encode(w.buf); err != nil {
+		w.err = err
+		return
+	}
+
+	if err := w.tw.WriteBlock(key, minT, maxT, w.buf); err != nil {
 		if err == tsm1.ErrMaxBlocksExceeded {
 			w.closeTSM()
 			w.nextTSM()
