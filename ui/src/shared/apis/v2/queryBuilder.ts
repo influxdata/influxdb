@@ -91,9 +91,9 @@ function findMeasurementsFlux(
   }
 
   query += `
-  |> group(by: ["_measurement"])
+  |> group(columns: ["_measurement"])
   |> distinct(column: "_measurement")
-  |> group(none: true)
+  |> group()
   |> sort(columns: ["_measurement"])
   |> limit(n: ${LIMIT})`
 
@@ -120,9 +120,9 @@ function findFieldsFlux(
   }
 
   query += `
-  |> group(by: ["_field"])
+  |> group(columns: ["_field"])
   |> distinct(column: "_field")
-  |> group(none: true)
+  |> group()
   |> sort(columns: ["_field"])
   |> limit(n: ${LIMIT})`
 
