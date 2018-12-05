@@ -30,6 +30,27 @@ func TestSelect_Twa_FloatPoint(t *testing.T) {
 		err    string
 	}{
 		{
+			name: "TimeWeightedAverage_Integer_Grouping_OneSamplePerGroup_WithMissingPoint",
+			q:    `SELECT time_weighted_average(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:14Z' GROUP BY time(2s)'`,
+			typ:  influxql.Integer,
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 1},
+					{Name: "cpu", Time: 1 * Second, Value: 2},
+					{Name: "cpu", Time: 5 * Second, Value: 3},
+				}},
+			},
+			rows: []query.Row{
+				{Time: 0 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{float64(1.5)}},
+				{Time: 2 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{nil}},
+				{Time: 4 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{float64(2.5)}},
+				{Time: 6 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{nil}},
+				{Time: 8 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{nil}},
+				{Time: 10 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{nil}},
+				{Time: 12 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{nil}},
+			},
+		},
+		{
 			name: "TimeWeightedAverage_Float_Grouping_LookBehind",
 			q:    `SELECT time_weighted_average(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:04Z' GROUP BY time(2s)'`,
 			typ:  influxql.Float,
