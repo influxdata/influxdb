@@ -1,11 +1,34 @@
 package tsm1
 
 import (
-	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// The following package variables act as singletons, to be shared by all Engine
+// instantiations. This allows multiple Engines to be instantiated within the
+// same process.
+var (
+	bms *blockMetrics
+	mmu sync.RWMutex
+)
+
+// PrometheusCollectors returns all prometheus metrics for the tsm1 package.
+func PrometheusCollectors() []prometheus.Collector {
+	mmu.RLock()
+	defer mmu.RUnlock()
+
+	var collectors []prometheus.Collector
+	if bms != nil {
+		collectors = append(collectors, bms.compactionMetrics.PrometheusCollectors()...)
+		collectors = append(collectors, bms.fileMetrics.PrometheusCollectors()...)
+		collectors = append(collectors, bms.cacheMetrics.PrometheusCollectors()...)
+		collectors = append(collectors, bms.walMetrics.PrometheusCollectors()...)
+	}
+	return collectors
+}
 
 // namespace is the leading part of all published metrics for the Storage service.
 const namespace = "storage"
@@ -47,8 +70,6 @@ func (m *blockMetrics) PrometheusCollectors() []prometheus.Collector {
 
 // compactionMetrics are a set of metrics concerned with tracking data about compactions.
 type compactionMetrics struct {
-	labels prometheus.Labels // Read Only
-
 	CompactionsActive  *prometheus.GaugeVec
 	CompactionDuration *prometheus.HistogramVec
 	CompactionQueue    *prometheus.GaugeVec
@@ -69,7 +90,6 @@ func newCompactionMetrics(labels prometheus.Labels) *compactionMetrics {
 	sort.Strings(totalCompactionsNames)
 
 	return &compactionMetrics{
-		labels: labels,
 		Compactions: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: compactionSubsystem,
@@ -99,17 +119,6 @@ func newCompactionMetrics(labels prometheus.Labels) *compactionMetrics {
 	}
 }
 
-// Labels returns a copy of labels for use with compaction metrics.
-func (m *compactionMetrics) Labels(level compactionLevel) prometheus.Labels {
-	l := make(map[string]string, len(m.labels))
-	for k, v := range m.labels {
-		l[k] = v
-	}
-	// N.B all compaction metrics include level. So it's included here.
-	l["level"] = fmt.Sprint(level)
-	return l
-}
-
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (m *compactionMetrics) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
@@ -122,7 +131,6 @@ func (m *compactionMetrics) PrometheusCollectors() []prometheus.Collector {
 
 // fileMetrics are a set of metrics concerned with tracking data about compactions.
 type fileMetrics struct {
-	labels   prometheus.Labels
 	DiskSize *prometheus.GaugeVec
 	Files    *prometheus.GaugeVec
 }
@@ -136,7 +144,6 @@ func newFileMetrics(labels prometheus.Labels) *fileMetrics {
 	sort.Strings(names)
 
 	return &fileMetrics{
-		labels: labels,
 		DiskSize: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: fileStoreSubsystem,
@@ -152,15 +159,6 @@ func newFileMetrics(labels prometheus.Labels) *fileMetrics {
 	}
 }
 
-// Labels returns a copy of labels for use with file metrics.
-func (m *fileMetrics) Labels() prometheus.Labels {
-	l := make(map[string]string, len(m.labels))
-	for k, v := range m.labels {
-		l[k] = v
-	}
-	return l
-}
-
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (m *fileMetrics) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
@@ -171,8 +169,6 @@ func (m *fileMetrics) PrometheusCollectors() []prometheus.Collector {
 
 // cacheMetrics are a set of metrics concerned with tracking data about the TSM Cache.
 type cacheMetrics struct {
-	labels prometheus.Labels // Read Only
-
 	MemSize          *prometheus.GaugeVec
 	DiskSize         *prometheus.GaugeVec
 	SnapshotsActive  *prometheus.GaugeVec
@@ -196,7 +192,6 @@ func newCacheMetrics(labels prometheus.Labels) *cacheMetrics {
 	sort.Strings(writeNames)
 
 	return &cacheMetrics{
-		labels: labels,
 		MemSize: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: cacheSubsystem,
@@ -242,15 +237,6 @@ func newCacheMetrics(labels prometheus.Labels) *cacheMetrics {
 	}
 }
 
-// Labels returns a copy of labels for use with cache metrics.
-func (m *cacheMetrics) Labels() prometheus.Labels {
-	l := make(map[string]string, len(m.labels))
-	for k, v := range m.labels {
-		l[k] = v
-	}
-	return l
-}
-
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (m *cacheMetrics) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
@@ -266,7 +252,6 @@ func (m *cacheMetrics) PrometheusCollectors() []prometheus.Collector {
 
 // walMetrics are a set of metrics concerned with tracking data about compactions.
 type walMetrics struct {
-	labels              prometheus.Labels
 	OldSegmentBytes     *prometheus.GaugeVec
 	CurrentSegmentBytes *prometheus.GaugeVec
 	Segments            *prometheus.GaugeVec
@@ -285,7 +270,6 @@ func newWALMetrics(labels prometheus.Labels) *walMetrics {
 	sort.Strings(writeNames)
 
 	return &walMetrics{
-		labels: labels,
 		OldSegmentBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: walSubsystem,
@@ -311,15 +295,6 @@ func newWALMetrics(labels prometheus.Labels) *walMetrics {
 			Help:      "Number of writes to the WAL.",
 		}, writeNames),
 	}
-}
-
-// Labels returns a copy of labels for use with WAL metrics.
-func (m *walMetrics) Labels() prometheus.Labels {
-	l := make(map[string]string, len(m.labels))
-	for k, v := range m.labels {
-		l[k] = v
-	}
-	return l
 }
 
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.

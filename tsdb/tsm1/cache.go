@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -187,7 +188,7 @@ func NewCache(maxSize uint64) *Cache {
 		maxSize:      maxSize,
 		store:        emptyStore{},
 		lastSnapshot: time.Now(),
-		tracker:      newCacheTracker(newCacheMetrics(nil)),
+		tracker:      newCacheTracker(newCacheMetrics(nil), nil),
 	}
 	c.initialize.Store(&sync.Once{})
 	return c
@@ -337,10 +338,9 @@ func (c *Cache) Snapshot() (*Cache, error) {
 			return nil, err
 		}
 
-		newMetrics := newCacheMetrics(c.tracker.metrics.Labels())
 		c.snapshot = &Cache{
 			store:   store,
-			tracker: newCacheTracker(newMetrics),
+			tracker: newCacheTracker(c.tracker.metrics, c.tracker.labels),
 		}
 	}
 
@@ -405,10 +405,9 @@ func (c *Cache) ClearSnapshot(success bool) {
 		c.tracker.SubMemBytes(snapshotSize) // decrement the number of bytes in cache
 
 		// Reset the snapshot to a fresh Cache.
-		newMetrics := newCacheMetrics(c.tracker.metrics.Labels())
 		c.snapshot = &Cache{
 			store:   c.snapshot.store,
-			tracker: newCacheTracker(newMetrics),
+			tracker: newCacheTracker(c.tracker.metrics, c.tracker.labels),
 		}
 
 		c.tracker.SetSnapshotSize(0)
@@ -734,6 +733,7 @@ func (c *Cache) UpdateAge() {
 // could result in the Engine exposing inaccurate metrics.
 type cacheTracker struct {
 	metrics         *cacheMetrics
+	labels          prometheus.Labels
 	snapshotsActive uint64
 	snapshotSize    uint64
 	cacheSize       uint64
@@ -745,15 +745,25 @@ type cacheTracker struct {
 	writesErr        uint64
 }
 
-func newCacheTracker(metrics *cacheMetrics) *cacheTracker {
-	return &cacheTracker{metrics: metrics}
+func newCacheTracker(metrics *cacheMetrics, defaultLabels prometheus.Labels) *cacheTracker {
+	return &cacheTracker{metrics: metrics, labels: defaultLabels}
+}
+
+// Labels returns a copy of the default labels used by the tracker's metrics.
+// The returned map is safe for modification.
+func (t *cacheTracker) Labels() prometheus.Labels {
+	labels := make(prometheus.Labels, len(t.labels))
+	for k, v := range t.labels {
+		labels[k] = v
+	}
+	return labels
 }
 
 // AddMemBytes increases the number of in-memory cache bytes.
 func (t *cacheTracker) AddMemBytes(bytes uint64) {
 	atomic.AddUint64(&t.memSizeBytes, bytes)
 
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.MemSize.With(labels).Add(float64(bytes))
 }
 
@@ -761,7 +771,7 @@ func (t *cacheTracker) AddMemBytes(bytes uint64) {
 func (t *cacheTracker) SubMemBytes(bytes uint64) {
 	atomic.AddUint64(&t.memSizeBytes, ^(bytes - 1))
 
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.MemSize.With(labels).Sub(float64(bytes))
 }
 
@@ -769,13 +779,13 @@ func (t *cacheTracker) SubMemBytes(bytes uint64) {
 func (t *cacheTracker) SetMemBytes(bytes uint64) {
 	atomic.StoreUint64(&t.memSizeBytes, bytes)
 
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.MemSize.With(labels).Set(float64(bytes))
 }
 
 // AddBytesWritten increases the number of bytes written to the cache.
 func (t *cacheTracker) AddBytesWritten(bytes uint64) {
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.MemSize.With(labels).Add(float64(bytes))
 }
 
@@ -783,13 +793,13 @@ func (t *cacheTracker) AddBytesWritten(bytes uint64) {
 func (t *cacheTracker) AddSnapshottedBytes(bytes uint64) {
 	atomic.AddUint64(&t.snapshottedBytes, bytes)
 
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.SnapshottedBytes.With(labels).Add(float64(bytes))
 }
 
 // SetDiskBytes sets the number of bytes on disk used by snapshot data.
 func (t *cacheTracker) SetDiskBytes(bytes uint64) {
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.DiskSize.With(labels).Set(float64(bytes))
 }
 
@@ -797,7 +807,7 @@ func (t *cacheTracker) SetDiskBytes(bytes uint64) {
 func (t *cacheTracker) IncSnapshotsActive() {
 	atomic.AddUint64(&t.snapshotsActive, 1)
 
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.SnapshotsActive.With(labels).Inc()
 }
 
@@ -805,13 +815,13 @@ func (t *cacheTracker) IncSnapshotsActive() {
 func (t *cacheTracker) SetSnapshotsActive(n uint64) {
 	atomic.StoreUint64(&t.snapshotsActive, n)
 
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.SnapshotsActive.With(labels).Set(float64(n))
 }
 
 // AddWrittenBytes increases the number of bytes written to the cache, with a required status.
 func (t *cacheTracker) AddWrittenBytes(status string, bytes uint64) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.WrittenBytes.With(labels).Add(float64(bytes))
 }
@@ -827,7 +837,7 @@ func (t *cacheTracker) AddWrittenBytesDrop(bytes uint64) { t.AddWrittenBytes("dr
 
 // IncWrites increments the number of writes to the cache, with a required status.
 func (t *cacheTracker) IncWrites(status string) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Writes.With(labels).Inc()
 }
@@ -869,7 +879,7 @@ func (t *cacheTracker) SnapshotSize() uint64 { return atomic.LoadUint64(&t.snaps
 
 // SetAge sets the time since the last successful snapshot
 func (t *cacheTracker) SetAge(d time.Duration) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.Age.With(labels).Set(d.Seconds())
 }
 

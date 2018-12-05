@@ -168,7 +168,7 @@ func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
 	metrics = append(metrics, e.sfile.PrometheusCollectors()...)
 	metrics = append(metrics, e.index.PrometheusCollectors()...)
-	metrics = append(metrics, e.engine.PrometheusCollectors()...)
+	metrics = append(metrics, tsm1.PrometheusCollectors()...)
 	metrics = append(metrics, e.retentionEnforcer.PrometheusCollectors()...)
 	return metrics
 }

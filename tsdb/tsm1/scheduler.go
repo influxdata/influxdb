@@ -15,7 +15,7 @@ func newScheduler(maxConcurrency int) *scheduler {
 	return &scheduler{
 		maxConcurrency:    maxConcurrency,
 		weights:           defaultWeights,
-		compactionTracker: newCompactionTracker(newCompactionMetrics(nil)),
+		compactionTracker: newCompactionTracker(newCompactionMetrics(nil), nil),
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/influxdata/platform/pkg/limiter"
 	"github.com/influxdata/platform/pkg/pool"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -136,7 +137,7 @@ func NewWAL(path string) *WAL {
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 		logger:      logger,
 		traceLogger: logger,
-		tracker:     newWALTracker(newWALMetrics(nil)),
+		tracker:     newWALTracker(newWALMetrics(nil), nil),
 	}
 }
 
@@ -581,18 +582,28 @@ func (l *WAL) newSegmentFile() error {
 // *NOTE* - walTracker fields should not be directory modified. Doing so
 // could result in the Engine exposing inaccurate metrics.
 type walTracker struct {
-	metrics *walMetrics
-
+	metrics         *walMetrics
+	labels          prometheus.Labels
 	oldSegmentBytes uint64
 }
 
-func newWALTracker(metrics *walMetrics) *walTracker {
-	return &walTracker{metrics: metrics}
+func newWALTracker(metrics *walMetrics, defaultLabels prometheus.Labels) *walTracker {
+	return &walTracker{metrics: metrics, labels: defaultLabels}
+}
+
+// Labels returns a copy of the default labels used by the tracker's metrics.
+// The returned map is safe for modification.
+func (t *walTracker) Labels() prometheus.Labels {
+	labels := make(prometheus.Labels, len(t.labels))
+	for k, v := range t.labels {
+		labels[k] = v
+	}
+	return labels
 }
 
 // IncWrites increments the number of writes to the cache, with a required status.
 func (t *walTracker) IncWrites(status string) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Writes.With(labels).Inc()
 }
@@ -607,7 +618,7 @@ func (t *walTracker) IncWritesErr() { t.IncWrites("error") }
 func (t *walTracker) SetOldSegmentSize(sz uint64) {
 	atomic.StoreUint64(&t.oldSegmentBytes, sz)
 
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.OldSegmentBytes.With(labels).Set(float64(sz))
 }
 
@@ -618,7 +629,7 @@ func (t *walTracker) OldSegmentSize() uint64 { return atomic.LoadUint64(&t.oldSe
 func (t *walTracker) SetCurrentSegmentSize(sz uint64) {
 	atomic.StoreUint64(&t.oldSegmentBytes, sz)
 
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.CurrentSegmentBytes.With(labels).Set(float64(sz))
 }
 
@@ -627,19 +638,19 @@ func (t *walTracker) CurrentSegmentSize() uint64 { return atomic.LoadUint64(&t.o
 
 // SetSegments sets the number of segments files on disk.
 func (t *walTracker) SetSegments(sz uint64) {
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.Segments.With(labels).Set(float64(sz))
 }
 
 // IncSegments increases the number of segments files by one.
 func (t *walTracker) IncSegments() {
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.Segments.With(labels).Inc()
 }
 
 // DecSegments decreases the number of segments files by one.
 func (t *walTracker) DecSegments() {
-	labels := t.metrics.Labels()
+	labels := t.labels
 	t.metrics.Segments.With(labels).Dec()
 }
 

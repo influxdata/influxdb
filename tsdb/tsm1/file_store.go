@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/platform/pkg/metrics"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/tsdb"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -241,7 +242,7 @@ func NewFileStore(dir string) *FileStore {
 		},
 		obs:           noFileStoreObserver{},
 		parseFileName: DefaultParseFileName,
-		tracker:       newFileTracker(newFileMetrics(nil)),
+		tracker:       newFileTracker(newFileMetrics(nil), nil),
 	}
 	fs.purger.fileStore = fs
 	return fs
@@ -297,12 +298,17 @@ type FileStoreStatistics struct {
 // could result in the Engine exposing inaccurate metrics.
 type fileTracker struct {
 	metrics   *fileMetrics
+	labels    prometheus.Labels
 	diskBytes uint64
 	fileCount uint64
 }
 
-func newFileTracker(metrics *fileMetrics) *fileTracker {
-	return &fileTracker{metrics: metrics}
+func newFileTracker(metrics *fileMetrics, defaultLabels prometheus.Labels) *fileTracker {
+	return &fileTracker{metrics: metrics, labels: defaultLabels}
+}
+
+func (t *fileTracker) Labels() prometheus.Labels {
+	return t.labels
 }
 
 // Bytes returns the number of bytes in use on disk.
@@ -312,7 +318,7 @@ func (t *fileTracker) Bytes() uint64 { return atomic.LoadUint64(&t.diskBytes) }
 func (t *fileTracker) SetBytes(bytes uint64) {
 	atomic.StoreUint64(&t.diskBytes, bytes)
 
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.DiskSize.With(labels).Set(float64(bytes))
 }
 
@@ -320,7 +326,7 @@ func (t *fileTracker) SetBytes(bytes uint64) {
 func (t *fileTracker) AddBytes(bytes uint64) {
 	atomic.AddUint64(&t.diskBytes, bytes)
 
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.DiskSize.With(labels).Add(float64(bytes))
 }
 
@@ -328,7 +334,7 @@ func (t *fileTracker) AddBytes(bytes uint64) {
 func (t *fileTracker) SetFileCount(files uint64) {
 	atomic.StoreUint64(&t.fileCount, files)
 
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.Files.With(labels).Set(float64(files))
 }
 
