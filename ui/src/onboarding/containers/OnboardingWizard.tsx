@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
-
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -34,7 +33,6 @@ import {
 import {StepStatus} from 'src/clockface/constants/wizard'
 
 // Types
-
 import {Links} from 'src/types/v2/links'
 import {SetupParams} from 'src/onboarding/apis'
 import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'

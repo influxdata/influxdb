@@ -50,21 +50,24 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
           You will be able to configure additional Data Sources later
         </h5>
         {this.selector}
-        <div className="wizard-button-bar">
-          <Button
-            color={ComponentColor.Default}
-            text="Back"
-            size={ComponentSize.Medium}
-            onClick={this.handleClickBack}
-          />
-          <Button
-            color={ComponentColor.Primary}
-            text="Next"
-            size={ComponentSize.Medium}
-            onClick={this.handleClickNext}
-            status={ComponentStatus.Default}
-            titleText={'Next'}
-          />
+        <div className="wizard-button-container">
+          <div className="wizard-button-bar">
+            <Button
+              color={ComponentColor.Default}
+              text="Back"
+              size={ComponentSize.Medium}
+              onClick={this.handleClickBack}
+            />
+            <Button
+              color={ComponentColor.Primary}
+              text="Next"
+              size={ComponentSize.Medium}
+              onClick={this.handleClickNext}
+              status={ComponentStatus.Default}
+              titleText={'Next'}
+            />
+          </div>
+          {this.skipLink}
         </div>
       </div>
     )
@@ -97,6 +100,25 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
         type={this.props.type}
       />
     )
+  }
+
+  private get skipLink() {
+    return (
+      <Button
+        color={ComponentColor.Default}
+        text="Skip"
+        size={ComponentSize.Small}
+        onClick={this.jumpToCompletionStep}
+      >
+        skip
+      </Button>
+    )
+  }
+
+  private jumpToCompletionStep = () => {
+    const {onSetCurrentStepIndex, stepStatuses} = this.props
+
+    onSetCurrentStepIndex(stepStatuses.length - 1)
   }
 
   private handleClickNext = () => {
