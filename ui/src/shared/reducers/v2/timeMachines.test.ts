@@ -199,6 +199,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
         },
       ])
+      expect(nextState.draftScripts[1]).toEqual('')
     })
   })
 

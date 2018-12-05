@@ -3,6 +3,7 @@ import {get, cloneDeep} from 'lodash'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
+import {isConfigValid, buildQuery} from 'src/shared/utils/queryBuilder'
 
 // Constants
 import {
@@ -128,6 +129,8 @@ export const timeMachineReducer = (
 
     case 'SET_TIME_RANGE': {
       const {timeRange} = action.payload
+
+      // TODO(chnn): Rebuild the BuilderConfig for each query
 
       return {...state, timeRange}
     }
@@ -295,11 +298,15 @@ export const timeMachineReducer = (
 
     case 'EDIT_ACTIVE_QUERY_WITH_BUILDER': {
       const {view, activeQueryIndex} = state
+      const draftScripts = [...state.draftScripts]
+
+      draftScripts[activeQueryIndex] = ''
 
       return {
         ...state,
         activeQueryEditor: TimeMachineEditor.QueryBuilder,
         view: changeQueryType(view, activeQueryIndex, QueryEditMode.Builder),
+        draftScripts,
       }
     }
 
@@ -381,6 +388,22 @@ export const timeMachineReducer = (
       )
 
       return {...state, view, activeQueryIndex, activeQueryEditor, draftScripts}
+    }
+
+    case 'BUILD_QUERY': {
+      const {config} = action.payload
+      const {activeQueryIndex, timeRange} = state
+      const draftScripts = [...state.draftScripts]
+
+      if (!isConfigValid(config)) {
+        draftScripts[activeQueryIndex] = ''
+
+        return {...state, draftScripts}
+      }
+
+      draftScripts[activeQueryIndex] = buildQuery(config, timeRange.duration)
+
+      return {...state, draftScripts}
     }
   }
 

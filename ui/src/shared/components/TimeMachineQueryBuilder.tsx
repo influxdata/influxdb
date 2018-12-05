@@ -13,6 +13,9 @@ import {
   LIMIT,
 } from 'src/shared/apis/v2/queryBuilder'
 
+// Actions
+import {buildQuery} from 'src/shared/actions/v2/timeMachines'
+
 // Utils
 import {restartable, CancellationError} from 'src/utils/restartable'
 import {getActiveQuery} from 'src/shared/selectors/timeMachines'
@@ -27,6 +30,7 @@ import 'src/shared/components/TimeMachineQueryBuilder.scss'
 // Types
 import {RemoteDataState} from 'src/types'
 import {AppState, Source, SourceType} from 'src/types/v2'
+import {BuilderConfig} from 'src/types/v2/timeMachine'
 
 const EMPTY_FIELDS_MESSAGE = 'Select at least one bucket and measurement'
 const EMPTY_FUNCTIONS_MESSAGE = 'Select at least one bucket and measurement'
@@ -38,6 +42,12 @@ interface StateProps {
   queryURL: string
   sourceType: SourceType
 }
+
+interface DispatchProps {
+  onBuildQuery: typeof buildQuery
+}
+
+type Props = StateProps & DispatchProps
 
 interface State {
   buckets: string[]
@@ -54,7 +64,7 @@ interface State {
   functionsSelection: string[]
 }
 
-class TimeMachineQueryBuilder extends PureComponent<StateProps, State> {
+class TimeMachineQueryBuilder extends PureComponent<Props, State> {
   public state: State = {
     buckets: [],
     bucketsStatus: RemoteDataState.Loading,
@@ -78,7 +88,7 @@ class TimeMachineQueryBuilder extends PureComponent<StateProps, State> {
     this.findAndSetBuckets()
   }
 
-  public componentDidUpdate(prevProps: StateProps) {
+  public componentDidUpdate(prevProps: Props) {
     if (prevProps.queryURL !== this.props.queryURL) {
       this.findAndSetBuckets()
     }
@@ -186,22 +196,28 @@ class TimeMachineQueryBuilder extends PureComponent<StateProps, State> {
 
   private handleSelectBuckets = (bucketsSelection: string[]) => {
     if (bucketsSelection.length) {
-      this.setState({bucketsSelection}, this.findAndSetMeasurements)
+      this.setState({bucketsSelection}, () => {
+        this.findAndSetMeasurements()
+        this.emitConfig()
+      })
 
       return
     }
 
-    this.setState({
-      bucketsSelection: [],
-      measurements: [],
-      measurementsStatus: RemoteDataState.NotStarted,
-      measurementsSelection: [],
-      fields: [],
-      fieldsStatus: RemoteDataState.NotStarted,
-      fieldsSelection: [],
-      functionsStatus: RemoteDataState.NotStarted,
-      functionsSelection: [],
-    })
+    this.setState(
+      {
+        bucketsSelection: [],
+        measurements: [],
+        measurementsStatus: RemoteDataState.NotStarted,
+        measurementsSelection: [],
+        fields: [],
+        fieldsStatus: RemoteDataState.NotStarted,
+        fieldsSelection: [],
+        functionsStatus: RemoteDataState.NotStarted,
+        functionsSelection: [],
+      },
+      this.emitConfig
+    )
   }
 
   private findAndSetMeasurements = async (
@@ -242,20 +258,26 @@ class TimeMachineQueryBuilder extends PureComponent<StateProps, State> {
           measurementsSelection,
           functionsStatus: RemoteDataState.Done,
         },
-        this.findAndSetFields
+        () => {
+          this.findAndSetFields()
+          this.emitConfig()
+        }
       )
 
       return
     }
 
-    this.setState({
-      measurementsSelection: [],
-      fields: [],
-      fieldsStatus: RemoteDataState.NotStarted,
-      fieldsSelection: [],
-      functionsStatus: RemoteDataState.NotStarted,
-      functionsSelection: [],
-    })
+    this.setState(
+      {
+        measurementsSelection: [],
+        fields: [],
+        fieldsStatus: RemoteDataState.NotStarted,
+        fieldsSelection: [],
+        functionsStatus: RemoteDataState.NotStarted,
+        functionsSelection: [],
+      },
+      this.emitConfig
+    )
   }
 
   private findAndSetFields = async (searchTerm: string = ''): Promise<void> => {
@@ -290,11 +312,11 @@ class TimeMachineQueryBuilder extends PureComponent<StateProps, State> {
   }
 
   private handleSelectFields = (fieldsSelection: string[]) => {
-    this.setState({fieldsSelection})
+    this.setState({fieldsSelection}, this.emitConfig)
   }
 
   private handleSelectFunctions = (functionsSelection: string[]) => {
-    this.setState({functionsSelection})
+    this.setState({functionsSelection}, this.emitConfig)
   }
 
   private handleSearchFunctions = async (searchTerm: string) => {
@@ -305,6 +327,29 @@ class TimeMachineQueryBuilder extends PureComponent<StateProps, State> {
     )
 
     this.setState({functions: mergeUnique(functions, functionsSelection)})
+  }
+
+  private emitConfig = (): void => {
+    const {onBuildQuery} = this.props
+    const {
+      bucketsSelection,
+      measurementsSelection,
+      fieldsSelection,
+      functionsSelection,
+    } = this.state
+
+    const functions = functionsSelection.map(name =>
+      FUNCTIONS.find(f => f.name === name)
+    )
+
+    const config: BuilderConfig = {
+      buckets: bucketsSelection,
+      measurements: measurementsSelection,
+      fields: fieldsSelection,
+      functions,
+    }
+
+    onBuildQuery(config)
   }
 }
 
@@ -327,4 +372,11 @@ const mstp = (state: AppState): StateProps => {
   return {queryURL, sourceType}
 }
 
-export default connect<StateProps>(mstp)(TimeMachineQueryBuilder)
+const mdtp = {
+  onBuildQuery: buildQuery,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(TimeMachineQueryBuilder)

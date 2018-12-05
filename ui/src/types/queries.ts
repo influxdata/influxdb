@@ -88,6 +88,7 @@ export interface TimeRange {
   seconds?: number
   format?: string
   label?: string
+  duration?: string
 }
 
 export interface DurationRange {

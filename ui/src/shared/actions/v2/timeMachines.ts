@@ -2,7 +2,7 @@
 import {TimeMachineState} from 'src/shared/reducers/v2/timeMachines'
 import {TimeRange, ViewType} from 'src/types/v2'
 import {Axes, DecimalPlaces, XYViewGeom} from 'src/types/v2/dashboards'
-import {TimeMachineTab} from 'src/types/v2/timeMachine'
+import {TimeMachineTab, BuilderConfig} from 'src/types/v2/timeMachine'
 import {Color} from 'src/types/colors'
 
 export type Action =
@@ -36,6 +36,7 @@ export type Action =
   | EditActiveQueryAsFluxAction
   | EditActiveQueryAsInfluxQLAction
   | EditActiveQueryWithBuilderAction
+  | BuildQueryAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -337,4 +338,16 @@ interface RemoveQueryAction {
 export const removeQuery = (queryIndex: number): RemoveQueryAction => ({
   type: 'REMOVE_QUERY',
   payload: {queryIndex},
+})
+
+interface BuildQueryAction {
+  type: 'BUILD_QUERY'
+  payload: {
+    config: BuilderConfig
+  }
+}
+
+export const buildQuery = (config: BuilderConfig): BuildQueryAction => ({
+  type: 'BUILD_QUERY',
+  payload: {config},
 })

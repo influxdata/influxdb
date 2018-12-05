@@ -9,18 +9,17 @@ import TimeMachineQueriesSwitcher from 'src/shared/components/TimeMachineQueries
 import TimeMachineQueryTab from 'src/shared/components/TimeMachineQueryTab'
 import TimeMachineQueryBuilder from 'src/shared/components/TimeMachineQueryBuilder'
 import TimeMachineInfluxQLEditor from 'src/shared/components/TimeMachineInfluxQLEditor'
-
+import SubmitQueryButton from 'src/shared/components/SubmitQueryButton'
 import {
   Button,
   ComponentColor,
   ComponentSize,
-  ComponentStatus,
   ButtonShape,
   IconFont,
 } from 'src/clockface'
 
 // Actions
-import {submitScript, addQuery} from 'src/shared/actions/v2/timeMachines'
+import {addQuery} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
@@ -40,7 +39,6 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSubmitScript: typeof submitScript
   onAddQuery: typeof addQuery
 }
 
@@ -57,13 +55,7 @@ const TimeMachineQueries: SFC<Props> = props => {
     queryStatus,
     queryCount,
     onAddQuery,
-    onSubmitScript,
   } = props
-
-  const buttonStatus =
-    queryStatus === RemoteDataState.Loading
-      ? ComponentStatus.Loading
-      : ComponentStatus.Default
 
   return (
     <div className="time-machine-queries">
@@ -83,13 +75,7 @@ const TimeMachineQueries: SFC<Props> = props => {
         </div>
         <div className="time-machine-queries--buttons">
           <TimeMachineQueriesSwitcher />
-          <Button
-            text="Submit"
-            size={ComponentSize.Small}
-            status={buttonStatus}
-            onClick={onSubmitScript}
-            color={ComponentColor.Primary}
-          />
+          <SubmitQueryButton queryStatus={queryStatus} />
         </div>
       </div>
       <div className="time-machine-queries--body">
@@ -111,13 +97,13 @@ const mstp = (state: AppState) => {
   const {activeQueryEditor, view, activeQueryIndex} = getActiveTimeMachine(
     state
   )
+
   const queryCount: number = get(view, 'properties.queries.length', 0)
 
   return {activeQueryEditor, activeQueryIndex, queryCount}
 }
 
 const mdtp = {
-  onSubmitScript: submitScript,
   onAddQuery: addQuery,
 }
 
