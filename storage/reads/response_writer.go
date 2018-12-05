@@ -2,6 +2,7 @@ package reads
 
 import (
 	"fmt"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/storage/reads/datatypes"
@@ -10,6 +11,9 @@ import (
 
 type ResponseStream interface {
 	Send(*datatypes.ReadResponse) error
+	// SetTrailer sets the trailer metadata which will be sent with the RPC status.
+	// When called more than once, all the provided metadata will be merged.
+	SetTrailer(metadata.MD)
 }
 
 const (
@@ -73,10 +77,16 @@ func (w *ResponseWriter) WriteResultSet(rs ResultSet) error {
 		}
 	}
 
+	stats := rs.Stats()
+	w.stream.SetTrailer(metadata.Pairs(
+		"scanned-bytes", fmt.Sprint(stats.ScannedBytes),
+		"scanned-values", fmt.Sprint(stats.ScannedValues)))
+
 	return nil
 }
 
 func (w *ResponseWriter) WriteGroupResultSet(rs GroupResultSet) error {
+	stats := cursors.CursorStats{}
 	gc := rs.Next()
 	for gc != nil {
 		w.startGroup(gc.Keys(), gc.PartitionKeyVals())
@@ -93,10 +103,15 @@ func (w *ResponseWriter) WriteGroupResultSet(rs GroupResultSet) error {
 				gc.Close()
 				return w.err
 			}
+			stats.Add(gc.Stats())
 		}
 		gc.Close()
 		gc = rs.Next()
 	}
+
+	w.stream.SetTrailer(metadata.Pairs(
+		"scanned-bytes", fmt.Sprint(stats.ScannedBytes),
+		"scanned-values", fmt.Sprint(stats.ScannedValues)))
 
 	return nil
 }
