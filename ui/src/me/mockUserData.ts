@@ -1,3 +1,6 @@
+// Types
+import {MeState} from 'src/types/v2'
+
 const LeroysTokens = [
   {
     id: '8VIM8fbjCr8362SLx6Yp',
@@ -10,6 +13,15 @@ const LeroysTokens = [
     secretKey: '8lC9Xyy329HoGg5CL79G',
   },
 ]
+
+export const me: MeState = {
+  id: 'id-of-groot',
+  name: 'groot',
+  links: {
+    self: '/api/v2/users/id-of-groot',
+    log: '/api/v2/users/id-of-groot/log',
+  },
+}
 
 export const LeroyJenkins = {
   id: 'xLz04cqvQgszIbHVA7pE',

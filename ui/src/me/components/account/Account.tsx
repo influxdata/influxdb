@@ -6,6 +6,7 @@ import {WithRouterProps} from 'react-router'
 import {Page} from 'src/pageLayout'
 import ProfilePage from 'src/shared/components/profile_page/ProfilePage'
 import ProfilePageSection from 'src/shared/components/profile_page/ProfilePageSection'
+import Settings from 'src/me/components/account/Settings'
 
 export default class Account extends PureComponent<WithRouterProps> {
   public render() {
@@ -14,7 +15,7 @@ export default class Account extends PureComponent<WithRouterProps> {
       <Page>
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <Page.Title title="Your name here" />
+            <Page.Title title="My Account" />
           </Page.Header.Left>
           <Page.Header.Right />
         </Page.Header>
@@ -25,7 +26,7 @@ export default class Account extends PureComponent<WithRouterProps> {
             parentUrl="/account"
           >
             <ProfilePageSection id="settings" title="Settings" url="settings">
-              <div>Settings go here</div>
+              <Settings />
             </ProfilePageSection>
             <ProfilePageSection id="tokens" title="Tokens" url="tokens">
               <div>Tokens go here</div>
