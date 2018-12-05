@@ -17,6 +17,9 @@ import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 import {Source, AppState} from 'src/types/v2'
 import {NewView, View} from 'src/types/v2/dashboards'
 
+// Styles
+import './VEO.scss'
+
 interface StateProps {
   draftView: NewView
   draftScripts: string[]

@@ -1,71 +1,82 @@
 // Libraries
-import React, {SFC} from 'react'
+import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
 import TimeMachineControls from 'src/shared/components/TimeMachineControls'
-import Threesizer, {
-  DivisionProps,
-} from 'src/shared/components/threesizer/Threesizer'
+import {DraggableResizer, Stack} from 'src/clockface'
 import TimeMachineBottom from 'src/shared/components/TimeMachineBottom'
 import TimeMachineVis from 'src/shared/components/TimeMachineVis'
 import TimeSeries from 'src/shared/components/TimeSeries'
 
+// Constants
+const INITIAL_RESIZER_HANDLE = 0.4
+
 // Utils
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 
-// Constants
-import {HANDLE_HORIZONTAL} from 'src/shared/constants'
-
 // Types
 import {AppState, DashboardQuery} from 'src/types/v2'
+
+// Styles
+import './TimeMachine.scss'
 
 interface StateProps {
   queries: DashboardQuery[]
   submitToken: number
 }
 
-const TimeMachine: SFC<StateProps> = props => {
-  const {queries, submitToken} = props
+interface State {
+  resizerHandlePosition: number[]
+}
 
-  return (
-    <div className="time-machine">
-      <TimeSeries queries={queries} submitToken={submitToken}>
-        {queriesState => {
-          // TODO: The `queriesState` might be better passed down via the context API
-          const divisions: DivisionProps[] = [
-            {
-              handleDisplay: 'none',
-              render: () => <TimeMachineVis queriesState={queriesState} />,
-              headerOrientation: HANDLE_HORIZONTAL,
-              size: 0.33,
-            },
-            {
-              handlePixels: 10,
-              render: () => (
+type Props = StateProps
+
+class TimeMachine extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      resizerHandlePosition: [INITIAL_RESIZER_HANDLE],
+    }
+  }
+
+  public render() {
+    const {queries, submitToken} = this.props
+    const {resizerHandlePosition} = this.state
+
+    return (
+      <div className="time-machine">
+        <TimeSeries queries={queries} submitToken={submitToken}>
+          {queriesState => (
+            <DraggableResizer
+              stackPanels={Stack.Rows}
+              handlePositions={resizerHandlePosition}
+              onChangePositions={this.handleResizerChange}
+            >
+              <DraggableResizer.Panel id="time-machine--top" minSizePixels={0}>
+                <div className="time-machine--top">
+                  <TimeMachineControls queriesState={queriesState} />
+                  <TimeMachineVis queriesState={queriesState} />
+                </div>
+              </DraggableResizer.Panel>
+              <DraggableResizer.Panel
+                id="time-machine--bottom"
+                minSizePixels={0}
+              >
                 <TimeMachineBottom queryStatus={queriesState.loading} />
-              ),
-              headerOrientation: HANDLE_HORIZONTAL,
-              size: 0.67,
-            },
-          ]
+              </DraggableResizer.Panel>
+            </DraggableResizer>
+          )}
+        </TimeSeries>
+      </div>
+    )
+  }
 
-          return (
-            <>
-              <TimeMachineControls queriesState={queriesState} />
-              <div className="time-machine-container">
-                <Threesizer
-                  orientation={HANDLE_HORIZONTAL}
-                  divisions={divisions}
-                />
-              </div>
-            </>
-          )
-        }}
-      </TimeSeries>
-    </div>
-  )
+  private handleResizerChange = resizerHandlePosition => {
+    this.setState({resizerHandlePosition})
+  }
 }
 
 const mstp = (state: AppState) => {

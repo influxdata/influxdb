@@ -48,7 +48,11 @@ class ViewOptions extends PureComponent<Props> {
 
   private get dropdownItems(): JSX.Element[] {
     return GRAPH_TYPES.map(g => (
-      <Dropdown.Item id={`${g.type}`} value={g.type}>
+      <Dropdown.Item
+        key={`view-type--${g.type}`}
+        id={`${g.type}`}
+        value={g.type}
+      >
         {g.menuOption}
       </Dropdown.Item>
     ))

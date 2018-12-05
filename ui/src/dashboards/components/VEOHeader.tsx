@@ -3,7 +3,6 @@ import React, {PureComponent} from 'react'
 
 // Components
 import VEOHeaderName from 'src/dashboards/components/VEOHeaderName'
-import TimeMachineTabs from 'src/shared/components/TimeMachineTabs'
 import {
   ButtonShape,
   Button,
@@ -26,13 +25,10 @@ class VEOHeader extends PureComponent<Props> {
 
     return (
       <div className="veo-header">
-        <Page.Header>
+        <Page.Header fullWidth={true}>
           <Page.Header.Left>
             <VEOHeaderName name={name} onRename={onSetName} />
           </Page.Header.Left>
-          <Page.Header.Center>
-            <TimeMachineTabs />
-          </Page.Header.Center>
           <Page.Header.Right>
             <Button
               icon={IconFont.Remove}

@@ -42,38 +42,30 @@ const TimeMachineVis: SFC<Props> = props => {
   const {tables, loading, error, isInitialFetch, files} = props.queriesState
 
   return (
-    <div className="time-machine-top">
-      <div className="time-machine-vis">
-        <div className="graph-container">
-          <EmptyQueryView
-            error={error}
-            tables={tables}
-            loading={loading}
-            isInitialFetch={isInitialFetch}
-            queries={queries}
-          >
-            {isViewingRawData ? (
-              <AutoSizer>
-                {({width, height}) => (
-                  <RawFluxDataTable
-                    files={files}
-                    width={width}
-                    height={height}
-                  />
-                )}
-              </AutoSizer>
-            ) : (
-              <QueryViewSwitcher
-                tables={tables}
-                viewID="time-machine-view"
-                loading={loading}
-                timeRange={timeRange}
-                properties={view.properties as QueryViewProperties}
-              />
+    <div className="time-machine--view">
+      <EmptyQueryView
+        error={error}
+        tables={tables}
+        loading={loading}
+        isInitialFetch={isInitialFetch}
+        queries={queries}
+      >
+        {isViewingRawData ? (
+          <AutoSizer>
+            {({width, height}) => (
+              <RawFluxDataTable files={files} width={width} height={height} />
             )}
-          </EmptyQueryView>
-        </div>
-      </div>
+          </AutoSizer>
+        ) : (
+          <QueryViewSwitcher
+            tables={tables}
+            viewID="time-machine-view"
+            loading={loading}
+            timeRange={timeRange}
+            properties={view.properties as QueryViewProperties}
+          />
+        )}
+      </EmptyQueryView>
     </div>
   )
 }

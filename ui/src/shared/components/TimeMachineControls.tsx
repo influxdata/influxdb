@@ -54,29 +54,25 @@ class TimeMachineControls extends PureComponent<Props> {
     } = this.props
 
     return (
-      <div className="time-machine-controls">
-        <div className="time-machine-controls--lhs">
-          <ComponentSpacer align={Alignment.Left}>
-            <TimeMachineSourceDropdown />
-            <ViewTypeDropdown />
-          </ComponentSpacer>
-        </div>
-        <div className="time-machine-controls--rhs">
-          <label>
-            <SlideToggle
-              active={isViewingRawData}
-              onChange={this.handleToggleIsViewingRawData}
-              size={ComponentSize.ExtraSmall}
-            />
-            View Raw Data
-          </label>
+      <div className="time-machine--controls">
+        <ComponentSpacer align={Alignment.Left}>
+          <TimeMachineSourceDropdown />
+          <ViewTypeDropdown />
+        </ComponentSpacer>
+        <ComponentSpacer align={Alignment.Right}>
+          <SlideToggle.Label text="View Raw Data" />
+          <SlideToggle
+            active={isViewingRawData}
+            onChange={this.handleToggleIsViewingRawData}
+            size={ComponentSize.ExtraSmall}
+          />
           <CSVExportButton files={files} />
           <TimeMachineRefreshDropdown />
           <TimeRangeDropdown
             timeRange={timeRange}
             onSetTimeRange={onSetTimeRange}
           />
-        </div>
+        </ComponentSpacer>
       </div>
     )
   }

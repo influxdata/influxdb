@@ -1,25 +1,22 @@
-$veo-padding: 25px;
+/*
+  View Editor Overlay Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
 
 .veo {
   width: calc(100% - 60px);
   height: calc(100% - 30px);
   margin: 0 auto;
-  background: $g3-castle;
   display: flex;
   flex-direction: column;
+  @include gradient-v($g2-kevlar, $g0-obsidian);
+  border-radius: 0 0 $radius $radius;
 }
 
-.veo-header {
-  > .page-header {
-    background: $g2-kevlar;
-
-    .page-header--container {
-      max-width: none;
-      padding: $veo-padding;
-    }
-  }
-}
-
-.veo--body {
-  padding: $veo-padding;
+.veo .time-machine {
+  padding: 8px 32px;
+  padding-top: 0;
+  height: calc(100% - 80px);
 }

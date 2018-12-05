@@ -12,6 +12,9 @@ import {setActiveTimeMachine} from 'src/shared/actions/v2/timeMachines'
 import {DE_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 
+// Styles
+import './DataExplorer.scss'
+
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
@@ -26,11 +29,9 @@ class DataExplorer extends PureComponent<DispatchProps, {}> {
   public render() {
     return (
       <div className="data-explorer">
-        <div className="time-machine-page">
-          <HoverTimeProvider>
-            <TimeMachine />
-          </HoverTimeProvider>
-        </div>
+        <HoverTimeProvider>
+          <TimeMachine />
+        </HoverTimeProvider>
       </div>
     )
   }

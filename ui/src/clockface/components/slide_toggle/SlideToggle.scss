@@ -151,3 +151,12 @@
     background-color: $g6-smoke;
   }
 }
+
+/* Optional Label */
+.slide-toggle--label {
+  font-size: 13px;
+  font-weight: 600;
+  color: $g11-sidewalk;
+  margin: 0 $ix-marg-a;
+  @include no-user-select();
+}

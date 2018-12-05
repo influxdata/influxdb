@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import TimeMachineQueries from 'src/shared/components/TimeMachineQueries'
+import TimeMachineTabs from 'src/shared/components/TimeMachineTabs'
 import ViewOptions from 'src/shared/components/view_options/ViewOptions'
 
 // Utils
@@ -25,15 +26,24 @@ interface OwnProps {
 type Props = StateProps & OwnProps
 
 const TimeMachineBottom: SFC<Props> = ({activeTab, queryStatus}) => {
+  let tabContents
+
   if (activeTab === TimeMachineTab.Queries) {
-    return <TimeMachineQueries queryStatus={queryStatus} />
+    tabContents = <TimeMachineQueries queryStatus={queryStatus} />
   }
 
   if (activeTab === TimeMachineTab.Visualization) {
-    return <ViewOptions />
+    tabContents = <ViewOptions />
   }
 
-  return null
+  return (
+    <div className="time-machine--bottom">
+      <div className="time-machine--bottom-tabs">
+        <TimeMachineTabs />
+      </div>
+      <div className="time-machine--bottom-contents">{tabContents}</div>
+    </div>
+  )
 }
 
 const mstp = (state: AppState) => {

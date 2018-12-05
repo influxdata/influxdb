@@ -2,6 +2,9 @@
 import React, {Component} from 'react'
 import classnames from 'classnames'
 
+// Components
+import SlideToggleLabel from 'src/clockface/components/slide_toggle/SlideToggleLabel'
+
 // Types
 import {ComponentColor, ComponentSize} from 'src/clockface/types'
 
@@ -18,6 +21,8 @@ interface Props {
 
 @ErrorHandling
 class SlideToggle extends Component<Props> {
+  public static Label = SlideToggleLabel
+
   public static defaultProps: Partial<Props> = {
     size: ComponentSize.Small,
     color: ComponentColor.Primary,
