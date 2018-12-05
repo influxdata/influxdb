@@ -2708,9 +2708,213 @@ export interface Telegraf extends TelegrafRequest {
 /**
  * 
  * @export
- * @interface TelegrafPluginInput
+ * @interface TelegrafPluginConfig
  */
-export interface TelegrafPluginInput {
+export interface TelegrafPluginConfig {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputCpu
+ */
+export interface TelegrafPluginInputCpu {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputCpu
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputCpu
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputCpu
+     */
+    name: TelegrafPluginInputCpu.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputCpu
+     */
+    type: TelegrafPluginInputCpu.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputCpu
+ */
+export namespace TelegrafPluginInputCpu {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Cpu = 'cpu'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputCpuRequest
+ */
+export interface TelegrafPluginInputCpuRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputCpuRequest
+ */
+export namespace TelegrafPluginInputCpuRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputDisk
+ */
+export interface TelegrafPluginInputDisk {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDisk
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputDisk
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDisk
+     */
+    name: TelegrafPluginInputDisk.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDisk
+     */
+    type: TelegrafPluginInputDisk.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputDisk
+ */
+export namespace TelegrafPluginInputDisk {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Disk = 'disk'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputDiskRequest
+ */
+export interface TelegrafPluginInputDiskRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputDiskRequest
+ */
+export namespace TelegrafPluginInputDiskRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputDiskio
+ */
+export interface TelegrafPluginInputDiskio {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDiskio
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputDiskio
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDiskio
+     */
+    name: TelegrafPluginInputDiskio.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDiskio
+     */
+    type: TelegrafPluginInputDiskio.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputDiskio
+ */
+export namespace TelegrafPluginInputDiskio {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Diskio = 'diskio'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputDiskioRequest
+ */
+export interface TelegrafPluginInputDiskioRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputDiskioRequest
+ */
+export namespace TelegrafPluginInputDiskioRequest {
 }
 
 /**
@@ -2724,7 +2928,75 @@ export interface TelegrafPluginInputDocker {
      * @type {string}
      * @memberof TelegrafPluginInputDocker
      */
-    endpoint?: string;
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputDockerConfig}
+     * @memberof TelegrafPluginInputDocker
+     */
+    config: TelegrafPluginInputDockerConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDocker
+     */
+    name: TelegrafPluginInputDocker.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDocker
+     */
+    type: TelegrafPluginInputDocker.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputDocker
+ */
+export namespace TelegrafPluginInputDocker {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Docker = 'docker'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputDockerConfig
+ */
+export interface TelegrafPluginInputDockerConfig {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDockerConfig
+     */
+    endpoint: string;
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputDockerRequest
+ */
+export interface TelegrafPluginInputDockerRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputDockerRequest
+ */
+export namespace TelegrafPluginInputDockerRequest {
 }
 
 /**
@@ -2735,10 +3007,146 @@ export interface TelegrafPluginInputDocker {
 export interface TelegrafPluginInputFile {
     /**
      * 
-     * @type {Array<string>}
+     * @type {string}
      * @memberof TelegrafPluginInputFile
      */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputFileConfig}
+     * @memberof TelegrafPluginInputFile
+     */
+    config: TelegrafPluginInputFileConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputFile
+     */
+    name: TelegrafPluginInputFile.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputFile
+     */
+    type: TelegrafPluginInputFile.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputFile
+ */
+export namespace TelegrafPluginInputFile {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        File = 'file'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputFileConfig
+ */
+export interface TelegrafPluginInputFileConfig {
+    /**
+     * 
+     * @type {Array<string>}
+     * @memberof TelegrafPluginInputFileConfig
+     */
     files?: Array<string>;
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputFileRequest
+ */
+export interface TelegrafPluginInputFileRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputFileRequest
+ */
+export namespace TelegrafPluginInputFileRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputKernel
+ */
+export interface TelegrafPluginInputKernel {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputKernel
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputKernel
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputKernel
+     */
+    name: TelegrafPluginInputKernel.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputKernel
+     */
+    type: TelegrafPluginInputKernel.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputKernel
+ */
+export namespace TelegrafPluginInputKernel {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Kernel = 'kernel'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputKernelRequest
+ */
+export interface TelegrafPluginInputKernelRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputKernelRequest
+ */
+export namespace TelegrafPluginInputKernelRequest {
 }
 
 /**
@@ -2752,7 +3160,75 @@ export interface TelegrafPluginInputKubernetes {
      * @type {string}
      * @memberof TelegrafPluginInputKubernetes
      */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputKubernetesConfig}
+     * @memberof TelegrafPluginInputKubernetes
+     */
+    config: TelegrafPluginInputKubernetesConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputKubernetes
+     */
+    name: TelegrafPluginInputKubernetes.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputKubernetes
+     */
+    type: TelegrafPluginInputKubernetes.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputKubernetes
+ */
+export namespace TelegrafPluginInputKubernetes {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Kubernetes = 'kubernetes'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputKubernetesConfig
+ */
+export interface TelegrafPluginInputKubernetesConfig {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputKubernetesConfig
+     */
     url?: string;
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputKubernetesRequest
+ */
+export interface TelegrafPluginInputKubernetesRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputKubernetesRequest
+ */
+export namespace TelegrafPluginInputKubernetesRequest {
 }
 
 /**
@@ -2763,10 +3239,418 @@ export interface TelegrafPluginInputKubernetes {
 export interface TelegrafPluginInputLogParser {
     /**
      * 
-     * @type {Array<string>}
+     * @type {string}
      * @memberof TelegrafPluginInputLogParser
      */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputLogParserConfig}
+     * @memberof TelegrafPluginInputLogParser
+     */
+    config: TelegrafPluginInputLogParserConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputLogParser
+     */
+    name: TelegrafPluginInputLogParser.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputLogParser
+     */
+    type: TelegrafPluginInputLogParser.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputLogParser
+ */
+export namespace TelegrafPluginInputLogParser {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Logparser = 'logparser'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputLogParserConfig
+ */
+export interface TelegrafPluginInputLogParserConfig {
+    /**
+     * 
+     * @type {Array<string>}
+     * @memberof TelegrafPluginInputLogParserConfig
+     */
     files?: Array<string>;
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputLogParserRequest
+ */
+export interface TelegrafPluginInputLogParserRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputLogParserRequest
+ */
+export namespace TelegrafPluginInputLogParserRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputMem
+ */
+export interface TelegrafPluginInputMem {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputMem
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputMem
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputMem
+     */
+    name: TelegrafPluginInputMem.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputMem
+     */
+    type: TelegrafPluginInputMem.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputMem
+ */
+export namespace TelegrafPluginInputMem {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Mem = 'mem'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputMemRequest
+ */
+export interface TelegrafPluginInputMemRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputMemRequest
+ */
+export namespace TelegrafPluginInputMemRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputNet
+ */
+export interface TelegrafPluginInputNet {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNet
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputNet
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNet
+     */
+    name: TelegrafPluginInputNet.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNet
+     */
+    type: TelegrafPluginInputNet.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputNet
+ */
+export namespace TelegrafPluginInputNet {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Net = 'net'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputNetRequest
+ */
+export interface TelegrafPluginInputNetRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputNetRequest
+ */
+export namespace TelegrafPluginInputNetRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputNetResponse
+ */
+export interface TelegrafPluginInputNetResponse {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNetResponse
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputNetResponse
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNetResponse
+     */
+    name: TelegrafPluginInputNetResponse.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNetResponse
+     */
+    type: TelegrafPluginInputNetResponse.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputNetResponse
+ */
+export namespace TelegrafPluginInputNetResponse {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        NetResponse = 'net_response'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputNetResponseRequest
+ */
+export interface TelegrafPluginInputNetResponseRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputNetResponseRequest
+ */
+export namespace TelegrafPluginInputNetResponseRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputNgnix
+ */
+export interface TelegrafPluginInputNgnix {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNgnix
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputNgnix
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNgnix
+     */
+    name: TelegrafPluginInputNgnix.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNgnix
+     */
+    type: TelegrafPluginInputNgnix.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputNgnix
+ */
+export namespace TelegrafPluginInputNgnix {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Ngnix = 'ngnix'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputNgnixRequest
+ */
+export interface TelegrafPluginInputNgnixRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputNgnixRequest
+ */
+export namespace TelegrafPluginInputNgnixRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputProcesses
+ */
+export interface TelegrafPluginInputProcesses {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputProcesses
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputProcesses
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputProcesses
+     */
+    name: TelegrafPluginInputProcesses.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputProcesses
+     */
+    type: TelegrafPluginInputProcesses.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputProcesses
+ */
+export namespace TelegrafPluginInputProcesses {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Processes = 'processes'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputProcessesRequest
+ */
+export interface TelegrafPluginInputProcessesRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputProcessesRequest
+ */
+export namespace TelegrafPluginInputProcessesRequest {
 }
 
 /**
@@ -2780,7 +3664,75 @@ export interface TelegrafPluginInputProcstat {
      * @type {string}
      * @memberof TelegrafPluginInputProcstat
      */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputProcstatConfig}
+     * @memberof TelegrafPluginInputProcstat
+     */
+    config: TelegrafPluginInputProcstatConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputProcstat
+     */
+    name: TelegrafPluginInputProcstat.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputProcstat
+     */
+    type: TelegrafPluginInputProcstat.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputProcstat
+ */
+export namespace TelegrafPluginInputProcstat {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Procstat = 'procstat'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputProcstatConfig
+ */
+export interface TelegrafPluginInputProcstatConfig {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputProcstatConfig
+     */
     exe?: string;
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputProcstatRequest
+ */
+export interface TelegrafPluginInputProcstatRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputProcstatRequest
+ */
+export namespace TelegrafPluginInputProcstatRequest {
 }
 
 /**
@@ -2791,10 +3743,71 @@ export interface TelegrafPluginInputProcstat {
 export interface TelegrafPluginInputPrometheus {
     /**
      * 
-     * @type {Array<string>}
+     * @type {string}
      * @memberof TelegrafPluginInputPrometheus
      */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputPrometheusConfig}
+     * @memberof TelegrafPluginInputPrometheus
+     */
+    config: TelegrafPluginInputPrometheusConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputPrometheus
+     */
+    name: TelegrafPluginInputPrometheus.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputPrometheus
+     */
+    type: TelegrafPluginInputPrometheus.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputPrometheus
+ */
+export namespace TelegrafPluginInputPrometheus {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Prometheus = 'prometheus'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputPrometheusConfig
+ */
+export interface TelegrafPluginInputPrometheusConfig {
+    /**
+     * 
+     * @type {Array<string>}
+     * @memberof TelegrafPluginInputPrometheusConfig
+     */
     urls?: Array<string>;
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputPrometheusRequest
+ */
+export interface TelegrafPluginInputPrometheusRequest extends TelegrafRequestPlugin {
 }
 
 /**
@@ -2808,13 +3821,149 @@ export interface TelegrafPluginInputRedis {
      * @type {string}
      * @memberof TelegrafPluginInputRedis
      */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputRedisConfig}
+     * @memberof TelegrafPluginInputRedis
+     */
+    config: TelegrafPluginInputRedisConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputRedis
+     */
+    name: TelegrafPluginInputRedis.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputRedis
+     */
+    type: TelegrafPluginInputRedis.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputRedis
+ */
+export namespace TelegrafPluginInputRedis {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Redis = 'redis'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputRedisConfig
+ */
+export interface TelegrafPluginInputRedisConfig {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputRedisConfig
+     */
     password?: string;
     /**
      * 
      * @type {Array<string>}
-     * @memberof TelegrafPluginInputRedis
+     * @memberof TelegrafPluginInputRedisConfig
      */
     servers?: Array<string>;
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputRedisRequest
+ */
+export interface TelegrafPluginInputRedisRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputRedisRequest
+ */
+export namespace TelegrafPluginInputRedisRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputSwap
+ */
+export interface TelegrafPluginInputSwap {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSwap
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputSwap
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSwap
+     */
+    name: TelegrafPluginInputSwap.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSwap
+     */
+    type: TelegrafPluginInputSwap.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputSwap
+ */
+export namespace TelegrafPluginInputSwap {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Swap = 'swap'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputSwapRequest
+ */
+export interface TelegrafPluginInputSwapRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputSwapRequest
+ */
+export namespace TelegrafPluginInputSwapRequest {
 }
 
 /**
@@ -2828,7 +3977,211 @@ export interface TelegrafPluginInputSyslog {
      * @type {string}
      * @memberof TelegrafPluginInputSyslog
      */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputSyslogConfig}
+     * @memberof TelegrafPluginInputSyslog
+     */
+    config: TelegrafPluginInputSyslogConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSyslog
+     */
+    name: TelegrafPluginInputSyslog.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSyslog
+     */
+    type: TelegrafPluginInputSyslog.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputSyslog
+ */
+export namespace TelegrafPluginInputSyslog {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Syslog = 'syslog'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputSyslogConfig
+ */
+export interface TelegrafPluginInputSyslogConfig {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSyslogConfig
+     */
     server?: string;
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputSyslogRequest
+ */
+export interface TelegrafPluginInputSyslogRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputSyslogRequest
+ */
+export namespace TelegrafPluginInputSyslogRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputSystem
+ */
+export interface TelegrafPluginInputSystem {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSystem
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputSystem
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSystem
+     */
+    name: TelegrafPluginInputSystem.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSystem
+     */
+    type: TelegrafPluginInputSystem.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputSystem
+ */
+export namespace TelegrafPluginInputSystem {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        System = 'system'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputSystemRequest
+ */
+export interface TelegrafPluginInputSystemRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputSystemRequest
+ */
+export namespace TelegrafPluginInputSystemRequest {
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputTail
+ */
+export interface TelegrafPluginInputTail {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputTail
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputTail
+     */
+    config: TelegrafPluginConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputTail
+     */
+    name: TelegrafPluginInputTail.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputTail
+     */
+    type: TelegrafPluginInputTail.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputTail
+ */
+export namespace TelegrafPluginInputTail {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        Tail = 'tail'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Input = 'input'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginInputTailRequest
+ */
+export interface TelegrafPluginInputTailRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginInputTailRequest
+ */
+export namespace TelegrafPluginInputTailRequest {
 }
 
 /**
@@ -2839,37 +4192,90 @@ export interface TelegrafPluginInputSyslog {
 export interface TelegrafPluginOutputFile {
     /**
      * 
-     * @type {Array<TelegrafPluginOutputFileFiles>}
+     * @type {string}
      * @memberof TelegrafPluginOutputFile
      */
-    files: Array<TelegrafPluginOutputFileFiles>;
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginOutputFileConfig}
+     * @memberof TelegrafPluginOutputFile
+     */
+    config: TelegrafPluginOutputFileConfig;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginOutputFile
+     */
+    name: TelegrafPluginOutputFile.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginOutputFile
+     */
+    type: TelegrafPluginOutputFile.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginOutputFile
+ */
+export namespace TelegrafPluginOutputFile {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        File = 'file'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Output = 'output'
+    }
 }
 
 /**
  * 
  * @export
- * @interface TelegrafPluginOutputFileFiles
+ * @interface TelegrafPluginOutputFileConfig
  */
-export interface TelegrafPluginOutputFileFiles {
+export interface TelegrafPluginOutputFileConfig {
+    /**
+     * 
+     * @type {Array<TelegrafPluginOutputFileConfigFiles>}
+     * @memberof TelegrafPluginOutputFileConfig
+     */
+    files: Array<TelegrafPluginOutputFileConfigFiles>;
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginOutputFileConfigFiles
+ */
+export interface TelegrafPluginOutputFileConfigFiles {
     /**
      * 
      * @type {string}
-     * @memberof TelegrafPluginOutputFileFiles
+     * @memberof TelegrafPluginOutputFileConfigFiles
      */
     path?: string;
     /**
      * 
      * @type {string}
-     * @memberof TelegrafPluginOutputFileFiles
+     * @memberof TelegrafPluginOutputFileConfigFiles
      */
-    type?: TelegrafPluginOutputFileFiles.TypeEnum;
+    type?: TelegrafPluginOutputFileConfigFiles.TypeEnum;
 }
 
 /**
  * @export
- * @namespace TelegrafPluginOutputFileFiles
+ * @namespace TelegrafPluginOutputFileConfigFiles
  */
-export namespace TelegrafPluginOutputFileFiles {
+export namespace TelegrafPluginOutputFileConfigFiles {
     /**
      * @export
      * @enum {string}
@@ -2883,6 +4289,14 @@ export namespace TelegrafPluginOutputFileFiles {
 /**
  * 
  * @export
+ * @interface TelegrafPluginOutputFileRequest
+ */
+export interface TelegrafPluginOutputFileRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * 
+ * @export
  * @interface TelegrafPluginOutputInfluxDBV2
  */
 export interface TelegrafPluginOutputInfluxDBV2 {
@@ -2891,25 +4305,93 @@ export interface TelegrafPluginOutputInfluxDBV2 {
      * @type {string}
      * @memberof TelegrafPluginOutputInfluxDBV2
      */
-    bucket: string;
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginOutputInfluxDBV2Config}
+     * @memberof TelegrafPluginOutputInfluxDBV2
+     */
+    config: TelegrafPluginOutputInfluxDBV2Config;
     /**
      * 
      * @type {string}
      * @memberof TelegrafPluginOutputInfluxDBV2
+     */
+    name: TelegrafPluginOutputInfluxDBV2.NameEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginOutputInfluxDBV2
+     */
+    type: TelegrafPluginOutputInfluxDBV2.TypeEnum;
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginOutputInfluxDBV2
+ */
+export namespace TelegrafPluginOutputInfluxDBV2 {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum NameEnum {
+        InfluxdbV2 = 'influxdb_v2'
+    }
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Output = 'output'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginOutputInfluxDBV2Config
+ */
+export interface TelegrafPluginOutputInfluxDBV2Config {
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginOutputInfluxDBV2Config
+     */
+    bucket: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginOutputInfluxDBV2Config
      */
     organization: string;
     /**
      * 
      * @type {string}
-     * @memberof TelegrafPluginOutputInfluxDBV2
+     * @memberof TelegrafPluginOutputInfluxDBV2Config
      */
     token: string;
     /**
      * 
      * @type {Array<string>}
-     * @memberof TelegrafPluginOutputInfluxDBV2
+     * @memberof TelegrafPluginOutputInfluxDBV2Config
      */
     urls: Array<string>;
+}
+
+/**
+ * 
+ * @export
+ * @interface TelegrafPluginOutputInfluxDBV2Request
+ */
+export interface TelegrafPluginOutputInfluxDBV2Request extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginOutputInfluxDBV2Request
+ */
+export namespace TelegrafPluginOutputInfluxDBV2Request {
 }
 
 /**
@@ -2932,10 +4414,10 @@ export interface TelegrafRequest {
     name?: string;
     /**
      * 
-     * @type {Array<TelegrafRequestPlugins>}
+     * @type {Array<TelegrafRequestPlugin>}
      * @memberof TelegrafRequest
      */
-    plugins?: Array<TelegrafRequestPlugins>;
+    plugins?: Array<TelegrafRequestPlugin>;
 }
 
 /**
@@ -2955,77 +4437,23 @@ export interface TelegrafRequestAgent {
 /**
  * 
  * @export
- * @interface TelegrafRequestPlugins
+ * @interface TelegrafRequestConfig
  */
-export interface TelegrafRequestPlugins {
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafRequestPlugins
-     */
-    comment?: string;
-    /**
-     * 
-     * @type {any}
-     * @memberof TelegrafRequestPlugins
-     */
-    config?: any;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafRequestPlugins
-     */
-    name?: TelegrafRequestPlugins.NameEnum;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafRequestPlugins
-     */
-    type?: TelegrafRequestPlugins.TypeEnum;
+export interface TelegrafRequestConfig {
 }
 
 /**
+ * 
  * @export
- * @namespace TelegrafRequestPlugins
+ * @interface TelegrafRequestPlugin
  */
-export namespace TelegrafRequestPlugins {
+export interface TelegrafRequestPlugin {
     /**
-     * @export
-     * @enum {string}
+     * 
+     * @type {string}
+     * @memberof TelegrafRequestPlugin
      */
-    export enum NameEnum {
-        Cpu = 'cpu',
-        Disk = 'disk',
-        Diskio = 'diskio',
-        Docker = 'docker',
-        File = 'file',
-        Kernel = 'kernel',
-        Kubernetes = 'kubernetes',
-        Logparser = 'logparser',
-        Mem = 'mem',
-        NetResponse = 'net_response',
-        Net = 'net',
-        Ngnix = 'ngnix',
-        Processes = 'processes',
-        Procstats = 'procstats',
-        Prometheus = 'prometheus',
-        Redis = 'redis',
-        Swap = 'swap',
-        Syslog = 'syslog',
-        System = 'system',
-        Tail = 'tail',
-        InfluxdbV2 = 'influxdb_v2'
-    }
-    /**
-     * @export
-     * @enum {string}
-     */
-    export enum TypeEnum {
-        Input = 'input',
-        Output = 'output',
-        Processor = 'processor',
-        Aggregator = 'aggregator'
-    }
+    name: string;
 }
 
 /**

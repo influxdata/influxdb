@@ -13,7 +13,7 @@ import {
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
-import {TelegrafRequestPlugins} from 'src/api'
+import {TelegrafPluginInputCpu, TelegrafPluginInputDisk} from 'src/api'
 import {DataLoaderType, ConfigurationState} from 'src/types/v2/dataLoaders'
 
 describe('dataLoader reducer', () => {
@@ -35,20 +35,18 @@ describe('dataLoader reducer', () => {
     const actual = dataLoadersReducer(
       INITIAL_STATE,
       addTelegrafPlugin({
-        name: TelegrafRequestPlugins.NameEnum.Cpu,
+        name: TelegrafPluginInputCpu.NameEnum.Cpu,
         configured: ConfigurationState.Unconfigured,
         active: true,
-        config: null,
       })
     )
     const expected = {
       ...INITIAL_STATE,
       telegrafPlugins: [
         {
-          name: TelegrafRequestPlugins.NameEnum.Cpu,
+          name: TelegrafPluginInputCpu.NameEnum.Cpu,
           configured: ConfigurationState.Unconfigured,
           active: true,
-          config: null,
         },
       ],
       type: DataLoaderType.Empty,
@@ -64,20 +62,18 @@ describe('dataLoader reducer', () => {
         type: DataLoaderType.Streaming,
         telegrafPlugins: [
           {
-            name: TelegrafRequestPlugins.NameEnum.Cpu,
+            name: TelegrafPluginInputCpu.NameEnum.Cpu,
             configured: ConfigurationState.Unconfigured,
             active: true,
-            config: null,
           },
           {
-            name: TelegrafRequestPlugins.NameEnum.Disk,
+            name: TelegrafPluginInputDisk.NameEnum.Disk,
             configured: ConfigurationState.Unconfigured,
             active: false,
-            config: null,
           },
         ],
       },
-      setActiveTelegrafPlugin(TelegrafRequestPlugins.NameEnum.Disk)
+      setActiveTelegrafPlugin(TelegrafPluginInputDisk.NameEnum.Disk)
     )
 
     const expected = {
@@ -85,16 +81,14 @@ describe('dataLoader reducer', () => {
       type: DataLoaderType.Streaming,
       telegrafPlugins: [
         {
-          name: TelegrafRequestPlugins.NameEnum.Cpu,
+          name: TelegrafPluginInputCpu.NameEnum.Cpu,
           configured: ConfigurationState.Unconfigured,
           active: false,
-          config: null,
         },
         {
-          name: TelegrafRequestPlugins.NameEnum.Disk,
+          name: TelegrafPluginInputDisk.NameEnum.Disk,
           configured: ConfigurationState.Unconfigured,
           active: true,
-          config: null,
         },
       ],
     }
@@ -109,14 +103,13 @@ describe('dataLoader reducer', () => {
         type: DataLoaderType.Streaming,
         telegrafPlugins: [
           {
-            name: TelegrafRequestPlugins.NameEnum.Cpu,
+            name: TelegrafPluginInputCpu.NameEnum.Cpu,
             configured: ConfigurationState.Unconfigured,
             active: true,
-            config: null,
           },
         ],
       },
-      removeTelegrafPlugin(TelegrafRequestPlugins.NameEnum.Cpu)
+      removeTelegrafPlugin(TelegrafPluginInputCpu.NameEnum.Cpu)
     )
     const expected = {
       ...INITIAL_STATE,

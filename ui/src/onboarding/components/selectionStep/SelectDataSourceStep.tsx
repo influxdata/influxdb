@@ -13,12 +13,12 @@ import DataSourceTypeSelector from 'src/onboarding/components/selectionStep/Type
 import StreamingDataSourceSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
 
 // Types
-import {TelegrafRequestPlugins} from 'src/api'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {
   TelegrafPlugin,
   DataLoaderType,
   ConfigurationState,
+  TelegrafPluginName,
 } from 'src/types/v2/dataLoaders'
 
 export interface Props extends OnboardingStepProps {
@@ -126,7 +126,7 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
   }
 
   private handleToggleTelegrafPlugin = (
-    telegrafPlugin: TelegrafRequestPlugins.NameEnum,
+    telegrafPlugin: TelegrafPluginName,
     isSelected: boolean
   ) => {
     const {telegrafPlugins} = this.props
@@ -138,12 +138,12 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     }
 
     const active = telegrafPlugins.length === 0
-    this.props.onAddTelegrafPlugin({
+    const plugin: TelegrafPlugin = {
       name: telegrafPlugin,
       configured: ConfigurationState.Unconfigured,
       active,
-      config: {},
-    })
+    }
+    this.props.onAddTelegrafPlugin(plugin)
   }
 }
 
