@@ -34,6 +34,7 @@ interface StateProps {
 interface OwnProps {
   queries: DashboardQuery[]
   submitToken: number
+  implicitSubmit?: boolean
   inView?: boolean
   children: (r: QueriesState) => JSX.Element
 }
@@ -59,6 +60,7 @@ const defaultState = (): State => ({
 class TimeSeries extends Component<Props, State> {
   public static defaultProps = {
     inView: true,
+    implicitSubmit: true,
   }
 
   public state: State = defaultState()
@@ -143,6 +145,10 @@ class TimeSeries extends Component<Props, State> {
   private shouldReload(prevProps: Props) {
     if (prevProps.submitToken !== this.props.submitToken) {
       return true
+    }
+
+    if (!this.props.implicitSubmit) {
+      return false
     }
 
     if (!isEqual(prevProps.queries, this.props.queries)) {

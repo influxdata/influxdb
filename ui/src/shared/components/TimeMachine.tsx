@@ -48,7 +48,11 @@ class TimeMachine extends Component<Props, State> {
 
     return (
       <div className="time-machine">
-        <TimeSeries queries={queries} submitToken={submitToken}>
+        <TimeSeries
+          queries={queries}
+          submitToken={submitToken}
+          implicitSubmit={false}
+        >
           {queriesState => (
             <DraggableResizer
               stackPanels={Stack.Rows}
