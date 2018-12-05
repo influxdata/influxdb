@@ -3,7 +3,6 @@ package testing
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 
@@ -38,11 +37,11 @@ type OrganizationFields struct {
 
 // OrganizationService tests all the service functions.
 func OrganizationService(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()), t *testing.T,
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()), t *testing.T,
 ) {
 	tests := []struct {
 		name string
-		fn   func(init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
+		fn   func(init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
 			t *testing.T)
 	}{
 		{
@@ -79,7 +78,7 @@ func OrganizationService(
 
 // CreateOrganization testing
 func CreateOrganization(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -171,7 +170,11 @@ func CreateOrganization(
 						Name: "organization1",
 					},
 				},
-				err: fmt.Errorf("organization with name organization1 already exists"),
+				err: &platform.Error{
+					Code: platform.EConflict,
+					Op:   platform.OpCreateOrganization,
+					Msg:  "organization with name organization1 already exists",
+				},
 			},
 		},
 		{
@@ -207,19 +210,11 @@ func CreateOrganization(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.CreateOrganization(ctx, tt.args.organization)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			// Delete only newly created organizations
 			// if tt.args.organization.ID != nil {
@@ -227,9 +222,7 @@ func CreateOrganization(
 			// }
 
 			organizations, _, err := s.FindOrganizations(ctx, platform.OrganizationFilter{})
-			if err != nil {
-				t.Fatalf("failed to retrieve organizations: %v", err)
-			}
+			diffPlatformErrors(tt.name, err, nil, opPrefix, t)
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
 			}
@@ -239,7 +232,7 @@ func CreateOrganization(
 
 // FindOrganizationByID testing
 func FindOrganizationByID(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -280,24 +273,42 @@ func FindOrganizationByID(
 				},
 			},
 		},
+		{
+			name: "didn't find organization by id",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "organization2",
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(threeID),
+			},
+			wants: wants{
+				organization: nil,
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindOrganizationByID,
+					Msg:  "",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
 			organization, err := s.FindOrganizationByID(ctx, tt.args.id)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
 				t.Errorf("organization is different -got/+want\ndiff %s", diff)
@@ -308,7 +319,7 @@ func FindOrganizationByID(
 
 // FindOrganizations testing
 func FindOrganizations(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -406,11 +417,63 @@ func FindOrganizations(
 				},
 			},
 		},
+		{
+			name: "find organization by id not exists",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				ID: MustIDBase16(threeID),
+			},
+			wants: wants{
+				organizations: []*platform.Organization{},
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindOrganizations,
+					Msg:  "organization not found",
+				},
+			},
+		},
+		{
+			name: "find organization by name not exists",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				name: "na",
+			},
+			wants: wants{
+				organizations: []*platform.Organization{},
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindOrganizations,
+					Msg:  "organization not found",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
@@ -423,15 +486,7 @@ func FindOrganizations(
 			}
 
 			organizations, _, err := s.FindOrganizations(ctx, filter)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
@@ -442,7 +497,7 @@ func FindOrganizations(
 
 // DeleteOrganization testing
 func DeleteOrganization(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -503,7 +558,11 @@ func DeleteOrganization(
 				ID: "1234567890654321",
 			},
 			wants: wants{
-				err: fmt.Errorf("organization not found"),
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpDeleteOrganization,
+					Msg:  "organization not found",
+				},
 				organizations: []*platform.Organization{
 					{
 						Name: "orgA",
@@ -520,25 +579,16 @@ func DeleteOrganization(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.DeleteOrganization(ctx, MustIDBase16(tt.args.ID))
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			filter := platform.OrganizationFilter{}
 			organizations, _, err := s.FindOrganizations(ctx, filter)
-			if err != nil {
-				t.Fatalf("failed to retrieve organizations: %v", err)
-			}
+			diffPlatformErrors(tt.name, err, nil, opPrefix, t)
+
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
 			}
@@ -548,7 +598,7 @@ func DeleteOrganization(
 
 // FindOrganization testing
 func FindOrganization(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -599,14 +649,18 @@ func FindOrganization(
 				name: "abc",
 			},
 			wants: wants{
-				err: fmt.Errorf("organization not found"),
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindOrganization,
+					Msg:  "organization not found",
+				},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			filter := platform.OrganizationFilter{}
@@ -615,9 +669,7 @@ func FindOrganization(
 			}
 
 			organization, err := s.FindOrganization(ctx, filter)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
@@ -628,7 +680,7 @@ func FindOrganization(
 
 // UpdateOrganization testing
 func UpdateOrganization(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -646,6 +698,32 @@ func UpdateOrganization(
 		args   args
 		wants  wants
 	}{
+		{
+			name: "update id not exists",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "organization2",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(threeID),
+				name: "changed",
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpUpdateOrganization,
+					Msg:  "organization not found",
+				},
+			},
+		},
 		{
 			name: "update name",
 			fields: OrganizationFields{
@@ -675,7 +753,7 @@ func UpdateOrganization(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
@@ -685,15 +763,7 @@ func UpdateOrganization(
 			}
 
 			organization, err := s.UpdateOrganization(ctx, tt.args.id, upd)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
 				t.Errorf("organization is different -got/+want\ndiff %s", diff)

@@ -16,7 +16,7 @@ import (
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T) (platform.OrganizationService, func()) {
+func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T) (platform.OrganizationService, string, func()) {
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
@@ -34,11 +34,12 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	handler.BucketService = svc
 	server := httptest.NewServer(handler)
 	client := OrganizationService{
-		Addr: server.URL,
+		Addr:     server.URL,
+		OpPrefix: inmem.OpPrefix,
 	}
 	done := server.Close
 
-	return &client, done
+	return &client, inmem.OpPrefix, done
 }
 func TestOrganizationService(t *testing.T) {
 	t.Parallel()

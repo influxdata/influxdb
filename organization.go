@@ -8,6 +8,16 @@ type Organization struct {
 	Name string `json:"name"`
 }
 
+// ops for orgs error and orgs op logs.
+const (
+	OpFindOrganizationByID = "FindOrganizationByID"
+	OpFindOrganization     = "FindOrganization"
+	OpFindOrganizations    = "FindOrganizations"
+	OpCreateOrganization   = "CreateOrganization"
+	OpUpdateOrganization   = "UpdateOrganization"
+	OpDeleteOrganization   = "DeleteOrganization"
+)
+
 // OrganizationService represents a service for managing organization data.
 type OrganizationService interface {
 	// Returns a single organization by ID.

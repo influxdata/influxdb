@@ -486,23 +486,39 @@ type OrganizationService struct {
 	Addr               string
 	Token              string
 	InsecureSkipVerify bool
+	// OpPrefix is for not found errors.
+	OpPrefix string
 }
 
 // FindOrganizationByID gets a single organization with a given id using HTTP.
 func (s *OrganizationService) FindOrganizationByID(ctx context.Context, id platform.ID) (*platform.Organization, error) {
 	filter := platform.OrganizationFilter{ID: &id}
-	return s.FindOrganization(ctx, filter)
+	o, err := s.FindOrganization(ctx, filter)
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Op:  s.OpPrefix + platform.OpFindOrganizationByID,
+		}
+	}
+	return o, nil
 }
 
 // FindOrganization gets a single organization matching the filter using HTTP.
 func (s *OrganizationService) FindOrganization(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 	os, n, err := s.FindOrganizations(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+			Op:  s.OpPrefix + platform.OpFindOrganization,
+		}
 	}
 
 	if n == 0 {
-		return nil, ErrNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Op:   s.OpPrefix + platform.OpFindOrganization,
+			Msg:  "organization not found",
+		}
 	}
 
 	return os[0], nil
@@ -537,7 +553,7 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 		return nil, 0, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, 0, err
 	}
 
@@ -583,7 +599,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 	}
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
@@ -621,7 +637,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -653,7 +669,7 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 		return err
 	}
 
-	return CheckErrorStatus(http.StatusNoContent, resp)
+	return CheckErrorStatus(http.StatusNoContent, resp, true)
 }
 
 func organizationIDPath(id platform.ID) string {
