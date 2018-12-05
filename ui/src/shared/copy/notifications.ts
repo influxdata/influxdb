@@ -117,6 +117,16 @@ export const SigninError: Notification = {
   message: `Could not sign in`,
 }
 
+export const TelegrafConfigCreationSuccess: Notification = {
+  ...defaultSuccessNotification,
+  message: `Your Telegraf configuration has been created`,
+}
+
+export const TelegrafConfigCreationError: Notification = {
+  ...defaultErrorNotification,
+  message: `Failed to create Telegraf configuration`,
+}
+
 //  Hosts Page Notifications
 //  ----------------------------------------------------------------------------
 export const unableToGetHosts = (): Notification => ({

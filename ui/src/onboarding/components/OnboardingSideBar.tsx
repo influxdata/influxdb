@@ -12,7 +12,7 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import {getTelegrafConfigFailed} from 'src/shared/copy/v2/notifications'
 
 // APIs
-import {getTelegrafConfigTOML, createTelegrafConfig} from 'src/onboarding/apis'
+import {getTelegrafConfigTOML} from 'src/onboarding/apis'
 
 // Types
 import {IconFont} from 'src/clockface'
@@ -21,6 +21,7 @@ import {NotificationAction} from 'src/types'
 
 interface Props {
   title: string
+  telegrafConfigID: string
   visible: boolean
   telegrafPlugins: TelegrafPlugin[]
   notify: NotificationAction
@@ -81,10 +82,9 @@ class OnboardingSideBar extends Component<Props> {
   }
 
   private handleDownload = async () => {
-    const {notify} = this.props
+    const {notify, telegrafConfigID} = this.props
     try {
-      const telegraf = await createTelegrafConfig()
-      const config = await getTelegrafConfigTOML(telegraf.id)
+      const config = await getTelegrafConfigTOML(telegrafConfigID)
       downloadTextFile(config, 'config.toml')
     } catch (error) {
       notify(getTelegrafConfigFailed())

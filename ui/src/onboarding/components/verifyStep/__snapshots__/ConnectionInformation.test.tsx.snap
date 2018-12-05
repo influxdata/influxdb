@@ -34,7 +34,7 @@ exports[`Onboarding.Components.ConnectionInformation matches snapshot if success
     Connection Found!
   </h4>
   <p>
-    defbuck is recieving data loud and clear!
+    defbuck is receiving data loud and clear!
   </p>
 </Fragment>
 `;

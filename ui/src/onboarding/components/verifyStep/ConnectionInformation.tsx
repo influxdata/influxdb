@@ -53,7 +53,7 @@ class ListeningResults extends PureComponent<Props> {
       case RemoteDataState.Loading:
         return 'Timeout in 60 seconds'
       case RemoteDataState.Done:
-        return `${this.props.bucket} is recieving data loud and clear!`
+        return `${this.props.bucket} is receiving data loud and clear!`
       case RemoteDataState.Error:
         return 'Check config and try again'
     }

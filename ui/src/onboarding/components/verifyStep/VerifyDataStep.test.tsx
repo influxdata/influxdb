@@ -11,7 +11,7 @@ import {Button} from 'src/clockface'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 // Constants
-import {defaultOnboardingStepProps} from 'src/onboarding/resources'
+import {defaultOnboardingStepProps} from 'mocks/dummyData'
 
 const setup = (override = {}) => {
   const props = {

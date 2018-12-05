@@ -164,7 +164,11 @@ class Input extends Component<Props> {
     if (status === ComponentStatus.Error) {
       return (
         <>
-          <span className={`input-status icon ${IconFont.AlertTriangle}`} />
+          <span
+            className={`input-status icon ${
+              IconFont.AlertTriangle
+            } data-test="input-error"`}
+          />
           <div className="input-shadow" />
         </>
       )
@@ -173,7 +177,11 @@ class Input extends Component<Props> {
     if (status === ComponentStatus.Valid) {
       return (
         <>
-          <span className={`input-status icon ${IconFont.Checkmark}`} />
+          <span
+            className={`input-status icon ${
+              IconFont.Checkmark
+            } data-test="input-valid"`}
+          />
           <div className="input-shadow" />
         </>
       )

@@ -15,6 +15,18 @@ import ConfigureDataSourceSwitcher from 'src/onboarding/components/configureStep
 
 // Actions
 import {setActiveTelegrafPlugin} from 'src/onboarding/actions/dataLoaders'
+import {
+  updateTelegrafPluginConfig,
+  addConfigValue,
+  removeConfigValue,
+  createTelegrafConfigAsync,
+} from 'src/onboarding/actions/dataLoaders'
+
+// Constants
+import {
+  TelegrafConfigCreationSuccess,
+  TelegrafConfigCreationError,
+} from 'src/shared/copy/notifications'
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
@@ -23,7 +35,12 @@ import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
 export interface OwnProps extends OnboardingStepProps {
   telegrafPlugins: TelegrafPlugin[]
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
+  onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
   type: DataLoaderType
+  onAddConfigValue: typeof addConfigValue
+  onRemoveConfigValue: typeof removeConfigValue
+  onSaveTelegrafConfig: typeof createTelegrafConfigAsync
+  authToken: string
 }
 
 interface RouterProps {
@@ -56,8 +73,12 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     const {
       telegrafPlugins,
       type,
+      authToken,
       params: {substepID},
       setupParams,
+      onUpdateTelegrafPluginConfig,
+      onAddConfigValue,
+      onRemoveConfigValue,
     } = this.props
 
     return (
@@ -65,9 +86,14 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
         <ConfigureDataSourceSwitcher
           bucket={_.get(setupParams, 'bucket', '')}
           org={_.get(setupParams, 'org', '')}
+          username={_.get(setupParams, 'username', '')}
           telegrafPlugins={telegrafPlugins}
+          onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
+          onAddConfigValue={onAddConfigValue}
+          onRemoveConfigValue={onRemoveConfigValue}
           dataLoaderType={type}
           currentIndex={+substepID}
+          authToken={authToken}
         />
         <div className="wizard-button-container">
           <div className="wizard-button-bar">
@@ -111,18 +137,31 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     onSetCurrentStepIndex(stepStatuses.length - 1)
   }
 
-  private handleNext = () => {
+  private handleNext = async () => {
     const {
       onIncrementCurrentStepIndex,
       onSetActiveTelegrafPlugin,
       telegrafPlugins,
+      authToken,
+      notify,
       params: {substepID, stepID},
       router,
+      type,
+      onSaveTelegrafConfig,
     } = this.props
 
     const index = +substepID
 
     if (index >= telegrafPlugins.length - 1) {
+      if (type === DataLoaderType.Streaming) {
+        try {
+          await onSaveTelegrafConfig(authToken)
+          notify(TelegrafConfigCreationSuccess)
+        } catch (error) {
+          notify(TelegrafConfigCreationError)
+        }
+      }
+
       onIncrementCurrentStepIndex()
       onSetActiveTelegrafPlugin('')
     } else {
