@@ -13,16 +13,19 @@ export interface Props {
   telegrafPlugins: TelegrafPlugin[]
   currentIndex: number
   dataLoaderType: DataLoaderType
+  bucket: string
+  org: string
 }
 
 @ErrorHandling
 class ConfigureDataSourceSwitcher extends PureComponent<Props> {
   public render() {
+    const {bucket, org} = this.props
     switch (this.configurationStep) {
       case DataLoaderType.Streaming:
         return <div />
       case DataLoaderType.LineProtocol:
-        return <LineProtocol />
+        return <LineProtocol bucket={bucket} org={org} />
       case DataLoaderType.CSV:
         return <div>{DataLoaderType.CSV}</div>
       default:

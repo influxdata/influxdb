@@ -14,6 +14,8 @@ const setup = (override?) => {
       LineProtocolTab.EnterManually,
       LineProtocolTab.EnterURL,
     ],
+    bucket: 'a',
+    org: 'a',
     ...override,
   }
 

@@ -12,18 +12,24 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {LineProtocolTab, LineProtocolStatus} from 'src/types/v2/dataLoaders'
 
+interface Props {
+  bucket: string
+  org: string
+}
+
 interface State {
   activeCard: LineProtocolStatus
 }
 
 @ErrorHandling
-class LineProtocol extends PureComponent<{}, State> {
+class LineProtocol extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {activeCard: LineProtocolStatus.ImportData}
   }
   public render() {
     const {activeCard} = this.state
+    const {bucket, org} = this.props
     return (
       <>
         <h3 className="wizard-step--title">Add Data via Line Protocol</h3>
@@ -31,7 +37,11 @@ class LineProtocol extends PureComponent<{}, State> {
           Need help writing InfluxDB Line Protocol? See Documentation
         </h5>
         {activeCard === LineProtocolStatus.ImportData ? (
-          <LineProtocolTabs tabs={this.LineProtocolTabs} />
+          <LineProtocolTabs
+            tabs={this.LineProtocolTabs}
+            bucket={bucket}
+            org={org}
+          />
         ) : (
           <LoadingState activeCard={activeCard} />
         )}

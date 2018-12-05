@@ -7,6 +7,9 @@ import {Input, InputType, Radio, ButtonShape, Form} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import TextArea from 'src/clockface/components/inputs/TextArea'
 
+// Apis
+import {writeLineProtocol} from 'src/onboarding/apis/index'
+
 // Types
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 
@@ -21,6 +24,8 @@ import 'src/clockface/components/auto_input/AutoInput.scss'
 
 interface OwnProps {
   tabs: LineProtocolTab[]
+  bucket: string
+  org: string
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -84,7 +89,7 @@ export class LineProtocolTabs extends PureComponent<Props> {
       return (
         <DragAndDrop
           submitText="Upload File"
-          handleSubmit={setLineProtocolText}
+          handleSubmit={this.handleFileUpload}
         />
       )
     }
@@ -119,6 +124,14 @@ export class LineProtocolTabs extends PureComponent<Props> {
   private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const {setLineProtocolText} = this.props
     setLineProtocolText(e.target.value)
+  }
+
+  private handleFileUpload = async (uploadContent: string): Promise<any> => {
+    const {bucket, org} = this.props
+    const response = await writeLineProtocol(bucket, org, uploadContent)
+    if (response.status !== 204) {
+      return
+    }
   }
 }
 

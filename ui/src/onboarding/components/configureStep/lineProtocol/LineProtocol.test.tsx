@@ -7,8 +7,13 @@ import LineProtocol from 'src/onboarding/components/configureStep/lineProtocol/L
 
 import {LineProtocolStatus} from 'src/types/v2/dataLoaders'
 
-const setup = () => {
-  const wrapper = shallow(<LineProtocol />)
+const setup = (override?) => {
+  const props = {
+    bucket: 'a',
+    org: 'a',
+    ...override,
+  }
+  const wrapper = shallow(<LineProtocol {...props} />)
 
   return {wrapper}
 }
