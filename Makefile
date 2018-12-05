@@ -18,7 +18,7 @@ GO_ARGS=-tags '$(GO_TAGS)'
 # Test vars can be used by all recursive Makefiles
 export GOOS=$(shell go env GOOS)
 export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS)
-export GO_TEST=env GO111MODULE=on go test $(GO_ARGS)
+export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
 export GO_GENERATE=go generate $(GO_ARGS)
 export GO_VET=env GO111MODULE=on go vet $(GO_ARGS)
@@ -120,7 +120,7 @@ test-integration:
 test: test-go test-js
 
 test-go-race:
-	$(GO_TEST) -race -count=1 ./...
+	$(GO_TEST) -v -race -count=1 ./...
 
 vet:
 	$(GO_VET) -v ./...
