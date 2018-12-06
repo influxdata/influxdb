@@ -65,7 +65,7 @@ func (f *SeriesFile) Open() error {
 		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
 		if err := p.Open(); err != nil {
-			f.Close()
+			f.doClose(false)
 			return err
 		}
 		f.partitions = append(f.partitions, p)
@@ -74,12 +74,12 @@ func (f *SeriesFile) Open() error {
 	return nil
 }
 
-// Close unmaps the data file.
-func (f *SeriesFile) Close() (err error) {
-	// Wait for all references to be released and prevent new ones from being acquired.
-	f.refs.Lock()
-	defer f.refs.Unlock()
-
+func (f *SeriesFile) doClose(withLock bool) (err error) {
+	if withLock {
+		// Wait for all references to be released and prevent new ones from being acquired.
+		f.refs.Lock()
+		defer f.refs.Unlock()
+	}
 	for _, p := range f.partitions {
 		if e := p.Close(); e != nil && err == nil {
 			err = e
@@ -87,6 +87,11 @@ func (f *SeriesFile) Close() (err error) {
 	}
 
 	return err
+}
+
+// Close unmaps the data file.
+func (f *SeriesFile) Close() (err error) {
+	return f.doClose(true)
 }
 
 // Path returns the path to the file.
