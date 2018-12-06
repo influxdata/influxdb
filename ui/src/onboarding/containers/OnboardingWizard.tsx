@@ -16,13 +16,8 @@ import OnboardingStepSwitcher from 'src/onboarding/components/OnboardingStepSwit
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {
-  setSetupParams,
-  incrementCurrentStepIndex,
-  decrementCurrentStepIndex,
-  setCurrentStepIndex,
-  setStepStatus,
-} from 'src/onboarding/actions/steps'
+import {setSetupParams, setStepStatus} from 'src/onboarding/actions/steps'
+
 import {
   setDataLoadersType,
   addTelegrafPlugin,
@@ -62,14 +57,15 @@ interface OwnProps {
   startStep?: number
   stepStatuses?: StepStatus[]
   onCompleteSetup: () => void
+  currentStepIndex: number
+  onIncrementCurrentStepIndex: () => void
+  onDecrementCurrentStepIndex: () => void
+  onSetCurrentStepIndex: (stepNumber: number) => void
 }
 
 interface DispatchProps {
   notify: (message: Notification | NotificationFunc) => void
   onSetSetupParams: typeof setSetupParams
-  onIncrementCurrentStepIndex: typeof incrementCurrentStepIndex
-  onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex
-  onSetCurrentStepIndex: typeof setCurrentStepIndex
   onSetStepStatus: typeof setStepStatus
   onSetDataLoadersType: typeof setDataLoadersType
   onAddTelegrafPlugin: typeof addTelegrafPlugin
@@ -84,7 +80,6 @@ interface DataLoadersProps {
 
 interface StateProps {
   links: Links
-  currentStepIndex: number
   stepStatuses: StepStatus[]
   setupParams: SetupParams
   dataLoaders: DataLoadersProps
@@ -238,12 +233,11 @@ class OnboardingWizard extends PureComponent<Props> {
 const mstp = ({
   links,
   onboarding: {
-    steps: {currentStepIndex, stepStatuses, setupParams},
+    steps: {stepStatuses, setupParams},
     dataLoaders,
   },
 }: AppState): StateProps => ({
   links,
-  currentStepIndex,
   stepStatuses,
   setupParams,
   dataLoaders,
@@ -252,9 +246,6 @@ const mstp = ({
 const mdtp: DispatchProps = {
   notify: notifyAction,
   onSetSetupParams: setSetupParams,
-  onDecrementCurrentStepIndex: decrementCurrentStepIndex,
-  onIncrementCurrentStepIndex: incrementCurrentStepIndex,
-  onSetCurrentStepIndex: setCurrentStepIndex,
   onSetStepStatus: setStepStatus,
   onSetDataLoadersType: setDataLoadersType,
   onAddTelegrafPlugin: addTelegrafPlugin,
