@@ -122,10 +122,31 @@ export const timeMachineReducer = (
 
     case 'SET_TIME_RANGE': {
       const {timeRange} = action.payload
+      const {view} = state
 
-      // TODO(chnn): Rebuild the BuilderConfig for each query
+      const rebuildConfig = query => ({
+        ...query,
+        text: buildQuery(query.builderConfig, timeRange.duration),
+      })
 
-      return {...state, timeRange}
+      const draftQueries = state.draftQueries.map(rebuildConfig)
+      const queries = view.properties.queries.map(rebuildConfig)
+
+      const newView = {
+        ...view,
+        properties: {
+          ...view.properties,
+          queries,
+        },
+      }
+
+      return {
+        ...state,
+        timeRange,
+        view: newView,
+        draftQueries,
+        submitToken: Date.now(),
+      }
     }
 
     case 'SET_VIEW_TYPE': {
