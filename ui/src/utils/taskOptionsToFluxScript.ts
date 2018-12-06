@@ -2,7 +2,7 @@ export interface TaskOptions {
   name: string
   interval: string
   cron: string
-  delay: string
+  offset: string
   taskScheduleType: TaskSchedule
   orgID: string
 }
@@ -24,8 +24,8 @@ export const taskOptionsToFluxScript = (options: TaskOptions): string => {
     fluxScript = `${fluxScript}  cron: "${options.cron}",\n`
   }
 
-  if (options.delay) {
-    fluxScript = `${fluxScript}  delay: ${options.delay}\n`
+  if (options.offset) {
+    fluxScript = `${fluxScript}  offset: ${options.offset}\n`
   }
 
   fluxScript = `${fluxScript}}`

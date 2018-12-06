@@ -32,7 +32,7 @@ import {Task as TaskAPI, User, Organization} from 'src/api'
 interface Task extends TaskAPI {
   organization: Organization
   owner?: User
-  delay?: string
+  offset?: string
 }
 
 interface PassedInProps {

@@ -54,7 +54,7 @@ export default class TaskForm extends PureComponent<Props, State> {
       onChangeInput,
       onChangeScript,
       onChangeTaskOrgID,
-      taskOptions: {name, taskScheduleType, interval, delay, cron, orgID},
+      taskOptions: {name, taskScheduleType, interval, offset, cron, orgID},
       orgs,
     } = this.props
 
@@ -107,7 +107,7 @@ export default class TaskForm extends PureComponent<Props, State> {
                   onChangeInput={onChangeInput}
                   schedule={taskScheduleType}
                   interval={interval}
-                  delay={delay}
+                  offset={offset}
                   cron={cron}
                 />
               </ComponentSpacer>

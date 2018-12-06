@@ -20,7 +20,7 @@ import {Task as TaskAPI, User, Organization} from 'src/api'
 interface Task extends TaskAPI {
   organization: Organization
   owner?: User
-  delay?: string
+  offset?: string
 }
 
 // Constants
@@ -116,8 +116,8 @@ class TaskRow extends PureComponent<Props & WithRouterProps> {
 
   private get schedule(): string {
     const {task} = this.props
-    if (task.every && task.delay) {
-      return `Every ${task.every}, Delay ${task.delay}`
+    if (task.every && task.offset) {
+      return `Every ${task.every}, Offset ${task.offset}`
     }
     if (task.every) {
       return `Every ${task.every}`

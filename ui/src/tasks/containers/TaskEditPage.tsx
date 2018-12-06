@@ -33,7 +33,7 @@ import {
 interface Task extends TaskAPI {
   organization: Organization
   owner?: User
-  delay?: string
+  offset?: string
 }
 
 interface PassedInProps {

@@ -3,7 +3,7 @@ import {Organization} from 'src/types/v2/orgs'
 export interface Task {
   every?: string
   cron?: string
-  delay?: string
+  offset?: string
   id: string
   name: string
   status: TaskStatus

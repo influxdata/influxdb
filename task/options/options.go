@@ -39,8 +39,8 @@ type Options struct {
 	// Every represents a fixed period to repeat execution.
 	Every time.Duration
 
-	// Delay represents a delay before execution.
-	Delay time.Duration
+	// Offset represents a delay before execution.
+	Offset time.Duration
 
 	Concurrency int64
 
@@ -106,11 +106,11 @@ func FromScript(script string) (Options, error) {
 		opt.Every = everyVal.Duration().Duration()
 	}
 
-	if delayVal, ok := optObject.Get("delay"); ok {
-		if err := checkNature(delayVal.PolyType().Nature(), semantic.Duration); err != nil {
+	if offsetVal, ok := optObject.Get("offset"); ok {
+		if err := checkNature(offsetVal.PolyType().Nature(), semantic.Duration); err != nil {
 			return opt, err
 		}
-		opt.Delay = delayVal.Duration().Duration()
+		opt.Offset = offsetVal.Duration().Duration()
 	}
 
 	if concurrencyVal, ok := optObject.Get("concurrency"); ok {
@@ -165,9 +165,9 @@ func (o *Options) Validate() error {
 		}
 	}
 
-	if o.Delay.Truncate(time.Second) != o.Delay {
-		// For now, allowing negative delays. Maybe they're useful for forecasting?
-		errs = append(errs, "delay option must be expressible as whole seconds")
+	if o.Offset.Truncate(time.Second) != o.Offset {
+		// For now, allowing negative offset delays. Maybe they're useful for forecasting?
+		errs = append(errs, "offset option must be expressible as whole seconds")
 	}
 
 	if o.Concurrency < 1 {
@@ -193,7 +193,7 @@ func (o *Options) Validate() error {
 // If the cron option was specified, it is returned.
 // If the every option was specified, it is converted into a cron string using "@every".
 // Otherwise, the empty string is returned.
-// The value of the delay option is not considered.
+// The value of the offset option is not considered.
 func (o *Options) EffectiveCronString() string {
 	if o.Cron != "" {
 		return o.Cron

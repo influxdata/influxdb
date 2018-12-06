@@ -190,7 +190,7 @@ func TestMeta_CreateNextRun_Delay(t *testing.T) {
 		MaxConcurrency:  2,
 		Status:          "enabled",
 		EffectiveCron:   "* * * * *", // Every minute.
-		Delay:           5,
+		Offset:          5,
 		LatestCompleted: 30, // Arbitrary non-overlap starting point.
 	}
 
@@ -219,7 +219,7 @@ func TestMeta_ManuallyRunTimeRange(t *testing.T) {
 		MaxConcurrency:  2,
 		Status:          "enabled",
 		EffectiveCron:   "* * * * *", // Every minute.
-		Delay:           5,
+		Offset:          5,
 		LatestCompleted: 30, // Arbitrary non-overlap starting point.
 	}
 

@@ -22,8 +22,8 @@ func scriptGenerator(opt options.Options, body string) string {
 	if opt.Every != 0 {
 		taskData = fmt.Sprintf("%s  every: %s,\n", taskData, opt.Every.String())
 	}
-	if opt.Delay != 0 {
-		taskData = fmt.Sprintf("%s  delay: %s,\n", taskData, opt.Delay.String())
+	if opt.Offset != 0 {
+		taskData = fmt.Sprintf("%s  offset: %s,\n", taskData, opt.Offset.String())
 	}
 	if opt.Concurrency != 0 {
 		taskData = fmt.Sprintf("%s  concurrency: %d,\n", taskData, opt.Concurrency)
@@ -49,7 +49,7 @@ func TestFromScript(t *testing.T) {
 		exp       options.Options
 		shouldErr bool
 	}{
-		{script: scriptGenerator(options.Options{Name: "name", Cron: "* * * * *", Concurrency: 2, Retry: 3, Delay: -time.Minute}, ""), exp: options.Options{Name: "name", Cron: "* * * * *", Concurrency: 2, Retry: 3, Delay: -time.Minute}},
+		{script: scriptGenerator(options.Options{Name: "name", Cron: "* * * * *", Concurrency: 2, Retry: 3, Offset: -time.Minute}, ""), exp: options.Options{Name: "name", Cron: "* * * * *", Concurrency: 2, Retry: 3, Offset: -time.Minute}},
 		{script: scriptGenerator(options.Options{Name: "name", Every: 5 * time.Second}, ""), exp: options.Options{Name: "name", Every: 5 * time.Second, Concurrency: 1, Retry: 1}},
 		{script: scriptGenerator(options.Options{Name: "name", Cron: "* * * * *"}, ""), exp: options.Options{Name: "name", Cron: "* * * * *", Concurrency: 1, Retry: 1}},
 		{script: scriptGenerator(options.Options{Name: "name", Every: time.Hour, Cron: "* * * * *"}, ""), shouldErr: true},
@@ -116,7 +116,7 @@ func TestValidate(t *testing.T) {
 	}
 
 	*bad = good
-	bad.Delay = 1500 * time.Millisecond
+	bad.Offset = 1500 * time.Millisecond
 	if err := bad.Validate(); err == nil {
 		t.Error("expected error for sub-second delay resolution")
 	}
