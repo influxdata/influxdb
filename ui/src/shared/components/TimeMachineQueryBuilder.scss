@@ -1,7 +1,6 @@
 @import "src/style/modules";
 
 .query-builder {
-  background: $g2-kevlar;
   position: absolute;
   top: 0;
   right: 0;
@@ -10,6 +9,7 @@
   display: flex;
   padding: 10px;
   @include no-user-select();
+  background: $g3-castle;
 }
 
 .query-builder--panel {

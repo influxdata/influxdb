@@ -8,15 +8,19 @@
   justify-content: space-between;
   align-items: center;
   padding: 0 15px;
-  color: $g8-storm;
+  color: $g10-wolf;
   font-weight: 700;
   font-size: 13px;
   cursor: pointer !important;
   @include no-user-select();
 
   &.active {
-    background: $g4-onyx;
-    color: $g13-mist;
+    background: $g3-castle;
+    color: $g16-pearl;
+  }
+
+  &:hover:not(.active) {
+    color: $g14-chromium;
   }
 }
 
@@ -25,6 +29,6 @@
   margin-bottom: 2px;
 
   &:hover {
-    color: $g16-pearl;
+    color: $g19-ghost;
   }
 }

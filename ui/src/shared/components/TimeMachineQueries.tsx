@@ -77,7 +77,7 @@ const TimeMachineQueries: SFC<Props> = props => {
             shape={ButtonShape.Square}
             icon={IconFont.PlusSkinny}
             size={ComponentSize.ExtraSmall}
-            color={ComponentColor.Primary}
+            color={ComponentColor.Default}
             onClick={onAddQuery}
           />
         </div>

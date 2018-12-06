@@ -9,6 +9,7 @@ $time-machine--controls-height: 62px;
 
 .time-machine {
   height: 100%;
+  @include no-user-select();
 }
 
 .time-machine--top,
@@ -28,8 +29,7 @@ $time-machine--controls-height: 62px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  background-color: $g2-kevlar;
-  background-color: $g3-castle;
+  overflow: hidden;
 }
 
 .time-machine--bottom-tabs {
