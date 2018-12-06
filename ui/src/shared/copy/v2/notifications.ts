@@ -12,6 +12,12 @@ const defaultErrorNotification: NotificationExcludingMessage = {
   duration: TEN_SECONDS,
 }
 
+const defaultSuccessNotification: NotificationExcludingMessage = {
+  type: 'success',
+  icon: 'checkmark',
+  duration: FIVE_SECONDS,
+}
+
 export const taskNotCreated = (additionalMessage: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to create new task: ${additionalMessage}`,
@@ -47,7 +53,7 @@ export const taskImportFailed = (
 })
 
 export const taskImportSuccess = (fileName: string): Notification => ({
-  ...defaultErrorNotification,
+  ...defaultSuccessNotification,
   duration: FIVE_SECONDS,
   message: `Successfully imported file ${fileName}.`,
 })
@@ -57,8 +63,13 @@ export const getTelegrafConfigFailed = (): Notification => ({
   message: 'Failed to get telegraf config',
 })
 
-export const savingNoteFailed = (error): Notification => ({
+export const savingNoteFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   duration: FIVE_SECONDS,
   message: `Failed to save note: ${error}`,
+})
+
+export const writeLineProtocolFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to write line protocol ${error}`,
 })

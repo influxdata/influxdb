@@ -498,6 +498,13 @@ paths:
       tags:
         - Write
       summary: write time-series data into influxdb
+      requestBody:
+        description: line protocol body
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
       parameters:
         - in: header
           name: Content-Encoding

@@ -3,9 +3,7 @@ import _ from 'lodash'
 
 // Utils
 import AJAX from 'src/utils/ajax'
-import {telegrafsAPI, authorizationsAPI} from 'src/utils/api'
-
-// Types
+import {telegrafsAPI, authorizationsAPI, writeAPI} from 'src/utils/api'
 import {Telegraf, TelegrafRequest, TelegrafPluginInputCpu} from 'src/api'
 
 import {getDeep} from 'src/utils/wrappers'
@@ -132,4 +130,13 @@ export const getAuthorizationToken = async (
   } catch (error) {
     console.error(error)
   }
+}
+
+export const writeLineProtocol = async (
+  org: string,
+  bucket: string,
+  body: string
+): Promise<any> => {
+  const data = await writeAPI.writePost(org, bucket, body)
+  return data
 }

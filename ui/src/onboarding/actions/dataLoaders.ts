@@ -5,6 +5,10 @@ import {
   LineProtocolTab,
 } from 'src/types/v2/dataLoaders'
 
+import {notify} from 'src/shared/actions/notifications'
+import {writeLineProtocolFailed} from 'src/shared/copy/v2/notifications'
+import {writeLineProtocol} from 'src/onboarding/apis/index'
+
 export type Action =
   | SetDataLoadersType
   | AddTelegrafPlugin
@@ -84,3 +88,15 @@ export const setActiveLPTab = (
   type: 'SET_ACTIVE_LP_TAB',
   payload: {activeLPTab},
 })
+
+export const writeLineProtocolAction = (
+  org: string,
+  bucket: string,
+  body: string
+) => async dispatch => {
+  try {
+    await writeLineProtocol(org, bucket, body)
+  } catch (error) {
+    dispatch(notify(writeLineProtocolFailed(error)))
+  }
+}

@@ -14,13 +14,18 @@ import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 import {
   setLineProtocolText,
   setActiveLPTab,
+  writeLineProtocolAction,
 } from 'src/onboarding/actions/dataLoaders'
+
+import {AppState} from 'src/types/v2/index'
 
 // Styles
 import 'src/clockface/components/auto_input/AutoInput.scss'
 
 interface OwnProps {
   tabs: LineProtocolTab[]
+  bucket: string
+  org: string
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -28,6 +33,7 @@ type Props = OwnProps & DispatchProps & StateProps
 interface DispatchProps {
   setLineProtocolText: typeof setLineProtocolText
   setActiveLPTab: typeof setActiveLPTab
+  writeLineProtocolAction: typeof writeLineProtocolAction
 }
 
 interface StateProps {
@@ -84,7 +90,7 @@ export class LineProtocolTabs extends PureComponent<Props> {
       return (
         <DragAndDrop
           submitText="Upload File"
-          handleSubmit={setLineProtocolText}
+          handleSubmit={this.handleFileUpload}
         />
       )
     }
@@ -120,19 +126,25 @@ export class LineProtocolTabs extends PureComponent<Props> {
     const {setLineProtocolText} = this.props
     setLineProtocolText(e.target.value)
   }
+
+  private handleFileUpload = async (body: string): Promise<void> => {
+    const {bucket, org, writeLineProtocolAction} = this.props
+    writeLineProtocolAction(org, bucket, body)
+  }
 }
 
 const mstp = ({
   onboarding: {
     dataLoaders: {lineProtocolText, activeLPTab},
   },
-}): StateProps => {
+}: AppState) => {
   return {lineProtocolText, activeLPTab}
 }
 
 const mdtp: DispatchProps = {
   setLineProtocolText,
   setActiveLPTab,
+  writeLineProtocolAction,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

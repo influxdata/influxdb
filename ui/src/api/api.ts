@@ -16651,6 +16651,7 @@ export const WriteApiAxiosParamCreator = function (configuration?: Configuration
          * @summary write time-series data into influxdb
          * @param {string} org specifies the destination organization for writes
          * @param {string} bucket specifies the destination bucket for writes
+         * @param {string} body line protocol body
          * @param {'gzip' | 'identity'} [contentEncoding] when present, its value indicates to the database that compression is applied to the line-protocol body.
          * @param {'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow'} [contentType] Content-Type is used to indicate the format of the data sent to the server.
          * @param {number} [contentLength] Content-Length is an entity header is indicating the size of the entity-body, in bytes, sent to the database. If the length is greater than the database max body configuration option, a 413 response is sent.
@@ -16659,7 +16660,7 @@ export const WriteApiAxiosParamCreator = function (configuration?: Configuration
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        writePost(org: string, bucket: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options: any = {}): RequestArgs {
+        writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options: any = {}): RequestArgs {
             // verify required parameter 'org' is not null or undefined
             if (org === null || org === undefined) {
                 throw new RequiredError('org','Required parameter org was null or undefined when calling writePost.');
@@ -16667,6 +16668,10 @@ export const WriteApiAxiosParamCreator = function (configuration?: Configuration
             // verify required parameter 'bucket' is not null or undefined
             if (bucket === null || bucket === undefined) {
                 throw new RequiredError('bucket','Required parameter bucket was null or undefined when calling writePost.');
+            }
+            // verify required parameter 'body' is not null or undefined
+            if (body === null || body === undefined) {
+                throw new RequiredError('body','Required parameter body was null or undefined when calling writePost.');
             }
             const localVarPath = `/write`;
             const localVarUrlObj = url.parse(localVarPath, true);
@@ -16706,10 +16711,14 @@ export const WriteApiAxiosParamCreator = function (configuration?: Configuration
                 localVarHeaderParameter['Accept'] = String(accept);
             }
 
+            localVarHeaderParameter['Content-Type'] = 'text/plain';
+
             localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
             // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
             delete localVarUrlObj.search;
             localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"string" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(body || {}) : (body || "");
 
             return {
                 url: url.format(localVarUrlObj),
@@ -16730,6 +16739,7 @@ export const WriteApiFp = function(configuration?: Configuration) {
          * @summary write time-series data into influxdb
          * @param {string} org specifies the destination organization for writes
          * @param {string} bucket specifies the destination bucket for writes
+         * @param {string} body line protocol body
          * @param {'gzip' | 'identity'} [contentEncoding] when present, its value indicates to the database that compression is applied to the line-protocol body.
          * @param {'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow'} [contentType] Content-Type is used to indicate the format of the data sent to the server.
          * @param {number} [contentLength] Content-Length is an entity header is indicating the size of the entity-body, in bytes, sent to the database. If the length is greater than the database max body configuration option, a 413 response is sent.
@@ -16738,8 +16748,8 @@ export const WriteApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        writePost(org: string, bucket: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
-            const localVarAxiosArgs = WriteApiAxiosParamCreator(configuration).writePost(org, bucket, contentEncoding, contentType, contentLength, accept, precision, options);
+        writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+            const localVarAxiosArgs = WriteApiAxiosParamCreator(configuration).writePost(org, bucket, body, contentEncoding, contentType, contentLength, accept, precision, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -16759,6 +16769,7 @@ export const WriteApiFactory = function (configuration?: Configuration, basePath
          * @summary write time-series data into influxdb
          * @param {string} org specifies the destination organization for writes
          * @param {string} bucket specifies the destination bucket for writes
+         * @param {string} body line protocol body
          * @param {'gzip' | 'identity'} [contentEncoding] when present, its value indicates to the database that compression is applied to the line-protocol body.
          * @param {'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow'} [contentType] Content-Type is used to indicate the format of the data sent to the server.
          * @param {number} [contentLength] Content-Length is an entity header is indicating the size of the entity-body, in bytes, sent to the database. If the length is greater than the database max body configuration option, a 413 response is sent.
@@ -16767,8 +16778,8 @@ export const WriteApiFactory = function (configuration?: Configuration, basePath
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        writePost(org: string, bucket: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options?: any) {
-            return WriteApiFp(configuration).writePost(org, bucket, contentEncoding, contentType, contentLength, accept, precision, options)(axios, basePath);
+        writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options?: any) {
+            return WriteApiFp(configuration).writePost(org, bucket, body, contentEncoding, contentType, contentLength, accept, precision, options)(axios, basePath);
         },
     };
 };
@@ -16785,6 +16796,7 @@ export class WriteApi extends BaseAPI {
      * @summary write time-series data into influxdb
      * @param {string} org specifies the destination organization for writes
      * @param {string} bucket specifies the destination bucket for writes
+     * @param {string} body line protocol body
      * @param {'gzip' | 'identity'} [contentEncoding] when present, its value indicates to the database that compression is applied to the line-protocol body.
      * @param {'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow'} [contentType] Content-Type is used to indicate the format of the data sent to the server.
      * @param {number} [contentLength] Content-Length is an entity header is indicating the size of the entity-body, in bytes, sent to the database. If the length is greater than the database max body configuration option, a 413 response is sent.
@@ -16794,8 +16806,8 @@ export class WriteApi extends BaseAPI {
      * @throws {RequiredError}
      * @memberof WriteApi
      */
-    public writePost(org: string, bucket: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options?: any) {
-        return WriteApiFp(this.configuration).writePost(org, bucket, contentEncoding, contentType, contentLength, accept, precision, options)(this.axios, this.basePath);
+    public writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options?: any) {
+        return WriteApiFp(this.configuration).writePost(org, bucket, body, contentEncoding, contentType, contentLength, accept, precision, options)(this.axios, this.basePath);
     }
 
 }
