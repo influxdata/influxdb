@@ -23,7 +23,7 @@ export default class TaskScheduleFormFields extends PureComponent<Props> {
     return (
       <>
         <ComponentSpacer align={Alignment.Left} stretchToFit={true}>
-          <label className="task-page--form-label">
+          <label className="task-form--form-label">
             {schedule === TaskSchedule.interval ? 'Interval' : 'Cron'}
           </label>
           <Input
@@ -38,7 +38,7 @@ export default class TaskScheduleFormFields extends PureComponent<Props> {
         </ComponentSpacer>
 
         <ComponentSpacer align={Alignment.Left} stretchToFit={true}>
-          <label className="task-page--form-label">Delay</label>
+          <label className="task-form--form-label">Delay</label>
           <Input
             name="delay"
             type={InputType.Text}

@@ -20,6 +20,9 @@ import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {Alignment, Stack, ComponentStatus} from 'src/clockface/types'
 import {Organization} from 'src/api'
 
+// Styles
+import './TaskForm.scss'
+
 interface Props {
   script: string
   orgs: Organization[]
@@ -56,8 +59,8 @@ export default class TaskForm extends PureComponent<Props, State> {
     } = this.props
 
     return (
-      <div className="task-page">
-        <div className="task-page--options">
+      <div className="task-form">
+        <div className="task-form--options">
           <Form>
             <Form.Element label="Name" colsXS={Columns.Twelve}>
               <Input
@@ -121,7 +124,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             </Form.Element>
           </Form>
         </div>
-        <div className="task-page--editor">
+        <div className="task-form--editor">
           <FluxEditor
             script={script}
             onChangeScript={onChangeScript}

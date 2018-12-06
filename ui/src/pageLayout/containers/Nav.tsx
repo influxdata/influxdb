@@ -17,9 +17,6 @@ import {IconFont} from 'src/clockface'
 // Styles
 import '../PageLayout.scss'
 
-// MOCK DATA
-import {LeroyJenkins} from 'src/me/mockUserData'
-
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props extends WithRouterProps {
@@ -62,6 +59,14 @@ class SideNav extends PureComponent<Props> {
     const {location} = this.props
 
     return [
+      {
+        type: NavItemType.Icon,
+        title: 'My Profile',
+        link: '/me',
+        icon: IconFont.Cubouniform,
+        location: location.pathname,
+        highlightWhen: ['user_profile'],
+      },
       {
         type: NavItemType.Icon,
         title: 'Status',
@@ -109,14 +114,6 @@ class SideNav extends PureComponent<Props> {
         icon: IconFont.Wrench,
         location: location.pathname,
         highlightWhen: ['sources'],
-      },
-      {
-        type: NavItemType.Avatar,
-        title: 'My Profile',
-        link: '/me',
-        image: LeroyJenkins.avatar,
-        location: location.pathname,
-        highlightWhen: ['user_profile'],
       },
     ]
   }

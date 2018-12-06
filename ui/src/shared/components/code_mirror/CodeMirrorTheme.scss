@@ -9,7 +9,7 @@
   height: 100%;
 }
 .CodeMirror {
-  border-radius: 0 0 $radius $radius;
+  border-radius: $radius;
   font-family: $code-font;
   background-color: transparent;
   color: $g13-mist;
@@ -27,12 +27,12 @@
 }
 
 .CodeMirror-gutters {
-  @include gradient-v($g2-kevlar, $g0-obsidian);
+  background-color: $g0-obsidian;
   border: none;
 }
 
 .CodeMirror-gutters .CodeMirror-gutter {
-  background-color: fade-out($g4-onyx, 0.75);
+  background-color: mix($g2-kevlar, $g3-castle);
   height: calc(100% + 30px);
 }
 

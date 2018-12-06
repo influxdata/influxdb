@@ -25,7 +25,7 @@ class CellHeaderNote extends PureComponent<Props, State> {
 
     return (
       <div
-        className="cell-header-note"
+        className="cell--note-indicator"
         onMouseEnter={this.handleMouseEnter}
         onMouseLeave={this.handleMouseLeave}
       >

@@ -39,7 +39,7 @@ export default class TasksHeader extends PureComponent<Props> {
           <Page.Title title="Tasks" />
         </Page.Header.Left>
         <Page.Header.Right>
-          <label className="tasks-status-toggle">Show Inactive</label>
+          <SlideToggle.Label text="Show Inactive" />
           <SlideToggle
             active={showInactive}
             size={ComponentSize.ExtraSmall}

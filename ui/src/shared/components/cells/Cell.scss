@@ -73,20 +73,31 @@ $cell--header-size: 36px;
   pointer-events: none;
   
   .cell--header-note & {
-    margin-left: 25px;
+    padding-left: $cell--header-size;
   }
 }
 
-.cell-header-note {
+.cell--note-indicator {
   position: absolute;
-  top: 7px;
-  left: 10px;
+  width: $cell--header-size;
+  height: $cell--header-size;
+  top: 0;
+  left: 0;
   z-index: 10;
   cursor: default;
-  color: $g14-chromium;
+  color: $g20-white;
+  opacity: 0.5;
+  transition: opacity 0.25s ease;
 
   &:hover {
-    color: $g20-white;
+    opacity: 1;
+  }
+
+  & > span.icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
   }
 }
 

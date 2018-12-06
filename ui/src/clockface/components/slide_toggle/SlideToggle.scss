@@ -154,6 +154,7 @@
 
 /* Optional Label */
 .slide-toggle--label {
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
   color: $g11-sidewalk;

@@ -70,14 +70,14 @@ const NoteEditor: SFC<Props> = props => {
           </Radio.Button>
         </Radio>
         {toggleVisible && (
-          <label className="note-editor--toggle">
-            Show note when query returns no data
+          <div className="note-editor--toggle">
+            <SlideToggle.Label text="Show note when query returns no data" />
             <SlideToggle
               active={showNoteWhenEmpty}
               size={ComponentSize.ExtraSmall}
               onChange={onToggleShowNoteWhenEmpty}
             />
-          </label>
+          </div>
         )}
       </div>
       {isPreviewing ? (
@@ -85,6 +85,15 @@ const NoteEditor: SFC<Props> = props => {
       ) : (
         <NoteEditorText note={note} onChangeNote={onSetNote} />
       )}
+      <div className="note-editor--footer">
+        Need help using Markdown? Check out{' '}
+        <a
+          href="https://daringfireball.net/projects/markdown/syntax"
+          target="_blank"
+        >
+          this handy guide
+        </a>
+      </div>
     </div>
   )
 }

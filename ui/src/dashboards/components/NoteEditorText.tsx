@@ -17,6 +17,7 @@ const OPTIONS = {
   autoRefresh: true,
   completeSingle: false,
   lineWrapping: true,
+  placeholder: 'You can use Markdown syntax to format your note',
 }
 
 const noOp = () => {}

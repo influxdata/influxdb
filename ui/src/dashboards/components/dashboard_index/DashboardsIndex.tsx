@@ -103,7 +103,7 @@ class DashboardIndex extends PureComponent<Props, State> {
               <Button
                 onClick={this.handleToggleOverlay}
                 icon={IconFont.Import}
-                text="Import Dashboard"
+                text="Import"
                 titleText="Import a dashboard from a file"
               />
               <Button
