@@ -49,24 +49,36 @@ describe('buildQuery', () => {
     const expected = `from(bucket: "b0")
   |> range(start: -1h)
   |> filter(fn: (r) => r._measurement == "m0")
+  |> window(every: 1m)
   |> mean()
+  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
+  |> yield(name: "mean")
 
 from(bucket: "b0")
   |> range(start: -1h)
   |> filter(fn: (r) => r._measurement == "m0")
+  |> window(every: 1m)
   |> toFloat()
   |> median()
+  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
+  |> yield(name: "median")
 
 from(bucket: "b1")
   |> range(start: -1h)
   |> filter(fn: (r) => r._measurement == "m0")
+  |> window(every: 1m)
   |> mean()
+  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
+  |> yield(name: "mean")
 
 from(bucket: "b1")
   |> range(start: -1h)
   |> filter(fn: (r) => r._measurement == "m0")
+  |> window(every: 1m)
   |> toFloat()
-  |> median()`
+  |> median()
+  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
+  |> yield(name: "median")`
 
     const actual = buildQuery(config, '1h')
 

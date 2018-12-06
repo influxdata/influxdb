@@ -1,22 +1,23 @@
 export interface QueryFn {
   name: string
   flux: string
+  aggregate: boolean
 }
 
 export const FUNCTIONS: QueryFn[] = [
-  {name: 'mean', flux: '|> mean()'},
-  {name: 'median', flux: '|> toFloat()\n  |> median()'},
-  {name: 'max', flux: '|> max()'},
-  {name: 'min', flux: '|> min()'},
-  {name: 'sum', flux: '|> sum()'},
-  {name: 'distinct', flux: '|> distinct()'},
-  {name: 'count', flux: '|> count()'},
-  {name: 'increase', flux: '|> increase()'},
-  {name: 'skew', flux: '|> skew()'},
-  {name: 'spread', flux: '|> spread()'},
-  {name: 'stddev', flux: '|> stddev()'},
-  {name: 'first', flux: '|> first()'},
-  {name: 'last', flux: '|> last()'},
-  {name: 'unique', flux: '|> unique()'},
-  {name: 'sort', flux: '|> sort()'},
+  {name: 'mean', flux: `|> mean()`, aggregate: true},
+  {name: 'median', flux: '|> toFloat()\n  |> median()', aggregate: true},
+  {name: 'max', flux: '|> max()', aggregate: true},
+  {name: 'min', flux: '|> min()', aggregate: true},
+  {name: 'sum', flux: '|> sum()', aggregate: true},
+  {name: 'distinct', flux: '|> distinct()', aggregate: false},
+  {name: 'count', flux: '|> count()', aggregate: false},
+  {name: 'increase', flux: '|> increase()', aggregate: false},
+  {name: 'skew', flux: '|> skew()', aggregate: false},
+  {name: 'spread', flux: '|> spread()', aggregate: false},
+  {name: 'stddev', flux: '|> stddev()', aggregate: true},
+  {name: 'first', flux: '|> first()', aggregate: true},
+  {name: 'last', flux: '|> last()', aggregate: true},
+  {name: 'unique', flux: '|> unique()', aggregate: false},
+  {name: 'sort', flux: '|> sort()', aggregate: false},
 ]
