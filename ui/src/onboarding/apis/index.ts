@@ -137,10 +137,6 @@ export const writeLineProtocol = async (
   bucket: string,
   body: string
 ): Promise<any> => {
-  try {
-    const data = await writeAPI.writePost(org, bucket, body)
-    return data
-  } catch (error) {
-    console.error(error)
-  }
+  const data = await writeAPI.writePost(org, bucket, body)
+  return data
 }

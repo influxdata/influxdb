@@ -7,9 +7,6 @@ import {Input, InputType, Radio, ButtonShape, Form} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import TextArea from 'src/clockface/components/inputs/TextArea'
 
-// Apis
-import {writeLineProtocol} from 'src/onboarding/apis/index'
-
 // Types
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 
@@ -17,7 +14,10 @@ import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 import {
   setLineProtocolText,
   setActiveLPTab,
+  writeLineProtocolAction,
 } from 'src/onboarding/actions/dataLoaders'
+
+import {AppState} from 'src/types/v2/index'
 
 // Styles
 import 'src/clockface/components/auto_input/AutoInput.scss'
@@ -33,6 +33,7 @@ type Props = OwnProps & DispatchProps & StateProps
 interface DispatchProps {
   setLineProtocolText: typeof setLineProtocolText
   setActiveLPTab: typeof setActiveLPTab
+  writeLineProtocolAction: typeof writeLineProtocolAction
 }
 
 interface StateProps {
@@ -126,12 +127,9 @@ export class LineProtocolTabs extends PureComponent<Props> {
     setLineProtocolText(e.target.value)
   }
 
-  private handleFileUpload = async (uploadContent: string): Promise<any> => {
-    const {bucket, org} = this.props
-    const response = await writeLineProtocol(bucket, org, uploadContent)
-    if (response.status !== 204) {
-      return
-    }
+  private handleFileUpload = async (body: string): Promise<void> => {
+    const {bucket, org, writeLineProtocolAction} = this.props
+    writeLineProtocolAction(org, bucket, body)
   }
 }
 
@@ -139,13 +137,14 @@ const mstp = ({
   onboarding: {
     dataLoaders: {lineProtocolText, activeLPTab},
   },
-}): StateProps => {
+}: AppState) => {
   return {lineProtocolText, activeLPTab}
 }
 
 const mdtp: DispatchProps = {
   setLineProtocolText,
   setActiveLPTab,
+  writeLineProtocolAction,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
