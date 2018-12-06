@@ -19,7 +19,7 @@ func NewStoreTaskMeta(req CreateTaskRequest, o options.Options) StoreTaskMeta {
 		Status:          string(req.Status),
 		LatestCompleted: req.ScheduleAfter,
 		EffectiveCron:   o.EffectiveCronString(),
-		Delay:           int32(o.Delay / time.Second),
+		Offset:          int32(o.Offset / time.Second),
 	}
 
 	if stm.Status == "" {
@@ -105,7 +105,7 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 
 	nextScheduled := sch.Next(time.Unix(latest, 0))
 	nextScheduledUnix := nextScheduled.Unix()
-	if dueAt := nextScheduledUnix + int64(stm.Delay); dueAt > now {
+	if dueAt := nextScheduledUnix + int64(stm.Offset); dueAt > now {
 		// Can't schedule yet.
 		if len(stm.ManualRuns) > 0 {
 			return stm.createNextRunFromQueue(now, dueAt, sch, makeID)
@@ -129,7 +129,7 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 			RunID: id,
 			Now:   nextScheduledUnix,
 		},
-		NextDue:  sch.Next(nextScheduled).Unix() + int64(stm.Delay),
+		NextDue:  sch.Next(nextScheduled).Unix() + int64(stm.Offset),
 		HasQueue: len(stm.ManualRuns) > 0,
 	}, nil
 }
@@ -209,7 +209,7 @@ func (stm *StoreTaskMeta) NextDueRun() (int64, error) {
 		}
 	}
 
-	return sch.Next(time.Unix(latest, 0)).Unix() + int64(stm.Delay), nil
+	return sch.Next(time.Unix(latest, 0)).Unix() + int64(stm.Offset), nil
 }
 
 // ManuallyRunTimeRange requests a manual run covering the approximate range specified by the Unix timestamps start and end.
@@ -261,7 +261,7 @@ func (stm StoreTaskMeta) Equal(other StoreTaskMeta) bool {
 		stm.LatestCompleted != other.LatestCompleted ||
 		stm.Status != other.Status ||
 		stm.EffectiveCron != other.EffectiveCron ||
-		stm.Delay != other.Delay ||
+		stm.Offset != other.Offset ||
 		len(stm.CurrentlyRunning) != len(other.CurrentlyRunning) ||
 		len(stm.ManualRuns) != len(other.ManualRuns) {
 		return false

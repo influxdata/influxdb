@@ -19,7 +19,7 @@ type Task struct {
 	Flux         string `json:"flux"`
 	Every        string `json:"every,omitempty"`
 	Cron         string `json:"cron,omitempty"`
-	Delay        string `json:"delay,omitempty"`
+	Offset       string `json:"offset,omitempty"`
 }
 
 // Run is a record created when a run of a task is scheduled.

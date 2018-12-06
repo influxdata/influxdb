@@ -5,7 +5,7 @@ import {Task as TaskAPI, User, Organization} from 'src/api'
 interface Task extends TaskAPI {
   organization: Organization
   owner?: User
-  delay?: string
+  offset?: string
 }
 export interface State {
   newScript: string
@@ -21,7 +21,7 @@ export interface State {
 const defaultTaskOptions: TaskOptions = {
   name: '',
   interval: '',
-  delay: '',
+  offset: '',
   cron: '',
   taskScheduleType: TaskSchedule.unselected,
   orgID: null,
@@ -47,7 +47,7 @@ export default (state: State = defaultState, action: Action): State => {
         newScript: '',
       }
     case 'SET_ALL_TASK_OPTIONS':
-      const {name, every, cron, organizationId, delay} = action.payload
+      const {name, every, cron, organizationId, offset} = action.payload
       let taskScheduleType = TaskSchedule.interval
       if (cron) {
         taskScheduleType = TaskSchedule.cron
@@ -62,7 +62,7 @@ export default (state: State = defaultState, action: Action): State => {
           interval: every,
           orgID: organizationId,
           taskScheduleType,
-          delay,
+          offset,
         },
       }
     case 'SET_TASK_OPTION':

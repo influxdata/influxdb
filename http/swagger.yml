@@ -3951,7 +3951,7 @@ components:
         cron:
           description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
           type: string
-        delay:
+        offset:
           description: Duration to delay after the schedule, before executing the task; parsed from flux.
           type: string
         links:

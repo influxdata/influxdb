@@ -2499,7 +2499,7 @@ export interface Task {
      * @type {string}
      * @memberof Task
      */
-    delay?: string;
+    offset?: string;
     /**
      * A simple task repetition schedule; parsed from Flux.
      * @type {string}

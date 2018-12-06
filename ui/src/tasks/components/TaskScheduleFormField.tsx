@@ -11,14 +11,14 @@ import {TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 interface Props {
   schedule: TaskSchedule
   cron: string
-  delay: string
+  offset: string
   interval: string
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
 }
 
 export default class TaskScheduleFormFields extends PureComponent<Props> {
   public render() {
-    const {delay, onChangeInput, interval, cron, schedule} = this.props
+    const {offset, onChangeInput, interval, cron, schedule} = this.props
 
     return (
       <>
@@ -38,11 +38,11 @@ export default class TaskScheduleFormFields extends PureComponent<Props> {
         </ComponentSpacer>
 
         <ComponentSpacer align={Alignment.Left} stretchToFit={true}>
-          <label className="task-form--form-label">Delay</label>
+          <label className="task-form--form-label">Offset</label>
           <Input
-            name="delay"
+            name="offset"
             type={InputType.Text}
-            value={delay}
+            value={offset}
             placeholder="20m"
             onChange={onChangeInput}
           />

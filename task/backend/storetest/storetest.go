@@ -501,7 +501,7 @@ func testStoreFindMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStor
 		name: "a task",
 		cron: "* * * * *",
 		concurrency: 3,
-		delay: 5s,
+		offset: 5s,
 	}
 
 from(bucket:"test") |> range(start:-1h)`
@@ -535,8 +535,8 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
 		}
 
-		if time.Duration(meta.Delay)*time.Second != 5*time.Second {
-			t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
+		if time.Duration(meta.Offset)*time.Second != 5*time.Second {
+			t.Fatalf("unexpected delay stored in meta: %v", meta.Offset)
 		}
 
 		if meta.Status != string(backend.DefaultTaskStatus) {
@@ -645,7 +645,7 @@ func testStoreFindByIDWithMeta(t *testing.T, create CreateStoreFunc, destroy Des
 		name: "a task",
 		cron: "* * * * *",
 		concurrency: 3,
-		delay: 5s,
+		offset: 5s,
 	}
 
 from(bucket:"test") |> range(start:-1h)`
@@ -694,8 +694,8 @@ from(bucket:"test") |> range(start:-1h)`
 		t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
 	}
 
-	if time.Duration(meta.Delay)*time.Second != 5*time.Second {
-		t.Fatalf("unexpected delay stored in meta: %v", meta.Delay)
+	if time.Duration(meta.Offset)*time.Second != 5*time.Second {
+		t.Fatalf("unexpected delay stored in meta: %v", meta.Offset)
 	}
 
 	badID := task.ID + 1
@@ -771,7 +771,7 @@ func testStoreCreateNextRun(t *testing.T, create CreateStoreFunc, destroy Destro
 	const script = `option task = {
 		name: "a task",
 		cron: "* * * * *",
-		delay: 5s,
+		offset: 5s,
 		concurrency: 2,
 	}
 
@@ -833,7 +833,7 @@ from(bucket:"test") |> range(start:-1h)`
 		const script = `option task = {
 			name: "a task",
 			cron: "* * * * *",
-			delay: 5s,
+			offset: 5s,
 			concurrency: 9,
 		}
 
