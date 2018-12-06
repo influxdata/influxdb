@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/rhh"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -56,7 +57,7 @@ func NewSeriesPartition(id int, path string) *SeriesPartition {
 		path:             path,
 		closing:          make(chan struct{}),
 		CompactThreshold: DefaultSeriesPartitionCompactThreshold,
-		tracker:          newSeriesPartitionTracker(newSeriesFileMetrics(nil), id),
+		tracker:          newSeriesPartitionTracker(newSeriesFileMetrics(nil), nil),
 		Logger:           zap.NewNop(),
 		seq:              uint64(id) + 1,
 	}
@@ -559,56 +560,65 @@ func (p *SeriesPartition) seriesKeyByOffset(offset int64) []byte {
 
 type seriesPartitionTracker struct {
 	metrics *seriesFileMetrics
-	id      int // ID of partition.
+	labels  prometheus.Labels
 }
 
-func newSeriesPartitionTracker(metrics *seriesFileMetrics, partition int) *seriesPartitionTracker {
+func newSeriesPartitionTracker(metrics *seriesFileMetrics, defaultLabels prometheus.Labels) *seriesPartitionTracker {
 	return &seriesPartitionTracker{
 		metrics: metrics,
-		id:      partition,
+		labels:  defaultLabels,
 	}
+}
+
+// Labels returns a copy of labels for use with Series File metrics.
+func (t *seriesPartitionTracker) Labels() prometheus.Labels {
+	l := make(map[string]string, len(t.labels))
+	for k, v := range t.labels {
+		l[k] = v
+	}
+	return l
 }
 
 // AddSeriesCreated increases the number of series created in the partition by n.
 func (t *seriesPartitionTracker) AddSeriesCreated(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.SeriesCreated.With(labels).Add(float64(n))
 }
 
 // SetSeries sets the number of series in the partition.
 func (t *seriesPartitionTracker) SetSeries(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.Series.With(labels).Set(float64(n))
 }
 
 // AddSeries increases the number of series in the partition by n.
 func (t *seriesPartitionTracker) AddSeries(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.Series.With(labels).Add(float64(n))
 }
 
 // SubSeries decreases the number of series in the partition by n.
 func (t *seriesPartitionTracker) SubSeries(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.Series.With(labels).Sub(float64(n))
 }
 
 // SetDiskSize sets the number of bytes used by files for in partition.
 func (t *seriesPartitionTracker) SetDiskSize(sz uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.DiskSize.With(labels).Set(float64(sz))
 }
 
 // SetSegments sets the number of segments files for the partition.
 func (t *seriesPartitionTracker) SetSegments(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.Segments.With(labels).Set(float64(n))
 }
 
 // IncCompactionsActive increments the number of active compactions for the
 // components of a partition (index and segments).
 func (t *seriesPartitionTracker) IncCompactionsActive() {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	labels["component"] = "index" // TODO(edd): when we add segment compactions we will add a new label value.
 	t.metrics.CompactionsActive.With(labels).Inc()
 }
@@ -616,7 +626,7 @@ func (t *seriesPartitionTracker) IncCompactionsActive() {
 // DecCompactionsActive decrements the number of active compactions for the
 // components of a partition (index and segments).
 func (t *seriesPartitionTracker) DecCompactionsActive() {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	labels["component"] = "index" // TODO(edd): when we add segment compactions we will add a new label value.
 	t.metrics.CompactionsActive.With(labels).Dec()
 }
@@ -625,12 +635,12 @@ func (t *seriesPartitionTracker) DecCompactionsActive() {
 // Callers should use IncCompactionOK and IncCompactionErr.
 func (t *seriesPartitionTracker) incCompactions(status string, duration time.Duration) {
 	if duration > 0 {
-		labels := t.metrics.Labels(t.id)
+		labels := t.Labels()
 		labels["component"] = "index"
 		t.metrics.CompactionDuration.With(labels).Observe(duration.Seconds())
 	}
 
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Compactions.With(labels).Inc()
 }

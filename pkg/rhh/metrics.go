@@ -1,13 +1,13 @@
 package rhh
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Metrics struct {
-	Lab                prometheus.Labels
 	LoadFactor         *prometheus.GaugeVec     // Load factor of the hashmap.
 	Size               *prometheus.GaugeVec     // Number of items in hashmap.
 	GetDuration        *prometheus.HistogramVec // Sample of get times.
@@ -33,8 +33,8 @@ func NewMetrics(namespace, subsystem string, labels prometheus.Labels) *Metrics 
 	getPutNames := append(append([]string(nil), names...), "status")
 	sort.Strings(getPutNames)
 
+	fmt.Println("getputname", getPutNames)
 	return &Metrics{
-		Lab: labels,
 		LoadFactor: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
@@ -101,15 +101,6 @@ func NewMetrics(namespace, subsystem string, labels prometheus.Labels) *Metrics 
 			Help:      "Number of times elements inserted.",
 		}, getPutNames),
 	}
-}
-
-// Labels returns a copy of labels for use with RHH metrics.
-func (m *Metrics) Labels() prometheus.Labels {
-	l := make(map[string]string, len(m.Lab))
-	for k, v := range m.Lab {
-		l[k] = v
-	}
-	return l
 }
 
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.

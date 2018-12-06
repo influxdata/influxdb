@@ -3,6 +3,7 @@ package rhh
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math/rand"
 	"sort"
 	"time"
@@ -37,7 +38,7 @@ func NewHashMap(opt Options) *HashMap {
 	m := &HashMap{
 		capacity:   pow2(opt.Capacity), // Limited to 2^64.
 		loadFactor: opt.LoadFactor,
-		tracker:    newRHHTracker(opt.Metrics),
+		tracker:    newRHHTracker(opt.Metrics, opt.Labels),
 	}
 	m.alloc()
 	return m
@@ -269,48 +270,60 @@ func (m *HashMap) PrometheusCollectors() []prometheus.Collector {
 
 type rhhTracker struct {
 	metrics *Metrics
+	labels  prometheus.Labels
 }
 
-func newRHHTracker(metrics *Metrics) *rhhTracker {
-	return &rhhTracker{metrics: metrics}
+// Labels returns a copy of the default labels used by the tracker's metrics.
+// The returned map is safe for modification.
+func (t *rhhTracker) Labels() prometheus.Labels {
+	labels := make(prometheus.Labels, len(t.labels))
+	for k, v := range t.labels {
+		labels[k] = v
+	}
+	return labels
+}
+
+func newRHHTracker(metrics *Metrics, defaultLabels prometheus.Labels) *rhhTracker {
+	return &rhhTracker{metrics: metrics, labels: defaultLabels}
 }
 
 func (t *rhhTracker) SetLoadFactor(load float64) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.LoadFactor.With(labels).Set(load)
 }
 
 func (t *rhhTracker) SetSize(sz uint64) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.Size.With(labels).Set(float64(sz))
 }
 
 func (t *rhhTracker) ObserveGet(d time.Duration) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.GetDuration.With(labels).Observe(float64(d.Nanoseconds()))
 	t.metrics.LastGetDuration.With(labels).Set(float64(d.Nanoseconds()))
 }
 
 func (t *rhhTracker) ObservePut(d time.Duration) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.InsertDuration.With(labels).Observe(float64(d.Nanoseconds()))
 	t.metrics.LastInsertDuration.With(labels).Set(float64(d.Nanoseconds()))
 }
 
 func (t *rhhTracker) SetGrowDuration(d time.Duration) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.LastGrowDuration.With(labels).Set(d.Seconds())
 }
 
 // TODO(edd): currently no safe way to calculate this concurrently.
 func (t *rhhTracker) SetProbeCount(length float64) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.MeanProbeCount.With(labels).Set(length)
 }
 
 func (t *rhhTracker) incGet(status string) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	labels["status"] = status
+	fmt.Println("inc get", labels)
 	t.metrics.Gets.With(labels).Inc()
 }
 
@@ -318,7 +331,7 @@ func (t *rhhTracker) IncGetHit()  { t.incGet("hit") }
 func (t *rhhTracker) IncGetMiss() { t.incGet("miss") }
 
 func (t *rhhTracker) incPut(status string) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Puts.With(labels).Inc()
 }
@@ -349,6 +362,7 @@ type Options struct {
 	Capacity   int64
 	LoadFactor int
 	Metrics    *Metrics
+	Labels     prometheus.Labels
 }
 
 // DefaultOptions represents a default set of options to pass to NewHashMap().

@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/mmap"
 	"github.com/influxdata/platform/pkg/rhh"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -46,7 +46,8 @@ type SeriesIndex struct {
 
 	// metrics stores a shard instance of some Prometheus metrics. metrics
 	// must be set before Open is called.
-	metrics *rhh.Metrics
+	rhhMetrics *rhh.Metrics
+	rhhLabels  prometheus.Labels
 
 	data         []byte // mmap data
 	keyIDData    []byte // key/id mmap data
@@ -62,14 +63,6 @@ func NewSeriesIndex(path string) *SeriesIndex {
 	return &SeriesIndex{
 		path: path,
 	}
-}
-
-// setMetrics sets the metrics for this index. The partition id has to be injected
-// into the RHH metric labels.
-func (idx *SeriesIndex) setMetrics(metrics *rhh.Metrics, id int) {
-	idx.metrics = metrics
-	idx.metrics.Lab = idx.metrics.Labels()           // Copy labels
-	idx.metrics.Lab["partition_id"] = fmt.Sprint(id) // N.B., This MUST be the same as the other series file metric labels
 }
 
 // Open memory-maps the index file.
@@ -100,7 +93,8 @@ func (idx *SeriesIndex) Open() (err error) {
 	}
 
 	options := rhh.DefaultOptions
-	options.Metrics = idx.metrics
+	options.Metrics = idx.rhhMetrics
+	options.Labels = idx.rhhLabels
 
 	idx.keyIDMap = rhh.NewHashMap(options)
 	idx.idOffsetMap = make(map[SeriesID]int64)
@@ -126,7 +120,9 @@ func (idx *SeriesIndex) Close() (err error) {
 func (idx *SeriesIndex) Recover(segments []*SeriesSegment) error {
 	// Allocate new in-memory maps.
 	options := rhh.DefaultOptions
-	options.Metrics = idx.metrics
+	options.Metrics = idx.rhhMetrics
+	options.Labels = idx.rhhLabels
+
 	idx.keyIDMap = rhh.NewHashMap(options)
 	idx.idOffsetMap = make(map[SeriesID]int64)
 	idx.tombstones = make(map[SeriesID]struct{})

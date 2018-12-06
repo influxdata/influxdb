@@ -1,11 +1,38 @@
 package tsdb
 
 import (
-	"fmt"
 	"sort"
+	"sync"
+
+	"github.com/influxdata/platform/pkg/rhh"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// The following package variables act as singletons, to be shared by all
+// storage.Engine instantiations. This allows multiple Series Files to be
+// monitored within the same process.
+var (
+	sms *seriesFileMetrics // main metrics
+	ims *rhh.Metrics       // hashmap specific metrics
+	mmu sync.RWMutex
+)
+
+// PrometheusCollectors returns all the metrics associated with the tsdb package.
+func PrometheusCollectors() []prometheus.Collector {
+	mmu.RLock()
+	defer mmu.RUnlock()
+
+	var collectors []prometheus.Collector
+	if sms != nil {
+		collectors = append(collectors, sms.PrometheusCollectors()...)
+	}
+
+	if ims != nil {
+		collectors = append(collectors, ims.PrometheusCollectors()...)
+	}
+	return collectors
+}
 
 // namespace is the leading part of all published metrics for the Storage service.
 const namespace = "storage"
@@ -13,7 +40,6 @@ const namespace = "storage"
 const seriesFileSubsystem = "series_file" // sub-system associated with metrics for the Series File.
 
 type seriesFileMetrics struct {
-	labels        prometheus.Labels
 	SeriesCreated *prometheus.CounterVec // Number of series created in Series File.
 	Series        *prometheus.GaugeVec   // Number of series.
 	DiskSize      *prometheus.GaugeVec   // Size occupied on disk.
@@ -27,7 +53,7 @@ type seriesFileMetrics struct {
 
 // newSeriesFileMetrics initialises the prometheus metrics for tracking the Series File.
 func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
-	names := []string{"partition_id"} // All metrics have this label.
+	names := []string{"series_file_partition"} // All metrics have this label.
 	for k := range labels {
 		names = append(names, k)
 	}
@@ -40,7 +66,6 @@ func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
 	sort.Strings(durationCompaction)
 
 	return &seriesFileMetrics{
-		labels: labels,
 		SeriesCreated: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: seriesFileSubsystem,
@@ -86,18 +111,6 @@ func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
 			Help:      "Number of compactions.",
 		}, totalCompactions),
 	}
-}
-
-// Labels returns a copy of labels for use with Series File metrics.
-func (m *seriesFileMetrics) Labels(partition int) prometheus.Labels {
-	l := make(map[string]string, len(m.labels))
-	for k, v := range m.labels {
-		l[k] = v
-	}
-
-	// N.B all series file metrics include the partition. So it's included here.
-	l["partition_id"] = fmt.Sprint(partition)
-	return l
 }
 
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.

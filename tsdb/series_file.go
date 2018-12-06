@@ -40,12 +40,10 @@ type SeriesFile struct {
 	partitions []*SeriesPartition
 
 	// N.B we have many partitions, but they must share the same metrics, so the
-	// metrics are managed in a single location (here in the SeriesFile), and
+	// metrics are managed in a single shared package variable and
 	// each partition decorates the same metric measurements with different
 	// partition id label values.
 	defaultMetricLabels prometheus.Labels
-	partitionMetrics    *seriesFileMetrics // Metrics for each partition.
-	indexMetrics        *rhh.Metrics       // Metrics for each partition's index Hashmap.
 
 	refs sync.RWMutex // RWMutex to track references to the SeriesFile that are in use.
 
@@ -55,10 +53,10 @@ type SeriesFile struct {
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
 	return &SeriesFile{
-		path:             path,
-		partitionMetrics: newSeriesFileMetrics(nil),
-		indexMetrics:     rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", nil),
-		Logger:           zap.NewNop(),
+		path: path,
+		// partitionMetrics: newSeriesFileMetrics(nil),
+		// indexMetrics:     rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", nil),
+		Logger: zap.NewNop(),
 	}
 }
 
@@ -74,8 +72,6 @@ func (f *SeriesFile) SetDefaultMetricLabels(labels prometheus.Labels) {
 	for k, v := range labels {
 		f.defaultMetricLabels[k] = v
 	}
-	f.partitionMetrics = newSeriesFileMetrics(labels)
-	f.indexMetrics = rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", labels)
 }
 
 // Open memory maps the data file at the file's path.
@@ -92,11 +88,22 @@ func (f *SeriesFile) Open() error {
 		return err
 	}
 
-	// Ensure the that RHH metrics have the correct partition label.
-	newLabels := f.indexMetrics.Labels()
-	newLabels["partition_id"] = "" // Each partition index will set this when setMetrics is called.
+	// Initialise metrics for trackers.
+	mmu.Lock()
+	if sms == nil {
+		sms = newSeriesFileMetrics(f.defaultMetricLabels)
+	}
+	if ims == nil {
+		// Make a copy of the default labels so that another label can be provided.
+		labels := make(prometheus.Labels, len(f.defaultMetricLabels))
+		for k, v := range f.defaultMetricLabels {
+			labels[k] = v
+		}
+		labels["series_file_partition"] = "" // All partitions have this label.
+		ims = rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", labels)
+	}
+	mmu.Unlock()
 
-	f.indexMetrics = rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", newLabels)
 	// Open partitions.
 	f.partitions = make([]*SeriesPartition, 0, SeriesFilePartitionN)
 	for i := 0; i < SeriesFilePartitionN; i++ {
@@ -104,9 +111,20 @@ func (f *SeriesFile) Open() error {
 		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
 
+		// For each series file index, rhh trackers are used to track the RHH Hashmap.
+		// Each of the trackers needs to be given slightly different default
+		// labels to ensure the correct partition_ids are set as labels.
+		labels := make(prometheus.Labels, len(f.defaultMetricLabels))
+		for k, v := range f.defaultMetricLabels {
+			labels[k] = v
+		}
+		labels["series_file_partition"] = fmt.Sprint(p.ID())
+
+		p.index.rhhMetrics = ims
+		p.index.rhhLabels = labels
+
 		// Set the metric trackers on the partition with any injected default labels.
-		p.tracker = newSeriesPartitionTracker(f.partitionMetrics, p.ID())
-		p.index.setMetrics(f.indexMetrics, p.ID())
+		p.tracker = newSeriesPartitionTracker(sms, labels)
 
 		if err := p.Open(); err != nil {
 			f.Close()
@@ -336,13 +354,6 @@ func (f *SeriesFile) SeriesKeyPartition(key []byte) *SeriesPartition {
 		return nil
 	}
 	return f.partitions[partitionID]
-}
-
-// PrometheusCollectors returns all the prometheus metrics associated with the series file.
-func (f *SeriesFile) PrometheusCollectors() []prometheus.Collector {
-	collectors := f.partitionMetrics.PrometheusCollectors() // Shared per-partition metrics.
-	collectors = append(collectors, f.indexMetrics.PrometheusCollectors()...)
-	return collectors
 }
 
 // AppendSeriesKey serializes name and tags to a byte slice.
