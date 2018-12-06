@@ -22,6 +22,26 @@ export interface FluxTablesToDygraphResult {
   nonNumericColumns: string[]
 }
 
+const getTimeIndex = header => {
+  let timeIndex = header.indexOf('_time')
+
+  if (timeIndex >= 0) {
+    return timeIndex
+  }
+
+  timeIndex = header.indexOf('_start')
+  if (timeIndex >= 0) {
+    return timeIndex
+  }
+
+  timeIndex = header.indexOf('_end')
+  if (timeIndex >= 0) {
+    return timeIndex
+  }
+
+  return -1
+}
+
 export const fluxTablesToDygraph = (
   tables: FluxTable[]
 ): FluxTablesToDygraphResult => {
@@ -59,7 +79,7 @@ export const fluxTablesToDygraph = (
       allColumnNames.push(uniqueColumnName)
     }
 
-    const timeIndex = header.indexOf('_time')
+    const timeIndex = getTimeIndex(header)
 
     if (timeIndex < 0) {
       throw new Error('Could not find time index in FluxTable')
