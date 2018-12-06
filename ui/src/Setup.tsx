@@ -1,6 +1,7 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {InjectedRouter} from 'react-router'
 
 // APIs
 import {getSetupStatus} from 'src/onboarding/apis'
@@ -10,8 +11,9 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import OnboardingWizard from 'src/onboarding/containers/OnboardingWizard'
-import Notifications from 'src/shared/components/notifications/Notifications'
+
+// Utils
+import {isOnboardingURL} from 'src/onboarding/utils'
 
 // Types
 import {Notification, NotificationFunc, RemoteDataState} from 'src/types'
@@ -24,6 +26,7 @@ interface State {
 
 interface Props {
   links: Links
+  router: InjectedRouter
   children: ReactElement<any>
   notify: (message: Notification | NotificationFunc) => void
 }
@@ -40,33 +43,33 @@ export class Setup extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {links} = this.props
+    const {links, router} = this.props
+
+    if (isOnboardingURL()) {
+      this.setState({
+        loading: RemoteDataState.Done,
+      })
+      return
+    }
+
     const isSetupAllowed = await getSetupStatus(links.setup)
     this.setState({
       loading: RemoteDataState.Done,
-      isSetupComplete: !isSetupAllowed,
     })
+
+    if (!isSetupAllowed) {
+      return
+    }
+
+    router.push('/onboarding/0')
   }
 
   public render() {
-    const {isSetupComplete} = this.state
     if (this.isLoading) {
       return <div className="page-spinner" />
-    }
-    if (!isSetupComplete) {
-      return (
-        <div className="chronograf-root">
-          <Notifications inPresentationMode={true} />
-          <OnboardingWizard onCompleteSetup={this.handleCompleteSetup} />
-        </div>
-      )
     } else {
       return this.props.children && React.cloneElement(this.props.children)
     }
-  }
-
-  public handleCompleteSetup = () => {
-    this.setState({isSetupComplete: true})
   }
 
   private get isLoading(): boolean {

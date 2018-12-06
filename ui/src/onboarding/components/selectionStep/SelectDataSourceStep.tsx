@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -21,7 +22,7 @@ import {
   TelegrafPluginName,
 } from 'src/types/v2/dataLoaders'
 
-export interface Props extends OnboardingStepProps {
+export interface OwnProps extends OnboardingStepProps {
   bucket: string
   telegrafPlugins: TelegrafPlugin[]
   type: DataLoaderType
@@ -29,6 +30,15 @@ export interface Props extends OnboardingStepProps {
   onRemoveTelegrafPlugin: (TelegrafPlugin: string) => void
   onSetDataLoadersType: (type: DataLoaderType) => void
 }
+
+interface RouterProps {
+  params: {
+    stepID: string
+    substepID: string
+  }
+}
+
+type Props = OwnProps & RouterProps & WithRouterProps
 
 interface State {
   showStreamingSources: boolean
@@ -72,7 +82,7 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
 
   private get title(): string {
     const {bucket} = this.props
-    if (this.state.showStreamingSources) {
+    if (this.isStreaming) {
       return `Select Streaming Data Sources to add to ${bucket ||
         'your bucket'}`
     }
@@ -80,10 +90,7 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
   }
 
   private get selector(): JSX.Element {
-    if (
-      this.props.type === DataLoaderType.Streaming &&
-      this.state.showStreamingSources
-    ) {
+    if (this.props.type === DataLoaderType.Streaming && this.isStreaming) {
       return (
         <StreamingDataSourceSelector
           telegrafPlugins={this.props.telegrafPlugins}
@@ -100,11 +107,13 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
   }
 
   private handleClickNext = () => {
-    if (
-      this.props.type === DataLoaderType.Streaming &&
-      !this.state.showStreamingSources
-    ) {
-      this.setState({showStreamingSources: true})
+    const {
+      router,
+      params: {stepID},
+    } = this.props
+
+    if (this.props.type === DataLoaderType.Streaming && !this.isStreaming) {
+      router.push(`/onboarding/${stepID}/streaming`)
       return
     }
 
@@ -112,11 +121,6 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
   }
 
   private handleClickBack = () => {
-    if (this.props.type === DataLoaderType.Streaming) {
-      this.setState({showStreamingSources: false})
-      return
-    }
-
     this.props.onDecrementCurrentStepIndex()
   }
 
@@ -145,6 +149,10 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     }
     this.props.onAddTelegrafPlugin(plugin)
   }
+
+  private get isStreaming(): boolean {
+    return this.props.params.substepID === 'streaming'
+  }
 }
 
-export default SelectDataSourceStep
+export default withRouter<OwnProps>(SelectDataSourceStep)

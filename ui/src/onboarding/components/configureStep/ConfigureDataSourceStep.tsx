@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -16,27 +17,44 @@ import ConfigureDataSourceSwitcher from 'src/onboarding/components/configureStep
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
 
-export interface Props extends OnboardingStepProps {
+export interface OwnProps extends OnboardingStepProps {
   telegrafPlugins: TelegrafPlugin[]
   type: DataLoaderType
 }
 
-interface State {
-  currentDataSourceIndex: number
+interface RouterProps {
+  params: {
+    stepID: string
+    substepID: string
+  }
 }
 
+type Props = OwnProps & WithRouterProps & RouterProps
+
 @ErrorHandling
-class ConfigureDataSourceStep extends PureComponent<Props, State> {
+class ConfigureDataSourceStep extends PureComponent<Props> {
   constructor(props: Props) {
     super(props)
+  }
 
-    this.state = {
-      currentDataSourceIndex: 0,
+  public componentDidMount() {
+    const {
+      router,
+      params: {stepID, substepID},
+    } = this.props
+
+    if (substepID === undefined) {
+      router.replace(`/onboarding/${stepID}/0`)
     }
   }
 
   public render() {
-    const {telegrafPlugins, type, setupParams} = this.props
+    const {
+      telegrafPlugins,
+      type,
+      params: {substepID},
+      setupParams,
+    } = this.props
 
     return (
       <div className="onboarding-step">
@@ -44,8 +62,8 @@ class ConfigureDataSourceStep extends PureComponent<Props, State> {
           bucket={_.get(setupParams, 'bucket', '')}
           org={_.get(setupParams, 'org', '')}
           telegrafPlugins={telegrafPlugins}
-          currentIndex={this.state.currentDataSourceIndex}
           dataLoaderType={type}
+          currentIndex={+substepID}
         />
         <div className="wizard-button-bar">
           <Button
@@ -68,26 +86,27 @@ class ConfigureDataSourceStep extends PureComponent<Props, State> {
   }
 
   private handleNext = () => {
-    const {onIncrementCurrentStepIndex, telegrafPlugins} = this.props
-    const {currentDataSourceIndex} = this.state
+    const {
+      onIncrementCurrentStepIndex,
+      telegrafPlugins,
+      params: {substepID, stepID},
+      router,
+    } = this.props
 
-    if (currentDataSourceIndex >= telegrafPlugins.length - 1) {
+    const index = +substepID
+
+    if (index >= telegrafPlugins.length - 1) {
       onIncrementCurrentStepIndex()
     } else {
-      this.setState({currentDataSourceIndex: currentDataSourceIndex + 1})
+      router.push(`/onboarding/${stepID}/${index + 1}`)
     }
   }
 
   private handlePrevious = () => {
-    const {onDecrementCurrentStepIndex} = this.props
-    const {currentDataSourceIndex} = this.state
+    const {router} = this.props
 
-    if (currentDataSourceIndex === 0) {
-      onDecrementCurrentStepIndex()
-    } else {
-      this.setState({currentDataSourceIndex: currentDataSourceIndex - 1})
-    }
+    router.goBack()
   }
 }
 
-export default ConfigureDataSourceStep
+export default withRouter<OwnProps>(ConfigureDataSourceStep)

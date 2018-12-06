@@ -33,6 +33,8 @@ import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
 import SourcesPage from 'src/sources/components/SourcesPage'
 
+import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
+
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
 
@@ -77,6 +79,14 @@ class Root extends PureComponent {
         <Router history={history}>
           <Route component={GetLinks}>
             <Route component={Setup}>
+              <Route
+                path="/onboarding/:stepID"
+                component={OnboardingWizardPage}
+              />
+              <Route
+                path="/onboarding/:stepID/:substepID"
+                component={OnboardingWizardPage}
+              />
               <Route component={Signin}>
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
@@ -116,8 +126,8 @@ class Root extends PureComponent {
                 </Route>
               </Route>
             </Route>
-            <Route path="*" component={NotFound} />
           </Route>
+          <Route path="*" component={NotFound} />
         </Router>
       </Provider>
     )
