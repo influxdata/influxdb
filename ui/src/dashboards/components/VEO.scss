@@ -6,8 +6,8 @@
 @import 'src/style/modules';
 
 .veo {
-  width: calc(100% - 60px);
-  height: calc(100% - 30px);
+  width: calc(100% - #{$ix-marg-e});
+  height: calc(100% - #{$ix-marg-d});
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -16,7 +16,7 @@
 }
 
 .veo .time-machine {
-  padding: 8px 32px;
+  padding: $page-gutter;
   padding-top: 0;
-  height: calc(100% - 80px);
+  height: calc(100% - #{$page-header-size});
 }

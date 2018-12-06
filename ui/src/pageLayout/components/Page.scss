@@ -85,8 +85,8 @@
 
 .container-fluid {
   margin: 0 auto;
+  padding: $page-gutter;
   padding-top: 0;
-  padding: 0 $page-gutter;
   max-width: $page-max-width;
 
   &.full-width {

@@ -11,7 +11,7 @@ import TimeMachineVis from 'src/shared/components/TimeMachineVis'
 import TimeSeries from 'src/shared/components/TimeSeries'
 
 // Constants
-const INITIAL_RESIZER_HANDLE = 0.4
+const INITIAL_RESIZER_HANDLE = 0.6
 
 // Utils
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
