@@ -12,6 +12,7 @@ import {
   ViewParams,
   ViewProperties,
   QueryEditMode,
+  BuilderConfig,
   DashboardQuery,
   InfluxLanguage,
 } from 'src/types/v2/dashboards'
@@ -69,6 +70,7 @@ export {
   NewCell,
   Cell,
   QueryEditMode,
+  BuilderConfig,
   DashboardQuery,
   NewView,
   View,

@@ -77,12 +77,24 @@ describe('timeMachinesReducer', () => {
         type: InfluxLanguage.InfluxQL,
         sourceID: '123',
         editMode: QueryEditMode.Advanced,
+        builderConfig: {
+          buckets: [],
+          measurements: [],
+          fields: [],
+          functions: [],
+        },
       },
       {
         text: 'bar',
         type: InfluxLanguage.Flux,
         sourceID: '456',
         editMode: QueryEditMode.Builder,
+        builderConfig: {
+          buckets: [],
+          measurements: [],
+          fields: [],
+          functions: [],
+        },
       },
     ]
 
@@ -112,6 +124,12 @@ describe('timeMachineReducer', () => {
         type: InfluxLanguage.Flux,
         sourceID: '123',
         editMode: QueryEditMode.Builder,
+        builderConfig: {
+          buckets: [],
+          measurements: [],
+          fields: [],
+          functions: [],
+        },
       }
 
       const queryB: DashboardQuery = {
@@ -119,6 +137,12 @@ describe('timeMachineReducer', () => {
         type: InfluxLanguage.Flux,
         sourceID: '456',
         editMode: QueryEditMode.Builder,
+        builderConfig: {
+          buckets: [],
+          measurements: [],
+          fields: [],
+          functions: [],
+        },
       }
 
       state.view.properties.queries = [queryA, queryB]
@@ -156,12 +180,24 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
         {
           text: 'bar',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
       ]
 
@@ -174,12 +210,24 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
         {
           text: '',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
       ])
     })
@@ -196,12 +244,24 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
         {
           text: 'bar',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
       ]
 
@@ -214,12 +274,24 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
         {
           text: 'bar',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
       ])
     })
@@ -236,12 +308,24 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
         {
           text: 'bar',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
       ]
 
@@ -254,12 +338,24 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
         {
           text: 'bar',
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
       ])
     })
@@ -277,12 +373,24 @@ describe('timeMachineReducer', () => {
             type: InfluxLanguage.Flux,
             sourceID: '',
             editMode: QueryEditMode.Builder,
+            builderConfig: {
+              buckets: [],
+              measurements: [],
+              fields: [],
+              functions: [],
+            },
           },
           {
             text: 'bar',
             type: InfluxLanguage.Flux,
             sourceID: '',
             editMode: QueryEditMode.Advanced,
+            builderConfig: {
+              buckets: [],
+              measurements: [],
+              fields: [],
+              functions: [],
+            },
           },
         ]
 
@@ -301,12 +409,24 @@ describe('timeMachineReducer', () => {
             type: InfluxLanguage.InfluxQL,
             sourceID: '',
             editMode: QueryEditMode.Advanced,
+            builderConfig: {
+              buckets: [],
+              measurements: [],
+              fields: [],
+              functions: [],
+            },
           },
           {
             text: 'bar',
             type: InfluxLanguage.Flux,
             sourceID: '',
             editMode: QueryEditMode.Builder,
+            builderConfig: {
+              buckets: [],
+              measurements: [],
+              fields: [],
+              functions: [],
+            },
           },
         ]
 
@@ -325,12 +445,24 @@ describe('timeMachineReducer', () => {
             type: InfluxLanguage.Flux,
             sourceID: '',
             editMode: QueryEditMode.Advanced,
+            builderConfig: {
+              buckets: [],
+              measurements: [],
+              fields: [],
+              functions: [],
+            },
           },
           {
             text: 'bar',
             type: InfluxLanguage.Flux,
             sourceID: '',
             editMode: QueryEditMode.Builder,
+            builderConfig: {
+              buckets: [],
+              measurements: [],
+              fields: [],
+              functions: [],
+            },
           },
         ]
 
@@ -352,6 +484,12 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
       ]
 
@@ -364,12 +502,24 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
         {
           text: '',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
       ])
     })
@@ -385,18 +535,36 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
         {
           text: 'b',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
         {
           text: 'c',
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
+          builderConfig: {
+            buckets: [],
+            measurements: [],
+            fields: [],
+            functions: [],
+          },
         },
       ]
     })

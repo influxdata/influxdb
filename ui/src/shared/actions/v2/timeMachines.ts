@@ -1,8 +1,8 @@
 // Types
 import {TimeMachineState} from 'src/shared/reducers/v2/timeMachines'
-import {TimeRange, ViewType} from 'src/types/v2'
+import {TimeRange, ViewType, BuilderConfig} from 'src/types/v2'
 import {Axes, DecimalPlaces, XYViewGeom} from 'src/types/v2/dashboards'
-import {TimeMachineTab, BuilderConfig} from 'src/types/v2/timeMachine'
+import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {Color} from 'src/types/colors'
 
 export type Action =
@@ -342,12 +342,10 @@ export const removeQuery = (queryIndex: number): RemoveQueryAction => ({
 
 interface BuildQueryAction {
   type: 'BUILD_QUERY'
-  payload: {
-    config: BuilderConfig
-  }
+  payload: {builderConfig: BuilderConfig}
 }
 
-export const buildQuery = (config: BuilderConfig): BuildQueryAction => ({
+export const buildQuery = (builderConfig: BuilderConfig): BuildQueryAction => ({
   type: 'BUILD_QUERY',
-  payload: {config},
+  payload: {builderConfig},
 })

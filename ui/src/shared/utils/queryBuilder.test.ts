@@ -1,6 +1,6 @@
 import {buildQuery} from 'src/shared/utils/queryBuilder'
 
-import {BuilderConfig} from 'src/types/v2/timeMachine'
+import {BuilderConfig} from 'src/types/v2'
 
 describe('buildQuery', () => {
   test('single bucket, single measurement', () => {
@@ -43,33 +43,30 @@ describe('buildQuery', () => {
       buckets: ['b0', 'b1'],
       measurements: ['m0'],
       fields: [],
-      functions: [
-        {name: 'foo', flux: '|> toFloat()\n  |> foo()'},
-        {name: 'bar', flux: '|> bar()'},
-      ],
+      functions: ['mean', 'median'],
     }
 
     const expected = `from(bucket: "b0")
   |> range(start: -1h)
   |> filter(fn: (r) => r._measurement == "m0")
-  |> toFloat()
-  |> foo()
+  |> mean()
 
 from(bucket: "b0")
   |> range(start: -1h)
   |> filter(fn: (r) => r._measurement == "m0")
-  |> bar()
+  |> toFloat()
+  |> median()
+
+from(bucket: "b1")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "m0")
+  |> mean()
 
 from(bucket: "b1")
   |> range(start: -1h)
   |> filter(fn: (r) => r._measurement == "m0")
   |> toFloat()
-  |> foo()
-
-from(bucket: "b1")
-  |> range(start: -1h)
-  |> filter(fn: (r) => r._measurement == "m0")
-  |> bar()`
+  |> median()`
 
     const actual = buildQuery(config, '1h')
 

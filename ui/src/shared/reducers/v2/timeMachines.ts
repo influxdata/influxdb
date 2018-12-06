@@ -365,21 +365,22 @@ export const timeMachineReducer = (
     }
 
     case 'BUILD_QUERY': {
-      const {config} = action.payload
+      const {builderConfig} = action.payload
       const {activeQueryIndex, timeRange} = state
       const draftQueries = [...state.draftQueries]
 
       let text: string
 
-      if (!isConfigValid(config)) {
+      if (!isConfigValid(builderConfig)) {
         text = ''
       } else {
-        text = buildQuery(config, timeRange.duration)
+        text = buildQuery(builderConfig, timeRange.duration)
       }
 
       draftQueries[activeQueryIndex] = {
         ...draftQueries[activeQueryIndex],
         text,
+        builderConfig,
       }
 
       return {...state, draftQueries}

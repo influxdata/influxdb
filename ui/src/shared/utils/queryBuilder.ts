@@ -1,5 +1,5 @@
-import {BuilderConfig} from 'src/types/v2/timeMachine'
-import {QueryFn} from 'src/shared/constants/queryBuilder'
+import {BuilderConfig} from 'src/types/v2'
+import {FUNCTIONS} from 'src/shared/constants/queryBuilder'
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
   const {buckets, measurements} = builderConfig
@@ -14,14 +14,14 @@ export function buildQuery(
 ): string {
   const {buckets, measurements, fields, functions} = builderConfig
 
-  let bucketFunctionPairs: Array<[string, QueryFn]>
+  let bucketFunctionPairs: Array<[string, string]>
 
   if (functions.length) {
     bucketFunctionPairs = [].concat(
       ...buckets.map(b => functions.map(f => [b, f]))
     )
   } else {
-    bucketFunctionPairs = buckets.map(b => [b, null] as [string, QueryFn])
+    bucketFunctionPairs = buckets.map(b => [b, null] as [string, string])
   }
 
   const query = bucketFunctionPairs
@@ -35,7 +35,7 @@ function buildQueryHelper(
   bucket: string,
   measurements: string[],
   fields: string[],
-  fn: QueryFn,
+  functionName: string,
   duration: string
 ): string {
   let query = `from(bucket: "${bucket}")
@@ -56,6 +56,8 @@ function buildQueryHelper(
     query += `
   |> filter(fn: (r) => ${fieldsPredicate})`
   }
+
+  const fn = FUNCTIONS.find(f => f.name === functionName)
 
   if (fn) {
     query += `\n  ${fn.flux}`

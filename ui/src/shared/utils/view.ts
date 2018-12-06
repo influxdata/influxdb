@@ -27,6 +27,12 @@ export function defaultViewQuery(): DashboardQuery {
     type: InfluxLanguage.Flux,
     sourceID: '',
     editMode: QueryEditMode.Builder,
+    builderConfig: {
+      buckets: [],
+      measurements: [],
+      fields: [],
+      functions: [],
+    },
   }
 }
 

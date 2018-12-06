@@ -140,6 +140,12 @@ export const query: DashboardQuery = {
   type: InfluxLanguage.InfluxQL,
   sourceID: '',
   editMode: QueryEditMode.Builder,
+  builderConfig: {
+    buckets: [],
+    measurements: [],
+    fields: [],
+    functions: [],
+  },
 }
 
 export const axes: Axes = {

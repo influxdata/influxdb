@@ -395,10 +395,18 @@ func (LogViewProperties) viewProperties()            {}
 
 // DashboardQuery represents a query used in a dashboard cell
 type DashboardQuery struct {
-	Text     string `json:"text"`
-	Type     string `json:"type"`
-	SourceID string `json:"sourceID"`
-	EditMode string `json:"editMode"` // Either "builder" or "advanced"
+	Text          string        `json:"text"`
+	Type          string        `json:"type"`
+	SourceID      string        `json:"sourceID"`
+	EditMode      string        `json:"editMode"` // Either "builder" or "advanced"
+	BuilderConfig BuilderConfig `json:"builderConfig"`
+}
+
+type BuilderConfig struct {
+	Buckets      []string `json:"buckets"`
+	Measurements []string `json:"measurements"`
+	Fields       []string `json:"fields"`
+	Functions    []string `json:"functions"`
 }
 
 // Axis represents the visible extents of a visualization

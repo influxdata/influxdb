@@ -46,10 +46,18 @@ export enum QueryEditMode {
   Advanced = 'advanced',
 }
 
+export interface BuilderConfig {
+  buckets: string[]
+  measurements: string[]
+  fields: string[]
+  functions: string[]
+}
+
 export interface DashboardQuery {
   text: string
   type: InfluxLanguage
   editMode: QueryEditMode
+  builderConfig: BuilderConfig
   sourceID: string // Which source to use when running the query; may be empty, which means “use the dynamic source”
 }
 

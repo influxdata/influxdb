@@ -29,8 +29,7 @@ import 'src/shared/components/TimeMachineQueryBuilder.scss'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {AppState, Source, SourceType} from 'src/types/v2'
-import {BuilderConfig} from 'src/types/v2/timeMachine'
+import {AppState, Source, SourceType, BuilderConfig} from 'src/types/v2'
 
 const EMPTY_FIELDS_MESSAGE = 'Select at least one bucket and measurement'
 const EMPTY_FUNCTIONS_MESSAGE = 'Select at least one bucket and measurement'
@@ -338,15 +337,11 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
       functionsSelection,
     } = this.state
 
-    const functions = functionsSelection.map(name =>
-      FUNCTIONS.find(f => f.name === name)
-    )
-
     const config: BuilderConfig = {
       buckets: bucketsSelection,
       measurements: measurementsSelection,
       fields: fieldsSelection,
-      functions,
+      functions: functionsSelection,
     }
 
     onBuildQuery(config)
