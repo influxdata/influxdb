@@ -234,6 +234,7 @@ func toPlatformTask(t backend.StoreTask, m *backend.StoreTaskMeta) (*platform.Ta
 	}
 	if m != nil {
 		pt.Status = string(m.Status)
+		pt.LatestCompleted = time.Unix(m.LatestCompleted, 0).Format(time.RFC3339)
 	}
 	return pt, nil
 }

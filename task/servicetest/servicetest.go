@@ -71,6 +71,11 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 			t.Parallel()
 			testTaskConcurrency(t, sys)
 		})
+
+		t.Run("Task Meta Updates", func(t *testing.T) {
+			t.Parallel()
+			testMetaUpdate(t, sys)
+		})
 	})
 }
 
@@ -222,6 +227,50 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	// Task should not be returned.
 	if _, err := sys.ts.FindTaskByID(sys.Ctx, origID); err != backend.ErrTaskNotFound {
 		t.Fatalf("expected %v, got %v", backend.ErrTaskNotFound, err)
+	}
+}
+
+func testMetaUpdate(t *testing.T, sys *System) {
+	orgID, userID, _ := creds(t, sys)
+
+	task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+	if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now()
+	st, err := sys.ts.FindTaskByID(sys.Ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ti, err := time.Parse(time.RFC3339, st.LatestCompleted)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if now.Sub(ti) > 10*time.Second {
+		t.Fatalf("latest completed not accurate, expected: ~%s, got %s", now, ti)
+	}
+
+	requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix()
+
+	rc, err := sys.S.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sys.S.FinishRun(sys.Ctx, task.ID, rc.Created.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	st2, err := sys.ts.FindTaskByID(sys.Ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if st2.LatestCompleted <= st.LatestCompleted {
+		t.Fatalf("executed task has not updated latest complete: expected > %s", st2.LatestCompleted)
 	}
 }
 
