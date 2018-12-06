@@ -5,10 +5,13 @@ import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 import 'src/external/codemirror'
 
 // Actions
-import {setDraftScript, submitScript} from 'src/shared/actions/v2/timeMachines'
+import {
+  setActiveQueryText,
+  submitScript,
+} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {getActiveDraftScript} from 'src/shared/selectors/timeMachines'
+import {getActiveQuery} from 'src/shared/selectors/timeMachines'
 
 // Types
 import {AppState} from 'src/types/v2'
@@ -27,11 +30,11 @@ const OPTIONS = {
 const noOp = () => {}
 
 interface StateProps {
-  draftScript: string
+  activeQueryText: string
 }
 
 interface DispatchProps {
-  onSetDraftScript: typeof setDraftScript
+  onSetActiveQueryText: typeof setActiveQueryText
   onSubmitScript: typeof submitScript
 }
 
@@ -39,13 +42,13 @@ type Props = StateProps & DispatchProps
 
 class TimeMachineInfluxQLEditor extends PureComponent<Props, {}> {
   public render() {
-    const {draftScript} = this.props
+    const {activeQueryText} = this.props
 
     return (
       <div className="time-machine-influxql-editor">
         <ReactCodeMirror
           autoCursor={true}
-          value={draftScript}
+          value={activeQueryText}
           options={OPTIONS}
           onTouchStart={noOp}
           onBeforeChange={this.handleChange}
@@ -56,9 +59,9 @@ class TimeMachineInfluxQLEditor extends PureComponent<Props, {}> {
   }
 
   private handleChange = (_, __, text: string) => {
-    const {onSetDraftScript} = this.props
+    const {onSetActiveQueryText} = this.props
 
-    onSetDraftScript(text)
+    onSetActiveQueryText(text)
   }
 
   private handleKeyUp = (__, e: KeyboardEvent) => {
@@ -72,13 +75,13 @@ class TimeMachineInfluxQLEditor extends PureComponent<Props, {}> {
 }
 
 const mstp = (state: AppState) => {
-  const draftScript = getActiveDraftScript(state)
+  const activeQueryText = getActiveQuery(state).text
 
-  return {draftScript}
+  return {activeQueryText}
 }
 
 const mdtp = {
-  onSetDraftScript: setDraftScript,
+  onSetActiveQueryText: setActiveQueryText,
   onSubmitScript: submitScript,
 }
 

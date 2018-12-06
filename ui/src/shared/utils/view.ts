@@ -21,20 +21,18 @@ function defaultView() {
   }
 }
 
-function defaultViewQueries(): DashboardQuery[] {
-  return [
-    {
-      text: '',
-      type: InfluxLanguage.Flux,
-      sourceID: '',
-      editMode: QueryEditMode.Builder,
-    },
-  ]
+export function defaultViewQuery(): DashboardQuery {
+  return {
+    text: '',
+    type: InfluxLanguage.Flux,
+    sourceID: '',
+    editMode: QueryEditMode.Builder,
+  }
 }
 
 function defaultLineViewProperties() {
   return {
-    queries: defaultViewQueries(),
+    queries: [defaultViewQuery()],
     colors: [],
     legend: {},
     note: '',
@@ -70,7 +68,7 @@ function defaultLineViewProperties() {
 
 function defaultGaugeViewProperties() {
   return {
-    queries: defaultViewQueries(),
+    queries: [defaultViewQuery()],
     colors: DEFAULT_GAUGE_COLORS,
     prefix: '',
     suffix: '',
@@ -124,7 +122,7 @@ const NEW_VIEW_CREATORS = {
     properties: {
       type: ViewType.Table,
       shape: ViewShape.ChronografV2,
-      queries: defaultViewQueries(),
+      queries: [defaultViewQuery()],
       colors: [],
       tableOptions: {
         verticalTimeAxis: false,

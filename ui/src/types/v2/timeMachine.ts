@@ -5,12 +5,6 @@ export enum TimeMachineTab {
   Visualization = 'visualization',
 }
 
-export enum TimeMachineEditor {
-  QueryBuilder = 'queryBuilder',
-  FluxEditor = 'fluxEditor',
-  InfluxQLEditor = 'influxQLEditor',
-}
-
 export interface BuilderConfig {
   buckets: string[]
   measurements: string[]

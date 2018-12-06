@@ -10,11 +10,10 @@ import TimeMachine from 'src/shared/components/TimeMachine'
 import {setName} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {replaceQueries} from 'src/shared/reducers/v2/timeMachines'
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 
 // Types
-import {Source, AppState} from 'src/types/v2'
+import {Source, AppState, DashboardQuery} from 'src/types/v2'
 import {NewView, View} from 'src/types/v2/dashboards'
 
 // Styles
@@ -22,7 +21,7 @@ import './VEO.scss'
 
 interface StateProps {
   draftView: NewView
-  draftScripts: string[]
+  draftQueries: DashboardQuery[]
 }
 
 interface DispatchProps {
@@ -56,20 +55,26 @@ class VEO extends PureComponent<Props, {}> {
   }
 
   private handleSave = (): void => {
-    const {draftView, draftScripts, onSave} = this.props
+    const {draftView, draftQueries, onSave} = this.props
 
-    // Ensure that the latest script is saved with the view, even if it hasn't
-    // been submitted yet
-    const view = replaceQueries(draftView, draftScripts)
+    // Ensure that the latest queries are saved with the view, even if they
+    // haven't been submitted yet
+    const view = {
+      ...draftView,
+      properties: {
+        ...draftView.properties,
+        queries: draftQueries,
+      },
+    }
 
     onSave(view)
   }
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {view, draftScripts} = getActiveTimeMachine(state)
+  const {view, draftQueries} = getActiveTimeMachine(state)
 
-  return {draftView: view, draftScripts}
+  return {draftView: view, draftQueries}
 }
 
 const mdtp: DispatchProps = {

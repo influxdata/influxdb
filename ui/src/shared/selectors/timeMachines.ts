@@ -8,14 +8,7 @@ export const getActiveTimeMachine = (state: AppState) => {
 }
 
 export const getActiveQuery = (state: AppState): DashboardQuery => {
-  const {view, activeQueryIndex} = getActiveTimeMachine(state)
+  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
 
-  return view.properties.queries[activeQueryIndex]
-}
-
-export const getActiveDraftScript = (state: AppState) => {
-  const {draftScripts, activeQueryIndex} = getActiveTimeMachine(state)
-  const activeDraftScript = draftScripts[activeQueryIndex]
-
-  return activeDraftScript
+  return draftQueries[activeQueryIndex]
 }

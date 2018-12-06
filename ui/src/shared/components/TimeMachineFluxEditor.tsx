@@ -8,10 +8,13 @@ import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/shared/components/flux_functions_toolbar/FluxFunctionsToolbar'
 
 // Actions
-import {setDraftScript, submitScript} from 'src/shared/actions/v2/timeMachines'
+import {
+  setActiveQueryText,
+  submitScript,
+} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {getActiveDraftScript} from 'src/shared/selectors/timeMachines'
+import {getActiveQuery} from 'src/shared/selectors/timeMachines'
 
 // Constants
 import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
@@ -22,11 +25,11 @@ import {AppState} from 'src/types/v2'
 import 'src/shared/components/TimeMachineFluxEditor.scss'
 
 interface StateProps {
-  draftScript: string
+  activeQueryText: string
 }
 
 interface DispatchProps {
-  onSetDraftScript: typeof setDraftScript
+  onSetActiveQueryText: typeof setActiveQueryText
   onSubmitScript: typeof submitScript
 }
 
@@ -34,7 +37,7 @@ type Props = StateProps & DispatchProps
 
 class TimeMachineFluxEditor extends PureComponent<Props> {
   public render() {
-    const {draftScript, onSetDraftScript, onSubmitScript} = this.props
+    const {activeQueryText, onSetActiveQueryText, onSubmitScript} = this.props
 
     const divisions = [
       {
@@ -42,9 +45,9 @@ class TimeMachineFluxEditor extends PureComponent<Props> {
         handleDisplay: HANDLE_NONE,
         render: () => (
           <FluxEditor
-            script={draftScript}
+            script={activeQueryText}
             status={{type: '', text: ''}}
-            onChangeScript={onSetDraftScript}
+            onChangeScript={onSetActiveQueryText}
             onSubmitScript={onSubmitScript}
             suggestions={[]}
           />
@@ -66,13 +69,13 @@ class TimeMachineFluxEditor extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  const draftScript = getActiveDraftScript(state)
+  const activeQueryText = getActiveQuery(state).text
 
-  return {draftScript}
+  return {activeQueryText}
 }
 
 const mdtp = {
-  onSetDraftScript: setDraftScript,
+  onSetActiveQueryText: setActiveQueryText,
   onSubmitScript: submitScript,
 }
 

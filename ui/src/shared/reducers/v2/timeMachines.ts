@@ -2,7 +2,7 @@
 import {get, cloneDeep} from 'lodash'
 
 // Utils
-import {createView} from 'src/shared/utils/view'
+import {createView, defaultViewQuery} from 'src/shared/utils/view'
 import {isConfigValid, buildQuery} from 'src/shared/utils/queryBuilder'
 
 // Constants
@@ -23,15 +23,14 @@ import {
   QueryEditMode,
 } from 'src/types/v2/dashboards'
 import {Action} from 'src/shared/actions/v2/timeMachines'
-import {TimeMachineTab, TimeMachineEditor} from 'src/types/v2/timeMachine'
+import {TimeMachineTab} from 'src/types/v2/timeMachine'
 
 export interface TimeMachineState {
   view: View<QueryViewProperties> | NewView<QueryViewProperties>
   timeRange: TimeRange
-  draftScripts: string[]
+  draftQueries: DashboardQuery[]
   isViewingRawData: boolean
   activeTab: TimeMachineTab
-  activeQueryEditor: TimeMachineEditor
   activeQueryIndex: number | null
   submitToken: number
 }
@@ -46,10 +45,9 @@ export interface TimeMachinesState {
 export const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
   view: createView(),
-  draftScripts: [],
+  draftQueries: [defaultViewQuery()],
   isViewingRawData: false,
   activeTab: TimeMachineTab.Queries,
-  activeQueryEditor: TimeMachineEditor.QueryBuilder,
   activeQueryIndex: 0,
   submitToken: 0,
 })
@@ -70,12 +68,8 @@ export const timeMachinesReducer = (
     const {activeTimeMachineID, initialState} = action.payload
     const activeTimeMachine = state.timeMachines[activeTimeMachineID]
     const view = initialState.view || activeTimeMachine.view
-    const queries = view.properties.queries
-    const draftScripts: string[] = queries.map(
-      (query: DashboardQuery) => query.text
-    )
+    const draftQueries = cloneDeep(view.properties.queries)
     const activeQueryIndex = 0
-    const activeQueryEditor = getActiveQueryEditor(queries, activeQueryIndex)
 
     return {
       ...state,
@@ -87,8 +81,7 @@ export const timeMachinesReducer = (
           ...initialState,
           activeTab: TimeMachineTab.Queries,
           activeQueryIndex,
-          activeQueryEditor,
-          draftScripts,
+          draftQueries,
         },
       },
     }
@@ -142,22 +135,31 @@ export const timeMachineReducer = (
       return {...state, view}
     }
 
-    case 'SET_DRAFT_SCRIPT': {
-      const {draftScript} = action.payload
-      const draftScripts = [...state.draftScripts]
+    case 'SET_ACTIVE_QUERY_TEXT': {
+      const {text} = action.payload
+      const draftQueries = [...state.draftQueries]
 
-      draftScripts[state.activeQueryIndex] = draftScript
+      draftQueries[state.activeQueryIndex] = {
+        ...draftQueries[state.activeQueryIndex],
+        text,
+      }
 
-      return {...state, draftScripts}
+      return {...state, draftQueries}
     }
 
     case 'SUBMIT_SCRIPT': {
-      const {view, draftScripts} = state
+      const {view, draftQueries} = state
 
       return {
         ...state,
         submitToken: Date.now(),
-        view: replaceQueries(view, draftScripts),
+        view: {
+          ...view,
+          properties: {
+            ...view.properties,
+            queries: draftQueries,
+          },
+        },
       }
     }
 
@@ -267,26 +269,15 @@ export const timeMachineReducer = (
     case 'SET_QUERY_SOURCE': {
       const {sourceID} = action.payload
       const {activeQueryIndex} = state
-      const selectedQuery: string | undefined = get(
-        state,
-        `view.properties.queries.${activeQueryIndex}`
-      )
 
-      if (!selectedQuery) {
-        return state
+      const draftQueries = [...state.draftQueries]
+
+      draftQueries[activeQueryIndex] = {
+        ...draftQueries[activeQueryIndex],
+        sourceID,
       }
 
-      const queries = state.view.properties.queries.map(
-        (query: DashboardQuery, i) => {
-          if (i !== activeQueryIndex) {
-            return query
-          }
-
-          return {...query, sourceID}
-        }
-      )
-
-      return setViewProperties(state, {queries})
+      return {...state, draftQueries}
     }
 
     case 'INCREMENT_SUBMIT_TOKEN': {
@@ -297,80 +288,68 @@ export const timeMachineReducer = (
     }
 
     case 'EDIT_ACTIVE_QUERY_WITH_BUILDER': {
-      const {view, activeQueryIndex} = state
-      const draftScripts = [...state.draftScripts]
+      const {activeQueryIndex} = state
+      const draftQueries = [...state.draftQueries]
 
-      draftScripts[activeQueryIndex] = ''
+      draftQueries[activeQueryIndex] = defaultViewQuery()
 
       return {
         ...state,
-        activeQueryEditor: TimeMachineEditor.QueryBuilder,
-        view: changeQueryType(view, activeQueryIndex, QueryEditMode.Builder),
-        draftScripts,
+        draftQueries,
       }
     }
 
     case 'EDIT_ACTIVE_QUERY_AS_FLUX': {
-      const {view, activeQueryIndex} = state
+      const {activeQueryIndex} = state
+      const draftQueries = [...state.draftQueries]
+
+      draftQueries[activeQueryIndex] = {
+        ...draftQueries[activeQueryIndex],
+        editMode: QueryEditMode.Advanced,
+        type: InfluxLanguage.Flux,
+      }
 
       return {
         ...state,
-        activeQueryEditor: TimeMachineEditor.FluxEditor,
-        view: changeQueryType(
-          view,
-          activeQueryIndex,
-          QueryEditMode.Advanced,
-          InfluxLanguage.Flux
-        ),
+        draftQueries,
       }
     }
 
     case 'EDIT_ACTIVE_QUERY_AS_INFLUXQL': {
-      const {view, activeQueryIndex} = state
+      const {activeQueryIndex} = state
+      const draftQueries = [...state.draftQueries]
+
+      draftQueries[activeQueryIndex] = {
+        ...draftQueries[activeQueryIndex],
+        editMode: QueryEditMode.Advanced,
+        type: InfluxLanguage.InfluxQL,
+      }
 
       return {
         ...state,
-        activeQueryEditor: TimeMachineEditor.InfluxQLEditor,
-        view: changeQueryType(
-          view,
-          activeQueryIndex,
-          QueryEditMode.Advanced,
-          InfluxLanguage.InfluxQL
-        ),
+        draftQueries,
       }
     }
 
     case 'SET_ACTIVE_QUERY_INDEX': {
       const {activeQueryIndex} = action.payload
-      const queries: DashboardQuery[] = get(
-        state,
-        'view.properties.queries',
-        []
-      )
-      const activeQueryEditor = getActiveQueryEditor(queries, activeQueryIndex)
 
-      return {...state, activeQueryIndex, activeQueryEditor}
+      return {...state, activeQueryIndex}
     }
 
     case 'ADD_QUERY': {
-      const view = addQuery(state.view)
-      const activeQueryIndex: number = view.properties.queries.length - 1
+      const draftQueries = [...state.draftQueries, defaultViewQuery()]
+      const activeQueryIndex: number = draftQueries.length - 1
 
-      const activeQueryEditor = getActiveQueryEditor(
-        view.properties.queries,
-        activeQueryIndex
-      )
-
-      return {...state, view, activeQueryIndex, activeQueryEditor}
+      return {...state, activeQueryIndex, draftQueries}
     }
 
     case 'REMOVE_QUERY': {
       const {queryIndex} = action.payload
-      const view = removeQuery(state.view, queryIndex)
-      const draftScripts = state.draftScripts.filter(
+      const draftQueries = state.draftQueries.filter(
         (__, i) => i !== queryIndex
       )
-      const queryLength = view.properties.queries.length
+      const queryLength = draftQueries.length
 
       let activeQueryIndex: number
 
@@ -382,28 +361,28 @@ export const timeMachineReducer = (
         activeQueryIndex = 0
       }
 
-      const activeQueryEditor = getActiveQueryEditor(
-        view.properties.queries,
-        activeQueryIndex
-      )
-
-      return {...state, view, activeQueryIndex, activeQueryEditor, draftScripts}
+      return {...state, activeQueryIndex, draftQueries}
     }
 
     case 'BUILD_QUERY': {
       const {config} = action.payload
       const {activeQueryIndex, timeRange} = state
-      const draftScripts = [...state.draftScripts]
+      const draftQueries = [...state.draftQueries]
+
+      let text: string
 
       if (!isConfigValid(config)) {
-        draftScripts[activeQueryIndex] = ''
-
-        return {...state, draftScripts}
+        text = ''
+      } else {
+        text = buildQuery(config, timeRange.duration)
       }
 
-      draftScripts[activeQueryIndex] = buildQuery(config, timeRange.duration)
+      draftQueries[activeQueryIndex] = {
+        ...draftQueries[activeQueryIndex],
+        text,
+      }
 
-      return {...state, draftScripts}
+      return {...state, draftQueries}
     }
   }
 
@@ -435,170 +414,16 @@ const setYAxis = (state: TimeMachineState, update: {[key: string]: any}) => {
   }
 }
 
-const getActiveQueryEditor = (
-  queries: DashboardQuery[],
-  activeQueryIndex: number
-): TimeMachineEditor => {
-  const editMode: QueryEditMode = get(
-    queries,
-    `${activeQueryIndex}.editMode`,
-    QueryEditMode.Builder
-  )
-
-  const queryType: InfluxLanguage = get(
-    queries,
-    `${activeQueryIndex}.type`,
-    InfluxLanguage.Flux
-  )
-
-  if (
-    editMode === QueryEditMode.Advanced &&
-    queryType === InfluxLanguage.Flux
-  ) {
-    return TimeMachineEditor.FluxEditor
-  }
-
-  if (
-    editMode === QueryEditMode.Advanced &&
-    queryType === InfluxLanguage.InfluxQL
-  ) {
-    return TimeMachineEditor.InfluxQLEditor
-  }
-
-  return TimeMachineEditor.QueryBuilder
-}
-
-export const convertView = <T extends View | NewView>(
-  view: T,
+const convertView = (
+  view: View<QueryViewProperties> | NewView<QueryViewProperties>,
   outType: ViewType
-): T => {
+): View<QueryViewProperties> => {
   const newView: any = createView(outType)
 
-  const oldViewQueries = get(view, 'properties.queries')
-  const newViewQueries = get(newView, 'properties.queries')
-
-  if (oldViewQueries && newViewQueries) {
-    newView.properties.queries = cloneDeep(oldViewQueries)
-  }
-
+  newView.properties.queries = cloneDeep(view.properties.queries)
   newView.name = view.name
   newView.id = (view as any).id
   newView.links = (view as any).links
 
   return newView
-}
-
-// Replaces the text of the each query in a view
-export const replaceQueries = <T extends View | NewView>(
-  view: T,
-  newQueryTexts: string[]
-): T => {
-  const anyView: any = view
-  const queries = anyView.properties.queries
-
-  if (!queries) {
-    return view
-  }
-
-  const newQueries = [...queries]
-
-  for (let i = 0; i < newQueryTexts.length; i++) {
-    if (queries[i]) {
-      newQueries[i] = {...queries[i], text: newQueryTexts[i]}
-    } else {
-      const query: DashboardQuery = {
-        text: newQueryTexts[i],
-        type: InfluxLanguage.Flux,
-        sourceID: '',
-        editMode: QueryEditMode.Builder,
-      }
-
-      newQueries[i] = query
-    }
-  }
-
-  return {
-    ...anyView,
-    properties: {
-      ...anyView.properties,
-      queries: newQueries,
-    },
-  }
-}
-
-const addQuery = <T extends View | NewView>(view: T): T => {
-  const anyView: any = view
-  const queries = anyView.properties.queries
-
-  if (!queries) {
-    return view
-  }
-
-  const query: DashboardQuery = {
-    text: '',
-    type: InfluxLanguage.Flux,
-    sourceID: '',
-    editMode: QueryEditMode.Builder,
-  }
-
-  return {
-    ...anyView,
-    properties: {
-      ...anyView.properties,
-      queries: [...queries, query],
-    },
-  }
-}
-
-export function removeQuery<T extends View | NewView>(
-  view: T,
-  queryIndex: number
-): T {
-  const anyView: any = view
-  const queries = anyView.properties.queries
-
-  if (!queries || !queries[queryIndex]) {
-    return view
-  }
-
-  return {
-    ...anyView,
-    properties: {
-      ...anyView.properties,
-      queries: queries.filter((__, i) => i !== queryIndex),
-    },
-  }
-}
-
-export function changeQueryType<T extends View | NewView>(
-  view: T,
-  queryIndex: number,
-  editMode?: QueryEditMode,
-  type?: InfluxLanguage
-): T {
-  const anyView: any = view
-  const queries = anyView.properties.queries
-
-  if (!queries || !queries[queryIndex]) {
-    return view
-  }
-
-  const query = queries[queryIndex]
-  const resolvedType = type || query.type
-  const resolvedEditMode = editMode || query.editMode
-  const newQueries = [...queries]
-
-  newQueries[queryIndex] = {
-    ...query,
-    editMode: resolvedEditMode,
-    type: resolvedType,
-  }
-
-  return {
-    ...anyView,
-    properties: {
-      ...anyView.properties,
-      queries: newQueries,
-    },
-  }
 }

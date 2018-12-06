@@ -30,7 +30,7 @@ import {
 } from 'src/shared/constants/timeMachine'
 
 // Types
-import {TimeMachineTab, TimeMachineEditor} from 'src/types/v2/timeMachine'
+import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {
   DashboardQuery,
   QueryViewProperties,
@@ -98,10 +98,7 @@ describe('timeMachinesReducer', () => {
 
     expect(nextTimeMachine.activeTab).toEqual(TimeMachineTab.Queries)
     expect(nextTimeMachine.activeQueryIndex).toEqual(0)
-    expect(nextTimeMachine.activeQueryEditor).toEqual(
-      TimeMachineEditor.InfluxQLEditor
-    )
-    expect(nextTimeMachine.draftScripts).toEqual(['foo', 'bar'])
+    expect(nextTimeMachine.draftQueries).toEqual(view.properties.queries)
   })
 })
 
@@ -125,12 +122,12 @@ describe('timeMachineReducer', () => {
       }
 
       state.view.properties.queries = [queryA, queryB]
-      state.draftScripts = ['baz', 'buzz']
+      state.draftQueries = [{...queryA, text: 'baz'}, {...queryB, text: 'buzz'}]
 
       const actual = timeMachineReducer(state, submitScript()).view.properties
         .queries
 
-      const expected = [{...queryA, text: 'baz'}, {...queryB, text: 'buzz'}]
+      const expected = state.draftQueries
 
       expect(actual).toEqual(expected)
     })
@@ -140,21 +137,11 @@ describe('timeMachineReducer', () => {
     test('replaces the sourceID for the active query', () => {
       const state = initialStateHelper()
 
-      expect(state.view.properties.queries[0].sourceID).toEqual('')
+      expect(state.draftQueries[0].sourceID).toEqual('')
 
       const nextState = timeMachineReducer(state, setQuerySource('howdy'))
 
-      expect(nextState.view.properties.queries[0].sourceID).toEqual('howdy')
-    })
-
-    test('does nothing if the no active query exists', () => {
-      const state = initialStateHelper()
-
-      state.view.properties.queries = []
-
-      const nextState = timeMachineReducer(state, setQuerySource('howdy'))
-
-      expect(nextState.view.properties.queries).toEqual([])
+      expect(nextState.draftQueries[0].sourceID).toEqual('howdy')
     })
   })
 
@@ -163,8 +150,7 @@ describe('timeMachineReducer', () => {
       const state = initialStateHelper()
 
       state.activeQueryIndex = 1
-      state.activeQueryEditor = TimeMachineEditor.FluxEditor
-      state.view.properties.queries = [
+      state.draftQueries = [
         {
           text: 'foo',
           type: InfluxLanguage.Flux,
@@ -182,10 +168,7 @@ describe('timeMachineReducer', () => {
       const nextState = timeMachineReducer(state, editActiveQueryWithBuilder())
 
       expect(nextState.activeQueryIndex).toEqual(1)
-      expect(nextState.activeQueryEditor).toEqual(
-        TimeMachineEditor.QueryBuilder
-      )
-      expect(nextState.view.properties.queries).toEqual([
+      expect(nextState.draftQueries).toEqual([
         {
           text: 'foo',
           type: InfluxLanguage.Flux,
@@ -193,13 +176,12 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
         },
         {
-          text: 'bar',
+          text: '',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
         },
       ])
-      expect(nextState.draftScripts[1]).toEqual('')
     })
   })
 
@@ -208,8 +190,7 @@ describe('timeMachineReducer', () => {
       const state = initialStateHelper()
 
       state.activeQueryIndex = 1
-      state.activeQueryEditor = TimeMachineEditor.QueryBuilder
-      state.view.properties.queries = [
+      state.draftQueries = [
         {
           text: 'foo',
           type: InfluxLanguage.InfluxQL,
@@ -227,8 +208,7 @@ describe('timeMachineReducer', () => {
       const nextState = timeMachineReducer(state, editActiveQueryAsFlux())
 
       expect(nextState.activeQueryIndex).toEqual(1)
-      expect(nextState.activeQueryEditor).toEqual(TimeMachineEditor.FluxEditor)
-      expect(nextState.view.properties.queries).toEqual([
+      expect(nextState.draftQueries).toEqual([
         {
           text: 'foo',
           type: InfluxLanguage.InfluxQL,
@@ -250,8 +230,7 @@ describe('timeMachineReducer', () => {
       const state = initialStateHelper()
 
       state.activeQueryIndex = 1
-      state.activeQueryEditor = TimeMachineEditor.QueryBuilder
-      state.view.properties.queries = [
+      state.draftQueries = [
         {
           text: 'foo',
           type: InfluxLanguage.InfluxQL,
@@ -269,10 +248,7 @@ describe('timeMachineReducer', () => {
       const nextState = timeMachineReducer(state, editActiveQueryAsInfluxQL())
 
       expect(nextState.activeQueryIndex).toEqual(1)
-      expect(nextState.activeQueryEditor).toEqual(
-        TimeMachineEditor.InfluxQLEditor
-      )
-      expect(nextState.view.properties.queries).toEqual([
+      expect(nextState.draftQueries).toEqual([
         {
           text: 'foo',
           type: InfluxLanguage.InfluxQL,
@@ -295,7 +271,6 @@ describe('timeMachineReducer', () => {
         const state = initialStateHelper()
 
         state.activeQueryIndex = 1
-        state.activeQueryEditor = TimeMachineEditor.FluxEditor
         state.view.properties.queries = [
           {
             text: 'foo',
@@ -314,16 +289,12 @@ describe('timeMachineReducer', () => {
         const nextState = timeMachineReducer(state, setActiveQueryIndex(0))
 
         expect(nextState.activeQueryIndex).toEqual(0)
-        expect(nextState.activeQueryEditor).toEqual(
-          TimeMachineEditor.QueryBuilder
-        )
       })
 
       test('shows the influxql editor when the active query is influxql and in advanced mode', () => {
         const state = initialStateHelper()
 
         state.activeQueryIndex = 1
-        state.activeQueryEditor = TimeMachineEditor.QueryBuilder
         state.view.properties.queries = [
           {
             text: 'foo',
@@ -342,16 +313,12 @@ describe('timeMachineReducer', () => {
         const nextState = timeMachineReducer(state, setActiveQueryIndex(0))
 
         expect(nextState.activeQueryIndex).toEqual(0)
-        expect(nextState.activeQueryEditor).toEqual(
-          TimeMachineEditor.InfluxQLEditor
-        )
       })
 
       test('shows the flux editor when the active query is flux and in advanced mode', () => {
         const state = initialStateHelper()
 
         state.activeQueryIndex = 1
-        state.activeQueryEditor = TimeMachineEditor.QueryBuilder
         state.view.properties.queries = [
           {
             text: 'foo',
@@ -370,9 +337,6 @@ describe('timeMachineReducer', () => {
         const nextState = timeMachineReducer(state, setActiveQueryIndex(0))
 
         expect(nextState.activeQueryIndex).toEqual(0)
-        expect(nextState.activeQueryEditor).toEqual(
-          TimeMachineEditor.FluxEditor
-        )
       })
     })
   })
@@ -381,9 +345,8 @@ describe('timeMachineReducer', () => {
     test('adds a query, sets the activeQueryIndex and activeQueryEditor', () => {
       const state = initialStateHelper()
 
-      state.activeQueryEditor = TimeMachineEditor.FluxEditor
       state.activeQueryIndex = 0
-      state.view.properties.queries = [
+      state.draftQueries = [
         {
           text: 'a',
           type: InfluxLanguage.Flux,
@@ -395,12 +358,7 @@ describe('timeMachineReducer', () => {
       const nextState = timeMachineReducer(state, addQuery())
 
       expect(nextState.activeQueryIndex).toEqual(1)
-
-      expect(nextState.activeQueryEditor).toEqual(
-        TimeMachineEditor.QueryBuilder
-      )
-
-      expect(nextState.view.properties.queries).toEqual([
+      expect(nextState.draftQueries).toEqual([
         {
           text: 'a',
           type: InfluxLanguage.Flux,
@@ -419,7 +377,6 @@ describe('timeMachineReducer', () => {
 
   describe('REMOVE_QUERY', () => {
     let queries: DashboardQuery[]
-    let draftScripts: string[]
 
     beforeEach(() => {
       queries = [
@@ -442,52 +399,34 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
         },
       ]
-
-      draftScripts = ['a', 'b', 'c']
     })
 
     test('removes the query and draftScript', () => {
       const state = initialStateHelper()
 
       state.view.properties.queries = queries
-      state.draftScripts = draftScripts
+      state.draftQueries = queries
       state.activeQueryIndex = 1
-      state.activeQueryEditor = TimeMachineEditor.QueryBuilder
 
       const nextState = timeMachineReducer(state, removeQuery(1))
 
-      expect(nextState.view.properties.queries).toEqual([
-        queries[0],
-        queries[2],
-      ])
-
-      expect(nextState.draftScripts).toEqual(['a', 'c'])
+      expect(nextState.view.properties.queries).toEqual(queries)
+      expect(nextState.draftQueries).toEqual([queries[0], queries[2]])
       expect(nextState.activeQueryIndex).toEqual(1)
-      expect(nextState.activeQueryEditor).toEqual(
-        TimeMachineEditor.InfluxQLEditor
-      )
     })
 
     test('sets the activeQueryIndex to the left if was right-most tab', () => {
       const state = initialStateHelper()
 
       state.view.properties.queries = queries
-      state.draftScripts = draftScripts
+      state.draftQueries = queries
       state.activeQueryIndex = 2
-      state.activeQueryEditor = TimeMachineEditor.InfluxQLEditor
 
       const nextState = timeMachineReducer(state, removeQuery(2))
 
-      expect(nextState.view.properties.queries).toEqual([
-        queries[0],
-        queries[1],
-      ])
-
-      expect(nextState.draftScripts).toEqual(['a', 'b'])
+      expect(nextState.view.properties.queries).toEqual(queries)
+      expect(nextState.draftQueries).toEqual([queries[0], queries[1]])
       expect(nextState.activeQueryIndex).toEqual(1)
-      expect(nextState.activeQueryEditor).toEqual(
-        TimeMachineEditor.QueryBuilder
-      )
     })
   })
 })

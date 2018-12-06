@@ -10,10 +10,10 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
-import {setDraftScript} from 'src/shared/actions/v2/timeMachines'
+import {setActiveQueryText} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {getActiveDraftScript} from 'src/shared/selectors/timeMachines'
+import {getActiveQuery} from 'src/shared/selectors/timeMachines'
 
 // Constants
 import {FLUX_FUNCTIONS} from 'src/shared/constants/fluxFunctions'
@@ -22,11 +22,11 @@ import {FLUX_FUNCTIONS} from 'src/shared/constants/fluxFunctions'
 import {AppState} from 'src/types/v2'
 
 interface StateProps {
-  draftScript: string
+  activeQueryText: string
 }
 
 interface DispatchProps {
-  onSetDraftScript: (script: string) => void
+  onSetActiveQueryText: (script: string) => void
 }
 
 type Props = StateProps & DispatchProps
@@ -72,20 +72,20 @@ class FluxFunctionsToolbar extends PureComponent<Props, State> {
   }
 
   private handleUpdateScript = (funcExample: string) => {
-    const {draftScript, onSetDraftScript} = this.props
+    const {activeQueryText, onSetActiveQueryText} = this.props
 
-    onSetDraftScript(`${draftScript}\n  |> ${funcExample}`)
+    onSetActiveQueryText(`${activeQueryText}\n  |> ${funcExample}`)
   }
 }
 
 const mstp = (state: AppState) => {
-  const draftScript = getActiveDraftScript(state)
+  const activeQueryText = getActiveQuery(state).text
 
-  return {draftScript}
+  return {activeQueryText}
 }
 
 const mdtp = {
-  onSetDraftScript: setDraftScript,
+  onSetActiveQueryText: setActiveQueryText,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

@@ -11,6 +11,7 @@ import {
   ViewShape,
   ViewParams,
   ViewProperties,
+  QueryEditMode,
   DashboardQuery,
   InfluxLanguage,
 } from 'src/types/v2/dashboards'
@@ -67,6 +68,7 @@ export {
   Links,
   NewCell,
   Cell,
+  QueryEditMode,
   DashboardQuery,
   NewView,
   View,

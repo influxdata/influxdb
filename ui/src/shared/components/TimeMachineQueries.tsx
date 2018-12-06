@@ -1,7 +1,7 @@
 // Libraries
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
-import {range, get} from 'lodash'
+import {range} from 'lodash'
 
 // Components
 import TimeMachineFluxEditor from 'src/shared/components/TimeMachineFluxEditor'
@@ -22,19 +22,25 @@ import {
 import {addQuery} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+import {
+  getActiveTimeMachine,
+  getActiveQuery,
+} from 'src/shared/selectors/timeMachines'
 
 // Styles
 import 'src/shared/components/TimeMachineQueries.scss'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {
+  AppState,
+  DashboardQuery,
+  InfluxLanguage,
+  QueryEditMode,
+} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
-import {TimeMachineEditor} from 'src/types/v2/timeMachine'
 
 interface StateProps {
-  activeQueryIndex: number
-  activeQueryEditor: TimeMachineEditor
+  activeQuery: DashboardQuery
   queryCount: number
 }
 
@@ -49,13 +55,17 @@ interface OwnProps {
 type Props = StateProps & DispatchProps & OwnProps
 
 const TimeMachineQueries: SFC<Props> = props => {
-  const {
-    activeQueryEditor,
-    activeQueryIndex,
-    queryStatus,
-    queryCount,
-    onAddQuery,
-  } = props
+  const {activeQuery, queryStatus, queryCount, onAddQuery} = props
+
+  let queryEditor
+
+  if (activeQuery.editMode === QueryEditMode.Builder) {
+    queryEditor = <TimeMachineQueryBuilder />
+  } else if (activeQuery.type === InfluxLanguage.Flux) {
+    queryEditor = <TimeMachineFluxEditor />
+  } else if (activeQuery.type === InfluxLanguage.InfluxQL) {
+    queryEditor = <TimeMachineInfluxQLEditor />
+  }
 
   return (
     <div className="time-machine-queries">
@@ -78,29 +88,17 @@ const TimeMachineQueries: SFC<Props> = props => {
           <SubmitQueryButton queryStatus={queryStatus} />
         </div>
       </div>
-      <div className="time-machine-queries--body">
-        {activeQueryEditor === TimeMachineEditor.QueryBuilder && (
-          <TimeMachineQueryBuilder key={activeQueryIndex} />
-        )}
-        {activeQueryEditor === TimeMachineEditor.FluxEditor && (
-          <TimeMachineFluxEditor />
-        )}
-        {activeQueryEditor === TimeMachineEditor.InfluxQLEditor && (
-          <TimeMachineInfluxQLEditor />
-        )}
-      </div>
+      <div className="time-machine-queries--body">{queryEditor}</div>
     </div>
   )
 }
 
 const mstp = (state: AppState) => {
-  const {activeQueryEditor, view, activeQueryIndex} = getActiveTimeMachine(
-    state
-  )
+  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
+  const queryCount = draftQueries.length
+  const activeQuery = getActiveQuery(state)
 
-  const queryCount: number = get(view, 'properties.queries.length', 0)
-
-  return {activeQueryEditor, activeQueryIndex, queryCount}
+  return {activeQuery, activeQueryIndex, queryCount}
 }
 
 const mdtp = {

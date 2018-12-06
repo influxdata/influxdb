@@ -11,7 +11,7 @@ export type Action =
   | SetNameAction
   | SetTimeRangeAction
   | SetTypeAction
-  | SetDraftScriptAction
+  | SetActiveQueryText
   | SubmitScriptAction
   | SetIsViewingRawDataAction
   | SetGeomAction
@@ -96,14 +96,14 @@ export const setType = (type: ViewType): SetTypeAction => ({
   payload: {type},
 })
 
-interface SetDraftScriptAction {
-  type: 'SET_DRAFT_SCRIPT'
-  payload: {draftScript: string}
+interface SetActiveQueryText {
+  type: 'SET_ACTIVE_QUERY_TEXT'
+  payload: {text: string}
 }
 
-export const setDraftScript = (draftScript: string): SetDraftScriptAction => ({
-  type: 'SET_DRAFT_SCRIPT',
-  payload: {draftScript},
+export const setActiveQueryText = (text: string): SetActiveQueryText => ({
+  type: 'SET_ACTIVE_QUERY_TEXT',
+  payload: {text},
 })
 
 interface SubmitScriptAction {

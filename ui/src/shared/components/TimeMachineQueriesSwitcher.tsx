@@ -13,15 +13,14 @@ import {
 } from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+import {getActiveQuery} from 'src/shared/selectors/timeMachines'
 import {CONFIRM_LEAVE_ADVANCED_MODE} from 'src/shared/copy/v2'
 
 // Types
-import {AppState} from 'src/types/v2'
-import {TimeMachineEditor} from 'src/types/v2/timeMachine'
+import {AppState, QueryEditMode} from 'src/types/v2'
 
 interface StateProps {
-  activeQueryEditor: TimeMachineEditor
+  editMode: QueryEditMode
 }
 
 interface DispatchProps {
@@ -34,9 +33,9 @@ type Props = StateProps & DispatchProps
 
 class TimeMachineQueriesSwitcher extends PureComponent<Props> {
   public render() {
-    const {activeQueryEditor, onEditAsFlux, onEditAsInfluxQL} = this.props
+    const {editMode, onEditAsFlux, onEditAsInfluxQL} = this.props
 
-    if (activeQueryEditor !== TimeMachineEditor.QueryBuilder) {
+    if (editMode !== QueryEditMode.Builder) {
       return (
         <Button
           text="Visual Query Builder"
@@ -52,13 +51,10 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
         widthPixels={130}
         onChange={this.handleChooseLanguage}
       >
-        <Dropdown.Item id={TimeMachineEditor.FluxEditor} value={onEditAsFlux}>
+        <Dropdown.Item id={'influxQL'} value={onEditAsFlux}>
           Flux
         </Dropdown.Item>
-        <Dropdown.Item
-          id={TimeMachineEditor.InfluxQLEditor}
-          value={onEditAsInfluxQL}
-        >
+        <Dropdown.Item id={'flux'} value={onEditAsInfluxQL}>
           InfluxQL
         </Dropdown.Item>
       </Dropdown>
@@ -79,9 +75,9 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  const {activeQueryEditor} = getActiveTimeMachine(state)
+  const editMode = getActiveQuery(state).editMode
 
-  return {activeQueryEditor}
+  return {editMode}
 }
 
 const mdtp = {

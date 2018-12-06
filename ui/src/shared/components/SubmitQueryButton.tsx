@@ -14,7 +14,7 @@ import {
 import {submitScript} from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {getActiveDraftScript} from 'src/shared/selectors/timeMachines'
+import {getActiveQuery} from 'src/shared/selectors/timeMachines'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -85,7 +85,7 @@ class SubmitQueryButton extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState) => {
-  const submitButtonDisabled = getActiveDraftScript(state) === ''
+  const submitButtonDisabled = getActiveQuery(state).text === ''
 
   return {submitButtonDisabled}
 }
