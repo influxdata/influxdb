@@ -53,6 +53,16 @@
   }
 }
 
+.wizard-button-container {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+
+  .button {
+    width: 50%;
+  }
+}
+
 .splash-logo {
   background-size: 100% 100%;
   background-position: center center;

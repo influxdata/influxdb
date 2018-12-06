@@ -65,24 +65,46 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
           dataLoaderType={type}
           currentIndex={+substepID}
         />
-        <div className="wizard-button-bar">
-          <Button
-            color={ComponentColor.Default}
-            text="Back"
-            size={ComponentSize.Medium}
-            onClick={this.handlePrevious}
-          />
-          <Button
-            color={ComponentColor.Primary}
-            text="Next"
-            size={ComponentSize.Medium}
-            onClick={this.handleNext}
-            status={ComponentStatus.Default}
-            titleText={'Next'}
-          />
+        <div className="wizard-button-container">
+          <div className="wizard-button-bar">
+            <Button
+              color={ComponentColor.Default}
+              text="Back"
+              size={ComponentSize.Medium}
+              onClick={this.handlePrevious}
+            />
+            <Button
+              color={ComponentColor.Primary}
+              text="Next"
+              size={ComponentSize.Medium}
+              onClick={this.handleNext}
+              status={ComponentStatus.Default}
+              titleText={'Next'}
+            />
+          </div>
+          {this.skipLink}
         </div>
       </div>
     )
+  }
+
+  private get skipLink() {
+    return (
+      <Button
+        color={ComponentColor.Default}
+        text="Skip"
+        size={ComponentSize.Small}
+        onClick={this.jumpToCompletionStep}
+      >
+        skip
+      </Button>
+    )
+  }
+
+  private jumpToCompletionStep = () => {
+    const {onSetCurrentStepIndex, stepStatuses} = this.props
+
+    onSetCurrentStepIndex(stepStatuses.length - 1)
   }
 
   private handleNext = () => {

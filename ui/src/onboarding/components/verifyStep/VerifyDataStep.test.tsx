@@ -32,7 +32,7 @@ describe('Onboarding.Components.VerifyStep.VerifyDataStep', () => {
     const switcher = wrapper.find(VerifyDataSwitcher)
 
     expect(wrapper.exists()).toBe(true)
-    expect(buttons.length).toBe(2)
+    expect(buttons.length).toBe(3)
     expect(switcher.exists()).toBe(true)
   })
 })

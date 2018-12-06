@@ -38,24 +38,46 @@ class VerifyDataStep extends PureComponent<Props> {
           username={_.get(setupParams, 'username', '')}
           bucket={_.get(setupParams, 'bucket', '')}
         />
-        <div className="wizard-button-bar">
-          <Button
-            color={ComponentColor.Default}
-            text="Back"
-            size={ComponentSize.Medium}
-            onClick={onDecrementCurrentStepIndex}
-          />
-          <Button
-            color={ComponentColor.Primary}
-            text="Next"
-            size={ComponentSize.Medium}
-            onClick={onIncrementCurrentStepIndex}
-            status={ComponentStatus.Default}
-            titleText={'Next'}
-          />
+        <div className="wizard-button-container">
+          <div className="wizard-button-bar">
+            <Button
+              color={ComponentColor.Default}
+              text="Back"
+              size={ComponentSize.Medium}
+              onClick={onDecrementCurrentStepIndex}
+            />
+            <Button
+              color={ComponentColor.Primary}
+              text="Next"
+              size={ComponentSize.Medium}
+              onClick={onIncrementCurrentStepIndex}
+              status={ComponentStatus.Default}
+              titleText={'Next'}
+            />
+          </div>
+          {this.skipLink}
         </div>
       </div>
     )
+  }
+
+  private get skipLink() {
+    return (
+      <Button
+        color={ComponentColor.Default}
+        text="Skip"
+        size={ComponentSize.Small}
+        onClick={this.jumpToCompletionStep}
+      >
+        skip
+      </Button>
+    )
+  }
+
+  private jumpToCompletionStep = () => {
+    const {onSetCurrentStepIndex, stepStatuses} = this.props
+
+    onSetCurrentStepIndex(stepStatuses.length - 1)
   }
 }
 
