@@ -65,6 +65,10 @@ func (f *SeriesFile) Open() error {
 		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
 		if err := p.Open(); err != nil {
+			f.Logger.Error("Unable to open time series data",
+				zap.String("path", f.path),
+				zap.Int("partition", p.ID()),
+				zap.Error(err))
 			f.doClose(false)
 			return err
 		}
