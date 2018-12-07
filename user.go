@@ -8,6 +8,16 @@ type User struct {
 	Name string `json:"name"`
 }
 
+// Ops for user errors and op log.
+const (
+	OpFindUserByID = "FindUserByID"
+	OpFindUser     = "FindUser"
+	OpFindUsers    = "FindUsers"
+	OpCreateUser   = "CreateUser"
+	OpUpdateUser   = "UpdateUser"
+	OpDeleteUser   = "DeleteUser"
+)
+
 // UserService represents a service for managing user data.
 type UserService interface {
 
