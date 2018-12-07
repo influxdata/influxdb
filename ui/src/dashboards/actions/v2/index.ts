@@ -231,7 +231,7 @@ export const addCellAsync = (dashboard: Dashboard) => async (
   const cell = getNewDashboardCell(dashboard)
 
   try {
-    const createdCell = await addCellAJAX(dashboard.links.cells, cell)
+    const createdCell = await addCellAJAX(dashboard.id, cell)
     const updatedDashboard = {
       ...dashboard,
       cells: [...dashboard.cells, createdCell],
@@ -256,7 +256,7 @@ export const createCellWithView = (
       viewID: createdView.id,
     }
 
-    const createdCell = await addCellAJAX(dashboard.links.cells, cell)
+    const createdCell = await addCellAJAX(dashboard.id, cell)
 
     let updatedDashboard: Dashboard = {
       ...dashboard,

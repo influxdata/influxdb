@@ -57,8 +57,14 @@ export const loadDashboardLinks = async (
   return dashboardLinks
 }
 
-export const addCell = async (id, cell: CreateCell): Promise<Cell> => {
-  const {data} = await cellsAPI.dashboardsDashboardIDCellsPost(id, cell)
+export const addCell = async (
+  dashboardID: string,
+  cell: CreateCell
+): Promise<Cell> => {
+  const {data} = await cellsAPI.dashboardsDashboardIDCellsPost(
+    dashboardID,
+    cell
+  )
   return data
 }
 
