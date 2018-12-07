@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -104,6 +105,10 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 }
 
 func (uc *udpclient) Query(q Query) (*Response, error) {
+	return nil, fmt.Errorf("Querying via UDP is not supported")
+}
+
+func (uc *udpclient) QueryCtx(ctx context.Context, q Query) (*Response, error) {
 	return nil, fmt.Errorf("Querying via UDP is not supported")
 }
 
