@@ -344,7 +344,7 @@ func DeleteLabel(
 						Name:       "Tag1",
 					},
 				},
-				err: fmt.Errorf("label not found"),
+				err: platform.ErrLabelNotFound,
 			},
 		},
 	}

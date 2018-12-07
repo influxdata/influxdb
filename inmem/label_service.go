@@ -15,7 +15,7 @@ func encodeLabelKey(resourceID platform.ID, name string) string {
 func (s *Service) loadLabel(ctx context.Context, resourceID platform.ID, name string) (*platform.Label, error) {
 	i, ok := s.labelKV.Load(encodeLabelKey(resourceID, name))
 	if !ok {
-		return nil, fmt.Errorf("label not found")
+		return nil, platform.ErrLabelNotFound
 	}
 
 	l, ok := i.(platform.Label)

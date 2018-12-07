@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/coreos/bbolt"
+	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
 )
 
@@ -144,7 +144,7 @@ func (c *Client) deleteLabel(ctx context.Context, tx *bolt.Tx, filter platform.L
 		return err
 	}
 	if len(ls) == 0 {
-		return fmt.Errorf("label not found")
+		return platform.ErrLabelNotFound
 	}
 
 	key, err := labelKey(ls[0])
