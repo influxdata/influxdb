@@ -11,7 +11,7 @@ import {
 
 const basePath = '/api/v2'
 
-export const viewsAPI = new ViewsApi({basePath: '/api/v2'})
+export const viewsAPI = new ViewsApi({basePath})
 export const taskAPI = new TasksApi({basePath})
 export const usersAPI = new UsersApi({basePath})
 export const dashboardsAPI = new DashboardsApi({basePath})

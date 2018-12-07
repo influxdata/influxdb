@@ -89,12 +89,6 @@ export interface Authorization {
     links?: AuthorizationLinks;
     /**
      * 
-     * @type {Owners}
-     * @memberof Authorization
-     */
-    owner: Owners;
-    /**
-     * 
      * @type {Array<Permission>}
      * @memberof Authorization
      */
@@ -111,6 +105,18 @@ export interface Authorization {
      * @memberof Authorization
      */
     token?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Authorization
+     */
+    user?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Authorization
+     */
+    userID?: string;
 }
 
 /**

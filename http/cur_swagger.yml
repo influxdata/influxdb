@@ -3519,6 +3519,10 @@ components:
         id:
           readOnly: true
           type: string
+        user:
+          type: string
+        userID:
+          type: string
         status:
           description: if inactive the token is inactive and requests using the token will be rejected.
           default: active
@@ -3533,9 +3537,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Permission"
-        owner:
-          $ref: "#/components/schemas/Owners"
-      required: [owner]
     Authorizations:
       type: object
       properties:

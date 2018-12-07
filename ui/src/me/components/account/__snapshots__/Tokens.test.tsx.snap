@@ -1,0 +1,80 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Account rendering renders! 1`] = `
+<Tokens
+  authorizationsLink="api/v2/authorizations"
+>
+  <Panel>
+    <div
+      className="panel"
+    >
+      <PanelHeader
+        title="Tokens"
+      >
+        <div
+          className="panel-header"
+        >
+          <div
+            className="panel-title"
+          >
+            Tokens
+          </div>
+          <div
+            className="panel-controls"
+          >
+            <ComponentSpacer
+              align="right"
+            >
+              <div
+                className="component-spacer component-spacer--right component-spacer--horizontal"
+              >
+                <Button
+                  active={false}
+                  color="default"
+                  shape="none"
+                  size="sm"
+                  status="default"
+                  text="Create Token"
+                  type="submit"
+                >
+                  <button
+                    className="button button-sm button-default"
+                    disabled={false}
+                    tabIndex={0}
+                    title="Create Token"
+                    type="submit"
+                  >
+                    Create Token
+                  </button>
+                </Button>
+              </div>
+            </ComponentSpacer>
+          </div>
+        </div>
+      </PanelHeader>
+      <PanelBody>
+        <div
+          className="panel-body"
+        >
+          <ResourceFetcher
+            fetcher={[Function]}
+            link="api/v2/authorizations"
+          >
+            <Spinner
+              loading="NotStarted"
+            >
+              <div
+                className="spinner-container"
+              >
+                <div
+                  className="spinner"
+                />
+              </div>
+            </Spinner>
+          </ResourceFetcher>
+        </div>
+      </PanelBody>
+    </div>
+  </Panel>
+</Tokens>
+`;

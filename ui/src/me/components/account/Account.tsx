@@ -7,6 +7,12 @@ import {Page} from 'src/pageLayout'
 import ProfilePage from 'src/shared/components/profile_page/ProfilePage'
 import ProfilePageSection from 'src/shared/components/profile_page/ProfilePageSection'
 import Settings from 'src/me/components/account/Settings'
+import Tokens from 'src/me/components/account/Tokens'
+
+export enum Tabs {
+  Settings = 'settings',
+  Tokens = 'tokens',
+}
 
 export default class Account extends PureComponent<WithRouterProps> {
   public render() {
@@ -25,11 +31,19 @@ export default class Account extends PureComponent<WithRouterProps> {
             activeTabUrl={params.tab}
             parentUrl="/account"
           >
-            <ProfilePageSection id="settings" title="Settings" url="settings">
+            <ProfilePageSection
+              title="Settings"
+              id={Tabs.Settings}
+              url={Tabs.Settings}
+            >
               <Settings />
             </ProfilePageSection>
-            <ProfilePageSection id="tokens" title="Tokens" url="tokens">
-              <div>Tokens go here</div>
+            <ProfilePageSection
+              title="Tokens"
+              id={Tabs.Tokens}
+              url={Tabs.Tokens}
+            >
+              <Tokens />
             </ProfilePageSection>
           </ProfilePage>
         </Page.Contents>
