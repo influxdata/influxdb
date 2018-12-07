@@ -1,5 +1,6 @@
 import {PureComponent} from 'react'
 import {FluxTable} from 'src/types'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {
   fluxTablesToDygraph,
@@ -11,6 +12,7 @@ interface Props {
   children: (result: FluxTablesToDygraphResult) => JSX.Element
 }
 
+@ErrorHandling
 class DygraphTransformation extends PureComponent<
   Props,
   FluxTablesToDygraphResult
