@@ -125,15 +125,24 @@ type Scheduler interface {
 // TickSchedulerOption is a option you can use to modify the schedulers behavior.
 type TickSchedulerOption func(*TickScheduler)
 
+// WithTicker sets a time.Ticker with period d,
+// and calls TickScheduler.Tick when the ticker rolls over to a new second.
+// With a sub-second d, TickScheduler.Tick should be called roughly no later than d after a second:
+// this can help ensure tasks happen early with a second window.
 func WithTicker(ctx context.Context, d time.Duration) TickSchedulerOption {
 	return func(s *TickScheduler) {
 		ticker := time.NewTicker(d)
 
 		go func() {
+			prev := time.Now().Unix() - 1
 			for {
 				select {
-				case time := <-ticker.C:
-					go s.Tick(time.Unix())
+				case t := <-ticker.C:
+					u := t.Unix()
+					if u > prev {
+						prev = u
+						go s.Tick(u)
+					}
 				case <-ctx.Done():
 					ticker.Stop()
 					return

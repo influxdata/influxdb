@@ -309,7 +309,7 @@ func (m *Main) run(ctx context.Context) (err error) {
 		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, boltStore)
 
 		lw := taskbackend.NewPointLogWriter(pointsWriter)
-		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, time.Second), taskbackend.WithLogger(m.logger))
+		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
 		m.scheduler.Start(ctx)
 		reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 

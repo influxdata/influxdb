@@ -677,3 +677,41 @@ func TestScheduler_Stop(t *testing.T) {
 		t.Fatalf("scheduler did not stop after executor Wait returned")
 	}
 }
+
+func TestScheduler_WithTicker(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tickFreq := 100 * time.Millisecond
+	d := mock.NewDesiredState()
+	e := mock.NewExecutor()
+	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5, backend.WithLogger(zaptest.NewLogger(t)), backend.WithTicker(ctx, tickFreq))
+
+	o.Start(ctx)
+	defer o.Stop()
+
+	task := &backend.StoreTask{
+		ID: platform.ID(1),
+	}
+	createdAt := time.Now().Unix()
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency:  5,
+		EffectiveCron:   "@every 1s",
+		LatestCompleted: createdAt,
+	}
+
+	d.SetTaskMeta(task.ID, *meta)
+	if err := o.ClaimTask(task, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	for time.Now().Unix() == createdAt {
+		time.Sleep(tickFreq + 10*time.Millisecond)
+	}
+
+	if x, err := d.PollForNumberCreated(task.ID, 1); err != nil {
+		t.Fatalf("expected 1 run queued, but got %d", len(x))
+	}
+}
