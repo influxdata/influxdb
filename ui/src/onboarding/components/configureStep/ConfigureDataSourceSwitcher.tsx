@@ -22,8 +22,6 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
   public render() {
     const {bucket, org} = this.props
     switch (this.configurationStep) {
-      case DataLoaderType.Streaming:
-        return <div />
       case DataLoaderType.LineProtocol:
         return <LineProtocol bucket={bucket} org={org} />
       case DataLoaderType.CSV:

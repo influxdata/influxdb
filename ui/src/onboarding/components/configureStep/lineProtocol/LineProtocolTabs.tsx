@@ -3,7 +3,16 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Input, InputType, Radio, ButtonShape, Form} from 'src/clockface'
+import {
+  Input,
+  InputType,
+  Radio,
+  ButtonShape,
+  Form,
+  Button,
+  ComponentSize,
+  ComponentColor,
+} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import TextArea from 'src/clockface/components/inputs/TextArea'
 
@@ -41,12 +50,24 @@ interface StateProps {
   activeLPTab: LineProtocolTab
 }
 
-export class LineProtocolTabs extends PureComponent<Props> {
+interface State {
+  urlInput: string
+}
+
+export class LineProtocolTabs extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      urlInput: '',
+    }
+  }
   public render() {
     return (
       <>
         {this.tabSelector}
         <div className={'wizard-step--lp-body'}>{this.tabBody}</div>
+        <div className="wizard-button-bar">{this.submitButton}</div>
       </>
     )
   }
@@ -71,6 +92,21 @@ export class LineProtocolTabs extends PureComponent<Props> {
     )
   }
 
+  private get submitButton(): JSX.Element {
+    const {lineProtocolText} = this.props
+    if (lineProtocolText) {
+      return (
+        <Button
+          size={ComponentSize.Medium}
+          color={ComponentColor.Primary}
+          text={'submit line protocol'}
+          onClick={this.handleSubmitLineProtocol}
+        />
+      )
+    }
+    return null
+  }
+
   private handleTabClick = (tab: LineProtocolTab) => () => {
     const {setActiveLPTab, setLineProtocolText} = this.props
     setLineProtocolText('')
@@ -79,12 +115,15 @@ export class LineProtocolTabs extends PureComponent<Props> {
 
   private get tabBody(): JSX.Element {
     const {setLineProtocolText, lineProtocolText, activeLPTab} = this.props
+    const {urlInput} = this.state
 
     if (activeLPTab === LineProtocolTab.UploadFile) {
       return (
         <DragAndDrop
           submitText="Upload File"
-          handleSubmit={this.handleFileUpload}
+          handleSubmit={setLineProtocolText}
+          submitOnDrop={true}
+          submitOnUpload={true}
         />
       )
     }
@@ -106,8 +145,8 @@ export class LineProtocolTabs extends PureComponent<Props> {
               type={InputType.Text}
               placeholder="http://..."
               widthPixels={700}
-              value={lineProtocolText}
-              onChange={this.handleChange}
+              value={urlInput}
+              onChange={this.handleURLChange}
               autoFocus={true}
             />
           </Form.Element>
@@ -116,14 +155,14 @@ export class LineProtocolTabs extends PureComponent<Props> {
     }
     return
   }
-  private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const {setLineProtocolText} = this.props
-    setLineProtocolText(e.target.value)
+
+  private handleURLChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({urlInput: e.target.value})
   }
 
-  private handleFileUpload = async (body: string): Promise<void> => {
-    const {bucket, org, writeLineProtocolAction} = this.props
-    writeLineProtocolAction(org, bucket, body)
+  private handleSubmitLineProtocol = async (): Promise<void> => {
+    const {bucket, org, writeLineProtocolAction, lineProtocolText} = this.props
+    writeLineProtocolAction(org, bucket, lineProtocolText)
   }
 }
 

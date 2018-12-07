@@ -14,6 +14,7 @@ import {RemoteDataState} from 'src/types'
 
 interface Props {
   status: RemoteDataState
+  onClickRetry: () => void
 }
 
 class LoadingStatusIndicator extends PureComponent<Props> {
@@ -36,7 +37,7 @@ class LoadingStatusIndicator extends PureComponent<Props> {
   }
 
   private get retryButton(): JSX.Element {
-    const {status} = this.props
+    const {status, onClickRetry} = this.props
     if (status === RemoteDataState.Error) {
       return (
         <Button
@@ -44,6 +45,7 @@ class LoadingStatusIndicator extends PureComponent<Props> {
           color={ComponentColor.Primary}
           size={ComponentSize.Small}
           customClass={'wizard-step--retry-button'}
+          onClick={onClickRetry}
         />
       )
     } else {
