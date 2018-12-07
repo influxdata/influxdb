@@ -123,7 +123,12 @@ func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 		w.Header().Set(PlatformErrorCodeHeader, code)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(httpCode)
-		b, _ := json.Marshal(pe)
+		b, _ := json.Marshal(&platform.Error{
+			Code: code,
+			Op:   platform.ErrorOp(pe),
+			Msg:  platform.ErrorMessage(pe),
+			Err:  pe.Err,
+		})
 		_, _ = w.Write(b)
 		return
 	}
