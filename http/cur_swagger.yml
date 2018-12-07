@@ -560,15 +560,7 @@ paths:
           name: precision
           description: specifies the precision for the unix timestamps within the body line-protocol
           schema:
-            type: string
-            default: ns
-            description: specifies the unit of time
-            enum:
-              - ns
-              - us
-              - u
-              - ms
-              - s
+            $ref: "#/components/schemas/WritePrecision"
       responses:
         '204':
           description: write data is correctly formatted and accepted for writing to the bucket.
@@ -3972,6 +3964,14 @@ components:
           description: err is a stack of errors that occurred during processing of the request. Useful for debugging.
           type: string
       required: [code, message, op, err]
+    WritePrecision:
+      type: string
+      enum:
+        - ms
+        - s
+        - us
+        - u
+        - ns
     LineProtocolError:
       properties:
         code:

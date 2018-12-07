@@ -47,5 +47,9 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
   <div
     className="wizard-step--lp-body"
   />
+  <PrecisionDropdown />
+  <div
+    className="wizard-button-bar"
+  />
 </Fragment>
 `;

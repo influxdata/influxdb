@@ -12,6 +12,8 @@ exports[`LineProtocol rendering renders! 1`] = `
   >
     Need help writing InfluxDB Line Protocol? See Documentation
   </h5>
-  <LoadingStatusIndicator />
+  <LoadingStatusIndicator
+    onClickRetry={[Function]}
+  />
 </Fragment>
 `;

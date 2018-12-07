@@ -15,7 +15,7 @@ import {setLPStatus as setLPStatusAction} from 'src/onboarding/actions/dataLoade
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {LineProtocolTab, LineProtocolStatus} from 'src/types/v2/dataLoaders'
+import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 import {AppState} from 'src/types/v2/index'
 import {RemoteDataState} from 'src/types'
 
@@ -36,10 +36,6 @@ type Props = OwnProps & StateProps & DispatchProps
 
 @ErrorHandling
 export class LineProtocol extends PureComponent<Props> {
-  constructor(props) {
-    super(props)
-    this.state = {status: LineProtocolStatus.ImportData}
-  }
   public render() {
     return (
       <>
