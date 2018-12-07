@@ -59,6 +59,7 @@ interface OwnProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetCurrentStepIndex: (stepNumber: number) => void
+  onSetCurrentSubStepIndex: (stepNumber: number, substepNumber: number) => void
 }
 
 interface DispatchProps {
@@ -184,8 +185,20 @@ class OnboardingWizard extends PureComponent<Props> {
   }
 
   private handleClickSideBarTab = (telegrafPluginID: string) => {
-    const {onSetCurrentStepIndex, onSetActiveTelegrafPlugin} = this.props
-    onSetCurrentStepIndex(3)
+    const {
+      onSetCurrentSubStepIndex,
+      onSetActiveTelegrafPlugin,
+      dataLoaders: {telegrafPlugins},
+    } = this.props
+
+    const index = Math.max(
+      _.findIndex(telegrafPlugins, plugin => {
+        return plugin.name === telegrafPluginID
+      }),
+      0
+    )
+
+    onSetCurrentSubStepIndex(3, index)
     onSetActiveTelegrafPlugin(telegrafPluginID)
   }
 
