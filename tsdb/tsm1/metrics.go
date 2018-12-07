@@ -213,8 +213,8 @@ func newCacheMetrics(labels prometheus.Labels) *cacheMetrics {
 		Age: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: cacheSubsystem,
-			Name:      "age",
-			Help:      "Age of the current cache (time since last snapshot or initialisation).",
+			Name:      "age_seconds",
+			Help:      "Age in seconds of the current cache (time since last snapshot or initialisation).",
 		}, names),
 		SnapshottedBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -231,7 +231,7 @@ func newCacheMetrics(labels prometheus.Labels) *cacheMetrics {
 		Writes: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: cacheSubsystem,
-			Name:      "writes",
+			Name:      "writes_total",
 			Help:      "Number of writes to the Cache.",
 		}, writeNames),
 	}
@@ -291,7 +291,7 @@ func newWALMetrics(labels prometheus.Labels) *walMetrics {
 		Writes: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: walSubsystem,
-			Name:      "writes",
+			Name:      "writes_total",
 			Help:      "Number of writes to the WAL.",
 		}, writeNames),
 	}

@@ -70,14 +70,14 @@ func TestMetrics_Cache(t *testing.T) {
 	gauges := []string{
 		base + "inuse_bytes",
 		base + "disk_bytes",
-		base + "age",
+		base + "age_seconds",
 		base + "snapshots_active",
 	}
 
 	counters := []string{
 		base + "snapshot_bytes",
 		base + "written_bytes",
-		base + "writes",
+		base + "writes_total",
 	}
 
 	// Generate some measurements.
@@ -150,7 +150,7 @@ func TestMetrics_WAL(t *testing.T) {
 	}
 
 	counters := []string{
-		base + "writes",
+		base + "writes_total",
 	}
 
 	// Generate some measurements.

@@ -24,13 +24,13 @@ func TestMetrics_SeriesPartition(t *testing.T) {
 	gauges := []string{
 		base + "series_total",
 		base + "disk_bytes",
-		base + "segments",
+		base + "segments_total",
 		base + "index_compactions_active",
 	}
 
 	counters := []string{
 		base + "series_created",
-		base + "compactions",
+		base + "compactions_total",
 	}
 
 	histograms := []string{
@@ -96,7 +96,7 @@ func TestMetrics_SeriesPartition(t *testing.T) {
 		for _, name := range counters {
 			exp := float64(i + len(name))
 
-			if name == base+"compactions" {
+			if name == base+"compactions_total" {
 				// Make a copy since we need to add a label
 				l := make(prometheus.Labels, len(labels))
 				for k, v := range labels {

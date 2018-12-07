@@ -205,7 +205,7 @@ func newPartitionMetrics(labels prometheus.Labels) *partitionMetrics {
 		Compactions: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: partitionSubsystem,
-			Name:      "compactions",
+			Name:      "compactions_total",
 			Help:      "Number of compactions.",
 		}, attemptedCompactionNames),
 	}

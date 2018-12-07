@@ -87,7 +87,7 @@ func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
 		Segments: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: seriesFileSubsystem,
-			Name:      "segments",
+			Name:      "segments_total",
 			Help:      "Number of segment files in Series File.",
 		}, names),
 		CompactionsActive: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -107,7 +107,7 @@ func newSeriesFileMetrics(labels prometheus.Labels) *seriesFileMetrics {
 		Compactions: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: seriesFileSubsystem,
-			Name:      "compactions",
+			Name:      "compactions_total",
 			Help:      "Number of compactions.",
 		}, totalCompactions),
 	}

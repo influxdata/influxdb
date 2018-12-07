@@ -112,7 +112,7 @@ func TestMetrics_Partition(t *testing.T) {
 	counters := []string{
 		base + "series_created",
 		base + "series_dropped",
-		base + "compactions",
+		base + "compactions_total",
 	}
 
 	histograms := []string{
