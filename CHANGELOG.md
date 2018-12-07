@@ -11,6 +11,7 @@ v1.7.2 [unreleased]
 -	[#10515](https://github.com/influxdata/influxdb/pull/10515): Update platform dependency.
 -	[#10514](https://github.com/influxdata/influxdb/pull/10514): Verify seriesfile in presence of tombstones.
 -	[#10499](https://github.com/influxdata/influxdb/pull/10499): Fix ApplyEnvOverrides when a type that implements Unmarshaler is in a slice.
+-	[#10548](https://github.com/influxdata/influxdb/pull/10548): Drop NaN values when writing back points.
 
 v1.7.1 [2018-11-14]
 -------------------
