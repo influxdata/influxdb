@@ -34,7 +34,7 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 	return &TagValueSeriesIDCache{
 		cache:    map[string]map[string]map[string]*list.Element{},
 		evictor:  list.New(),
-		tracker:  newCacheTracker(newCacheMetrics(nil)),
+		tracker:  newCacheTracker(newCacheMetrics(nil), nil),
 		capacity: c,
 	}
 }
@@ -215,19 +215,29 @@ type seriesIDCacheElement struct {
 
 type cacheTracker struct {
 	metrics *cacheMetrics
+	labels  prometheus.Labels
 }
 
-func newCacheTracker(metrics *cacheMetrics) *cacheTracker {
-	return &cacheTracker{metrics: metrics}
+func newCacheTracker(metrics *cacheMetrics, defaultLabels prometheus.Labels) *cacheTracker {
+	return &cacheTracker{metrics: metrics, labels: defaultLabels}
+}
+
+// Labels returns a copy of labels for use with index cache metrics.
+func (t *cacheTracker) Labels() prometheus.Labels {
+	l := make(map[string]string, len(t.labels))
+	for k, v := range t.labels {
+		l[k] = v
+	}
+	return l
 }
 
 func (t *cacheTracker) SetSize(sz uint64) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.Size.With(labels).Set(float64(sz))
 }
 
 func (t *cacheTracker) incGet(status string) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Gets.With(labels).Inc()
 }
@@ -236,7 +246,7 @@ func (t *cacheTracker) IncGetHit()  { t.incGet("hit") }
 func (t *cacheTracker) IncGetMiss() { t.incGet("miss") }
 
 func (t *cacheTracker) incPut(status string) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Puts.With(labels).Inc()
 }
@@ -245,7 +255,7 @@ func (t *cacheTracker) IncPutHit()  { t.incPut("hit") }
 func (t *cacheTracker) IncPutMiss() { t.incPut("miss") }
 
 func (t *cacheTracker) incDeletes(status string) {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Deletes.With(labels).Inc()
 }
@@ -254,6 +264,6 @@ func (t *cacheTracker) IncDeletesHit()  { t.incDeletes("hit") }
 func (t *cacheTracker) IncDeletesMiss() { t.incDeletes("miss") }
 
 func (t *cacheTracker) IncEvictions() {
-	labels := t.metrics.Labels()
+	labels := t.Labels()
 	t.metrics.Evictions.With(labels).Inc()
 }

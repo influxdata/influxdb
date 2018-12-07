@@ -3,7 +3,6 @@ package rhh
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"math/rand"
 	"sort"
 	"time"
@@ -323,7 +322,6 @@ func (t *rhhTracker) SetProbeCount(length float64) {
 func (t *rhhTracker) incGet(status string) {
 	labels := t.Labels()
 	labels["status"] = status
-	fmt.Println("inc get", labels)
 	t.metrics.Gets.With(labels).Inc()
 }
 

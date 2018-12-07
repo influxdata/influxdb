@@ -167,7 +167,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	var metrics []prometheus.Collector
 	metrics = append(metrics, tsdb.PrometheusCollectors()...)
-	metrics = append(metrics, e.index.PrometheusCollectors()...)
+	metrics = append(metrics, tsi1.PrometheusCollectors()...)
 	metrics = append(metrics, tsm1.PrometheusCollectors()...)
 	metrics = append(metrics, e.retentionEnforcer.PrometheusCollectors()...)
 	return metrics

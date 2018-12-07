@@ -1,11 +1,35 @@
 package tsi1
 
 import (
-	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// The following package variables act as singletons, to be shared by all
+// storage.Engine instantiations. This allows multiple TSI indexes to be
+// monitored within the same process.
+var (
+	cms *cacheMetrics     // TSI index cache metrics
+	pms *partitionMetrics // TSI partition metrics
+	mmu sync.RWMutex
+)
+
+// PrometheusCollectors returns all prometheus metrics for the tsm1 package.
+func PrometheusCollectors() []prometheus.Collector {
+	mmu.RLock()
+	defer mmu.RUnlock()
+
+	var collectors []prometheus.Collector
+	if cms != nil {
+		collectors = append(collectors, cms.PrometheusCollectors()...)
+	}
+	if pms != nil {
+		collectors = append(collectors, pms.PrometheusCollectors()...)
+	}
+	return collectors
+}
 
 // namespace is the leading part of all published metrics for the Storage service.
 const namespace = "storage"
@@ -14,8 +38,7 @@ const cacheSubsystem = "tsi_cache"     // sub-system associated with TSI index c
 const partitionSubsystem = "tsi_index" // sub-system associated with the TSI index.
 
 type cacheMetrics struct {
-	labels prometheus.Labels
-	Size   *prometheus.GaugeVec // Size of the cache.
+	Size *prometheus.GaugeVec // Size of the cache.
 
 	// These metrics have an extra label status = {"hit", "miss"}
 	Gets      *prometheus.CounterVec // Number of times item retrieved.
@@ -36,7 +59,6 @@ func newCacheMetrics(labels prometheus.Labels) *cacheMetrics {
 	sort.Strings(statusNames)
 
 	return &cacheMetrics{
-		labels: labels,
 		Size: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: cacheSubsystem,
@@ -70,15 +92,6 @@ func newCacheMetrics(labels prometheus.Labels) *cacheMetrics {
 	}
 }
 
-// Labels returns a copy of labels for use with RHH metrics.
-func (m *cacheMetrics) Labels() prometheus.Labels {
-	l := make(map[string]string, len(m.labels))
-	for k, v := range m.labels {
-		l[k] = v
-	}
-	return l
-}
-
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (m *cacheMetrics) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
@@ -91,7 +104,6 @@ func (m *cacheMetrics) PrometheusCollectors() []prometheus.Collector {
 }
 
 type partitionMetrics struct {
-	labels                prometheus.Labels
 	SeriesCreated         *prometheus.CounterVec   // Number of series created in Series File.
 	SeriesCreatedDuration *prometheus.HistogramVec // Distribution of time to insert series.
 	SeriesDropped         *prometheus.CounterVec   // Number of series removed from index.
@@ -113,7 +125,7 @@ type partitionMetrics struct {
 
 // newPartitionMetrics initialises the prometheus metrics for tracking the TSI partitions.
 func newPartitionMetrics(labels prometheus.Labels) *partitionMetrics {
-	names := []string{"partition_id"} // All metrics have a partition
+	names := []string{"index_partition"} // All metrics have a partition
 	for k := range labels {
 		names = append(names, k)
 	}
@@ -132,7 +144,6 @@ func newPartitionMetrics(labels prometheus.Labels) *partitionMetrics {
 	sort.Strings(attemptedCompactionNames)
 
 	return &partitionMetrics{
-		labels: labels,
 		SeriesCreated: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: partitionSubsystem,
@@ -198,18 +209,6 @@ func newPartitionMetrics(labels prometheus.Labels) *partitionMetrics {
 			Help:      "Number of compactions.",
 		}, attemptedCompactionNames),
 	}
-}
-
-// Labels returns a copy of labels for use with TSI partition metrics.
-func (m *partitionMetrics) Labels(partition int) prometheus.Labels {
-	l := make(map[string]string, len(m.labels))
-	for k, v := range m.labels {
-		l[k] = v
-	}
-
-	// N.B all series file metrics include the partition. So it's included here.
-	l["partition_id"] = fmt.Sprint(partition)
-	return l
 }
 
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.

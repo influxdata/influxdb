@@ -163,8 +163,6 @@ func (i *Index) SetDefaultMetricLabels(labels prometheus.Labels) {
 	for k, v := range labels {
 		i.defaultLabels[k] = v
 	}
-	i.tagValueCache.tracker = newCacheTracker(newCacheMetrics(labels))
-	i.partitionMetrics = newPartitionMetrics(labels)
 }
 
 // Bytes estimates the memory footprint of this Index, in bytes.
@@ -226,6 +224,18 @@ func (i *Index) Open() error {
 		return err
 	}
 
+	mmu.Lock()
+	if cms == nil {
+		cms = newCacheMetrics(i.defaultLabels)
+	}
+	if pms == nil {
+		pms = newPartitionMetrics(i.defaultLabels)
+	}
+	mmu.Unlock()
+
+	// Set the correct shared metrics on the cache
+	i.tagValueCache.tracker = newCacheTracker(cms, i.defaultLabels)
+
 	// Initialize index partitions.
 	i.partitions = make([]*Partition, i.PartitionN)
 	for j := 0; j < len(i.partitions); j++ {
@@ -234,7 +244,15 @@ func (i *Index) Open() error {
 		p.nosync = i.disableFsync
 		p.logbufferSize = i.logfileBufferSize
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
-		p.tracker = newPartitionTracker(i.partitionMetrics, j)
+
+		// Each of the trackers needs to be given slightly different default
+		// labels to ensure the correct partition ids are set as labels.
+		labels := make(prometheus.Labels, len(i.defaultLabels))
+		for k, v := range i.defaultLabels {
+			labels[k] = v
+		}
+		labels["index_partition"] = fmt.Sprint(j)
+		p.tracker = newPartitionTracker(pms, labels)
 		i.partitions[j] = p
 	}
 
@@ -1532,14 +1550,6 @@ func (i *Index) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byte, 
 		return nil, err
 	}
 	return tsdb.DifferenceSeriesIDIterators(mitr, tsdb.MergeSeriesIDIterators(itrs...)), nil
-}
-
-// PrometheusCollectors returns all of the metrics for the index.
-func (i *Index) PrometheusCollectors() []prometheus.Collector {
-	var collectors []prometheus.Collector
-	collectors = append(collectors, i.tagValueCache.PrometheusCollectors()...)
-	collectors = append(collectors, i.partitionMetrics.PrometheusCollectors()...)
-	return collectors
 }
 
 // IsIndexDir returns true if directory contains at least one partition directory.

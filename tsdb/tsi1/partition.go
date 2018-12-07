@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/pkg/bytesutil"
 	"github.com/influxdata/platform/tsdb"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -109,9 +110,8 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 		version: Version,
 	}
 
-	base := filepath.Base(path)
-	id, _ := strconv.Atoi(base) // Ignore error because we will re-check during Open.
-	partition.tracker = newPartitionTracker(newPartitionMetrics(nil), id)
+	defaultLabels := prometheus.Labels{"index_partition": ""}
+	partition.tracker = newPartitionTracker(newPartitionMetrics(nil), defaultLabels)
 	return partition
 }
 
@@ -1293,20 +1293,29 @@ func (p *Partition) MeasurementCardinalityStats() MeasurementCardinalityStats {
 
 type partitionTracker struct {
 	metrics *partitionMetrics
-	id      int // ID of partition.
+	labels  prometheus.Labels
 }
 
-func newPartitionTracker(metrics *partitionMetrics, partition int) *partitionTracker {
+func newPartitionTracker(metrics *partitionMetrics, defaultLabels prometheus.Labels) *partitionTracker {
 	return &partitionTracker{
 		metrics: metrics,
-		id:      partition,
+		labels:  defaultLabels,
 	}
+}
+
+// Labels returns a copy of labels for use with index partition metrics.
+func (t *partitionTracker) Labels() prometheus.Labels {
+	l := make(map[string]string, len(t.labels))
+	for k, v := range t.labels {
+		l[k] = v
+	}
+	return l
 }
 
 // AddSeriesCreated increases the number of series created in the partition by n
 // and sets a sample of the time taken to create a series.
 func (t *partitionTracker) AddSeriesCreated(n uint64, d time.Duration) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.SeriesCreated.With(labels).Add(float64(n))
 
 	if n == 0 {
@@ -1319,62 +1328,62 @@ func (t *partitionTracker) AddSeriesCreated(n uint64, d time.Duration) {
 
 // AddSeriesDropped increases the number of series dropped in the partition by n.
 func (t *partitionTracker) AddSeriesDropped(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.SeriesDropped.With(labels).Add(float64(n))
 }
 
 // SetSeries sets the number of series in the partition.
 func (t *partitionTracker) SetSeries(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.Series.With(labels).Set(float64(n))
 }
 
 // AddSeries increases the number of series in the partition by n.
 func (t *partitionTracker) AddSeries(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.Series.With(labels).Add(float64(n))
 }
 
 // SubSeries decreases the number of series in the partition by n.
 func (t *partitionTracker) SubSeries(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.Series.With(labels).Sub(float64(n))
 }
 
 // SetMeasurements sets the number of measurements in the partition.
 func (t *partitionTracker) SetMeasurements(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.Measurements.With(labels).Set(float64(n))
 }
 
 // AddMeasurements increases the number of measurements in the partition by n.
 func (t *partitionTracker) AddMeasurements(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.Measurements.With(labels).Add(float64(n))
 }
 
 // SubMeasurements decreases the number of measurements in the partition by n.
 func (t *partitionTracker) SubMeasurements(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.Measurements.With(labels).Sub(float64(n))
 }
 
 // SetFiles sets the number of files in the partition.
 func (t *partitionTracker) SetFiles(n uint64, typ string) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	labels["type"] = typ
 	t.metrics.FilesTotal.With(labels).Set(float64(n))
 }
 
 // SetDiskSize sets the size of files in the partition.
 func (t *partitionTracker) SetDiskSize(n uint64) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	t.metrics.DiskSize.With(labels).Set(float64(n))
 }
 
 // IncActiveCompaction increments the number of active compactions for the provided level.
 func (t *partitionTracker) IncActiveCompaction(level int) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	labels["level"] = fmt.Sprint(level)
 
 	t.metrics.CompactionsActive.With(labels).Inc()
@@ -1382,7 +1391,7 @@ func (t *partitionTracker) IncActiveCompaction(level int) {
 
 // DecActiveCompaction decrements the number of active compactions for the provided level.
 func (t *partitionTracker) DecActiveCompaction(level int) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	labels["level"] = fmt.Sprint(level)
 
 	t.metrics.CompactionsActive.With(labels).Dec()
@@ -1390,7 +1399,7 @@ func (t *partitionTracker) DecActiveCompaction(level int) {
 
 // CompactionAttempted updates the number of compactions attempted for the provided level.
 func (t *partitionTracker) CompactionAttempted(level int, success bool, d time.Duration) {
-	labels := t.metrics.Labels(t.id)
+	labels := t.Labels()
 	labels["level"] = fmt.Sprint(level)
 	if success {
 		t.metrics.CompactionDuration.With(labels).Observe(d.Seconds())

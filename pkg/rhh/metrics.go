@@ -1,7 +1,6 @@
 package rhh
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -33,7 +32,6 @@ func NewMetrics(namespace, subsystem string, labels prometheus.Labels) *Metrics 
 	getPutNames := append(append([]string(nil), names...), "status")
 	sort.Strings(getPutNames)
 
-	fmt.Println("getputname", getPutNames)
 	return &Metrics{
 		LoadFactor: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
