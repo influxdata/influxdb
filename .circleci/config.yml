@@ -44,9 +44,7 @@ jobs:
       - restore_cache:
           name: Restoring GOPATH/pkg/mod
           keys:
-            - platform-gomod-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - platform-gomod-{{ .Branch }}-                # Matches a new commit on an existing branch.
-            - platform-gomod-                              # Matches a new branch.
+            - platform-gomod-{{ checksum "go.sum" }}         # Matches based on go.sum checksum.
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
       - run: make vet
       - run: make checkfmt
@@ -69,7 +67,7 @@ jobs:
           when: always
       - save_cache:
           name: Saving GOPATH/pkg/mod
-          key: platform-gomod-{{ .Branch }}-{{ .Revision }}
+          key: platform-gomod-{{ checksum "go.sum" }}
           paths:
             - /go/pkg/mod
           when: always
@@ -92,7 +90,7 @@ jobs:
       - restore_cache:
           name: Restoring GOPATH/pkg/mod
           keys:
-            - platform-gomod- # Just match the most recent Go mod cache.
+            - platform-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - restore_cache:
           name: Restore Yarn package cache
           keys:
