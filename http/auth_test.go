@@ -44,14 +44,16 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 					FindAuthorizationsFn: func(ctx context.Context, filter platform.AuthorizationFilter, opts ...platform.FindOptions) ([]*platform.Authorization, int, error) {
 						return []*platform.Authorization{
 							{
-								ID:     platformtesting.MustIDBase16("0d0a657820696e74"),
-								Token:  "hello",
-								UserID: platformtesting.MustIDBase16("2070616e656d2076"),
+								ID:          platformtesting.MustIDBase16("0d0a657820696e74"),
+								Token:       "hello",
+								UserID:      platformtesting.MustIDBase16("2070616e656d2076"),
+								Description: "t1",
 							},
 							{
-								ID:     platformtesting.MustIDBase16("6669646573207375"),
-								Token:  "example",
-								UserID: platformtesting.MustIDBase16("6c7574652c206f6e"),
+								ID:          platformtesting.MustIDBase16("6669646573207375"),
+								Token:       "example",
+								UserID:      platformtesting.MustIDBase16("6c7574652c206f6e"),
+								Description: "t2",
 							},
 						}, 2, nil
 					},
@@ -75,7 +77,8 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       "id": "0d0a657820696e74",
       "userID": "2070616e656d2076",
       "status": "",
-      "token": "hello"
+	  "token": "hello",
+	  "description": "t1"
     },
     {
       "links": {
@@ -85,7 +88,8 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       "id": "6669646573207375",
       "userID": "6c7574652c206f6e",
       "status": "",
-      "token": "example"
+      "token": "example",
+	  "description": "t2"
     }
   ]
 }
@@ -204,7 +208,8 @@ func TestService_handleGetAuthorization(t *testing.T) {
   "id": "020f755c3c082000",
   "userID": "020f755c3c082000",
   "token": "hello",
-  "status": ""
+  "status": "",
+  "description": ""
 }
 `,
 			},
@@ -300,9 +305,10 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			},
 			args: args{
 				authorization: &platform.Authorization{
-					Token:  "hello",
-					ID:     platformtesting.MustIDBase16("020f755c3c082000"),
-					UserID: platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+					Token:       "hello",
+					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
+					UserID:      platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+					Description: "swogtok",
 				},
 			},
 			wants: wants{
@@ -317,7 +323,8 @@ func TestService_handlePostAuthorization(t *testing.T) {
   "id": "020f755c3c082000",
   "userID": "aaaaaaaaaaaaaaaa",
   "token": "hello",
-  "status": ""
+  "status": "",
+  "description": "swogtok"
 }
 `,
 			},

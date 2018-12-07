@@ -9,6 +9,7 @@ type Authorization struct {
 	ID          ID           `json:"id,omitempty"`
 	Token       string       `json:"token"`
 	Status      Status       `json:"status"`
+	Description string       `json:"description"`
 	User        string       `json:"user,omitempty"`
 	UserID      ID           `json:"userID,omitempty"`
 	Permissions []Permission `json:"permissions,omitempty"`

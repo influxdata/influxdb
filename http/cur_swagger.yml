@@ -3533,6 +3533,9 @@ components:
         token:
           readOnly: true
           type: string
+        description:
+          description: user defined description of the authorization
+          type: string
         permissions:
           type: array
           items:

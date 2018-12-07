@@ -164,11 +164,12 @@ func Generate(
 						RetentionPeriod: time.Hour * 24 * 7,
 					},
 					Auth: &platform.Authorization{
-						ID:     MustIDBase16(fourID),
-						Token:  oneToken,
-						Status: platform.Active,
-						User:   "admin",
-						UserID: MustIDBase16(oneID),
+						ID:          MustIDBase16(fourID),
+						Token:       oneToken,
+						Status:      platform.Active,
+						User:        "admin",
+						UserID:      MustIDBase16(oneID),
+						Description: "Deftok",
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 							platform.DeleteUserPermission,

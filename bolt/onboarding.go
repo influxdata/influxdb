@@ -11,6 +11,8 @@ import (
 var onboardingBucket = []byte("onboardingv1")
 var onboardingKey = []byte("onboarding_key")
 
+const onboardingTokenDesc = "Deftok"
+
 var _ platform.OnboardingService = (*Client)(nil)
 
 func (c *Client) initializeOnboarding(ctx context.Context, tx *bolt.Tx) error {
@@ -117,8 +119,9 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 		return nil, err
 	}
 	auth := &platform.Authorization{
-		User:   u.Name,
-		UserID: u.ID,
+		User:        u.Name,
+		UserID:      u.ID,
+		Description: onboardingTokenDesc,
 		Permissions: []platform.Permission{
 			platform.CreateUserPermission,
 			platform.DeleteUserPermission,
