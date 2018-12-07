@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"bytes"
 	"sort"
 
@@ -109,7 +111,10 @@ type Index struct {
 	partitions []*Partition
 	opened     bool
 
-	tagValueCache *TagValueSeriesIDCache
+	defaultLabels prometheus.Labels
+
+	tagValueCache    *TagValueSeriesIDCache
+	partitionMetrics *partitionMetrics // Maintain a single set of partition metrics to be shared by partition.
 
 	// The following may be set when initializing an Index.
 	path               string      // Root directory of the index partitions.
@@ -136,12 +141,13 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, c Config, options ...IndexOption) *Index {
 	idx := &Index{
-		tagValueCache:  NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
-		maxLogFileSize: int64(c.MaxIndexLogFileSize),
-		logger:         zap.NewNop(),
-		version:        Version,
-		sfile:          sfile,
-		PartitionN:     DefaultPartitionN,
+		tagValueCache:    NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
+		partitionMetrics: newPartitionMetrics(nil),
+		maxLogFileSize:   int64(c.MaxIndexLogFileSize),
+		logger:           zap.NewNop(),
+		version:          Version,
+		sfile:            sfile,
+		PartitionN:       DefaultPartitionN,
 	}
 
 	for _, option := range options {
@@ -149,6 +155,14 @@ func NewIndex(sfile *tsdb.SeriesFile, c Config, options ...IndexOption) *Index {
 	}
 
 	return idx
+}
+
+// SetDefaultMetricLabels sets the default labels on the trackers.
+func (i *Index) SetDefaultMetricLabels(labels prometheus.Labels) {
+	i.defaultLabels = make(prometheus.Labels, len(labels))
+	for k, v := range labels {
+		i.defaultLabels[k] = v
+	}
 }
 
 // Bytes estimates the memory footprint of this Index, in bytes.
@@ -210,6 +224,18 @@ func (i *Index) Open() error {
 		return err
 	}
 
+	mmu.Lock()
+	if cms == nil {
+		cms = newCacheMetrics(i.defaultLabels)
+	}
+	if pms == nil {
+		pms = newPartitionMetrics(i.defaultLabels)
+	}
+	mmu.Unlock()
+
+	// Set the correct shared metrics on the cache
+	i.tagValueCache.tracker = newCacheTracker(cms, i.defaultLabels)
+
 	// Initialize index partitions.
 	i.partitions = make([]*Partition, i.PartitionN)
 	for j := 0; j < len(i.partitions); j++ {
@@ -218,6 +244,15 @@ func (i *Index) Open() error {
 		p.nosync = i.disableFsync
 		p.logbufferSize = i.logfileBufferSize
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
+
+		// Each of the trackers needs to be given slightly different default
+		// labels to ensure the correct partition ids are set as labels.
+		labels := make(prometheus.Labels, len(i.defaultLabels))
+		for k, v := range i.defaultLabels {
+			labels[k] = v
+		}
+		labels["index_partition"] = fmt.Sprint(j)
+		p.tracker = newPartitionTracker(pms, labels)
 		i.partitions[j] = p
 	}
 

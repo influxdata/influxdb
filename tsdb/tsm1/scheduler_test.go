@@ -3,7 +3,7 @@ package tsm1
 import "testing"
 
 func TestScheduler_Runnable_Empty(t *testing.T) {
-	s := newScheduler(&EngineStatistics{}, 1)
+	s := newScheduler(1)
 
 	for i := 1; i < 5; i++ {
 		s.setDepth(i, 1)
@@ -20,11 +20,10 @@ func TestScheduler_Runnable_Empty(t *testing.T) {
 }
 
 func TestScheduler_Runnable_MaxConcurrency(t *testing.T) {
-	s := newScheduler(&EngineStatistics{}, 1)
+	s := newScheduler(1)
 
 	// level 1
-	s.stats = &EngineStatistics{}
-	s.stats.TSMCompactionsActive[0] = 1
+	s.compactionTracker.active[1] = 1
 	for i := 0; i <= 4; i++ {
 		_, runnable := s.next()
 		if exp, got := false, runnable; exp != got {
@@ -33,8 +32,7 @@ func TestScheduler_Runnable_MaxConcurrency(t *testing.T) {
 	}
 
 	// level 2
-	s.stats = &EngineStatistics{}
-	s.stats.TSMCompactionsActive[1] = 1
+	s.compactionTracker.active[2] = 1
 	for i := 0; i <= 4; i++ {
 		_, runnable := s.next()
 		if exp, got := false, runnable; exp != got {
@@ -43,8 +41,7 @@ func TestScheduler_Runnable_MaxConcurrency(t *testing.T) {
 	}
 
 	// level 3
-	s.stats = &EngineStatistics{}
-	s.stats.TSMCompactionsActive[2] = 1
+	s.compactionTracker.active[3] = 1
 	for i := 0; i <= 4; i++ {
 		_, runnable := s.next()
 		if exp, got := false, runnable; exp != got {
@@ -53,8 +50,7 @@ func TestScheduler_Runnable_MaxConcurrency(t *testing.T) {
 	}
 
 	// optimize
-	s.stats = &EngineStatistics{}
-	s.stats.TSMOptimizeCompactionsActive++
+	s.compactionTracker.active[4] = 1
 	for i := 0; i <= 4; i++ {
 		_, runnable := s.next()
 		if exp, got := false, runnable; exp != got {
@@ -63,8 +59,7 @@ func TestScheduler_Runnable_MaxConcurrency(t *testing.T) {
 	}
 
 	// full
-	s.stats = &EngineStatistics{}
-	s.stats.TSMFullCompactionsActive++
+	s.compactionTracker.active[5] = 1
 	for i := 0; i <= 4; i++ {
 		_, runnable := s.next()
 		if exp, got := false, runnable; exp != got {

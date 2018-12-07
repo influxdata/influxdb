@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/influxdata/platform/tsdb"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // TagValueSeriesIDCache is an LRU cache for series id sets associated with
@@ -24,6 +25,7 @@ type TagValueSeriesIDCache struct {
 	cache   map[string]map[string]map[string]*list.Element
 	evictor *list.List
 
+	tracker  *cacheTracker
 	capacity int
 }
 
@@ -32,6 +34,7 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 	return &TagValueSeriesIDCache{
 		cache:    map[string]map[string]map[string]*list.Element{},
 		evictor:  list.New(),
+		tracker:  newCacheTracker(newCacheMetrics(nil), nil),
 		capacity: c,
 	}
 }
@@ -48,11 +51,13 @@ func (c *TagValueSeriesIDCache) get(name, key, value []byte) *tsdb.SeriesIDSet {
 	if mmap, ok := c.cache[string(name)]; ok {
 		if tkmap, ok := mmap[string(key)]; ok {
 			if ele, ok := tkmap[string(value)]; ok {
+				c.tracker.IncGetHit()
 				c.evictor.MoveToFront(ele) // This now becomes most recently used.
 				return ele.Value.(*seriesIDCacheElement).SeriesIDSet
 			}
 		}
 	}
+	c.tracker.IncGetMiss()
 	return nil
 }
 
@@ -100,6 +105,7 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 	// Check under the write lock if the relevant item is now in the cache.
 	if c.exists(name, key, value) {
 		c.Unlock()
+		c.tracker.IncPutHit()
 		return
 	}
 	defer c.Unlock()
@@ -136,6 +142,7 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 
 EVICT:
 	c.checkEviction()
+	c.tracker.IncPutMiss()
 }
 
 // Delete removes x from the tuple {name, key, value} if it exists.
@@ -153,16 +160,21 @@ func (c *TagValueSeriesIDCache) delete(name, key, value []byte, x tsdb.SeriesID)
 			if ele, ok := tkmap[string(value)]; ok {
 				if ss := ele.Value.(*seriesIDCacheElement).SeriesIDSet; ss != nil {
 					ele.Value.(*seriesIDCacheElement).SeriesIDSet.Remove(x)
+					c.tracker.IncDeletesHit()
+					return
 				}
 			}
 		}
 	}
+	c.tracker.IncDeletesMiss()
 }
 
 // checkEviction checks if the cache is too big, and evicts the least recently used
 // item if it is.
 func (c *TagValueSeriesIDCache) checkEviction() {
-	if c.evictor.Len() <= c.capacity {
+	l := c.evictor.Len()
+	c.tracker.SetSize(uint64(l))
+	if l <= c.capacity {
 		return
 	}
 
@@ -184,6 +196,13 @@ func (c *TagValueSeriesIDCache) checkEviction() {
 	if len(c.cache[string(name)]) == 0 {
 		delete(c.cache, string(name))
 	}
+	c.tracker.IncEvictions()
+}
+
+func (c *TagValueSeriesIDCache) PrometheusCollectors() []prometheus.Collector {
+	var collectors []prometheus.Collector
+	collectors = append(collectors, c.tracker.metrics.PrometheusCollectors()...)
+	return collectors
 }
 
 // seriesIDCacheElement is an item stored within a cache.
@@ -192,4 +211,59 @@ type seriesIDCacheElement struct {
 	key         []byte
 	value       []byte
 	SeriesIDSet *tsdb.SeriesIDSet
+}
+
+type cacheTracker struct {
+	metrics *cacheMetrics
+	labels  prometheus.Labels
+}
+
+func newCacheTracker(metrics *cacheMetrics, defaultLabels prometheus.Labels) *cacheTracker {
+	return &cacheTracker{metrics: metrics, labels: defaultLabels}
+}
+
+// Labels returns a copy of labels for use with index cache metrics.
+func (t *cacheTracker) Labels() prometheus.Labels {
+	l := make(map[string]string, len(t.labels))
+	for k, v := range t.labels {
+		l[k] = v
+	}
+	return l
+}
+
+func (t *cacheTracker) SetSize(sz uint64) {
+	labels := t.Labels()
+	t.metrics.Size.With(labels).Set(float64(sz))
+}
+
+func (t *cacheTracker) incGet(status string) {
+	labels := t.Labels()
+	labels["status"] = status
+	t.metrics.Gets.With(labels).Inc()
+}
+
+func (t *cacheTracker) IncGetHit()  { t.incGet("hit") }
+func (t *cacheTracker) IncGetMiss() { t.incGet("miss") }
+
+func (t *cacheTracker) incPut(status string) {
+	labels := t.Labels()
+	labels["status"] = status
+	t.metrics.Puts.With(labels).Inc()
+}
+
+func (t *cacheTracker) IncPutHit()  { t.incPut("hit") }
+func (t *cacheTracker) IncPutMiss() { t.incPut("miss") }
+
+func (t *cacheTracker) incDeletes(status string) {
+	labels := t.Labels()
+	labels["status"] = status
+	t.metrics.Deletes.With(labels).Inc()
+}
+
+func (t *cacheTracker) IncDeletesHit()  { t.incDeletes("hit") }
+func (t *cacheTracker) IncDeletesMiss() { t.incDeletes("miss") }
+
+func (t *cacheTracker) IncEvictions() {
+	labels := t.Labels()
+	t.metrics.Evictions.With(labels).Inc()
 }

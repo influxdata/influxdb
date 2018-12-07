@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/limiter"
 	"github.com/influxdata/platform/pkg/pool"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -88,14 +88,6 @@ var (
 	bytesPool = pool.NewLimitedBytes(256, walEncodeBufSize*2)
 )
 
-// Statistics gathered by the WAL.
-const (
-	statWALOldBytes     = "oldSegmentsDiskBytes"
-	statWALCurrentBytes = "currentSegmentDiskBytes"
-	statWriteOk         = "writeOk"
-	statWriteErr        = "writeErr"
-)
-
 // WAL represents the write-ahead log used for writing TSM files.
 type WAL struct {
 	// goroutines waiting for the next fsync
@@ -128,8 +120,7 @@ type WAL struct {
 	// SegmentSize is the file size at which a segment file will be rotated
 	SegmentSize int
 
-	// statistics for the WAL
-	stats   *WALStatistics
+	tracker *walTracker
 	limiter limiter.Fixed
 }
 
@@ -143,10 +134,10 @@ func NewWAL(path string) *WAL {
 		SegmentSize: DefaultSegmentSize,
 		closing:     make(chan struct{}),
 		syncWaiters: make(chan chan error, 1024),
-		stats:       &WALStatistics{},
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 		logger:      logger,
 		traceLogger: logger,
+		tracker:     newWALTracker(newWALMetrics(nil), nil),
 	}
 }
 
@@ -172,28 +163,6 @@ func (l *WAL) WithLogger(log *zap.Logger) {
 	}
 }
 
-// WALStatistics maintains statistics about the WAL.
-type WALStatistics struct {
-	OldBytes     int64
-	CurrentBytes int64
-	WriteOK      int64
-	WriteErr     int64
-}
-
-// Statistics returns statistics for periodic monitoring.
-func (l *WAL) Statistics(tags map[string]string) []models.Statistic {
-	return []models.Statistic{{
-		Name: "tsm1_wal",
-		Tags: tags,
-		Values: map[string]interface{}{
-			statWALOldBytes:     atomic.LoadInt64(&l.stats.OldBytes),
-			statWALCurrentBytes: atomic.LoadInt64(&l.stats.CurrentBytes),
-			statWriteOk:         atomic.LoadInt64(&l.stats.WriteOK),
-			statWriteErr:        atomic.LoadInt64(&l.stats.WriteErr),
-		},
-	}}
-}
-
 // Path returns the directory the log was initialized with.
 func (l *WAL) Path() string {
 	l.mu.RLock()
@@ -217,6 +186,7 @@ func (l *WAL) Open() error {
 	if err != nil {
 		return err
 	}
+	l.tracker.SetSegments(uint64(len(segments)))
 
 	if len(segments) > 0 {
 		lastSegment := segments[len(segments)-1]
@@ -234,6 +204,7 @@ func (l *WAL) Open() error {
 		if stat.Size() == 0 {
 			os.Remove(lastSegment)
 			segments = segments[:len(segments)-1]
+			l.tracker.DecSegments()
 		} else {
 			fd, err := os.OpenFile(lastSegment, os.O_RDWR, 0666)
 			if err != nil {
@@ -245,7 +216,7 @@ func (l *WAL) Open() error {
 			l.currentSegmentWriter = NewWALSegmentWriter(fd)
 
 			// Reset the current segment size stat
-			atomic.StoreInt64(&l.stats.CurrentBytes, stat.Size())
+			l.tracker.SetCurrentSegmentSize(uint64(stat.Size()))
 		}
 	}
 
@@ -263,7 +234,7 @@ func (l *WAL) Open() error {
 			}
 		}
 	}
-	atomic.StoreInt64(&l.stats.OldBytes, totalOldDiskSize)
+	l.tracker.SetOldSegmentSize(uint64(totalOldDiskSize))
 
 	l.closing = make(chan struct{})
 
@@ -336,10 +307,10 @@ func (l *WAL) WriteMulti(values map[string][]Value) (int, error) {
 
 	id, err := l.writeToLog(entry)
 	if err != nil {
-		atomic.AddInt64(&l.stats.WriteErr, 1)
+		l.tracker.IncWritesErr()
 		return -1, err
 	}
-	atomic.AddInt64(&l.stats.WriteOK, 1)
+	l.tracker.IncWritesOK()
 
 	return id, nil
 }
@@ -390,6 +361,7 @@ func (l *WAL) Remove(files []string) error {
 	if err != nil {
 		return err
 	}
+	l.tracker.SetSegments(uint64(len(segments)))
 
 	var totalOldDiskSize int64
 	for _, seg := range segments {
@@ -400,8 +372,7 @@ func (l *WAL) Remove(files []string) error {
 
 		totalOldDiskSize += stat.Size()
 	}
-	atomic.StoreInt64(&l.stats.OldBytes, totalOldDiskSize)
-
+	l.tracker.SetOldSegmentSize(uint64(totalOldDiskSize))
 	return nil
 }
 
@@ -412,8 +383,9 @@ func (l *WAL) LastWriteTime() time.Time {
 	return l.lastWriteTime
 }
 
+// DiskSizeBytes returns the on-disk size of the WAL.
 func (l *WAL) DiskSizeBytes() int64 {
-	return atomic.LoadInt64(&l.stats.OldBytes) + atomic.LoadInt64(&l.stats.CurrentBytes)
+	return int64(l.tracker.OldSegmentSize() + l.tracker.CurrentSegmentSize())
 }
 
 func (l *WAL) writeToLog(entry WALEntry) (int, error) {
@@ -464,8 +436,7 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 		l.scheduleSync()
 
 		// Update stats for current segment size
-		atomic.StoreInt64(&l.stats.CurrentBytes, int64(l.currentSegmentWriter.size))
-
+		l.tracker.SetCurrentSegmentSize(uint64(l.currentSegmentWriter.size))
 		l.lastWriteTime = time.Now().UTC()
 
 		return l.currentSegmentID, nil
@@ -586,7 +557,7 @@ func (l *WAL) newSegmentFile() error {
 		if err := l.currentSegmentWriter.close(); err != nil {
 			return err
 		}
-		atomic.StoreInt64(&l.stats.OldBytes, int64(l.currentSegmentWriter.size))
+		l.tracker.SetOldSegmentSize(uint64(l.currentSegmentWriter.size))
 	}
 
 	fileName := filepath.Join(l.path, fmt.Sprintf("%s%05d.%s", WALFilePrefix, l.currentSegmentID, WALFileExtension))
@@ -595,11 +566,92 @@ func (l *WAL) newSegmentFile() error {
 		return err
 	}
 	l.currentSegmentWriter = NewWALSegmentWriter(fd)
+	l.tracker.IncSegments()
 
 	// Reset the current segment size stat
-	atomic.StoreInt64(&l.stats.CurrentBytes, 0)
-
+	l.tracker.SetCurrentSegmentSize(0)
 	return nil
+}
+
+// walTracker tracks writes to the WAL.
+//
+// As well as being responsible for providing atomic reads and writes to the
+// statistics, walTracker also mirrors any changes to the external prometheus
+// metrics, which the Engine exposes.
+//
+// *NOTE* - walTracker fields should not be directory modified. Doing so
+// could result in the Engine exposing inaccurate metrics.
+type walTracker struct {
+	metrics         *walMetrics
+	labels          prometheus.Labels
+	oldSegmentBytes uint64
+}
+
+func newWALTracker(metrics *walMetrics, defaultLabels prometheus.Labels) *walTracker {
+	return &walTracker{metrics: metrics, labels: defaultLabels}
+}
+
+// Labels returns a copy of the default labels used by the tracker's metrics.
+// The returned map is safe for modification.
+func (t *walTracker) Labels() prometheus.Labels {
+	labels := make(prometheus.Labels, len(t.labels))
+	for k, v := range t.labels {
+		labels[k] = v
+	}
+	return labels
+}
+
+// IncWrites increments the number of writes to the cache, with a required status.
+func (t *walTracker) IncWrites(status string) {
+	labels := t.Labels()
+	labels["status"] = status
+	t.metrics.Writes.With(labels).Inc()
+}
+
+// IncWritesOK increments the number of successful writes.
+func (t *walTracker) IncWritesOK() { t.IncWrites("ok") }
+
+// IncWritesError increments the number of writes that encountered an error.
+func (t *walTracker) IncWritesErr() { t.IncWrites("error") }
+
+// SetOldSegmentSize sets the size of all old segments on disk.
+func (t *walTracker) SetOldSegmentSize(sz uint64) {
+	atomic.StoreUint64(&t.oldSegmentBytes, sz)
+
+	labels := t.labels
+	t.metrics.OldSegmentBytes.With(labels).Set(float64(sz))
+}
+
+// OldSegmentSize returns the on-disk size of all old segments.
+func (t *walTracker) OldSegmentSize() uint64 { return atomic.LoadUint64(&t.oldSegmentBytes) }
+
+// SetCurrentSegmentSize sets the size of all old segments on disk.
+func (t *walTracker) SetCurrentSegmentSize(sz uint64) {
+	atomic.StoreUint64(&t.oldSegmentBytes, sz)
+
+	labels := t.labels
+	t.metrics.CurrentSegmentBytes.With(labels).Set(float64(sz))
+}
+
+// CurrentSegmentSize returns the on-disk size of all old segments.
+func (t *walTracker) CurrentSegmentSize() uint64 { return atomic.LoadUint64(&t.oldSegmentBytes) }
+
+// SetSegments sets the number of segments files on disk.
+func (t *walTracker) SetSegments(sz uint64) {
+	labels := t.labels
+	t.metrics.Segments.With(labels).Set(float64(sz))
+}
+
+// IncSegments increases the number of segments files by one.
+func (t *walTracker) IncSegments() {
+	labels := t.labels
+	t.metrics.Segments.With(labels).Inc()
+}
+
+// DecSegments decreases the number of segments files by one.
+func (t *walTracker) DecSegments() {
+	labels := t.labels
+	t.metrics.Segments.With(labels).Dec()
 }
 
 // WALEntry is record stored in each WAL segment.  Each entry has a type

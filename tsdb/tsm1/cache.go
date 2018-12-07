@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -143,25 +144,6 @@ func (e *entry) InfluxQLType() (influxql.DataType, error) {
 	return e.values.InfluxQLType()
 }
 
-// Statistics gathered by the Cache.
-const (
-	// levels - point in time measures
-
-	statCacheMemoryBytes = "memBytes"      // level: Size of in-memory cache in bytes
-	statCacheDiskBytes   = "diskBytes"     // level: Size of on-disk snapshots in bytes
-	statSnapshots        = "snapshotCount" // level: Number of active snapshots.
-	statCacheAgeMs       = "cacheAgeMs"    // level: Number of milliseconds since cache was last snapshoted at sample time
-
-	// counters - accumulative measures
-
-	statCachedBytes         = "cachedBytes"         // counter: Total number of bytes written into snapshots.
-	statWALCompactionTimeMs = "WALCompactionTimeMs" // counter: Total number of milliseconds spent compacting snapshots
-
-	statCacheWriteOK      = "writeOk"
-	statCacheWriteErr     = "writeErr"
-	statCacheWriteDropped = "writeDropped"
-)
-
 // storer is the interface that descibes a cache's store.
 type storer interface {
 	entry(key []byte) *entry                        // Get an entry by its key.
@@ -178,12 +160,7 @@ type storer interface {
 
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
-	// Due to a bug in atomic  size needs to be the first word in the struct, as
-	// that's the only place where you're guaranteed to be 64-bit aligned on a
-	// 32 bit system. See: https://golang.org/pkg/sync/atomic/#pkg-note-BUG
-	size         uint64
-	snapshotSize uint64
-
+	_       uint64 // Padding for 32 bit struct alignment
 	mu      sync.RWMutex
 	store   storer
 	maxSize uint64
@@ -194,10 +171,7 @@ type Cache struct {
 	snapshot     *Cache
 	snapshotting bool
 
-	// This number is the number of pending or failed WriteSnaphot attempts since the last successful one.
-	snapshotAttempts int
-
-	stats         *CacheStatistics
+	tracker       *cacheTracker
 	lastSnapshot  time.Time
 	lastWriteTime time.Time
 
@@ -213,48 +187,11 @@ func NewCache(maxSize uint64) *Cache {
 	c := &Cache{
 		maxSize:      maxSize,
 		store:        emptyStore{},
-		stats:        &CacheStatistics{},
 		lastSnapshot: time.Now(),
+		tracker:      newCacheTracker(newCacheMetrics(nil), nil),
 	}
 	c.initialize.Store(&sync.Once{})
-	c.UpdateAge()
-	c.UpdateCompactTime(0)
-	c.updateCachedBytes(0)
-	c.updateMemSize(0)
-	c.updateSnapshots()
 	return c
-}
-
-// CacheStatistics hold statistics related to the cache.
-type CacheStatistics struct {
-	MemSizeBytes        int64
-	DiskSizeBytes       int64
-	SnapshotCount       int64
-	CacheAgeMs          int64
-	CachedBytes         int64
-	WALCompactionTimeMs int64
-	WriteOK             int64
-	WriteErr            int64
-	WriteDropped        int64
-}
-
-// Statistics returns statistics for periodic monitoring.
-func (c *Cache) Statistics(tags map[string]string) []models.Statistic {
-	return []models.Statistic{{
-		Name: "tsm1_cache",
-		Tags: tags,
-		Values: map[string]interface{}{
-			statCacheMemoryBytes:    atomic.LoadInt64(&c.stats.MemSizeBytes),
-			statCacheDiskBytes:      atomic.LoadInt64(&c.stats.DiskSizeBytes),
-			statSnapshots:           atomic.LoadInt64(&c.stats.SnapshotCount),
-			statCacheAgeMs:          atomic.LoadInt64(&c.stats.CacheAgeMs),
-			statCachedBytes:         atomic.LoadInt64(&c.stats.CachedBytes),
-			statWALCompactionTimeMs: atomic.LoadInt64(&c.stats.WALCompactionTimeMs),
-			statCacheWriteOK:        atomic.LoadInt64(&c.stats.WriteOK),
-			statCacheWriteErr:       atomic.LoadInt64(&c.stats.WriteErr),
-			statCacheWriteDropped:   atomic.LoadInt64(&c.stats.WriteDropped),
-		},
-	}}
 }
 
 // init initializes the cache and allocates the underlying store.  Once initialized,
@@ -291,13 +228,15 @@ func (c *Cache) Write(key []byte, values []Value) error {
 	n := c.Size() + addedSize
 
 	if limit > 0 && n > limit {
-		atomic.AddInt64(&c.stats.WriteErr, 1)
+		c.tracker.IncWritesErr()
+		c.tracker.AddWrittenBytesDrop(uint64(addedSize))
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
 	}
 
 	newKey, err := c.store.write(key, values)
 	if err != nil {
-		atomic.AddInt64(&c.stats.WriteErr, 1)
+		c.tracker.IncWritesErr()
+		c.tracker.AddWrittenBytesErr(uint64(addedSize))
 		return err
 	}
 
@@ -305,9 +244,10 @@ func (c *Cache) Write(key []byte, values []Value) error {
 		addedSize += uint64(len(key))
 	}
 	// Update the cache size and the memory size stat.
-	c.increaseSize(addedSize)
-	c.updateMemSize(int64(addedSize))
-	atomic.AddInt64(&c.stats.WriteOK, 1)
+	c.tracker.IncCacheSize(addedSize)
+	c.tracker.AddMemBytes(addedSize)
+	c.tracker.AddWrittenBytesOK(uint64(addedSize))
+	c.tracker.IncWritesOK()
 
 	return nil
 }
@@ -328,7 +268,8 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	limit := c.maxSize // maxSize is safe for reading without a lock.
 	n := c.Size() + addedSize
 	if limit > 0 && n > limit {
-		atomic.AddInt64(&c.stats.WriteErr, 1)
+		c.tracker.IncWritesErr()
+		c.tracker.AddWrittenBytesDrop(uint64(addedSize))
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
 	}
 
@@ -337,32 +278,36 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	store := c.store
 	c.mu.RUnlock()
 
-	// We'll optimistially set size here, and then decrement it for write errors.
-	c.increaseSize(addedSize)
+	var bytesWrittenErr uint64
+
+	// We'll optimistically set size here, and then decrement it for write errors.
 	for k, v := range values {
 		newKey, err := store.write([]byte(k), v)
 		if err != nil {
 			// The write failed, hold onto the error and adjust the size delta.
 			werr = err
 			addedSize -= uint64(Values(v).Size())
-			c.decreaseSize(uint64(Values(v).Size()))
+			bytesWrittenErr += uint64(Values(v).Size())
 		}
+
 		if newKey {
 			addedSize += uint64(len(k))
-			c.increaseSize(uint64(len(k)))
 		}
 	}
 
 	// Some points in the batch were dropped.  An error is returned so
 	// error stat is incremented as well.
 	if werr != nil {
-		atomic.AddInt64(&c.stats.WriteDropped, 1)
-		atomic.AddInt64(&c.stats.WriteErr, 1)
+		c.tracker.IncWritesErr()
+		c.tracker.IncWritesDrop()
+		c.tracker.AddWrittenBytesErr(bytesWrittenErr)
 	}
 
 	// Update the memory size stat
-	c.updateMemSize(int64(addedSize))
-	atomic.AddInt64(&c.stats.WriteOK, 1)
+	c.tracker.IncCacheSize(addedSize)
+	c.tracker.AddMemBytes(addedSize)
+	c.tracker.IncWritesOK()
+	c.tracker.AddWrittenBytesOK(addedSize)
 
 	c.mu.Lock()
 	c.lastWriteTime = time.Now()
@@ -384,7 +329,7 @@ func (c *Cache) Snapshot() (*Cache, error) {
 	}
 
 	c.snapshotting = true
-	c.snapshotAttempts++ // increment the number of times we tried to do this
+	c.tracker.IncSnapshotsActive() // increment the number of times we tried to do this
 
 	// If no snapshot exists, create a new one, otherwise update the existing snapshot
 	if c.snapshot == nil {
@@ -394,7 +339,8 @@ func (c *Cache) Snapshot() (*Cache, error) {
 		}
 
 		c.snapshot = &Cache{
-			store: store,
+			store:   store,
+			tracker: newCacheTracker(c.tracker.metrics, c.tracker.labels),
 		}
 	}
 
@@ -407,18 +353,17 @@ func (c *Cache) Snapshot() (*Cache, error) {
 	c.snapshot.store, c.store = c.store, c.snapshot.store
 	snapshotSize := c.Size()
 
-	// Save the size of the snapshot on the snapshot cache
-	atomic.StoreUint64(&c.snapshot.size, snapshotSize)
-	// Save the size of the snapshot on the live cache
-	atomic.StoreUint64(&c.snapshotSize, snapshotSize)
+	c.snapshot.tracker.SetSnapshotSize(snapshotSize) // Save the size of the snapshot on the snapshot cache
+	c.tracker.SetSnapshotSize(snapshotSize)          // Save the size of the snapshot on the live cache
 
 	// Reset the cache's store.
 	c.store.reset()
-	atomic.StoreUint64(&c.size, 0)
+	c.tracker.SetCacheSize(0)
 	c.lastSnapshot = time.Now()
 
-	c.updateCachedBytes(snapshotSize) // increment the number of bytes added to the snapshot
-	c.updateSnapshots()
+	c.tracker.AddSnapshottedBytes(snapshotSize) // increment the number of bytes added to the snapshot
+	c.tracker.SetDiskBytes(0)
+	c.tracker.SetSnapshotsActive(0)
 
 	return c.snapshot, nil
 }
@@ -455,33 +400,25 @@ func (c *Cache) ClearSnapshot(success bool) {
 	c.snapshotting = false
 
 	if success {
-		c.snapshotAttempts = 0
-		c.updateMemSize(-int64(atomic.LoadUint64(&c.snapshotSize))) // decrement the number of bytes in cache
+		snapshotSize := c.tracker.SnapshotSize()
+		c.tracker.SetSnapshotsActive(0)
+		c.tracker.SubMemBytes(snapshotSize) // decrement the number of bytes in cache
 
 		// Reset the snapshot to a fresh Cache.
 		c.snapshot = &Cache{
-			store: c.snapshot.store,
+			store:   c.snapshot.store,
+			tracker: newCacheTracker(c.tracker.metrics, c.tracker.labels),
 		}
 
-		atomic.StoreUint64(&c.snapshotSize, 0)
-		c.updateSnapshots()
+		c.tracker.SetSnapshotSize(0)
+		c.tracker.SetDiskBytes(0)
+		c.tracker.SetSnapshotsActive(0)
 	}
 }
 
 // Size returns the number of point-calcuated bytes the cache currently uses.
 func (c *Cache) Size() uint64 {
-	return atomic.LoadUint64(&c.size) + atomic.LoadUint64(&c.snapshotSize)
-}
-
-// increaseSize increases size by delta.
-func (c *Cache) increaseSize(delta uint64) {
-	atomic.AddUint64(&c.size, delta)
-}
-
-// decreaseSize decreases size by delta.
-func (c *Cache) decreaseSize(delta uint64) {
-	// Per sync/atomic docs, bit-flip delta minus one to perform subtraction within AddUint64.
-	atomic.AddUint64(&c.size, ^(delta - 1))
+	return c.tracker.CacheSize() + c.tracker.SnapshotSize()
 }
 
 // MaxSize returns the maximum number of bytes the cache may consume.
@@ -623,6 +560,7 @@ func (c *Cache) DeleteRange(keys [][]byte, min, max int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	var total uint64
 	for _, k := range keys {
 		// Make sure key exist in the cache, skip if it does not
 		e := c.store.entry(k)
@@ -630,23 +568,28 @@ func (c *Cache) DeleteRange(keys [][]byte, min, max int64) {
 			continue
 		}
 
-		origSize := uint64(e.size())
+		total += uint64(e.size())
+		// Everything is being deleted.
 		if min == math.MinInt64 && max == math.MaxInt64 {
-			c.decreaseSize(origSize + uint64(len(k)))
+			total += uint64(len(k)) // all entries and the key.
 			c.store.remove(k)
 			continue
 		}
 
+		// Filter what to delete by time range.
 		e.filter(min, max)
 		if e.count() == 0 {
+			// Nothing left in cache for that key
+			total += uint64(len(k)) // all entries and the key.
 			c.store.remove(k)
-			c.decreaseSize(origSize + uint64(len(k)))
 			continue
 		}
 
-		c.decreaseSize(origSize - uint64(e.size()))
+		// Just update what is being deleted by the size of the filtered entries.
+		total -= uint64(e.size())
 	}
-	atomic.StoreInt64(&c.stats.MemSizeBytes, int64(c.Size()))
+	c.tracker.DecCacheSize(total) // Decrease the live cache size.
+	c.tracker.SetMemBytes(uint64(c.Size()))
 }
 
 // SetMaxSize updates the memory limit of the cache.
@@ -777,23 +720,167 @@ func (c *Cache) LastWriteTime() time.Time {
 func (c *Cache) UpdateAge() {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	ageStat := int64(time.Since(c.lastSnapshot) / time.Millisecond)
-	atomic.StoreInt64(&c.stats.CacheAgeMs, ageStat)
+	c.tracker.SetAge(time.Since(c.lastSnapshot))
 }
 
-// UpdateCompactTime updates WAL compaction time statistic based on d.
-func (c *Cache) UpdateCompactTime(d time.Duration) {
-	atomic.AddInt64(&c.stats.WALCompactionTimeMs, int64(d/time.Millisecond))
+// cacheTracker tracks writes to the cache and snapshots.
+//
+// As well as being responsible for providing atomic reads and writes to the
+// statistics, cacheTracker also mirrors any changes to the external prometheus
+// metrics, which the Engine exposes.
+//
+// *NOTE* - cacheTracker fields should not be directory modified. Doing so
+// could result in the Engine exposing inaccurate metrics.
+type cacheTracker struct {
+	metrics         *cacheMetrics
+	labels          prometheus.Labels
+	snapshotsActive uint64
+	snapshotSize    uint64
+	cacheSize       uint64
+
+	// Used in testing.
+	memSizeBytes     uint64
+	snapshottedBytes uint64
+	writesDropped    uint64
+	writesErr        uint64
 }
 
-// updateCachedBytes increases the cachedBytes counter by b.
-func (c *Cache) updateCachedBytes(b uint64) {
-	atomic.AddInt64(&c.stats.CachedBytes, int64(b))
+func newCacheTracker(metrics *cacheMetrics, defaultLabels prometheus.Labels) *cacheTracker {
+	return &cacheTracker{metrics: metrics, labels: defaultLabels}
 }
 
-// updateMemSize updates the memSize level by b.
-func (c *Cache) updateMemSize(b int64) {
-	atomic.AddInt64(&c.stats.MemSizeBytes, b)
+// Labels returns a copy of the default labels used by the tracker's metrics.
+// The returned map is safe for modification.
+func (t *cacheTracker) Labels() prometheus.Labels {
+	labels := make(prometheus.Labels, len(t.labels))
+	for k, v := range t.labels {
+		labels[k] = v
+	}
+	return labels
+}
+
+// AddMemBytes increases the number of in-memory cache bytes.
+func (t *cacheTracker) AddMemBytes(bytes uint64) {
+	atomic.AddUint64(&t.memSizeBytes, bytes)
+
+	labels := t.labels
+	t.metrics.MemSize.With(labels).Add(float64(bytes))
+}
+
+// SubMemBytes decreases the number of in-memory cache bytes.
+func (t *cacheTracker) SubMemBytes(bytes uint64) {
+	atomic.AddUint64(&t.memSizeBytes, ^(bytes - 1))
+
+	labels := t.labels
+	t.metrics.MemSize.With(labels).Sub(float64(bytes))
+}
+
+// SetMemBytes sets the number of in-memory cache bytes.
+func (t *cacheTracker) SetMemBytes(bytes uint64) {
+	atomic.StoreUint64(&t.memSizeBytes, bytes)
+
+	labels := t.labels
+	t.metrics.MemSize.With(labels).Set(float64(bytes))
+}
+
+// AddBytesWritten increases the number of bytes written to the cache.
+func (t *cacheTracker) AddBytesWritten(bytes uint64) {
+	labels := t.labels
+	t.metrics.MemSize.With(labels).Add(float64(bytes))
+}
+
+// AddSnapshottedBytes increases the number of bytes snapshotted.
+func (t *cacheTracker) AddSnapshottedBytes(bytes uint64) {
+	atomic.AddUint64(&t.snapshottedBytes, bytes)
+
+	labels := t.labels
+	t.metrics.SnapshottedBytes.With(labels).Add(float64(bytes))
+}
+
+// SetDiskBytes sets the number of bytes on disk used by snapshot data.
+func (t *cacheTracker) SetDiskBytes(bytes uint64) {
+	labels := t.labels
+	t.metrics.DiskSize.With(labels).Set(float64(bytes))
+}
+
+// IncSnapshotsActive increases the number of active snapshots.
+func (t *cacheTracker) IncSnapshotsActive() {
+	atomic.AddUint64(&t.snapshotsActive, 1)
+
+	labels := t.labels
+	t.metrics.SnapshotsActive.With(labels).Inc()
+}
+
+// SetSnapshotsActive sets the number of bytes on disk used by snapshot data.
+func (t *cacheTracker) SetSnapshotsActive(n uint64) {
+	atomic.StoreUint64(&t.snapshotsActive, n)
+
+	labels := t.labels
+	t.metrics.SnapshotsActive.With(labels).Set(float64(n))
+}
+
+// AddWrittenBytes increases the number of bytes written to the cache, with a required status.
+func (t *cacheTracker) AddWrittenBytes(status string, bytes uint64) {
+	labels := t.Labels()
+	labels["status"] = status
+	t.metrics.WrittenBytes.With(labels).Add(float64(bytes))
+}
+
+// AddWrittenBytesOK increments the number of successful writes.
+func (t *cacheTracker) AddWrittenBytesOK(bytes uint64) { t.AddWrittenBytes("ok", bytes) }
+
+// AddWrittenBytesError increments the number of writes that encountered an error.
+func (t *cacheTracker) AddWrittenBytesErr(bytes uint64) { t.AddWrittenBytes("error", bytes) }
+
+// AddWrittenBytesDrop increments the number of writes that were dropped.
+func (t *cacheTracker) AddWrittenBytesDrop(bytes uint64) { t.AddWrittenBytes("dropped", bytes) }
+
+// IncWrites increments the number of writes to the cache, with a required status.
+func (t *cacheTracker) IncWrites(status string) {
+	labels := t.Labels()
+	labels["status"] = status
+	t.metrics.Writes.With(labels).Inc()
+}
+
+// IncWritesOK increments the number of successful writes.
+func (t *cacheTracker) IncWritesOK() { t.IncWrites("ok") }
+
+// IncWritesError increments the number of writes that encountered an error.
+func (t *cacheTracker) IncWritesErr() {
+	atomic.AddUint64(&t.writesErr, 1)
+
+	t.IncWrites("error")
+}
+
+// IncWritesDrop increments the number of writes that were dropped.
+func (t *cacheTracker) IncWritesDrop() {
+	atomic.AddUint64(&t.writesDropped, 1)
+
+	t.IncWrites("dropped")
+}
+
+// CacheSize returns the live cache size.
+func (t *cacheTracker) CacheSize() uint64 { return atomic.LoadUint64(&t.cacheSize) }
+
+// IncCacheSize increases the live cache size by sz bytes.
+func (t *cacheTracker) IncCacheSize(sz uint64) { atomic.AddUint64(&t.cacheSize, sz) }
+
+// DecCacheSize decreases the live cache size by sz bytes.
+func (t *cacheTracker) DecCacheSize(sz uint64) { atomic.AddUint64(&t.cacheSize, ^(sz - 1)) }
+
+// SetCacheSize sets the live cache size to sz.
+func (t *cacheTracker) SetCacheSize(sz uint64) { atomic.StoreUint64(&t.cacheSize, sz) }
+
+// SetSnapshotSize sets the last successful snapshot size.
+func (t *cacheTracker) SetSnapshotSize(sz uint64) { atomic.StoreUint64(&t.snapshotSize, sz) }
+
+// SnapshotSize returns the last successful snapshot size.
+func (t *cacheTracker) SnapshotSize() uint64 { return atomic.LoadUint64(&t.snapshotSize) }
+
+// SetAge sets the time since the last successful snapshot
+func (t *cacheTracker) SetAge(d time.Duration) {
+	labels := t.Labels()
+	t.metrics.Age.With(labels).Set(d.Seconds())
 }
 
 func valueType(v Value) byte {
@@ -809,13 +896,6 @@ func valueType(v Value) byte {
 	default:
 		return 0
 	}
-}
-
-// updateSnapshots updates the snapshotsCount and the diskSize levels.
-func (c *Cache) updateSnapshots() {
-	// Update disk stats
-	atomic.StoreInt64(&c.stats.DiskSizeBytes, int64(atomic.LoadUint64(&c.snapshotSize)))
-	atomic.StoreInt64(&c.stats.SnapshotCount, int64(c.snapshotAttempts))
 }
 
 type emptyStore struct{}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -26,6 +27,7 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/tsdb"
 	"github.com/influxdata/platform/tsdb/tsi1"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -35,7 +37,8 @@ import (
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
 
-var ( // Static objects to prevent small allocs.
+var (
+	// Static objects to prevent small allocs.
 	keyFieldSeparatorBytes = []byte(keyFieldSeparator)
 	emptyBytes             = []byte{}
 )
@@ -68,44 +71,6 @@ const (
 
 	// MaxPointsPerBlock is the maximum number of points in an encoded block in a TSM file
 	MaxPointsPerBlock = 1000
-)
-
-// Statistics gathered by the engine.
-const (
-	statCacheCompactions        = "cacheCompactions"
-	statCacheCompactionsActive  = "cacheCompactionsActive"
-	statCacheCompactionError    = "cacheCompactionErr"
-	statCacheCompactionDuration = "cacheCompactionDuration"
-
-	statTSMLevel1Compactions        = "tsmLevel1Compactions"
-	statTSMLevel1CompactionsActive  = "tsmLevel1CompactionsActive"
-	statTSMLevel1CompactionError    = "tsmLevel1CompactionErr"
-	statTSMLevel1CompactionDuration = "tsmLevel1CompactionDuration"
-	statTSMLevel1CompactionQueue    = "tsmLevel1CompactionQueue"
-
-	statTSMLevel2Compactions        = "tsmLevel2Compactions"
-	statTSMLevel2CompactionsActive  = "tsmLevel2CompactionsActive"
-	statTSMLevel2CompactionError    = "tsmLevel2CompactionErr"
-	statTSMLevel2CompactionDuration = "tsmLevel2CompactionDuration"
-	statTSMLevel2CompactionQueue    = "tsmLevel2CompactionQueue"
-
-	statTSMLevel3Compactions        = "tsmLevel3Compactions"
-	statTSMLevel3CompactionsActive  = "tsmLevel3CompactionsActive"
-	statTSMLevel3CompactionError    = "tsmLevel3CompactionErr"
-	statTSMLevel3CompactionDuration = "tsmLevel3CompactionDuration"
-	statTSMLevel3CompactionQueue    = "tsmLevel3CompactionQueue"
-
-	statTSMOptimizeCompactions        = "tsmOptimizeCompactions"
-	statTSMOptimizeCompactionsActive  = "tsmOptimizeCompactionsActive"
-	statTSMOptimizeCompactionError    = "tsmOptimizeCompactionErr"
-	statTSMOptimizeCompactionDuration = "tsmOptimizeCompactionDuration"
-	statTSMOptimizeCompactionQueue    = "tsmOptimizeCompactionQueue"
-
-	statTSMFullCompactions        = "tsmFullCompactions"
-	statTSMFullCompactionsActive  = "tsmFullCompactionsActive"
-	statTSMFullCompactionError    = "tsmFullCompactionErr"
-	statTSMFullCompactionDuration = "tsmFullCompactionDuration"
-	statTSMFullCompactionQueue    = "tsmFullCompactionQueue"
 )
 
 // An EngineOption is a functional option for changing the configuration of
@@ -190,7 +155,8 @@ type Engine struct {
 	// Controls whether to enabled compactions when the engine is open
 	enableCompactionsOnOpen bool
 
-	stats *EngineStatistics
+	compactionTracker   *compactionTracker // Used to track state of compactions.
+	defaultMetricLabels prometheus.Labels  // N.B this must not be mutated after Open is called.
 
 	// Limiter for concurrent compactions.
 	compactionLimiter limiter.Fixed
@@ -234,7 +200,6 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 	}
 
 	logger := zap.NewNop()
-	stats := &EngineStatistics{}
 	e := &Engine{
 		path:        path,
 		index:       idx,
@@ -254,9 +219,8 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 		CacheFlushWriteColdDuration:   time.Duration(config.Cache.SnapshotWriteColdDuration),
 		enableCompactionsOnOpen:       true,
 		formatFileName:                DefaultFormatFileName,
-		stats:                         stats,
 		compactionLimiter:             limiter.NewFixed(maxCompactions),
-		scheduler:                     newScheduler(stats, maxCompactions),
+		scheduler:                     newScheduler(maxCompactions),
 	}
 
 	for _, option := range options {
@@ -283,6 +247,12 @@ func (e *Engine) WithFileStoreObserver(obs FileStoreObserver) {
 func (e *Engine) WithCompactionPlanner(planner CompactionPlanner) {
 	planner.SetFileStore(e.FileStore)
 	e.CompactionPlan = planner
+}
+
+// SetDefaultMetricLabels sets the default labels for metrics on the engine.
+// It must be called before the Engine is opened.
+func (e *Engine) SetDefaultMetricLabels(labels prometheus.Labels) {
+	e.defaultMetricLabels = labels
 }
 
 // SetEnabled sets whether the engine is enabled.
@@ -522,89 +492,37 @@ func (e *Engine) MeasurementStats() (MeasurementStats, error) {
 	return e.FileStore.MeasurementStats()
 }
 
-// EngineStatistics maintains statistics for the engine.
-type EngineStatistics struct {
-	CacheCompactions        int64 // Counter of cache compactions that have ever run.
-	CacheCompactionsActive  int64 // Gauge of cache compactions currently running.
-	CacheCompactionErrors   int64 // Counter of cache compactions that have failed due to error.
-	CacheCompactionDuration int64 // Counter of number of wall nanoseconds spent in cache compactions.
-
-	TSMCompactions        [3]int64 // Counter of TSM compactions (by level) that have ever run.
-	TSMCompactionsActive  [3]int64 // Gauge of TSM compactions (by level) currently running.
-	TSMCompactionErrors   [3]int64 // Counter of TSM compcations (by level) that have failed due to error.
-	TSMCompactionDuration [3]int64 // Counter of number of wall nanoseconds spent in TSM compactions (by level).
-	TSMCompactionsQueue   [3]int64 // Gauge of TSM compactions queues (by level).
-
-	TSMOptimizeCompactions        int64 // Counter of optimize compactions that have ever run.
-	TSMOptimizeCompactionsActive  int64 // Gauge of optimize compactions currently running.
-	TSMOptimizeCompactionErrors   int64 // Counter of optimize compactions that have failed due to error.
-	TSMOptimizeCompactionDuration int64 // Counter of number of wall nanoseconds spent in optimize compactions.
-	TSMOptimizeCompactionsQueue   int64 // Gauge of optimize compactions queue.
-
-	TSMFullCompactions        int64 // Counter of full compactions that have ever run.
-	TSMFullCompactionsActive  int64 // Gauge of full compactions currently running.
-	TSMFullCompactionErrors   int64 // Counter of full compactions that have failed due to error.
-	TSMFullCompactionDuration int64 // Counter of number of wall nanoseconds spent in full compactions.
-	TSMFullCompactionsQueue   int64 // Gauge of full compactions queue.
-}
-
-// Statistics returns statistics for periodic monitoring.
-func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
-	statistics := make([]models.Statistic, 0, 4)
-	statistics = append(statistics, models.Statistic{
-		Name: "tsm1_engine",
-		Tags: tags,
-		Values: map[string]interface{}{
-			statCacheCompactions:        atomic.LoadInt64(&e.stats.CacheCompactions),
-			statCacheCompactionsActive:  atomic.LoadInt64(&e.stats.CacheCompactionsActive),
-			statCacheCompactionError:    atomic.LoadInt64(&e.stats.CacheCompactionErrors),
-			statCacheCompactionDuration: atomic.LoadInt64(&e.stats.CacheCompactionDuration),
-
-			statTSMLevel1Compactions:        atomic.LoadInt64(&e.stats.TSMCompactions[0]),
-			statTSMLevel1CompactionsActive:  atomic.LoadInt64(&e.stats.TSMCompactionsActive[0]),
-			statTSMLevel1CompactionError:    atomic.LoadInt64(&e.stats.TSMCompactionErrors[0]),
-			statTSMLevel1CompactionDuration: atomic.LoadInt64(&e.stats.TSMCompactionDuration[0]),
-			statTSMLevel1CompactionQueue:    atomic.LoadInt64(&e.stats.TSMCompactionsQueue[0]),
-
-			statTSMLevel2Compactions:        atomic.LoadInt64(&e.stats.TSMCompactions[1]),
-			statTSMLevel2CompactionsActive:  atomic.LoadInt64(&e.stats.TSMCompactionsActive[1]),
-			statTSMLevel2CompactionError:    atomic.LoadInt64(&e.stats.TSMCompactionErrors[1]),
-			statTSMLevel2CompactionDuration: atomic.LoadInt64(&e.stats.TSMCompactionDuration[1]),
-			statTSMLevel2CompactionQueue:    atomic.LoadInt64(&e.stats.TSMCompactionsQueue[1]),
-
-			statTSMLevel3Compactions:        atomic.LoadInt64(&e.stats.TSMCompactions[2]),
-			statTSMLevel3CompactionsActive:  atomic.LoadInt64(&e.stats.TSMCompactionsActive[2]),
-			statTSMLevel3CompactionError:    atomic.LoadInt64(&e.stats.TSMCompactionErrors[2]),
-			statTSMLevel3CompactionDuration: atomic.LoadInt64(&e.stats.TSMCompactionDuration[2]),
-			statTSMLevel3CompactionQueue:    atomic.LoadInt64(&e.stats.TSMCompactionsQueue[2]),
-
-			statTSMOptimizeCompactions:        atomic.LoadInt64(&e.stats.TSMOptimizeCompactions),
-			statTSMOptimizeCompactionsActive:  atomic.LoadInt64(&e.stats.TSMOptimizeCompactionsActive),
-			statTSMOptimizeCompactionError:    atomic.LoadInt64(&e.stats.TSMOptimizeCompactionErrors),
-			statTSMOptimizeCompactionDuration: atomic.LoadInt64(&e.stats.TSMOptimizeCompactionDuration),
-			statTSMOptimizeCompactionQueue:    atomic.LoadInt64(&e.stats.TSMOptimizeCompactionsQueue),
-
-			statTSMFullCompactions:        atomic.LoadInt64(&e.stats.TSMFullCompactions),
-			statTSMFullCompactionsActive:  atomic.LoadInt64(&e.stats.TSMFullCompactionsActive),
-			statTSMFullCompactionError:    atomic.LoadInt64(&e.stats.TSMFullCompactionErrors),
-			statTSMFullCompactionDuration: atomic.LoadInt64(&e.stats.TSMFullCompactionDuration),
-			statTSMFullCompactionQueue:    atomic.LoadInt64(&e.stats.TSMFullCompactionsQueue),
-		},
-	})
-
-	statistics = append(statistics, e.Cache.Statistics(tags)...)
-	statistics = append(statistics, e.FileStore.Statistics(tags)...)
-	return statistics
-}
-
 // DiskSize returns the total size in bytes of all TSM and WAL segments on disk.
 func (e *Engine) DiskSize() int64 {
 	walDiskSizeBytes := e.WAL.DiskSizeBytes()
 	return e.FileStore.DiskSizeBytes() + walDiskSizeBytes
 }
 
+func (e *Engine) initTrackers() {
+	mmu.Lock()
+	defer mmu.Unlock()
+
+	if bms == nil {
+		// Initialise metrics if an engine has not done so already.
+		bms = newBlockMetrics(e.defaultMetricLabels)
+	}
+
+	// Propagate prometheus metrics down into trackers.
+	e.compactionTracker = newCompactionTracker(bms.compactionMetrics, e.defaultMetricLabels)
+	e.FileStore.tracker = newFileTracker(bms.fileMetrics, e.defaultMetricLabels)
+	e.Cache.tracker = newCacheTracker(bms.cacheMetrics, e.defaultMetricLabels)
+
+	// Set default metrics on WAL if enabled.
+	if wal, ok := e.WAL.(*WAL); ok {
+		wal.tracker = newWALTracker(bms.walMetrics, e.defaultMetricLabels)
+	}
+	e.scheduler.setCompactionTracker(e.compactionTracker)
+}
+
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
+	e.initTrackers()
+
 	if err := os.MkdirAll(e.path, 0777); err != nil {
 		return err
 	}
@@ -668,15 +586,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 // shard is fully compacted.
 func (e *Engine) IsIdle() bool {
 	cacheEmpty := e.Cache.Size() == 0
-
-	runningCompactions := atomic.LoadInt64(&e.stats.CacheCompactionsActive)
-	runningCompactions += atomic.LoadInt64(&e.stats.TSMCompactionsActive[0])
-	runningCompactions += atomic.LoadInt64(&e.stats.TSMCompactionsActive[1])
-	runningCompactions += atomic.LoadInt64(&e.stats.TSMCompactionsActive[2])
-	runningCompactions += atomic.LoadInt64(&e.stats.TSMFullCompactionsActive)
-	runningCompactions += atomic.LoadInt64(&e.stats.TSMOptimizeCompactionsActive)
-
-	return cacheEmpty && runningCompactions == 0 && e.CompactionPlan.FullyCompacted()
+	return cacheEmpty && e.compactionTracker.AllActive() == 0 && e.CompactionPlan.FullyCompacted()
 }
 
 // Free releases any resources held by the engine to free up memory or CPU.
@@ -1106,6 +1016,163 @@ func (e *Engine) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) 
 	return e.index.CreateSeriesListIfNotExists(collection)
 }
 
+// WriteTo is not implemented.
+func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
+
+// compactionLevel describes a snapshot or levelled compaction.
+type compactionLevel int
+
+func (l compactionLevel) String() string {
+	switch l {
+	case 0:
+		return "snapshot"
+	case 1, 2, 3:
+		return fmt.Sprint(int(l))
+	case 4:
+		return "optimize"
+	case 5:
+		return "full"
+	default:
+		panic("unsupported compaction level")
+	}
+}
+
+// compactionTracker tracks compactions and snapshots within the Engine.
+//
+// As well as being responsible for providing atomic reads and writes to the
+// statistics tracking the various compaction operations, compactionTracker also
+// mirrors any writes to the prometheus block metrics, which the Engine exposes.
+//
+// *NOTE* - compactionTracker fields should not be directory modified. Doing so
+// could result in the Engine exposing inaccurate metrics.
+type compactionTracker struct {
+	metrics *compactionMetrics
+	labels  prometheus.Labels
+	// Note: Compactions are levelled as follows:
+	// 0   	– Snapshots
+	// 1-3 	– Levelled compactions
+	// 4 	– Optimize compactions
+	// 5	– Full compactions
+
+	ok     [6]uint64 // Counter of TSM compactions (by level) that have successfully completed.
+	active [6]uint64 // Gauge of TSM compactions (by level) currently running.
+	errors [6]uint64 // Counter of TSM compcations (by level) that have failed due to error.
+	queue  [6]uint64 // Gauge of TSM compactions queues (by level).
+}
+
+func newCompactionTracker(metrics *compactionMetrics, defaultLables prometheus.Labels) *compactionTracker {
+	return &compactionTracker{metrics: metrics, labels: defaultLables}
+}
+
+// Labels returns a copy of the default labels used by the tracker's metrics.
+// The returned map is safe for modification.
+func (t *compactionTracker) Labels(level compactionLevel) prometheus.Labels {
+	labels := make(prometheus.Labels, len(t.labels))
+	for k, v := range t.labels {
+		labels[k] = v
+	}
+
+	// All metrics have a level label.
+	labels["level"] = fmt.Sprint(level)
+	return labels
+}
+
+// Completed returns the total number of compactions for the provided level.
+func (t *compactionTracker) Completed(level int) uint64 { return atomic.LoadUint64(&t.ok[level]) }
+
+// Active returns the number of active snapshots (level 0),
+// level 1, 2 or 3 compactions, optimize compactions (level 4), or full
+// compactions (level 5).
+func (t *compactionTracker) Active(level int) uint64 {
+	return atomic.LoadUint64(&t.active[level])
+}
+
+// AllActive returns the number of active snapshots and compactions.
+func (t *compactionTracker) AllActive() uint64 {
+	var total uint64
+	for i := 0; i < len(t.active); i++ {
+		total += atomic.LoadUint64(&t.active[i])
+	}
+	return total
+}
+
+// ActiveOptimise returns the number of active Optimise compactions.
+//
+// ActiveOptimise is a helper for Active(4).
+func (t *compactionTracker) ActiveOptimise() uint64 { return t.Active(4) }
+
+// ActiveFull returns the number of active Full compactions.
+//
+// ActiveFull is a helper for Active(5).
+func (t *compactionTracker) ActiveFull() uint64 { return t.Active(5) }
+
+// Errors returns the total number of errors encountered attempting compactions
+// for the provided level.
+func (t *compactionTracker) Errors(level int) uint64 { return atomic.LoadUint64(&t.errors[level]) }
+
+// IncActive increments the number of active compactions for the provided level.
+func (t *compactionTracker) IncActive(level compactionLevel) {
+	atomic.AddUint64(&t.active[level], 1)
+
+	labels := t.Labels(level)
+	t.metrics.CompactionsActive.With(labels).Inc()
+}
+
+// IncFullActive increments the number of active Full compactions.
+func (t *compactionTracker) IncFullActive() { t.IncActive(5) }
+
+// DecActive decrements the number of active compactions for the provided level.
+func (t *compactionTracker) DecActive(level compactionLevel) {
+	atomic.AddUint64(&t.active[level], ^uint64(0))
+
+	labels := t.Labels(level)
+	t.metrics.CompactionsActive.With(labels).Dec()
+}
+
+// DecFullActive decrements the number of active Full compactions.
+func (t *compactionTracker) DecFullActive() { t.DecActive(5) }
+
+// Attempted updates the number of compactions attempted for the provided level.
+func (t *compactionTracker) Attempted(level compactionLevel, success bool, duration time.Duration) {
+	if success {
+		atomic.AddUint64(&t.ok[level], 1)
+
+		labels := t.Labels(level)
+
+		t.metrics.CompactionDuration.With(labels).Observe(duration.Seconds())
+
+		labels["status"] = "ok"
+		t.metrics.Compactions.With(labels).Inc()
+
+		return
+	}
+
+	atomic.AddUint64(&t.errors[level], 1)
+
+	labels := t.Labels(level)
+	labels["status"] = "error"
+	t.metrics.Compactions.With(labels).Inc()
+}
+
+// SnapshotAttempted updates the number of snapshots attempted.
+func (t *compactionTracker) SnapshotAttempted(success bool, duration time.Duration) {
+	t.Attempted(0, success, duration)
+}
+
+// SetQueue sets the compaction queue depth for the provided level.
+func (t *compactionTracker) SetQueue(level compactionLevel, length uint64) {
+	atomic.StoreUint64(&t.queue[level], length)
+
+	labels := t.Labels(level)
+	t.metrics.CompactionQueue.With(labels).Set(float64(length))
+}
+
+// SetOptimiseQueue sets the queue depth for Optimisation compactions.
+func (t *compactionTracker) SetOptimiseQueue(length uint64) { t.SetQueue(4, length) }
+
+// SetFullQueue sets the queue depth for Full compactions.
+func (t *compactionTracker) SetFullQueue(length uint64) { t.SetQueue(5, length) }
+
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
 func (e *Engine) WriteSnapshot() error {
 	// Lock and grab the cache snapshot along with all the closed WAL
@@ -1116,7 +1183,6 @@ func (e *Engine) WriteSnapshot() error {
 	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "tsm1_cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
-		e.Cache.UpdateCompactTime(elapsed)
 		log.Info("Snapshot for path written",
 			zap.String("path", e.path),
 			zap.Duration("duration", elapsed))
@@ -1216,11 +1282,8 @@ func (e *Engine) compactCache() {
 				err := e.WriteSnapshot()
 				if err != nil && err != errCompactionsDisabled {
 					e.logger.Info("Error writing snapshot", zap.Error(err))
-					atomic.AddInt64(&e.stats.CacheCompactionErrors, 1)
-				} else {
-					atomic.AddInt64(&e.stats.CacheCompactions, 1)
 				}
-				atomic.AddInt64(&e.stats.CacheCompactionDuration, time.Since(start).Nanoseconds())
+				e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, time.Since(start))
 			}
 		}
 	}
@@ -1262,18 +1325,18 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			level2Groups := e.CompactionPlan.PlanLevel(2)
 			level3Groups := e.CompactionPlan.PlanLevel(3)
 			level4Groups := e.CompactionPlan.Plan(e.FileStore.LastModified())
-			atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(level4Groups)))
+			e.compactionTracker.SetOptimiseQueue(uint64(len(level4Groups)))
 
 			// If no full compactions are need, see if an optimize is needed
 			if len(level4Groups) == 0 {
 				level4Groups = e.CompactionPlan.PlanOptimize()
-				atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(level4Groups)))
+				e.compactionTracker.SetOptimiseQueue(uint64(len(level4Groups)))
 			}
 
 			// Update the level plan queue stats
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[0], int64(len(level1Groups)))
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], int64(len(level2Groups)))
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], int64(len(level3Groups)))
+			e.compactionTracker.SetQueue(1, uint64(len(level1Groups)))
+			e.compactionTracker.SetQueue(2, uint64(len(level2Groups)))
+			e.compactionTracker.SetQueue(3, uint64(len(level3Groups)))
 
 			// Set the queue depths on the scheduler
 			e.scheduler.setDepth(1, len(level1Groups))
@@ -1314,7 +1377,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 
 // compactHiPriorityLevel kicks off compactions using the high priority policy. It returns
 // true if the compaction was started
-func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast bool, wg *sync.WaitGroup) bool {
+func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level compactionLevel, fast bool, wg *sync.WaitGroup) bool {
 	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
@@ -1322,13 +1385,12 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast boo
 
 	// Try hi priority limiter, otherwise steal a little from the low priority if we can.
 	if e.compactionLimiter.TryTake() {
-		atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], 1)
+		e.compactionTracker.IncActive(level)
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], -1)
-
+			defer e.compactionTracker.DecActive(level)
 			defer e.compactionLimiter.Release()
 			s.Apply()
 			// Release the files in the compaction plan
@@ -1343,7 +1405,7 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level int, fast boo
 
 // compactLoPriorityLevel kicks off compactions using the lo priority policy. It returns
 // the plans that were not able to be started
-func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast bool, wg *sync.WaitGroup) bool {
+func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level compactionLevel, fast bool, wg *sync.WaitGroup) bool {
 	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
@@ -1351,11 +1413,11 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level int, fast boo
 
 	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
 	if e.compactionLimiter.TryTake() {
-		atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], 1)
+		e.compactionTracker.IncActive(level)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer atomic.AddInt64(&e.stats.TSMCompactionsActive[level-1], -1)
+			defer e.compactionTracker.DecActive(level)
 			defer e.compactionLimiter.Release()
 			s.Apply()
 			// Release the files in the compaction plan
@@ -1376,11 +1438,11 @@ func (e *Engine) compactFull(grp CompactionGroup, wg *sync.WaitGroup) bool {
 
 	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
 	if e.compactionLimiter.TryTake() {
-		atomic.AddInt64(&e.stats.TSMFullCompactionsActive, 1)
+		e.compactionTracker.IncFullActive()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer atomic.AddInt64(&e.stats.TSMFullCompactionsActive, -1)
+			defer e.compactionTracker.DecFullActive()
 			defer e.compactionLimiter.Release()
 			s.Apply()
 			// Release the files in the compaction plan
@@ -1396,12 +1458,9 @@ type compactionStrategy struct {
 	group CompactionGroup
 
 	fast  bool
-	level int
+	level compactionLevel
 
-	durationStat *int64
-	activeStat   *int64
-	successStat  *int64
-	errorStat    *int64
+	tracker *compactionTracker
 
 	logger    *zap.Logger
 	compactor *Compactor
@@ -1412,13 +1471,12 @@ type compactionStrategy struct {
 
 // Apply concurrently compacts all the groups in a compaction strategy.
 func (s *compactionStrategy) Apply() {
-	start := time.Now()
 	s.compactGroup()
-	atomic.AddInt64(s.durationStat, time.Since(start).Nanoseconds())
 }
 
 // compactGroup executes the compaction strategy against a single CompactionGroup.
 func (s *compactionStrategy) compactGroup() {
+	now := time.Now()
 	group := s.group
 	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1_compact_group")
 	defer logEnd()
@@ -1451,14 +1509,14 @@ func (s *compactionStrategy) compactGroup() {
 		}
 
 		log.Info("Error compacting TSM files", zap.Error(err))
-		atomic.AddInt64(s.errorStat, 1)
+		s.tracker.Attempted(s.level, false, 0)
 		time.Sleep(time.Second)
 		return
 	}
 
 	if err := s.fileStore.ReplaceWithCallback(group, files, nil); err != nil {
 		log.Info("Error replacing new TSM files", zap.Error(err))
-		atomic.AddInt64(s.errorStat, 1)
+		s.tracker.Attempted(s.level, false, 0)
 		time.Sleep(time.Second)
 		return
 	}
@@ -1466,27 +1524,22 @@ func (s *compactionStrategy) compactGroup() {
 	for i, f := range files {
 		log.Info("Compacted file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
 	}
-	log.Info("Finished compacting files",
-		zap.Int("tsm1_files_n", len(files)))
-	atomic.AddInt64(s.successStat, 1)
+	log.Info("Finished compacting files", zap.Int("tsm1_files_n", len(files)))
+	s.tracker.Attempted(s.level, true, time.Since(now))
 }
 
 // levelCompactionStrategy returns a compactionStrategy for the given level.
 // It returns nil if there are no TSM files to compact.
-func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level int) *compactionStrategy {
+func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level compactionLevel) *compactionStrategy {
 	return &compactionStrategy{
 		group:     group,
-		logger:    e.logger.With(zap.Int("tsm1_level", level), zap.String("tsm1_strategy", "level")),
+		logger:    e.logger.With(zap.Int("tsm1_level", int(level)), zap.String("tsm1_strategy", "level")),
 		fileStore: e.FileStore,
 		compactor: e.Compactor,
 		fast:      fast,
 		engine:    e,
 		level:     level,
-
-		activeStat:   &e.stats.TSMCompactionsActive[level-1],
-		successStat:  &e.stats.TSMCompactions[level-1],
-		errorStat:    &e.stats.TSMCompactionErrors[level-1],
-		durationStat: &e.stats.TSMCompactionDuration[level-1],
+		tracker:   e.compactionTracker,
 	}
 }
 
@@ -1500,21 +1553,12 @@ func (e *Engine) fullCompactionStrategy(group CompactionGroup, optimize bool) *c
 		compactor: e.Compactor,
 		fast:      optimize,
 		engine:    e,
-		level:     4,
+		level:     5,
 	}
 
 	if optimize {
-		s.activeStat = &e.stats.TSMOptimizeCompactionsActive
-		s.successStat = &e.stats.TSMOptimizeCompactions
-		s.errorStat = &e.stats.TSMOptimizeCompactionErrors
-		s.durationStat = &e.stats.TSMOptimizeCompactionDuration
-	} else {
-		s.activeStat = &e.stats.TSMFullCompactionsActive
-		s.successStat = &e.stats.TSMFullCompactions
-		s.errorStat = &e.stats.TSMFullCompactionErrors
-		s.durationStat = &e.stats.TSMFullCompactionDuration
+		s.level = 4
 	}
-
 	return s
 }
 

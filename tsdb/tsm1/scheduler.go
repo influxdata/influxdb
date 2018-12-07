@@ -1,26 +1,27 @@
 package tsm1
 
-import (
-	"sync/atomic"
-)
-
 var defaultWeights = [4]float64{0.4, 0.3, 0.2, 0.1}
 
 type scheduler struct {
-	maxConcurrency int
-	stats          *EngineStatistics
+	maxConcurrency    int
+	compactionTracker *compactionTracker
 
 	// queues is the depth of work pending for each compaction level
 	queues  [4]int
 	weights [4]float64
 }
 
-func newScheduler(stats *EngineStatistics, maxConcurrency int) *scheduler {
+func newScheduler(maxConcurrency int) *scheduler {
 	return &scheduler{
-		stats:          stats,
-		maxConcurrency: maxConcurrency,
-		weights:        defaultWeights,
+		maxConcurrency:    maxConcurrency,
+		weights:           defaultWeights,
+		compactionTracker: newCompactionTracker(newCompactionMetrics(nil), nil),
 	}
+}
+
+// setCompactionTracker sets the metrics on the scheduler. It must be called before next.
+func (s *scheduler) setCompactionTracker(tracker *compactionTracker) {
+	s.compactionTracker = tracker
 }
 
 func (s *scheduler) setDepth(level, depth int) {
@@ -33,10 +34,10 @@ func (s *scheduler) setDepth(level, depth int) {
 }
 
 func (s *scheduler) next() (int, bool) {
-	level1Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[0]))
-	level2Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[1]))
-	level3Running := int(atomic.LoadInt64(&s.stats.TSMCompactionsActive[2]))
-	level4Running := int(atomic.LoadInt64(&s.stats.TSMFullCompactionsActive) + atomic.LoadInt64(&s.stats.TSMOptimizeCompactionsActive))
+	level1Running := int(s.compactionTracker.Active(1))
+	level2Running := int(s.compactionTracker.Active(2))
+	level3Running := int(s.compactionTracker.Active(3))
+	level4Running := int(s.compactionTracker.ActiveFull() + s.compactionTracker.ActiveOptimise())
 
 	if level1Running+level2Running+level3Running+level4Running >= s.maxConcurrency {
 		return 0, false

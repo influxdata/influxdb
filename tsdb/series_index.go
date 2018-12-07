@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/mmap"
 	"github.com/influxdata/platform/pkg/rhh"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -42,6 +43,11 @@ type SeriesIndex struct {
 
 	maxSeriesID SeriesID
 	maxOffset   int64
+
+	// metrics stores a shard instance of some Prometheus metrics. metrics
+	// must be set before Open is called.
+	rhhMetrics *rhh.Metrics
+	rhhLabels  prometheus.Labels
 
 	data         []byte // mmap data
 	keyIDData    []byte // key/id mmap data
@@ -86,7 +92,11 @@ func (idx *SeriesIndex) Open() (err error) {
 		return err
 	}
 
-	idx.keyIDMap = rhh.NewHashMap(rhh.DefaultOptions)
+	options := rhh.DefaultOptions
+	options.Metrics = idx.rhhMetrics
+	options.Labels = idx.rhhLabels
+
+	idx.keyIDMap = rhh.NewHashMap(options)
 	idx.idOffsetMap = make(map[SeriesID]int64)
 	idx.tombstones = make(map[SeriesID]struct{})
 	return nil
@@ -109,7 +119,11 @@ func (idx *SeriesIndex) Close() (err error) {
 // Recover rebuilds the in-memory index for all new entries.
 func (idx *SeriesIndex) Recover(segments []*SeriesSegment) error {
 	// Allocate new in-memory maps.
-	idx.keyIDMap = rhh.NewHashMap(rhh.DefaultOptions)
+	options := rhh.DefaultOptions
+	options.Metrics = idx.rhhMetrics
+	options.Labels = idx.rhhLabels
+
+	idx.keyIDMap = rhh.NewHashMap(options)
 	idx.idOffsetMap = make(map[SeriesID]int64)
 	idx.tombstones = make(map[SeriesID]struct{})
 
@@ -144,6 +158,16 @@ func (idx *SeriesIndex) OnDiskCount() uint64 { return idx.count }
 // InMemCount returns the number of series in the in-memory index.
 func (idx *SeriesIndex) InMemCount() uint64 { return uint64(len(idx.idOffsetMap)) }
 
+// OnDiskSize returns the on-disk size of the index in bytes.
+func (idx *SeriesIndex) OnDiskSize() uint64 { return uint64(len(idx.data)) }
+
+// InMemSize returns the heap size of the index in bytes. The returned value is
+// an estimation and does not include include all allocated memory.
+func (idx *SeriesIndex) InMemSize() uint64 {
+	n := len(idx.idOffsetMap)
+	return uint64(2*8*n) + uint64(len(idx.tombstones)*8)
+}
+
 func (idx *SeriesIndex) Insert(key []byte, id SeriesIDTyped, offset int64) {
 	idx.execEntry(SeriesEntryInsertFlag, id, offset, key)
 }
@@ -166,7 +190,7 @@ func (idx *SeriesIndex) execEntry(flag uint8, id SeriesIDTyped, offset int64, ke
 	untypedID := id.SeriesID()
 	switch flag {
 	case SeriesEntryInsertFlag:
-		idx.keyIDMap.Put(key, id)
+		idx.keyIDMap.PutQuiet(key, id)
 		idx.idOffsetMap[untypedID] = offset
 
 		if untypedID.Greater(idx.maxSeriesID) {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/dgryski/go-bitstream"
+	bitstream "github.com/dgryski/go-bitstream"
 	"github.com/influxdata/platform/tsdb/tsm1"
 )
 

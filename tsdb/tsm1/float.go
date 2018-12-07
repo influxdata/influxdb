@@ -15,7 +15,7 @@ import (
 	"math"
 	"math/bits"
 
-	"github.com/dgryski/go-bitstream"
+	bitstream "github.com/dgryski/go-bitstream"
 )
 
 // Note: an uncompressed format is not yet implemented.
