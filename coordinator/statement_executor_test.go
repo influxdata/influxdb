@@ -130,6 +130,108 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	}
 }
 
+func TestStatementExecutor_ExecuteQuery_WriteInto(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		pw      func(t *testing.T, req *coordinator.IntoWriteRequest) error
+		query   string
+		source  func() query.Iterator
+		written int64
+	}{
+		{
+			name: "DropNullPoints",
+			pw: func(t *testing.T, req *coordinator.IntoWriteRequest) error {
+				if want, got := len(req.Points), 0; want != got {
+					t.Errorf("unexpected written points: %d != %d", want, got)
+				}
+				return nil
+			},
+			query: `SELECT stddev(value) INTO cpu_stddev FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`,
+			source: func() query.Iterator {
+				return &FloatIterator{
+					Points: []query.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Value: 100}},
+				}
+			},
+			written: 0,
+		},
+		{
+			name: "PartialDrop",
+			pw: func(t *testing.T, req *coordinator.IntoWriteRequest) error {
+				if want, got := len(req.Points), 1; want != got {
+					t.Errorf("unexpected written points: %d != %d", want, got)
+				} else {
+					fields, err := req.Points[0].Fields()
+					if err != nil {
+						return err
+					} else if want, got := len(fields), 1; want != got {
+						t.Errorf("unexpected number of fields: %d != %d", want, got)
+					}
+				}
+				return nil
+			},
+			query: `SELECT max(value), stddev(value) INTO cpu_agg FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`,
+			source: func() query.Iterator {
+				return &FloatIterator{
+					Points: []query.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Value: 100}},
+				}
+			},
+			written: 1,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			e := DefaultQueryExecutor()
+			e.StatementExecutor.PointsWriter = writePointsIntoFunc(func(req *coordinator.IntoWriteRequest) error {
+				return tt.pw(t, req)
+			})
+
+			// The meta client should return a single shards on the local node.
+			e.MetaClient.ShardGroupsByTimeRangeFn = func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+				return []meta.ShardGroupInfo{
+					{ID: 1, Shards: []meta.ShardInfo{
+						{ID: 100, Owners: []meta.ShardOwner{{NodeID: 0}}},
+					}},
+				}, nil
+			}
+
+			e.TSDBStore.ShardGroupFn = func(ids []uint64) tsdb.ShardGroup {
+				if !reflect.DeepEqual(ids, []uint64{100}) {
+					t.Fatalf("unexpected shard ids: %v", ids)
+				}
+
+				var sh MockShard
+				sh.CreateIteratorFn = func(_ context.Context, _ *influxql.Measurement, _ query.IteratorOptions) (query.Iterator, error) {
+					return tt.source(), nil
+				}
+				sh.FieldDimensionsFn = func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+					if !reflect.DeepEqual(measurements, []string{"cpu"}) {
+						t.Fatalf("unexpected source: %#v", measurements)
+					}
+					return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
+				}
+				return &sh
+			}
+
+			// Verify all results from the query.
+			if a := ReadAllResults(e.ExecuteQuery(tt.query, "db0", 0)); !reflect.DeepEqual(a, []*query.Result{
+				{
+					StatementID: 0,
+					Series: models.Rows{
+						{
+							Name:    "result",
+							Columns: []string{"time", "written"},
+							Values: [][]interface{}{
+								{ts("1970-01-01T00:00:00Z"), int64(tt.written)},
+							},
+						},
+					},
+				},
+			}) {
+				t.Fatalf("unexpected results: %s", spew.Sdump(a))
+			}
+		})
+	}
+}
+
 func TestStatementExecutor_NormalizeStatement(t *testing.T) {
 
 	testCases := []struct {
@@ -497,4 +599,18 @@ func (itr *FloatIterator) Next() (*query.FloatPoint, error) {
 	v := &itr.Points[0]
 	itr.Points = itr.Points[1:]
 	return v, nil
+}
+
+func ts(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+type writePointsIntoFunc func(req *coordinator.IntoWriteRequest) error
+
+func (fn writePointsIntoFunc) WritePointsInto(req *coordinator.IntoWriteRequest) error {
+	return fn(req)
 }
