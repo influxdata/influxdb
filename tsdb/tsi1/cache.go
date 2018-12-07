@@ -26,11 +26,11 @@ type TagValueSeriesIDCache struct {
 	evictor *list.List
 
 	tracker  *cacheTracker
-	capacity int
+	capacity uint64
 }
 
 // NewTagValueSeriesIDCache returns a TagValueSeriesIDCache with capacity c.
-func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
+func NewTagValueSeriesIDCache(c uint64) *TagValueSeriesIDCache {
 	return &TagValueSeriesIDCache{
 		cache:    map[string]map[string]map[string]*list.Element{},
 		evictor:  list.New(),
@@ -172,8 +172,8 @@ func (c *TagValueSeriesIDCache) delete(name, key, value []byte, x tsdb.SeriesID)
 // checkEviction checks if the cache is too big, and evicts the least recently used
 // item if it is.
 func (c *TagValueSeriesIDCache) checkEviction() {
-	l := c.evictor.Len()
-	c.tracker.SetSize(uint64(l))
+	l := uint64(c.evictor.Len())
+	c.tracker.SetSize(l)
 	if l <= c.capacity {
 		return
 	}
