@@ -12,16 +12,6 @@ exports[`LineProtocol rendering renders! 1`] = `
   >
     Need help writing InfluxDB Line Protocol? See Documentation
   </h5>
-  <Connect(LineProtocolTabs)
-    bucket="a"
-    org="a"
-    tabs={
-      Array [
-        "uploadFile",
-        "enterManually",
-        "enterURL",
-      ]
-    }
-  />
+  <LoadingStatusIndicator />
 </Fragment>
 `;

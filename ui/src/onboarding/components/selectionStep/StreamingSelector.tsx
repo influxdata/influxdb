@@ -27,20 +27,22 @@ const STREAMING_DATA_SOURCES_OPTIONS = [
 class StreamingDataSourcesSelector extends PureComponent<Props> {
   public render() {
     return (
-      <GridSizer>
-        {STREAMING_DATA_SOURCES_OPTIONS.map(ds => {
-          return (
-            <CardSelectCard
-              key={ds}
-              id={ds}
-              name={ds}
-              label={ds}
-              checked={this.isCardChecked(ds)}
-              onClick={this.handleToggle(ds)}
-            />
-          )
-        })}
-      </GridSizer>
+      <div className="wizard-step--grid-container-lg">
+        <GridSizer>
+          {STREAMING_DATA_SOURCES_OPTIONS.map(ds => {
+            return (
+              <CardSelectCard
+                key={ds}
+                id={ds}
+                name={ds}
+                label={ds}
+                checked={this.isCardChecked(ds)}
+                onClick={this.handleToggle(ds)}
+              />
+            )
+          })}
+        </GridSizer>
+      </div>
     )
   }
 

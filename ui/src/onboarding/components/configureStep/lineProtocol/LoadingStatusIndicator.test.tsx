@@ -3,20 +3,23 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import {LineProtocol} from 'src/onboarding/components/configureStep/lineProtocol/LineProtocol'
+import LoadingStatusIndicator from 'src/onboarding/components/configureStep/lineProtocol/LoadingStatusIndicator'
+
+// Types
+import {RemoteDataState} from 'src/types'
 
 const setup = (override?) => {
   const props = {
-    bucket: 'a',
-    org: 'a',
+    status: RemoteDataState.NotStarted,
     ...override,
   }
-  const wrapper = shallow(<LineProtocol {...props} />)
+
+  const wrapper = shallow(<LoadingStatusIndicator {...props} />)
 
   return {wrapper}
 }
 
-describe('LineProtocol', () => {
+describe('LoadingStatusIndicator', () => {
   describe('rendering', () => {
     it('renders!', () => {
       const {wrapper} = setup()

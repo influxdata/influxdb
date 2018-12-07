@@ -22,6 +22,8 @@ class SparkleSpinner extends PureComponent<Props> {
           id="sparkle_spinner"
           x="0px"
           y="0px"
+          width="100%"
+          height="100%"
           viewBox="0 0 250 250"
         >
           <path

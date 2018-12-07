@@ -28,7 +28,7 @@
   border-radius: $radius;
   flex: 1 0 100%;
   transition: flex 0.4s ease;
-  transform: translate3d(0,0,0);
+  transform: translate3d(0, 0, 0);
 }
 
 .side-bar.show + .wizard-step--container {
@@ -38,7 +38,7 @@
 .wizard-button-bar {
   display: inline-flex;
   flex-shrink: 0;
-  margin: 32px auto;
+  margin: 10px auto;
   position: relative;
   min-width: 100%;
   justify-content: center;
@@ -69,13 +69,15 @@
   background-repeat: no-repeat;
   width: 812px;
   height: 170px;
-}
+  margin: 0 auto;
 
-.splash-logo.primary {
-  background-image: url('../../assets/images/cubo_doodle.svg');
-}
-.splash-logo.secondary {
-  background-image: url('../../assets/images/cubo_doodle_green.svg');
+  &.primary {
+    background-image: url('../../assets/images/cubo_doodle.svg');
+  }
+
+  &.secondary {
+    background-image: url('../../assets/images/cubo_doodle_green.svg');
+  }
 }
 
 .wizard-step--title {
@@ -96,15 +98,16 @@
   @include no-user-select();
 }
 
-.wizard-step--body, .wizard-step--body-streaming{
-background-color: $g5-pepper;
-color: $g20-white;
-padding: 25px;
-margin-left: 60px;
-margin-right: 60px;
-margin-top: 30px;
-text-align: left;
-border-radius: $radius;
+.wizard-step--body,
+.wizard-step--body-streaming {
+  background-color: $g5-pepper;
+  color: $g20-white;
+  padding: 25px;
+  margin-left: 60px;
+  margin-right: 60px;
+  margin-top: 30px;
+  text-align: left;
+  border-radius: $radius;
 
   > h6 {
     color: $g15-platinum;
@@ -118,21 +121,81 @@ border-radius: $radius;
 
 .wizard-step--body-streaming {
   text-align: center;
-  .loading{
-    color: $c-star
+}
+
+.wizard-step--text-state {
+  text-align: center;
+
+  &.loading {
+    color: $c-star;
   }
-  .success{
-    color: $c-rainforest
+  &.success {
+    color: $c-rainforest;
   }
-  .error{
-    color: $c-fire
+  &.error {
+    color: $c-curacao;
   }
 }
 
-.wizard-step--body-snippet{
+.wizard-step--body-snippet {
   background-color: $g3-castle;
   border-radius: $radius;
   margin: $ix-marg-a 0;
   padding: $ix-marg-b;
-  font-family: "RobotoMono", monospace;
+  font-family: 'RobotoMono', monospace;
+}
+
+.wizard-step--lp-body {
+  height: 280px;
+  width: 750px;
+  margin: 10px auto 0px auto;
+}
+
+.wizard-step--top-container {
+  width: 100%;
+  padding: 40px;
+  max-width: 750px;
+  margin: 10px auto 0 auto;
+  border-radius: $radius;
+  background-color: #202028;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+
+.wizard-step--sparkle-container {
+  width: 100%;
+  height: 250px;
+}
+
+.wizard-step--retry-button {
+  margin-top: 20px;
+}
+
+.wizard-step--footer {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: $radius;
+  height: 50px;
+  width: 100%;
+  max-width: 750px;
+  margin-top: 10px;
+  background-color: #202028;
+  text-align: center;
+}
+
+.onboarding-step {
+  width: 100%;
+  text-align: center;
+}
+
+.wizard-step--grid-container-lg {
+  max-width: 750px;
+  display: block;
+  margin: 0 auto;
+}
+
+.wizard-step--grid-container-sm {
+  max-width: 500px;
+  display: block;
+  margin: 0 auto;
 }

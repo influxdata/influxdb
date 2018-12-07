@@ -99,7 +99,7 @@ export enum LineProtocolTab {
 
 export enum LineProtocolStatus {
   ImportData = 'importData',
-  Loading = 'enterManually',
+  Loading = 'loading',
   Success = 'success',
   Error = 'error',
 }

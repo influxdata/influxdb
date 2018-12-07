@@ -5,12 +5,14 @@ import {
   DataLoaderType,
   LineProtocolTab,
 } from 'src/types/v2/dataLoaders'
+import {RemoteDataState} from 'src/types'
 
 export interface DataLoadersState {
   telegrafPlugins: TelegrafPlugin[]
   type: DataLoaderType
   lineProtocolText: string
   activeLPTab: LineProtocolTab
+  lpStatus: RemoteDataState
 }
 
 export const INITIAL_STATE: DataLoadersState = {
@@ -18,6 +20,7 @@ export const INITIAL_STATE: DataLoadersState = {
   type: DataLoaderType.Empty,
   lineProtocolText: '',
   activeLPTab: LineProtocolTab.UploadFile,
+  lpStatus: RemoteDataState.NotStarted,
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
@@ -61,6 +64,11 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
       return {
         ...state,
         activeLPTab: action.payload.activeLPTab,
+      }
+    case 'SET_LP_STATUS':
+      return {
+        ...state,
+        lpStatus: action.payload.lpStatus,
       }
     default:
       return state

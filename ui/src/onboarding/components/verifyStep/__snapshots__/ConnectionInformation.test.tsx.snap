@@ -3,7 +3,7 @@
 exports[`Onboarding.Components.ConnectionInformation matches snapshot if error 1`] = `
 <Fragment>
   <h4
-    className="error"
+    className="wizard-step--text-state error"
   >
     Connection Not Found
   </h4>
@@ -16,7 +16,7 @@ exports[`Onboarding.Components.ConnectionInformation matches snapshot if error 1
 exports[`Onboarding.Components.ConnectionInformation matches snapshot if loading 1`] = `
 <Fragment>
   <h4
-    className="loading"
+    className="wizard-step--text-state loading"
   >
     Awaiting Connection...
   </h4>
@@ -29,7 +29,7 @@ exports[`Onboarding.Components.ConnectionInformation matches snapshot if loading
 exports[`Onboarding.Components.ConnectionInformation matches snapshot if success 1`] = `
 <Fragment>
   <h4
-    className="success"
+    className="wizard-step--text-state success"
   >
     Connection Found!
   </h4>
