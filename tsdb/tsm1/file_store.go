@@ -777,6 +777,14 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			return err
 		}
 
+		// Observe the associated statistics file, if available.
+		statsFile := StatsFilename(file)
+		if _, err := os.Stat(statsFile); err == nil {
+			if err := f.obs.FileFinishing(statsFile); err != nil {
+				return err
+			}
+		}
+
 		var newName = file
 		if strings.HasSuffix(file, tsmTmpExt) {
 			// The new TSM files have a tmp extension.  First rename them.
@@ -832,6 +840,14 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 				// give the observer a chance to process the file first.
 				if err := f.obs.FileUnlinking(file.Path()); err != nil {
 					return err
+				}
+
+				// Remove associated stats file.
+				statsFile := StatsFilename(file.Path())
+				if _, err := os.Stat(statsFile); err == nil {
+					if err := f.obs.FileUnlinking(statsFile); err != nil {
+						return err
+					}
 				}
 
 				for _, t := range file.TombstoneFiles() {
