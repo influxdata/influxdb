@@ -18,7 +18,9 @@ class ListeningResults extends PureComponent<Props> {
   public render() {
     return (
       <>
-        <h4 className={this.className}>{this.header}</h4>
+        <h4 className={`wizard-step--text-state ${this.className}`}>
+          {this.header}
+        </h4>
         <p>{this.additionalText}</p>
       </>
     )

@@ -41,26 +41,14 @@ interface StateProps {
   activeLPTab: LineProtocolTab
 }
 
-const lineProtocolTabsStyle = {
-  height: '280px',
-  width: '750px',
-  marginTop: '30px',
-}
-
 export class LineProtocolTabs extends PureComponent<Props> {
   public render() {
     return (
       <>
         {this.tabSelector}
-        <div style={lineProtocolTabsStyle}>{this.tabBody}</div>
+        <div className={'wizard-step--lp-body'}>{this.tabBody}</div>
       </>
     )
-  }
-
-  private handleTabClick = (tab: LineProtocolTab) => () => {
-    const {setActiveLPTab, setLineProtocolText} = this.props
-    setLineProtocolText('')
-    setActiveLPTab(tab)
   }
 
   private get tabSelector(): JSX.Element {
@@ -81,6 +69,12 @@ export class LineProtocolTabs extends PureComponent<Props> {
         ))}
       </Radio>
     )
+  }
+
+  private handleTabClick = (tab: LineProtocolTab) => () => {
+    const {setActiveLPTab, setLineProtocolText} = this.props
+    setLineProtocolText('')
+    setActiveLPTab(tab)
   }
 
   private get tabBody(): JSX.Element {

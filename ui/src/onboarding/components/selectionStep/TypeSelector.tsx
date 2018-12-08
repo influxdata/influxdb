@@ -24,20 +24,22 @@ const DATA_SOURCES_OPTIONS = [
 class DataSourceTypeSelector extends PureComponent<Props> {
   public render() {
     return (
-      <GridSizer>
-        {DATA_SOURCES_OPTIONS.map(ds => {
-          return (
-            <CardSelectCard
-              key={ds}
-              id={ds}
-              name={ds}
-              label={ds}
-              checked={this.isCardChecked(ds)}
-              onClick={this.handleClick(ds)}
-            />
-          )
-        })}
-      </GridSizer>
+      <div className="wizard-step--grid-container-sm">
+        <GridSizer>
+          {DATA_SOURCES_OPTIONS.map(ds => {
+            return (
+              <CardSelectCard
+                key={ds}
+                id={ds}
+                name={ds}
+                label={ds}
+                checked={this.isCardChecked(ds)}
+                onClick={this.handleClick(ds)}
+              />
+            )
+          })}
+        </GridSizer>
+      </div>
     )
   }
 

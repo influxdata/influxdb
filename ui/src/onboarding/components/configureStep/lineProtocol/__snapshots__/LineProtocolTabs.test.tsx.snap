@@ -45,13 +45,7 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
     </RadioButton>
   </Radio>
   <div
-    style={
-      Object {
-        "height": "280px",
-        "marginTop": "30px",
-        "width": "750px",
-      }
-    }
+    className="wizard-step--lp-body"
   />
 </Fragment>
 `;

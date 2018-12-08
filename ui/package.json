@@ -17,6 +17,7 @@
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules",
     "test": "jest --maxWorkers=2",
     "test:watch": "jest --watch --verbose false",
+    "test:u": "jest --updateSnapshot",
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch --verbose false",
     "lint": "npm run tslint && npm run tsc",
     "tslint": "tslint -c ./tslint.json '{src,test}/**/*.ts?(x)'",

@@ -5,9 +5,8 @@ import {
   LineProtocolTab,
 } from 'src/types/v2/dataLoaders'
 
-import {notify} from 'src/shared/actions/notifications'
-import {writeLineProtocolFailed} from 'src/shared/copy/v2/notifications'
 import {writeLineProtocol} from 'src/onboarding/apis/index'
+import {RemoteDataState} from 'src/types'
 
 export type Action =
   | SetDataLoadersType
@@ -16,6 +15,7 @@ export type Action =
   | SetActiveTelegrafPlugin
   | SetLineProtocolText
   | SetActiveLPTab
+  | SetLPStatus
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -89,14 +89,26 @@ export const setActiveLPTab = (
   payload: {activeLPTab},
 })
 
+interface SetLPStatus {
+  type: 'SET_LP_STATUS'
+  payload: {lpStatus: RemoteDataState}
+}
+
+export const setLPStatus = (lpStatus: RemoteDataState): SetLPStatus => ({
+  type: 'SET_LP_STATUS',
+  payload: {lpStatus},
+})
+
 export const writeLineProtocolAction = (
   org: string,
   bucket: string,
   body: string
 ) => async dispatch => {
   try {
+    dispatch(setLPStatus(RemoteDataState.Loading))
     await writeLineProtocol(org, bucket, body)
+    dispatch(setLPStatus(RemoteDataState.Done))
   } catch (error) {
-    dispatch(notify(writeLineProtocolFailed(error)))
+    dispatch(setLPStatus(RemoteDataState.Error))
   }
 }
