@@ -865,6 +865,19 @@ paths:
             required: true
             schema:
               type: string
+          - in: query
+            name: type
+            description: filters results to a specified type. Can be used multiple times in a request, to filter to multiple types.
+            schema:
+              type: string
+              enum:
+                - "xy"
+                - "single-stat"
+                - "gauge"
+                - "table"
+                - "markdown"
+                - "log-viewer"
+                - "line-plus-single-stat"
       responses:
         '200':
           description: all views

@@ -52,7 +52,8 @@ type ViewContentsUpdate struct {
 
 // ViewFilter represents a set of filter that restrict the returned results.
 type ViewFilter struct {
-	ID *ID
+	ID    *ID
+	Types []string
 }
 
 // View holds positional and visual information for a View.
@@ -70,12 +71,15 @@ type ViewContents struct {
 // ViewProperties is used to mark other structures as conforming to a View.
 type ViewProperties interface {
 	viewProperties()
+	GetType() string
 }
 
 // EmptyViewProperties is visualization that has no values
 type EmptyViewProperties struct{}
 
 func (v EmptyViewProperties) viewProperties() {}
+
+func (v EmptyViewProperties) GetType() string { return "" }
 
 // UnmarshalViewPropertiesJSON unmarshals JSON bytes into a ViewProperties.
 func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
@@ -388,6 +392,14 @@ func (GaugeViewProperties) viewProperties()          {}
 func (TableViewProperties) viewProperties()          {}
 func (MarkdownViewProperties) viewProperties()       {}
 func (LogViewProperties) viewProperties()            {}
+
+func (v XYViewProperties) GetType() string             { return v.Type }
+func (v LinePlusSingleStatProperties) GetType() string { return v.Type }
+func (v SingleStatViewProperties) GetType() string     { return v.Type }
+func (v GaugeViewProperties) GetType() string          { return v.Type }
+func (v TableViewProperties) GetType() string          { return v.Type }
+func (v MarkdownViewProperties) GetType() string       { return v.Type }
+func (v LogViewProperties) GetType() string            { return v.Type }
 
 /////////////////////////////
 // Old Chronograf Types

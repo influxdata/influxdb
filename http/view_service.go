@@ -91,8 +91,10 @@ func newViewResponse(c *platform.View) viewResponse {
 // handleGetViews returns all views within the store.
 func (h *ViewHandler) handleGetViews(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// TODO(desa): support filtering via query params
-	views, _, err := h.ViewService.FindViews(ctx, platform.ViewFilter{})
+
+	req := decodeGetViewsRequest(ctx, r)
+
+	views, _, err := h.ViewService.FindViews(ctx, req.filter)
 	if err != nil {
 		EncodeError(ctx, errors.InternalErrorf("Error loading views: %v", err), w)
 		return
@@ -101,6 +103,20 @@ func (h *ViewHandler) handleGetViews(w http.ResponseWriter, r *http.Request) {
 	if err := encodeResponse(ctx, w, http.StatusOK, newGetViewsResponse(views)); err != nil {
 		EncodeError(ctx, err, w)
 		return
+	}
+}
+
+type getViewsRequest struct {
+	filter platform.ViewFilter
+}
+
+func decodeGetViewsRequest(ctx context.Context, r *http.Request) *getViewsRequest {
+	qp := r.URL.Query()
+
+	return &getViewsRequest{
+		filter: platform.ViewFilter{
+			Types: qp["type"],
+		},
 	}
 }
 

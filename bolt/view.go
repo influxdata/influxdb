@@ -3,6 +3,7 @@ package bolt
 import (
 	"context"
 	"encoding/json"
+	"sync"
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
@@ -108,14 +109,25 @@ func (c *Client) FindView(ctx context.Context, filter platform.ViewFilter) (*pla
 	return d, nil
 }
 
-func filterViewsFn(filter platform.ViewFilter) func(d *platform.View) bool {
+func filterViewsFn(filter platform.ViewFilter) func(v *platform.View) bool {
 	if filter.ID != nil {
-		return func(d *platform.View) bool {
-			return d.ID == *filter.ID
+		return func(v *platform.View) bool {
+			return v.ID == *filter.ID
 		}
 	}
 
-	return func(d *platform.View) bool { return true }
+	if len(filter.Types) > 0 {
+		var sm sync.Map
+		for _, t := range filter.Types {
+			sm.Store(t, true)
+		}
+		return func(v *platform.View) bool {
+			_, ok := sm.Load(v.Properties.GetType())
+			return ok
+		}
+	}
+
+	return func(v *platform.View) bool { return true }
 }
 
 // FindViews retrives all views that match an arbitrary view filter.
