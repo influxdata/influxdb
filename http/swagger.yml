@@ -2004,6 +2004,8 @@ paths:
         - Buckets
       summary: List all buckets
       parameters:
+          - $ref: "#/components/parameters/Offset"
+          - $ref: "#/components/parameters/Limit"
           - in: query
             name: org
             description: specifies the organization of the resource
@@ -3492,6 +3494,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 components:
+  parameters:
+    Offset:
+      in: query
+      name: offset
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+    Limit:
+      in: query
+      name: limit
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Descending:
+      in: query
+      name: descending
+      required: false
+      schema:
+        type: boolean
+        default: false
+    SortBy:
+      in: query
+      name: sortBy
+      required: false
+      schema:
+        type: string
   schemas:
     LanguageRequest:
       description: flux query to be analyzed.
