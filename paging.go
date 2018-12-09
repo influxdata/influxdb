@@ -4,6 +4,11 @@ import (
 	"strconv"
 )
 
+const (
+	DefaultPageSize = 20
+	MaxPageSize     = 100
+)
+
 // PagingFilter represents a filter containing url query params.
 type PagingFilter interface {
 	// QueryParams returns a map containing url query params.

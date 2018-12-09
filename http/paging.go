@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/influxdata/platform/kit/errors"
+
 	"github.com/influxdata/platform"
 )
 
@@ -29,7 +31,13 @@ func decodeFindOptions(ctx context.Context, r *http.Request) (*platform.FindOpti
 			return nil, err
 		}
 
+		if l < 1 || l > platform.MaxPageSize {
+			return nil, errors.InvalidDataf("limit must be between 1 and %d", platform.MaxPageSize)
+		}
+
 		opts.Limit = l
+	} else {
+		opts.Limit = platform.DefaultPageSize
 	}
 
 	if sortBy := qp.Get("sortBy"); sortBy != "" {
