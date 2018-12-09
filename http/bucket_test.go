@@ -59,14 +59,26 @@ func TestService_handleGetBuckets(t *testing.T) {
 					},
 				},
 			},
-			args: args{},
+			args: args{
+				map[string][]string{
+					"limit": []string{"1"},
+				},
+			},
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `
 {
   "links": {
-    "self": "/api/v2/buckets"
+    "prev": {
+      "prev": ""
+    },
+    "self": {
+      "self": "/api/v2/buckets?descending=false&limit=1&offset=0"
+    },
+    "next": {
+      "next": "/api/v2/buckets?descending=false&limit=1&offset=1"
+    }
   },
   "buckets": [
     {
@@ -105,14 +117,26 @@ func TestService_handleGetBuckets(t *testing.T) {
 					},
 				},
 			},
-			args: args{},
+			args: args{
+				map[string][]string{
+					"limit": []string{"1"},
+				},
+			},
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `
 {
   "links": {
-    "self": "/api/v2/buckets"
+    "prev": {
+      "prev": ""
+    },
+    "self": {
+      "self": "/api/v2/buckets?descending=false&limit=1&offset=0"
+    },
+    "next": {
+      "next": ""
+    }
   },
   "buckets": []
 }`,
