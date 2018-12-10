@@ -1,20 +1,12 @@
 // Libraries
 import _ from 'lodash'
 
+// Utils
+import {parseTablesByTime} from 'src/shared/parsing/flux/parseTablesByTime'
+
 // Types
 import {FluxTable} from 'src/types'
 import {DygraphValue} from 'src/external/dygraph'
-
-const COLUMN_BLACKLIST = new Set([
-  '_time',
-  'result',
-  'table',
-  '_start',
-  '_stop',
-  '',
-])
-
-const NUMERIC_DATATYPES = ['double', 'long', 'int', 'float']
 
 export interface FluxTablesToDygraphResult {
   labels: string[]
@@ -22,86 +14,12 @@ export interface FluxTablesToDygraphResult {
   nonNumericColumns: string[]
 }
 
-const getTimeIndex = header => {
-  let timeIndex = header.indexOf('_time')
-
-  if (timeIndex >= 0) {
-    return timeIndex
-  }
-
-  timeIndex = header.indexOf('_start')
-  if (timeIndex >= 0) {
-    return timeIndex
-  }
-
-  timeIndex = header.indexOf('_end')
-  if (timeIndex >= 0) {
-    return timeIndex
-  }
-
-  return -1
-}
-
 export const fluxTablesToDygraph = (
   tables: FluxTable[]
 ): FluxTablesToDygraphResult => {
-  const allColumnNames = []
-  const nonNumericColumns = []
-
-  const tablesByTime = tables.map(table => {
-    const header = table.data[0]
-    const columnNames: {[k: number]: string} = {}
-
-    for (let i = 0; i < header.length; i++) {
-      const columnName = header[i]
-      const dataType = table.dataTypes[columnName]
-
-      if (COLUMN_BLACKLIST.has(columnName)) {
-        continue
-      }
-
-      if (table.groupKey[columnName]) {
-        continue
-      }
-
-      if (!NUMERIC_DATATYPES.includes(dataType)) {
-        nonNumericColumns.push(columnName)
-
-        continue
-      }
-
-      const uniqueColumnName = Object.entries(table.groupKey).reduce(
-        (acc, [k, v]) => `${acc}[${k}=${v}]`,
-        columnName
-      )
-
-      columnNames[i] = uniqueColumnName
-      allColumnNames.push(uniqueColumnName)
-    }
-
-    const timeIndex = getTimeIndex(header)
-
-    if (timeIndex < 0) {
-      throw new Error('Could not find time index in FluxTable')
-    }
-
-    const result = {}
-
-    for (let i = 1; i < table.data.length; i++) {
-      const row = table.data[i]
-      const time = row[timeIndex]
-
-      result[time] = Object.entries(columnNames).reduce(
-        (acc, [valueIndex, columnName]) => ({
-          ...acc,
-          [columnName]: row[valueIndex],
-        }),
-        {}
-      )
-    }
-
-    return result
-  })
+  const {tablesByTime, nonNumericColumns, allColumnNames} = parseTablesByTime(
+    tables
+  )
 
   const dygraphValuesByTime: {[k: string]: DygraphValue[]} = {}
   const DATE_INDEX = 0

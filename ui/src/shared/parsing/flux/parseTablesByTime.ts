@@ -1,5 +1,25 @@
 import {FluxTable} from 'src/types'
 
+const getTimeIndex = header => {
+  let timeIndex = header.indexOf('_time')
+
+  if (timeIndex >= 0) {
+    return timeIndex
+  }
+
+  timeIndex = header.indexOf('_start')
+  if (timeIndex >= 0) {
+    return timeIndex
+  }
+
+  timeIndex = header.indexOf('_end')
+  if (timeIndex >= 0) {
+    return timeIndex
+  }
+
+  return -1
+}
+
 const COLUMN_BLACKLIST = new Set([
   '_time',
   'result',
@@ -14,6 +34,7 @@ const NUMERIC_DATATYPES = ['double', 'long', 'int', 'float']
 interface TableByTime {
   [time: string]: {[columnName: string]: string}
 }
+
 interface ParseTablesByTimeResult {
   tablesByTime: TableByTime[]
   allColumnNames: string[]
@@ -56,13 +77,14 @@ export const parseTablesByTime = (
       allColumnNames.push(uniqueColumnName)
     }
 
-    const timeIndex = header.indexOf('_time')
+    const timeIndex = getTimeIndex(header)
 
     if (timeIndex < 0) {
       throw new Error('Could not find time index in FluxTable')
     }
 
     const result = {}
+
     for (let i = 1; i < table.data.length; i++) {
       const row = table.data[i]
       const time = row[timeIndex].toString()
