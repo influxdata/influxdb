@@ -18,7 +18,7 @@ export default class TokenList extends PureComponent<Props> {
     return (
       <IndexList>
         <IndexList.Header>
-          <IndexList.HeaderCell columnName="Token" />
+          <IndexList.HeaderCell columnName="Description" />
           <IndexList.HeaderCell columnName="Status" />
         </IndexList.Header>
         <IndexList.Body emptyState={this.emptyState} columnCount={2}>
@@ -33,7 +33,7 @@ export default class TokenList extends PureComponent<Props> {
   private get emptyState(): JSX.Element {
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text="Looks like you don’t have any tokens" />
+        <EmptyState.Text text="Looks no tokens match your search" />
       </EmptyState>
     )
   }

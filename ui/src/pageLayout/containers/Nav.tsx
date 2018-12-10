@@ -69,14 +69,6 @@ class SideNav extends PureComponent<Props> {
       },
       {
         type: NavItemType.Icon,
-        title: 'Status',
-        link: '/',
-        icon: IconFont.Cubouniform,
-        location: location.pathname,
-        highlightWhen: ['status'],
-      },
-      {
-        type: NavItemType.Icon,
         title: 'Data Explorer',
         link: '/data-explorer',
         icon: IconFont.Capacitor,

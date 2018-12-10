@@ -5,7 +5,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import ProfilePageHeader from 'src/shared/components/profile_page/ProfilePageHeader'
 import {Input, IconFont, ComponentSize, EmptyState} from 'src/clockface'
 import TaskList from 'src/organizations/components/TaskList'
-import FilterList from 'src/organizations/components/Filter'
+import FilterList from 'src/shared/components/Filter'
 
 // Types
 import {Task} from 'src/types/v2/tasks'

@@ -4,7 +4,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 // Components
 import ProfilePageHeader from 'src/shared/components/profile_page/ProfilePageHeader'
 import {ComponentSize, EmptyState, Input, IconFont} from 'src/clockface'
-import FilterList from 'src/organizations/components/Filter'
+import FilterList from 'src/shared/components/Filter'
 import DashboardList from 'src/organizations/components/DashboardList'
 
 // Types

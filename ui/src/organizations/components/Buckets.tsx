@@ -4,7 +4,7 @@ import _ from 'lodash'
 
 // Components
 import ProfilePageHeader from 'src/shared/components/profile_page/ProfilePageHeader'
-import FilterList from 'src/organizations/components/Filter'
+import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/organizations/components/BucketList'
 import {PrettyBucket} from 'src/organizations/components/BucketRow'
 import CreateBucketOverlay from 'src/organizations/components/CreateBucketOverlay'

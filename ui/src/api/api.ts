@@ -76,6 +76,12 @@ export class RequiredError extends Error {
  */
 export interface Authorization {
     /**
+     * user defined description of the authorization
+     * @type {string}
+     * @memberof Authorization
+     */
+    description?: string;
+    /**
      * 
      * @type {string}
      * @memberof Authorization

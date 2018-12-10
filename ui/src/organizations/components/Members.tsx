@@ -4,7 +4,7 @@ import React, {PureComponent} from 'react'
 // Components
 import {ComponentSize, EmptyState} from 'src/clockface'
 import MemberList from 'src/organizations/components/MemberList'
-import FilterList from 'src/organizations/components/Filter'
+import FilterList from 'src/shared/components/Filter'
 
 // Types
 import {Member} from 'src/types/v2'

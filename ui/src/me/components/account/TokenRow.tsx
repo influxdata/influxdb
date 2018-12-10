@@ -13,11 +13,11 @@ interface Props {
 
 export default class TokenRow extends PureComponent<Props> {
   public render() {
-    const {token, status} = this.props.auth
+    const {description, status} = this.props.auth
 
     return (
       <IndexList.Row>
-        <IndexList.Cell>{token}</IndexList.Cell>
+        <IndexList.Cell>{description}</IndexList.Cell>
         <IndexList.Cell>{status}</IndexList.Cell>
       </IndexList.Row>
     )

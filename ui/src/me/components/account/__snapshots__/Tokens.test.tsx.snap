@@ -8,50 +8,51 @@ exports[`Account rendering renders! 1`] = `
     <div
       className="panel"
     >
-      <PanelHeader
-        title="Tokens"
-      >
+      <PanelBody>
         <div
-          className="panel-header"
+          className="panel-body"
         >
-          <div
-            className="panel-title"
+          <Input
+            autoFocus={false}
+            autocomplete="off"
+            disabledTitleText="This input is disabled"
+            name=""
+            onChange={[Function]}
+            placeholder="Filter tokens by column"
+            size="sm"
+            spellCheck={false}
+            status="default"
+            titleText=""
+            value=""
+            widthPixels={256}
           >
-            Tokens
-          </div>
-          <div
-            className="panel-controls"
-          >
-            <ComponentSpacer
-              align="right"
+            <div
+              className="input input-sm"
+              style={
+                Object {
+                  "width": "256px",
+                }
+              }
             >
+              <input
+                autoComplete="off"
+                autoFocus={false}
+                className="input-field"
+                disabled={false}
+                name=""
+                onChange={[Function]}
+                placeholder="Filter tokens by column"
+                spellCheck={false}
+                title=""
+                value=""
+              />
               <div
-                className="component-spacer component-spacer--right component-spacer--horizontal"
-              >
-                <Button
-                  active={false}
-                  color="default"
-                  shape="none"
-                  size="sm"
-                  status="default"
-                  text="Create Token"
-                  type="submit"
-                >
-                  <button
-                    className="button button-sm button-default"
-                    disabled={false}
-                    tabIndex={0}
-                    title="Create Token"
-                    type="submit"
-                  >
-                    Create Token
-                  </button>
-                </Button>
-              </div>
-            </ComponentSpacer>
-          </div>
+                className="input-shadow"
+              />
+            </div>
+          </Input>
         </div>
-      </PanelHeader>
+      </PanelBody>
       <PanelBody>
         <div
           className="panel-body"
