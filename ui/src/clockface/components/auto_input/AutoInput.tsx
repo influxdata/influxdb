@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, ChangeEvent} from 'react'
+import React, {Component, ChangeEvent, KeyboardEvent} from 'react'
 
 // Components
 import {Input, InputType, Radio, ButtonShape} from 'src/clockface'
@@ -92,6 +92,7 @@ export default class AutoInput extends Component<Props, State> {
             value={`${inputValue}`}
             onChange={this.handleInputChange}
             onBlur={this.handleInputBlur}
+            onKeyPress={this.handleInputKeyPress}
             autoFocus={true}
           />
         </div>
@@ -121,5 +122,11 @@ export default class AutoInput extends Component<Props, State> {
     const inputValue = Number(e.target.value)
 
     onChange(inputValue)
+  }
+
+  private handleInputKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      this.props.onChange(this.state.inputValue)
+    }
   }
 }
