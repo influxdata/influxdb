@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -8,15 +9,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"unsafe"
-
-	"github.com/prometheus/client_golang/prometheus"
-
-	"bytes"
-	"sort"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxql"
@@ -24,11 +21,9 @@ import (
 	"github.com/influxdata/platform/pkg/slices"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/tsdb"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
-
-// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache.
-const DefaultSeriesIDSetCacheSize = 100
 
 // ErrCompactionInterrupted is returned if compactions are disabled or
 // an index is closed while a compaction is occurring.
@@ -42,15 +37,6 @@ func init() {
 		}
 		DefaultPartitionN = uint64(i)
 	}
-
-	// TODO(edd): To remove when feature finalised.
-	var err error
-	if os.Getenv("INFLUXDB_EXP_TSI_CACHING") != "" {
-		EnableBitsetCache, err = strconv.ParseBool(os.Getenv("INFLUXDB_EXP_TSI_CACHING"))
-		if err != nil {
-			panic(err)
-		}
-	}
 }
 
 // DefaultPartitionN determines how many shards the index will be partitioned into.
@@ -59,9 +45,6 @@ func init() {
 // it must also be a power of 2.
 //
 var DefaultPartitionN uint64 = 8
-
-// EnableBitsetCache determines if bitsets are cached.
-var EnableBitsetCache = true
 
 // An IndexOption is a functional option for changing the configuration of
 // an Index.
@@ -123,6 +106,7 @@ type Index struct {
 	logfileBufferSize  int         // The size of the buffer used by the LogFile.
 	disableFsync       bool        // Disables flushing buffers and fsyning files. Used when working with indexes offline.
 	logger             *zap.Logger // Index's logger.
+	config             Config      // The index configuration
 
 	// The following must be set when initializing an Index.
 	sfile *tsdb.SeriesFile // series lookup file
@@ -141,11 +125,12 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, c Config, options ...IndexOption) *Index {
 	idx := &Index{
-		tagValueCache:    NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
+		tagValueCache:    NewTagValueSeriesIDCache(c.SeriesIDSetCacheSize),
 		partitionMetrics: newPartitionMetrics(nil),
 		maxLogFileSize:   int64(c.MaxIndexLogFileSize),
 		logger:           zap.NewNop(),
 		version:          Version,
+		config:           c,
 		sfile:            sfile,
 		PartitionN:       DefaultPartitionN,
 	}
@@ -926,7 +911,7 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 // tagValueSeriesIDIterator returns a series iterator for a single tag value.
 func (i *Index) tagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
 	// Check series ID set cache...
-	if EnableBitsetCache {
+	if i.config.SeriesIDSetCacheSize > 0 { // Cache enabled.
 		if ss := i.tagValueCache.Get(name, key, value); ss != nil {
 			// Return a clone because the set is mutable.
 			return tsdb.NewSeriesIDSetIterator(ss.Clone()), nil
@@ -944,7 +929,7 @@ func (i *Index) tagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	}
 
 	itr := tsdb.MergeSeriesIDIterators(a...)
-	if !EnableBitsetCache {
+	if i.config.SeriesIDSetCacheSize == 0 { // Cache disabled.
 		return itr, nil
 	}
 

@@ -273,8 +273,10 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	runBenchmark := func(b *testing.B, queryN int) {
-		idx := MustOpenNewIndex(tsi1.NewConfig())
+	runBenchmark := func(b *testing.B, queryN int, cacheSize uint64) {
+		config := tsi1.NewConfig()
+		config.SeriesIDSetCacheSize = cacheSize
+		idx := MustOpenNewIndex(config)
 		var wg sync.WaitGroup
 		begin := make(chan struct{})
 
@@ -343,13 +345,11 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	for _, queryN := range queries {
 		b.Run(fmt.Sprintf("queries %d", queryN), func(b *testing.B) {
 			b.Run("cache", func(b *testing.B) {
-				tsi1.EnableBitsetCache = true
-				runBenchmark(b, queryN)
+				runBenchmark(b, queryN, tsi1.DefaultSeriesIDSetCacheSize)
 			})
 
 			b.Run("no cache", func(b *testing.B) {
-				tsi1.EnableBitsetCache = false
-				runBenchmark(b, queryN)
+				runBenchmark(b, queryN, 0)
 			})
 		})
 	}
