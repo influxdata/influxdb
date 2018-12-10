@@ -11,6 +11,7 @@ export const parseResponseError = (response: string): FluxTable[] => {
     {
       id: uuid.v4(),
       name: 'Error',
+      result: '',
       groupKey: {},
       dataTypes: {},
       data,
@@ -62,6 +63,7 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
   const annotationData = Papa.parse(annotationLines).data
   const headerRow = nonAnnotationData[0]
   const tableColIndex = headerRow.findIndex(h => h === 'table')
+  const resultColIndex = headerRow.findIndex(h => h === 'result')
 
   interface TableGroup {
     [tableId: string]: string[]
@@ -90,6 +92,11 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
 
   const tables = tablesData.map(tableData => {
     const dataRow = _.get(tableData, '0', defaultsRow)
+
+    const result: string =
+      _.get(dataRow, resultColIndex, '') ||
+      _.get(defaultsRow, resultColIndex, '')
+
     const groupKey = groupKeyIndices.reduce((acc, i) => {
       return {...acc, [headerRow[i]]: _.get(dataRow, i, '')}
     }, {})
@@ -111,6 +118,7 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
       id: uuid.v4(),
       data: [[...headerRow], ...tableData],
       name,
+      result,
       groupKey,
       dataTypes,
     }

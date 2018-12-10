@@ -80,6 +80,7 @@ export const fluxResponse: QueryResponse = {
         ],
       ],
       name: '',
+      result: '',
       groupKey: {},
       dataTypes: {
         '': '#datatype',

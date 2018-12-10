@@ -156,6 +156,7 @@ export interface FluxTable {
   id: string
   name: string
   data: string[][]
+  result: string
   groupKey: {
     [columnName: string]: string
   }

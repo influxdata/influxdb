@@ -43,6 +43,7 @@ const DEFAULT_DYGRAPH_OPTIONS = {
   highlightCircleSize: 3,
   axisLineColor: '#383846',
   gridLineColor: '#383846',
+  connectSeparatedPoints: true,
 }
 
 interface OwnProps {

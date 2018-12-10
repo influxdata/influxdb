@@ -70,7 +70,7 @@ export const parseTablesByTime = (
 
       const uniqueColumnName = Object.entries(table.groupKey).reduce(
         (acc, [k, v]) => acc + `[${k}=${v}]`,
-        columnName
+        `${columnName}[result=${table.result}]`
       )
 
       columnNames[i] = uniqueColumnName

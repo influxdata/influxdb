@@ -38,10 +38,10 @@ describe('fluxTablesToDygraph', () => {
     const expected = {
       labels: [
         'time',
-        'mean_usage_idle[_measurement=cpu]',
-        'mean_usage_user[_measurement=cpu]',
-        'mean_usage_idle[_measurement=mem]',
-        'mean_usage_user[_measurement=mem]',
+        'mean_usage_idle[result=0][_measurement=cpu]',
+        'mean_usage_user[result=0][_measurement=cpu]',
+        'mean_usage_idle[result=0][_measurement=mem]',
+        'mean_usage_user[result=0][_measurement=mem]',
       ],
       dygraphsData: [
         [new Date('2018-09-10T16:54:37Z'), 85, 10, 8, 1],
@@ -60,14 +60,51 @@ describe('fluxTablesToDygraph', () => {
     const expected = {
       labels: [
         'time',
-        'mean_usage_idle[_measurement=cpu]',
-        'mean_usage_idle[_measurement=mem]',
+        'mean_usage_idle[result=0][_measurement=cpu]',
+        'mean_usage_idle[result=0][_measurement=mem]',
       ],
       dygraphsData: [
         [new Date('2018-09-10T16:54:37Z'), 85, 8],
         [new Date('2018-09-10T16:54:39Z'), 89, 10],
       ],
       nonNumericColumns: ['my_fun_col'],
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can parse identical series in different results', () => {
+    const resp = `#group,false,false,false,false,false,false,true,true,true
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#default,0,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,host
+,,0,2018-12-10T18:21:52.748859Z,2018-12-10T18:30:00Z,2018-12-10T18:29:58Z,4906213376,active,mem,oox4k.local
+,,0,2018-12-10T18:30:00Z,2018-12-10T19:00:00Z,2018-12-10T18:54:08Z,5860683776,active,mem,oox4k.local
+
+#group,false,false,false,false,false,false,true,true,true
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#default,1,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,host
+,,0,2018-12-10T18:21:52.748859Z,2018-12-10T18:30:00Z,2018-12-10T18:29:48Z,4589981696,active,mem,oox4k.local
+,,0,2018-12-10T18:30:00Z,2018-12-10T19:00:00Z,2018-12-10T18:40:18Z,4318040064,active,mem,oox4k.local
+
+
+`
+    const fluxTables = parseResponse(resp)
+    const actual = fluxTablesToDygraph(fluxTables)
+    const expected = {
+      dygraphsData: [
+        [new Date('2018-12-10T18:29:48.000Z'), null, 4589981696],
+        [new Date('2018-12-10T18:29:58.000Z'), 4906213376, null],
+        [new Date('2018-12-10T18:40:18.000Z'), null, 4318040064],
+        [new Date('2018-12-10T18:54:08.000Z'), 5860683776, null],
+      ],
+      labels: [
+        'time',
+        '_value[result=0][_field=active][_measurement=mem][host=oox4k.local]',
+        '_value[result=1][_field=active][_measurement=mem][host=oox4k.local]',
+      ],
+      nonNumericColumns: [],
     }
 
     expect(actual).toEqual(expected)
