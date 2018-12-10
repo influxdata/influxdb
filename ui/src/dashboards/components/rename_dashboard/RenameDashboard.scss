@@ -7,8 +7,8 @@ $rename-dash-title-padding: 8px;
 
 .rename-dashboard {
   height: $form-sm-height;
-  min-width: 0;
   width: 100%;
+  max-width: 42vw;
 }
 
 .rename-dashboard--title,

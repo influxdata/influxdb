@@ -32,9 +32,7 @@ class PageHeaderRight extends Component<Props> {
     const {offsetPixels} = this.props
 
     if (offsetPixels === DEFAULT_OFFSET) {
-      return {
-        flex: `1 0 ${offsetPixels}`,
-      }
+      return
     }
 
     return {
