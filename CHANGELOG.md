@@ -98,6 +98,7 @@ v1.6.0 [2018-07-05]
 -	[#9884](https://github.com/influxdata/influxdb/pull/9884): Add -series-file flag to dumptsi command help.
 -	[#10423](https://github.com/influxdata/influxdb/pull/10423): Fix panic in IndexSet.
 -	[#10494](https://github.com/influxdata/influxdb/pull/10494): Fix ApplyEnvOverrides when a type that implements Unmarshaler is in a slice.
+-	[#10549](https://github.com/influxdata/influxdb/pull/10549): Pass the query authorizer to subqueries.
 
 v1.5.4 [2018-06-21]
 -------------------
