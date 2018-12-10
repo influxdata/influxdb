@@ -232,6 +232,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 		// Each new series entry in a log file is ~12 bytes so this should
 		// roughly equate to one flush to the file for every batch.
 		tsi1.WithLogFileBufferSize(12*batchSize),
+		tsi1.DisableMetrics(), // Disable metrics when rebuilding an index
 	)
 	tsiIndex.WithLogger(log)
 

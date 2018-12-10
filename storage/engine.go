@@ -105,7 +105,6 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e := &Engine{
 		config:              c,
 		path:                path,
-		sfile:               tsdb.NewSeriesFile(c.GetSeriesFilePath(path)),
 		defaultMetricLabels: prometheus.Labels{},
 		logger:              zap.NewNop(),
 	}
