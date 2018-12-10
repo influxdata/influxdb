@@ -12,6 +12,7 @@ v1.7.2 [unreleased]
 -	[#10514](https://github.com/influxdata/influxdb/pull/10514): Verify seriesfile in presence of tombstones.
 -	[#10499](https://github.com/influxdata/influxdb/pull/10499): Fix ApplyEnvOverrides when a type that implements Unmarshaler is in a slice.
 -	[#10548](https://github.com/influxdata/influxdb/pull/10548): Drop NaN values when writing back points.
+-	[#10552](https://github.com/influxdata/influxdb/pull/10552): Backport #10549: Pass the query authorizer to subqueries.
 
 v1.7.1 [2018-11-14]
 -------------------
