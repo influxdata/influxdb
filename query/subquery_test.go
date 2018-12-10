@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 )
@@ -250,4 +251,72 @@ func TestSubquery(t *testing.T) {
 			}
 		})
 	}
+}
+
+type openAuthorizer struct{}
+
+func (*openAuthorizer) AuthorizeDatabase(p influxql.Privilege, name string) bool    { return true }
+func (*openAuthorizer) AuthorizeQuery(database string, query *influxql.Query) error { return nil }
+func (*openAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
+	return true
+}
+func (*openAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
+	return true
+}
+
+// Ensure that the subquery gets passed the query authorizer.
+func TestSubquery_Authorizer(t *testing.T) {
+	auth := &openAuthorizer{}
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, tr influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"value": influxql.Float,
+				},
+				CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if opt.Authorizer != auth {
+						t.Errorf("query authorizer has not been set")
+					}
+					return nil, nil
+				},
+			}
+		},
+	}
+
+	stmt := MustParseSelectStatement(`SELECT max(value) FROM (SELECT value FROM cpu)`)
+	cur, err := query.Select(context.Background(), stmt, &shardMapper, query.SelectOptions{
+		Authorizer: auth,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	cur.Close()
+}
+
+// Ensure that the subquery gets passed the max series limit.
+func TestSubquery_MaxSeriesN(t *testing.T) {
+	shardMapper := ShardMapper{
+		MapShardsFn: func(sources influxql.Sources, tr influxql.TimeRange) query.ShardGroup {
+			return &ShardGroup{
+				Fields: map[string]influxql.DataType{
+					"value": influxql.Float,
+				},
+				CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
+					if opt.MaxSeriesN != 1000 {
+						t.Errorf("max series limit has not been set")
+					}
+					return nil, nil
+				},
+			}
+		},
+	}
+
+	stmt := MustParseSelectStatement(`SELECT max(value) FROM (SELECT value FROM cpu)`)
+	cur, err := query.Select(context.Background(), stmt, &shardMapper, query.SelectOptions{
+		MaxSeriesN: 1000,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	cur.Close()
 }
