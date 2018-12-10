@@ -8,11 +8,14 @@ import _ from 'lodash'
 import LineProtocolTabs from 'src/onboarding/components/configureStep/lineProtocol/LineProtocolTabs'
 import LoadingStatusIndicator from 'src/onboarding/components/configureStep/lineProtocol/LoadingStatusIndicator'
 
+// Actions
+import {setLPStatus as setLPStatusAction} from 'src/onboarding/actions/dataLoaders'
+
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {LineProtocolTab, LineProtocolStatus} from 'src/types/v2/dataLoaders'
+import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 import {AppState} from 'src/types/v2/index'
 import {RemoteDataState} from 'src/types'
 
@@ -25,14 +28,14 @@ interface StateProps {
   lpStatus: RemoteDataState
 }
 
-type Props = OwnProps & StateProps
+interface DispatchProps {
+  setLPStatus: typeof setLPStatusAction
+}
+
+type Props = OwnProps & StateProps & DispatchProps
 
 @ErrorHandling
 export class LineProtocol extends PureComponent<Props> {
-  constructor(props) {
-    super(props)
-    this.state = {status: LineProtocolStatus.ImportData}
-  }
   public render() {
     return (
       <>
@@ -64,7 +67,17 @@ export class LineProtocol extends PureComponent<Props> {
         />
       )
     }
-    return <LoadingStatusIndicator status={lpStatus} />
+    return (
+      <LoadingStatusIndicator
+        status={lpStatus}
+        onClickRetry={this.handleRetry}
+      />
+    )
+  }
+
+  private handleRetry = () => {
+    const {setLPStatus} = this.props
+    setLPStatus(RemoteDataState.NotStarted)
   }
 }
 
@@ -76,4 +89,11 @@ const mstp = ({
   return {lpStatus}
 }
 
-export default connect<StateProps, null, OwnProps>(mstp)(LineProtocol)
+const mdtp: DispatchProps = {
+  setLPStatus: setLPStatusAction,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(LineProtocol)

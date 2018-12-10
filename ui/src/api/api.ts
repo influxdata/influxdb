@@ -2507,12 +2507,6 @@ export interface Task {
      */
     cron?: string;
     /**
-     * How long to wait before running the task
-     * @type {string}
-     * @memberof Task
-     */
-    offset?: string;
-    /**
      * A simple task repetition schedule; parsed from Flux.
      * @type {string}
      * @memberof Task
@@ -2542,6 +2536,12 @@ export interface Task {
      * @memberof Task
      */
     name: string;
+    /**
+     * How long to wait before running the task
+     * @type {string}
+     * @memberof Task
+     */
+    offset?: string;
     /**
      * The ID of the organization that owns this Task.
      * @type {string}
@@ -4799,6 +4799,19 @@ export interface Views {
      * @memberof Views
      */
     views?: Array<View>;
+}
+
+/**
+ * 
+ * @export
+ * @enum {string}
+ */
+export enum WritePrecision {
+    Ms = 'ms',
+    S = 's',
+    Us = 'us',
+    U = 'u',
+    Ns = 'ns'
 }
 
 
@@ -16668,11 +16681,11 @@ export const WriteApiAxiosParamCreator = function (configuration?: Configuration
          * @param {'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow'} [contentType] Content-Type is used to indicate the format of the data sent to the server.
          * @param {number} [contentLength] Content-Length is an entity header is indicating the size of the entity-body, in bytes, sent to the database. If the length is greater than the database max body configuration option, a 413 response is sent.
          * @param {'application/json'} [accept] specifies the return content format.
-         * @param {'ns' | 'us' | 'u' | 'ms' | 's'} [precision] specifies the precision for the unix timestamps within the body line-protocol
+         * @param {WritePrecision} [precision] specifies the precision for the unix timestamps within the body line-protocol
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options: any = {}): RequestArgs {
+        writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: WritePrecision, options: any = {}): RequestArgs {
             // verify required parameter 'org' is not null or undefined
             if (org === null || org === undefined) {
                 throw new RequiredError('org','Required parameter org was null or undefined when calling writePost.');
@@ -16756,11 +16769,11 @@ export const WriteApiFp = function(configuration?: Configuration) {
          * @param {'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow'} [contentType] Content-Type is used to indicate the format of the data sent to the server.
          * @param {number} [contentLength] Content-Length is an entity header is indicating the size of the entity-body, in bytes, sent to the database. If the length is greater than the database max body configuration option, a 413 response is sent.
          * @param {'application/json'} [accept] specifies the return content format.
-         * @param {'ns' | 'us' | 'u' | 'ms' | 's'} [precision] specifies the precision for the unix timestamps within the body line-protocol
+         * @param {WritePrecision} [precision] specifies the precision for the unix timestamps within the body line-protocol
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+        writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: WritePrecision, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
             const localVarAxiosArgs = WriteApiAxiosParamCreator(configuration).writePost(org, bucket, body, contentEncoding, contentType, contentLength, accept, precision, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -16786,11 +16799,11 @@ export const WriteApiFactory = function (configuration?: Configuration, basePath
          * @param {'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow'} [contentType] Content-Type is used to indicate the format of the data sent to the server.
          * @param {number} [contentLength] Content-Length is an entity header is indicating the size of the entity-body, in bytes, sent to the database. If the length is greater than the database max body configuration option, a 413 response is sent.
          * @param {'application/json'} [accept] specifies the return content format.
-         * @param {'ns' | 'us' | 'u' | 'ms' | 's'} [precision] specifies the precision for the unix timestamps within the body line-protocol
+         * @param {WritePrecision} [precision] specifies the precision for the unix timestamps within the body line-protocol
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options?: any) {
+        writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: WritePrecision, options?: any) {
             return WriteApiFp(configuration).writePost(org, bucket, body, contentEncoding, contentType, contentLength, accept, precision, options)(axios, basePath);
         },
     };
@@ -16813,12 +16826,12 @@ export class WriteApi extends BaseAPI {
      * @param {'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow'} [contentType] Content-Type is used to indicate the format of the data sent to the server.
      * @param {number} [contentLength] Content-Length is an entity header is indicating the size of the entity-body, in bytes, sent to the database. If the length is greater than the database max body configuration option, a 413 response is sent.
      * @param {'application/json'} [accept] specifies the return content format.
-     * @param {'ns' | 'us' | 'u' | 'ms' | 's'} [precision] specifies the precision for the unix timestamps within the body line-protocol
+     * @param {WritePrecision} [precision] specifies the precision for the unix timestamps within the body line-protocol
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof WriteApi
      */
-    public writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: 'ns' | 'us' | 'u' | 'ms' | 's', options?: any) {
+    public writePost(org: string, bucket: string, body: string, contentEncoding?: 'gzip' | 'identity', contentType?: 'text/plain' | 'text/plain; charset=utf-8' | 'application/vnd.influx.arrow', contentLength?: number, accept?: 'application/json', precision?: WritePrecision, options?: any) {
         return WriteApiFp(this.configuration).writePost(org, bucket, body, contentEncoding, contentType, contentLength, accept, precision, options)(this.axios, this.basePath);
     }
 

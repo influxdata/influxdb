@@ -6,21 +6,24 @@ import {
   LineProtocolTab,
 } from 'src/types/v2/dataLoaders'
 import {RemoteDataState} from 'src/types'
+import {WritePrecision} from 'src/api'
 
 export interface DataLoadersState {
   telegrafPlugins: TelegrafPlugin[]
   type: DataLoaderType
-  lineProtocolText: string
+  lineProtocolBody: string
   activeLPTab: LineProtocolTab
   lpStatus: RemoteDataState
+  precision: WritePrecision
 }
 
 export const INITIAL_STATE: DataLoadersState = {
   telegrafPlugins: [],
   type: DataLoaderType.Empty,
-  lineProtocolText: '',
+  lineProtocolBody: '',
   activeLPTab: LineProtocolTab.UploadFile,
   lpStatus: RemoteDataState.NotStarted,
+  precision: WritePrecision.Ms,
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
@@ -55,10 +58,10 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
           return {...tp, active: false}
         }),
       }
-    case 'SET_LINE_PROTOCOL_TEXT':
+    case 'SET_LINE_PROTOCOL_BODY':
       return {
         ...state,
-        lineProtocolText: action.payload.lineProtocolText,
+        lineProtocolBody: action.payload.lineProtocolBody,
       }
     case 'SET_ACTIVE_LP_TAB':
       return {
@@ -69,6 +72,11 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
       return {
         ...state,
         lpStatus: action.payload.lpStatus,
+      }
+    case 'SET_PRECISION':
+      return {
+        ...state,
+        precision: action.payload.precision,
       }
     default:
       return state

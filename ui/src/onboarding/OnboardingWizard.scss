@@ -179,8 +179,20 @@
   width: 100%;
   max-width: 750px;
   margin-top: 10px;
-  background-color: #202028;
+  background-color: $g6-smoke;
   text-align: center;
+
+  > label {
+    font-size: small;
+    color: $g11-sidewalk;
+    margin: 10px;
+  }
+
+  &.dropdown {
+    justify-content: left;
+    align-items: left;
+    text-align: left;
+  }
 }
 
 .onboarding-step {

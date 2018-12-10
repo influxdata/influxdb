@@ -7,15 +7,17 @@ import {
 
 import {writeLineProtocol} from 'src/onboarding/apis/index'
 import {RemoteDataState} from 'src/types'
+import {WritePrecision} from 'src/api'
 
 export type Action =
   | SetDataLoadersType
   | AddTelegrafPlugin
   | RemoveTelegrafPlugin
   | SetActiveTelegrafPlugin
-  | SetLineProtocolText
+  | SetLineProtocolBody
   | SetActiveLPTab
   | SetLPStatus
+  | SetPrecision
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -65,16 +67,16 @@ export const setActiveTelegrafPlugin = (
   payload: {telegrafPlugin},
 })
 
-interface SetLineProtocolText {
-  type: 'SET_LINE_PROTOCOL_TEXT'
-  payload: {lineProtocolText: string}
+interface SetLineProtocolBody {
+  type: 'SET_LINE_PROTOCOL_BODY'
+  payload: {lineProtocolBody: string}
 }
 
-export const setLineProtocolText = (
-  lineProtocolText: string
-): SetLineProtocolText => ({
-  type: 'SET_LINE_PROTOCOL_TEXT',
-  payload: {lineProtocolText},
+export const setLineProtocolBody = (
+  lineProtocolBody: string
+): SetLineProtocolBody => ({
+  type: 'SET_LINE_PROTOCOL_BODY',
+  payload: {lineProtocolBody},
 })
 
 interface SetActiveLPTab {
@@ -99,14 +101,25 @@ export const setLPStatus = (lpStatus: RemoteDataState): SetLPStatus => ({
   payload: {lpStatus},
 })
 
+interface SetPrecision {
+  type: 'SET_PRECISION'
+  payload: {precision: WritePrecision}
+}
+
+export const setPrecision = (precision: WritePrecision): SetPrecision => ({
+  type: 'SET_PRECISION',
+  payload: {precision},
+})
+
 export const writeLineProtocolAction = (
   org: string,
   bucket: string,
-  body: string
+  body: string,
+  precision: WritePrecision
 ) => async dispatch => {
   try {
     dispatch(setLPStatus(RemoteDataState.Loading))
-    await writeLineProtocol(org, bucket, body)
+    await writeLineProtocol(org, bucket, body, precision)
     dispatch(setLPStatus(RemoteDataState.Done))
   } catch (error) {
     dispatch(setLPStatus(RemoteDataState.Error))

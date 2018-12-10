@@ -3,24 +3,36 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Input, InputType, Radio, ButtonShape, Form} from 'src/clockface'
+import {
+  Input,
+  InputType,
+  Radio,
+  ButtonShape,
+  Form,
+  Button,
+  ComponentSize,
+  ComponentColor,
+} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import TextArea from 'src/clockface/components/inputs/TextArea'
+import PrecisionDropdown from 'src/onboarding/components/configureStep/lineProtocol/PrecisionDropdown'
 
 // Types
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 
 // Actions
 import {
-  setLineProtocolText,
+  setLineProtocolBody,
   setActiveLPTab,
   writeLineProtocolAction,
+  setPrecision,
 } from 'src/onboarding/actions/dataLoaders'
 
 import {AppState} from 'src/types/v2/index'
 
 // Styles
 import 'src/clockface/components/auto_input/AutoInput.scss'
+import {WritePrecision} from 'src/api'
 
 interface OwnProps {
   tabs: LineProtocolTab[]
@@ -31,22 +43,39 @@ interface OwnProps {
 type Props = OwnProps & DispatchProps & StateProps
 
 interface DispatchProps {
-  setLineProtocolText: typeof setLineProtocolText
+  setLineProtocolBody: typeof setLineProtocolBody
   setActiveLPTab: typeof setActiveLPTab
   writeLineProtocolAction: typeof writeLineProtocolAction
+  setPrecision: typeof setPrecision
 }
 
 interface StateProps {
-  lineProtocolText: string
+  lineProtocolBody: string
   activeLPTab: LineProtocolTab
+  precision: WritePrecision
 }
 
-export class LineProtocolTabs extends PureComponent<Props> {
+interface State {
+  urlInput: string
+}
+
+export class LineProtocolTabs extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      urlInput: '',
+    }
+  }
+
   public render() {
+    const {setPrecision, precision} = this.props
     return (
       <>
         {this.tabSelector}
         <div className={'wizard-step--lp-body'}>{this.tabBody}</div>
+        <PrecisionDropdown setPrecision={setPrecision} precision={precision} />
+        <div className="wizard-button-bar">{this.submitButton}</div>
       </>
     )
   }
@@ -71,74 +100,98 @@ export class LineProtocolTabs extends PureComponent<Props> {
     )
   }
 
+  private get submitButton(): JSX.Element {
+    const {lineProtocolBody} = this.props
+    if (lineProtocolBody) {
+      return (
+        <Button
+          size={ComponentSize.Medium}
+          color={ComponentColor.Primary}
+          text={'submit line protocol'}
+          onClick={this.handleSubmitLineProtocol}
+        />
+      )
+    }
+    return null
+  }
+
   private handleTabClick = (tab: LineProtocolTab) => () => {
-    const {setActiveLPTab, setLineProtocolText} = this.props
-    setLineProtocolText('')
-    setActiveLPTab(tab)
+    const {setActiveLPTab, setLineProtocolBody, activeLPTab} = this.props
+    if (tab !== activeLPTab) {
+      setLineProtocolBody('')
+      setActiveLPTab(tab)
+    }
   }
 
   private get tabBody(): JSX.Element {
-    const {setLineProtocolText, lineProtocolText, activeLPTab} = this.props
-
-    if (activeLPTab === LineProtocolTab.UploadFile) {
-      return (
-        <DragAndDrop
-          submitText="Upload File"
-          handleSubmit={this.handleFileUpload}
-        />
-      )
+    const {setLineProtocolBody, lineProtocolBody, activeLPTab} = this.props
+    const {urlInput} = this.state
+    switch (activeLPTab) {
+      case LineProtocolTab.UploadFile:
+        return (
+          <DragAndDrop
+            submitText="Upload File"
+            handleSubmit={setLineProtocolBody}
+            submitOnDrop={true}
+            submitOnUpload={true}
+          />
+        )
+      case LineProtocolTab.EnterManually:
+        return (
+          <TextArea
+            value={lineProtocolBody}
+            placeholder="Write text here"
+            handleSubmitText={setLineProtocolBody}
+          />
+        )
+      case LineProtocolTab.EnterURL:
+        return (
+          <Form className="onboarding--admin-user-form">
+            <Form.Element label="File URL:">
+              <Input
+                titleText="File URL:"
+                type={InputType.Text}
+                placeholder="http://..."
+                widthPixels={700}
+                value={urlInput}
+                onChange={this.handleURLChange}
+                autoFocus={true}
+              />
+            </Form.Element>
+          </Form>
+        )
     }
-    if (activeLPTab === LineProtocolTab.EnterManually) {
-      return (
-        <TextArea
-          value={lineProtocolText}
-          placeholder="Write text here"
-          handleSubmitText={setLineProtocolText}
-        />
-      )
-    }
-    if (activeLPTab === LineProtocolTab.EnterURL) {
-      return (
-        <Form className="onboarding--admin-user-form">
-          <Form.Element label="File URL:">
-            <Input
-              titleText="File URL:"
-              type={InputType.Text}
-              placeholder="http://..."
-              widthPixels={700}
-              value={lineProtocolText}
-              onChange={this.handleChange}
-              autoFocus={true}
-            />
-          </Form.Element>
-        </Form>
-      )
-    }
-    return
-  }
-  private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const {setLineProtocolText} = this.props
-    setLineProtocolText(e.target.value)
   }
 
-  private handleFileUpload = async (body: string): Promise<void> => {
-    const {bucket, org, writeLineProtocolAction} = this.props
-    writeLineProtocolAction(org, bucket, body)
+  private handleURLChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({urlInput: e.target.value})
+  }
+
+  private handleSubmitLineProtocol = async (): Promise<void> => {
+    const {
+      bucket,
+      org,
+      writeLineProtocolAction,
+      lineProtocolBody,
+      precision,
+    } = this.props
+    writeLineProtocolAction(org, bucket, lineProtocolBody, precision)
   }
 }
 
 const mstp = ({
   onboarding: {
-    dataLoaders: {lineProtocolText, activeLPTab},
+    dataLoaders: {lineProtocolBody, activeLPTab, precision},
   },
 }: AppState) => {
-  return {lineProtocolText, activeLPTab}
+  return {lineProtocolBody, activeLPTab, precision}
 }
 
 const mdtp: DispatchProps = {
-  setLineProtocolText,
+  setLineProtocolBody,
   setActiveLPTab,
   writeLineProtocolAction,
+  setPrecision,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
