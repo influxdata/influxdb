@@ -16,6 +16,7 @@ import {
   addTelegrafPlugin,
   removeTelegrafPlugin,
   setDataLoadersType,
+  setActiveTelegrafPlugin,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
@@ -28,6 +29,7 @@ interface Props {
   onAddTelegrafPlugin: typeof addTelegrafPlugin
   onRemoveTelegrafPlugin: typeof removeTelegrafPlugin
   onSetDataLoadersType: typeof setDataLoadersType
+  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   setupParams: SetupParams
   dataLoaders: {telegrafPlugins: TelegrafPlugin[]; type: DataLoaderType}
   currentStepIndex: number
@@ -44,6 +46,7 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
       onSetDataLoadersType,
       onAddTelegrafPlugin,
       onRemoveTelegrafPlugin,
+      onSetActiveTelegrafPlugin,
     } = this.props
 
     switch (currentStepIndex) {
@@ -60,14 +63,25 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
             bucket={_.get(setupParams, 'bucket', '')}
             onAddTelegrafPlugin={onAddTelegrafPlugin}
             onRemoveTelegrafPlugin={onRemoveTelegrafPlugin}
+            onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
           />
         )
       case 3:
         return (
-          <ConfigureDataSourceStep {...onboardingStepProps} {...dataLoaders} />
+          <ConfigureDataSourceStep
+            {...onboardingStepProps}
+            {...dataLoaders}
+            onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
+          />
         )
       case 4:
-        return <VerifyDataStep {...onboardingStepProps} {...dataLoaders} />
+        return (
+          <VerifyDataStep
+            {...onboardingStepProps}
+            {...dataLoaders}
+            onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
+          />
+        )
       case 5:
         return <CompletionStep {...onboardingStepProps} />
       default:

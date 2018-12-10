@@ -13,12 +13,16 @@ import {
 } from 'src/clockface'
 import ConfigureDataSourceSwitcher from 'src/onboarding/components/configureStep/ConfigureDataSourceSwitcher'
 
+// Actions
+import {setActiveTelegrafPlugin} from 'src/onboarding/actions/dataLoaders'
+
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
 
 export interface OwnProps extends OnboardingStepProps {
   telegrafPlugins: TelegrafPlugin[]
+  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   type: DataLoaderType
 }
 
@@ -110,6 +114,7 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
   private handleNext = () => {
     const {
       onIncrementCurrentStepIndex,
+      onSetActiveTelegrafPlugin,
       telegrafPlugins,
       params: {substepID, stepID},
       router,
@@ -119,13 +124,31 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
 
     if (index >= telegrafPlugins.length - 1) {
       onIncrementCurrentStepIndex()
+      onSetActiveTelegrafPlugin('')
     } else {
+      const name = _.get(telegrafPlugins, `${index + 1}.name`)
+      onSetActiveTelegrafPlugin(name)
+
       router.push(`/onboarding/${stepID}/${index + 1}`)
     }
   }
 
   private handlePrevious = () => {
-    const {router} = this.props
+    const {
+      router,
+      onSetActiveTelegrafPlugin,
+      params: {substepID},
+      telegrafPlugins,
+    } = this.props
+
+    const index = +substepID
+
+    if (index >= 0) {
+      const name = _.get(telegrafPlugins, `${index - 1}.name`)
+      onSetActiveTelegrafPlugin(name)
+    } else {
+      onSetActiveTelegrafPlugin('')
+    }
 
     router.goBack()
   }

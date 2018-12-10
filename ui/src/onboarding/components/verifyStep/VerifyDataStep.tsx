@@ -12,23 +12,23 @@ import {
 } from 'src/clockface'
 import VerifyDataSwitcher from 'src/onboarding/components/verifyStep/VerifyDataSwitcher'
 
+// Actions
+import {setActiveTelegrafPlugin} from 'src/onboarding/actions/dataLoaders'
+
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType, TelegrafPlugin} from 'src/types/v2/dataLoaders'
 
 export interface Props extends OnboardingStepProps {
   type: DataLoaderType
+  telegrafPlugins: TelegrafPlugin[]
+  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
 }
 
 @ErrorHandling
 class VerifyDataStep extends PureComponent<Props> {
   public render() {
-    const {
-      setupParams,
-      type,
-      onDecrementCurrentStepIndex,
-      onIncrementCurrentStepIndex,
-    } = this.props
+    const {setupParams, type, onIncrementCurrentStepIndex} = this.props
 
     return (
       <div className="onboarding-step">
@@ -44,7 +44,7 @@ class VerifyDataStep extends PureComponent<Props> {
               color={ComponentColor.Default}
               text="Back"
               size={ComponentSize.Medium}
-              onClick={onDecrementCurrentStepIndex}
+              onClick={this.handleDecrementStep}
             />
             <Button
               color={ComponentColor.Primary}
@@ -72,6 +72,19 @@ class VerifyDataStep extends PureComponent<Props> {
         skip
       </Button>
     )
+  }
+
+  private handleDecrementStep = () => {
+    const {
+      telegrafPlugins,
+      onSetActiveTelegrafPlugin,
+      onDecrementCurrentStepIndex,
+    } = this.props
+
+    const name = _.get(telegrafPlugins, `${telegrafPlugins.length - 1}.name`)
+    onSetActiveTelegrafPlugin(name)
+
+    onDecrementCurrentStepIndex()
   }
 
   private jumpToCompletionStep = () => {

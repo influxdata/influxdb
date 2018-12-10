@@ -17,6 +17,8 @@ const setup = (override = {}) => {
   const props = {
     type: DataLoaderType.Empty,
     ...defaultOnboardingStepProps,
+    telegrafPlugins: [],
+    onSetActiveTelegrafPlugin: jest.fn(),
     ...override,
   }
 

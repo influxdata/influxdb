@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -12,6 +13,9 @@ import {
 } from 'src/clockface'
 import DataSourceTypeSelector from 'src/onboarding/components/selectionStep/TypeSelector'
 import StreamingDataSourceSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
+
+// Actions
+import {setActiveTelegrafPlugin} from 'src/onboarding/actions/dataLoaders'
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
@@ -29,6 +33,7 @@ export interface OwnProps extends OnboardingStepProps {
   onAddTelegrafPlugin: (telegrafPlugin: TelegrafPlugin) => void
   onRemoveTelegrafPlugin: (TelegrafPlugin: string) => void
   onSetDataLoadersType: (type: DataLoaderType) => void
+  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
 }
 
 interface RouterProps {
@@ -132,12 +137,17 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     const {
       router,
       params: {stepID},
+      telegrafPlugins,
+      onSetActiveTelegrafPlugin,
     } = this.props
 
     if (this.props.type === DataLoaderType.Streaming && !this.isStreaming) {
       router.push(`/onboarding/${stepID}/streaming`)
       return
     }
+
+    const name = _.get(telegrafPlugins, '0.name', '')
+    onSetActiveTelegrafPlugin(name)
 
     this.props.onIncrementCurrentStepIndex()
   }
@@ -155,19 +165,16 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     telegrafPlugin: TelegrafPluginName,
     isSelected: boolean
   ) => {
-    const {telegrafPlugins} = this.props
-
     if (isSelected) {
       this.props.onRemoveTelegrafPlugin(telegrafPlugin)
 
       return
     }
 
-    const active = telegrafPlugins.length === 0
     const plugin: TelegrafPlugin = {
       name: telegrafPlugin,
       configured: ConfigurationState.Unconfigured,
-      active,
+      active: false,
     }
     this.props.onAddTelegrafPlugin(plugin)
   }

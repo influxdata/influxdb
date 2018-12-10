@@ -111,6 +111,7 @@ class OnboardingWizard extends PureComponent<Props> {
       onSetDataLoadersType,
       onRemoveTelegrafPlugin,
       onAddTelegrafPlugin,
+      onSetActiveTelegrafPlugin,
       setupParams,
       notify,
     } = this.props
@@ -135,6 +136,7 @@ class OnboardingWizard extends PureComponent<Props> {
               onSetDataLoadersType={onSetDataLoadersType}
               onAddTelegrafPlugin={onAddTelegrafPlugin}
               onRemoveTelegrafPlugin={onRemoveTelegrafPlugin}
+              onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
             />
           </div>
         </div>
