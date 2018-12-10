@@ -685,6 +685,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /sources/{sourceID}:
+    delete:
+      tags:
+        - Sources
+      summary: Delete a source
+      parameters:
+        - in: path
+          name: sourceID
+          schema:
+            type: string
+          required: true
+          description: ID of the source
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: view not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     patch:
       tags:
         - Sources
@@ -4625,12 +4651,16 @@ components:
           properties:
             self:
               type: string
+            query:
+              type: string
+            health:
+              type: string
+            buckets:
+              type: string
         id:
           type: string
         organizationID:
           type: string
-        default:
-          type: boolean
         name:
           type: string
         type:

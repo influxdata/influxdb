@@ -10,7 +10,8 @@ import {
 } from 'src/sources/apis'
 
 // Types
-import {Source, GetState} from 'src/types/v2'
+import {GetState} from 'src/types/v2'
+import {Source} from 'src/api'
 
 export type Action =
   | SetActiveSourceAction
@@ -68,12 +69,8 @@ export const removeSource = (sourceID: string): RemoveSourceAction => ({
   payload: {sourceID},
 })
 
-export const readSources = () => async (
-  dispatch: Dispatch<Action>,
-  getState: GetState
-) => {
-  const sourcesLink = getState().links.sources
-  const sources = await readSourcesAJAX(sourcesLink)
+export const readSources = () => async (dispatch: Dispatch<Action>) => {
+  const sources = await readSourcesAJAX()
 
   dispatch(setSources(sources))
 }
@@ -91,7 +88,7 @@ export const createSource = (attrs: Partial<Source>) => async (
 export const updateSource = (source: Source) => async (
   dispatch: Dispatch<Action>
 ) => {
-  const updatedSource = await updateSourceAJAX(source)
+  const updatedSource = await updateSourceAJAX(source.id, source)
 
   dispatch(setSource(updatedSource))
 }

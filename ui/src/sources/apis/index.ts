@@ -1,57 +1,40 @@
-import AJAX from 'src/utils/ajax'
-import {Source} from 'src/types/v2'
+import {Source} from 'src/api'
+import {sourcesAPI} from 'src/utils/api'
 
-export const readSources = async (url): Promise<Source[]> => {
-  const {data} = await AJAX({url})
+export const readSources = async (): Promise<Source[]> => {
+  const {data} = await sourcesAPI.sourcesGet('')
 
   return data.sources
 }
 
-export const readSource = async (url: string): Promise<Source> => {
-  const {data: source} = await AJAX({
-    url,
-  })
+export const readSource = async (id: string): Promise<Source> => {
+  const {data} = await sourcesAPI.sourcesSourceIDGet(id)
 
-  return source
+  return data
 }
 
 export const createSource = async (
-  url: string,
+  org: string,
   attributes: Partial<Source>
 ): Promise<Source> => {
-  const {data: source} = await AJAX({
-    url,
-    method: 'POST',
-    data: attributes,
-  })
+  const {data} = await sourcesAPI.sourcesPost(org, attributes)
 
-  return source
+  return data
 }
 
 export const updateSource = async (
-  newSource: Partial<Source>
+  id: string,
+  source: Partial<Source>
 ): Promise<Source> => {
-  const {data: source} = await AJAX({
-    url: newSource.links.self,
-    method: 'PATCH',
-    data: newSource,
-  })
+  const {data} = await sourcesAPI.sourcesSourceIDPatch(id, source)
 
-  return source
+  return data
 }
 
-export function deleteSource(source) {
-  return AJAX({
-    url: source.links.self,
-    method: 'DELETE',
-  })
+export async function deleteSource(source: Source): Promise<void> {
+  await sourcesAPI.sourcesSourceIDDelete(source.id)
 }
 
-export const getSourceHealth = async (url: string): Promise<void> => {
-  try {
-    await AJAX({url})
-  } catch (error) {
-    console.error(`Unable to contact source ${url}`, error)
-    throw error
-  }
+export const getSourceHealth = async (id: string): Promise<void> => {
+  await sourcesAPI.sourcesSourceIDHealthGet(id)
 }

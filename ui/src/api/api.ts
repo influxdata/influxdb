@@ -2345,12 +2345,6 @@ export namespace Run {
 export interface Source {
     /**
      * 
-     * @type {boolean}
-     * @memberof Source
-     */
-    _default?: boolean;
-    /**
-     * 
      * @type {string}
      * @memberof Source
      */
@@ -2472,6 +2466,24 @@ export namespace Source {
  * @interface SourceLinks
  */
 export interface SourceLinks {
+    /**
+     * 
+     * @type {string}
+     * @memberof SourceLinks
+     */
+    buckets?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof SourceLinks
+     */
+    health?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof SourceLinks
+     */
+    query?: string;
     /**
      * 
      * @type {string}
@@ -4769,10 +4781,10 @@ export interface View {
     id?: string;
     /**
      * 
-     * @type {SourceLinks}
+     * @type {ViewLinks}
      * @memberof View
      */
-    links?: SourceLinks;
+    links?: ViewLinks;
     /**
      * 
      * @type {string}
@@ -4790,15 +4802,29 @@ export interface View {
 /**
  * 
  * @export
+ * @interface ViewLinks
+ */
+export interface ViewLinks {
+    /**
+     * 
+     * @type {string}
+     * @memberof ViewLinks
+     */
+    self?: string;
+}
+
+/**
+ * 
+ * @export
  * @interface Views
  */
 export interface Views {
     /**
      * 
-     * @type {SourceLinks}
+     * @type {ViewLinks}
      * @memberof Views
      */
-    links?: SourceLinks;
+    links?: ViewLinks;
     /**
      * 
      * @type {Array<View>}
@@ -10042,6 +10068,39 @@ export const SourcesApiAxiosParamCreator = function (configuration?: Configurati
         },
         /**
          * 
+         * @summary Delete a source
+         * @param {string} sourceID ID of the source
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        sourcesSourceIDDelete(sourceID: string, options: any = {}): RequestArgs {
+            // verify required parameter 'sourceID' is not null or undefined
+            if (sourceID === null || sourceID === undefined) {
+                throw new RequiredError('sourceID','Required parameter sourceID was null or undefined when calling sourcesSourceIDDelete.');
+            }
+            const localVarPath = `/sources/{sourceID}`
+                .replace(`{${"sourceID"}}`, encodeURIComponent(String(sourceID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'DELETE' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary Get a source
          * @param {string} sourceID ID of the source
          * @param {*} [options] Override http request option.
@@ -10203,6 +10262,20 @@ export const SourcesApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary Delete a source
+         * @param {string} sourceID ID of the source
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        sourcesSourceIDDelete(sourceID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+            const localVarAxiosArgs = SourcesApiAxiosParamCreator(configuration).sourcesSourceIDDelete(sourceID, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary Get a source
          * @param {string} sourceID ID of the source
          * @param {*} [options] Override http request option.
@@ -10287,6 +10360,16 @@ export const SourcesApiFactory = function (configuration?: Configuration, basePa
         },
         /**
          * 
+         * @summary Delete a source
+         * @param {string} sourceID ID of the source
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        sourcesSourceIDDelete(sourceID: string, options?: any) {
+            return SourcesApiFp(configuration).sourcesSourceIDDelete(sourceID, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary Get a source
          * @param {string} sourceID ID of the source
          * @param {*} [options] Override http request option.
@@ -10362,6 +10445,18 @@ export class SourcesApi extends BaseAPI {
      */
     public sourcesSourceIDBucketsGet(sourceID: string, org: string, options?: any) {
         return SourcesApiFp(this.configuration).sourcesSourceIDBucketsGet(sourceID, org, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary Delete a source
+     * @param {string} sourceID ID of the source
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SourcesApi
+     */
+    public sourcesSourceIDDelete(sourceID: string, options?: any) {
+        return SourcesApiFp(this.configuration).sourcesSourceIDDelete(sourceID, options)(this.axios, this.basePath);
     }
 
     /**

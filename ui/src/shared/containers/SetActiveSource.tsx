@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
 
 // Actions
 import {setActiveSource} from 'src/sources/actions'
@@ -51,7 +50,6 @@ class SetActiveSource extends PureComponent<Props> {
   private resolveActiveSource() {
     const {sources, activeSourceID, onSetActiveSource} = this.props
 
-    const defaultSourceID = get(sources.find(s => s.default), 'id')
     const querySourceID = readQueryParams().sourceID
 
     let resolvedSourceID
@@ -60,8 +58,6 @@ class SetActiveSource extends PureComponent<Props> {
       resolvedSourceID = activeSourceID
     } else if (sources.find(s => s.id === querySourceID)) {
       resolvedSourceID = querySourceID
-    } else if (defaultSourceID) {
-      resolvedSourceID = defaultSourceID
     } else if (sources.length) {
       resolvedSourceID = sources[0]
     } else {
