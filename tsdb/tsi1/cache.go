@@ -216,10 +216,11 @@ type seriesIDCacheElement struct {
 type cacheTracker struct {
 	metrics *cacheMetrics
 	labels  prometheus.Labels
+	enabled bool
 }
 
 func newCacheTracker(metrics *cacheMetrics, defaultLabels prometheus.Labels) *cacheTracker {
-	return &cacheTracker{metrics: metrics, labels: defaultLabels}
+	return &cacheTracker{metrics: metrics, labels: defaultLabels, enabled: true}
 }
 
 // Labels returns a copy of labels for use with index cache metrics.
@@ -232,11 +233,19 @@ func (t *cacheTracker) Labels() prometheus.Labels {
 }
 
 func (t *cacheTracker) SetSize(sz uint64) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	t.metrics.Size.With(labels).Set(float64(sz))
 }
 
 func (t *cacheTracker) incGet(status string) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Gets.With(labels).Inc()
@@ -246,6 +255,10 @@ func (t *cacheTracker) IncGetHit()  { t.incGet("hit") }
 func (t *cacheTracker) IncGetMiss() { t.incGet("miss") }
 
 func (t *cacheTracker) incPut(status string) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Puts.With(labels).Inc()
@@ -255,6 +268,10 @@ func (t *cacheTracker) IncPutHit()  { t.incPut("hit") }
 func (t *cacheTracker) IncPutMiss() { t.incPut("miss") }
 
 func (t *cacheTracker) incDeletes(status string) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Deletes.With(labels).Inc()
@@ -264,6 +281,10 @@ func (t *cacheTracker) IncDeletesHit()  { t.incDeletes("hit") }
 func (t *cacheTracker) IncDeletesMiss() { t.incDeletes("miss") }
 
 func (t *cacheTracker) IncEvictions() {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	t.metrics.Evictions.With(labels).Inc()
 }

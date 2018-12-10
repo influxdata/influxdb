@@ -39,6 +39,8 @@ func NewHashMap(opt Options) *HashMap {
 		loadFactor: opt.LoadFactor,
 		tracker:    newRHHTracker(opt.Metrics, opt.Labels),
 	}
+	m.tracker.enabled = opt.MetricsEnabled
+
 	m.alloc()
 	return m
 }
@@ -270,6 +272,7 @@ func (m *HashMap) PrometheusCollectors() []prometheus.Collector {
 type rhhTracker struct {
 	metrics *Metrics
 	labels  prometheus.Labels
+	enabled bool
 }
 
 // Labels returns a copy of the default labels used by the tracker's metrics.
@@ -283,43 +286,71 @@ func (t *rhhTracker) Labels() prometheus.Labels {
 }
 
 func newRHHTracker(metrics *Metrics, defaultLabels prometheus.Labels) *rhhTracker {
-	return &rhhTracker{metrics: metrics, labels: defaultLabels}
+	return &rhhTracker{metrics: metrics, labels: defaultLabels, enabled: true}
 }
 
 func (t *rhhTracker) SetLoadFactor(load float64) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	t.metrics.LoadFactor.With(labels).Set(load)
 }
 
 func (t *rhhTracker) SetSize(sz uint64) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	t.metrics.Size.With(labels).Set(float64(sz))
 }
 
 func (t *rhhTracker) ObserveGet(d time.Duration) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	t.metrics.GetDuration.With(labels).Observe(float64(d.Nanoseconds()))
 	t.metrics.LastGetDuration.With(labels).Set(float64(d.Nanoseconds()))
 }
 
 func (t *rhhTracker) ObservePut(d time.Duration) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	t.metrics.InsertDuration.With(labels).Observe(float64(d.Nanoseconds()))
 	t.metrics.LastInsertDuration.With(labels).Set(float64(d.Nanoseconds()))
 }
 
 func (t *rhhTracker) SetGrowDuration(d time.Duration) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	t.metrics.LastGrowDuration.With(labels).Set(d.Seconds())
 }
 
 // TODO(edd): currently no safe way to calculate this concurrently.
 func (t *rhhTracker) SetProbeCount(length float64) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	t.metrics.MeanProbeCount.With(labels).Set(length)
 }
 
 func (t *rhhTracker) incGet(status string) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Gets.With(labels).Inc()
@@ -329,6 +360,10 @@ func (t *rhhTracker) IncGetHit()  { t.incGet("hit") }
 func (t *rhhTracker) IncGetMiss() { t.incGet("miss") }
 
 func (t *rhhTracker) incPut(status string) {
+	if !t.enabled {
+		return
+	}
+
 	labels := t.Labels()
 	labels["status"] = status
 	t.metrics.Puts.With(labels).Inc()
@@ -357,16 +392,18 @@ func (e *hashElem) setKey(v []byte) {
 
 // Options represents initialization options that are passed to NewHashMap().
 type Options struct {
-	Capacity   int64
-	LoadFactor int
-	Metrics    *Metrics
-	Labels     prometheus.Labels
+	Capacity       int64
+	LoadFactor     int
+	MetricsEnabled bool
+	Metrics        *Metrics
+	Labels         prometheus.Labels
 }
 
 // DefaultOptions represents a default set of options to pass to NewHashMap().
 var DefaultOptions = Options{
-	Capacity:   256,
-	LoadFactor: 90,
+	Capacity:       256,
+	LoadFactor:     90,
+	MetricsEnabled: true,
 }
 
 // HashKey computes a hash of key. Hash is always non-zero.

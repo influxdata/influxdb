@@ -88,6 +88,14 @@ var WithLogFileBufferSize = func(sz int) IndexOption {
 	}
 }
 
+// DisableMetrics ensures that activity is not collected via the prometheus metrics.
+// DisableMetrics must be called before Open.
+var DisableMetrics = func() IndexOption {
+	return func(i *Index) {
+		i.metricsEnabled = false
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
@@ -98,6 +106,7 @@ type Index struct {
 
 	tagValueCache    *TagValueSeriesIDCache
 	partitionMetrics *partitionMetrics // Maintain a single set of partition metrics to be shared by partition.
+	metricsEnabled   bool
 
 	// The following may be set when initializing an Index.
 	path               string      // Root directory of the index partitions.
@@ -127,6 +136,7 @@ func NewIndex(sfile *tsdb.SeriesFile, c Config, options ...IndexOption) *Index {
 	idx := &Index{
 		tagValueCache:    NewTagValueSeriesIDCache(c.SeriesIDSetCacheSize),
 		partitionMetrics: newPartitionMetrics(nil),
+		metricsEnabled:   true,
 		maxLogFileSize:   int64(c.MaxIndexLogFileSize),
 		logger:           zap.NewNop(),
 		version:          Version,
@@ -210,16 +220,17 @@ func (i *Index) Open() error {
 	}
 
 	mmu.Lock()
-	if cms == nil {
+	if cms == nil && i.metricsEnabled {
 		cms = newCacheMetrics(i.defaultLabels)
 	}
-	if pms == nil {
+	if pms == nil && i.metricsEnabled {
 		pms = newPartitionMetrics(i.defaultLabels)
 	}
 	mmu.Unlock()
 
 	// Set the correct shared metrics on the cache
 	i.tagValueCache.tracker = newCacheTracker(cms, i.defaultLabels)
+	i.tagValueCache.tracker.enabled = i.metricsEnabled
 
 	// Initialize index partitions.
 	i.partitions = make([]*Partition, i.PartitionN)
@@ -238,6 +249,7 @@ func (i *Index) Open() error {
 		}
 		labels["index_partition"] = fmt.Sprint(j)
 		p.tracker = newPartitionTracker(pms, labels)
+		p.tracker.enabled = i.metricsEnabled
 		i.partitions[j] = p
 	}
 

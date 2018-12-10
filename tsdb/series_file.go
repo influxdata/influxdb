@@ -44,6 +44,7 @@ type SeriesFile struct {
 	// each partition decorates the same metric measurements with different
 	// partition id label values.
 	defaultMetricLabels prometheus.Labels
+	metricsEnabled      bool
 
 	refs sync.RWMutex // RWMutex to track references to the SeriesFile that are in use.
 
@@ -53,10 +54,9 @@ type SeriesFile struct {
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
 	return &SeriesFile{
-		path: path,
-		// partitionMetrics: newSeriesFileMetrics(nil),
-		// indexMetrics:     rhh.NewMetrics(namespace, seriesFileSubsystem+"_index", nil),
-		Logger: zap.NewNop(),
+		path:           path,
+		metricsEnabled: true,
+		Logger:         zap.NewNop(),
 	}
 }
 
@@ -72,6 +72,12 @@ func (f *SeriesFile) SetDefaultMetricLabels(labels prometheus.Labels) {
 	for k, v := range labels {
 		f.defaultMetricLabels[k] = v
 	}
+}
+
+// DisableMetrics ensures that activity is not collected via the prometheus metrics.
+// DisableMetrics must be called before Open.
+func (f *SeriesFile) DisableMetrics() {
+	f.metricsEnabled = false
 }
 
 // Open memory maps the data file at the file's path.
@@ -90,10 +96,10 @@ func (f *SeriesFile) Open() error {
 
 	// Initialise metrics for trackers.
 	mmu.Lock()
-	if sms == nil {
+	if sms == nil && f.metricsEnabled {
 		sms = newSeriesFileMetrics(f.defaultMetricLabels)
 	}
-	if ims == nil {
+	if ims == nil && f.metricsEnabled {
 		// Make a copy of the default labels so that another label can be provided.
 		labels := make(prometheus.Labels, len(f.defaultMetricLabels))
 		for k, v := range f.defaultMetricLabels {
@@ -122,9 +128,11 @@ func (f *SeriesFile) Open() error {
 
 		p.index.rhhMetrics = ims
 		p.index.rhhLabels = labels
+		p.index.rhhMetricsEnabled = f.metricsEnabled
 
 		// Set the metric trackers on the partition with any injected default labels.
 		p.tracker = newSeriesPartitionTracker(sms, labels)
+		p.tracker.enabled = f.metricsEnabled
 
 		if err := p.Open(); err != nil {
 			f.Close()

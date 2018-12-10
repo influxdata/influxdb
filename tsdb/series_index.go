@@ -46,8 +46,9 @@ type SeriesIndex struct {
 
 	// metrics stores a shard instance of some Prometheus metrics. metrics
 	// must be set before Open is called.
-	rhhMetrics *rhh.Metrics
-	rhhLabels  prometheus.Labels
+	rhhMetrics        *rhh.Metrics
+	rhhLabels         prometheus.Labels
+	rhhMetricsEnabled bool
 
 	data         []byte // mmap data
 	keyIDData    []byte // key/id mmap data
@@ -61,7 +62,8 @@ type SeriesIndex struct {
 
 func NewSeriesIndex(path string) *SeriesIndex {
 	return &SeriesIndex{
-		path: path,
+		path:              path,
+		rhhMetricsEnabled: true,
 	}
 }
 
@@ -95,6 +97,7 @@ func (idx *SeriesIndex) Open() (err error) {
 	options := rhh.DefaultOptions
 	options.Metrics = idx.rhhMetrics
 	options.Labels = idx.rhhLabels
+	options.MetricsEnabled = idx.rhhMetricsEnabled
 
 	idx.keyIDMap = rhh.NewHashMap(options)
 	idx.idOffsetMap = make(map[SeriesID]int64)
