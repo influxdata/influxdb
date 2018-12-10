@@ -2,10 +2,15 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 
+// Components
+import TimeMachineQueryTabName from 'src/shared/components/TimeMachineQueryTabName'
+import RightClick from 'src/clockface/components/right_click_menu/RightClick'
+
 // Actions
 import {
   setActiveQueryIndex,
   removeQuery,
+  updateActiveQueryName,
 } from 'src/shared/actions/v2/timeMachines'
 
 // Utils
@@ -15,7 +20,7 @@ import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 import 'src/shared/components/TimeMachineQueryTab.scss'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState, DashboardQuery} from 'src/types/v2'
 
 interface StateProps {
   activeQueryIndex: number
@@ -24,33 +29,75 @@ interface StateProps {
 interface DispatchProps {
   onSetActiveQueryIndex: typeof setActiveQueryIndex
   onRemoveQuery: typeof removeQuery
+  onUpdateActiveQueryName: typeof updateActiveQueryName
 }
 
 interface OwnProps {
   queryIndex: number
+  query: DashboardQuery
 }
 
 type Props = StateProps & DispatchProps & OwnProps
 
-class TimeMachineQueryTab extends PureComponent<Props> {
+interface State {
+  isEditingName: boolean
+}
+class TimeMachineQueryTab extends PureComponent<Props, State> {
+  public static getDerivedStateFromProps(props: Props): Partial<State> {
+    if (props.queryIndex !== props.activeQueryIndex) {
+      return {isEditingName: false}
+    }
+
+    return null
+  }
+
+  public state: State = {isEditingName: false}
+
   public render() {
-    const {queryIndex, activeQueryIndex} = this.props
+    const {queryIndex, activeQueryIndex, query} = this.props
+    const isActive = queryIndex === activeQueryIndex
     const activeClass = queryIndex === activeQueryIndex ? 'active' : ''
 
     return (
-      <div
-        className={`time-machine-query-tab ${activeClass}`}
-        onClick={this.handleSetActive}
-      >
-        Query {queryIndex + 1}
-        <div
-          className="time-machine-query-tab--close"
-          onClick={this.handleRemove}
-        >
-          <span className="icon remove" />
-        </div>
-      </div>
+      <RightClick>
+        <RightClick.Trigger>
+          <div
+            className={`time-machine-query-tab ${activeClass}`}
+            onClick={this.handleSetActive}
+          >
+            <TimeMachineQueryTabName
+              isActive={isActive}
+              name={query.name}
+              queryIndex={queryIndex}
+              isEditing={this.state.isEditingName}
+              onUpdate={this.handleUpdateName}
+              onEdit={this.handleEditName}
+              onCancelEdit={this.handleCancelEditName}
+            />
+            {this.removeButton}
+          </div>
+        </RightClick.Trigger>
+        <RightClick.MenuContainer>
+          <RightClick.Menu>
+            <RightClick.MenuItem onClick={this.handleEditActiveQueryName}>
+              Edit
+            </RightClick.MenuItem>
+            <RightClick.MenuItem onClick={this.handleRemove}>
+              Remove
+            </RightClick.MenuItem>
+          </RightClick.Menu>
+        </RightClick.MenuContainer>
+      </RightClick>
     )
+  }
+
+  private handleEditActiveQueryName = () => {
+    this.handleSetActive()
+    this.handleEditName()
+  }
+
+  private handleUpdateName = (queryName: string) => {
+    this.props.onUpdateActiveQueryName(queryName)
   }
 
   private handleSetActive = (): void => {
@@ -59,7 +106,30 @@ class TimeMachineQueryTab extends PureComponent<Props> {
     onSetActiveQueryIndex(queryIndex)
   }
 
-  private handleRemove = (e: MouseEvent<HTMLDivElement>): void => {
+  private handleCancelEditName = () => {
+    this.setState({isEditingName: false})
+  }
+
+  private handleEditName = (): void => {
+    this.setState({isEditingName: true})
+  }
+
+  private get removeButton(): JSX.Element {
+    if (this.state.isEditingName) {
+      return null
+    }
+
+    return (
+      <div
+        className="time-machine-query-tab--close"
+        onClick={this.handleRemove}
+      >
+        <span className="icon remove" />
+      </div>
+    )
+  }
+
+  private handleRemove = (e: MouseEvent): void => {
     const {queryIndex, onRemoveQuery} = this.props
 
     e.stopPropagation()
@@ -69,12 +139,14 @@ class TimeMachineQueryTab extends PureComponent<Props> {
 
 const mstp = (state: AppState) => {
   const {activeQueryIndex} = getActiveTimeMachine(state)
+
   return {activeQueryIndex}
 }
 
 const mdtp = {
   onSetActiveQueryIndex: setActiveQueryIndex,
   onRemoveQuery: removeQuery,
+  onUpdateActiveQueryName: updateActiveQueryName,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

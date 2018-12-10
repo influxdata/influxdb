@@ -16,17 +16,17 @@ import {TimeRange} from 'src/types/v2'
 import {
   View,
   ViewType,
-  NewView,
-  QueryViewProperties,
   DashboardQuery,
   InfluxLanguage,
   QueryEditMode,
+  QueryView,
+  QueryViewProperties,
 } from 'src/types/v2/dashboards'
 import {Action} from 'src/shared/actions/v2/timeMachines'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 
 export interface TimeMachineState {
-  view: View<QueryViewProperties> | NewView<QueryViewProperties>
+  view: QueryView
   timeRange: TimeRange
   draftQueries: DashboardQuery[]
   isViewingRawData: boolean
@@ -406,6 +406,18 @@ export const timeMachineReducer = (
 
       return {...state, draftQueries}
     }
+    case 'UPDATE_ACTIVE_QUERY_NAME': {
+      const {activeQueryIndex} = state
+      const {queryName} = action.payload
+      const draftQueries = [...state.draftQueries]
+
+      draftQueries[activeQueryIndex] = {
+        ...draftQueries[activeQueryIndex],
+        name: queryName,
+      }
+
+      return {...state, draftQueries}
+    }
   }
 
   return state
@@ -437,7 +449,7 @@ const setYAxis = (state: TimeMachineState, update: {[key: string]: any}) => {
 }
 
 const convertView = (
-  view: View<QueryViewProperties> | NewView<QueryViewProperties>,
+  view: QueryView,
   outType: ViewType
 ): View<QueryViewProperties> => {
   const newView: any = createView(outType)

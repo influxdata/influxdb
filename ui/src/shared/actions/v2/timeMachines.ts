@@ -37,6 +37,7 @@ export type Action =
   | EditActiveQueryAsInfluxQLAction
   | EditActiveQueryWithBuilderAction
   | BuildQueryAction
+  | UpdateActiveQueryNameAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -348,4 +349,16 @@ interface BuildQueryAction {
 export const buildQuery = (builderConfig: BuilderConfig): BuildQueryAction => ({
   type: 'BUILD_QUERY',
   payload: {builderConfig},
+})
+
+interface UpdateActiveQueryNameAction {
+  type: 'UPDATE_ACTIVE_QUERY_NAME'
+  payload: {queryName: string}
+}
+
+export const updateActiveQueryName = (
+  queryName: string
+): UpdateActiveQueryNameAction => ({
+  type: 'UPDATE_ACTIVE_QUERY_NAME',
+  payload: {queryName},
 })

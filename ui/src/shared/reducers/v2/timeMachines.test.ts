@@ -18,6 +18,7 @@ import {
   editActiveQueryAsInfluxQL,
   addQuery,
   removeQuery,
+  updateActiveQueryName,
 } from 'src/shared/actions/v2/timeMachines'
 
 // Utils
@@ -595,6 +596,60 @@ describe('timeMachineReducer', () => {
       expect(nextState.view.properties.queries).toEqual(queries)
       expect(nextState.draftQueries).toEqual([queries[0], queries[1]])
       expect(nextState.activeQueryIndex).toEqual(1)
+    })
+  })
+
+  describe('UPDATE_ACTIVE_QUERY_NAME', () => {
+    test('sets the name for the activeQueryIndex', () => {
+      const state = initialStateHelper()
+      state.activeQueryIndex = 1
+
+      const builderConfig = {
+        buckets: [],
+        measurements: [],
+        fields: [],
+        functions: [],
+      }
+
+      state.draftQueries = [
+        {
+          text: 'foo',
+          type: InfluxLanguage.Flux,
+          sourceID: '',
+          editMode: QueryEditMode.Advanced,
+          builderConfig,
+        },
+        {
+          text: 'bar',
+          type: InfluxLanguage.Flux,
+          sourceID: '',
+          editMode: QueryEditMode.Builder,
+          builderConfig,
+        },
+      ]
+
+      const nextState = timeMachineReducer(
+        state,
+        updateActiveQueryName('test query')
+      )
+
+      expect(nextState.draftQueries).toEqual([
+        {
+          text: 'foo',
+          type: InfluxLanguage.Flux,
+          sourceID: '',
+          editMode: QueryEditMode.Advanced,
+          builderConfig,
+        },
+        {
+          text: 'bar',
+          type: InfluxLanguage.Flux,
+          sourceID: '',
+          editMode: QueryEditMode.Builder,
+          name: 'test query',
+          builderConfig,
+        },
+      ])
     })
   })
 })

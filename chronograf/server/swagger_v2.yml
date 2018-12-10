@@ -407,6 +407,9 @@ components:
           description: Optional URI for data source for this query
         queryConfig:
           $ref: '#/components/schemas/QueryConfig'
+        name:
+          type: string
+          description: An optional word or phrase that refers to the query
     Axis:
       type: object
       description: A description of a particular axis for a visualization

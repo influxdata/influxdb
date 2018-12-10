@@ -669,6 +669,12 @@ export interface DashboardQuery {
      */
     label?: string;
     /**
+     * An optional word or phrase that refers to the query
+     * @type {string}
+     * @memberof DashboardQuery
+     */
+    name?: string;
+    /**
      * 
      * @type {string}
      * @memberof DashboardQuery

@@ -59,6 +59,7 @@ export interface DashboardQuery {
   editMode: QueryEditMode
   builderConfig: BuilderConfig
   sourceID: string // Which source to use when running the query; may be empty, which means “use the dynamic source”
+  name?: string
 }
 
 export interface URLQuery {
@@ -100,18 +101,22 @@ export interface ViewLinks {
 
 export type DygraphViewProperties = XYView | LinePlusSingleStatView
 
-export type QueryViewProperties =
+export type ViewProperties =
   | XYView
   | LinePlusSingleStatView
   | SingleStatView
   | TableView
   | GaugeView
-
-export type ViewProperties =
-  | QueryViewProperties
   | MarkdownView
   | EmptyView
   | LogViewerView
+
+export type QueryViewProperties = Extract<
+  ViewProperties,
+  {queries: DashboardQuery[]}
+>
+
+export type QueryView = View<QueryViewProperties> | NewView<QueryViewProperties>
 
 export interface EmptyView {
   type: ViewShape.Empty

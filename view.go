@@ -411,6 +411,7 @@ type DashboardQuery struct {
 	Type          string        `json:"type"`
 	SourceID      string        `json:"sourceID"`
 	EditMode      string        `json:"editMode"` // Either "builder" or "advanced"
+	Name          string        `json:"name"`     // Term or phrase that refers to the query
 	BuilderConfig BuilderConfig `json:"builderConfig"`
 }
 

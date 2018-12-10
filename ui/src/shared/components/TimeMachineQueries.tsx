@@ -1,7 +1,6 @@
 // Libraries
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
-import {range} from 'lodash'
 
 // Components
 import TimeMachineFluxEditor from 'src/shared/components/TimeMachineFluxEditor'
@@ -41,7 +40,7 @@ import {RemoteDataState} from 'src/types'
 
 interface StateProps {
   activeQuery: DashboardQuery
-  queryCount: number
+  draftQueries: DashboardQuery[]
 }
 
 interface DispatchProps {
@@ -55,7 +54,7 @@ interface OwnProps {
 type Props = StateProps & DispatchProps & OwnProps
 
 const TimeMachineQueries: SFC<Props> = props => {
-  const {activeQuery, queryStatus, queryCount, onAddQuery} = props
+  const {activeQuery, queryStatus, draftQueries, onAddQuery} = props
 
   let queryEditor
 
@@ -71,8 +70,12 @@ const TimeMachineQueries: SFC<Props> = props => {
     <div className="time-machine-queries">
       <div className="time-machine-queries--controls">
         <div className="time-machine-queries--tabs">
-          {range(queryCount).map(i => (
-            <TimeMachineQueryTab key={i} queryIndex={i} />
+          {draftQueries.map((query, queryIndex) => (
+            <TimeMachineQueryTab
+              key={queryIndex}
+              queryIndex={queryIndex}
+              query={query}
+            />
           ))}
           <Button
             customClass="time-machine-queries--new"
@@ -95,10 +98,9 @@ const TimeMachineQueries: SFC<Props> = props => {
 
 const mstp = (state: AppState) => {
   const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
-  const queryCount = draftQueries.length
   const activeQuery = getActiveQuery(state)
 
-  return {activeQuery, activeQueryIndex, queryCount}
+  return {activeQuery, activeQueryIndex, draftQueries}
 }
 
 const mdtp = {
