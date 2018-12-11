@@ -22,26 +22,31 @@ type TelegrafHandler struct {
 
 	TelegrafService            platform.TelegrafConfigStore
 	UserResourceMappingService platform.UserResourceMappingService
+	LabelService               platform.LabelService
 }
 
 const (
-	telegrafsPath            = "/api/v2/telegrafs"
-	telegrafsIDPath          = "/api/v2/telegrafs/:id"
-	telegrafsIDMembersIDPath = "/api/v2/telegrafs/:id/members/:userID"
-	telegrafsIDOwnersPath    = "/api/v2/telegrafs/:id/owners"
-	telegrafsIDOwnersIDPath  = "/api/v2/telegrafs/:id/owners/:userID"
+	telegrafsPath             = "/api/v2/telegrafs"
+	telegrafsIDPath           = "/api/v2/telegrafs/:id"
+	telegrafsIDMembersIDPath  = "/api/v2/telegrafs/:id/members/:userID"
+	telegrafsIDOwnersPath     = "/api/v2/telegrafs/:id/owners"
+	telegrafsIDOwnersIDPath   = "/api/v2/telegrafs/:id/owners/:userID"
+	telegrafsIDLabelsPath     = "/api/v2/telegrafs/:id/labels"
+	telegrafsIDLabelsNamePath = "/api/v2/telegrafs/:id/labels/:name"
 )
 
 // NewTelegrafHandler returns a new instance of TelegrafHandler.
 func NewTelegrafHandler(
 	logger *zap.Logger,
 	mappingService platform.UserResourceMappingService,
+	labelService platform.LabelService,
 	telegrafSvc platform.TelegrafConfigStore,
 ) *TelegrafHandler {
 	h := &TelegrafHandler{
 		Router: httprouter.New(),
 
 		UserResourceMappingService: mappingService,
+		LabelService:               labelService,
 		TelegrafService:            telegrafSvc,
 		Logger:                     logger,
 	}
@@ -58,6 +63,10 @@ func NewTelegrafHandler(
 	h.HandlerFunc("POST", telegrafsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.TelegrafResourceType, platform.Owner))
 	h.HandlerFunc("GET", telegrafsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
 	h.HandlerFunc("DELETE", telegrafsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+
+	h.HandlerFunc("GET", telegrafsIDLabelsPath, newGetLabelsHandler(h.LabelService))
+	h.HandlerFunc("POST", telegrafsIDLabelsPath, newPostLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", telegrafsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }

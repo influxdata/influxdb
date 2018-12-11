@@ -116,6 +116,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.TelegrafHandler = NewTelegrafHandler(
 		b.Logger.With(zap.String("handler", "telegraf")),
 		b.UserResourceMappingService,
+		b.LabelService,
 		b.TelegrafService,
 	)
 

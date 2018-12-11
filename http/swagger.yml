@@ -191,6 +191,112 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/telegrafs/{telegrafID}/labels':
+    get:
+      tags:
+        - Telegrafs
+      summary: list all labels for a telegraf config
+      parameters:
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+      responses:
+        '200':
+          description: a list of all labels for a telegraf config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    type: array
+                    items:
+                      type: string
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Telegrafs
+      summary: add a label to a telegraf config
+      parameters:
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+      responses:
+        '200':
+          description: a list of all labels for a telegraf config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    type: array
+                    items:
+                      type: string
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/telegrafs/{telegrafID}/labels/{label}':
+    delete:
+      tags:
+        - Telegrafs
+      summary: delete a label from a telegraf config
+      parameters:
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+        - in: path
+          name: label
+          schema:
+            type: string
+          required: true
+          description: the label name
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: telegraf config not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}/members':
     get:
       tags:
