@@ -27,6 +27,7 @@ interface Props {
   notify: NotificationAction
   onTabClick: (tabID: string) => void
   currentStepIndex: number
+  handleNewSourceClick: () => void
 }
 
 const configStateToTabStatus = (cs: ConfigurationState): TabStatus => {
@@ -70,6 +71,7 @@ class OnboardingSideBar extends Component<Props> {
   }
 
   private get buttons(): JSX.Element[] {
+    const {handleNewSourceClick} = this.props
     return [
       <SideBar.Button
         key="Download Config File"
@@ -85,6 +87,7 @@ class OnboardingSideBar extends Component<Props> {
         titleText="Add New Source"
         color={ComponentColor.Default}
         icon={IconFont.Plus}
+        onClick={handleNewSourceClick}
       />,
     ]
   }
