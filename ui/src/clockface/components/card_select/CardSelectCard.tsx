@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, StatelessComponent} from 'react'
 import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import ProtoboardIcon from 'src/clockface/components/card_select/ProtoboardIcon'
@@ -8,7 +8,7 @@ interface Props {
   id: string
   name?: string
   label: string
-  image?: string
+  image?: StatelessComponent
   checked?: boolean
   disabled?: boolean
   onClick: () => void
@@ -23,7 +23,6 @@ class CardSelectCard extends PureComponent<Props> {
 
   public render() {
     const {id, label, checked, name, disabled} = this.props
-
     return (
       <div
         data-toggle="card_toggle"
@@ -60,11 +59,11 @@ class CardSelectCard extends PureComponent<Props> {
     )
   }
 
-  private get cardImage() {
+  private get cardImage(): JSX.Element {
     const {image, label} = this.props
 
     if (image) {
-      return <img src={image} alt={`${label} icon`} />
+      return React.createElement(image)
     }
 
     return <ProtoboardIcon displayText={label} />

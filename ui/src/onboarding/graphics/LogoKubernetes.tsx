@@ -1,16 +1,11 @@
 // Libraries
 import React, {SFC} from 'react'
 
-interface Props {
-  width?: number
-  height?: number
-}
-
-const LogoKubernetes: SFC<Props> = ({height, width}) => {
+const LogoKubernetes: SFC = () => {
   return (
     <svg
-      width={width}
-      height={height}
+      width="100%"
+      height="100%"
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 100 97.03"
     >

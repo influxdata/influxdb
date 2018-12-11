@@ -5,6 +5,7 @@ import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import {GridSizer} from 'src/clockface'
+import {IconCSV, IconLineProtocol, IconStreaming} from 'src/onboarding/graphics'
 
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
@@ -20,12 +21,18 @@ const DATA_SOURCES_OPTIONS = [
   DataLoaderType.LineProtocol,
 ]
 
+const DATA_SOURCES_LOGOS = {
+  [DataLoaderType.CSV]: IconCSV,
+  [DataLoaderType.Streaming]: IconStreaming,
+  [DataLoaderType.LineProtocol]: IconLineProtocol,
+}
+
 @ErrorHandling
 class TypeSelector extends PureComponent<Props> {
   public render() {
     return (
       <div className="wizard-step--grid-container">
-        <GridSizer>
+        <GridSizer cellWidth={200}>
           {DATA_SOURCES_OPTIONS.map(ds => {
             return (
               <CardSelectCard
@@ -35,6 +42,7 @@ class TypeSelector extends PureComponent<Props> {
                 label={ds}
                 checked={this.isCardChecked(ds)}
                 onClick={this.handleClick(ds)}
+                image={DATA_SOURCES_LOGOS[ds]}
               />
             )
           })}

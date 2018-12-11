@@ -57,10 +57,7 @@ exports[`Card Select Card with image matches snapshot when provided image source
     <div
       className="card-select--image"
     >
-      <img
-        alt="Card Label icon"
-        src="URL"
-      />
+      <MockChild />
     </div>
     <span
       className="card-select--label"

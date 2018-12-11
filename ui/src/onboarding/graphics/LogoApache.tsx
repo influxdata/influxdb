@@ -1,14 +1,9 @@
 // Libraries
 import React, {SFC} from 'react'
 
-interface Props {
-  width?: number
-  height?: number
-}
-
-const LogoApache: SFC<Props> = ({height, width}) => {
+const LogoApache: SFC = () => {
   return (
-    <svg width={width} height={height} viewBox="0 0 49.92 100">
+    <svg width="100%" height="100%" viewBox="0 0 49.92 100">
       <defs>
         <linearGradient
           id="apache_c"
