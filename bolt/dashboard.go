@@ -3,7 +3,6 @@ package bolt
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -51,26 +50,37 @@ func (c *Client) FindDashboardByID(ctx context.Context, id platform.ID) (*platfo
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Op:  getOp(platform.OpFindDashboardByID),
+			Err: err,
+		}
 	}
 
 	return d, nil
 }
 
-func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Dashboard, error) {
+func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Dashboard, *platform.Error) {
 	encodedID, err := id.Encode()
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	v := tx.Bucket(dashboardBucket).Get(encodedID)
 	if len(v) == 0 {
-		return nil, platform.ErrDashboardNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  platform.ErrDashboardNotFound,
+		}
+
 	}
 
 	var d platform.Dashboard
 	if err := json.Unmarshal(v, &d); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	return &d, nil
@@ -99,7 +109,10 @@ func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFil
 	}
 
 	if d == nil {
-		return nil, platform.ErrDashboardNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  platform.ErrDashboardNotFound,
+		}
 	}
 
 	return d, nil
@@ -122,19 +135,23 @@ func filterDashboardsFn(filter platform.DashboardFilter) func(d *platform.Dashbo
 
 // FindDashboards retrives all dashboards that match an arbitrary dashboard filter.
 func (c *Client) FindDashboards(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
+	ds := []*platform.Dashboard{}
 	if len(filter.IDs) == 1 {
 		d, err := c.FindDashboardByID(ctx, *filter.IDs[0])
-		if err != nil {
-			return nil, 0, err
+		if err != nil && platform.ErrorCode(err) != platform.ENotFound {
+			return ds, 0, &platform.Error{
+				Err: err,
+				Op:  getOp(platform.OpFindDashboardByID),
+			}
 		}
-
+		if d == nil {
+			return ds, 0, nil
+		}
 		return []*platform.Dashboard{d}, 1, nil
 	}
-
-	ds := []*platform.Dashboard{}
 	err := c.db.View(func(tx *bolt.Tx) error {
 		dashs, err := c.findDashboards(ctx, tx, filter)
-		if err != nil {
+		if err != nil && platform.ErrorCode(err) != platform.ENotFound {
 			return err
 		}
 		ds = dashs
@@ -142,7 +159,10 @@ func (c *Client) FindDashboards(ctx context.Context, filter platform.DashboardFi
 	})
 
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpFindDashboards),
+		}
 	}
 
 	platform.SortDashboards(opts.SortBy, ds)
@@ -170,7 +190,7 @@ func (c *Client) findDashboards(ctx context.Context, tx *bolt.Tx, filter platfor
 
 // CreateDashboard creates a platform dashboard and sets d.ID.
 func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) error {
-	return c.db.Update(func(tx *bolt.Tx) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
 		d.ID = c.IDGenerator.ID()
 
 		for _, cell := range d.Cells {
@@ -190,6 +210,13 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 
 		return c.putDashboardWithMeta(ctx, tx, d)
 	})
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpCreateDashboard),
+		}
+	}
+	return nil
 }
 
 func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
@@ -226,7 +253,7 @@ func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *p
 
 // ReplaceDashboardCells updates the positions of each cell in a dashboard concurrently.
 func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs []*platform.Cell) error {
-	return c.db.Update(func(tx *bolt.Tx) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
 		d, err := c.findDashboardByID(ctx, tx, id)
 		if err != nil {
 			return err
@@ -239,16 +266,25 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 
 		for _, cell := range cs {
 			if !cell.ID.Valid() {
-				return fmt.Errorf("cannot provide empty cell id")
+				return &platform.Error{
+					Code: platform.EInvalid,
+					Msg:  "cannot provide empty cell id",
+				}
 			}
 
 			cl, ok := ids[cell.ID.String()]
 			if !ok {
-				return fmt.Errorf("cannot replace cells that were not already present")
+				return &platform.Error{
+					Code: platform.EConflict,
+					Msg:  "cannot replace cells that were not already present",
+				}
 			}
 
 			if cl.ViewID != cell.ViewID {
-				return fmt.Errorf("cannot update view id in replace")
+				return &platform.Error{
+					Code: platform.EInvalid,
+					Msg:  "cannot update view id in replace",
+				}
 			}
 		}
 
@@ -259,11 +295,18 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 
 		return c.putDashboardWithMeta(ctx, tx, d)
 	})
+	if err != nil {
+		return &platform.Error{
+			Op:  getOp(platform.OpReplaceDashboardCells),
+			Err: err,
+		}
+	}
+	return nil
 }
 
 // AddDashboardCell adds a cell to a dashboard and sets the cells ID.
 func (c *Client) AddDashboardCell(ctx context.Context, id platform.ID, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
-	return c.db.Update(func(tx *bolt.Tx) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
 		d, err := c.findDashboardByID(ctx, tx, id)
 		if err != nil {
 			return err
@@ -281,14 +324,25 @@ func (c *Client) AddDashboardCell(ctx context.Context, id platform.ID, cell *pla
 
 		return c.putDashboardWithMeta(ctx, tx, d)
 	})
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpAddDashboardCell),
+		}
+	}
+	return nil
 }
 
 // RemoveDashboardCell removes a cell from a dashboard.
 func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID, cellID platform.ID) error {
+	op := getOp(platform.OpRemoveDashboardCell)
 	return c.db.Update(func(tx *bolt.Tx) error {
 		d, err := c.findDashboardByID(ctx, tx, dashboardID)
 		if err != nil {
-			return err
+			return &platform.Error{
+				Err: err,
+				Op:  op,
+			}
 		}
 
 		idx := -1
@@ -299,27 +353,47 @@ func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID, cellID pl
 			}
 		}
 		if idx == -1 {
-			return platform.ErrCellNotFound
+			return &platform.Error{
+				Code: platform.ENotFound,
+				Op:   op,
+				Msg:  platform.ErrCellNotFound,
+			}
 		}
 
 		if err := c.deleteView(ctx, tx, d.Cells[idx].ViewID); err != nil {
-			return err
+			return &platform.Error{
+				Err: err,
+				Op:  op,
+			}
 		}
 
 		d.Cells = append(d.Cells[:idx], d.Cells[idx+1:]...)
 
 		if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardCellRemovedEvent); err != nil {
-			return err
+			return &platform.Error{
+				Err: err,
+				Op:  op,
+			}
 		}
 
-		return c.putDashboardWithMeta(ctx, tx, d)
+		if err := c.putDashboardWithMeta(ctx, tx, d); err != nil {
+			return &platform.Error{
+				Err: err,
+				Op:  op,
+			}
+		}
+		return nil
 	})
 }
 
 // UpdateDashboardCell udpates a cell on a dashboard.
 func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+	op := getOp(platform.OpUpdateDashboardCell)
 	if err := upd.Valid(); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+			Op:  op,
+		}
 	}
 
 	var cell *platform.Cell
@@ -337,7 +411,11 @@ func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID pl
 			}
 		}
 		if idx == -1 {
-			return platform.ErrCellNotFound
+			return &platform.Error{
+				Code: platform.ENotFound,
+				Op:   op,
+				Msg:  platform.ErrCellNotFound,
+			}
 		}
 
 		if err := upd.Apply(d.Cells[idx]); err != nil {
@@ -354,7 +432,10 @@ func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID pl
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+			Op:  op,
+		}
 	}
 
 	return cell, nil
@@ -420,6 +501,12 @@ func (c *Client) UpdateDashboard(ctx context.Context, id platform.ID, upd platfo
 
 		return nil
 	})
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpUpdateDashboard),
+		}
+	}
 
 	return d, err
 }
@@ -448,38 +535,58 @@ func (c *Client) updateDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 // DeleteDashboard deletes a dashboard and prunes it from the index.
 func (c *Client) DeleteDashboard(ctx context.Context, id platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.deleteDashboard(ctx, tx, id)
+		if pe := c.deleteDashboard(ctx, tx, id); pe != nil {
+			return &platform.Error{
+				Err: pe,
+				Op:  getOp(platform.OpDeleteDashboard),
+			}
+		}
+		return nil
 	})
 }
 
-func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
-	d, err := c.findDashboardByID(ctx, tx, id)
-	if err != nil {
-		return err
+func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.ID) *platform.Error {
+	d, pe := c.findDashboardByID(ctx, tx, id)
+	if pe != nil {
+		return pe
 	}
 	for _, cell := range d.Cells {
 		if err := c.deleteView(ctx, tx, cell.ViewID); err != nil {
-			return err
+			return &platform.Error{
+				Err: err,
+			}
 		}
 	}
 	encodedID, err := id.Encode()
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 	if err := tx.Bucket(dashboardBucket).Delete(encodedID); err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 
 	err = c.deleteLabels(ctx, tx, platform.LabelFilter{ResourceID: id})
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 
 	// TODO(desa): add DeleteKeyValueLog method and use it here.
-	return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+	err = c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
 		ResourceID:   id,
 		ResourceType: platform.DashboardResourceType,
 	})
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+	return nil
 }
 
 const dashboardOperationLogKeyPrefix = "dashboard"

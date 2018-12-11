@@ -3,7 +3,6 @@ package testing
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -24,10 +23,10 @@ func idPtr(id platform.ID) *platform.ID {
 }
 
 var dashboardCmpOptions = cmp.Options{
+	cmpopts.EquateEmpty(),
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmpopts.EquateEmpty(),
 }
 
 // DashboardFields will include the IDGenerator, and dashboards
@@ -40,11 +39,11 @@ type DashboardFields struct {
 
 // DashboardService tests all the service functions.
 func DashboardService(
-	init func(DashboardFields, *testing.T) (platform.DashboardService, func()), t *testing.T,
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()), t *testing.T,
 ) {
 	tests := []struct {
 		name string
-		fn   func(init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+		fn   func(init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
 			t *testing.T)
 	}{
 		{
@@ -62,6 +61,10 @@ func DashboardService(
 		{
 			name: "UpdateDashboard",
 			fn:   UpdateDashboard,
+		},
+		{
+			name: "DeleteDashboard",
+			fn:   DeleteDashboard,
 		},
 		{
 			name: "AddDashboardCell",
@@ -89,7 +92,7 @@ func DashboardService(
 
 // CreateDashboard testing
 func CreateDashboard(
-	init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -187,19 +190,12 @@ func CreateDashboard(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.CreateDashboard(ctx, tt.args.dashboard)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
 			defer s.DeleteDashboard(ctx, tt.args.dashboard.ID)
 
 			dashboards, _, err := s.FindDashboards(ctx, platform.DashboardFilter{}, platform.DefaultDashboardFindOptions)
@@ -215,7 +211,7 @@ func CreateDashboard(
 
 // AddDashboardCell testing
 func AddDashboardCell(
-	init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -328,23 +324,59 @@ func AddDashboardCell(
 				},
 			},
 		},
+		{
+			name: "add cell with id not exist",
+			fields: DashboardFields{
+				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return MustIDBase16(dashTwoID)
+					},
+				},
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+					},
+				},
+				Views: []*platform.View{
+					{
+						ViewContents: platform.ViewContents{
+							ID: MustIDBase16(dashTwoID),
+						},
+					},
+				},
+			},
+			args: args{
+				dashboardID: MustIDBase16(threeID),
+				cell: &platform.Cell{
+					ViewID: MustIDBase16(dashTwoID),
+				},
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpAddDashboardCell,
+					Msg:  platform.ErrDashboardNotFound,
+				},
+				dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.AddDashboardCell(ctx, tt.args.dashboardID, tt.args.cell, platform.AddDashboardCellOptions{})
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
 			defer s.DeleteDashboard(ctx, tt.args.dashboardID)
 
 			dashboards, _, err := s.FindDashboards(ctx, platform.DashboardFilter{}, platform.DefaultDashboardFindOptions)
@@ -360,7 +392,7 @@ func AddDashboardCell(
 
 // FindDashboardByID testing
 func FindDashboardByID(
-	init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -401,24 +433,41 @@ func FindDashboardByID(
 				},
 			},
 		},
+		{
+			name: "find dashboard by id not exists",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+					},
+					{
+						ID:   MustIDBase16(dashTwoID),
+						Name: "dashboard2",
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(threeID),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindDashboardByID,
+					Msg:  platform.ErrDashboardNotFound,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
 			dashboard, err := s.FindDashboardByID(ctx, tt.args.id)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(dashboard, tt.wants.dashboard, dashboardCmpOptions...); diff != "" {
 				t.Errorf("dashboard is different -got/+want\ndiff %s", diff)
@@ -429,7 +478,7 @@ func FindDashboardByID(
 
 // FindDashboards testing
 func FindDashboards(
-	init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -628,11 +677,35 @@ func FindDashboards(
 				},
 			},
 		},
+		{
+			name: "find multiple dashboards by id not exists",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(dashTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				IDs: []*platform.ID{
+					idPtr(MustIDBase16(threeID)),
+				},
+				findOptions: platform.DefaultDashboardFindOptions,
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -642,15 +715,7 @@ func FindDashboards(
 			}
 
 			dashboards, _, err := s.FindDashboards(ctx, filter, tt.args.findOptions)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(dashboards, tt.wants.dashboards, dashboardCmpOptions...); diff != "" {
 				t.Errorf("dashboards are different -got/+want\ndiff %s", diff)
@@ -661,7 +726,7 @@ func FindDashboards(
 
 // DeleteDashboard testing
 func DeleteDashboard(
-	init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -722,7 +787,11 @@ func DeleteDashboard(
 				ID: MustIDBase16(dashThreeID),
 			},
 			wants: wants{
-				err: fmt.Errorf("dashboard not found"),
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpDeleteDashboard,
+					Msg:  platform.ErrDashboardNotFound,
+				},
 				dashboards: []*platform.Dashboard{
 					{
 						Name: "A",
@@ -739,19 +808,11 @@ func DeleteDashboard(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteDashboard(ctx, tt.args.ID)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			filter := platform.DashboardFilter{}
 			dashboards, _, err := s.FindDashboards(ctx, filter, platform.DefaultDashboardFindOptions)
@@ -767,7 +828,7 @@ func DeleteDashboard(
 
 // UpdateDashboard testing
 func UpdateDashboard(
-	init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -876,11 +937,39 @@ func UpdateDashboard(
 				},
 			},
 		},
+		{
+			name: "update with id not exist",
+			fields: DashboardFields{
+				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+					},
+					{
+						ID:   MustIDBase16(dashTwoID),
+						Name: "dashboard2",
+					},
+				},
+			},
+			args: args{
+				id:          MustIDBase16(threeID),
+				description: "changed",
+				name:        "changed",
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpUpdateDashboard,
+					Msg:  platform.ErrDashboardNotFound,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -893,15 +982,7 @@ func UpdateDashboard(
 			}
 
 			dashboard, err := s.UpdateDashboard(ctx, tt.args.id, upd)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(dashboard, tt.wants.dashboard, dashboardCmpOptions...); diff != "" {
 				t.Errorf("dashboard is different -got/+want\ndiff %s", diff)
@@ -912,7 +993,7 @@ func UpdateDashboard(
 
 // RemoveDashboardCell testing
 func RemoveDashboardCell(
-	init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -989,19 +1070,12 @@ func RemoveDashboardCell(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.RemoveDashboardCell(ctx, tt.args.dashboardID, tt.args.cellID)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
 			defer s.DeleteDashboard(ctx, tt.args.dashboardID)
 
 			dashboards, _, err := s.FindDashboards(ctx, platform.DashboardFilter{}, platform.DefaultDashboardFindOptions)
@@ -1017,7 +1091,7 @@ func RemoveDashboardCell(
 
 // UpdateDashboardCell testing
 func UpdateDashboardCell(
-	init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -1094,7 +1168,7 @@ func UpdateDashboardCell(
 			},
 		},
 		{
-			name: "invalid cell update",
+			name: "invalid cell update without attribute",
 			fields: DashboardFields{
 				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 				IDGenerator: &mock.IDGenerator{
@@ -1141,26 +1215,80 @@ func UpdateDashboardCell(
 						},
 					},
 				},
-				err: fmt.Errorf("must update at least one attribute"),
+				err: &platform.Error{
+					Code: platform.EInvalid,
+					Op:   platform.OpUpdateDashboardCell,
+					Msg:  "must update at least one attribute",
+				},
+			},
+		},
+		{
+			name: "invalid cell update cell id not exist",
+			fields: DashboardFields{
+				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return MustIDBase16(dashTwoID)
+					},
+				},
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID:     MustIDBase16(dashTwoID),
+								ViewID: MustIDBase16(dashTwoID),
+							},
+							{
+								ID:     MustIDBase16(dashOneID),
+								ViewID: MustIDBase16(dashOneID),
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				dashboardID: MustIDBase16(dashOneID),
+				cellID:      MustIDBase16(fourID),
+				cellUpdate: platform.CellUpdate{
+					ViewID: MustIDBase16(threeID),
+				},
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:   MustIDBase16(dashOneID),
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID:     MustIDBase16(dashTwoID),
+								ViewID: MustIDBase16(dashTwoID),
+							},
+							{
+								ID:     MustIDBase16(dashOneID),
+								ViewID: MustIDBase16(dashOneID),
+							},
+						},
+					},
+				},
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpUpdateDashboardCell,
+					Msg:  platform.ErrCellNotFound,
+				},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			_, err := s.UpdateDashboardCell(ctx, tt.args.dashboardID, tt.args.cellID, tt.args.cellUpdate)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
 			defer s.DeleteDashboard(ctx, tt.args.dashboardID)
 
 			dashboards, _, err := s.FindDashboards(ctx, platform.DashboardFilter{}, platform.DefaultDashboardFindOptions)
@@ -1176,7 +1304,7 @@ func UpdateDashboardCell(
 
 // ReplaceDashboardCells testing
 func ReplaceDashboardCells(
-	init func(DashboardFields, *testing.T) (platform.DashboardService, func()),
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -1316,7 +1444,11 @@ func ReplaceDashboardCells(
 				},
 			},
 			wants: wants{
-				err: fmt.Errorf("cannot replace cells that were not already present"),
+				err: &platform.Error{
+					Code: platform.EConflict,
+					Op:   platform.OpReplaceDashboardCells,
+					Msg:  "cannot replace cells that were not already present",
+				},
 				dashboards: []*platform.Dashboard{
 					{
 						ID:   MustIDBase16(dashOneID),
@@ -1376,7 +1508,11 @@ func ReplaceDashboardCells(
 				},
 			},
 			wants: wants{
-				err: fmt.Errorf("cannot update view id in replace"),
+				err: &platform.Error{
+					Code: platform.EInvalid,
+					Op:   platform.OpReplaceDashboardCells,
+					Msg:  "cannot update view id in replace",
+				},
 				dashboards: []*platform.Dashboard{
 					{
 						ID:   MustIDBase16(dashOneID),
@@ -1395,19 +1531,12 @@ func ReplaceDashboardCells(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.ReplaceDashboardCells(ctx, tt.args.dashboardID, tt.args.cells)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
 			defer s.DeleteDashboard(ctx, tt.args.dashboardID)
 
 			dashboards, _, err := s.FindDashboards(ctx, platform.DashboardFilter{}, platform.DefaultDashboardFindOptions)
