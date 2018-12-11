@@ -2790,6 +2790,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Organizations
+      summary: Delete an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of organization to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/labels':
     get:
       tags:
