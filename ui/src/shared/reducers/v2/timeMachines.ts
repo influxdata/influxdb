@@ -260,13 +260,31 @@ export const timeMachineReducer = (
     case 'SET_PREFIX': {
       const {prefix} = action.payload
 
-      return setYAxis(state, {prefix})
+      switch (state.view.properties.type) {
+        case ViewType.Gauge:
+        case ViewType.SingleStat:
+          return setViewProperties(state, {prefix})
+        case ViewType.XY:
+        case ViewType.LinePlusSingleStat:
+          return setYAxis(state, {prefix})
+        default:
+          return state
+      }
     }
 
     case 'SET_SUFFIX': {
       const {suffix} = action.payload
 
-      return setYAxis(state, {suffix})
+      switch (state.view.properties.type) {
+        case ViewType.Gauge:
+        case ViewType.SingleStat:
+          return setViewProperties(state, {suffix})
+        case ViewType.XY:
+        case ViewType.LinePlusSingleStat:
+          return setYAxis(state, {suffix})
+        default:
+          return state
+      }
     }
 
     case 'SET_COLORS': {
