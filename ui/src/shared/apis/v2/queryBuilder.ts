@@ -6,17 +6,18 @@ import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/v2/query'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Types
-import {SourceType, InfluxLanguage} from 'src/types/v2'
+import {InfluxLanguage} from 'src/types/v2'
+import {Source} from 'src/api'
 
 export const SEARCH_DURATION = '30d'
 export const LIMIT = 200
 
 export async function findBuckets(
   url: string,
-  sourceType: SourceType,
+  sourceType: Source.TypeEnum,
   searchTerm?: string
 ) {
-  if (sourceType === SourceType.V1) {
+  if (sourceType === Source.TypeEnum.V1) {
     throw new Error('metaqueries not yet implemented for SourceType.V1')
   }
 
@@ -28,11 +29,11 @@ export async function findBuckets(
 
 export async function findMeasurements(
   url: string,
-  sourceType: SourceType,
+  sourceType: Source.TypeEnum,
   bucket: string,
   searchTerm: string = ''
 ): Promise<string[]> {
-  if (sourceType === SourceType.V1) {
+  if (sourceType === Source.TypeEnum.V1) {
     throw new Error('metaqueries not yet implemented for SourceType.V1')
   }
 
@@ -44,12 +45,12 @@ export async function findMeasurements(
 
 export async function findFields(
   url: string,
-  sourceType: SourceType,
+  sourceType: Source.TypeEnum,
   bucket: string,
   measurements: string[],
   searchTerm: string = ''
 ): Promise<string[]> {
-  if (sourceType === SourceType.V1) {
+  if (sourceType === Source.TypeEnum.V1) {
     throw new Error('metaqueries not yet implemented for SourceType.V1')
   }
 

@@ -295,10 +295,7 @@ class LogsPage extends Component<Props, State> {
 
   private setCurrentSource = async () => {
     if (!this.props.currentSource && this.props.sources.length > 0) {
-      const source =
-        this.props.sources.find(src => {
-          return src.default
-        }) || this.props.sources[0]
+      const source = this.props.sources[0]
 
       return await this.props.getSourceAndPopulateBuckets(source.links.self)
     }

@@ -1,4 +1,4 @@
-import {Source, SourceType} from 'src/types/v2/sources'
+import {SourceType} from 'src/types/v2/sources'
 import {Bucket, RetentionRule, RetentionRuleTypes} from 'src/types/v2/buckets'
 import {RangeState} from 'src/dashboards/reducers/v2/ranges'
 import {ViewsState} from 'src/dashboards/reducers/v2/views'
@@ -17,7 +17,7 @@ import {
   InfluxLanguage,
 } from 'src/types/v2/dashboards'
 
-import {Cell, Dashboard} from 'src/api'
+import {Cell, Dashboard, Source} from 'src/api'
 import {Task} from 'src/types/v2/tasks'
 import {Member} from 'src/types/v2/members'
 import {Organization} from 'src/types/v2/orgs'
