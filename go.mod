@@ -5,7 +5,6 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/DataDog/datadog-go v0.0.0-20180822151419-281ae9f2d895 // indirect
 	github.com/Jeffail/gabs v1.1.1 // indirect
-	github.com/Masterminds/semver v1.4.2 // indirect
 	github.com/Microsoft/go-winio v0.4.11 // indirect
 	github.com/NYTimes/gziphandler v1.0.1
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
@@ -55,7 +54,7 @@ require (
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 // indirect
-	github.com/goreleaser/goreleaser v0.91.1
+	github.com/goreleaser/goreleaser v0.94.0
 	github.com/goreleaser/nfpm v0.9.7 // indirect
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/hashicorp/consul v1.4.0 // indirect
@@ -76,8 +75,7 @@ require (
 	github.com/hashicorp/vault-plugin-secrets-kv v0.0.0-20181106190520-2236f141171e // indirect
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/influxdata/flux v0.7.2
+	github.com/influxdata/flux v0.8.0
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jefferai/jsonx v0.0.0-20160721235117-9cc31c3135ee // indirect
@@ -89,12 +87,12 @@ require (
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
 	github.com/keybase/go-crypto v0.0.0-20181031135447-f919bfda4fc1 // indirect
+	github.com/mattn/go-colorable v0.0.9 // indirect
 	github.com/mattn/go-isatty v0.0.4
 	github.com/mattn/go-zglob v0.0.0-20180803001819-2ea3427bfa53 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/miekg/dns v1.0.15 // indirect
 	github.com/mitchellh/copystructure v1.0.0 // indirect
-	github.com/mitchellh/go-homedir v1.0.0 // indirect
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/mna/pigeon v1.0.1-0.20180808201053-bb0192cfc2ae
@@ -123,7 +121,6 @@ require (
 	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d // indirect
 	github.com/smartystreets/goconvey v0.0.0-20180222194500-ef6db91d284a // indirect
 	github.com/spf13/cobra v0.0.3
-	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/spf13/viper v1.2.1
 	github.com/stevvooe/resumable v0.0.0-20180830230917-22b14a53ba50 // indirect
 	github.com/tcnksm/go-input v0.0.0-20180404061846-548a7d7a8ee8
@@ -133,13 +130,15 @@ require (
 	github.com/tylerb/graceful v1.2.15
 	github.com/willf/bitset v1.1.9 // indirect
 	go.uber.org/zap v1.9.1
-	golang.org/x/crypto v0.0.0-20181015023909-0c41d7ab0a0e
+	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
 	golang.org/x/net v0.0.0-20181023162649-9b4f9f5ad519
 	golang.org/x/oauth2 v0.0.0-20181017192945-9dcd33a902f4
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
-	golang.org/x/sys v0.0.0-20181023152157-44b849a8bc13
+	golang.org/x/sys v0.0.0-20181205085412-a5c9d58dba9a
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
+	golang.org/x/tools v0.0.0-20181121193951-91f80e683c10 // indirect
 	google.golang.org/api v0.0.0-20181021000519-a2651947f503
+	google.golang.org/appengine v1.2.0 // indirect
 	google.golang.org/genproto v0.0.0-20181016170114-94acd270e44e // indirect
 	google.golang.org/grpc v1.15.0
 	gopkg.in/asn1-ber.v1 v1.0.0-20170511165959-379148ca0225 // indirect
