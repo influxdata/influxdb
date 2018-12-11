@@ -233,6 +233,11 @@ func newScannerCursor(s IteratorScanner, fields []*influxql.Field, opt IteratorO
 
 func (s *scannerCursor) scan(m map[string]interface{}) (int64, string, Tags) {
 	ts, name, tags := s.scanner.Peek()
+	// replace m if series.Name or tags changed
+	if name != s.series.Name || tags.ID() != s.series.Tags.ID() {
+		s.m = make(map[string]interface{})
+		m = s.m
+	}
 	if ts == ZeroTime {
 		return ts, name, tags
 	}
@@ -301,6 +306,12 @@ func (cur *multiScannerCursor) scan(m map[string]interface{}) (ts int64, name st
 
 	if ts == ZeroTime {
 		return ts, name, tags
+	}
+
+	// replace m if series.Name or tags changed
+	if name != cur.series.Name || tags.ID() != cur.series.Tags.ID() {
+		cur.m = make(map[string]interface{})
+		m = cur.m
 	}
 
 	for _, s := range cur.scanners {
