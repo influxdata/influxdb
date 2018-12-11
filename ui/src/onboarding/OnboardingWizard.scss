@@ -12,8 +12,7 @@
   margin: $ix-marg-d;
   margin-top: $ix-marg-a;
   flex-grow: 1;
-  width: 80%;
-  max-width: 1000px;
+  width: 100%;
 }
 
 .wizard-step--container {
@@ -26,6 +25,7 @@
   text-align: center;
   background-color: $g3-castle;
   border-radius: $radius;
+  padding: 20px;
   flex: 1 0 100%;
   transition: flex 0.4s ease;
   transform: translate3d(0, 0, 0);
@@ -200,14 +200,8 @@
   text-align: center;
 }
 
-.wizard-step--grid-container-lg {
-  max-width: 750px;
-  display: block;
-  margin: 0 auto;
-}
-
-.wizard-step--grid-container-sm {
-  max-width: 500px;
+.wizard-step--grid-container {
+  width: 90%;
   display: block;
   margin: 0 auto;
 }

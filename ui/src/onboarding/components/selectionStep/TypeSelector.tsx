@@ -4,7 +4,7 @@ import React, {PureComponent} from 'react'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
-import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
+import {GridSizer} from 'src/clockface'
 
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
@@ -21,10 +21,10 @@ const DATA_SOURCES_OPTIONS = [
 ]
 
 @ErrorHandling
-class DataSourceTypeSelector extends PureComponent<Props> {
+class TypeSelector extends PureComponent<Props> {
   public render() {
     return (
-      <div className="wizard-step--grid-container-sm">
+      <div className="wizard-step--grid-container">
         <GridSizer>
           {DATA_SOURCES_OPTIONS.map(ds => {
             return (
@@ -54,4 +54,4 @@ class DataSourceTypeSelector extends PureComponent<Props> {
   }
 }
 
-export default DataSourceTypeSelector
+export default TypeSelector
