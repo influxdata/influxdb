@@ -11,7 +11,7 @@ import {
   ComponentSize,
   ComponentStatus,
 } from 'src/clockface'
-import DataSourceTypeSelector from 'src/onboarding/components/selectionStep/TypeSelector'
+import TypeSelector from 'src/onboarding/components/selectionStep/TypeSelector'
 import StreamingDataSourceSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
 
 // Actions
@@ -107,7 +107,7 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
       )
     }
     return (
-      <DataSourceTypeSelector
+      <TypeSelector
         onSelectTelegrafPlugin={this.handleSelectTelegrafPlugin}
         type={this.props.type}
       />
