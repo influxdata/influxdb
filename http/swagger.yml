@@ -2512,6 +2512,112 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/labels':
+    get:
+      tags:
+        - Organizations
+      summary: list all labels for a organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      responses:
+        '200':
+          description: a list of all labels for an organization
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    type: array
+                    items:
+                      type: string
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Organizations
+      summary: add a label to an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+      responses:
+        '200':
+          description: a list of all labels for an organization
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    type: array
+                    items:
+                      type: string
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/labels/{label}':
+    delete:
+      tags:
+        - Organizations
+      summary: delete a label from an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+        - in: path
+          name: label
+          schema:
+            type: string
+          required: true
+          description: the label name
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/secrets':
     get:
       tags:

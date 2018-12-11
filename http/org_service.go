@@ -23,6 +23,7 @@ type OrgHandler struct {
 	BucketService                   platform.BucketService
 	UserResourceMappingService      platform.UserResourceMappingService
 	SecretService                   platform.SecretService
+	LabelService                    platform.LabelService
 }
 
 const (
@@ -36,13 +37,17 @@ const (
 	organizationsIDSecretsPath   = "/api/v2/orgs/:id/secrets"
 	// TODO(desa): need a way to specify which secrets to delete. this should work for now
 	organizationsIDSecretsDeletePath = "/api/v2/orgs/:id/secrets/delete"
+	organizationsIDLabelsPath        = "/api/v2/orgs/:id/labels"
+	organizationsIDLabelsNamePath    = "/api/v2/orgs/:id/labels/:name"
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.
-func NewOrgHandler(mappingService platform.UserResourceMappingService) *OrgHandler {
+func NewOrgHandler(mappingService platform.UserResourceMappingService,
+	labelService platform.LabelService) *OrgHandler {
 	h := &OrgHandler{
 		Router:                     httprouter.New(),
 		UserResourceMappingService: mappingService,
+		LabelService:               labelService,
 	}
 
 	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
@@ -64,6 +69,10 @@ func NewOrgHandler(mappingService platform.UserResourceMappingService) *OrgHandl
 	h.HandlerFunc("PATCH", organizationsIDSecretsPath, h.handlePatchSecrets)
 	// TODO(desa): need a way to specify which secrets to delete. this should work for now
 	h.HandlerFunc("POST", organizationsIDSecretsDeletePath, h.handleDeleteSecrets)
+
+	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(h.LabelService))
+	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", organizationsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }

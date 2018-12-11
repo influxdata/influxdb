@@ -76,7 +76,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.BucketHandler.BucketService = b.BucketService
 	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
 
-	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService)
+	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService)
 	h.OrgHandler.OrganizationService = b.OrganizationService
 	h.OrgHandler.BucketService = b.BucketService
 	h.OrgHandler.OrganizationOperationLogService = b.OrganizationOperationLogService
