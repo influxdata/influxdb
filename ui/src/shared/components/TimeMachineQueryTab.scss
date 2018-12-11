@@ -1,22 +1,41 @@
 @import "src/style/modules";
 
+$time-machine-query-tab--lr-padding: 12px;
+
 .time-machine-query-tab {
   background: $g2-kevlar;
   border-radius: 5px 5px 0 0;
-  margin-right: 3px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 15px;
+  padding-right: $time-machine-query-tab--lr-padding;
   color: $g10-wolf;
   font-weight: 700;
   font-size: 13px;
   cursor: pointer !important;
   @include no-user-select();
 
+
+  &:not(.active):before {
+    content: "";
+    height: 60%;
+    border-left: 1px solid $g3-castle;
+    padding-right: $time-machine-query-tab--lr-padding;
+    margin-left: -1px;
+  }
+
+  &:first-child:before {
+    border-left: none;
+  }
+
+  &:first-child.active {
+    margin-left: -1px;
+  }
+
   &.active {
     background: $g3-castle;
     color: $g16-pearl;
+    padding-left: $time-machine-query-tab--lr-padding;
   }
 
   &:hover:not(.active) {
@@ -27,8 +46,9 @@
 .time-machine-query-tab--close {
   margin-left: 30px;
   margin-bottom: 2px;
+  color: $g7-graphite;
 
   &:hover {
-    color: $g19-ghost;
+    color: $g16-pearl;
   }
 }
