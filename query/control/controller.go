@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/control"
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -25,13 +26,23 @@ func New(config control.Config) *Controller {
 	return &Controller{c: c}
 }
 
-// Query satisifies the AsyncQueryService while ensuring the request is propogated on the context.
+// Query satisfies the AsyncQueryService while ensuring the request is propagated on the context.
 func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query, error) {
 	// Set the request on the context so platform specific Flux operations can retrieve it later.
 	ctx = query.ContextWithRequest(ctx, req)
 	// Set the org label value for controller metrics
 	ctx = context.WithValue(ctx, orgLabel, req.OrganizationID.String())
-	return c.c.Query(ctx, req.Compiler)
+	q, err := c.c.Query(ctx, req.Compiler)
+	if err != nil {
+		// If the controller reports an error, it's usually because of a syntax error
+		// or other problem that the client must fix.
+		return q, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
+	}
+
+	return q, nil
 }
 
 // PrometheusCollectors satisifies the prom.PrometheusCollector interface.
