@@ -8,14 +8,26 @@ import dataLoadersReducer, {
 import {
   setDataLoadersType,
   addTelegrafPlugin,
+  addConfigValue,
+  removeConfigValue,
   removeTelegrafPlugin,
   setActiveTelegrafPlugin,
   setTelegrafConfigID,
+  updateTelegrafPluginConfig,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
-import {TelegrafPluginInputCpu, TelegrafPluginInputDisk} from 'src/api'
-import {DataLoaderType, ConfigurationState} from 'src/types/v2/dataLoaders'
+import {
+  TelegrafPluginInputCpu,
+  TelegrafPluginInputDisk,
+  TelegrafPluginInputRedis,
+} from 'src/api'
+import {
+  DataLoaderType,
+  ConfigurationState,
+  TelegrafPlugin,
+} from 'src/types/v2/dataLoaders'
+import {redisPlugin} from 'mocks/dummyData'
 
 describe('dataLoader reducer', () => {
   it('can set a type', () => {
@@ -126,6 +138,114 @@ describe('dataLoader reducer', () => {
     const actual = dataLoadersReducer(INITIAL_STATE, setTelegrafConfigID(id))
 
     const expected = {...INITIAL_STATE, telegrafConfigID: id}
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can update a plugin config field', () => {
+    const plugin = {
+      ...redisPlugin,
+      config: {servers: [], password: ''},
+    }
+    const tp: TelegrafPlugin = {
+      name: TelegrafPluginInputRedis.NameEnum.Redis,
+      configured: ConfigurationState.Unconfigured,
+      active: true,
+      plugin,
+    }
+    const actual = dataLoadersReducer(
+      {...INITIAL_STATE, telegrafPlugins: [tp]},
+      updateTelegrafPluginConfig(
+        TelegrafPluginInputRedis.NameEnum.Redis,
+        'password',
+        'pa$$w0rd'
+      )
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      telegrafPlugins: [
+        {
+          ...tp,
+          plugin: {
+            ...plugin,
+            config: {servers: [], password: 'pa$$w0rd'},
+          },
+        },
+      ],
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can add a plugin config value', () => {
+    const plugin = {
+      ...redisPlugin,
+      config: {servers: ['first'], password: ''},
+    }
+    const tp: TelegrafPlugin = {
+      name: TelegrafPluginInputRedis.NameEnum.Redis,
+      configured: ConfigurationState.Unconfigured,
+      active: true,
+      plugin,
+    }
+    const actual = dataLoadersReducer(
+      {...INITIAL_STATE, telegrafPlugins: [tp]},
+      addConfigValue(
+        TelegrafPluginInputRedis.NameEnum.Redis,
+        'servers',
+        'second'
+      )
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      telegrafPlugins: [
+        {
+          ...tp,
+          plugin: {
+            ...plugin,
+            config: {servers: ['first', 'second'], password: ''},
+          },
+        },
+      ],
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can remove a plugin config value', () => {
+    const plugin = {
+      ...redisPlugin,
+      config: {servers: ['first', 'second'], password: ''},
+    }
+    const tp: TelegrafPlugin = {
+      name: TelegrafPluginInputRedis.NameEnum.Redis,
+      configured: ConfigurationState.Unconfigured,
+      active: true,
+      plugin,
+    }
+    const actual = dataLoadersReducer(
+      {...INITIAL_STATE, telegrafPlugins: [tp]},
+      removeConfigValue(
+        TelegrafPluginInputRedis.NameEnum.Redis,
+        'servers',
+        'first'
+      )
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      telegrafPlugins: [
+        {
+          ...tp,
+          plugin: {
+            ...plugin,
+            config: {servers: ['second'], password: ''},
+          },
+        },
+      ],
+    }
 
     expect(actual).toEqual(expected)
   })

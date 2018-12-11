@@ -2,7 +2,10 @@
 import _ from 'lodash'
 
 // Utils
-import {createNewPlugin} from 'src/onboarding/utils/pluginConfigs'
+import {
+  createNewPlugin,
+  updateConfigFields,
+} from 'src/onboarding/utils/pluginConfigs'
 
 // Types
 import {Action} from 'src/onboarding/actions/dataLoaders'
@@ -67,10 +70,11 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
 
             return {
               ...tp,
-              plugin: {
-                ...plugin,
-                [action.payload.field]: action.payload.value,
-              },
+              plugin: updateConfigFields(
+                plugin,
+                action.payload.field,
+                action.payload.value
+              ),
             }
           }
           return tp
@@ -90,10 +94,11 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
 
             return {
               ...tp,
-              plugin: {
-                ...plugin,
-                [action.payload.fieldName]: updatedConfigFieldValue,
-              },
+              plugin: updateConfigFields(
+                plugin,
+                action.payload.fieldName,
+                updatedConfigFieldValue
+              ),
             }
           }
           return tp
@@ -117,10 +122,11 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
 
             return {
               ...tp,
-              plugin: {
-                ...plugin,
-                [action.payload.fieldName]: filteredConfigFieldValue,
-              },
+              plugin: updateConfigFields(
+                plugin,
+                action.payload.fieldName,
+                filteredConfigFieldValue
+              ),
             }
           }
           return tp
