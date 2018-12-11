@@ -4449,7 +4449,7 @@ export interface TelegrafRequestAgent {
      * @type {number}
      * @memberof TelegrafRequestAgent
      */
-    interval?: number;
+    collectionInterval?: number;
 }
 
 /**

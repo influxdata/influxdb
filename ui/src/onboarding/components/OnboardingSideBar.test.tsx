@@ -4,7 +4,7 @@ import {shallow} from 'enzyme'
 
 // Components
 import OnboardingSideBar from 'src/onboarding/components/OnboardingSideBar'
-import {cpuPlugin, influxDB2Plugin} from 'src/onboarding/resources'
+import {cpuPlugin, influxDB2Plugin} from 'mocks/dummyData'
 
 const onClick = jest.fn(() => {})
 

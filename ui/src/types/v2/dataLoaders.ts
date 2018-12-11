@@ -22,7 +22,30 @@ import {
   TelegrafPluginInputTail,
   TelegrafPluginOutputFile,
   TelegrafPluginOutputInfluxDBV2,
+  TelegrafPluginConfig,
+  TelegrafPluginInputDockerConfig,
+  TelegrafPluginInputFileConfig,
+  TelegrafPluginInputKubernetesConfig,
+  TelegrafPluginInputLogParserConfig,
+  TelegrafPluginInputProcstatConfig,
+  TelegrafPluginInputPrometheusConfig,
+  TelegrafPluginInputRedisConfig,
+  TelegrafPluginInputSyslogConfig,
+  TelegrafPluginOutputFileConfig,
+  TelegrafPluginOutputInfluxDBV2Config,
 } from 'src/api'
+import {RemoteDataState} from 'src/types'
+import {WritePrecision} from 'src/api'
+
+export interface DataLoadersState {
+  telegrafPlugins: TelegrafPlugin[]
+  type: DataLoaderType
+  activeLPTab: LineProtocolTab
+  telegrafConfigID: string
+  lpStatus: RemoteDataState
+  lineProtocolBody: string
+  precision: WritePrecision
+}
 
 export enum ConfigurationState {
   Unconfigured = 'unconfigured',
@@ -35,6 +58,19 @@ export enum DataLoaderType {
   LineProtocol = 'Line Protocol',
   Empty = '',
 }
+
+export type PluginConfig =
+  | TelegrafPluginConfig
+  | TelegrafPluginInputDockerConfig
+  | TelegrafPluginInputFileConfig
+  | TelegrafPluginInputKubernetesConfig
+  | TelegrafPluginInputLogParserConfig
+  | TelegrafPluginInputProcstatConfig
+  | TelegrafPluginInputPrometheusConfig
+  | TelegrafPluginInputRedisConfig
+  | TelegrafPluginInputSyslogConfig
+  | TelegrafPluginOutputFileConfig
+  | TelegrafPluginOutputInfluxDBV2Config
 
 export type Plugin =
   | TelegrafPluginInputCpu
@@ -110,4 +146,19 @@ export enum Precision {
   Microseconds = 'Microseconds',
   U = 'U',
   Nanoseconds = 'Nanoseconds',
+}
+
+export enum ConfigFieldType {
+  String = 'string',
+  StringArray = 'string array',
+  Uri = 'uri',
+  UriArray = 'uri array',
+}
+
+export interface ConfigFields {
+  [field: string]: ConfigFieldType
+}
+
+export interface TelegrafPluginInfo {
+  [name: string]: {fields: ConfigFields; defaults: Plugin}
 }

@@ -6,6 +6,9 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 
+// Constants
+import {PLUGIN_OPTIONS} from 'src/onboarding/constants/pluginConfigs'
+
 // Types
 import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
 
@@ -14,22 +17,13 @@ export interface Props {
   onToggleTelegrafPlugin: (telegrafPlugin: string, isSelected: boolean) => void
 }
 
-const STREAMING_DATA_SOURCES_OPTIONS = [
-  'CPU',
-  'Docker',
-  'InfluxDB',
-  'Kubernetes',
-  'NGINX',
-  'Redis',
-]
-
 @ErrorHandling
 class StreamingDataSourcesSelector extends PureComponent<Props> {
   public render() {
     return (
       <div className="wizard-step--grid-container-lg">
         <GridSizer>
-          {STREAMING_DATA_SOURCES_OPTIONS.map(ds => {
+          {PLUGIN_OPTIONS.map(ds => {
             return (
               <CardSelectCard
                 key={ds}

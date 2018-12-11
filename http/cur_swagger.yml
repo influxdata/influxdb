@@ -4686,7 +4686,7 @@ components:
         agent:
           type: object
           properties:
-            interval:
+            collectionInterval:
               type: integer
         plugins:
           type: array

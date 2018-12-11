@@ -10,6 +10,7 @@ import {
   addTelegrafPlugin,
   removeTelegrafPlugin,
   setActiveTelegrafPlugin,
+  setTelegrafConfigID,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
@@ -116,6 +117,15 @@ describe('dataLoader reducer', () => {
       telegrafPlugins: [],
       type: DataLoaderType.Streaming,
     }
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can set a telegraf config id', () => {
+    const id = '285973845720345ajfajfkl;'
+    const actual = dataLoadersReducer(INITIAL_STATE, setTelegrafConfigID(id))
+
+    const expected = {...INITIAL_STATE, telegrafConfigID: id}
 
     expect(actual).toEqual(expected)
   })

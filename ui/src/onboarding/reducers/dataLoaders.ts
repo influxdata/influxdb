@@ -1,21 +1,18 @@
+// Libraries
+import _ from 'lodash'
+
+// Utils
+import {createNewPlugin} from 'src/onboarding/utils/pluginConfigs'
+
 // Types
 import {Action} from 'src/onboarding/actions/dataLoaders'
 import {
-  TelegrafPlugin,
   DataLoaderType,
   LineProtocolTab,
+  DataLoadersState,
 } from 'src/types/v2/dataLoaders'
 import {RemoteDataState} from 'src/types'
 import {WritePrecision} from 'src/api'
-
-export interface DataLoadersState {
-  telegrafPlugins: TelegrafPlugin[]
-  type: DataLoaderType
-  lineProtocolBody: string
-  activeLPTab: LineProtocolTab
-  lpStatus: RemoteDataState
-  precision: WritePrecision
-}
 
 export const INITIAL_STATE: DataLoadersState = {
   telegrafPlugins: [],
@@ -24,6 +21,7 @@ export const INITIAL_STATE: DataLoadersState = {
   activeLPTab: LineProtocolTab.UploadFile,
   lpStatus: RemoteDataState.NotStarted,
   precision: WritePrecision.Ms,
+  telegrafConfigID: null,
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
@@ -33,6 +31,11 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
         ...state,
         type: action.payload.type,
       }
+    case 'SET_TELEGRAF_CONFIG_ID':
+      return {
+        ...state,
+        telegrafConfigID: action.payload.id,
+      }
     case 'ADD_TELEGRAF_PLUGIN':
       return {
         ...state,
@@ -40,6 +43,88 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
           ...state.telegrafPlugins,
           action.payload.telegrafPlugin,
         ],
+      }
+    case 'UPDATE_TELEGRAF_PLUGIN':
+      return {
+        ...state,
+        telegrafPlugins: state.telegrafPlugins.map(tp => {
+          if (tp.name === action.payload.plugin.name) {
+            return {
+              ...tp,
+              plugin: action.payload.plugin,
+            }
+          }
+
+          return tp
+        }),
+      }
+    case 'UPDATE_TELEGRAF_PLUGIN_CONFIG':
+      return {
+        ...state,
+        telegrafPlugins: state.telegrafPlugins.map(tp => {
+          if (tp.name === action.payload.name) {
+            const plugin = _.get(tp, 'plugin', createNewPlugin(tp.name))
+
+            return {
+              ...tp,
+              plugin: {
+                ...plugin,
+                [action.payload.field]: action.payload.value,
+              },
+            }
+          }
+          return tp
+        }),
+      }
+    case 'ADD_TELEGRAF_PLUGIN_CONFIG_VALUE':
+      return {
+        ...state,
+        telegrafPlugins: state.telegrafPlugins.map(tp => {
+          if (tp.name === action.payload.pluginName) {
+            const plugin = _.get(tp, 'plugin', createNewPlugin(tp.name))
+
+            const updatedConfigFieldValue: string[] = [
+              ...plugin.config[action.payload.fieldName],
+              action.payload.value,
+            ]
+
+            return {
+              ...tp,
+              plugin: {
+                ...plugin,
+                [action.payload.fieldName]: updatedConfigFieldValue,
+              },
+            }
+          }
+          return tp
+        }),
+      }
+    case 'REMOVE_TELEGRAF_PLUGIN_CONFIG_VALUE':
+      return {
+        ...state,
+        telegrafPlugins: state.telegrafPlugins.map(tp => {
+          if (tp.name === action.payload.pluginName) {
+            const plugin = _.get(tp, 'plugin', createNewPlugin(tp.name))
+
+            const configFieldValues = _.get(
+              plugin,
+              `config.${action.payload.fieldName}`,
+              []
+            )
+            const filteredConfigFieldValue = configFieldValues.filter(
+              v => v !== action.payload.value
+            )
+
+            return {
+              ...tp,
+              plugin: {
+                ...plugin,
+                [action.payload.fieldName]: filteredConfigFieldValue,
+              },
+            }
+          }
+          return tp
+        }),
       }
     case 'REMOVE_TELEGRAF_PLUGIN':
       return {
