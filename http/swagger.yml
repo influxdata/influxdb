@@ -3770,9 +3770,13 @@ components:
         id:
           readOnly: true
           type: string
-        owners:
-          $ref: "#/components/schemas/Owners"
         name:
+          type: string
+        organizationID:
+          type: string
+        organization:
+          type: string
+        rp:
           type: string
         retentionRules:
           type: array
