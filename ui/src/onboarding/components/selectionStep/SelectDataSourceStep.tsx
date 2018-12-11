@@ -156,8 +156,12 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     this.props.onDecrementCurrentStepIndex()
   }
 
-  private handleSelectTelegrafPlugin = (telegrafPlugin: DataLoaderType) => {
-    this.props.onSetDataLoadersType(telegrafPlugin)
+  private handleSelectTelegrafPlugin = async (
+    telegrafPlugin: DataLoaderType
+  ) => {
+    await this.props.onSetDataLoadersType(telegrafPlugin)
+    this.handleClickNext()
+
     return
   }
 
