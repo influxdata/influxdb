@@ -396,7 +396,7 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:e892d35e57d857a44c3f07e5fe4b4cdeb28c4b5cec5c62fe838894c11f631513"
+  digest = "1:03feb21dee75352964eff90d04feda8778e2f5c05688b59660bfca551499564b"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -410,7 +410,10 @@
     "functions/outputs",
     "functions/transformations",
     "influxql",
+    "internal/parser",
     "internal/pkg/syncutil",
+    "internal/scanner",
+    "internal/token",
     "interpreter",
     "iocounter",
     "lang",
@@ -423,8 +426,8 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "899c777004b1f39a95a1422beede164ea44877d2"
-  version = "v0.7.2"
+  revision = "5fc447d0d338b59e81acc7b758f6da8087ea1c9d"
+  version = "v0.8.0"
 
 [[projects]]
   branch = "master"
