@@ -17,22 +17,26 @@ type ViewHandler struct {
 
 	ViewService                platform.ViewService
 	UserResourceMappingService platform.UserResourceMappingService
+	LabelService               platform.LabelService
 }
 
 const (
-	viewsPath            = "/api/v2/views"
-	viewsIDPath          = "/api/v2/views/:id"
-	viewsIDMembersPath   = "/api/v2/views/:id/members"
-	viewsIDMembersIDPath = "/api/v2/views/:id/members/:userID"
-	viewsIDOwnersPath    = "/api/v2/views/:id/owners"
-	viewsIDOwnersIDPath  = "/api/v2/views/:id/owners:userID"
+	viewsPath             = "/api/v2/views"
+	viewsIDPath           = "/api/v2/views/:id"
+	viewsIDMembersPath    = "/api/v2/views/:id/members"
+	viewsIDMembersIDPath  = "/api/v2/views/:id/members/:userID"
+	viewsIDOwnersPath     = "/api/v2/views/:id/owners"
+	viewsIDOwnersIDPath   = "/api/v2/views/:id/owners/:userID"
+	viewsIDLabelsPath     = "/api/v2/views/:id/labels"
+	viewsIDLabelsNamePath = "/api/v2/views/:id/labels/:name"
 )
 
 // NewViewHandler returns a new instance of ViewHandler.
-func NewViewHandler(mappingService platform.UserResourceMappingService) *ViewHandler {
+func NewViewHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService) *ViewHandler {
 	h := &ViewHandler{
 		Router:                     httprouter.New(),
 		UserResourceMappingService: mappingService,
+		LabelService:               labelService,
 	}
 
 	h.HandlerFunc("POST", viewsPath, h.handlePostViews)
@@ -49,6 +53,10 @@ func NewViewHandler(mappingService platform.UserResourceMappingService) *ViewHan
 	h.HandlerFunc("POST", viewsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.ViewResourceType, platform.Owner))
 	h.HandlerFunc("GET", viewsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
 	h.HandlerFunc("DELETE", viewsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+
+	h.HandlerFunc("GET", viewsIDLabelsPath, newGetLabelsHandler(h.LabelService))
+	h.HandlerFunc("POST", viewsIDLabelsPath, newPostLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", viewsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }
