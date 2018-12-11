@@ -126,6 +126,7 @@ class OnboardingWizard extends PureComponent<Props> {
             onTabClick={this.handleClickSideBarTab}
             title="Selected Sources"
             visible={this.sideBarVisible}
+            currentStepIndex={currentStepIndex}
           />
           <div className="wizard-step--container">
             <OnboardingStepSwitcher
