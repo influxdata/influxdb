@@ -329,10 +329,10 @@ export const populateBucketsAsync = (
   }
 }
 
-export const getSourceAndPopulateBucketsAsync = (sourceURL: string) => async (
+export const getSourceAndPopulateBucketsAsync = (id: string) => async (
   dispatch
 ): Promise<void> => {
-  const source = await readSource(sourceURL)
+  const source = await readSource(id)
 
   const bucketsLink = getDeep<string | null>(source, 'links.buckets', null)
 

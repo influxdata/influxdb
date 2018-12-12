@@ -297,7 +297,7 @@ class LogsPage extends Component<Props, State> {
     if (!this.props.currentSource && this.props.sources.length > 0) {
       const source = this.props.sources[0]
 
-      return await this.props.getSourceAndPopulateBuckets(source.links.self)
+      return await this.props.getSourceAndPopulateBuckets(source.id)
     }
   }
 
@@ -343,9 +343,8 @@ class LogsPage extends Component<Props, State> {
   }
 
   private handleChooseSource = async (sourceID: string) => {
-    const source = this.props.sources.find(s => s.id === sourceID)
     await this.clearCurrentSearch(SearchStatus.UpdatingSource)
-    await this.props.getSourceAndPopulateBuckets(source.links.self)
+    await this.props.getSourceAndPopulateBuckets(sourceID)
     this.fetchNewDataset()
   }
 
