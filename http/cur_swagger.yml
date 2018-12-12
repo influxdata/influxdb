@@ -11,13 +11,6 @@ paths:
       summary: Exchange basic auth credentials for session
       security:
         - basicAuth: []
-      requestBody:
-        description: sign in users
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SigninRequest"
       responses:
         '204':
           description: succesfully authenticated
@@ -3374,16 +3367,6 @@ paths:
                 $ref: "#/components/schemas/Error"
 components:
   schemas:
-    SigninRequest:
-      type: object
-      properties:
-        auth:
-          type: object
-          properties:
-            username:
-              type: string
-            password:
-              type: string
     LanguageRequest:
       description: flux query to be analyzed.
       type: object
