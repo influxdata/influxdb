@@ -1,12 +1,9 @@
-import {AppState} from 'src/types/v2'
 import {MeState} from 'src/shared/reducers/v2/me'
 import {getMe as getMeAPI} from 'src/shared/apis/v2/user'
 
 export enum ActionTypes {
   SetMe = 'SET_ME',
 }
-
-type GetStateFunc = () => AppState
 
 export interface SetMe {
   type: ActionTypes.SetMe
@@ -24,13 +21,9 @@ export const setMe = me => ({
   },
 })
 
-export const getMe = () => async (dispatch, getState: GetStateFunc) => {
+export const getMe = () => async dispatch => {
   try {
-    const {
-      links: {me: url},
-    } = getState()
-
-    const user = await getMeAPI(url)
+    const user = await getMeAPI()
 
     dispatch(setMe(user))
   } catch (e) {

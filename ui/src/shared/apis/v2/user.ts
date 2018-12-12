@@ -1,14 +1,7 @@
-import AJAX from 'src/utils/ajax'
+import {usersAPI} from 'src/utils/api'
+import {User} from 'src/api'
 
-interface User {
-  name: string
-  id: string
-}
-
-export const getMe = async (url: string): Promise<User> => {
-  const {data} = await AJAX({
-    url,
-  })
-
-  return data as User
+export const getMe = async (): Promise<User> => {
+  const {data} = await usersAPI.meGet()
+  return data
 }

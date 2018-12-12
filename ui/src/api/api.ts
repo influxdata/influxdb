@@ -2340,6 +2340,40 @@ export namespace Run {
 /**
  * 
  * @export
+ * @interface SigninRequest
+ */
+export interface SigninRequest {
+    /**
+     * 
+     * @type {SigninRequestAuth}
+     * @memberof SigninRequest
+     */
+    auth?: SigninRequestAuth;
+}
+
+/**
+ * 
+ * @export
+ * @interface SigninRequestAuth
+ */
+export interface SigninRequestAuth {
+    /**
+     * 
+     * @type {string}
+     * @memberof SigninRequestAuth
+     */
+    password?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof SigninRequestAuth
+     */
+    username?: string;
+}
+
+/**
+ * 
+ * @export
  * @interface Source
  */
 export interface Source {
@@ -7740,10 +7774,15 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
         /**
          * 
          * @summary Exchange basic auth credentials for session
+         * @param {SigninRequest} signinRequest sign in users
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        signinPost(options: any = {}): RequestArgs {
+        signinPost(signinRequest: SigninRequest, options: any = {}): RequestArgs {
+            // verify required parameter 'signinRequest' is not null or undefined
+            if (signinRequest === null || signinRequest === undefined) {
+                throw new RequiredError('signinRequest','Required parameter signinRequest was null or undefined when calling signinPost.');
+            }
             const localVarPath = `/signin`;
             const localVarUrlObj = url.parse(localVarPath, true);
             let baseOptions;
@@ -7754,10 +7793,14 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
             localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
             // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
             delete localVarUrlObj.search;
             localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"SigninRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(signinRequest || {}) : (signinRequest || "");
 
             return {
                 url: url.format(localVarUrlObj),
@@ -7816,11 +7859,12 @@ export const DefaultApiFp = function(configuration?: Configuration) {
         /**
          * 
          * @summary Exchange basic auth credentials for session
+         * @param {SigninRequest} signinRequest sign in users
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        signinPost(options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
-            const localVarAxiosArgs = DefaultApiAxiosParamCreator(configuration).signinPost(options);
+        signinPost(signinRequest: SigninRequest, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+            const localVarAxiosArgs = DefaultApiAxiosParamCreator(configuration).signinPost(signinRequest, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -7860,11 +7904,12 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
         /**
          * 
          * @summary Exchange basic auth credentials for session
+         * @param {SigninRequest} signinRequest sign in users
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        signinPost(options?: any) {
-            return DefaultApiFp(configuration).signinPost(options)(axios, basePath);
+        signinPost(signinRequest: SigninRequest, options?: any) {
+            return DefaultApiFp(configuration).signinPost(signinRequest, options)(axios, basePath);
         },
         /**
          * 
@@ -7899,12 +7944,13 @@ export class DefaultApi extends BaseAPI {
     /**
      * 
      * @summary Exchange basic auth credentials for session
+     * @param {SigninRequest} signinRequest sign in users
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof DefaultApi
      */
-    public signinPost(options?: any) {
-        return DefaultApiFp(this.configuration).signinPost(options)(this.axios, this.basePath);
+    public signinPost(signinRequest: SigninRequest, options?: any) {
+        return DefaultApiFp(this.configuration).signinPost(signinRequest, options)(this.axios, this.basePath);
     }
 
     /**
