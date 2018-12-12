@@ -11,7 +11,7 @@ import {IconCSV, IconLineProtocol, IconStreaming} from 'src/onboarding/graphics'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 export interface Props {
-  onSelectTelegrafPlugin: (telegrafPlugin: string) => void
+  onSelectDataLoaderType: (type: string) => void
   type: DataLoaderType
 }
 
@@ -57,8 +57,8 @@ class TypeSelector extends PureComponent<Props> {
     return dataLoaderType === type
   }
 
-  private handleClick = (telegrafPlugin: string) => () => {
-    this.props.onSelectTelegrafPlugin(telegrafPlugin)
+  private handleClick = (type: string) => () => {
+    this.props.onSelectDataLoaderType(type)
   }
 }
 

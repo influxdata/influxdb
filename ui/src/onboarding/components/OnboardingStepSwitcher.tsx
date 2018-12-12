@@ -14,34 +14,34 @@ import FetchAuthToken from 'src/onboarding/components/verifyStep/FetchAuthToken'
 
 // Actions
 import {
-  addTelegrafPlugin,
   updateTelegrafPluginConfig,
-  removeTelegrafPlugin,
   setDataLoadersType,
   setActiveTelegrafPlugin,
   addConfigValue,
   removeConfigValue,
   createTelegrafConfigAsync,
+  addPluginBundleWithPlugins,
+  removePluginBundleWithPlugins,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
 import {SetupParams} from 'src/onboarding/apis'
-import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoadersState} from 'src/types/v2/dataLoaders'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 interface Props {
   onboardingStepProps: OnboardingStepProps
-  onAddTelegrafPlugin: typeof addTelegrafPlugin
   onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
-  onRemoveTelegrafPlugin: typeof removeTelegrafPlugin
   onSetDataLoadersType: typeof setDataLoadersType
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   setupParams: SetupParams
-  dataLoaders: {telegrafPlugins: TelegrafPlugin[]; type: DataLoaderType}
+  dataLoaders: DataLoadersState
   currentStepIndex: number
   onSaveTelegrafConfig: typeof createTelegrafConfigAsync
+  onAddPluginBundle: typeof addPluginBundleWithPlugins
+  onRemovePluginBundle: typeof removePluginBundleWithPlugins
 }
 
 @ErrorHandling
@@ -53,13 +53,13 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
       setupParams,
       dataLoaders,
       onSetDataLoadersType,
-      onAddTelegrafPlugin,
       onSaveTelegrafConfig,
       onUpdateTelegrafPluginConfig,
-      onRemoveTelegrafPlugin,
       onSetActiveTelegrafPlugin,
       onAddConfigValue,
       onRemoveConfigValue,
+      onAddPluginBundle,
+      onRemovePluginBundle,
     } = this.props
 
     switch (currentStepIndex) {
@@ -74,9 +74,9 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
             {...dataLoaders}
             onSetDataLoadersType={onSetDataLoadersType}
             bucket={_.get(setupParams, 'bucket', '')}
-            onAddTelegrafPlugin={onAddTelegrafPlugin}
-            onRemoveTelegrafPlugin={onRemoveTelegrafPlugin}
             onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
+            onAddPluginBundle={onAddPluginBundle}
+            onRemovePluginBundle={onRemovePluginBundle}
           />
         )
       case 3:

@@ -12,26 +12,30 @@ import {
   ComponentStatus,
 } from 'src/clockface'
 import TypeSelector from 'src/onboarding/components/selectionStep/TypeSelector'
-import StreamingDataSourceSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
+import StreamingSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
 
 // Actions
-import {setActiveTelegrafPlugin} from 'src/onboarding/actions/dataLoaders'
+import {
+  setActiveTelegrafPlugin,
+  addPluginBundleWithPlugins,
+  removePluginBundleWithPlugins,
+} from 'src/onboarding/actions/dataLoaders'
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {
   TelegrafPlugin,
   DataLoaderType,
-  ConfigurationState,
-  TelegrafPluginName,
+  BundleName,
 } from 'src/types/v2/dataLoaders'
 
 export interface OwnProps extends OnboardingStepProps {
   bucket: string
   telegrafPlugins: TelegrafPlugin[]
+  pluginBundles: BundleName[]
   type: DataLoaderType
-  onAddTelegrafPlugin: (telegrafPlugin: TelegrafPlugin) => void
-  onRemoveTelegrafPlugin: (TelegrafPlugin: string) => void
+  onAddPluginBundle: typeof addPluginBundleWithPlugins
+  onRemovePluginBundle: typeof removePluginBundleWithPlugins
   onSetDataLoadersType: (type: DataLoaderType) => void
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
 }
@@ -100,15 +104,16 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
   private get selector(): JSX.Element {
     if (this.props.type === DataLoaderType.Streaming && this.isStreaming) {
       return (
-        <StreamingDataSourceSelector
+        <StreamingSelector
+          pluginBundles={this.props.pluginBundles}
           telegrafPlugins={this.props.telegrafPlugins}
-          onToggleTelegrafPlugin={this.handleToggleTelegrafPlugin}
+          onTogglePluginBundle={this.handleTogglePluginBundle}
         />
       )
     }
     return (
       <TypeSelector
-        onSelectTelegrafPlugin={this.handleSelectTelegrafPlugin}
+        onSelectDataLoaderType={this.handleSelectDataLoaderType}
         type={this.props.type}
       />
     )
@@ -156,31 +161,24 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     this.props.onDecrementCurrentStepIndex()
   }
 
-  private handleSelectTelegrafPlugin = async (
-    telegrafPlugin: DataLoaderType
-  ) => {
-    await this.props.onSetDataLoadersType(telegrafPlugin)
+  private handleSelectDataLoaderType = async (type: DataLoaderType) => {
+    await this.props.onSetDataLoadersType(type)
     this.handleClickNext()
 
     return
   }
 
-  private handleToggleTelegrafPlugin = (
-    telegrafPlugin: TelegrafPluginName,
+  private handleTogglePluginBundle = (
+    bundle: BundleName,
     isSelected: boolean
   ) => {
     if (isSelected) {
-      this.props.onRemoveTelegrafPlugin(telegrafPlugin)
+      this.props.onRemovePluginBundle(bundle)
 
       return
     }
 
-    const plugin: TelegrafPlugin = {
-      name: telegrafPlugin,
-      configured: ConfigurationState.Unconfigured,
-      active: false,
-    }
-    this.props.onAddTelegrafPlugin(plugin)
+    this.props.onAddPluginBundle(bundle)
   }
 
   private get isStreaming(): boolean {

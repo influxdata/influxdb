@@ -6,7 +6,7 @@ import {baseAPI} from 'src/utils/api'
 // Utils
 import AJAX from 'src/utils/ajax'
 import {telegrafsAPI, authorizationsAPI, writeAPI} from 'src/utils/api'
-import {Telegraf, WritePrecision} from 'src/api'
+import {Telegraf, WritePrecision, TelegrafRequest} from 'src/api'
 
 import {getDeep} from 'src/utils/wrappers'
 
@@ -128,4 +128,17 @@ export const writeLineProtocol = async (
     precision
   )
   return data
+}
+
+export const createTelegrafConfig = async (
+  org: string,
+  telegrafConfig: TelegrafRequest
+): Promise<Telegraf> => {
+  try {
+    const {data} = await telegrafsAPI.telegrafsPost(org, telegrafConfig)
+
+    return data
+  } catch (error) {
+    console.error(error)
+  }
 }

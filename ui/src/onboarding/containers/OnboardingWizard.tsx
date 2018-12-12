@@ -19,13 +19,13 @@ import {setSetupParams, setStepStatus} from 'src/onboarding/actions/steps'
 
 import {
   setDataLoadersType,
-  addTelegrafPlugin,
   updateTelegrafPluginConfig,
   addConfigValue,
   removeConfigValue,
-  removeTelegrafPlugin,
   setActiveTelegrafPlugin,
   createTelegrafConfigAsync,
+  addPluginBundleWithPlugins,
+  removePluginBundleWithPlugins,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Constants
@@ -71,11 +71,11 @@ interface DispatchProps {
   onSetSetupParams: typeof setSetupParams
   onSetStepStatus: typeof setStepStatus
   onSetDataLoadersType: typeof setDataLoadersType
-  onAddTelegrafPlugin: typeof addTelegrafPlugin
+  onAddPluginBundle: typeof addPluginBundleWithPlugins
+  onRemovePluginBundle: typeof removePluginBundleWithPlugins
   onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
-  onRemoveTelegrafPlugin: typeof removeTelegrafPlugin
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onSaveTelegrafConfig: typeof createTelegrafConfigAsync
 }
@@ -112,13 +112,13 @@ class OnboardingWizard extends PureComponent<Props> {
       dataLoaders,
       dataLoaders: {telegrafPlugins, telegrafConfigID},
       onSetDataLoadersType,
-      onAddTelegrafPlugin,
       onSetActiveTelegrafPlugin,
       onUpdateTelegrafPluginConfig,
       onAddConfigValue,
       onRemoveConfigValue,
-      onRemoveTelegrafPlugin,
       onSaveTelegrafConfig,
+      onAddPluginBundle,
+      onRemovePluginBundle,
       setupParams,
       notify,
       onDecrementCurrentStepIndex,
@@ -133,7 +133,7 @@ class OnboardingWizard extends PureComponent<Props> {
             telegrafPlugins={telegrafPlugins}
             telegrafConfigID={telegrafConfigID}
             onTabClick={this.handleClickSideBarTab}
-            title="Selected Sources"
+            title="Plugins to Configure"
             visible={this.sideBarVisible}
             currentStepIndex={currentStepIndex}
             handleNewSourceClick={onDecrementCurrentStepIndex}
@@ -145,13 +145,13 @@ class OnboardingWizard extends PureComponent<Props> {
               setupParams={setupParams}
               dataLoaders={dataLoaders}
               onSetDataLoadersType={onSetDataLoadersType}
-              onAddTelegrafPlugin={onAddTelegrafPlugin}
               onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
-              onRemoveTelegrafPlugin={onRemoveTelegrafPlugin}
               onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
               onAddConfigValue={onAddConfigValue}
               onRemoveConfigValue={onRemoveConfigValue}
               onSaveTelegrafConfig={onSaveTelegrafConfig}
+              onAddPluginBundle={onAddPluginBundle}
+              onRemovePluginBundle={onRemovePluginBundle}
             />
           </div>
         </div>
@@ -276,13 +276,13 @@ const mdtp: DispatchProps = {
   onSetSetupParams: setSetupParams,
   onSetStepStatus: setStepStatus,
   onSetDataLoadersType: setDataLoadersType,
-  onAddTelegrafPlugin: addTelegrafPlugin,
   onUpdateTelegrafPluginConfig: updateTelegrafPluginConfig,
   onAddConfigValue: addConfigValue,
   onRemoveConfigValue: removeConfigValue,
-  onRemoveTelegrafPlugin: removeTelegrafPlugin,
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
   onSaveTelegrafConfig: createTelegrafConfigAsync,
+  onAddPluginBundle: addPluginBundleWithPlugins,
+  onRemovePluginBundle: removePluginBundleWithPlugins,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

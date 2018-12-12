@@ -3,6 +3,7 @@ import {
   setSetupParams,
   SetupParams,
   getTelegrafConfigs,
+  createTelegrafConfig,
   getAuthorizationToken,
 } from 'src/onboarding/apis'
 
@@ -55,6 +56,15 @@ describe('Onboarding.Apis', () => {
 
       expect(result).toEqual([telegrafConfig])
       expect(telegrafsAPI.telegrafsGet).toBeCalledWith(org)
+    })
+  })
+
+  describe('createTelegrafConfig', () => {
+    it('should return the newly created config', async () => {
+      const org = 'default'
+      const result = await createTelegrafConfig(org, telegrafConfig)
+
+      expect(result).toEqual(telegrafConfig)
     })
   })
 

@@ -39,6 +39,7 @@ import {WritePrecision} from 'src/api'
 
 export interface DataLoadersState {
   telegrafPlugins: TelegrafPlugin[]
+  pluginBundles: BundleName[]
   type: DataLoaderType
   activeLPTab: LineProtocolTab
   telegrafConfigID: string
@@ -101,6 +102,23 @@ export interface TelegrafPlugin {
   configured: ConfigurationState
   active: boolean
   plugin?: Plugin
+}
+
+export enum BundleName {
+  System = 'System',
+  Disk = 'Disk',
+  Docker = 'Docker',
+  File = 'File',
+  Kubernetes = 'Kubernetes',
+  Logparser = 'LogParser',
+  Net = 'Net',
+  NetResponse = 'NetResponse',
+  Ngnix = 'NGNIX',
+  Procstat = 'Procstat',
+  Prometheus = 'Prometheus',
+  Redis = 'Redis',
+  Syslog = 'Syslog',
+  Tail = 'Tail',
 }
 
 export type TelegrafPluginName =

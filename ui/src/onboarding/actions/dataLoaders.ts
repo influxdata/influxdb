@@ -2,11 +2,16 @@
 import _ from 'lodash'
 
 // Apis
-import {writeLineProtocol} from 'src/onboarding/apis/index'
-import {telegrafsAPI} from 'src/utils/api'
+import {
+  writeLineProtocol,
+  createTelegrafConfig,
+} from 'src/onboarding/apis/index'
 
 // Utils
 import {createNewPlugin} from 'src/onboarding/utils/pluginConfigs'
+
+// Constants
+import {pluginsByBundle} from 'src/onboarding/constants/pluginConfigs'
 
 // Types
 import {
@@ -14,6 +19,8 @@ import {
   DataLoaderType,
   LineProtocolTab,
   Plugin,
+  BundleName,
+  ConfigurationState,
 } from 'src/types/v2/dataLoaders'
 import {AppState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
@@ -27,17 +34,19 @@ const DEFAULT_COLLECTION_INTERVAL = 15
 export type Action =
   | SetDataLoadersType
   | SetTelegrafConfigID
-  | AddTelegrafPlugin
   | UpdateTelegrafPluginConfig
   | AddConfigValue
   | RemoveConfigValue
-  | RemoveTelegrafPlugin
   | SetActiveTelegrafPlugin
   | SetLineProtocolBody
   | SetActiveLPTab
   | SetLPStatus
   | SetPrecision
   | UpdateTelegrafPlugin
+  | AddPluginBundle
+  | AddTelegrafPlugins
+  | RemoveBundlePlugins
+  | RemovePluginBundle
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -49,18 +58,6 @@ export const setDataLoadersType = (
 ): SetDataLoadersType => ({
   type: 'SET_DATA_LOADERS_TYPE',
   payload: {type},
-})
-
-interface AddTelegrafPlugin {
-  type: 'ADD_TELEGRAF_PLUGIN'
-  payload: {telegrafPlugin: TelegrafPlugin}
-}
-
-export const addTelegrafPlugin = (
-  telegrafPlugin: TelegrafPlugin
-): AddTelegrafPlugin => ({
-  type: 'ADD_TELEGRAF_PLUGIN',
-  payload: {telegrafPlugin},
 })
 
 interface UpdateTelegrafPluginConfig {
@@ -133,6 +130,70 @@ export const setTelegrafConfigID = (id: string): SetTelegrafConfigID => ({
   payload: {id},
 })
 
+interface AddPluginBundle {
+  type: 'ADD_PLUGIN_BUNDLE'
+  payload: {bundle: BundleName}
+}
+
+export const addPluginBundle = (bundle: BundleName): AddPluginBundle => ({
+  type: 'ADD_PLUGIN_BUNDLE',
+  payload: {bundle},
+})
+
+interface RemovePluginBundle {
+  type: 'REMOVE_PLUGIN_BUNDLE'
+  payload: {bundle: BundleName}
+}
+
+export const removePluginBundle = (bundle: BundleName): RemovePluginBundle => ({
+  type: 'REMOVE_PLUGIN_BUNDLE',
+  payload: {bundle},
+})
+interface AddTelegrafPlugins {
+  type: 'ADD_TELEGRAF_PLUGINS'
+  payload: {telegrafPlugins: TelegrafPlugin[]}
+}
+
+export const addTelegrafPlugins = (
+  telegrafPlugins: TelegrafPlugin[]
+): AddTelegrafPlugins => ({
+  type: 'ADD_TELEGRAF_PLUGINS',
+  payload: {telegrafPlugins},
+})
+
+interface RemoveBundlePlugins {
+  type: 'REMOVE_BUNDLE_PLUGINS'
+  payload: {bundle: BundleName}
+}
+
+export const removeBundlePlugins = (
+  bundle: BundleName
+): RemoveBundlePlugins => ({
+  type: 'REMOVE_BUNDLE_PLUGINS',
+  payload: {bundle},
+})
+
+export const addPluginBundleWithPlugins = (bundle: BundleName) => dispatch => {
+  dispatch(addPluginBundle(bundle))
+  const plugins = pluginsByBundle[bundle]
+  dispatch(
+    addTelegrafPlugins(
+      plugins.map(p => ({
+        name: p,
+        active: false,
+        configured: ConfigurationState.Unconfigured,
+      }))
+    )
+  )
+}
+
+export const removePluginBundleWithPlugins = (
+  bundle: BundleName
+) => dispatch => {
+  dispatch(removePluginBundle(bundle))
+  dispatch(removeBundlePlugins(bundle))
+}
+
 export const createTelegrafConfigAsync = (authToken: string) => async (
   dispatch,
   getState: GetState
@@ -166,21 +227,10 @@ export const createTelegrafConfigAsync = (authToken: string) => async (
     agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
     plugins,
   }
-  const created = await telegrafsAPI.telegrafsPost(org, body)
-  dispatch(setTelegrafConfigID(created.data.id))
-}
 
-interface RemoveTelegrafPlugin {
-  type: 'REMOVE_TELEGRAF_PLUGIN'
-  payload: {telegrafPlugin: string}
+  const created = await createTelegrafConfig(org, body)
+  dispatch(setTelegrafConfigID(created.id))
 }
-
-export const removeTelegrafPlugin = (
-  telegrafPlugin: string
-): RemoveTelegrafPlugin => ({
-  type: 'REMOVE_TELEGRAF_PLUGIN',
-  payload: {telegrafPlugin},
-})
 
 interface SetActiveTelegrafPlugin {
   type: 'SET_ACTIVE_TELEGRAF_PLUGIN'
