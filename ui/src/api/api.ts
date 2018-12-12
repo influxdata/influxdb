@@ -250,6 +250,18 @@ export interface Bucket {
     name: string;
     /**
      * 
+     * @type {string}
+     * @memberof Bucket
+     */
+    organization?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Bucket
+     */
+    organizationID?: string;
+    /**
+     * 
      * @type {Owners}
      * @memberof Bucket
      */
@@ -260,6 +272,12 @@ export interface Bucket {
      * @memberof Bucket
      */
     retentionRules: Array<BucketRetentionRules>;
+    /**
+     * 
+     * @type {string}
+     * @memberof Bucket
+     */
+    rp?: string;
 }
 
 /**

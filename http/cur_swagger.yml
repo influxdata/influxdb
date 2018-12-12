@@ -3625,6 +3625,12 @@ components:
           $ref: "#/components/schemas/Owners"
         name:
           type: string
+        organization:
+          type: string
+        rp:
+          type: string
+        organizationID:
+          type: string
         retentionRules:
           type: array
           description: rules to expire or retain data.  No rules means data never expires.

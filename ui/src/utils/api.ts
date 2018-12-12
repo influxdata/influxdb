@@ -9,6 +9,7 @@ import {
   WriteApi,
   SourcesApi,
   DefaultApi,
+  BucketsApi,
 } from 'src/api'
 
 const basePath = '/api/v2'
@@ -23,3 +24,4 @@ export const telegrafsAPI = new TelegrafsApi({basePath})
 export const authorizationsAPI = new AuthorizationsApi({basePath})
 export const writeAPI = new WriteApi({basePath})
 export const sourcesAPI = new SourcesApi({basePath})
+export const bucketsAPI = new BucketsApi({basePath})
