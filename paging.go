@@ -17,9 +17,9 @@ type PagingFilter interface {
 
 // PagingLinks represents paging links.
 type PagingLinks struct {
-	Prev string `json:"prev"`
+	Prev string `json:"prev,omitempty"`
 	Self string `json:"self"`
-	Next string `json:"next"`
+	Next string `json:"next,omitempty"`
 }
 
 // FindOptions represents options passed to all find methods with multiple results.
