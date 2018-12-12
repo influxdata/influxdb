@@ -11,6 +11,7 @@ import {RemoteDataState} from 'src/types'
 export interface Props {
   loading: RemoteDataState
   bucket: string
+  countDownSeconds: number
 }
 
 @ErrorHandling
@@ -51,7 +52,7 @@ class ListeningResults extends PureComponent<Props> {
   private get additionalText(): string {
     switch (this.props.loading) {
       case RemoteDataState.Loading:
-        return 'Timeout in 60 seconds'
+        return `Timeout in ${this.props.countDownSeconds} seconds`
       case RemoteDataState.Done:
         return `${this.props.bucket} is receiving data loud and clear!`
       case RemoteDataState.Error:
