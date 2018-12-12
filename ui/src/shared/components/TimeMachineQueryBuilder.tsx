@@ -29,7 +29,8 @@ import 'src/shared/components/TimeMachineQueryBuilder.scss'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {AppState, Source, SourceType, BuilderConfig} from 'src/types/v2'
+import {AppState, BuilderConfig} from 'src/types/v2'
+import {Source} from 'src/api'
 
 const EMPTY_FIELDS_MESSAGE = 'Select at least one bucket and measurement'
 const EMPTY_FUNCTIONS_MESSAGE = 'Select at least one bucket and measurement'
@@ -39,7 +40,7 @@ const mergeUnique = (items: string[], selection: string[]) =>
 
 interface StateProps {
   queryURL: string
-  sourceType: SourceType
+  sourceType: Source.TypeEnum
 }
 
 interface DispatchProps {

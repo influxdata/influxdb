@@ -31,8 +31,8 @@ class DecimalPlacesOption extends PureComponent<Props> {
           inputPlaceholder="Enter a number"
           onChange={this.handleSetValue}
           value={this.value}
-          min={Number(MIN_DECIMAL_PLACES)}
-          max={Number(MAX_DECIMAL_PLACES)}
+          min={MIN_DECIMAL_PLACES}
+          max={MAX_DECIMAL_PLACES}
         />
       </Form.Element>
     )

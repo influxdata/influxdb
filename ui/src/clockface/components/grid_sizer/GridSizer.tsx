@@ -8,68 +8,81 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   children?: JSX.Element[]
   cellWidth?: number
+  recalculateFlag?: string
   width?: number
+  wait?: number
 }
 
 interface State {
-  columns: number
+  columnStyle: {
+    width: string
+    paddingBottom: string
+    margin: string
+  }
 }
 @ErrorHandling
 class GridSizer extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     cellWidth: 150,
+    recalculateFlag: '',
     width: null,
+    wait: 0,
   }
+
+  private timeoutID: NodeJS.Timer
+  private debouncedSizeListener: () => void
+  private isComponentMounted: boolean
 
   constructor(props) {
     super(props)
     this.state = {
-      columns: null,
+      columnStyle: null,
     }
-  }
 
-  public listener = () => {
-    _.debounce(() => this.setColumns(this.getWidth()), 250)
+    this.debouncedSizeListener = _.debounce(this.setColumnStyle, 250)
   }
 
   public componentDidMount() {
+    this.isComponentMounted = true
     const {width} = this.props
-    const widthValue = width || this.getWidth()
-    this.setColumns(widthValue)
+    this.setColumnStyle()
 
     if (!width) {
-      window.addEventListener('resize', this.listener, false)
+      window.addEventListener('resize', this.debouncedSizeListener, false)
     }
   }
 
-  public componentDidUpdate() {
-    const {width} = this.props
-    if (width) {
-      this.setColumns(width)
+  public componentDidUpdate(prevProps) {
+    const {recalculateFlag, wait} = this.props
+    if (prevProps.recalculateFlag !== recalculateFlag) {
+      this.timeoutID = setTimeout(this.setColumnStyle, wait)
     }
   }
 
   public componentWillUnmount() {
-    window.removeEventListener('resize', this.listener, false)
+    this.isComponentMounted = false
+    clearInterval(this.timeoutID)
+    window.removeEventListener('resize', this.debouncedSizeListener, false)
   }
 
   public render() {
     return (
       <div id="grid_sizer" className="grid-sizer">
-        {this.sizeChildren}
+        <div className="grid-sizer--cells">{this.sizeChildren}</div>
       </div>
     )
   }
 
   private get sizeChildren() {
-    const {columns} = this.state
+    const {columnStyle} = this.state
     const {children} = this.props
 
-    if (columns) {
+    if (columnStyle) {
       const wrappedChildren = children.map((child, i) => (
         <div
           key={`grid_cell_${i}`}
-          className={`grid-sizer--cell grid-sizer--col-${columns}`}
+          style={columnStyle}
+          className={`grid-sizer--cell`}
         >
           <div className="grid-sizer--content">{child}</div>
         </div>
@@ -82,6 +95,10 @@ class GridSizer extends PureComponent<Props, State> {
   }
 
   private getWidth = () => {
+    if (!this.isComponentMounted) {
+      return
+    }
+
     const ele = document.getElementById('grid_sizer')
     const computedWidth = window
       .getComputedStyle(ele, null)
@@ -94,13 +111,24 @@ class GridSizer extends PureComponent<Props, State> {
     return widthValue
   }
 
-  private setColumns = (width: number) => {
-    const {cellWidth} = this.props
-    const columns = Math.round(width / cellWidth)
+  private setColumnStyle = () => {
+    const {cellWidth, width} = this.props
+    const actualWidth = width || this.getWidth()
+    const columns = Math.round(actualWidth / cellWidth)
+    const columnsPercent = 1 / columns
+    const calculatedCellWidth = actualWidth * columnsPercent
+    const gutterWidth = 4
+    const columnStyle = {
+      width: `${calculatedCellWidth - gutterWidth}px`,
+      margin: `${gutterWidth / 2}px`,
+      paddingBottom: `${calculatedCellWidth - gutterWidth}px`,
+    }
 
-    this.setState({
-      columns,
-    })
+    if (this.isComponentMounted) {
+      this.setState({
+        columnStyle,
+      })
+    }
   }
 }
 

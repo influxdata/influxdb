@@ -8,6 +8,10 @@ import (
 type Sequence interface {
 	Next() bool
 	Value() string
+}
+
+type CountableSequence interface {
+	Sequence
 	Count() int
 }
 
@@ -49,11 +53,11 @@ func (s *CounterByteSequence) update() {
 	s.val = fmt.Sprintf(s.format, fmt.Sprintf(s.nfmt, s.v))
 }
 
-func (s *CounterByteSequence) Count() int    { return s.end - s.s }
 func (s *CounterByteSequence) Value() string { return s.val }
+func (s *CounterByteSequence) Count() int    { return s.end - s.s }
 
 type ConstantStringSequence string
 
-func (ConstantStringSequence) Next() bool      { return true }
+func (s ConstantStringSequence) Next() bool    { return true }
 func (s ConstantStringSequence) Value() string { return string(s) }
-func (ConstantStringSequence) Count() int      { return 1 }
+func (s ConstantStringSequence) Count() int    { return 1 }

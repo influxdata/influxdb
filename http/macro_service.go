@@ -96,7 +96,14 @@ func requestMacroID(ctx context.Context) (platform.ID, error) {
 	}
 
 	id, err := platform.IDFromString(urlID)
-	return *id, err
+	if err != nil {
+		return platform.InvalidID(), &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
+	}
+
+	return *id, nil
 }
 
 func (h *MacroHandler) handleGetMacro(w http.ResponseWriter, r *http.Request) {

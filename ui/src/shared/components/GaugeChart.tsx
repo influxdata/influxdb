@@ -44,7 +44,7 @@ class GaugeChart extends PureComponent<Props> {
     const {values} = getLastValues(tables)
     const lastValue = _.get(values, 0, 0)
 
-    return lastValue
+    return Number(lastValue)
   }
 }
 

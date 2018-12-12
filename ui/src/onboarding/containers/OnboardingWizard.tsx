@@ -121,6 +121,7 @@ class OnboardingWizard extends PureComponent<Props> {
       onSaveTelegrafConfig,
       setupParams,
       notify,
+      onDecrementCurrentStepIndex,
     } = this.props
 
     return (
@@ -135,6 +136,7 @@ class OnboardingWizard extends PureComponent<Props> {
             title="Selected Sources"
             visible={this.sideBarVisible}
             currentStepIndex={currentStepIndex}
+            handleNewSourceClick={onDecrementCurrentStepIndex}
           />
           <div className="wizard-step--container">
             <OnboardingStepSwitcher

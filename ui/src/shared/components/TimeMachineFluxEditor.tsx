@@ -55,7 +55,7 @@ class TimeMachineFluxEditor extends PureComponent<Props> {
       },
       {
         render: () => <FluxFunctionsToolbar />,
-        handlePixels: 10,
+        handlePixels: 6,
         size: 0.25,
       },
     ]

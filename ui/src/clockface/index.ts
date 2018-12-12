@@ -23,6 +23,7 @@ import IndexList from './components/index_views/IndexList'
 import Context from './components/context_menu/Context'
 import FormElement from 'src/clockface/components/form_layout/FormElement'
 import DraggableResizer from 'src/clockface/components/draggable_resizer/DraggableResizer'
+import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 
 // Import Types
 import {
@@ -58,6 +59,7 @@ export {
   EmptyState,
   Form,
   FormElement,
+  GridSizer,
   IndexList,
   Input,
   InputType,

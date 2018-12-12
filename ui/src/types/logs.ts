@@ -1,7 +1,8 @@
 import {Index} from 'react-virtualized'
 
-import {Bucket, Source} from 'src/types/v2'
+import {Bucket} from 'src/types/v2'
 import {QueryConfig} from 'src/types'
+import {Source} from 'src/api'
 
 import {FieldOption, TimeSeriesValue} from 'src/types/v2/dashboards'
 

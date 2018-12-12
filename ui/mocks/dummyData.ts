@@ -12,7 +12,7 @@ import {Links} from 'src/types/v2/links'
 import {Task, TaskStatus} from 'src/types/v2/tasks'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {ConfigurationState} from 'src/types/v2/dataLoaders'
-import {TelegrafPluginInputCpu} from 'src/api'
+import {TelegrafPluginInputCpu, TelegrafPluginInputRedis} from 'src/api'
 
 export const links: Links = {
   authorizations: '/api/v2/authorizations',
@@ -290,6 +290,15 @@ export const telegrafPlugin = {
   name: TelegrafPluginInputCpu.NameEnum.Cpu,
   configured: ConfigurationState.Unconfigured,
   active: true,
+}
+
+export const redisPlugin = {
+  name: TelegrafPluginInputRedis.NameEnum.Redis,
+  type: TelegrafPluginInputRedis.TypeEnum.Input,
+  config: {
+    servers: [],
+    password: '',
+  },
 }
 
 export const influxDB2Plugin = {

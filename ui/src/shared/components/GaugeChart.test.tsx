@@ -71,7 +71,7 @@ describe('GaugeChart', () => {
         const wrapper = setup({tables})
 
         expect(wrapper.find(Gauge).exists()).toBe(true)
-        expect(wrapper.find(Gauge).props().gaugePosition).toBe('2')
+        expect(wrapper.find(Gauge).props().gaugePosition).toBe(2)
       })
     })
   })

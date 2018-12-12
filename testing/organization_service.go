@@ -295,7 +295,7 @@ func FindOrganizationByID(
 				err: &platform.Error{
 					Code: platform.ENotFound,
 					Op:   platform.OpFindOrganizationByID,
-					Msg:  "",
+					Msg:  "organization not found",
 				},
 			},
 		},

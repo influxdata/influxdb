@@ -23,9 +23,9 @@ func (c *Client) setPassword(ctx context.Context, tx *bolt.Tx, name string, pass
 		return err
 	}
 
-	u, err := c.findUserByName(ctx, tx, name)
-	if err != nil {
-		return err
+	u, pe := c.findUserByName(ctx, tx, name)
+	if pe != nil {
+		return pe
 	}
 
 	encodedID, err := u.ID.Encode()

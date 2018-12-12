@@ -1,16 +1,8 @@
 // Libraries
-import React, {Component} from 'react'
-import classnames from 'classnames'
+import React, {SFC} from 'react'
 
 // Components
-import {ClickOutside} from 'src/shared/components/ClickOutside'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
-
-// Utils
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
-// Constants
-import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
+import {Dropdown, ComponentStatus} from 'src/clockface'
 
 // Types
 import {ColorLabel} from 'src/types/colors'
@@ -23,110 +15,34 @@ interface Props {
   onChoose: (colors: ColorLabel) => void
 }
 
-interface State {
-  expanded: boolean
-}
+const titleCase = (name: string) => `${name[0].toUpperCase()}${name.slice(1)}`
 
-@ErrorHandling
-export default class ColorDropdown extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
-    stretchToFit: false,
-    disabled: false,
-  }
+const ColorDropdown: SFC<Props> = props => {
+  const {selected, colors, onChoose, disabled, stretchToFit} = props
 
-  public state: State = {expanded: false}
+  const status = disabled ? ComponentStatus.Disabled : ComponentStatus.Default
+  const widthPixels = stretchToFit ? null : 200
 
-  public render() {
-    const {expanded} = this.state
-    const {selected} = this.props
-
-    return (
-      <ClickOutside onClickOutside={this.handleClickOutside}>
-        <div className={this.dropdownClassNames}>
-          <div
-            className={this.buttonClassNames}
-            onClick={this.handleToggleMenu}
-          >
+  return (
+    <Dropdown
+      selectedID={selected.name}
+      onChange={onChoose}
+      status={status}
+      widthPixels={widthPixels}
+    >
+      {colors.map(color => (
+        <Dropdown.Item id={color.name} key={color.name} value={color}>
+          <div className="color-dropdown--item">
             <div
               className="color-dropdown--swatch"
-              style={{backgroundColor: selected.hex}}
+              style={{backgroundColor: color.hex}}
             />
-            <div className="color-dropdown--name">{selected.name}</div>
-            <span className="caret" />
+            <div className="color-dropdown--name">{titleCase(color.name)}</div>
           </div>
-          {expanded && this.renderMenu}
-        </div>
-      </ClickOutside>
-    )
-  }
-
-  private get dropdownClassNames(): string {
-    const {stretchToFit} = this.props
-    const {expanded} = this.state
-
-    return classnames('color-dropdown', {
-      open: expanded,
-      'color-dropdown--stretch': stretchToFit,
-    })
-  }
-
-  private get buttonClassNames(): string {
-    const {disabled} = this.props
-    const {expanded} = this.state
-
-    return classnames('btn btn-sm btn-default color-dropdown--toggle', {
-      active: expanded,
-      'color-dropdown__disabled': disabled,
-    })
-  }
-
-  private get renderMenu(): JSX.Element {
-    const {colors, selected} = this.props
-
-    return (
-      <div className="color-dropdown--menu">
-        <FancyScrollbar
-          autoHide={false}
-          autoHeight={true}
-          maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
-        >
-          {colors.map((color, i) => (
-            <div
-              className={
-                color.name === selected.name
-                  ? 'color-dropdown--item active'
-                  : 'color-dropdown--item'
-              }
-              key={i}
-              onClick={this.handleColorClick(color)}
-            >
-              <span
-                className="color-dropdown--swatch"
-                style={{backgroundColor: color.hex}}
-              />
-              <span className="color-dropdown--name">{color.name}</span>
-            </div>
-          ))}
-        </FancyScrollbar>
-      </div>
-    )
-  }
-
-  private handleToggleMenu = (): void => {
-    const {disabled} = this.props
-
-    if (disabled) {
-      return
-    }
-    this.setState({expanded: !this.state.expanded})
-  }
-
-  private handleClickOutside = (): void => {
-    this.setState({expanded: false})
-  }
-
-  private handleColorClick = color => (): void => {
-    this.props.onChoose(color)
-    this.setState({expanded: false})
-  }
+        </Dropdown.Item>
+      ))}
+    </Dropdown>
+  )
 }
+
+export default ColorDropdown

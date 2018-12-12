@@ -75,6 +75,7 @@
   align-items: center;
   cursor: pointer;
   margin: 0 $ix-marg-a;
+  flex-shrink: 0;
 }
 
 .wizard--progress-button:hover {
@@ -84,7 +85,9 @@
 }
 
 .wizard--progress-connector {
-  width: 70px;
+  min-width: 20px;
+  width: 100%;
+  max-width: 70px;
   margin: 0 $ix-marg-a;
   height: 2px;
   background-color: $g7-graphite;

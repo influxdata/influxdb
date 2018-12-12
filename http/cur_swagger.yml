@@ -630,6 +630,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /sources:
     post:
+      x-generated: true
       tags:
         - Sources
       summary: Creates a Source
@@ -661,6 +662,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     get:
+      x-generated: true
       tags:
         - Sources
       summary: Get all sources
@@ -685,7 +687,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /sources/{sourceID}:
+    delete:
+      x-generated: true
+      tags:
+        - Sources
+      summary: Delete a source
+      parameters:
+        - in: path
+          name: sourceID
+          schema:
+            type: string
+          required: true
+          description: ID of the source
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: view not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     patch:
+      x-generated: true
       tags:
         - Sources
       summary: Updates a Source
@@ -723,6 +753,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     get:
+      x-generated: true
       tags:
         - Sources
       summary: Get a source
@@ -754,6 +785,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /sources/{sourceID}/health:
     get:
+      x-generated: true
       tags:
         - Sources
       summary: Get a sources health
@@ -823,6 +855,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /views:
     post:
+      x-generated: true
       tags:
         - Views
       summary: A view contains information about the visual representation of data
@@ -854,6 +887,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     get:
+      x-generated: true
       tags:
         - Views
       summary: Get all views
@@ -878,37 +912,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   '/views/{viewID}':
-   get:
-    tags:
-      - Views
-    summary: Get a single View
-    parameters:
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of view to update
-    responses:
-        '200':
-          description: get a single view
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/View"
-        '404':
-          description: view not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-   patch:
+    get:
+      x-generated: true
+      tags:
+        - Views
+      summary: Get a single View
+      parameters:
+          - in: path
+            name: viewID
+            schema:
+              type: string
+            required: true
+            description: ID of view to update
+      responses:
+          '200':
+            description: get a single view
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/View"
+          '404':
+            description: view not found
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Error"
+          default:
+            description: unexpected error
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Error"
+    patch:
+      x-generated: true
       tags:
         - Views
       summary: Update a single view
@@ -945,7 +981,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-   delete:
+    delete:
+      x-generated: true
       tags:
         - Views
       summary: Delete a view
@@ -973,6 +1010,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /dashboards:
     post:
+      x-generated: true
       tags:
         - Dashboards
       summary: Create a dashboard
@@ -1004,6 +1042,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     get:
+      x-generated: true
       tags:
         - Dashboards
       summary: Get all dashboards
@@ -1043,47 +1082,49 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}':
-   get:
-    tags:
-      - Dashboards
-    summary: Get a single Dashboard
-    parameters:
-        - in: path
-          name: dashboardID
-          schema:
-            type: string
-          required: true
-          description: ID of dashboard to update
-    responses:
-        '200':
-          description: get a single dashboard
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Dashboard"
-        '404':
-          description: dashboard not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-   patch:
+    get:
+      x-generated: true
+      tags:
+        - Dashboards
+      summary: Get a single Dashboard
+      parameters:
+          - in: path
+            name: dashboardID
+            schema:
+              type: string
+            required: true
+            description: ID of dashboard to update
+      responses:
+          '200':
+            description: get a single dashboard
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Dashboard"
+          '404':
+            description: dashboard not found
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Error"
+          default:
+            description: unexpected error
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Error"
+    patch:
+      x-generated: true
       tags:
         - Dashboards
       summary: Update a single dashboard
       requestBody:
-          description: patching of a dashboard
-          required: true
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Dashboard"
+        description: patching of a dashboard
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Dashboard"
       parameters:
         - in: path
           name: dashboardID
@@ -1110,7 +1151,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-   delete:
+    delete:
+      x-generated: true
       tags:
         - Dashboards
       summary: Delete a dashboard
@@ -1137,18 +1179,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/cells':
-   put:
+    put:
+      x-generated: true
       tags:
         - Cells
         - Dashboards
       summary: Replace a dashboards cells
       requestBody:
-          description: batch replaces all of a dashboards cells (this is used primarily to update the positional information of all of the cells)
-          required: true
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Cells"
+        description: batch replaces all of a dashboards cells (this is used primarily to update the positional information of all of the cells)
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Cells"
       parameters:
         - in: path
           name: dashboardID
@@ -1175,7 +1218,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-   post:
+    post:
+      x-generated: true
       tags:
         - Cells
         - Dashboards
@@ -1215,6 +1259,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/cells/{cellID}':
     patch:
+      x-generated: true
       tags:
         - Cells
         - Dashboards
@@ -1259,6 +1304,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      x-generated: true
       tags:
         - Cells
         - Dashboards
@@ -2461,6 +2507,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /tasks:
     get:
+      x-generated: true
       tags:
         - Tasks
       summary: List tasks.
@@ -2502,6 +2549,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      x-generated: true
       tags:
         - Tasks
       summary: Create a new task
@@ -2527,6 +2575,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}':
     get:
+      x-generated: true
       tags:
         - Tasks
       summary: Retrieve an task
@@ -2551,6 +2600,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      x-generated: true
       tags:
         - Tasks
       summary: Update a task
@@ -2583,6 +2633,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      x-generated: true
       tags:
         - Tasks
       summary: Delete a task
@@ -4625,12 +4676,16 @@ components:
           properties:
             self:
               type: string
+            query:
+              type: string
+            health:
+              type: string
+            buckets:
+              type: string
         id:
           type: string
         organizationID:
           type: string
-        default:
-          type: boolean
         name:
           type: string
         type:

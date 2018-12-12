@@ -494,6 +494,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Macros"
+        '400':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: internal server error
           content:
@@ -1085,6 +1091,284 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/views/{viewID}/labels':
+    get:
+      tags:
+        - Views
+      summary: list all labels for a view
+      parameters:
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+      responses:
+        '200':
+          description: a list of all labels for a view
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    type: array
+                    items:
+                      type: string
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Views
+      summary: add a label to a view
+      parameters:
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+      responses:
+        '200':
+          description: a list of all labels for a view
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    type: array
+                    items:
+                      type: string
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/views/{viewID}/labels/{label}':
+    delete:
+      tags:
+        - Views
+      summary: delete a label from a view
+      parameters:
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+        - in: path
+          name: label
+          schema:
+            type: string
+          required: true
+          description: the label name
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: view not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/views/{viewID}/members':
+    get:
+      tags:
+        - Users
+        - Views
+      summary: List all view members
+      parameters:
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+      responses:
+        '200':
+          description: a list of users who have member privileges for a view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Users"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+        - Views
+      summary: Add view member
+      parameters:
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+      requestBody:
+        description: user to add as member
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        '201':
+          description: added to view members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/views/{viewID}/members/{userID}':
+    delete:
+      tags:
+        - Users
+        - Views
+      summary: removes a member from an view
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of member to remove
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+      responses:
+        '204':
+          description: member removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/views/{viewID}/owners':
+      get:
+        tags:
+          - Users
+          - Views
+        summary: List all view owners
+        parameters:
+          - in: path
+            name: viewID
+            schema:
+              type: string
+            required: true
+            description: ID of the view
+        responses:
+          '200':
+            description: a list of users who have owner privileges for a view
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Users"
+          default:
+            description: unexpected error
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Error"
+      post:
+        tags:
+          - Users
+          - Views
+        summary: Add view owner
+        parameters:
+          - in: path
+            name: viewID
+            schema:
+              type: string
+            required: true
+            description: ID of the view
+        requestBody:
+          description: user to add as owner
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        responses:
+          '201':
+            description: added to view owners
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/User"
+          default:
+            description: unexpected error
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Error"
+  '/views/{viewID}/owners/{userID}':
+    delete:
+      tags:
+        - Users
+        - Views
+      summary: removes an owner from a view
+      parameters:
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of owner to remove
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+      responses:
+        '204':
+          description: owner removed
         default:
           description: unexpected error
           content:
@@ -2512,6 +2796,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Organizations
+      summary: Delete an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of organization to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/labels':
     get:
       tags:
@@ -3553,178 +3863,6 @@ paths:
                 $ref: "#/components/schemas/UserResponse"
         default:
           description: unsuccessful authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  '/views/{viewID}/members':
-    get:
-      tags:
-        - Users
-        - Views
-      summary: List all view members
-      parameters:
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-      responses:
-        '200':
-          description: a list of users who have member privileges for a view
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Users"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    post:
-      tags:
-        - Users
-        - Views
-      summary: Add view member
-      parameters:
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-      requestBody:
-        description: user to add as member
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/User"
-      responses:
-        '201':
-          description: added to view members
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/User"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  '/views/{viewID}/members/{userID}':
-    delete:
-      tags:
-        - Users
-        - Views
-      summary: removes a member from an view
-      parameters:
-        - in: path
-          name: userID
-          schema:
-            type: string
-          required: true
-          description: ID of member to remove
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-      responses:
-        '204':
-          description: member removed
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  '/views/{viewID}/owners':
-      get:
-        tags:
-          - Users
-          - Views
-        summary: List all view owners
-        parameters:
-          - in: path
-            name: viewID
-            schema:
-              type: string
-            required: true
-            description: ID of the view
-        responses:
-          '200':
-            description: a list of users who have owner privileges for a view
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Users"
-          default:
-            description: unexpected error
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Error"
-      post:
-        tags:
-          - Users
-          - Views
-        summary: Add view owner
-        parameters:
-          - in: path
-            name: viewID
-            schema:
-              type: string
-            required: true
-            description: ID of the view
-        requestBody:
-          description: user to add as owner
-          required: true
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/User"
-        responses:
-          '201':
-            description: added to view owners
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/User"
-          default:
-            description: unexpected error
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Error"
-  '/views/{viewID}/owners/{userID}':
-    delete:
-      tags:
-        - Users
-        - Views
-      summary: removes an owner from a view
-      parameters:
-        - in: path
-          name: userID
-          schema:
-            type: string
-          required: true
-          description: ID of owner to remove
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-      responses:
-        '204':
-          description: owner removed
-        default:
-          description: unexpected error
           content:
             application/json:
               schema:

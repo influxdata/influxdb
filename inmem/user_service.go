@@ -46,17 +46,21 @@ func (s *Service) FindUserByID(ctx context.Context, id platform.ID) (u *platform
 	var pe *platform.Error
 	u, pe = s.loadUser(id)
 	if pe != nil {
-		err = pe
+		err = &platform.Error{
+			Op:  OpPrefix + platform.OpFindUserByID,
+			Err: pe,
+		}
 	}
 	return u, err
 }
 
-func (c *Service) findUserByName(ctx context.Context, n string) (*platform.User, error) {
-	return c.FindUser(ctx, platform.UserFilter{Name: &n})
+func (s *Service) findUserByName(ctx context.Context, n string) (*platform.User, error) {
+	return s.FindUser(ctx, platform.UserFilter{Name: &n})
 }
 
 // FindUser returns the first user that matches a filter.
 func (s *Service) FindUser(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
+	op := OpPrefix + platform.OpFindUser
 	if filter.Name != nil {
 		var o *platform.User
 
@@ -75,6 +79,7 @@ func (s *Service) FindUser(ctx context.Context, filter platform.UserFilter) (*pl
 		if o == nil {
 			return nil, &platform.Error{
 				Code: platform.ENotFound,
+				Op:   op,
 				Msg:  "user not found",
 			}
 		}
@@ -82,14 +87,23 @@ func (s *Service) FindUser(ctx context.Context, filter platform.UserFilter) (*pl
 		return o, nil
 	}
 
-	return nil, fmt.Errorf("expected filter to contain name")
+	return nil, &platform.Error{
+		Code: platform.EInvalid,
+		Op:   op,
+		Msg:  "expected filter to contain name",
+	}
 }
 
+// FindUsers will retrieve a list of users from storage.
 func (s *Service) FindUsers(ctx context.Context, filter platform.UserFilter, opt ...platform.FindOptions) ([]*platform.User, int, error) {
+	op := OpPrefix + platform.OpFindUsers
 	if filter.ID != nil {
 		o, err := s.FindUserByID(ctx, *filter.ID)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, &platform.Error{
+				Err: err,
+				Op:  op,
+			}
 		}
 
 		return []*platform.User{o}, 1, nil
@@ -97,7 +111,10 @@ func (s *Service) FindUsers(ctx context.Context, filter platform.UserFilter, opt
 	if filter.Name != nil {
 		o, err := s.FindUser(ctx, filter)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, &platform.Error{
+				Err: err,
+				Op:  op,
+			}
 		}
 
 		return []*platform.User{o}, 1, nil
@@ -117,24 +134,34 @@ func (s *Service) FindUsers(ctx context.Context, filter platform.UserFilter, opt
 	return orgs, len(orgs), nil
 }
 
+// CreateUser will create an user into storage.
 func (s *Service) CreateUser(ctx context.Context, u *platform.User) error {
 	if _, err := s.FindUser(ctx, platform.UserFilter{Name: &u.Name}); err == nil {
-		return fmt.Errorf("user with name %s already exists", u.Name)
+		return &platform.Error{
+			Code: platform.EConflict,
+			Op:   OpPrefix + platform.OpCreateUser,
+			Msg:  fmt.Sprintf("user with name %s already exists", u.Name),
+		}
 	}
 	u.ID = s.IDGenerator.ID()
 	s.PutUser(ctx, u)
 	return nil
 }
 
+// PutUser put a user into storage.
 func (s *Service) PutUser(ctx context.Context, o *platform.User) error {
 	s.userKV.Store(o.ID.String(), o)
 	return nil
 }
 
+// UpdateUser update a user in storage.
 func (s *Service) UpdateUser(ctx context.Context, id platform.ID, upd platform.UserUpdate) (*platform.User, error) {
 	o, err := s.FindUserByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+			Op:  OpPrefix + platform.OpUpdateUser,
+		}
 	}
 
 	if upd.Name != nil {
@@ -146,9 +173,13 @@ func (s *Service) UpdateUser(ctx context.Context, id platform.ID, upd platform.U
 	return o, nil
 }
 
+// DeleteUser remove a user from storage.
 func (s *Service) DeleteUser(ctx context.Context, id platform.ID) error {
 	if _, err := s.FindUserByID(ctx, id); err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+			Op:  OpPrefix + platform.OpDeleteUser,
+		}
 	}
 	s.userKV.Delete(id.String())
 	return nil

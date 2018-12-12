@@ -1554,6 +1554,7 @@ func (e *Engine) fullCompactionStrategy(group CompactionGroup, optimize bool) *c
 		fast:      optimize,
 		engine:    e,
 		level:     5,
+		tracker:   e.compactionTracker,
 	}
 
 	if optimize {

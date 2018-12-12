@@ -55,6 +55,8 @@ func main() {
 	if err := m.Run(ctx, os.Args[1:]...); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	} else if !m.running {
+		os.Exit(1)
 	}
 
 	<-ctx.Done()
@@ -67,8 +69,9 @@ func main() {
 
 // Main represents the main program execution.
 type Main struct {
-	wg     sync.WaitGroup
-	cancel func()
+	wg      sync.WaitGroup
+	cancel  func()
+	running bool
 
 	logLevel        string
 	httpBindAddress string
@@ -197,6 +200,7 @@ func (m *Main) Run(ctx context.Context, args ...string) error {
 }
 
 func (m *Main) run(ctx context.Context) (err error) {
+	m.running = true
 	ctx, m.cancel = context.WithCancel(ctx)
 
 	var lvl zapcore.Level

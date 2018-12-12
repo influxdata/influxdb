@@ -9,7 +9,8 @@ import {oneline} from 'src/logs/utils/helpers/formatting'
 
 import {QueryConfig} from 'src/types'
 import {Filter, LogQuery} from 'src/types/logs'
-import {InfluxLanguage, SourceType} from 'src/types/v2'
+import {InfluxLanguage} from 'src/types/v2'
+import {Source} from 'src/api'
 
 describe('Logs.LogQuery', () => {
   let config: QueryConfig
@@ -39,7 +40,7 @@ describe('Logs.LogQuery', () => {
     const source = {
       id: '1',
       name: 'foo',
-      type: SourceType.Self,
+      type: Source.TypeEnum.Self,
       url: 'test.local',
       insecureSkipVerify: false,
       default: true,

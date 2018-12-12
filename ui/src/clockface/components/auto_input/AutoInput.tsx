@@ -2,7 +2,7 @@
 import React, {Component, ChangeEvent, KeyboardEvent} from 'react'
 
 // Components
-import {Input, InputType, Radio, ButtonShape} from 'src/clockface'
+import {Input, Radio, ButtonShape} from 'src/clockface'
 
 // Styles
 import './AutoInput.scss'
@@ -26,7 +26,7 @@ interface Props {
 
 interface State {
   inputMode: Mode
-  inputValue: number
+  inputValue: string
 }
 
 @ErrorHandling
@@ -79,20 +79,17 @@ export default class AutoInput extends Component<Props, State> {
 
   private get input(): JSX.Element {
     const {inputMode, inputValue} = this.state
-    const {min, max, inputPlaceholder} = this.props
+    const {inputPlaceholder} = this.props
 
     if (inputMode === Mode.Custom) {
       return (
         <div className="auto-input--input">
           <Input
-            type={InputType.Number}
-            min={min}
-            max={max}
             placeholder={inputPlaceholder}
             value={`${inputValue}`}
             onChange={this.handleInputChange}
-            onBlur={this.handleInputBlur}
             onKeyPress={this.handleInputKeyPress}
+            onBlur={this.emitValue}
             autoFocus={true}
           />
         </div>
@@ -101,32 +98,41 @@ export default class AutoInput extends Component<Props, State> {
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const inputValue = Number(e.target.value)
+    const {max, min} = this.props
+
+    let inputValue = e.target.value
+
+    if (Number(inputValue) < min) {
+      inputValue = String(min)
+    } else if (Number(inputValue) > max) {
+      inputValue = String(max)
+    }
 
     this.setState({inputValue})
   }
 
   private handleRadioClick = (inputMode: Mode) => {
-    const {onChange} = this.props
-
-    if (inputMode === Mode.Custom) {
-      this.setState({inputMode, inputValue: 0})
-      onChange(null)
-    } else {
-      this.setState({inputMode, inputValue: null})
+    if (inputMode === this.state.inputMode) {
+      return
     }
-  }
 
-  private handleInputBlur = (e: ChangeEvent<HTMLInputElement>) => {
-    const {onChange} = this.props
-    const inputValue = Number(e.target.value)
-
-    onChange(inputValue)
+    this.setState({inputMode, inputValue: ''}, this.emitValue)
   }
 
   private handleInputKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      this.props.onChange(this.state.inputValue)
+      this.emitValue()
+    }
+  }
+
+  private emitValue = () => {
+    const {onChange} = this.props
+    const {inputValue} = this.state
+
+    if (inputValue === '' || isNaN(Number(inputValue))) {
+      onChange(null)
+    } else {
+      onChange(Number(inputValue))
     }
   }
 }

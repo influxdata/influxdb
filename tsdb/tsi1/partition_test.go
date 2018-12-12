@@ -12,6 +12,8 @@ import (
 )
 
 func TestPartition_Open(t *testing.T) {
+	t.Parallel() // There's a bit of IO in this test.
+
 	sfile := MustOpenSeriesFile()
 	defer sfile.Close()
 

@@ -3,7 +3,6 @@ package testing
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 
@@ -39,11 +38,11 @@ type UserFields struct {
 
 // UserService tests all the service functions.
 func UserService(
-	init func(UserFields, *testing.T) (platform.UserService, func()), t *testing.T,
+	init func(UserFields, *testing.T) (platform.UserService, string, func()), t *testing.T,
 ) {
 	tests := []struct {
 		name string
-		fn   func(init func(UserFields, *testing.T) (platform.UserService, func()),
+		fn   func(init func(UserFields, *testing.T) (platform.UserService, string, func()),
 			t *testing.T)
 	}{
 		{
@@ -80,7 +79,7 @@ func UserService(
 
 // CreateUser testing
 func CreateUser(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+	init func(UserFields, *testing.T) (platform.UserService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -173,26 +172,22 @@ func CreateUser(
 						Name: "user1",
 					},
 				},
-				err: fmt.Errorf("user with name user1 already exists"),
+				err: &platform.Error{
+					Code: platform.EConflict,
+					Op:   platform.OpCreateUser,
+					Msg:  "user with name user1 already exists",
+				},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.CreateUser(ctx, tt.args.user)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			// Delete only created users - ie., having a not nil ID
 			if tt.args.user.ID.Valid() {
@@ -212,7 +207,7 @@ func CreateUser(
 
 // FindUserByID testing
 func FindUserByID(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+	init func(UserFields, *testing.T) (platform.UserService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -253,24 +248,41 @@ func FindUserByID(
 				},
 			},
 		},
+		{
+			name: "find user by id not exists",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "user1",
+					},
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "user2",
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(threeID),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindUserByID,
+					Msg:  "user not found",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
 			user, err := s.FindUserByID(ctx, tt.args.id)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
 				t.Errorf("user is different -got/+want\ndiff %s", diff)
@@ -281,7 +293,7 @@ func FindUserByID(
 
 // FindUsers testing
 func FindUsers(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+	init func(UserFields, *testing.T) (platform.UserService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -379,11 +391,61 @@ func FindUsers(
 				},
 			},
 		},
+		{
+			name: "find user by id not exists",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				ID: MustIDBase16(threeID),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindUsers,
+					Msg:  "user not found",
+				},
+			},
+		},
+		{
+			name: "find user by name not exists",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				name: "no_exist",
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindUsers,
+					Msg:  "user not found",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
@@ -396,15 +458,7 @@ func FindUsers(
 			}
 
 			users, _, err := s.FindUsers(ctx, filter)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
 				t.Errorf("users are different -got/+want\ndiff %s", diff)
@@ -415,7 +469,7 @@ func FindUsers(
 
 // DeleteUser testing
 func DeleteUser(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+	init func(UserFields, *testing.T) (platform.UserService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -476,7 +530,11 @@ func DeleteUser(
 				ID: MustIDBase16(userThreeID),
 			},
 			wants: wants{
-				err: fmt.Errorf("<not found> user not found"),
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpDeleteUser,
+					Msg:  "user not found",
+				},
 				users: []*platform.User{
 					{
 						Name: "orgA",
@@ -493,19 +551,11 @@ func DeleteUser(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.DeleteUser(ctx, tt.args.ID)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			filter := platform.UserFilter{}
 			users, _, err := s.FindUsers(ctx, filter)
@@ -521,7 +571,7 @@ func DeleteUser(
 
 // FindUser testing
 func FindUser(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+	init func(UserFields, *testing.T) (platform.UserService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -572,14 +622,18 @@ func FindUser(
 				name: "abc",
 			},
 			wants: wants{
-				err: fmt.Errorf("<not found> user not found"),
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Msg:  "user not found",
+					Op:   platform.OpFindUser,
+				},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			filter := platform.UserFilter{}
@@ -588,15 +642,7 @@ func FindUser(
 			}
 
 			user, err := s.FindUser(ctx, filter)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
 				t.Errorf("users are different -got/+want\ndiff %s", diff)
@@ -607,7 +653,7 @@ func FindUser(
 
 // UpdateUser testing
 func UpdateUser(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+	init func(UserFields, *testing.T) (platform.UserService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -650,11 +696,37 @@ func UpdateUser(
 				},
 			},
 		},
+		{
+			name: "update name with id not exists",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "user1",
+					},
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "user2",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(threeID),
+				name: "changed",
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpUpdateUser,
+					Msg:  "user not found",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
@@ -664,15 +736,7 @@ func UpdateUser(
 			}
 
 			user, err := s.UpdateUser(ctx, tt.args.id, upd)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
 				t.Errorf("user is different -got/+want\ndiff %s", diff)
