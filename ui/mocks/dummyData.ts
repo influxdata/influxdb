@@ -12,7 +12,17 @@ import {Links} from 'src/types/v2/links'
 import {Task, TaskStatus} from 'src/types/v2/tasks'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {ConfigurationState} from 'src/types/v2/dataLoaders'
-import {TelegrafPluginInputCpu, TelegrafPluginInputRedis} from 'src/api'
+import {
+  TelegrafPluginInputCpu,
+  TelegrafPluginInputRedis,
+  TelegrafPluginInputDisk,
+  TelegrafPluginInputKernel,
+  TelegrafPluginInputDiskio,
+  TelegrafPluginInputMem,
+  TelegrafPluginInputSwap,
+  TelegrafPluginInputSystem,
+  TelegrafPluginInputProcesses,
+} from 'src/api'
 
 export const links: Links = {
   authorizations: '/api/v2/authorizations',
@@ -289,7 +299,49 @@ export const cpuPlugin = {
 export const telegrafPlugin = {
   name: TelegrafPluginInputCpu.NameEnum.Cpu,
   configured: ConfigurationState.Unconfigured,
-  active: true,
+  active: false,
+}
+
+export const cpuTelegrafPlugin = {...telegrafPlugin}
+
+export const diskTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputDisk.NameEnum.Disk,
+}
+
+export const diskioTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputDiskio.NameEnum.Diskio,
+}
+
+export const kernelTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputKernel.NameEnum.Kernel,
+}
+
+export const memTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputMem.NameEnum.Mem,
+}
+
+export const processesTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputProcesses.NameEnum.Processes,
+}
+
+export const swapTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputSwap.NameEnum.Swap,
+}
+
+export const systemTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputSystem.NameEnum.System,
+}
+
+export const redisTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputRedis.NameEnum.Redis,
 }
 
 export const redisPlugin = {
@@ -323,7 +375,7 @@ export const telegrafConfig = {
   plugins: [cpuPlugin, influxDB2Plugin],
 }
 
-export const telegrafConfigsResponse = {
+export const getTelegrafConfigsResponse = {
   data: {
     configurations: [telegrafConfig],
   },
@@ -346,6 +398,10 @@ export const telegrafConfigsResponse = {
     url: '/api/v2/telegrafs?org=',
   },
   request: {},
+}
+
+export const createTelegrafConfigResponse = {
+  data: telegrafConfig,
 }
 
 export const authResponse = {

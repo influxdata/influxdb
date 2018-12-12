@@ -5,6 +5,8 @@ import _ from 'lodash'
 import {
   createNewPlugin,
   updateConfigFields,
+  isPluginInBundle,
+  isPluginUniqueToBundle,
 } from 'src/onboarding/utils/pluginConfigs'
 
 // Types
@@ -25,6 +27,7 @@ export const INITIAL_STATE: DataLoadersState = {
   lpStatus: RemoteDataState.NotStarted,
   precision: WritePrecision.Ms,
   telegrafConfigID: null,
+  pluginBundles: [],
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
@@ -39,13 +42,40 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
         ...state,
         telegrafConfigID: action.payload.id,
       }
-    case 'ADD_TELEGRAF_PLUGIN':
+    case 'ADD_PLUGIN_BUNDLE':
       return {
         ...state,
-        telegrafPlugins: [
-          ...state.telegrafPlugins,
-          action.payload.telegrafPlugin,
-        ],
+        pluginBundles: [...state.pluginBundles, action.payload.bundle],
+      }
+    case 'REMOVE_PLUGIN_BUNDLE':
+      return {
+        ...state,
+        pluginBundles: state.pluginBundles.filter(
+          b => b !== action.payload.bundle
+        ),
+      }
+    case 'REMOVE_BUNDLE_PLUGINS':
+      return {
+        ...state,
+        telegrafPlugins: state.telegrafPlugins.filter(tp => {
+          if (isPluginInBundle(tp.name, action.payload.bundle)) {
+            return !isPluginUniqueToBundle(
+              tp.name,
+              action.payload.bundle,
+              state.pluginBundles
+            )
+          }
+
+          return true
+        }),
+      }
+    case 'ADD_TELEGRAF_PLUGINS':
+      return {
+        ...state,
+        telegrafPlugins: _.uniqBy(
+          [...state.telegrafPlugins, ...action.payload.telegrafPlugins],
+          'name'
+        ),
       }
     case 'UPDATE_TELEGRAF_PLUGIN':
       return {
@@ -131,13 +161,6 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
           }
           return tp
         }),
-      }
-    case 'REMOVE_TELEGRAF_PLUGIN':
-      return {
-        ...state,
-        telegrafPlugins: state.telegrafPlugins.filter(
-          tp => tp.name !== action.payload.telegrafPlugin
-        ),
       }
     case 'SET_ACTIVE_TELEGRAF_PLUGIN':
       return {

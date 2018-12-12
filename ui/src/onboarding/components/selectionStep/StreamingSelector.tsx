@@ -9,18 +9,20 @@ import {GridSizer} from 'src/clockface'
 
 // Constants
 import {
-  PLUGIN_OPTIONS,
-  PLUGIN_LOGOS,
+  PLUGIN_BUNDLE_OPTIONS,
+  BUNDLE_LOGOS,
 } from 'src/onboarding/constants/pluginConfigs'
 
 // Types
-import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 export interface Props {
+  pluginBundles: BundleName[]
   telegrafPlugins: TelegrafPlugin[]
-  onToggleTelegrafPlugin: (telegrafPlugin: string, isSelected: boolean) => void
+  onTogglePluginBundle: (telegrafPlugin: string, isSelected: boolean) => void
 }
+
 interface State {
   gridSizerUpdateFlag: string
 }
@@ -66,16 +68,16 @@ class StreamingSelector extends PureComponent<Props, State> {
             wait={ANIMATION_LENGTH}
             recalculateFlag={gridSizerUpdateFlag}
           >
-            {PLUGIN_OPTIONS.map(ds => {
+            {PLUGIN_BUNDLE_OPTIONS.map(b => {
               return (
                 <CardSelectCard
-                  key={ds}
-                  id={ds}
-                  name={ds}
-                  label={ds}
-                  checked={this.isCardChecked(ds)}
-                  onClick={this.handleToggle(ds)}
-                  image={PLUGIN_LOGOS[ds]}
+                  key={b}
+                  id={b}
+                  name={b}
+                  label={b}
+                  checked={this.isCardChecked(b)}
+                  onClick={this.handleToggle(b)}
+                  image={BUNDLE_LOGOS[b]}
                 />
               )
             })}
@@ -85,20 +87,17 @@ class StreamingSelector extends PureComponent<Props, State> {
     )
   }
 
-  private isCardChecked(telegrafPlugin: string) {
-    const {telegrafPlugins} = this.props
+  private isCardChecked(bundle: BundleName) {
+    const {pluginBundles} = this.props
 
-    if (telegrafPlugins.find(ds => ds.name === telegrafPlugin)) {
+    if (pluginBundles.find(b => b === bundle)) {
       return true
     }
     return false
   }
 
-  private handleToggle = (telegrafPlugin: string) => () => {
-    this.props.onToggleTelegrafPlugin(
-      telegrafPlugin,
-      this.isCardChecked(telegrafPlugin)
-    )
+  private handleToggle = (bundle: BundleName) => () => {
+    this.props.onTogglePluginBundle(bundle, this.isCardChecked(bundle))
   }
 }
 
