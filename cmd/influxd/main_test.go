@@ -137,6 +137,7 @@ func (m *Main) Run(ctx context.Context, args ...string) error {
 
 // Shutdown stops the program and cleans up temporary paths.
 func (m *Main) Shutdown(ctx context.Context) error {
+	m.Cancel()
 	m.Main.Shutdown(ctx)
 	return os.RemoveAll(m.Path)
 }
