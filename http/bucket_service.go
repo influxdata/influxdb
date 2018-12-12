@@ -516,6 +516,7 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
 			Op:   s.OpPrefix + platform.OpFindBucket,
+			Msg:  "bucket not found",
 			Err:  ErrNotFound,
 		}
 	}

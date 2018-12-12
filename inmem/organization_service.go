@@ -149,7 +149,7 @@ func (s *Service) FindOrganizations(ctx context.Context, filter platform.Organiz
 		return orgs, 0, &platform.Error{
 			Code: platform.ENotFound,
 			Op:   op,
-			Msg:  OpPrefix + platform.OpFindOrganizations,
+			Msg:  errOrganizationNotFound,
 		}
 	}
 

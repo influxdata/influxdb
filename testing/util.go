@@ -21,6 +21,10 @@ func diffErrors(actual, expected error, t *testing.T) {
 }
 
 func diffPlatformErrors(name string, actual, expected error, opPrefix string, t *testing.T) {
+	if expected == nil && actual == nil {
+		return
+	}
+
 	if expected == nil && actual != nil {
 		t.Fatalf("%s failed, unexpected error %s", name, actual.Error())
 	}
@@ -29,12 +33,16 @@ func diffPlatformErrors(name string, actual, expected error, opPrefix string, t 
 		t.Fatalf("%s failed, expected error %s but received nil", name, expected.Error())
 	}
 
-	if expected != nil && actual != nil && platform.ErrorCode(expected) != platform.ErrorCode(actual) {
+	if platform.ErrorCode(expected) != platform.ErrorCode(actual) {
 		t.Fatalf("%s failed, expected error %q but received error code %q", name, platform.ErrorCode(expected), platform.ErrorCode(actual))
 	}
 
-	if expected != nil && actual != nil && opPrefix+platform.ErrorOp(expected) != platform.ErrorOp(actual) {
+	if opPrefix+platform.ErrorOp(expected) != platform.ErrorOp(actual) {
 		t.Fatalf("%s failed, expected error %q but received error op %q", name, opPrefix+platform.ErrorOp(expected), platform.ErrorOp(actual))
+	}
+
+	if platform.ErrorMessage(expected) != platform.ErrorMessage(actual) {
+		t.Fatalf("%s failed, expected error %q but received error message %q", name, platform.ErrorMessage(expected), platform.ErrorMessage(actual))
 	}
 }
 
