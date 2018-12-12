@@ -13,7 +13,7 @@ import (
 // callers to fail early for operations that are not allowed.  However, it's still possible
 // for authorization to be denied at runtime even if this check passes.
 type PreAuthorizer interface {
-	PreAuthorize(ctx context.Context, spec *flux.Spec, auth *platform.Authorization) error
+	PreAuthorize(ctx context.Context, spec *flux.Spec, auth platform.Authorizer) error
 }
 
 // NewPreAuthorizer creates a new PreAuthorizer
@@ -26,8 +26,8 @@ type preAuthorizer struct {
 }
 
 // PreAuthorize finds all the buckets read and written by the given spec, and ensures that execution is allowed
-// given the Authorization.  Returns nil on success, and an error with an appropriate message otherwise.
-func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth *platform.Authorization) error {
+// given the Authorizer.  Returns nil on success, and an error with an appropriate message otherwise.
+func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth platform.Authorizer) error {
 
 	readBuckets, writeBuckets, err := BucketsAccessed(spec)
 

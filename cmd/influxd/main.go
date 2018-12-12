@@ -321,8 +321,7 @@ func (m *Main) run(ctx context.Context) (err error) {
 		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
 		lr := taskbackend.NewQueryLogReader(queryService)
 		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler)
-		// TODO(lh): Add in `taskSvc = task.NewValidator(taskSvc)` once we have Authentication coming in the context.
-		// see issue #563
+		taskSvc = task.NewValidator(taskSvc, bucketSvc)
 	}
 
 	// NATS streaming server

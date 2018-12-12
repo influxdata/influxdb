@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/platform"
 	platcontext "github.com/influxdata/platform/context"
+	"github.com/influxdata/platform/query"
 )
 
 type authError struct {
@@ -23,16 +26,22 @@ var ErrFailedPermission = errors.New("unauthorized")
 
 type taskServiceValidator struct {
 	platform.TaskService
+	preAuth query.PreAuthorizer
 }
 
-func NewValidator(ts platform.TaskService) platform.TaskService {
+func NewValidator(ts platform.TaskService, bs platform.BucketService) platform.TaskService {
 	return &taskServiceValidator{
 		TaskService: ts,
+		preAuth:     query.NewPreAuthorizer(bs),
 	}
 }
 
 func (ts *taskServiceValidator) CreateTask(ctx context.Context, t *platform.Task) error {
 	if err := validatePermission(ctx, platform.Permission{Action: platform.CreateAction, Resource: platform.TaskResource(t.Organization)}); err != nil {
+		return err
+	}
+
+	if err := validateBucket(ctx, t.Flux, ts.preAuth); err != nil {
 		return err
 	}
 
@@ -49,6 +58,24 @@ func validatePermission(ctx context.Context, perm platform.Permission) error {
 
 	if !auth.Allowed(perm) {
 		return authError{error: ErrFailedPermission, perm: perm, auth: auth}
+	}
+
+	return nil
+}
+
+func validateBucket(ctx context.Context, script string, preAuth query.PreAuthorizer) error {
+	auth, err := platcontext.GetAuthorizer(ctx)
+	if err != nil {
+		return err
+	}
+
+	spec, err := flux.Compile(ctx, script, time.Now())
+	if err != nil {
+		return err
+	}
+
+	if err := preAuth.PreAuthorize(ctx, spec, auth); err != nil {
+		return err
 	}
 
 	return nil
