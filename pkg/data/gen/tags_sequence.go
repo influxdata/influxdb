@@ -16,12 +16,12 @@ type TagsSequence interface {
 
 type TagsValuesSequence struct {
 	tags models.Tags
-	vals []Sequence
+	vals []CountableSequence
 	n    int
 	max  int
 }
 
-func NewTagsValuesSequenceKeysValues(keys []string, vals []Sequence) *TagsValuesSequence {
+func NewTagsValuesSequenceKeysValues(keys []string, vals []CountableSequence) *TagsValuesSequence {
 	tm := make(map[string]string, len(keys))
 	for _, k := range keys {
 		tm[k] = ""
@@ -42,7 +42,7 @@ func NewTagsValuesSequenceKeysValues(keys []string, vals []Sequence) *TagsValues
 	}
 }
 
-func NewTagsValuesSequenceValues(prefix string, vals []Sequence) *TagsValuesSequence {
+func NewTagsValuesSequenceValues(prefix string, vals []CountableSequence) *TagsValuesSequence {
 	keys := make([]string, len(vals))
 	// max tag width
 	tw := int(math.Ceil(math.Log10(float64(len(vals)))))
@@ -82,7 +82,7 @@ func (s *TagsValuesSequence) Count() int         { return s.max }
 
 type keyValues struct {
 	keys []string
-	vals []Sequence
+	vals []CountableSequence
 }
 
 func (k keyValues) Len() int           { return len(k.keys) }

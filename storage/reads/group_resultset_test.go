@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/testing/gen"
+	"github.com/influxdata/platform/pkg/data/gen"
 	"github.com/influxdata/platform/storage/reads"
 	"github.com/influxdata/platform/storage/reads/datatypes"
 )
@@ -310,7 +310,7 @@ func (s *sliceSeriesCursor) Next() *reads.SeriesRow {
 
 func BenchmarkNewGroupResultSet_GroupBy(b *testing.B) {
 	card := []int{10, 10, 10}
-	vals := make([]gen.Sequence, len(card))
+	vals := make([]gen.CountableSequence, len(card))
 	for i := range card {
 		vals[i] = gen.NewCounterByteSequenceCount(card[i])
 	}
