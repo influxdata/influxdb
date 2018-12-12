@@ -59,16 +59,13 @@ class TimeMachine extends Component<Props, State> {
               handlePositions={resizerHandlePosition}
               onChangePositions={this.handleResizerChange}
             >
-              <DraggableResizer.Panel id="time-machine--top" minSizePixels={0}>
+              <DraggableResizer.Panel>
                 <div className="time-machine--top">
                   <TimeMachineControls queriesState={queriesState} />
                   <TimeMachineVis queriesState={queriesState} />
                 </div>
               </DraggableResizer.Panel>
-              <DraggableResizer.Panel
-                id="time-machine--bottom"
-                minSizePixels={0}
-              >
+              <DraggableResizer.Panel>
                 <TimeMachineBottom queryStatus={queriesState.loading} />
               </DraggableResizer.Panel>
             </DraggableResizer>
