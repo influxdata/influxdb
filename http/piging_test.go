@@ -121,15 +121,9 @@ func TestPaging_newPagingLinks(t *testing.T) {
 			},
 			wants: wants{
 				links: platform.PagingLinks{
-					Prev: map[string]string{
-						"prev": "/api/v2/buckets?descending=true&limit=10&name=name&offset=0&type=type1&type=type2",
-					},
-					Self: map[string]string{
-						"self": "/api/v2/buckets?descending=true&limit=10&name=name&offset=10&type=type1&type=type2",
-					},
-					Next: map[string]string{
-						"next": "/api/v2/buckets?descending=true&limit=10&name=name&offset=20&type=type1&type=type2",
-					},
+					Prev: "/api/v2/buckets?descending=true&limit=10&name=name&offset=0&type=type1&type=type2",
+					Self: "/api/v2/buckets?descending=true&limit=10&name=name&offset=10&type=type1&type=type2",
+					Next: "/api/v2/buckets?descending=true&limit=10&name=name&offset=20&type=type1&type=type2",
 				},
 			},
 		},
@@ -150,15 +144,9 @@ func TestPaging_newPagingLinks(t *testing.T) {
 			},
 			wants: wants{
 				links: platform.PagingLinks{
-					Prev: map[string]string{
-						"prev": "",
-					},
-					Self: map[string]string{
-						"self": "/api/v2/buckets?descending=true&limit=10&name=name&offset=0&type=type1&type=type2",
-					},
-					Next: map[string]string{
-						"next": "/api/v2/buckets?descending=true&limit=10&name=name&offset=10&type=type1&type=type2",
-					},
+					Prev: "",
+					Self: "/api/v2/buckets?descending=true&limit=10&name=name&offset=0&type=type1&type=type2",
+					Next: "/api/v2/buckets?descending=true&limit=10&name=name&offset=10&type=type1&type=type2",
 				},
 			},
 		},
@@ -179,15 +167,9 @@ func TestPaging_newPagingLinks(t *testing.T) {
 			},
 			wants: wants{
 				links: platform.PagingLinks{
-					Prev: map[string]string{
-						"prev": "/api/v2/buckets?descending=true&limit=10&name=name&offset=0&type=type1&type=type2",
-					},
-					Self: map[string]string{
-						"self": "/api/v2/buckets?descending=true&limit=10&name=name&offset=10&type=type1&type=type2",
-					},
-					Next: map[string]string{
-						"next": "",
-					},
+					Prev: "/api/v2/buckets?descending=true&limit=10&name=name&offset=0&type=type1&type=type2",
+					Self: "/api/v2/buckets?descending=true&limit=10&name=name&offset=10&type=type1&type=type2",
+					Next: "",
 				},
 			},
 		},
@@ -197,16 +179,16 @@ func TestPaging_newPagingLinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			links := newPagingLinks(tt.args.basePath, tt.args.opts, tt.args.filter, tt.args.num)
 
-			if links.Prev["prev"] != tt.wants.links.Prev["prev"] {
-				t.Errorf("%q. newPagingLinks() = %v, want %v", tt.name, links.Prev["prev"], tt.wants.links.Prev["prev"])
+			if links.Prev != tt.wants.links.Prev {
+				t.Errorf("%q. newPagingLinks() = %v, want %v", tt.name, links.Prev, tt.wants.links.Prev)
 			}
 
-			if links.Self["self"] != tt.wants.links.Self["self"] {
-				t.Errorf("%q. newPagingLinks() = %v, want %v", tt.name, links.Self["self"], tt.wants.links.Self["self"])
+			if links.Self != tt.wants.links.Self {
+				t.Errorf("%q. newPagingLinks() = %v, want %v", tt.name, links.Self, tt.wants.links.Self)
 			}
 
-			if links.Next["next"] != tt.wants.links.Next["next"] {
-				t.Errorf("%q. newPagingLinks() = %v, want %v", tt.name, links.Next["next"], tt.wants.links.Next["next"])
+			if links.Next != tt.wants.links.Next {
+				t.Errorf("%q. newPagingLinks() = %v, want %v", tt.name, links.Next, tt.wants.links.Next)
 			}
 		})
 	}

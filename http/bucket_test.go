@@ -70,15 +70,9 @@ func TestService_handleGetBuckets(t *testing.T) {
 				body: `
 {
   "links": {
-    "prev": {
-      "prev": ""
-    },
-    "self": {
-      "self": "/api/v2/buckets?descending=false&limit=1&offset=0"
-    },
-    "next": {
-      "next": "/api/v2/buckets?descending=false&limit=1&offset=1"
-    }
+    "prev": "",
+    "self": "/api/v2/buckets?descending=false&limit=1&offset=0",
+    "next": "/api/v2/buckets?descending=false&limit=1&offset=1"
   },
   "buckets": [
     {
@@ -128,15 +122,9 @@ func TestService_handleGetBuckets(t *testing.T) {
 				body: `
 {
   "links": {
-    "prev": {
-      "prev": ""
-    },
-    "self": {
-      "self": "/api/v2/buckets?descending=false&limit=1&offset=0"
-    },
-    "next": {
-      "next": ""
-    }
+    "prev": "",
+    "self": "/api/v2/buckets?descending=false&limit=1&offset=0",
+    "next": ""
   },
   "buckets": []
 }`,

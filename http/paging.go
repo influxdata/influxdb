@@ -102,15 +102,9 @@ func newPagingLinks(basePath string, opts platform.FindOptions, f platform.Pagin
 	}
 
 	links := &platform.PagingLinks{
-		Self: map[string]string{
-			"self": self,
-		},
-		Prev: map[string]string{
-			"prev": prev,
-		},
-		Next: map[string]string{
-			"next": next,
-		},
+		Prev: prev,
+		Self: self,
+		Next: next,
 	}
 
 	return links

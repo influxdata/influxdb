@@ -3809,14 +3809,10 @@ components:
           items:
             $ref: "#/components/schemas/Bucket"
     Link:
-      type: object
+      type: string
       readOnly: true
+      format: uri
       description: URI of resource.
-      properties:
-        href:
-          type: string
-          format: uri
-      required: [href]
     Links:
       type: object
       properties:
