@@ -494,6 +494,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Macros"
+        '400':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: internal server error
           content:

@@ -159,6 +159,24 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 				body:        ``,
 			},
 		},
+		{
+			name: "request an invalid macro ID",
+			args: args{
+				id: "baz",
+			},
+			fields: fields{
+				&mock.MacroService{
+					FindMacroByIDF: func(ctx context.Context, id platform.ID) (*platform.Macro, error) {
+						return nil, nil
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  400,
+				contentType: "application/json",
+				body:        `{"code":"invalid","msg":"An internal error has occurred.","err":"id must have a length of 16 bytes"}`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
