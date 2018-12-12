@@ -10,7 +10,7 @@ import {
   DEFAULT_VALUE_MIN,
   MIN_THRESHOLDS,
 } from 'src/shared/constants/thresholds'
-import {MAX_TO_LOCALE_STRING_VAL} from 'src/dashboards/constants'
+import {MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -320,7 +320,7 @@ class Gauge extends Component<Props> {
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
 
-    const valueString = this.valueToString(gaugePosition)
+    const valueString = this.labelToString(gaugePosition)
 
     const textY = radius
     const textContent = `${prefix}${valueString}${suffix}`
@@ -328,45 +328,15 @@ class Gauge extends Component<Props> {
   }
 
   private labelToString(value: number): string {
-    const {decimalPlaces} = this.props
+    const {isEnforced, digits} = this.props.decimalPlaces
 
-    let valueString
-
-    if (decimalPlaces.isEnforced) {
-      const digits = Math.min(decimalPlaces.digits, MAX_TO_LOCALE_STRING_VAL)
-      valueString = value.toLocaleString(undefined, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: digits,
-      })
-    } else {
-      valueString = value.toLocaleString(undefined, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: MAX_TO_LOCALE_STRING_VAL,
-      })
+    if (isEnforced && digits) {
+      return value.toFixed(Math.min(digits, MAX_DECIMAL_PLACES))
     }
 
-    return valueString
-  }
-
-  private valueToString(value: number): string {
-    const {decimalPlaces} = this.props
-
-    let valueString
-
-    if (decimalPlaces.isEnforced) {
-      const digits = Math.min(decimalPlaces.digits, MAX_TO_LOCALE_STRING_VAL)
-      valueString = value.toLocaleString(undefined, {
-        minimumFractionDigits: digits,
-        maximumFractionDigits: digits,
-      })
-    } else {
-      valueString = value.toLocaleString(undefined, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: MAX_TO_LOCALE_STRING_VAL,
-      })
-    }
-
-    return valueString
+    // Ensure the number has at most MAX_DECIMAL_PLACES digits after the
+    // decimal place
+    return String(Number(value.toFixed(MAX_DECIMAL_PLACES)))
   }
 
   private drawNeedle = (ctx, radius, minValue, maxValue) => {

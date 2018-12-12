@@ -102,9 +102,8 @@ export enum CEOTabs {
   Vis = 'Visualization',
 }
 
-export const MAX_TO_LOCALE_STRING_VAL = 20 // 20 is the max input to maximumFractionDigits in spec for "to locale string"
-export const MIN_DECIMAL_PLACES = '0'
-export const MAX_DECIMAL_PLACES = MAX_TO_LOCALE_STRING_VAL.toString()
+export const MIN_DECIMAL_PLACES = 0
+export const MAX_DECIMAL_PLACES = 10
 
 // used in importing dashboards and mapping sources
 export const DYNAMIC_SOURCE = 'dynamic'
