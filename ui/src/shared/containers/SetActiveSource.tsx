@@ -8,6 +8,7 @@ import {setActiveSource} from 'src/sources/actions'
 // Utils
 import {getSources, getActiveSource} from 'src/sources/selectors'
 import {readQueryParams, updateQueryParams} from 'src/shared/utils/queryParams'
+import {getDeep} from 'src/utils/wrappers'
 
 // Types
 import {Source, AppState} from 'src/types/v2'
@@ -52,14 +53,14 @@ class SetActiveSource extends PureComponent<Props> {
 
     const querySourceID = readQueryParams().sourceID
 
-    let resolvedSourceID
+    let resolvedSourceID: string
 
     if (sources.find(s => s.id === activeSourceID)) {
       resolvedSourceID = activeSourceID
     } else if (sources.find(s => s.id === querySourceID)) {
       resolvedSourceID = querySourceID
     } else if (sources.length) {
-      resolvedSourceID = sources[0]
+      resolvedSourceID = getDeep<string>(sources, '0.id', '')
     } else {
       throw new Error('no source exists')
     }
