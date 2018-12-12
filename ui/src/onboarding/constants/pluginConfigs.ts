@@ -215,3 +215,21 @@ export const PLUGIN_OPTIONS: TelegrafPluginName[] = [
   TelegrafPluginInputSystem.NameEnum.System,
   TelegrafPluginInputTail.NameEnum.Tail,
 ]
+
+import {
+  LogoCpu,
+  LogoDocker,
+  LogoKubernetes,
+  LogoNginx,
+  LogoPrometheus,
+  LogoRedis,
+} from 'src/onboarding/graphics'
+
+export const PLUGIN_LOGOS = {
+  [TelegrafPluginInputCpu.NameEnum.Cpu]: LogoCpu,
+  [TelegrafPluginInputDocker.NameEnum.Docker]: LogoDocker,
+  [TelegrafPluginInputKubernetes.NameEnum.Kubernetes]: LogoKubernetes,
+  [TelegrafPluginInputNgnix.NameEnum.Ngnix]: LogoNginx,
+  [TelegrafPluginInputPrometheus.NameEnum.Prometheus]: LogoPrometheus,
+  [TelegrafPluginInputRedis.NameEnum.Redis]: LogoRedis,
+}

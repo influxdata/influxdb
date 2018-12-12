@@ -1,14 +1,9 @@
 // Libraries
 import React, {SFC} from 'react'
 
-interface Props {
-  width?: number
-  height?: number
-}
-
-const LogoMongodb: SFC<Props> = ({height, width}) => {
+const LogoMongodb: SFC = () => {
   return (
-    <svg width={width} height={height} viewBox="0 0 44.83 100">
+    <svg width="100%" height="100%" viewBox="0 0 44.83 100">
       <defs>
         <linearGradient
           id="mongodb_a"

@@ -2,6 +2,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
+import MockChild from 'mocks/MockChild'
 
 describe('Card Select Card', () => {
   let wrapper
@@ -55,11 +56,12 @@ describe('Card Select Card', () => {
   describe('with image', () => {
     beforeEach(() => {
       jest.resetAllMocks()
-      wrapper = wrapperSetup({image: 'URL'})
+      wrapper = wrapperSetup({image: MockChild})
     })
 
-    it('renders an image tag if passed an image source', () => {
-      expect(wrapper.find('img')).toHaveLength(1)
+    it('renders the image component if passed an image prop', () => {
+      const imageSFC = wrapper.find(MockChild)
+      expect(imageSFC.exists()).toBe(true)
     })
 
     it('matches snapshot when provided image source', () => {

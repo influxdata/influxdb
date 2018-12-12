@@ -8,7 +8,10 @@ import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import {GridSizer} from 'src/clockface'
 
 // Constants
-import {PLUGIN_OPTIONS} from 'src/onboarding/constants/pluginConfigs'
+import {
+  PLUGIN_OPTIONS,
+  PLUGIN_LOGOS,
+} from 'src/onboarding/constants/pluginConfigs'
 
 // Types
 import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
@@ -72,6 +75,7 @@ class StreamingSelector extends PureComponent<Props, State> {
                   label={ds}
                   checked={this.isCardChecked(ds)}
                   onClick={this.handleToggle(ds)}
+                  image={PLUGIN_LOGOS[ds]}
                 />
               )
             })}
