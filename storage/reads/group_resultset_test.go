@@ -193,6 +193,36 @@ group:
 	}
 }
 
+func TestNewGroupResultSet_GroupNone_NoDataReturnsNil(t *testing.T) {
+	newCursor := func() (reads.SeriesCursor, error) {
+		return &sliceSeriesCursor{
+			rows: newSeriesRows(
+				"aaa,tag0=val00",
+				"aaa,tag0=val01",
+			)}, nil
+	}
+
+	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadRequest{Group: datatypes.GroupNone}, newCursor)
+	if rs != nil {
+		t.Errorf("expected nil cursor")
+	}
+}
+
+func TestNewGroupResultSet_GroupBy_NoDataReturnsNil(t *testing.T) {
+	newCursor := func() (reads.SeriesCursor, error) {
+		return &sliceSeriesCursor{
+			rows: newSeriesRows(
+				"aaa,tag0=val00",
+				"aaa,tag0=val01",
+			)}, nil
+	}
+
+	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag0"}}, newCursor)
+	if rs != nil {
+		t.Errorf("expected nil cursor")
+	}
+}
+
 func TestNewGroupResultSet_Sorting(t *testing.T) {
 	tests := []struct {
 		name string
