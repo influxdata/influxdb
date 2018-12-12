@@ -10,7 +10,7 @@ import (
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, func()) {
+func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, string, func()) {
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
@@ -26,12 +26,13 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 	handler.UserService = svc
 	server := httptest.NewServer(handler)
 	client := UserService{
-		Addr: server.URL,
+		Addr:     server.URL,
+		OpPrefix: inmem.OpPrefix,
 	}
 
 	done := server.Close
 
-	return &client, done
+	return &client, inmem.OpPrefix, done
 }
 
 func TestUserService(t *testing.T) {

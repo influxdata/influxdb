@@ -124,9 +124,9 @@ func (c *Client) CreateSession(ctx context.Context, user string) (*platform.Sess
 }
 
 func (c *Client) createSession(ctx context.Context, tx *bolt.Tx, user string) (*platform.Session, error) {
-	u, err := c.findUserByName(ctx, tx, user)
-	if err != nil {
-		return nil, err
+	u, pe := c.findUserByName(ctx, tx, user)
+	if pe != nil {
+		return nil, pe
 	}
 
 	s := &platform.Session{}

@@ -413,6 +413,8 @@ type UserService struct {
 	Addr               string
 	Token              string
 	InsecureSkipVerify bool
+	// OpPrefix is the ops of not found error.
+	OpPrefix string
 }
 
 // FindMe returns user information about the owner of the token
@@ -436,7 +438,7 @@ func (s *UserService) FindMe(ctx context.Context, id platform.ID) (*platform.Use
 
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -466,7 +468,7 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -483,11 +485,18 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 func (s *UserService) FindUser(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
 	users, n, err := s.FindUsers(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Op:  s.OpPrefix + platform.OpFindUser,
+			Err: err,
+		}
 	}
 
 	if n == 0 {
-		return nil, ErrNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Op:   s.OpPrefix + platform.OpFindUser,
+			Msg:  "no results found",
+		}
 	}
 
 	return users[0], nil
@@ -564,7 +573,7 @@ func (s *UserService) CreateUser(ctx context.Context, u *platform.User) error {
 	}
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
@@ -603,7 +612,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platfo
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
