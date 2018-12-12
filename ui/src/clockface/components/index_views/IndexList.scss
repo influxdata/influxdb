@@ -25,7 +25,7 @@
 
 .index-list--cell {
   height: calc(100% - #{$ix-border});
-  padding: 0 13px;
+  padding: $ix-marg-a + $ix-marg-b;
   background-color: $g3-castle;
   font-size: 14px;
   font-weight: 500;
