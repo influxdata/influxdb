@@ -7,9 +7,17 @@ servers:
 paths:
   /signin:
     post:
+      x-generated: true
       summary: Exchange basic auth credentials for session
       security:
         - basicAuth: []
+      requestBody:
+        description: sign in users
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SigninRequest"
       responses:
         '204':
           description: succesfully authenticated
@@ -21,6 +29,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /signout:
     post:
+      x-generated: true
       summary: Expire the current session
       responses:
         '204':
@@ -2827,6 +2836,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /me:
     get:
+      x-generated: true
       tags:
         - Users
       summary: Returns currently authenticated user
@@ -3364,6 +3374,16 @@ paths:
                 $ref: "#/components/schemas/Error"
 components:
   schemas:
+    SigninRequest:
+      type: object
+      properties:
+        auth:
+          type: object
+          properties:
+            username:
+              type: string
+            password:
+              type: string
     LanguageRequest:
       description: flux query to be analyzed.
       type: object

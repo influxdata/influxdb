@@ -203,12 +203,9 @@ export const populateTasks = () => async (
   getState: GetStateFunc
 ): Promise<void> => {
   try {
-    const {
-      orgs,
-      links: {me: meUrl},
-    } = getState()
+    const {orgs} = getState()
 
-    const user = await getMe(meUrl)
+    const user = await getMe()
     const tasks = await getUserTasks(user)
 
     const mappedTasks = tasks.map(task => {

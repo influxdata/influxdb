@@ -108,10 +108,10 @@ class SigninPage extends PureComponent<Props, State> {
   }
 
   private handleSignIn = async (): Promise<void> => {
-    const {links, notify, onSignInUser} = this.props
+    const {notify, onSignInUser} = this.props
     const {username, password} = this.state
     try {
-      await signin(links.signin, {username, password})
+      await signin({username, password})
       onSignInUser()
     } catch (error) {
       const message = get(error, 'data.msg', '')

@@ -1,8 +1,5 @@
-import AJAX from 'src/utils/ajax'
+import {baseAPI} from 'src/utils/api'
 
-export const logout = async (url): Promise<void> => {
-  return AJAX({
-    method: 'POST',
-    url,
-  })
+export const logout = async (): Promise<void> => {
+  await baseAPI.signoutPost()
 }

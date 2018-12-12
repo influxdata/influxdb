@@ -287,7 +287,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
 
     try {
       await setSetupParams(links.setup, setupParams)
-      await signin(links.signin, {username, password})
+      await signin({username, password})
       notify(copy.SetupSuccess)
       handleSetSetupParams(setupParams)
       handleSetStepStatus(currentStepIndex, StepStatus.Complete)

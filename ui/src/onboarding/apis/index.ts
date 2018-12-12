@@ -1,6 +1,8 @@
 // Libraries
 import _ from 'lodash'
 
+import {baseAPI} from 'src/utils/api'
+
 // Utils
 import AJAX from 'src/utils/ajax'
 import {telegrafsAPI, authorizationsAPI, writeAPI} from 'src/utils/api'
@@ -62,20 +64,13 @@ export const setSetupParams = async (
   }
 }
 
-export const signin = async (
-  url: string,
-  params: {username: string; password: string}
-): Promise<void> => {
+export const signin = async (params: {
+  username: string
+  password: string
+}): Promise<void> => {
   const {username, password} = params
   try {
-    await AJAX({
-      method: 'POST',
-      url,
-      auth: {
-        username,
-        password,
-      },
-    })
+    await baseAPI.signinPost({auth: {username, password}})
   } catch (error) {
     console.error('Sign in has failed', error)
     throw error

@@ -8,10 +8,12 @@ import {
   ViewsApi,
   WriteApi,
   SourcesApi,
+  DefaultApi,
 } from 'src/api'
 
 const basePath = '/api/v2'
 
+export const baseAPI = new DefaultApi({basePath})
 export const viewsAPI = new ViewsApi({basePath})
 export const taskAPI = new TasksApi({basePath})
 export const usersAPI = new UsersApi({basePath})

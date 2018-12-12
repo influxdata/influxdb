@@ -16,7 +16,7 @@ export default class Settings extends PureComponent<Props> {
   }
 
   private handleSignOut = async () => {
-    await logout(this.props.signOutLink)
+    await logout()
     window.location.reload()
   }
 }
