@@ -299,6 +299,42 @@ export const timeMachineReducer = (
       return setViewProperties(state, {decimalPlaces})
     }
 
+    case 'SET_BACKGROUND_THRESHOLD_COLORING': {
+      const colors = state.view.properties.colors.map(color => ({
+        ...color,
+        type: 'background',
+      }))
+
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          properties: {
+            ...state.view.properties,
+            colors,
+          },
+        },
+      }
+    }
+
+    case 'SET_TEXT_THRESHOLD_COLORING': {
+      const colors = state.view.properties.colors.map(color => ({
+        ...color,
+        type: 'text',
+      }))
+
+      return {
+        ...state,
+        view: {
+          ...state.view,
+          properties: {
+            ...state.view.properties,
+            colors,
+          },
+        },
+      }
+    }
+
     case 'SET_STATIC_LEGEND': {
       const {staticLegend} = action.payload
 

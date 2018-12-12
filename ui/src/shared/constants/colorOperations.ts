@@ -8,6 +8,7 @@ import {
 } from 'src/shared/constants/thresholds'
 
 import {ViewType} from 'src/types/v2/dashboards'
+import {Color} from 'src/types/colors'
 
 const getLegibleTextColor = bgColorHex => {
   const darkText = '#292933'
@@ -37,22 +38,25 @@ export const generateThresholdsListHexs = ({
   colors,
   lastValue,
   cellType = 'line',
+}: {
+  colors: Color[]
+  lastValue: string | number | null
+  cellType: string
 }) => {
   const defaultColoring = {
     bgColor: null,
     textColor:
       cellType === ViewType.Table ? '#BEC2CC' : THRESHOLD_COLORS[11].hex,
   }
+
   const lastValueNumber = Number(lastValue) || 0
-  let bgColor
-  let textColor
 
   if (!colors.length) {
     return defaultColoring
   }
 
   // baseColor is expected in all cases
-  const baseColor = colors.find(color => (color.id = THRESHOLD_TYPE_BASE)) || {
+  const baseColor = colors.find(color => color.id === THRESHOLD_TYPE_BASE) || {
     hex: defaultColoring.textColor,
   }
 
@@ -71,10 +75,13 @@ export const generateThresholdsListHexs = ({
   const shouldColorizeText = !!colors.find(
     color => color.type === THRESHOLD_TYPE_TEXT
   )
+
+  if (shouldColorizeText && colors.length === 1 && baseColor) {
+    return {bgColor: null, textColor: baseColor.hex}
+  }
+
   if (shouldColorizeText && colors.length === 1) {
-    return baseColor
-      ? {bgColor: null, textColor: baseColor.hex}
-      : defaultColoring
+    return defaultColoring
   }
 
   // When there's multiple colors and they're applied to the text
@@ -89,10 +96,10 @@ export const generateThresholdsListHexs = ({
 
   // When there is only a base color and it's applued to the background
   if (colors.length === 1) {
-    bgColor = baseColor.hex
-    textColor = getLegibleTextColor(bgColor)
-
-    return {bgColor, textColor}
+    return {
+      bgColor: baseColor.hex,
+      textColor: getLegibleTextColor(baseColor.hex),
+    }
   }
 
   // When there are multiple colors and they're applied to the background
@@ -102,16 +109,12 @@ export const generateThresholdsListHexs = ({
       lastValueNumber
     )
 
-    bgColor = nearestCrossedThreshold
+    const bgColor = nearestCrossedThreshold
       ? nearestCrossedThreshold.hex
       : baseColor.hex
-    textColor = getLegibleTextColor(bgColor)
 
-    return {bgColor, textColor}
+    return {bgColor, textColor: getLegibleTextColor(bgColor)}
   }
 
-  // If all else fails, use safe default
-  bgColor = null
-  textColor = baseColor.hex
-  return {bgColor, textColor}
+  return {bgColor: null, textColor: baseColor.hex}
 }

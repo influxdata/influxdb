@@ -115,7 +115,7 @@ export const DEFAULT_THRESHOLDS_LIST_COLORS = [
     hex: THRESHOLD_COLORS[11].hex,
     id: THRESHOLD_TYPE_BASE,
     name: THRESHOLD_COLORS[11].name,
-    value: '-999999999999999999',
+    value: 0,
   },
 ]
 

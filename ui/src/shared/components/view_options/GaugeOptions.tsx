@@ -50,7 +50,7 @@ class GaugeOptions extends PureComponent<Props> {
 
     return (
       <>
-        <div className="col-md-5">
+        <div className="col-xs-6">
           <h4 className="view-options--header">Customize Gauge</h4>
           <Affixes
             prefix={prefix}
@@ -60,7 +60,7 @@ class GaugeOptions extends PureComponent<Props> {
           />
           {this.decimalPlaces}
         </div>
-        <div className="col-md-7 col-lg-4">
+        <div className="col-xs-6">
           <h4 className="view-options--header">Colorized Thresholds</h4>
           <Form>
             <ThresholdList

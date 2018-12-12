@@ -55,15 +55,17 @@ class Threshold extends PureComponent<Props, State> {
 
     return (
       <div className="threshold-item">
-        <div className={this.labelClass}>{this.props.label}</div>
-        {isDeletable ? (
-          <Button
-            shape={ButtonShape.Square}
-            onClick={this.handleDelete}
-            icon={IconFont.Remove}
-            type={ButtonType.Button}
-          />
-        ) : null}
+        <div className={this.labelClass}>
+          {this.props.label}
+          {isDeletable && (
+            <Button
+              shape={ButtonShape.Square}
+              onClick={this.handleDelete}
+              icon={IconFont.Remove}
+              type={ButtonType.Button}
+            />
+          )}
+        </div>
         <Input
           value={workingValue.toString()}
           customClass="threshold-item--input"
@@ -112,7 +114,7 @@ class Threshold extends PureComponent<Props, State> {
 
   private get labelClass(): string {
     if (this.props.isDeletable) {
-      return 'threshold-item--label__editable'
+      return 'threshold-item--label threshold-item--label__editable'
     } else {
       return 'threshold-item--label'
     }

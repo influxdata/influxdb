@@ -13,7 +13,10 @@ import {
   InfluxLanguage,
   QueryEditMode,
 } from 'src/types/v2/dashboards'
-import {DEFAULT_GAUGE_COLORS} from 'src/shared/constants/thresholds'
+import {
+  DEFAULT_GAUGE_COLORS,
+  DEFAULT_THRESHOLDS_LIST_COLORS,
+} from 'src/shared/constants/thresholds'
 
 function defaultView() {
   return {
@@ -87,6 +90,21 @@ function defaultGaugeViewProperties() {
   }
 }
 
+function defaultSingleStatViewProperties() {
+  return {
+    queries: [defaultViewQuery()],
+    colors: DEFAULT_THRESHOLDS_LIST_COLORS,
+    prefix: '',
+    suffix: '',
+    note: '',
+    showNoteWhenEmpty: false,
+    decimalPlaces: {
+      isEnforced: true,
+      digits: 2,
+    },
+  }
+}
+
 // Defines the zero values of the various view types
 const NEW_VIEW_CREATORS = {
   [ViewType.XY]: (): NewView<XYView> => ({
@@ -101,7 +119,7 @@ const NEW_VIEW_CREATORS = {
   [ViewType.SingleStat]: (): NewView<SingleStatView> => ({
     ...defaultView(),
     properties: {
-      ...defaultGaugeViewProperties(),
+      ...defaultSingleStatViewProperties(),
       type: ViewType.SingleStat,
       shape: ViewShape.ChronografV2,
     },

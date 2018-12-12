@@ -16,6 +16,8 @@ export type Action =
   | SetIsViewingRawDataAction
   | SetGeomAction
   | SetDecimalPlaces
+  | SetBackgroundThresholdColoringAction
+  | SetTextThresholdColoringAction
   | SetAxes
   | SetStaticLegend
   | SetColors
@@ -267,6 +269,22 @@ export const setDecimalPlaces = (
 ): SetDecimalPlaces => ({
   type: 'SET_DECIMAL_PLACES',
   payload: {decimalPlaces},
+})
+
+interface SetBackgroundThresholdColoringAction {
+  type: 'SET_BACKGROUND_THRESHOLD_COLORING'
+}
+
+export const setBackgroundThresholdColoring = (): SetBackgroundThresholdColoringAction => ({
+  type: 'SET_BACKGROUND_THRESHOLD_COLORING',
+})
+
+interface SetTextThresholdColoringAction {
+  type: 'SET_TEXT_THRESHOLD_COLORING'
+}
+
+export const setTextThresholdColoring = (): SetTextThresholdColoringAction => ({
+  type: 'SET_TEXT_THRESHOLD_COLORING',
 })
 
 interface SetQuerySourceAction {

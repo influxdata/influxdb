@@ -19,6 +19,8 @@ import {
   addQuery,
   removeQuery,
   updateActiveQueryName,
+  setBackgroundThresholdColoring,
+  setTextThresholdColoring,
 } from 'src/shared/actions/v2/timeMachines'
 
 // Utils
@@ -650,6 +652,96 @@ describe('timeMachineReducer', () => {
           builderConfig,
         },
       ])
+    })
+  })
+
+  describe('SET_TEXT_THRESHOLD_COLORING', () => {
+    test('sets all color types to text', () => {
+      const state = initialStateHelper()
+
+      state.view.properties.colors = [
+        {
+          hex: '#BF3D5E',
+          id: 'base',
+          name: 'ruby',
+          type: 'background',
+          value: 0,
+        },
+        {
+          hex: '#F48D38',
+          id: '72bad47c-cec3-4523-8f13-1fabd192ef92',
+          name: 'tiger',
+          type: 'background',
+          value: 22.72,
+        },
+      ]
+
+      const actual = timeMachineReducer(state, setTextThresholdColoring()).view
+        .properties.colors
+
+      const expected = [
+        {
+          hex: '#BF3D5E',
+          id: 'base',
+          name: 'ruby',
+          type: 'text',
+          value: 0,
+        },
+        {
+          hex: '#F48D38',
+          id: '72bad47c-cec3-4523-8f13-1fabd192ef92',
+          name: 'tiger',
+          type: 'text',
+          value: 22.72,
+        },
+      ]
+
+      expect(actual).toEqual(expected)
+    })
+  })
+
+  describe('SET_BACKGROUND_THRESHOLD_COLORING', () => {
+    test('sets all color types to background', () => {
+      const state = initialStateHelper()
+
+      state.view.properties.colors = [
+        {
+          hex: '#BF3D5E',
+          id: 'base',
+          name: 'ruby',
+          type: 'text',
+          value: 0,
+        },
+        {
+          hex: '#F48D38',
+          id: '72bad47c-cec3-4523-8f13-1fabd192ef92',
+          name: 'tiger',
+          type: 'text',
+          value: 22.72,
+        },
+      ]
+
+      const actual = timeMachineReducer(state, setBackgroundThresholdColoring())
+        .view.properties.colors
+
+      const expected = [
+        {
+          hex: '#BF3D5E',
+          id: 'base',
+          name: 'ruby',
+          type: 'background',
+          value: 0,
+        },
+        {
+          hex: '#F48D38',
+          id: '72bad47c-cec3-4523-8f13-1fabd192ef92',
+          name: 'tiger',
+          type: 'background',
+          value: 22.72,
+        },
+      ]
+
+      expect(actual).toEqual(expected)
     })
   })
 })
