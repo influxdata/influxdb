@@ -156,3 +156,5 @@ replace (
 	github.com/Sirupsen/logrus => github.com/sirupsen/logrus v1.2.0
 	github.com/goreleaser/goreleaser => github.com/influxdata/goreleaser v0.86.2-0.20181010170531-0fd209ba67f5
 )
+
+replace github.com/getkin/kin-openapi v0.1.0 => github.com/influxdata/kin-openapi v0.1.1-0.20181212221347-ca3615a71f83
