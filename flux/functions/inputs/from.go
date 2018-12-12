@@ -75,7 +75,7 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 			SeriesOffset:    spec.SeriesOffset,
 			Descending:      spec.Descending,
 			OrderByTime:     spec.OrderByTime,
-			GroupMode:       storage.GroupMode(spec.GroupMode),
+			GroupMode:       storage.ToGroupMode(spec.GroupMode),
 			GroupKeys:       spec.GroupKeys,
 			AggregateMethod: spec.AggregateMethod,
 		},
