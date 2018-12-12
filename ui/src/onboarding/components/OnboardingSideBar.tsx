@@ -84,7 +84,7 @@ class OnboardingSideBar extends Component<Props> {
     )
   }
 
-  private get streamingButton(): JSX.Element {
+  private get addSourceButton(): JSX.Element {
     const {onNewSourceClick} = this.props
 
     return (
@@ -104,9 +104,9 @@ class OnboardingSideBar extends Component<Props> {
     const {telegrafConfigID} = this.props
 
     if (telegrafConfigID) {
-      return [this.downloadButton, this.streamingButton]
+      return [this.downloadButton, this.addSourceButton]
     }
-    return [this.streamingButton]
+    return [this.addSourceButton]
   }
 
   private handleDownload = async () => {

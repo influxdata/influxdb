@@ -148,13 +148,13 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
         <div className="wizard-button-bar">
           <Button
             color={ComponentColor.Default}
-            text="Back"
+            text="Back to Start"
             size={ComponentSize.Medium}
             onClick={this.props.onDecrementCurrentStepIndex}
           />
           <Button
             color={ComponentColor.Primary}
-            text="Next"
+            text="Continue to Data Loading"
             size={ComponentSize.Medium}
             onClick={this.handleNext}
             status={this.nextButtonStatus}

@@ -282,6 +282,7 @@ export const defaultOnboardingStepProps: OnboardingStepProps = {
   notify: jest.fn(),
   onCompleteSetup: jest.fn(),
   onExit: jest.fn(),
+  onSetSubstepIndex: jest.fn(),
 }
 
 export const token =

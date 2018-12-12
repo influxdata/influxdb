@@ -1,0 +1,158 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Onboarding.Components.AdminStep renders 1`] = `
+<div
+  className="onboarding-step"
+>
+  <h3
+    className="wizard-step--title"
+  >
+    Setup Admin User
+  </h3>
+  <h5
+    className="wizard-step--sub-title"
+  >
+    You will be able to create additional Users, Buckets and Organizations later
+  </h5>
+  <Form
+    className="onboarding--admin-user-form"
+  >
+    <FormElement
+      colsXS={6}
+      errorMessage=""
+      helpText=""
+      label="Admin Username"
+      offsetXS={3}
+    >
+      <Input
+        autoFocus={true}
+        autocomplete="off"
+        disabledTitleText="Admin username has been set"
+        icon="checkmark"
+        name=""
+        onChange={[Function]}
+        placeholder=""
+        size="md"
+        spellCheck={false}
+        status="disabled"
+        titleText="Admin Username"
+        value=""
+      />
+    </FormElement>
+    <FormElement
+      colsXS={3}
+      errorMessage=""
+      helpText=""
+      label="Admin Password"
+      offsetXS={3}
+    >
+      <Input
+        autoFocus={false}
+        autocomplete="off"
+        disabledTitleText="Admin password has been set"
+        icon="checkmark"
+        name=""
+        onChange={[Function]}
+        placeholder=""
+        size="md"
+        spellCheck={false}
+        status="disabled"
+        titleText="Admin Password"
+        type="password"
+        value=""
+      />
+    </FormElement>
+    <FormElement
+      colsXS={3}
+      errorMessage=""
+      helpText=""
+      label="Confirm Admin Password"
+    >
+      <Input
+        autoFocus={false}
+        autocomplete="off"
+        disabledTitleText="Admin password has been set"
+        icon="checkmark"
+        name=""
+        onChange={[Function]}
+        placeholder=""
+        size="md"
+        spellCheck={false}
+        status="disabled"
+        titleText="Confirm Admin Password"
+        type="password"
+        value=""
+      />
+    </FormElement>
+    <FormElement
+      colsXS={6}
+      errorMessage=""
+      helpText=""
+      label="Default Organization Name"
+      offsetXS={3}
+    >
+      <Input
+        autoFocus={false}
+        autocomplete="off"
+        disabledTitleText="Default organization name has been set"
+        icon="checkmark"
+        name=""
+        onChange={[Function]}
+        placeholder="Your organization is where everything you create lives"
+        size="md"
+        spellCheck={false}
+        status="default"
+        titleText="Default Organization Name"
+        value=""
+      />
+    </FormElement>
+    <FormElement
+      colsXS={6}
+      errorMessage=""
+      helpText=""
+      label="Default Bucket Name"
+      offsetXS={3}
+    >
+      <Input
+        autoFocus={false}
+        autocomplete="off"
+        disabledTitleText="Default bucket name has been set"
+        icon="checkmark"
+        name=""
+        onChange={[Function]}
+        placeholder="Your bucket is where you will store all your data"
+        size="md"
+        spellCheck={false}
+        status="disabled"
+        titleText="Default Bucket Name"
+        value=""
+      />
+    </FormElement>
+  </Form>
+  <div
+    className="wizard-button-bar"
+  >
+    <Button
+      active={false}
+      color="default"
+      onClick={[MockFunction]}
+      shape="none"
+      size="md"
+      status="default"
+      text="Back to Start"
+      type="submit"
+    />
+    <Button
+      active={false}
+      color="primary"
+      onClick={[Function]}
+      shape="none"
+      size="md"
+      status="disabled"
+      text="Continue to Data Loading"
+      titleText="All fields are required to continue"
+      type="submit"
+    />
+  </div>
+</div>
+`;
