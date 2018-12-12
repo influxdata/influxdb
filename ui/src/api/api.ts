@@ -3841,6 +3841,13 @@ export interface TelegrafPluginInputPrometheusRequest extends TelegrafRequestPlu
 }
 
 /**
+ * @export
+ * @namespace TelegrafPluginInputPrometheusRequest
+ */
+export namespace TelegrafPluginInputPrometheusRequest {
+}
+
+/**
  * 
  * @export
  * @interface TelegrafPluginInputRedis
@@ -4322,6 +4329,13 @@ export namespace TelegrafPluginOutputFileConfigFiles {
  * @interface TelegrafPluginOutputFileRequest
  */
 export interface TelegrafPluginOutputFileRequest extends TelegrafRequestPlugin {
+}
+
+/**
+ * @export
+ * @namespace TelegrafPluginOutputFileRequest
+ */
+export namespace TelegrafPluginOutputFileRequest {
 }
 
 /**

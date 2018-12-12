@@ -5101,7 +5101,7 @@ components:
       type: object
       allOf:
         - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginINputPrometheus"
+        - $ref: "#/components/schemas/TelegrafPluginInputPrometheus"
     TelegrafPluginInputRedis:
       type:
         object
@@ -5239,7 +5239,7 @@ components:
       type: object
       allOf:
         - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginOutpuFile"
+        - $ref: "#/components/schemas/TelegrafPluginOutputFile"
     TelegrafPluginOutputInfluxDBV2:
       type:
         object
@@ -5388,7 +5388,6 @@ components:
           type: string
         bucket:
           type: string
-          
     IsOnboarding:
       type: object
       properties:
