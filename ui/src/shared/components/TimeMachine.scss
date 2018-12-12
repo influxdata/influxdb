@@ -57,6 +57,13 @@ $time-machine--controls-height: 62px;
 }
 
 .time-machine--view {
-  width: 100%;
-  height: calc(100% - #{$time-machine--controls-height});
+  position: absolute;
+  top: $time-machine--controls-height;
+  right: 0;
+  bottom: 0;
+  left: 0;
+
+  > .single-stat {
+    border-radius: 0 0 $radius $radius;
+  }
 }

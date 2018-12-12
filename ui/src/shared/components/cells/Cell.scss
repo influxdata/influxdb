@@ -23,6 +23,10 @@ $cell--header-size: 36px;
   bottom: 0;
   left: 0;
   z-index: $z--cell-view;
+
+  > .single-stat {
+    border-radius: 0 0 $radius $radius;
+  }
 }
 
 .cell--view-empty {
