@@ -25,24 +25,38 @@ export interface Props {
 
 interface State {
   loading: RemoteDataState
+  timePassedInSeconds: number
+  secondsLeft: number
 }
 
 const MINUTE = 60000
-const WAIT = 5000
+const FETCH_WAIT = 5000
+const SECONDS = 60
+const TIMER_WAIT = 1000
 
 @ErrorHandling
 class DataListening extends PureComponent<Props, State> {
   private intervalID: NodeJS.Timer
   private startTime: number
+  private timer: NodeJS.Timer
 
   constructor(props: Props) {
     super(props)
 
-    this.state = {loading: RemoteDataState.NotStarted}
+    this.state = {
+      loading: RemoteDataState.NotStarted,
+      timePassedInSeconds: 0,
+      secondsLeft: SECONDS,
+    }
   }
 
   public componentWillUnmount() {
     clearInterval(this.intervalID)
+    clearInterval(this.timer)
+    this.setState({
+      timePassedInSeconds: 0,
+      secondsLeft: SECONDS,
+    })
   }
 
   public render() {
@@ -65,6 +79,7 @@ class DataListening extends PureComponent<Props, State> {
       <ConnectionInformation
         loading={this.state.loading}
         bucket={this.props.bucket}
+        countDownSeconds={this.state.secondsLeft}
       />
     )
   }
@@ -91,6 +106,7 @@ class DataListening extends PureComponent<Props, State> {
   }
 
   private handleClick = (): void => {
+    this.startTimer()
     this.setState({loading: RemoteDataState.Loading})
     this.startTime = Number(new Date())
     this.checkForData()
@@ -98,6 +114,8 @@ class DataListening extends PureComponent<Props, State> {
 
   private checkForData = async (): Promise<void> => {
     const {bucket} = this.props
+    const {secondsLeft} = this.state
+
     const script = `from(bucket: "${bucket}")
       |> range(start: -1m)`
 
@@ -122,12 +140,29 @@ class DataListening extends PureComponent<Props, State> {
       return
     }
 
-    if (timePassed >= MINUTE) {
+    if (timePassed >= MINUTE || secondsLeft <= 0) {
       this.setState({loading: RemoteDataState.Error})
       return
     }
+    this.intervalID = setTimeout(this.checkForData, FETCH_WAIT)
+  }
 
-    this.intervalID = setTimeout(this.checkForData, WAIT)
+  private startTimer() {
+    this.setState({timePassedInSeconds: 0, secondsLeft: SECONDS})
+
+    this.timer = setInterval(this.countDown, TIMER_WAIT)
+  }
+  private countDown = () => {
+    const {secondsLeft} = this.state
+    const secs = secondsLeft - 1
+    this.setState({
+      timePassedInSeconds: SECONDS - secs,
+      secondsLeft: secs,
+    })
+
+    if (secs === 0) {
+      clearInterval(this.timer)
+    }
   }
 }
 

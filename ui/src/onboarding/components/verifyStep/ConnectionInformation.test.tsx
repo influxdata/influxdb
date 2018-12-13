@@ -12,6 +12,7 @@ const setup = (override = {}) => {
   const props = {
     loading: RemoteDataState.NotStarted,
     bucket: 'defbuck',
+    countDownSeconds: 60,
     ...override,
   }
 
