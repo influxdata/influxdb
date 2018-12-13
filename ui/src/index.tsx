@@ -3,7 +3,7 @@ import 'babel-polyfill'
 import React, {PureComponent} from 'react'
 import {render} from 'react-dom'
 import {Provider} from 'react-redux'
-import {Router, Route, useRouterHistory} from 'react-router'
+import {Router, Route, useRouterHistory, IndexRedirect} from 'react-router'
 import {createHistory, History} from 'history'
 
 import configureStore from 'src/store/configureStore'
@@ -91,8 +91,9 @@ class Root extends PureComponent {
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
                     <Route component={App}>
-                      <Route path="/" component={GetSources}>
+                      <Route component={GetSources}>
                         <Route path="/" component={SetActiveSource}>
+                          <IndexRedirect to="/dashboards" />
                           <Route
                             path="dashboards/:dashboardID"
                             component={DashboardPage}
