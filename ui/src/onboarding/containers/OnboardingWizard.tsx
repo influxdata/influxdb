@@ -63,7 +63,10 @@ interface OwnProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetCurrentStepIndex: (stepNumber: number) => void
-  onSetCurrentSubStepIndex: (stepNumber: number, substepNumber: number) => void
+  onSetCurrentSubStepIndex: (
+    stepNumber: number,
+    substep: number | 'streaming'
+  ) => void
 }
 
 interface DispatchProps {
@@ -121,7 +124,6 @@ class OnboardingWizard extends PureComponent<Props> {
       onRemovePluginBundle,
       setupParams,
       notify,
-      onDecrementCurrentStepIndex,
     } = this.props
 
     return (
@@ -136,7 +138,7 @@ class OnboardingWizard extends PureComponent<Props> {
             title="Plugins to Configure"
             visible={this.sideBarVisible}
             currentStepIndex={currentStepIndex}
-            handleNewSourceClick={onDecrementCurrentStepIndex}
+            onNewSourceClick={this.handleNewSourceClick}
           />
           <div className="wizard-step--container">
             <OnboardingStepSwitcher
@@ -199,6 +201,11 @@ class OnboardingWizard extends PureComponent<Props> {
       currentStepIndex === 4
 
     return isStreaming && isSideBarStep
+  }
+
+  private handleNewSourceClick = () => {
+    const {onSetCurrentSubStepIndex} = this.props
+    onSetCurrentSubStepIndex(2, 'streaming')
   }
 
   private handleClickSideBarTab = (telegrafPluginID: string) => {
