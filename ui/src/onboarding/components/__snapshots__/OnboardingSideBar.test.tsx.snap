@@ -6,29 +6,27 @@ exports[`OnboardingSideBar rendering renders! wee! 1`] = `
   visible={true}
 >
   <SideBarTab
+    active={false}
     id="cpu"
     key="cpu"
     label="cpu"
     onClick={[MockFunction]}
+    status="default"
   />
   <SideBarTab
-    id="influxdb_v2"
-    key="influxdb_v2"
-    label="influxdb_v2"
+    active={false}
+    id="disk"
+    key="disk"
+    label="disk"
     onClick={[MockFunction]}
-  />
-  <SideBarButton
-    color="secondary"
-    icon="download"
-    key="Download Config File"
-    onClick={[Function]}
-    text="Download Config File"
-    titleText="Download Config File"
+    status="default"
   />
   <SideBarButton
     color="default"
+    data-test="new"
     icon="plus"
     key="Add New Source"
+    onClick={[MockFunction]}
     text="Add New Source"
     titleText="Add New Source"
   />
