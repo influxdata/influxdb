@@ -429,7 +429,7 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 

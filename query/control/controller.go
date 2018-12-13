@@ -38,7 +38,7 @@ func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query,
 		// or other problem that the client must fix.
 		return q, &platform.Error{
 			Code: platform.EInvalid,
-			Err:  err,
+			Msg:  err.Error(),
 		}
 	}
 
