@@ -93,10 +93,10 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
     router.push(`/onboarding/${index}`)
   }
 
-  private setSubstepIndex = (index: number, subIndex: number) => {
+  private setSubstepIndex = (index: number, subStep: number | 'streaming') => {
     const {router} = this.props
 
-    router.push(`/onboarding/${index}/${subIndex}`)
+    router.push(`/onboarding/${index}/${subStep}`)
   }
 }
 
