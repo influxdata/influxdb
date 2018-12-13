@@ -51,8 +51,8 @@ func (t *{{.name}}Table) Close() {
 
 func (t *{{.name}}Table) Statistics() flux.Statistics {
 	t.mu.Lock()
+	defer t.mu.Unlock()
 	cur := t.cur
-	t.mu.Unlock()
 	if cur == nil {
 		return flux.Statistics{}
 	}

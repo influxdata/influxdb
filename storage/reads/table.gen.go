@@ -57,8 +57,8 @@ func (t *floatTable) Close() {
 
 func (t *floatTable) Statistics() flux.Statistics {
 	t.mu.Lock()
+	defer t.mu.Unlock()
 	cur := t.cur
-	t.mu.Unlock()
 	if cur == nil {
 		return flux.Statistics{}
 	}
@@ -289,8 +289,8 @@ func (t *integerTable) Close() {
 
 func (t *integerTable) Statistics() flux.Statistics {
 	t.mu.Lock()
+	defer t.mu.Unlock()
 	cur := t.cur
-	t.mu.Unlock()
 	if cur == nil {
 		return flux.Statistics{}
 	}
@@ -521,8 +521,8 @@ func (t *unsignedTable) Close() {
 
 func (t *unsignedTable) Statistics() flux.Statistics {
 	t.mu.Lock()
+	defer t.mu.Unlock()
 	cur := t.cur
-	t.mu.Unlock()
 	if cur == nil {
 		return flux.Statistics{}
 	}
@@ -753,8 +753,8 @@ func (t *stringTable) Close() {
 
 func (t *stringTable) Statistics() flux.Statistics {
 	t.mu.Lock()
+	defer t.mu.Unlock()
 	cur := t.cur
-	t.mu.Unlock()
 	if cur == nil {
 		return flux.Statistics{}
 	}
@@ -985,8 +985,8 @@ func (t *booleanTable) Close() {
 
 func (t *booleanTable) Statistics() flux.Statistics {
 	t.mu.Lock()
+	defer t.mu.Unlock()
 	cur := t.cur
-	t.mu.Unlock()
 	if cur == nil {
 		return flux.Statistics{}
 	}
