@@ -17,12 +17,14 @@ import ConfigureDataSourceSwitcher from 'src/onboarding/components/configureStep
 import {setActiveTelegrafPlugin} from 'src/onboarding/actions/dataLoaders'
 import {
   updateTelegrafPluginConfig,
+  setPluginConfiguration,
   addConfigValue,
   removeConfigValue,
   createTelegrafConfigAsync,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Constants
+import {StepStatus} from 'src/clockface/constants/wizard'
 import {
   TelegrafConfigCreationSuccess,
   TelegrafConfigCreationError,
@@ -30,12 +32,17 @@ import {
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {
+  TelegrafPlugin,
+  DataLoaderType,
+  ConfigurationState,
+} from 'src/types/v2/dataLoaders'
 
 export interface OwnProps extends OnboardingStepProps {
   telegrafPlugins: TelegrafPlugin[]
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
+  onSetPluginConfiguration: typeof setPluginConfiguration
   type: DataLoaderType
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
@@ -77,6 +84,7 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
       params: {substepID},
       setupParams,
       onUpdateTelegrafPluginConfig,
+      onSetPluginConfiguration,
       onAddConfigValue,
       onRemoveConfigValue,
     } = this.props
@@ -89,6 +97,7 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
           username={_.get(setupParams, 'username', '')}
           telegrafPlugins={telegrafPlugins}
           onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
+          onSetPluginConfiguration={onSetPluginConfiguration}
           onAddConfigValue={onAddConfigValue}
           onRemoveConfigValue={onRemoveConfigValue}
           dataLoaderType={type}
@@ -141,6 +150,7 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     const {
       onIncrementCurrentStepIndex,
       onSetActiveTelegrafPlugin,
+      onSetPluginConfiguration,
       telegrafPlugins,
       authToken,
       notify,
@@ -151,6 +161,10 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     } = this.props
 
     const index = +substepID
+    const telegrafPlugin = _.get(telegrafPlugins, `${index}.name`)
+
+    onSetPluginConfiguration(telegrafPlugin)
+    this.handleSetStepStatus()
 
     if (index >= telegrafPlugins.length - 1) {
       if (type === DataLoaderType.Streaming) {
@@ -165,7 +179,7 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
       onIncrementCurrentStepIndex()
       onSetActiveTelegrafPlugin('')
     } else {
-      const name = _.get(telegrafPlugins, `${index + 1}.name`)
+      const name = _.get(telegrafPlugins, `${index + 1}.name`, '')
       onSetActiveTelegrafPlugin(name)
 
       router.push(`/onboarding/${stepID}/${index + 1}`)
@@ -175,12 +189,20 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
   private handlePrevious = () => {
     const {
       router,
+      type,
       onSetActiveTelegrafPlugin,
+      onSetPluginConfiguration,
       params: {substepID},
       telegrafPlugins,
     } = this.props
 
     const index = +substepID
+    const telegrafPlugin = _.get(telegrafPlugins, `${index}.name`)
+
+    if (type === DataLoaderType.Streaming) {
+      onSetPluginConfiguration(telegrafPlugin)
+      this.handleSetStepStatus()
+    }
 
     if (index >= 0) {
       const name = _.get(telegrafPlugins, `${index - 1}.name`)
@@ -190,6 +212,27 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     }
 
     router.goBack()
+  }
+
+  private handleSetStepStatus = () => {
+    const {
+      type,
+      telegrafPlugins,
+      handleSetStepStatus,
+      params: {stepID},
+    } = this.props
+
+    if (type === DataLoaderType.Streaming) {
+      const unconfigured = telegrafPlugins.find(tp => {
+        return tp.configured === ConfigurationState.Unconfigured
+      })
+
+      if (unconfigured || !telegrafPlugins.length) {
+        handleSetStepStatus(parseInt(stepID, 10), StepStatus.Incomplete)
+      } else {
+        handleSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
+      }
+    }
   }
 }
 

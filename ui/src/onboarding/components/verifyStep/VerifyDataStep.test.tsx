@@ -18,6 +18,7 @@ const setup = (override = {}) => {
     type: DataLoaderType.Empty,
     ...defaultOnboardingStepProps,
     telegrafPlugins: [],
+    stepIndex: 4,
     onSetActiveTelegrafPlugin: jest.fn(),
     ...override,
   }

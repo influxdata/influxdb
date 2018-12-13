@@ -19,6 +19,7 @@ import {
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
   createTelegrafConfigAsync,
+  setPluginConfiguration,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Mock Data
@@ -42,6 +43,8 @@ import {
   TelegrafPluginInputCpu,
   TelegrafPluginInputDisk,
   TelegrafPluginInputRedis,
+  TelegrafPluginInputKubernetes,
+  TelegrafPluginInputFile,
 } from 'src/api'
 import {
   DataLoaderType,
@@ -101,6 +104,102 @@ describe('dataLoader reducer', () => {
           name: TelegrafPluginInputDisk.NameEnum.Disk,
           configured: ConfigurationState.Unconfigured,
           active: true,
+        },
+      ],
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can set the configuration state for a telegraf plugin that is not configured', () => {
+    const actual = dataLoadersReducer(
+      {
+        ...INITIAL_STATE,
+        telegrafPlugins: [
+          {
+            name: TelegrafPluginInputDisk.NameEnum.Disk,
+            configured: ConfigurationState.Configured,
+            active: false,
+          },
+          {
+            name: TelegrafPluginInputFile.NameEnum.File,
+            configured: ConfigurationState.Configured,
+            active: false,
+            plugin: {
+              name: TelegrafPluginInputFile.NameEnum.File,
+              type: TelegrafPluginInputFile.TypeEnum.Input,
+              config: {
+                files: [],
+              },
+            },
+          },
+        ],
+      },
+      setPluginConfiguration(TelegrafPluginInputFile.NameEnum.File)
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      telegrafPlugins: [
+        {
+          name: TelegrafPluginInputDisk.NameEnum.Disk,
+          configured: ConfigurationState.Configured,
+          active: false,
+        },
+        {
+          name: TelegrafPluginInputFile.NameEnum.File,
+          configured: ConfigurationState.Unconfigured,
+          active: false,
+          plugin: {
+            name: TelegrafPluginInputFile.NameEnum.File,
+            type: TelegrafPluginInputFile.TypeEnum.Input,
+            config: {
+              files: [],
+            },
+          },
+        },
+      ],
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can set the configuration state for a telegraf plugin that is configured', () => {
+    const actual = dataLoadersReducer(
+      {
+        ...INITIAL_STATE,
+        telegrafPlugins: [
+          {
+            name: TelegrafPluginInputKubernetes.NameEnum.Kubernetes,
+            configured: ConfigurationState.Unconfigured,
+            active: false,
+            plugin: {
+              name: TelegrafPluginInputKubernetes.NameEnum.Kubernetes,
+              type: TelegrafPluginInputKubernetes.TypeEnum.Input,
+              config: {
+                url: 'https://server.net',
+              },
+            },
+          },
+        ],
+      },
+      setPluginConfiguration(TelegrafPluginInputKubernetes.NameEnum.Kubernetes)
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      telegrafPlugins: [
+        {
+          name: TelegrafPluginInputKubernetes.NameEnum.Kubernetes,
+          configured: ConfigurationState.Configured,
+          active: false,
+          plugin: {
+            name: TelegrafPluginInputKubernetes.NameEnum.Kubernetes,
+            type: TelegrafPluginInputKubernetes.TypeEnum.Input,
+            config: {
+              url: 'https://server.net',
+            },
+          },
         },
       ],
     }

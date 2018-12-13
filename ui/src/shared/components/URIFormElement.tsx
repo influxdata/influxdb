@@ -5,6 +5,9 @@ import _ from 'lodash'
 // Components
 import {Input, ComponentStatus, FormElement} from 'src/clockface'
 
+// Utils
+import {validateURI} from 'src/shared/utils/validateURI'
+
 const VALIDATE_DEBOUNCE_MS = 350
 
 interface Props {
@@ -27,7 +30,10 @@ class URIFormElement extends PureComponent<Props, State> {
       status: ComponentStatus.Default,
     }
 
-    this.debouncedValidate = _.debounce(this.validateURI, VALIDATE_DEBOUNCE_MS)
+    this.debouncedValidate = _.debounce(
+      this.handleValidateURI,
+      VALIDATE_DEBOUNCE_MS
+    )
   }
 
   public render() {
@@ -62,10 +68,8 @@ class URIFormElement extends PureComponent<Props, State> {
     this.debouncedValidate(value)
   }
 
-  private validateURI = (value: string): void => {
-    const regex = /http[s]?:\/\//
-
-    if (regex.test(value)) {
+  private handleValidateURI = (value: string): void => {
+    if (validateURI(value)) {
       this.setState({status: ComponentStatus.Valid})
     } else {
       this.setState({status: ComponentStatus.Error})

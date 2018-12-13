@@ -8,6 +8,9 @@ import FetchConfigID from 'src/onboarding/components/verifyStep/FetchConfigID'
 import FetchAuthToken from 'src/onboarding/components/verifyStep/FetchAuthToken'
 import DataListening from 'src/onboarding/components/verifyStep/DataListening'
 
+// Constants
+import {StepStatus} from 'src/clockface/constants/wizard'
+
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -15,6 +18,8 @@ interface Props {
   bucket: string
   org: string
   username: string
+  stepIndex: number
+  handleSetStepStatus: (index: number, status: StepStatus) => void
 }
 
 @ErrorHandling
@@ -38,7 +43,11 @@ class DataStreaming extends PureComponent<Props> {
           )}
         </FetchConfigID>
 
-        <DataListening bucket={this.props.bucket} />
+        <DataListening
+          bucket={this.props.bucket}
+          stepIndex={this.props.stepIndex}
+          handleSetStepStatus={this.props.handleSetStepStatus}
+        />
       </>
     )
   }

@@ -15,6 +15,8 @@ const setup = (override = {}) => {
     org: '',
     username: '',
     bucket: '',
+    stepIndex: 4,
+    handleSetStepStatus: jest.fn(),
     ...override,
   }
 

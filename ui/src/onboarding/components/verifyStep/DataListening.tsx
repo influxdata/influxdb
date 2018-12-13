@@ -15,12 +15,17 @@ import {
 } from 'src/clockface'
 import ConnectionInformation from 'src/onboarding/components/verifyStep/ConnectionInformation'
 
-// types
+// Constants
+import {StepStatus} from 'src/clockface/constants/wizard'
+
+// Types
 import {RemoteDataState} from 'src/types'
 import {InfluxLanguage} from 'src/types/v2/dashboards'
 
 export interface Props {
   bucket: string
+  stepIndex: number
+  handleSetStepStatus: (index: number, status: StepStatus) => void
 }
 
 interface State {
@@ -113,9 +118,8 @@ class DataListening extends PureComponent<Props, State> {
   }
 
   private checkForData = async (): Promise<void> => {
-    const {bucket} = this.props
+    const {bucket, handleSetStepStatus, stepIndex} = this.props
     const {secondsLeft} = this.state
-
     const script = `from(bucket: "${bucket}")
       |> range(start: -1m)`
 
@@ -132,16 +136,19 @@ class DataListening extends PureComponent<Props, State> {
       timePassed = Number(new Date()) - this.startTime
     } catch (err) {
       this.setState({loading: RemoteDataState.Error})
+      handleSetStepStatus(stepIndex, StepStatus.Incomplete)
       return
     }
 
     if (rowCount > 1) {
       this.setState({loading: RemoteDataState.Done})
+      handleSetStepStatus(stepIndex, StepStatus.Complete)
       return
     }
 
     if (timePassed >= MINUTE || secondsLeft <= 0) {
       this.setState({loading: RemoteDataState.Error})
+      handleSetStepStatus(stepIndex, StepStatus.Incomplete)
       return
     }
     this.intervalID = setTimeout(this.checkForData, FETCH_WAIT)

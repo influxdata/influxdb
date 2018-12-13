@@ -11,7 +11,7 @@ exports[`OnboardingSideBar rendering renders! wee! 1`] = `
     key="cpu"
     label="cpu"
     onClick={[MockFunction]}
-    status="default"
+    status="success"
   />
   <SideBarTab
     active={false}
@@ -19,7 +19,7 @@ exports[`OnboardingSideBar rendering renders! wee! 1`] = `
     key="disk"
     label="disk"
     onClick={[MockFunction]}
-    status="default"
+    status="success"
   />
   <SideBarButton
     color="default"

@@ -23,12 +23,19 @@ export interface Props extends OnboardingStepProps {
   type: DataLoaderType
   telegrafPlugins: TelegrafPlugin[]
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
+  stepIndex: number
 }
 
 @ErrorHandling
 class VerifyDataStep extends PureComponent<Props> {
   public render() {
-    const {setupParams, type, onIncrementCurrentStepIndex} = this.props
+    const {
+      setupParams,
+      type,
+      onIncrementCurrentStepIndex,
+      handleSetStepStatus,
+      stepIndex,
+    } = this.props
 
     return (
       <div className="onboarding-step">
@@ -37,6 +44,8 @@ class VerifyDataStep extends PureComponent<Props> {
           org={_.get(setupParams, 'org', '')}
           username={_.get(setupParams, 'username', '')}
           bucket={_.get(setupParams, 'bucket', '')}
+          handleSetStepStatus={handleSetStepStatus}
+          stepIndex={stepIndex}
         />
         <div className="wizard-button-container">
           <div className="wizard-button-bar">

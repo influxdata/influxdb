@@ -22,6 +22,7 @@ import {
   createTelegrafConfigAsync,
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
+  setPluginConfiguration,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
@@ -36,6 +37,7 @@ interface Props {
   onRemoveConfigValue: typeof removeConfigValue
   onSetDataLoadersType: typeof setDataLoadersType
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
+  onSetPluginConfiguration: typeof setPluginConfiguration
   setupParams: SetupParams
   dataLoaders: DataLoadersState
   currentStepIndex: number
@@ -56,6 +58,7 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
       onSaveTelegrafConfig,
       onUpdateTelegrafPluginConfig,
       onSetActiveTelegrafPlugin,
+      onSetPluginConfiguration,
       onAddConfigValue,
       onRemoveConfigValue,
       onAddPluginBundle,
@@ -91,6 +94,7 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
                 {...dataLoaders}
                 authToken={authToken}
                 onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
+                onSetPluginConfiguration={onSetPluginConfiguration}
                 onAddConfigValue={onAddConfigValue}
                 onRemoveConfigValue={onRemoveConfigValue}
                 onSaveTelegrafConfig={onSaveTelegrafConfig}
@@ -105,6 +109,7 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
             {...onboardingStepProps}
             {...dataLoaders}
             onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
+            stepIndex={currentStepIndex}
           />
         )
       case 5:

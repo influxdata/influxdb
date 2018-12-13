@@ -302,41 +302,51 @@ export const telegrafPlugin = {
   active: false,
 }
 
-export const cpuTelegrafPlugin = {...telegrafPlugin}
+export const cpuTelegrafPlugin = {
+  ...telegrafPlugin,
+  configured: ConfigurationState.Configured,
+}
 
 export const diskTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputDisk.NameEnum.Disk,
+  configured: ConfigurationState.Configured,
 }
 
 export const diskioTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputDiskio.NameEnum.Diskio,
+  configured: ConfigurationState.Configured,
 }
 
 export const kernelTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputKernel.NameEnum.Kernel,
+  configured: ConfigurationState.Configured,
 }
 
 export const memTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputMem.NameEnum.Mem,
+  configured: ConfigurationState.Configured,
 }
 
 export const processesTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputProcesses.NameEnum.Processes,
+  configured: ConfigurationState.Configured,
 }
 
 export const swapTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputSwap.NameEnum.Swap,
+  configured: ConfigurationState.Configured,
 }
 
 export const systemTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputSystem.NameEnum.System,
+  configured: ConfigurationState.Configured,
 }
 
 export const redisTelegrafPlugin = {

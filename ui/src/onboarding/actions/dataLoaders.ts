@@ -11,7 +11,10 @@ import {
 import {createNewPlugin} from 'src/onboarding/utils/pluginConfigs'
 
 // Constants
-import {pluginsByBundle} from 'src/onboarding/constants/pluginConfigs'
+import {
+  pluginsByBundle,
+  telegrafPluginsInfo,
+} from 'src/onboarding/constants/pluginConfigs'
 
 // Types
 import {
@@ -21,6 +24,7 @@ import {
   Plugin,
   BundleName,
   ConfigurationState,
+  TelegrafPluginName,
 } from 'src/types/v2/dataLoaders'
 import {AppState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
@@ -47,6 +51,7 @@ export type Action =
   | AddTelegrafPlugins
   | RemoveBundlePlugins
   | RemovePluginBundle
+  | SetPluginConfiguration
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -178,11 +183,17 @@ export const addPluginBundleWithPlugins = (bundle: BundleName) => dispatch => {
   const plugins = pluginsByBundle[bundle]
   dispatch(
     addTelegrafPlugins(
-      plugins.map(p => ({
-        name: p,
-        active: false,
-        configured: ConfigurationState.Unconfigured,
-      }))
+      plugins.map(p => {
+        const isConfigured = !!telegrafPluginsInfo[p].fields
+          ? ConfigurationState.Unconfigured
+          : ConfigurationState.Configured
+
+        return {
+          name: p,
+          active: false,
+          configured: isConfigured,
+        }
+      })
     )
   )
 }
@@ -241,6 +252,18 @@ export const setActiveTelegrafPlugin = (
   telegrafPlugin: string
 ): SetActiveTelegrafPlugin => ({
   type: 'SET_ACTIVE_TELEGRAF_PLUGIN',
+  payload: {telegrafPlugin},
+})
+
+interface SetPluginConfiguration {
+  type: 'SET_PLUGIN_CONFIGURATION_STATE'
+  payload: {telegrafPlugin: TelegrafPluginName}
+}
+
+export const setPluginConfiguration = (
+  telegrafPlugin: TelegrafPluginName
+): SetPluginConfiguration => ({
+  type: 'SET_PLUGIN_CONFIGURATION_STATE',
   payload: {telegrafPlugin},
 })
 

@@ -7,7 +7,10 @@ import {
   updateConfigFields,
   isPluginInBundle,
   isPluginUniqueToBundle,
+  getConfigFields,
 } from 'src/onboarding/utils/pluginConfigs'
+import {getDeep} from 'src/utils/wrappers'
+import {validateURI} from 'src/shared/utils/validateURI'
 
 // Types
 import {Action} from 'src/onboarding/actions/dataLoaders'
@@ -15,6 +18,9 @@ import {
   DataLoaderType,
   LineProtocolTab,
   DataLoadersState,
+  ConfigurationState,
+  ConfigFieldType,
+  Plugin,
 } from 'src/types/v2/dataLoaders'
 import {RemoteDataState} from 'src/types'
 import {WritePrecision} from 'src/api'
@@ -170,6 +176,50 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
             return {...tp, active: true}
           }
           return {...tp, active: false}
+        }),
+      }
+    case 'SET_PLUGIN_CONFIGURATION_STATE':
+      return {
+        ...state,
+        telegrafPlugins: state.telegrafPlugins.map(tp => {
+          const name = _.get(tp, 'name')
+          if (name === action.payload.telegrafPlugin) {
+            const configFields = getConfigFields(name)
+            if (!configFields) {
+              return {...tp, configured: ConfigurationState.Configured}
+            }
+
+            const plugin = getDeep<Plugin>(tp, 'plugin', createNewPlugin(name))
+            const {config} = plugin
+            let isValidConfig = true
+
+            Object.entries(configFields).forEach(configField => {
+              const [fieldName, fieldType] = configField
+              const fieldValue = config[fieldName]
+
+              const isValidUri =
+                fieldType === ConfigFieldType.Uri &&
+                validateURI(fieldValue as string)
+              const isValidString =
+                fieldType === ConfigFieldType.String &&
+                (fieldValue as string) !== ''
+              const isValidArray =
+                (fieldType === ConfigFieldType.StringArray ||
+                  fieldType === ConfigFieldType.UriArray) &&
+                (fieldValue as string[]).length
+
+              if (!isValidUri && !isValidString && !isValidArray) {
+                isValidConfig = false
+              }
+            })
+
+            if (!isValidConfig || _.isEmpty(config)) {
+              return {...tp, configured: ConfigurationState.Unconfigured}
+            } else {
+              return {...tp, configured: ConfigurationState.Configured}
+            }
+          }
+          return {...tp}
         }),
       }
     case 'SET_LINE_PROTOCOL_BODY':

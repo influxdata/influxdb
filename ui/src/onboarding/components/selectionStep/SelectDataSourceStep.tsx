@@ -21,6 +21,9 @@ import {
   removePluginBundleWithPlugins,
 } from 'src/onboarding/actions/dataLoaders'
 
+// Constants
+import {StepStatus} from 'src/clockface/constants/wizard'
+
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {
@@ -38,6 +41,7 @@ export interface OwnProps extends OnboardingStepProps {
   onRemovePluginBundle: typeof removePluginBundleWithPlugins
   onSetDataLoadersType: (type: DataLoaderType) => void
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
+  handleSetStepStatus: (index: number, status: StepStatus) => void
 }
 
 interface RouterProps {
@@ -144,6 +148,7 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
       params: {stepID},
       telegrafPlugins,
       onSetActiveTelegrafPlugin,
+      handleSetStepStatus,
     } = this.props
 
     if (this.props.type === DataLoaderType.Streaming && !this.isStreaming) {
@@ -155,6 +160,15 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     onSetActiveTelegrafPlugin(name)
 
     this.props.onIncrementCurrentStepIndex()
+
+    if (
+      this.props.type === DataLoaderType.Streaming &&
+      !this.props.telegrafPlugins.length
+    ) {
+      handleSetStepStatus(parseInt(stepID, 10), StepStatus.Incomplete)
+    } else if (this.props.type) {
+      handleSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
+    }
   }
 
   private handleClickBack = () => {
