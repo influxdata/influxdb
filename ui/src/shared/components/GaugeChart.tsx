@@ -1,12 +1,13 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import memoizeOne from 'memoize-one'
 import _ from 'lodash'
 
 // Components
 import Gauge from 'src/shared/components/Gauge'
 
 // Parsing
-import getLastValues from 'src/shared/parsing/flux/fluxToSingleStat'
+import {lastValue} from 'src/shared/parsing/flux/lastValue'
 
 // Types
 import {FluxTable} from 'src/types'
@@ -21,8 +22,13 @@ interface Props {
 
 @ErrorHandling
 class GaugeChart extends PureComponent<Props> {
+  private lastValue = memoizeOne(lastValue)
+
   public render() {
+    const {tables} = this.props
     const {colors, prefix, suffix, decimalPlaces} = this.props.properties
+
+    const lastValue = this.lastValue(tables) || 0
 
     return (
       <div className="single-stat">
@@ -32,19 +38,11 @@ class GaugeChart extends PureComponent<Props> {
           colors={colors}
           prefix={prefix}
           suffix={suffix}
-          gaugePosition={this.lastValueForGauge}
+          gaugePosition={lastValue}
           decimalPlaces={decimalPlaces}
         />
       </div>
     )
-  }
-
-  private get lastValueForGauge(): number {
-    const {tables} = this.props
-    const {values} = getLastValues(tables)
-    const lastValue = _.get(values, 0, 0)
-
-    return Number(lastValue)
   }
 }
 

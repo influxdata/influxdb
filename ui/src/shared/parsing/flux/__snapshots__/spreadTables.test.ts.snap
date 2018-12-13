@@ -1,0 +1,48 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`spreadTables it spreads multiple series into a single table 1`] = `
+Object {
+  "seriesDescriptions": Array [
+    Object {
+      "key": "_value[result=max][_field=active][_measurement=mem][host=oox4k.local]",
+      "metaColumns": Object {
+        "_field": "active",
+        "_measurement": "mem",
+        "host": "oox4k.local",
+        "result": "max",
+      },
+      "valueColumnIndex": 6,
+      "valueColumnName": "_value",
+    },
+    Object {
+      "key": "_value[result=min][_field=active][_measurement=mem][host=oox4k.local]",
+      "metaColumns": Object {
+        "_field": "active",
+        "_measurement": "mem",
+        "host": "oox4k.local",
+        "result": "min",
+      },
+      "valueColumnIndex": 6,
+      "valueColumnName": "_value",
+    },
+  ],
+  "table": Object {
+    "2018-12-10T18:29:48Z": Object {
+      "_value[result=min][_field=active][_measurement=mem][host=oox4k.local]": 4589981696,
+    },
+    "2018-12-10T18:29:58Z": Object {
+      "_value[result=max][_field=active][_measurement=mem][host=oox4k.local]": 4906213376,
+    },
+    "2018-12-10T18:40:18Z": Object {
+      "_value[result=min][_field=active][_measurement=mem][host=oox4k.local]": 4318040064,
+    },
+    "2018-12-10T18:54:08Z": Object {
+      "_value[result=max][_field=active][_measurement=mem][host=oox4k.local]": 5860683776,
+    },
+    "2018-12-10T19:11:58Z": Object {
+      "_value[result=max][_field=active][_measurement=mem][host=oox4k.local]": 5115428864,
+      "_value[result=min][_field=active][_measurement=mem][host=oox4k.local]": 4131692544,
+    },
+  },
+}
+`;

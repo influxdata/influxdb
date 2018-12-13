@@ -27,7 +27,6 @@ class DygraphTransformation extends PureComponent<
     this.state = {
       labels: [],
       dygraphsData: [],
-      nonNumericColumns: [],
     }
   }
 

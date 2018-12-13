@@ -168,7 +168,7 @@ class Dygraph extends Component<Props, State> {
             <Crosshair dygraph={this.dygraph} />
           </div>
         )}
-        {this.nestedGraph && React.cloneElement(this.nestedGraph)}
+        {this.nestedGraph}
         <div
           id={`graph-ref-${viewID}`}
           className="dygraph-child-container"
@@ -188,11 +188,9 @@ class Dygraph extends Component<Props, State> {
   private get nestedGraph(): JSX.Element {
     const {children} = this.props
 
-    if (children) {
-      if (children[0]) {
-        return children[0]
-      }
-
+    if (children && children[0]) {
+      return children[0]
+    } else if (children) {
       return children as JSX.Element
     }
 

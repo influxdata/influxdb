@@ -1,12 +1,13 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import memoizeOne from 'memoize-one'
 import _ from 'lodash'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
 // Parsing
-import getLastValues from 'src/shared/parsing/flux/fluxToSingleStat'
+import {lastValue} from 'src/shared/parsing/flux/lastValue'
 
 // Types
 import {FluxTable} from 'src/types'
@@ -20,26 +21,16 @@ interface Props {
 }
 
 export default class SingleStatTransform extends PureComponent<Props> {
+  private lastValue = memoizeOne(lastValue)
+
   public render() {
-    const lastValue = +this.lastValue
+    const {tables} = this.props
+    const lastValue = this.lastValue(tables)
 
     if (!_.isFinite(lastValue)) {
       return <EmptyGraphMessage message={NON_NUMERIC_ERROR} />
     }
 
     return this.props.children(lastValue)
-  }
-
-  private get lastValue(): number {
-    const {tables} = this.props
-    const {series, values} = getLastValues(tables)
-    const firstAlphabeticalSeriesName = _.sortBy(series)[0]
-
-    const firstAlphabeticalIndex = _.indexOf(
-      series,
-      firstAlphabeticalSeriesName
-    )
-
-    return values[firstAlphabeticalIndex]
   }
 }

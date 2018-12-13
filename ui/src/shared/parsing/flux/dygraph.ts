@@ -2,7 +2,7 @@
 import _ from 'lodash'
 
 // Utils
-import {parseTablesByTime} from 'src/shared/parsing/flux/parseTablesByTime'
+import {spreadTables} from 'src/shared/parsing/flux/spreadTables'
 
 // Types
 import {FluxTable} from 'src/types'
@@ -11,46 +11,22 @@ import {DygraphValue} from 'src/external/dygraph'
 export interface FluxTablesToDygraphResult {
   labels: string[]
   dygraphsData: DygraphValue[][]
-  nonNumericColumns: string[]
 }
 
 export const fluxTablesToDygraph = (
   tables: FluxTable[]
 ): FluxTablesToDygraphResult => {
-  const {tablesByTime, nonNumericColumns, allColumnNames} = parseTablesByTime(
-    tables
-  )
+  const {table, seriesDescriptions} = spreadTables(tables)
+  const labels = seriesDescriptions.map(d => d.key)
 
-  const dygraphValuesByTime: {[k: string]: DygraphValue[]} = {}
-  const DATE_INDEX = 0
-  const DATE_INDEX_OFFSET = 1
+  labels.sort()
 
-  for (const table of tablesByTime) {
-    for (const time of Object.keys(table)) {
-      dygraphValuesByTime[time] = Array(
-        allColumnNames.length + DATE_INDEX_OFFSET
-      ).fill(null)
-    }
-  }
+  const dygraphsData = Object.keys(table).map(time => [
+    new Date(time),
+    ...labels.map(label => table[time][label]),
+  ])
 
-  for (const table of tablesByTime) {
-    for (const [date, values] of Object.entries(table)) {
-      dygraphValuesByTime[date][DATE_INDEX] = new Date(date)
+  dygraphsData.sort((a, b) => (a[0] as any) - (b[0] as any))
 
-      for (const [seriesName, value] of Object.entries(values)) {
-        const i = allColumnNames.indexOf(seriesName) + DATE_INDEX_OFFSET
-        dygraphValuesByTime[date][i] = Number(value)
-      }
-    }
-  }
-
-  const dygraphsData = _.sortBy(Object.values(dygraphValuesByTime), ([date]) =>
-    Date.parse(date as string)
-  )
-
-  return {
-    labels: ['time', ...allColumnNames],
-    dygraphsData,
-    nonNumericColumns: _.uniq(nonNumericColumns),
-  }
+  return {dygraphsData, labels: ['time', ...labels]}
 }
