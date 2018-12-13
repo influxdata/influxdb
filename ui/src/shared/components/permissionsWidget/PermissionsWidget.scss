@@ -1,0 +1,162 @@
+/*
+  Permissions Widget Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+$permissions-widget--header-height: 54px;
+$permissions-widget--border: $g5-pepper;
+$permissions-widget--item-height: 28px;
+
+.permissions-widget {
+  width: 100%;
+  border: $ix-border solid $permissions-widget--border;
+  border-radius: $ix-radius;
+  background-color: $g3-castle;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+
+.permissions-widget--header {
+  @include no-user-select();
+  flex: 0 0 $permissions-widget--header-height;
+  background-color: $g4-onyx;
+  color: $g13-mist;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: $permissions-widget--header-height;
+  padding: 0 $ix-marg-c;
+  border-bottom: $ix-border solid $permissions-widget--border;
+}
+
+.permissions-widget--body {
+  flex: 0 0 calc(100% - #{$permissions-widget--header-height});
+  position: relative;
+}
+
+.permissions-widget--section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border-bottom: $ix-border solid $permissions-widget--border;
+  padding: 0 $ix-marg-c;
+  padding-bottom: $ix-marg-b;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.permissions-widget--section-heading {
+  @include no-user-select();
+  flex: 0 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.permissions-widget--section-title {
+  margin: 0;
+  margin-right: $ix-marg-b;
+  color: $g13-mist;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.permissions-widget--section-list {
+  list-style: none;
+  padding-left: $ix-marg-b;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.permissions-widget--item {
+  user-select: none;
+  flex: 0 0 $permissions-widget--item-height;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  
+  &.selectable:hover,
+  &.selectable:hover * {
+    cursor: pointer !important;
+  }
+}
+
+.permissions-widget--item-label {
+  font-size: 13px;
+  transition: color 0.25s ease;
+  margin: 0;
+  
+  .selected & {
+    font-weight: 600;
+    color: $g13-mist;
+  }
+
+  .unselected & {
+    font-weight: 500;
+    color: $g8-storm;
+  }
+
+  .selectable:hover & {
+    color: $g15-platinum;
+  }
+}
+
+.permissions-widget--icon {
+  width: 20px;
+  position: relative;
+  top: -1px;
+
+  .selected & {
+    color: $c-rainforest;
+  }
+
+  .unselected & {
+    color: $g8-storm;
+  }
+}
+
+.permissions-widget--checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background-color: $g2-kevlar;
+  border: $ix-border solid $g5-pepper;
+  position: relative;
+  margin-right: $ix-marg-b;
+  transition: border-color 0.25s ease;
+
+  & > span.icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transition: opacity 0.25s ease;
+    color: $c-rainforest;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+  }
+
+  .selected & {
+    > span.icon {
+      opacity: 1;
+    }
+  }
+
+  .selectable:hover & {
+    border-color: $g7-graphite;
+  }
+}
+
+.testtt {
+  margin-top: 100px;
+}

@@ -16,6 +16,10 @@ import {
   IconFont,
 } from 'src/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
+import PermissionsWidget, {
+  PermissionsWidgetMode,
+  PermissionsWidgetSelection,
+} from 'src/shared/components/permissionsWidget/PermissionsWidget'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -127,6 +131,7 @@ class DashboardIndex extends PureComponent<Props, State> {
               notify={notify}
               searchTerm={searchTerm}
             />
+            <div className="col-xs-6">{this.permissions}</div>
           </Page.Contents>
         </Page>
         {this.renderImportOverlay}
@@ -249,6 +254,100 @@ class DashboardIndex extends PureComponent<Props, State> {
           notify={notify}
         />
       </OverlayTechnology>
+    )
+  }
+
+  private get permissions() {
+    return (
+      <PermissionsWidget
+        mode={PermissionsWidgetMode.Write}
+        className="testtt"
+        heightPixels={300}
+      >
+        <PermissionsWidget.Section id="apples" title="Apples">
+          <PermissionsWidget.Item
+            label="Pick from tree"
+            id="apples-pick"
+            selected={PermissionsWidgetSelection.Selected}
+          />
+          <PermissionsWidget.Item
+            label="Eat"
+            id="apples-eat"
+            selected={PermissionsWidgetSelection.Selected}
+          />
+          <PermissionsWidget.Item
+            label="Cook"
+            id="apples-cook"
+            selected={PermissionsWidgetSelection.Unselected}
+          />
+        </PermissionsWidget.Section>
+        <PermissionsWidget.Section id="limes" title="Limes">
+          <PermissionsWidget.Item
+            label="Pick from tree"
+            id="limes-pick"
+            selected={PermissionsWidgetSelection.Selected}
+          />
+          <PermissionsWidget.Item
+            label="Peel"
+            id="limes-peel"
+            selected={PermissionsWidgetSelection.Selected}
+          />
+          <PermissionsWidget.Item
+            label="Slice"
+            id="limes-slice"
+            selected={PermissionsWidgetSelection.Unselected}
+          />
+        </PermissionsWidget.Section>
+        <PermissionsWidget.Section id="bananas" title="Bananas">
+          <PermissionsWidget.Item
+            label="Pick from tree"
+            id="bananas-pick"
+            selected={PermissionsWidgetSelection.Selected}
+          />
+          <PermissionsWidget.Item
+            label="Eat"
+            id="bananas-eat"
+            selected={PermissionsWidgetSelection.Unselected}
+          />
+          <PermissionsWidget.Item
+            label="Cook"
+            id="bananas-cook"
+            selected={PermissionsWidgetSelection.Selected}
+          />
+        </PermissionsWidget.Section>
+        <PermissionsWidget.Section id="fashion" title="Fashion Sense">
+          <PermissionsWidget.Item
+            label="Improve own swagger"
+            id="fashion-improve-swagger"
+            selected={PermissionsWidgetSelection.Selected}
+          />
+          <PermissionsWidget.Item
+            label="Locate cool shoes"
+            id="fashion-shoes"
+            selected={PermissionsWidgetSelection.Unselected}
+          />
+          <PermissionsWidget.Item
+            label="Locate fresh jacket"
+            id="fashion-jacket"
+            selected={PermissionsWidgetSelection.Unselected}
+          />
+          <PermissionsWidget.Item
+            label="Locate rad pants"
+            id="fashion-pants"
+            selected={PermissionsWidgetSelection.Unselected}
+          />
+          <PermissionsWidget.Item
+            label="Locate bling bling"
+            id="fashion-bling"
+            selected={PermissionsWidgetSelection.Selected}
+          />
+          <PermissionsWidget.Item
+            label="Odd flex"
+            id="fashion-flex"
+            selected={PermissionsWidgetSelection.Selected}
+          />
+        </PermissionsWidget.Section>
+      </PermissionsWidget>
     )
   }
 }
