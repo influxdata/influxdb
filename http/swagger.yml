@@ -4525,7 +4525,7 @@ components:
           readOnly: true
           description: err is a stack of errors that occurred during processing of the request. Useful for debugging.
           type: string
-      required: [code, message, op, err]
+      required: [code, message]
     LineProtocolError:
       properties:
         code:
