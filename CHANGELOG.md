@@ -4,6 +4,7 @@ v1.6.5 [unreleased]
 ### Bugfixes
 
 -	[#10425](https://github.com/influxdata/influxdb/pull/10425): Fix panic in IndexSet.
+-	[#10556](https://github.com/influxdata/influxdb/pull/10556): Drop NaN values when writing back points.
 
 v1.6.4 [2018-10-23]
 -------------------
