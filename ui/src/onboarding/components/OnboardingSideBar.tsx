@@ -70,26 +70,43 @@ class OnboardingSideBar extends Component<Props> {
     ))
   }
 
-  private get buttons(): JSX.Element[] {
-    const {onNewSourceClick} = this.props
-    return [
+  private get downloadButton(): JSX.Element {
+    return (
       <SideBar.Button
         key="Download Config File"
         text="Download Config File"
         titleText="Download Config File"
+        data-test="download"
         color={ComponentColor.Secondary}
         icon={IconFont.Download}
         onClick={this.handleDownload}
-      />,
+      />
+    )
+  }
+
+  private get streamingButton(): JSX.Element {
+    const {onNewSourceClick} = this.props
+
+    return (
       <SideBar.Button
         text="Add New Source"
         key="Add New Source"
         titleText="Add New Source"
+        data-test="new"
         color={ComponentColor.Default}
         icon={IconFont.Plus}
         onClick={onNewSourceClick}
-      />,
-    ]
+      />
+    )
+  }
+
+  private get buttons(): JSX.Element[] {
+    const {telegrafConfigID} = this.props
+
+    if (telegrafConfigID) {
+      return [this.downloadButton, this.streamingButton]
+    }
+    return [this.streamingButton]
   }
 
   private handleDownload = async () => {
