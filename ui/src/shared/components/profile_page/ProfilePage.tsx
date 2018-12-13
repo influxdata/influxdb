@@ -5,7 +5,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import ProfilePageSection from 'src/shared/components/profile_page/ProfilePageSection'
 import ProfilePageTab from 'src/shared/components/profile_page/ProfilePageTab'
-import Avatar from 'src/shared/components/avatar/Avatar'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -61,20 +60,15 @@ class ProfilePage extends Component<Props> {
   }
 
   private get profileNavHeader(): JSX.Element {
-    const {avatar, description} = this.props
+    const {description} = this.props
 
-    return (
-      <div className="profile-nav--header">
-        <Avatar
-          imageURI={avatar}
-          diameterPixels={160}
-          customClass="profile-nav--avatar"
-        />
-        {description && (
+    if (description) {
+      return (
+        <div className="profile-nav--header">
           <p className="profile-nav--description">{description}</p>
-        )}
-      </div>
-    )
+        </div>
+      )
+    }
   }
 
   private get activeSectionComponent(): JSX.Element[] {

@@ -15,8 +15,8 @@
   flex-direction: column;
   align-items: stretch;
   flex: 0 1 0;
-  padding-left: $ix-marg-d;
-  padding-bottom: $ix-marg-d;
+  padding: $ix-marg-d;
+  padding-right: 0;
 }
 
 .profile-nav--header {
