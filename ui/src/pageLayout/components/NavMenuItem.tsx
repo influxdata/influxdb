@@ -40,9 +40,7 @@ const NavMenuItem: SFC<Props> = ({
         <Link className="nav--item-header" to={link}>
           {title}
         </Link>
-        {React.Children.count(children) && (
-          <Select type={NavMenuSubItem}>{children}</Select>
-        )}
+        <Select type={NavMenuSubItem}>{children}</Select>
       </div>
     </div>
   )
