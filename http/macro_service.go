@@ -346,7 +346,7 @@ func (s *MacroService) FindMacroByID(ctx context.Context, id platform.ID) (*plat
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -379,7 +379,7 @@ func (s *MacroService) FindMacros(ctx context.Context) ([]*platform.Macro, error
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -423,7 +423,7 @@ func (s *MacroService) CreateMacro(ctx context.Context, m *platform.Macro) error
 		return err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
@@ -457,7 +457,7 @@ func (s *MacroService) UpdateMacro(ctx context.Context, id platform.ID, update *
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -497,7 +497,7 @@ func (s *MacroService) ReplaceMacro(ctx context.Context, macro *platform.Macro) 
 		return err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
@@ -527,7 +527,7 @@ func (s *MacroService) DeleteMacro(ctx context.Context, id platform.ID) error {
 	if err != nil {
 		return err
 	}
-	return CheckError(resp)
+	return CheckError(resp, true)
 }
 
 func macroIDPath(id platform.ID) string {

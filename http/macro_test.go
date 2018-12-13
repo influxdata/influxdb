@@ -515,7 +515,7 @@ func TestMacroService_handleDeleteMacro(t *testing.T) {
 	}
 }
 
-func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.MacroService, func()) {
+func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.MacroService, string, func()) {
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
@@ -535,7 +535,7 @@ func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.Mac
 	}
 	done := server.Close
 
-	return &client, done
+	return &client, inmem.OpPrefix, done
 }
 
 func TestMacroService(t *testing.T) {

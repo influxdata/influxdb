@@ -2,13 +2,14 @@ package bolt_test
 
 import (
 	"context"
+	"github.com/influxdata/platform/bolt"
 	"testing"
 
 	"github.com/influxdata/platform"
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.MacroService, func()) {
+func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.MacroService, string, func()) {
 	c, closeFn, err := NewTestClient()
 	if err != nil {
 		t.Fatalf("failed to create new bolt test client: %v", err)
@@ -33,21 +34,9 @@ func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.Mac
 		}
 	}
 
-	return c, done
+	return c, bolt.OpPrefix, done
 }
 
-func TestMacroService_CreateMacro(t *testing.T) {
-	platformtesting.CreateMacro(initMacroService, t)
-}
-
-func TestMacroService_FindMacroByID(t *testing.T) {
-	platformtesting.FindMacroByID(initMacroService, t)
-}
-
-func TestMacroService_UpdateMacro(t *testing.T) {
-	platformtesting.UpdateMacro(initMacroService, t)
-}
-
-func TestMacroService_DeleteMacro(t *testing.T) {
-	platformtesting.DeleteMacro(initMacroService, t)
+func TestMacroService(t *testing.T) {
+	platformtesting.MacroService(initMacroService, t)
 }

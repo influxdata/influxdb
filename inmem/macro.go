@@ -5,19 +5,26 @@ import (
 	"fmt"
 
 	"github.com/influxdata/platform"
-	kerrors "github.com/influxdata/platform/kit/errors"
 )
 
 // FindMacroByID implements the platform.MacroService interface
 func (s *Service) FindMacroByID(ctx context.Context, id platform.ID) (*platform.Macro, error) {
+	op := OpPrefix + platform.OpFindMacroByID
 	i, ok := s.macroKV.Load(id.String())
 	if !ok {
-		return nil, kerrors.Errorf(kerrors.NotFound, "macro with ID %v not found", id)
+		return nil, &platform.Error{
+			Op:   op,
+			Code: platform.ENotFound,
+			Msg:  "macro not found",
+		}
 	}
 
 	macro, ok := i.(*platform.Macro)
 	if !ok {
-		return nil, fmt.Errorf("type %T is not a macro", i)
+		return nil, &platform.Error{
+			Op:  op,
+			Msg: fmt.Sprintf("type %T is not a macro", i),
+		}
 	}
 
 	return macro, nil
@@ -25,12 +32,16 @@ func (s *Service) FindMacroByID(ctx context.Context, id platform.ID) (*platform.
 
 // FindMacros implements the platform.MacroService interface
 func (s *Service) FindMacros(ctx context.Context) ([]*platform.Macro, error) {
+	op := OpPrefix + platform.OpFindMacros
 	var err error
 	var macros []*platform.Macro
 	s.macroKV.Range(func(k, v interface{}) bool {
 		macro, ok := v.(*platform.Macro)
 		if !ok {
-			err = fmt.Errorf("type %T is not a macro", v)
+			err = &platform.Error{
+				Op:  op,
+				Msg: fmt.Sprintf("type %T is not a macro", v),
+			}
 			return false
 		}
 
@@ -47,23 +58,43 @@ func (s *Service) FindMacros(ctx context.Context) ([]*platform.Macro, error) {
 
 // CreateMacro implements the platform.MacroService interface
 func (s *Service) CreateMacro(ctx context.Context, m *platform.Macro) error {
+	op := OpPrefix + platform.OpCreateMacro
 	m.ID = s.IDGenerator.ID()
-	return s.ReplaceMacro(ctx, m)
+	err := s.ReplaceMacro(ctx, m)
+	if err != nil {
+		return &platform.Error{
+			Op:  op,
+			Err: err,
+		}
+	}
+	return nil
 }
 
 // UpdateMacro implements the platform.MacroService interface
 func (s *Service) UpdateMacro(ctx context.Context, id platform.ID, update *platform.MacroUpdate) (*platform.Macro, error) {
+	op := OpPrefix + platform.OpUpdateMacro
 	macro, err := s.FindMacroByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Op:   op,
+			Code: platform.ENotFound,
+			Msg:  "macro not found",
+			Err:  err,
+		}
 	}
 
 	if err := update.Apply(macro); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Op:  op,
+			Err: err,
+		}
 	}
 
 	if err := s.ReplaceMacro(ctx, macro); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Op:  op,
+			Err: err,
+		}
 	}
 
 	return macro, nil
@@ -71,9 +102,15 @@ func (s *Service) UpdateMacro(ctx context.Context, id platform.ID, update *platf
 
 // DeleteMacro implements the platform.MacroService interface
 func (s *Service) DeleteMacro(ctx context.Context, id platform.ID) error {
+	op := OpPrefix + platform.OpDeleteMacro
 	_, err := s.FindMacroByID(ctx, id)
 	if err != nil {
-		return err
+		return &platform.Error{
+			Op:   op,
+			Code: platform.ENotFound,
+			Msg:  "macro not found",
+			Err:  err,
+		}
 	}
 
 	s.macroKV.Delete(id.String())

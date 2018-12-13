@@ -6,6 +6,16 @@ import (
 	"fmt"
 )
 
+// ops for macro error.
+const (
+	OpFindMacroByID = "FindMacroByID"
+	OpFindMacros    = "FindMacros"
+	OpCreateMacro   = "CreateMacro"
+	OpUpdateMacro   = "UpdateMacro"
+	OpReplaceMacro  = "ReplaceMacro"
+	OpDeleteMacro   = "DeleteMacro"
+)
+
 // MacroService describes a service for managing Macros
 type MacroService interface {
 	// FindMacro finds a single macro from the store by its ID
