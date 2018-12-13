@@ -19,6 +19,7 @@ import SetActiveSource from 'src/shared/containers/SetActiveSource'
 import GetOrganizations from 'src/shared/containers/GetOrganizations'
 import Setup from 'src/Setup'
 import Signin from 'src/Signin'
+import Logout from 'src/Logout'
 import TaskPage from 'src/tasks/containers/TaskPage'
 import TasksPage from 'src/tasks/containers/TasksPage'
 import OrganizationsIndex from 'src/organizations/containers/OrganizationsIndex'
@@ -125,6 +126,7 @@ class Root extends PureComponent {
                   </Route>
                 </Route>
               </Route>
+              <Route path="/logout" component={Logout} />
             </Route>
           </Route>
           <Route path="*" component={NotFound} />

@@ -110,7 +110,7 @@ export enum IconFont {
   EyeOpen = 'eye-open',
   GitHub = 'github',
   Google = 'google',
-  GraphLine = 'graphline2',
+  GraphLine = 'graphline-2',
   Group = 'group',
   Heroku = 'heroku',
   HerokuSimple = '',

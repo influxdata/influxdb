@@ -2,7 +2,7 @@ import React, {SFC} from 'react'
 
 interface WrapperProps<T> {
   type: JSX.Element['type']
-  children: T[]
+  children: T[] | T
 }
 
 interface Options {

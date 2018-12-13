@@ -4,7 +4,7 @@ import {Link} from 'react-router'
 
 // Components
 import Support from 'src/me/components/Support'
-import Settings from 'src/me/components/Settings'
+import LogoutButton from 'src/me/components/LogoutButton'
 import OrgsList from 'src/me/components/OrgsList'
 import DashboardsList from 'src/me/components/DashboardsList'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
@@ -31,7 +31,7 @@ class ResourceLists extends PureComponent<Props> {
       <>
         <Panel>
           <Panel.Header title="My Settings">
-            <Settings signOutLink={links.signout} />
+            <LogoutButton />
           </Panel.Header>
           <Panel.Body>
             <ul className="link-list">

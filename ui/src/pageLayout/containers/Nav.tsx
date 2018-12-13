@@ -24,21 +24,6 @@ interface Props extends WithRouterProps {
   isHidden: boolean
 }
 
-export enum NavItemType {
-  Icon = 'icon',
-  Avatar = 'avatar',
-}
-
-export interface NavItem {
-  title: string
-  link: string
-  type: NavItemType
-  icon?: IconFont
-  image?: string
-  location: string
-  highlightWhen: string[]
-}
-
 @ErrorHandling
 class SideNav extends PureComponent<Props> {
   constructor(props) {
@@ -52,62 +37,59 @@ class SideNav extends PureComponent<Props> {
       return null
     }
 
-    return <NavMenu navItems={this.NavigationItems} />
-  }
-
-  private get NavigationItems(): NavItem[] {
-    const {location} = this.props
-
-    return [
-      {
-        type: NavItemType.Icon,
-        title: 'My Profile',
-        link: '/me',
-        icon: IconFont.Cubouniform,
-        location: location.pathname,
-        highlightWhen: ['user_profile'],
-      },
-      {
-        type: NavItemType.Icon,
-        title: 'Data Explorer',
-        link: '/data-explorer',
-        icon: IconFont.Capacitor,
-        location: location.pathname,
-        highlightWhen: ['data-explorer'],
-      },
-      {
-        type: NavItemType.Icon,
-        title: 'Dashboards',
-        link: '/dashboards',
-        icon: IconFont.DashJ,
-        location: location.pathname,
-        highlightWhen: ['dashboards'],
-      },
-      {
-        type: NavItemType.Icon,
-        title: 'Tasks',
-        link: '/tasks',
-        icon: IconFont.Alerts,
-        location: location.pathname,
-        highlightWhen: ['tasks'],
-      },
-      {
-        type: NavItemType.Icon,
-        title: 'Organizations',
-        link: '/organizations',
-        icon: IconFont.Group,
-        location: location.pathname,
-        highlightWhen: ['organizations'],
-      },
-      {
-        type: NavItemType.Icon,
-        title: 'Sources',
-        link: '/sources',
-        icon: IconFont.Wrench,
-        location: location.pathname,
-        highlightWhen: ['sources'],
-      },
-    ]
+    return (
+      <NavMenu>
+        <NavMenu.Item
+          title="My Profile"
+          link="/me"
+          icon={IconFont.Cubouniform}
+          location={location.pathname}
+          highlightWhen={['me', 'account']}
+        >
+          <NavMenu.SubItem
+            title="Logout"
+            link="/logout"
+            location={location.pathname}
+            highlightWhen={[]}
+          />
+        </NavMenu.Item>
+        <NavMenu.Item
+          title="Data Explorer"
+          link="/data-explorer"
+          icon={IconFont.GraphLine}
+          location={location.pathname}
+          highlightWhen={['data-explorer']}
+        />
+        <NavMenu.Item
+          title="Dashboards"
+          link="/dashboards"
+          icon={IconFont.DashJ}
+          location={location.pathname}
+          highlightWhen={['dashboards']}
+        />
+        <NavMenu.Item
+          title="Tasks"
+          link="/tasks"
+          icon={IconFont.Alerts}
+          location={location.pathname}
+          highlightWhen={['tasks']}
+        />
+        <NavMenu.Item
+          title="Organizations"
+          link="/organizations"
+          icon={IconFont.Group}
+          location={location.pathname}
+          highlightWhen={['organizations']}
+        />
+        <NavMenu.Item
+          title="Sources"
+          link="/sources"
+          icon={IconFont.Wrench}
+          location={location.pathname}
+          highlightWhen={['sources']}
+        />
+      </NavMenu>
+    )
   }
 }
 

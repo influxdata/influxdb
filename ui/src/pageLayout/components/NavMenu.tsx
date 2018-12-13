@@ -4,61 +4,33 @@ import _ from 'lodash'
 
 // Components
 import NavMenuItem from 'src/pageLayout/components/NavMenuItem'
-import Avatar from 'src/shared/components/avatar/Avatar'
+import NavMenuSubItem from 'src/pageLayout/components/NavMenuSubItem'
+import {Select} from 'src/clockface'
 
 // Types
-import {NavItem, NavItemType} from 'src/pageLayout/containers/Nav'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {IconFont} from 'src/clockface'
 
 interface Props {
-  navItems: NavItem[]
+  children: JSX.Element[]
 }
 
 @ErrorHandling
 class NavMenu extends PureComponent<Props> {
+  public static Item = NavMenuItem
+  public static SubItem = NavMenuSubItem
+
   constructor(props) {
     super(props)
   }
 
   public render() {
-    const {navItems} = this.props
+    const {children} = this.props
 
     return (
       <nav className="nav">
-        {navItems.map(
-          ({title, highlightWhen, icon, link, location, type, image}) => (
-            <NavMenuItem
-              key={`navigation--${title}`}
-              title={title}
-              highlightWhen={highlightWhen}
-              link={link}
-              location={location}
-            >
-              {this.renderIconOrGraphic(type, icon, image)}
-            </NavMenuItem>
-          )
-        )}
+        <Select type={NavMenuItem}>{children}</Select>
       </nav>
     )
-  }
-
-  private renderIconOrGraphic = (
-    type: NavItemType,
-    icon?: IconFont,
-    image?: string
-  ): JSX.Element => {
-    if (type === NavItemType.Avatar) {
-      return (
-        <Avatar
-          imageURI={image}
-          diameterPixels={30}
-          customClass="nav--avatar"
-        />
-      )
-    } else if (type === NavItemType.Icon) {
-      return <span className={`icon sidebar--icon ${icon}`} />
-    }
   }
 }
 

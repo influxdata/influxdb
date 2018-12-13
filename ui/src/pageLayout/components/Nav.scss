@@ -169,3 +169,40 @@ $nav--bg-accent: $c-comet;
   }
 }
 
+// Sub Menu Items
+.nav--sub-item {
+  padding: 6px $nav--gutter;
+  user-select: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: $c-yeti;
+  white-space: nowrap;
+  position: relative;
+  z-index: 2;
+
+  &:after {
+    position: absolute;
+    content: '';
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    @include gradient-h($c-laser, $c-potassium);
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  &:hover,
+  &.active {
+    cursor: pointer;
+
+    &:after {
+      opacity: 1;
+    }
+  }
+
+  &:last-child {
+    border-bottom-right-radius: $radius;
+  }
+}
