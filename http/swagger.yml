@@ -4078,13 +4078,16 @@ components:
         token:
           readOnly: true
           type: string
+        userID:
+          type: string
+          description: ID of user.
+        user:
+          type: string
+          description: name of user.
         permissions:
           type: array
           items:
             $ref: "#/components/schemas/Permission"
-        owner:
-          $ref: "#/components/schemas/Owners"
-      required: [owner]
     Authorizations:
       type: object
       properties:
