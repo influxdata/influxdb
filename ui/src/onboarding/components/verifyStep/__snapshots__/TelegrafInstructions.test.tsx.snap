@@ -32,6 +32,22 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
       className="wizard-step--body-snippet"
     >
       export INFLUX_TOKEN=
+      <CopyToClipboard
+        text="export INFLUX_TOKEN="
+      >
+        <Button
+          active={false}
+          color="default"
+          customClass="wizard-step--body-copybutton"
+          onClick={[Function]}
+          shape="none"
+          size="sm"
+          status="default"
+          text="Copy"
+          titleText="copy to clipboard"
+          type="submit"
+        />
+      </CopyToClipboard>
     </p>
     <p>
       Run the following command.
@@ -40,6 +56,22 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
       className="wizard-step--body-snippet"
     >
       telegraf -config http://localhost:9999/api/v2/telegrafs/
+      <CopyToClipboard
+        text="telegraf -config http://localhost:9999/api/v2/telegrafs/"
+      >
+        <Button
+          active={false}
+          color="default"
+          customClass="wizard-step--body-copybutton"
+          onClick={[Function]}
+          shape="none"
+          size="sm"
+          status="default"
+          text="Copy"
+          titleText="copy to clipboard"
+          type="submit"
+        />
+      </CopyToClipboard>
     </p>
   </div>
 </Fragment>
