@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -19,8 +18,6 @@ import (
 
 const (
 	headerSize = 4
-	v2header   = 0x1502
-	v3header   = 0x1503
 	v4header   = 0x1504
 	v5header   = 0x1505
 )
@@ -114,44 +111,26 @@ func (t *Tombstoner) AddRange(keys [][]byte, min, max int64) error {
 
 	t.statsLoaded = false
 
-	if err := t.prepareLatest(); err == errIncompatibleV4Version {
-		if cap(t.tombstones) < len(t.tombstones)+len(keys) {
-			ts := make([]Tombstone, len(t.tombstones), len(t.tombstones)+len(keys))
-			copy(ts, t.tombstones)
-			t.tombstones = ts
-		}
-
+	if err := t.prepareLatest(); err == errIncompatibleV5Version {
 		for _, k := range keys {
 			if t.FilterFn != nil && !t.FilterFn(k) {
 				continue
 			}
 
-			t.tombstones = append(t.tombstones, Tombstone{
+			if err := t.writeTombstoneV4(t.gz, Tombstone{
 				Key: k,
 				Min: min,
 				Max: max,
-			})
+			}); err != nil {
+				return err
+			}
 		}
-		return t.writeTombstoneV3(t.tombstones)
 
 	} else if err != nil {
 		return err
 	}
 
-	for _, k := range keys {
-		if t.FilterFn != nil && !t.FilterFn(k) {
-			continue
-		}
-
-		if err := t.writeTombstoneV4(t.gz, Tombstone{
-			Key: k,
-			Min: min,
-			Max: max,
-		}); err != nil {
-			return err
-		}
-	}
-
+	// WRITE V5 TOMBSTONE
 	return nil
 }
 
@@ -261,36 +240,36 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 	return errors.New("invalid tombstone file")
 }
 
-func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
-	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), "tombstone")
-	if err != nil {
-		return err
-	}
-	defer tmp.Close()
+// func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
+// 	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), "tombstone")
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer tmp.Close()
 
-	var b [8]byte
+// 	var b [8]byte
 
-	bw := bufio.NewWriterSize(tmp, 1024*1024)
+// 	bw := bufio.NewWriterSize(tmp, 1024*1024)
 
-	binary.BigEndian.PutUint32(b[:4], v3header)
-	if _, err := bw.Write(b[:4]); err != nil {
-		return err
-	}
+// 	binary.BigEndian.PutUint32(b[:4], v3header)
+// 	if _, err := bw.Write(b[:4]); err != nil {
+// 		return err
+// 	}
 
-	gz := gzip.NewWriter(bw)
-	for _, ts := range tombstones {
-		if err := t.writeTombstoneV4(gz, ts); err != nil {
-			return err
-		}
-	}
+// 	gz := gzip.NewWriter(bw)
+// 	for _, ts := range tombstones {
+// 		if err := t.writeTombstoneV4(gz, ts); err != nil {
+// 			return err
+// 		}
+// 	}
 
-	t.gz = gz
-	t.bw = bw
-	t.pendingFile = tmp
-	t.tombstones = t.tombstones[:0]
+// 	t.gz = gz
+// 	t.bw = bw
+// 	t.pendingFile = tmp
+// 	t.tombstones = t.tombstones[:0]
 
-	return t.commit()
-}
+// 	return t.commit()
+// }
 
 func (t *Tombstoner) prepareLatest() error {
 	if t.pendingFile != nil {
@@ -317,9 +296,9 @@ func (t *Tombstoner) prepareLatest() error {
 			header := binary.BigEndian.Uint32(b[:])
 			// There is an existing tombstone on disk and it's not a v5.
 			// version again.
-			if header != v4header {
+			if header != v5header {
 				removeTmp()
-				return errIncompatibleV4Version
+				return errIncompatibleV5Version
 			}
 
 			// Seek back to the beginning we copy the header
@@ -345,7 +324,7 @@ func (t *Tombstoner) prepareLatest() error {
 
 	// Write the header only if the file is new
 	if os.IsNotExist(err) {
-		binary.BigEndian.PutUint32(b[:4], v4header)
+		binary.BigEndian.PutUint32(b[:4], v5header)
 		if _, err := bw.Write(b[:4]); err != nil {
 			removeTmp()
 			return err
