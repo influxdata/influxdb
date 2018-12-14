@@ -29,6 +29,7 @@ type TelegrafHandler struct {
 const (
 	telegrafsPath             = "/api/v2/telegrafs"
 	telegrafsIDPath           = "/api/v2/telegrafs/:id"
+	telegrafsIDMembersPath    = "/api/v2/telegrafs/:id/members"
 	telegrafsIDMembersIDPath  = "/api/v2/telegrafs/:id/members/:userID"
 	telegrafsIDOwnersPath     = "/api/v2/telegrafs/:id/owners"
 	telegrafsIDOwnersIDPath   = "/api/v2/telegrafs/:id/owners/:userID"
@@ -57,8 +58,8 @@ func NewTelegrafHandler(
 	h.HandlerFunc("DELETE", telegrafsIDPath, h.handleDeleteTelegraf)
 	h.HandlerFunc("PUT", telegrafsIDPath, h.handlePutTelegraf)
 
-	h.HandlerFunc("POST", telegrafsIDMembersIDPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Member))
-	h.HandlerFunc("GET", telegrafsIDMembersIDPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Member))
+	h.HandlerFunc("POST", telegrafsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Member))
+	h.HandlerFunc("GET", telegrafsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Member))
 	h.HandlerFunc("DELETE", telegrafsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
 	h.HandlerFunc("POST", telegrafsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Owner))
