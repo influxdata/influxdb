@@ -1033,7 +1033,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	tombstones := map[string][]TimeRange{}
 	var ie []IndexEntry
 
-	for i := 0; len(keys) > 0 && i < d.KeyCount(); i++ {
+	for i := d.searchOffset(keys[0]); len(keys) > 0 && i < d.KeyCount(); i++ {
 		k, entries := d.readEntriesAt(d.offset(i), &ie)
 
 		// Skip any keys that don't exist.  These are less than the current key.
