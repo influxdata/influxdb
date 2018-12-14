@@ -723,18 +723,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /ready:
+    get:
+      tags:
+        - Ready
+      summary: Get the readiness of a instance at startup. Allow us to confirm the instance is prepared to accept requests.
+      responses:
+        '200':
+          description: the instance is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Check"
+        '503':
+          description: the instance is not ready yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Check"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /health:
     get:
       tags:
         - Health
-      summary: Get the health of an instance
+      summary: Get the health of an instance anytime during execution. Allow us to check if the instance is still healthy.
       responses:
         '200':
           description: the instance is healthy
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Health"
+                $ref: "#/components/schemas/Check"
+        '503':
+          description: the instance is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Check"
         default:
           description: unexpected error
           content:
@@ -6015,8 +6045,11 @@ components:
           type: string
       required:
         - password
-    Health:
+    Check:
       type: object
+      required:
+        - name
+        - status
       properties:
         name:
           type: string
@@ -6025,9 +6058,9 @@ components:
         checks:
           type: array
           items:
-            $ref: "#/components/schemas/Health"
+            $ref: "#/components/schemas/Check"
         status:
           type: string
           enum:
-            - unhealthy
-            - healthy
+            - pass
+            - fail
