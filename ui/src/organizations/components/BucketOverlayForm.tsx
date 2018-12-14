@@ -12,12 +12,13 @@ import Retention from 'src/organizations/components/Retention'
 
 // Types
 import {RetentionRuleTypes} from 'src/types/v2'
+import {BucketRetentionRules} from 'src/api'
 
 interface Props {
   name: string
   errorMessage: string
   retentionSeconds: number
-  ruleType: RetentionRuleTypes
+  ruleType: BucketRetentionRules.TypeEnum
   onSubmit: () => void
   onCloseModal: () => void
   onChangeRetentionRule: (seconds: number) => void

@@ -8,7 +8,7 @@ import TaskList from 'src/organizations/components/TaskList'
 import FilterList from 'src/shared/components/Filter'
 
 // Types
-import {Task} from 'src/types/v2/tasks'
+import {Task} from 'src/api'
 import {dummyTasks} from 'src/tasks/dummyData'
 
 interface Props {

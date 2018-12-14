@@ -10,9 +10,7 @@ import {
 } from 'src/organizations/apis'
 
 // Types
-import {AppState, Organization} from 'src/types/v2'
-
-type GetStateFunc = () => Promise<AppState>
+import {Organization} from 'src/api'
 
 export enum ActionTypes {
   SetOrgs = 'SET_ORGS',
@@ -76,25 +74,21 @@ export const editOrg = (org: Organization): EditOrg => ({
 // Async Actions
 
 export const getOrganizations = () => async (
-  dispatch: Dispatch<SetOrganizations>,
-  getState: GetStateFunc
+  dispatch: Dispatch<SetOrganizations>
 ): Promise<void> => {
   try {
-    const {
-      links: {orgs},
-    } = await getState()
-    const organizations = await getOrganizationsAPI(orgs)
+    const organizations = await getOrganizationsAPI()
     dispatch(setOrgs(organizations))
   } catch (e) {
     console.error(e)
   }
 }
 
-export const createOrg = (link: string, org: Partial<Organization>) => async (
+export const createOrg = (org: Organization) => async (
   dispatch: Dispatch<AddOrg>
 ): Promise<void> => {
   try {
-    const createdOrg = await createOrgAPI(link, org)
+    const createdOrg = await createOrgAPI(org)
     dispatch(addOrg(createdOrg))
   } catch (e) {
     console.error(e)

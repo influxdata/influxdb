@@ -11,7 +11,8 @@ import {
 import BucketOverlayForm from 'src/organizations/components/BucketOverlayForm'
 
 // Types
-import {Bucket, RetentionRuleTypes} from 'src/types/v2'
+import {RetentionRuleTypes} from 'src/types/v2'
+import {Bucket, BucketRetentionRules} from 'src/api'
 
 interface Props {
   bucket: Bucket
@@ -22,7 +23,7 @@ interface Props {
 interface State {
   bucket: Bucket
   errorMessage: string
-  ruleType: RetentionRuleTypes
+  ruleType: BucketRetentionRules.TypeEnum
   nameInputStatus: ComponentStatus
 }
 
@@ -69,7 +70,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
 
   private get retentionSeconds(): number {
     const rule = this.state.bucket.retentionRules.find(
-      r => r.type === RetentionRuleTypes.Expire
+      r => r.type === BucketRetentionRules.TypeEnum.Expire
     )
 
     if (!rule) {
@@ -79,16 +80,16 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     return rule.everySeconds
   }
 
-  private ruleType = (bucket: Bucket): RetentionRuleTypes => {
+  private ruleType = (bucket: Bucket): BucketRetentionRules.TypeEnum => {
     const rule = bucket.retentionRules.find(
-      r => r.type === RetentionRuleTypes.Expire
+      r => r.type === BucketRetentionRules.TypeEnum.Expire
     )
 
     if (!rule) {
-      return RetentionRuleTypes.Forever
+      return null
     }
 
-    return RetentionRuleTypes.Expire
+    return BucketRetentionRules.TypeEnum.Expire
   }
 
   private handleChangeRetentionRule = (everySeconds: number): void => {
@@ -110,7 +111,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     const {onUpdateBucket} = this.props
     const {ruleType, bucket} = this.state
 
-    if (ruleType === RetentionRuleTypes.Forever) {
+    if (ruleType === null) {
       onUpdateBucket({...bucket, retentionRules: []})
       return
     }

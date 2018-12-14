@@ -8,8 +8,6 @@ export const defaultAllOrgs: Organization = {
   links: {
     buckets: '',
     dashboards: '',
-    log: '',
-    members: '',
     self: '',
     tasks: '',
   },

@@ -6,7 +6,7 @@ import {Link} from 'react-router'
 import {IndexList} from 'src/clockface'
 
 // Types
-import {Task} from 'src/types/v2/tasks'
+import {Task} from 'src/api'
 
 interface Props {
   tasks: Task[]

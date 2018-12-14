@@ -59,7 +59,6 @@ exports[`Account rendering renders! 1`] = `
         >
           <ResourceFetcher
             fetcher={[Function]}
-            link="api/v2/authorizations"
           >
             <Spinner
               loading="NotStarted"

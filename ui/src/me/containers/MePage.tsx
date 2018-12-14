@@ -12,7 +12,7 @@ import Header from 'src/me/components/UserPageHeader'
 import Docs from 'src/me/components/Docs'
 
 // Types
-import {MeState, AppState, Links} from 'src/types/v2'
+import {MeState, AppState} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -21,13 +21,12 @@ import {Panel} from 'src/clockface'
 
 interface StateProps {
   me: MeState
-  links: Links
 }
 
 @ErrorHandling
 export class MePage extends PureComponent<StateProps> {
   public render() {
-    const {me, links} = this.props
+    const {me} = this.props
 
     return (
       <Page className="user-page">
@@ -43,7 +42,7 @@ export class MePage extends PureComponent<StateProps> {
             <Docs />
           </div>
           <div className="col-xs-4">
-            <Resources me={me} links={links} />
+            <Resources me={me} />
           </div>
         </Page.Contents>
       </Page>
@@ -52,9 +51,9 @@ export class MePage extends PureComponent<StateProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {me, links} = state
+  const {me} = state
 
-  return {me, links}
+  return {me}
 }
 
 export default connect<StateProps>(

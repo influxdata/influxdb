@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import {Panel, Input, Spinner} from 'src/clockface'
@@ -13,11 +12,6 @@ import {getAuthorizations} from 'src/authorizations/apis'
 
 // Types
 import {Authorization} from 'src/api'
-import {AppState} from 'src/types/v2'
-
-interface StateProps {
-  authorizationsLink: string
-}
 
 interface State {
   searchTerm: string
@@ -28,7 +22,7 @@ enum AuthSearchKeys {
   Status = 'status',
 }
 
-export class Tokens extends PureComponent<StateProps, State> {
+export class Tokens extends PureComponent<{}, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -37,7 +31,6 @@ export class Tokens extends PureComponent<StateProps, State> {
   }
 
   public render() {
-    const {authorizationsLink} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -51,10 +44,7 @@ export class Tokens extends PureComponent<StateProps, State> {
           />
         </Panel.Body>
         <Panel.Body>
-          <ResourceFetcher<Authorization[]>
-            link={authorizationsLink}
-            fetcher={getAuthorizations}
-          >
+          <ResourceFetcher<Authorization[]> fetcher={getAuthorizations}>
             {(fetchedAuths, loading) => (
               <Spinner loading={loading}>
                 <FilterList<Authorization>
@@ -81,8 +71,4 @@ export class Tokens extends PureComponent<StateProps, State> {
   }
 }
 
-const mstp = ({links}: AppState) => {
-  return {authorizationsLink: links.authorizations}
-}
-
-export default connect<StateProps>(mstp)(Tokens)
+export default Tokens

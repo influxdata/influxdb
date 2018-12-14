@@ -5,10 +5,10 @@ import React, {PureComponent} from 'react'
 import {IndexList} from 'src/clockface'
 
 // Types
-import {Member} from 'src/types/v2'
+import {User} from 'src/api'
 
 interface Props {
-  members: Member[]
+  members: User[]
   emptyState: JSX.Element
 }
 

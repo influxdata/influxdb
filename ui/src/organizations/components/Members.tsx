@@ -7,10 +7,10 @@ import MemberList from 'src/organizations/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
 
 // Types
-import {Member} from 'src/types/v2'
+import {User} from 'src/api'
 
 interface Props {
-  members: Member[]
+  members: User[]
 }
 
 interface State {
@@ -29,7 +29,7 @@ export default class Members extends PureComponent<Props, State> {
     const {searchTerm} = this.state
 
     return (
-      <FilterList<Member>
+      <FilterList<User>
         list={members}
         searchKeys={['name']}
         searchTerm={searchTerm}

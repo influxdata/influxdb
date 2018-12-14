@@ -2,32 +2,23 @@
 import AJAX from 'src/utils/ajax'
 import _ from 'lodash'
 
+import {orgsAPI, bucketsAPI, dashboardsAPI, taskAPI} from 'src/utils/api'
+
 // Types
-import {Member, Bucket, Dashboard, Task, Organization} from 'src/types/v2'
+import {Bucket, Dashboard, Task, Organization, User} from 'src/api'
 
 // CRUD APIs for Organizations and Organization resources
 // i.e. Organization Members, Buckets, Dashboards etc
 
-export const getOrganizations = async (
-  url: string
-): Promise<Organization[]> => {
-  const {data} = await AJAX({
-    url,
-  })
+export const getOrganizations = async (): Promise<Organization[]> => {
+  const {data} = await orgsAPI.orgsGet()
 
-  return _.get(data, 'orgs', [])
+  return data.orgs
 }
 
-export const createOrg = async (
-  url: string,
-  org: Partial<Organization>
-): Promise<Organization> => {
+export const createOrg = async (org: Organization): Promise<Organization> => {
   try {
-    const {data} = await AJAX({
-      url,
-      method: 'POST',
-      data: org,
-    })
+    const {data} = await orgsAPI.orgsPost(org)
 
     return data
   } catch (error) {
@@ -50,11 +41,7 @@ export const deleteOrg = async (url: string): Promise<void> => {
 
 export const updateOrg = async (org: Organization): Promise<Organization> => {
   try {
-    const {data} = await AJAX({
-      url: org.links.self,
-      method: 'PATCH',
-      data: org,
-    })
+    const {data} = await orgsAPI.orgsOrgIDPatch(org.id, org)
 
     return data
   } catch (error) {
@@ -64,13 +51,11 @@ export const updateOrg = async (org: Organization): Promise<Organization> => {
 }
 
 // Members
-export const getMembers = async (url: string): Promise<Member[]> => {
+export const getMembers = async (org: Organization): Promise<User[]> => {
   try {
-    const {data} = await AJAX({
-      url,
-    })
+    const {data} = await orgsAPI.orgsOrgIDMembersGet(org.id)
 
-    return _.get(data, 'members', [])
+    return data.users
   } catch (error) {
     console.error('Could not get members for org', error)
     throw error
@@ -78,11 +63,9 @@ export const getMembers = async (url: string): Promise<Member[]> => {
 }
 
 // Buckets
-export const getBuckets = async (url: string): Promise<Bucket[]> => {
+export const getBuckets = async (org: Organization): Promise<Bucket[]> => {
   try {
-    const {data} = await AJAX({
-      url,
-    })
+    const {data} = await bucketsAPI.bucketsGet(org.name)
 
     return data.buckets
   } catch (error) {
@@ -124,26 +107,31 @@ export const updateBucket = async (bucket: Bucket): Promise<Bucket> => {
   }
 }
 
-export const getDashboards = async (url: string): Promise<Dashboard[]> => {
+export const getDashboards = async (
+  org?: Organization
+): Promise<Dashboard[]> => {
   try {
-    const {data} = await AJAX({
-      url,
-    })
+    let result
+    if (org) {
+      const {data} = await dashboardsAPI.dashboardsGet(org.name)
+      result = data.dashboards
+    } else {
+      const {data} = await dashboardsAPI.dashboardsGet(null)
+      result = data.dashboards
+    }
 
-    return data.dashboards
+    return result
   } catch (error) {
     console.error('Could not get buckets for org', error)
     throw error
   }
 }
 
-export const getTasks = async (url: string): Promise<Task[]> => {
+export const getTasks = async (org: Organization): Promise<Task[]> => {
   try {
-    const {data} = await AJAX({
-      url,
-    })
+    const {data} = await taskAPI.tasksGet(null, null, org.name)
 
-    return _.get(data, 'tasks', [])
+    return data.tasks
   } catch (error) {
     console.error('Could not get tasks for org', error)
     throw error

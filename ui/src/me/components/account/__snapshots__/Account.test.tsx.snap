@@ -38,7 +38,7 @@ exports[`Account rendering renders! 1`] = `
         title="Tokens"
         url="tokens"
       >
-        <Connect(Tokens) />
+        <Tokens />
       </ProfilePageSection>
     </withRouter(ProfilePage)>
   </PageContents>

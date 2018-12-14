@@ -2586,10 +2586,10 @@ export interface Task {
     organizationId?: string;
     /**
      * 
-     * @type {Owners}
+     * @type {User}
      * @memberof Task
      */
-    owners?: Owners;
+    owner?: User;
     /**
      * The current status of the task. When updated to 'inactive', cancels all queued jobs of this task.
      * @type {string}
@@ -4546,6 +4546,12 @@ export interface User {
     id?: string;
     /**
      * 
+     * @type {MacroLinks}
+     * @memberof User
+     */
+    links?: MacroLinks;
+    /**
+     * 
      * @type {string}
      * @memberof User
      */
@@ -4576,26 +4582,6 @@ export namespace User {
 /**
  * 
  * @export
- * @interface UserResponse
- */
-export interface UserResponse {
-    /**
-     * 
-     * @type {MacroLinks}
-     * @memberof UserResponse
-     */
-    links?: MacroLinks;
-    /**
-     * 
-     * @type {User}
-     * @memberof UserResponse
-     */
-    user?: User;
-}
-
-/**
- * 
- * @export
  * @interface Users
  */
 export interface Users {
@@ -4607,10 +4593,10 @@ export interface Users {
     links?: MacroLinks;
     /**
      * 
-     * @type {Array<UserResponse>}
+     * @type {Array<User>}
      * @memberof Users
      */
-    users?: Array<UserResponse>;
+    users?: Array<User>;
 }
 
 /**
@@ -14741,7 +14727,7 @@ export const UsersApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        usersPost(user: User, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<UserResponse> {
+        usersPost(user: User, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<User> {
             const localVarAxiosArgs = UsersApiAxiosParamCreator(configuration).usersPost(user, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -14769,7 +14755,7 @@ export const UsersApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        usersUserIDGet(userID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<UserResponse> {
+        usersUserIDGet(userID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<User> {
             const localVarAxiosArgs = UsersApiAxiosParamCreator(configuration).usersUserIDGet(userID, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -14784,7 +14770,7 @@ export const UsersApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        usersUserIDPasswordPut(userID: string, passwordResetBody: PasswordResetBody, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<UserResponse> {
+        usersUserIDPasswordPut(userID: string, passwordResetBody: PasswordResetBody, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<User> {
             const localVarAxiosArgs = UsersApiAxiosParamCreator(configuration).usersUserIDPasswordPut(userID, passwordResetBody, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})

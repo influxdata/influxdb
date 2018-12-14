@@ -26,12 +26,9 @@ import {ruleToString} from 'src/utils/formatting'
 import {createBucket, updateBucket} from 'src/organizations/apis'
 
 // Types
-import {
-  Bucket,
-  Organization,
-  RetentionRuleTypes,
-  OverlayState,
-} from 'src/types/v2'
+import {OverlayState} from 'src/types/v2'
+
+import {Bucket, Organization, BucketRetentionRules} from 'src/api'
 
 interface Props {
   org: Organization
@@ -148,7 +145,7 @@ export default class Buckets extends PureComponent<Props, State> {
   private prettyBuckets(buckets: Bucket[]): PrettyBucket[] {
     return buckets.map(b => {
       const expire = b.retentionRules.find(
-        rule => rule.type === RetentionRuleTypes.Expire
+        rule => rule.type === BucketRetentionRules.TypeEnum.Expire
       )
 
       if (!expire) {

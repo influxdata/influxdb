@@ -29,14 +29,9 @@ import OrgOptions from 'src/organizations/components/OrgOptions'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
 // Types
-import {
-  Organization,
-  AppState,
-  Bucket,
-  Dashboard,
-  Member,
-  Task,
-} from 'src/types/v2'
+import {AppState, Dashboard} from 'src/types/v2'
+
+import {User, Bucket, Organization, Task} from 'src/api'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -76,8 +71,8 @@ class OrganizationView extends PureComponent<Props> {
                 url="members_tab"
                 title="Members"
               >
-                <GetOrgResources<Member[]>
-                  link={org.links.members}
+                <GetOrgResources<User[]>
+                  organization={org}
                   fetcher={getMembers}
                 >
                   {(members, loading) => (
@@ -93,7 +88,7 @@ class OrganizationView extends PureComponent<Props> {
                 title="Buckets"
               >
                 <GetOrgResources<Bucket[]>
-                  link={org.links.buckets}
+                  organization={org}
                   fetcher={getBuckets}
                 >
                   {(buckets, loading) => (
@@ -109,7 +104,7 @@ class OrganizationView extends PureComponent<Props> {
                 title="Dashboards"
               >
                 <GetOrgResources<Dashboard[]>
-                  link={org.links.dashboards}
+                  organization={org}
                   fetcher={getDashboards}
                 >
                   {(dashboards, loading) => (
@@ -124,10 +119,7 @@ class OrganizationView extends PureComponent<Props> {
                 url="tasks_tab"
                 title="Tasks"
               >
-                <GetOrgResources<Task[]>
-                  link={org.links.tasks}
-                  fetcher={getTasks}
-                >
+                <GetOrgResources<Task[]> organization={org} fetcher={getTasks}>
                   {(tasks, loading) => (
                     <Spinner loading={loading}>
                       <Tasks tasks={tasks} />

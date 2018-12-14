@@ -5,7 +5,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {Form, Input, ComponentColor, Button} from 'src/clockface'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/api'
 import {updateOrg} from 'src/organizations/actions'
 
 interface Props {

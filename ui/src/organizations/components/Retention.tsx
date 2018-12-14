@@ -13,10 +13,11 @@ import {
 } from 'src/utils/formatting'
 
 import {RetentionRuleTypes} from 'src/types/v2'
+import {BucketRetentionRules} from 'src/api'
 
 interface Props {
   retentionSeconds: number
-  type: RetentionRuleTypes
+  type: BucketRetentionRules.TypeEnum
   onChangeRetentionRule: (seconds: number) => void
   onChangeRuleType: (type: RetentionRuleTypes) => void
 }
@@ -30,14 +31,14 @@ export default class Retention extends PureComponent<Props> {
         <Form.Element label="How often to clear data?">
           <Radio>
             <Radio.Button
-              active={type === RetentionRuleTypes.Expire}
+              active={type === BucketRetentionRules.TypeEnum.Expire}
               onClick={this.handleRadioClick}
               value={RetentionRuleTypes.Expire}
             >
               Periodically
             </Radio.Button>
             <Radio.Button
-              active={type === RetentionRuleTypes.Forever}
+              active={type === null}
               onClick={this.handleRadioClick}
               value={RetentionRuleTypes.Forever}
             >
