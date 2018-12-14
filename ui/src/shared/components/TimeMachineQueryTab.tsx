@@ -24,6 +24,7 @@ import {AppState, DashboardQuery} from 'src/types/v2'
 
 interface StateProps {
   activeQueryIndex: number
+  queryCount: number
 }
 
 interface DispatchProps {
@@ -82,7 +83,10 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
             <RightClick.MenuItem onClick={this.handleEditActiveQueryName}>
               Edit
             </RightClick.MenuItem>
-            <RightClick.MenuItem onClick={this.handleRemove}>
+            <RightClick.MenuItem
+              onClick={this.handleRemove}
+              disabled={!this.isRemovable}
+            >
               Remove
             </RightClick.MenuItem>
           </RightClick.Menu>
@@ -115,7 +119,7 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
   }
 
   private get removeButton(): JSX.Element {
-    if (this.state.isEditingName) {
+    if (this.state.isEditingName || !this.isRemovable) {
       return null
     }
 
@@ -129,6 +133,10 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
     )
   }
 
+  private get isRemovable(): boolean {
+    return this.props.queryCount > 1
+  }
+
   private handleRemove = (e: MouseEvent): void => {
     const {queryIndex, onRemoveQuery} = this.props
 
@@ -138,9 +146,9 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState) => {
-  const {activeQueryIndex} = getActiveTimeMachine(state)
+  const {activeQueryIndex, draftQueries} = getActiveTimeMachine(state)
 
-  return {activeQueryIndex}
+  return {activeQueryIndex, queryCount: draftQueries.length}
 }
 
 const mdtp = {
