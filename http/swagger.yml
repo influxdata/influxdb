@@ -475,12 +475,6 @@ paths:
         - Macros
       summary: keywords that specify how input data gets mapped to a replacement output sequence
       parameters:
-        - in: header
-          name: Authorization
-          description: the authorization header should be in the format of `Token <key>`
-          required: true
-          schema:
-            type: string
         - in: query
           name: org
           required: true
@@ -511,12 +505,6 @@ paths:
       tags:
         - Macros
       parameters:
-        - in: header
-          name: Authorization
-          description: the authorization header should be in the format of `Token <key>`
-          required: true
-          schema:
-            type: string
         - in: query
           name: org
           required: true
@@ -542,12 +530,6 @@ paths:
         - Macros
       summary: keywords that specify how input data gets mapped to a replacement output sequence
       parameters:
-        - in: header
-          name: Authorization
-          description: the authorization header should be in the format of `Token <key>`
-          required: true
-          schema:
-            type: string
         - in: path
           name: macroID
           required: true
@@ -574,12 +556,6 @@ paths:
       tags:
         - Macros
       parameters:
-        - in: header
-          name: Authorization
-          description: the authorization header should be in the format of `Token <key>`
-          required: true
-          schema:
-            type: string
         - in: path
           name: macroID
           required: true
@@ -1982,11 +1958,6 @@ paths:
           type: string
           enum:
             - application/json
-      - in: header
-        name: Authorization
-        description: the authorization header should be in the format of `Token <key>`
-        schema:
-          type: string
       requestBody:
         description: analyzed flux query to generate abstract syntax tree.
         content:
@@ -2020,11 +1991,6 @@ paths:
           type: string
           enum:
             - application/json
-      - in: header
-        name: Authorization
-        description: the authorization header should be in the format of `Token <key>`
-        schema:
-          type: string
       requestBody:
         description: analyzed flux query to generate specification.
         content:
@@ -2056,11 +2022,6 @@ paths:
           type: string
           enum:
             - application/json
-      - in: header
-        name: Authorization
-        description: the authorization header should be in the format of `Token <key>`
-        schema:
-          type: string
       requestBody:
         description: flux query or specification to generate plan.
         content:
@@ -2268,11 +2229,6 @@ paths:
         required: true
         schema:
           type: string
-      - in: header
-        name: Authorization
-        description: the authorization header should be in the format of `Token <key>`
-        schema:
-          type: string
     responses:
         '200':
           description: query results
@@ -2342,11 +2298,6 @@ paths:
           type: string
           enum:
             - application/json
-      - in: header
-        name: Authorization
-        description: the authorization header should be in the format of `Token <key>`
-        schema:
-          type: string
       - in: query
         name: org
         description: specifies the name of the organization executing the query.
