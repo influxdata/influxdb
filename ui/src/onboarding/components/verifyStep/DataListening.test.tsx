@@ -11,7 +11,7 @@ const setup = (override = {}) => {
   const props = {
     bucket: 'defbuck',
     stepIndex: 4,
-    handleSetStepStatus: jest.fn(),
+    onSetStepStatus: jest.fn(),
     ...override,
   }
 

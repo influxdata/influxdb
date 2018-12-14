@@ -46,11 +46,11 @@ class OtherStep extends PureComponent<OnboardingStepProps, null> {
 
   private handleNext = async () => {
     const {
-      handleSetStepStatus,
+      onSetStepStatus,
       currentStepIndex,
       onIncrementCurrentStepIndex,
     } = this.props
-    handleSetStepStatus(currentStepIndex, StepStatus.Complete)
+    onSetStepStatus(currentStepIndex, StepStatus.Complete)
     onIncrementCurrentStepIndex()
   }
 

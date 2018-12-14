@@ -19,7 +19,7 @@ interface Props {
   org: string
   username: string
   stepIndex: number
-  handleSetStepStatus: (index: number, status: StepStatus) => void
+  onSetStepStatus: (index: number, status: StepStatus) => void
 }
 
 @ErrorHandling
@@ -46,7 +46,7 @@ class DataStreaming extends PureComponent<Props> {
         <DataListening
           bucket={this.props.bucket}
           stepIndex={this.props.stepIndex}
-          handleSetStepStatus={this.props.handleSetStepStatus}
+          onSetStepStatus={this.props.onSetStepStatus}
         />
       </>
     )

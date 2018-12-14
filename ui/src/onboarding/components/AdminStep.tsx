@@ -263,7 +263,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
   private handleNext = async () => {
     const {
       links,
-      handleSetStepStatus,
+      onSetStepStatus,
       currentStepIndex,
       handleSetSetupParams,
       notify,
@@ -273,7 +273,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     const {username, password, org, bucket, isAlreadySet} = this.state
 
     if (isAlreadySet) {
-      handleSetStepStatus(currentStepIndex, StepStatus.Complete)
+      onSetStepStatus(currentStepIndex, StepStatus.Complete)
       onIncrementCurrentStepIndex()
       return
     }
@@ -290,7 +290,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
       await signin({username, password})
       notify(copy.SetupSuccess)
       handleSetSetupParams(setupParams)
-      handleSetStepStatus(currentStepIndex, StepStatus.Complete)
+      onSetStepStatus(currentStepIndex, StepStatus.Complete)
       onIncrementCurrentStepIndex()
     } catch (error) {
       notify(copy.SetupError)

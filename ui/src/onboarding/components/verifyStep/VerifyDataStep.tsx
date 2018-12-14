@@ -33,7 +33,7 @@ class VerifyDataStep extends PureComponent<Props> {
       setupParams,
       type,
       onIncrementCurrentStepIndex,
-      handleSetStepStatus,
+      onSetStepStatus,
       stepIndex,
     } = this.props
 
@@ -44,7 +44,7 @@ class VerifyDataStep extends PureComponent<Props> {
           org={_.get(setupParams, 'org', '')}
           username={_.get(setupParams, 'username', '')}
           bucket={_.get(setupParams, 'bucket', '')}
-          handleSetStepStatus={handleSetStepStatus}
+          onSetStepStatus={onSetStepStatus}
           stepIndex={stepIndex}
         />
         <div className="wizard-button-container">
