@@ -5,11 +5,10 @@ import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 import {getDeep} from 'src/utils/wrappers'
 
 import {FluxTable} from 'src/types'
-import {TimeSeriesValue} from 'src/types/series'
 
 export interface TableData {
   columns: string[]
-  values: TimeSeriesValue[][]
+  values: string[][]
 }
 
 export const formatTime = (time: number): string => {
@@ -20,11 +19,11 @@ export const fluxToTableData = (
   tables: FluxTable[],
   columnNames: string[]
 ): TableData => {
-  const values: TimeSeriesValue[][] = []
+  const values: string[][] = []
   const columns: string[] = []
   const indicesToKeep = []
 
-  const rows = getDeep<TimeSeriesValue[][]>(tables, '0.data', [])
+  const rows = getDeep<string[][]>(tables, '0.data', [])
   const columnNamesRow = getDeep<string[]>(tables, '0.data.0', [])
 
   if (tables.length === 0) {
