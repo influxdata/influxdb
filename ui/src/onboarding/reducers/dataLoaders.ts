@@ -189,29 +189,36 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
               return {...tp, configured: ConfigurationState.Configured}
             }
 
-            const plugin = getDeep<Plugin>(tp, 'plugin', createNewPlugin(name))
-            const {config} = plugin
+            const {config} = getDeep<Plugin>(
+              tp,
+              'plugin',
+              createNewPlugin(name)
+            )
+
             let isValidConfig = true
 
-            Object.entries(configFields).forEach(configField => {
-              const [fieldName, fieldType] = configField
-              const fieldValue = config[fieldName]
+            Object.entries(configFields).forEach(
+              ([fieldName, {type: fieldType, isRequired}]) => {
+                if (isRequired) {
+                  const fieldValue = config[fieldName]
 
-              const isValidUri =
-                fieldType === ConfigFieldType.Uri &&
-                validateURI(fieldValue as string)
-              const isValidString =
-                fieldType === ConfigFieldType.String &&
-                (fieldValue as string) !== ''
-              const isValidArray =
-                (fieldType === ConfigFieldType.StringArray ||
-                  fieldType === ConfigFieldType.UriArray) &&
-                (fieldValue as string[]).length
+                  const isValidUri =
+                    fieldType === ConfigFieldType.Uri &&
+                    validateURI(fieldValue as string)
+                  const isValidString =
+                    fieldType === ConfigFieldType.String &&
+                    (fieldValue as string) !== ''
+                  const isValidArray =
+                    (fieldType === ConfigFieldType.StringArray ||
+                      fieldType === ConfigFieldType.UriArray) &&
+                    (fieldValue as string[]).length
 
-              if (!isValidUri && !isValidString && !isValidArray) {
-                isValidConfig = false
+                  if (!isValidUri && !isValidString && !isValidArray) {
+                    isValidConfig = false
+                  }
+                }
               }
-            })
+            )
 
             if (!isValidConfig || _.isEmpty(config)) {
               return {...tp, configured: ConfigurationState.Unconfigured}

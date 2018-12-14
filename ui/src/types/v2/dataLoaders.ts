@@ -174,9 +174,15 @@ export enum ConfigFieldType {
 }
 
 export interface ConfigFields {
-  [field: string]: ConfigFieldType
+  [field: string]: {
+    type: ConfigFieldType
+    isRequired: boolean
+  }
 }
 
 export interface TelegrafPluginInfo {
-  [name: string]: {fields: ConfigFields; defaults: Plugin}
+  [name: string]: {
+    fields: ConfigFields
+    defaults: Plugin
+  }
 }

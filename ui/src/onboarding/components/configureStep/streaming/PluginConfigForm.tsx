@@ -51,20 +51,23 @@ class PluginConfigForm extends PureComponent<Props> {
       return <p>No configuration required.</p>
     }
 
-    return Object.entries(configFields).map(([fieldName, fieldType], i) => {
-      return (
-        <ConfigFieldSwitcher
-          key={fieldName}
-          fieldName={fieldName}
-          fieldType={fieldType}
-          index={i}
-          onChange={this.handleUpdateConfigField}
-          value={this.getFieldValue(telegrafPlugin, fieldName, fieldType)}
-          addTagValue={this.handleAddConfigFieldValue}
-          removeTagValue={this.handleRemoveConfigFieldValue}
-        />
-      )
-    })
+    return Object.entries(configFields).map(
+      ([fieldName, {type: fieldType, isRequired}], i) => {
+        return (
+          <ConfigFieldSwitcher
+            key={fieldName}
+            fieldName={fieldName}
+            fieldType={fieldType}
+            index={i}
+            onChange={this.handleUpdateConfigField}
+            value={this.getFieldValue(telegrafPlugin, fieldName, fieldType)}
+            isRequired={isRequired}
+            addTagValue={this.handleAddConfigFieldValue}
+            removeTagValue={this.handleRemoveConfigFieldValue}
+          />
+        )
+      }
+    )
   }
 
   private handleAddConfigFieldValue = (

@@ -14,6 +14,7 @@ const setup = (override = {}) => {
     removeTagValue: jest.fn(),
     autoFocus: true,
     value: [],
+    helpText: '',
     ...override,
   }
 

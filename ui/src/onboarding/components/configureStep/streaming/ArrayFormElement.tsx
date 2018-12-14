@@ -12,13 +12,15 @@ interface Props {
   removeTagValue: (item: string, fieldName: string) => void
   autoFocus: boolean
   value: string[]
+  helpText: string
 }
 
 class ConfigFieldSwitcher extends PureComponent<Props> {
   public render() {
-    const {fieldName, autoFocus} = this.props
+    const {fieldName, autoFocus, helpText} = this.props
+
     return (
-      <Form.Element label={fieldName} key={fieldName}>
+      <Form.Element label={fieldName} key={fieldName} helpText={helpText}>
         <TagInput
           title={fieldName}
           autoFocus={autoFocus}
