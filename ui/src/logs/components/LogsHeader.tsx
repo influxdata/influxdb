@@ -1,6 +1,6 @@
 import _ from 'lodash'
 import React, {PureComponent} from 'react'
-import {Source, Bucket} from 'src/types/v2'
+import {Source, Bucket} from 'src/api'
 
 import {
   Dropdown,

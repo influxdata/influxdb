@@ -26,7 +26,7 @@ import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
 // Types
 import {Dispatch} from 'redux'
 import {ThunkDispatch} from 'redux-thunk'
-import {View} from 'src/api'
+import {View, Bucket, Source} from 'src/api'
 import {NewView, TimeSeriesValue} from 'src/types/v2/dashboards'
 import {
   Filter,
@@ -37,7 +37,6 @@ import {
   TableData,
   LogQuery,
 } from 'src/types/logs'
-import {Source, Bucket} from 'src/types/v2'
 import {QueryConfig} from 'src/types'
 
 // Constants
@@ -303,12 +302,11 @@ export const setBuckets = (buckets: Bucket[]): SetBucketsAction => ({
   },
 })
 
-export const populateBucketsAsync = (
-  bucketsLink: string,
-  source: Source = null
-) => async (dispatch): Promise<void> => {
+export const populateBucketsAsync = (source: Source = null) => async (
+  dispatch
+): Promise<void> => {
   try {
-    const buckets = await getBuckets(bucketsLink)
+    const buckets = await getBuckets(source)
 
     if (buckets && buckets.length > 0) {
       dispatch(setBuckets(buckets))
@@ -334,17 +332,13 @@ export const getSourceAndPopulateBucketsAsync = (id: string) => async (
 ): Promise<void> => {
   const source = await readSource(id)
 
-  const bucketsLink = getDeep<string | null>(source, 'links.buckets', null)
+  dispatch(setSource(source))
 
-  if (bucketsLink) {
-    dispatch(setSource(source))
-
-    try {
-      await dispatch(populateBucketsAsync(bucketsLink, source))
-      await dispatch(clearSearchData(SearchStatus.UpdatingSource))
-    } catch (e) {
-      await dispatch(clearSearchData(SearchStatus.SourceError))
-    }
+  try {
+    await dispatch(populateBucketsAsync(source))
+    await dispatch(clearSearchData(SearchStatus.UpdatingSource))
+  } catch (e) {
+    await dispatch(clearSearchData(SearchStatus.SourceError))
   }
 }
 

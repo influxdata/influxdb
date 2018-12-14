@@ -11,7 +11,7 @@ import {buildFluxQuery} from 'src/logs/utils/v2/queryBuilder'
 import {buildInfluxQLQuery} from 'src/logs/utils/v1/queryBuilder'
 
 // Types
-import {Bucket} from 'src/types/v2/buckets'
+import {Bucket} from 'src/api'
 import {InfluxLanguage} from 'src/types/v2/dashboards'
 import {QueryConfig} from 'src/types'
 import {

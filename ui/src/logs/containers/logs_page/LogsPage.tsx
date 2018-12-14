@@ -27,7 +27,8 @@ import {getSources} from 'src/sources/selectors'
 import {NOW} from 'src/logs/constants'
 
 // Types
-import {Source, Links, Bucket, AppState} from 'src/types/v2'
+import {Bucket} from 'src/api'
+import {Source, Links, AppState} from 'src/types/v2'
 import {
   Filter,
   LogConfig,
