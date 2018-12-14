@@ -627,42 +627,6 @@ func FindBuckets(
 			},
 		},
 		{
-			name: "find bucket by id",
-			fields: BucketFields{
-				Organizations: []*platform.Organization{
-					{
-						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
-					},
-				},
-				Buckets: []*platform.Bucket{
-					{
-						ID:             MustIDBase16(bucketOneID),
-						OrganizationID: MustIDBase16(orgOneID),
-						Name:           "abc",
-					},
-					{
-						ID:             MustIDBase16(bucketTwoID),
-						OrganizationID: MustIDBase16(orgOneID),
-						Name:           "xyz",
-					},
-				},
-			},
-			args: args{
-				ID: MustIDBase16(bucketTwoID),
-			},
-			wants: wants{
-				buckets: []*platform.Bucket{
-					{
-						ID:             MustIDBase16(bucketTwoID),
-						OrganizationID: MustIDBase16(orgOneID),
-						Organization:   "theorg",
-						Name:           "xyz",
-					},
-				},
-			},
-		},
-		{
 			name: "find bucket by name",
 			fields: BucketFields{
 				Organizations: []*platform.Organization{

@@ -2396,8 +2396,17 @@ paths:
       parameters:
           - in: query
             name: org
-            description: specifies the organization of the resource
-            required: true
+            description: specifies the organization name of the resource
+            schema:
+              type: string
+          - in: query
+            name: orgID
+            description: specifies the organization id of the resource
+            schema:
+              type: string
+          - in: query
+            name: name
+            description: only returns buckets with the specified name
             schema:
               type: string
       responses:

@@ -390,14 +390,6 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 		req.filter.Organization = &org
 	}
 
-	if bucketID := qp.Get("id"); bucketID != "" {
-		id, err := platform.IDFromString(bucketID)
-		if err != nil {
-			return nil, err
-		}
-		req.filter.ID = id
-	}
-
 	if name := qp.Get("name"); name != "" {
 		req.filter.Name = &name
 	}
