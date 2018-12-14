@@ -143,6 +143,7 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
   private jumpToCompletionStep = () => {
     const {onSetCurrentStepIndex, stepStatuses} = this.props
 
+    this.handleSetStepStatus()
     onSetCurrentStepIndex(stepStatuses.length - 1)
   }
 
@@ -218,7 +219,7 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     const {
       type,
       telegrafPlugins,
-      handleSetStepStatus,
+      onSetStepStatus,
       params: {stepID},
     } = this.props
 
@@ -228,9 +229,9 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
       })
 
       if (unconfigured || !telegrafPlugins.length) {
-        handleSetStepStatus(parseInt(stepID, 10), StepStatus.Incomplete)
+        onSetStepStatus(parseInt(stepID, 10), StepStatus.Incomplete)
       } else {
-        handleSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
+        onSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
       }
     }
   }

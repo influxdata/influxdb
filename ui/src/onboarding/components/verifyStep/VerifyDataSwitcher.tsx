@@ -17,20 +17,13 @@ export interface Props {
   username: string
   bucket: string
   stepIndex: number
-  handleSetStepStatus: (index: number, status: StepStatus) => void
+  onSetStepStatus: (index: number, status: StepStatus) => void
 }
 
 @ErrorHandling
 class VerifyDataSwitcher extends PureComponent<Props> {
   public render() {
-    const {
-      org,
-      username,
-      bucket,
-      type,
-      stepIndex,
-      handleSetStepStatus,
-    } = this.props
+    const {org, username, bucket, type, stepIndex, onSetStepStatus} = this.props
 
     switch (type) {
       case DataLoaderType.Streaming:
@@ -39,7 +32,7 @@ class VerifyDataSwitcher extends PureComponent<Props> {
             org={org}
             username={username}
             bucket={bucket}
-            handleSetStepStatus={handleSetStepStatus}
+            onSetStepStatus={onSetStepStatus}
             stepIndex={stepIndex}
           />
         )

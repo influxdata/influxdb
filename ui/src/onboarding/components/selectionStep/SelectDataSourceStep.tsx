@@ -41,7 +41,7 @@ export interface OwnProps extends OnboardingStepProps {
   onRemovePluginBundle: typeof removePluginBundleWithPlugins
   onSetDataLoadersType: (type: DataLoaderType) => void
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
-  handleSetStepStatus: (index: number, status: StepStatus) => void
+  onSetStepStatus: (index: number, status: StepStatus) => void
 }
 
 interface RouterProps {
@@ -139,6 +139,7 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
   private jumpToCompletionStep = () => {
     const {onSetCurrentStepIndex, stepStatuses} = this.props
 
+    this.handleSetStepStatus()
     onSetCurrentStepIndex(stepStatuses.length - 1)
   }
 
@@ -148,7 +149,6 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
       params: {stepID},
       telegrafPlugins,
       onSetActiveTelegrafPlugin,
-      handleSetStepStatus,
     } = this.props
 
     if (this.props.type === DataLoaderType.Streaming && !this.isStreaming) {
@@ -159,16 +159,8 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     const name = _.get(telegrafPlugins, '0.name', '')
     onSetActiveTelegrafPlugin(name)
 
+    this.handleSetStepStatus()
     this.props.onIncrementCurrentStepIndex()
-
-    if (
-      this.props.type === DataLoaderType.Streaming &&
-      !this.props.telegrafPlugins.length
-    ) {
-      handleSetStepStatus(parseInt(stepID, 10), StepStatus.Incomplete)
-    } else if (this.props.type) {
-      handleSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
-    }
   }
 
   private handleClickBack = () => {
@@ -193,6 +185,22 @@ class SelectDataSourceStep extends PureComponent<Props, State> {
     }
 
     this.props.onAddPluginBundle(bundle)
+  }
+
+  private handleSetStepStatus = () => {
+    const {
+      onSetStepStatus,
+      params: {stepID},
+    } = this.props
+
+    if (
+      this.props.type === DataLoaderType.Streaming &&
+      !this.props.telegrafPlugins.length
+    ) {
+      onSetStepStatus(parseInt(stepID, 10), StepStatus.Incomplete)
+    } else if (this.props.type) {
+      onSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
+    }
   }
 
   private get isStreaming(): boolean {

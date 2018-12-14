@@ -46,7 +46,7 @@ export interface OnboardingStepProps {
   onSetCurrentStepIndex: (stepNumber: number) => void
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
-  handleSetStepStatus: (index: number, status: StepStatus) => void
+  onSetStepStatus: (index: number, status: StepStatus) => void
   stepStatuses: StepStatus[]
   stepTitles: string[]
   setupParams: SetupParams
@@ -258,7 +258,7 @@ class OnboardingWizard extends PureComponent<Props> {
       onSetCurrentStepIndex,
       onIncrementCurrentStepIndex,
       onDecrementCurrentStepIndex,
-      handleSetStepStatus: onSetStepStatus,
+      onSetStepStatus,
       links,
       setupParams,
       handleSetSetupParams: onSetSetupParams,
