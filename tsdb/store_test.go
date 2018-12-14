@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -140,6 +141,242 @@ func TestStore_CreateShard(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
+func TestStore_CreateMixedShards(t *testing.T) {
+	t.Parallel()
+
+	test := func(index1 string, index2 string) {
+		s := MustOpenStore(index1)
+		defer s.Close()
+
+		// Create a new shard and verify that it exists.
+		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+			t.Fatal(err)
+		} else if sh := s.Shard(1); sh == nil {
+			t.Fatalf("expected shard")
+		}
+
+		s.EngineOptions.IndexVersion = index2
+		s.index = index2
+		if err := s.Reopen(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create another shard and verify that it exists.
+		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+			t.Fatal(err)
+		} else if sh := s.Shard(2); sh == nil {
+			t.Fatalf("expected shard")
+		}
+
+		// Reopen shard and recheck.
+		if err := s.Reopen(); err != nil {
+			t.Fatal(err)
+		} else if sh := s.Shard(1); sh == nil {
+			t.Fatalf("expected shard(1)")
+		} else if sh = s.Shard(2); sh == nil {
+			t.Fatalf("expected shard(2)")
+		}
+
+		sh := s.Shard(1)
+		if sh.IndexType() != index1 {
+			t.Fatalf("got index %v, expected %v", sh.IndexType(), index1)
+		}
+
+		sh = s.Shard(2)
+		if sh.IndexType() != index2 {
+			t.Fatalf("got index %v, expected %v", sh.IndexType(), index2)
+		}
+	}
+
+	indexes := tsdb.RegisteredIndexes()
+	for i, _ := range indexes {
+		j := (i + 1) % len(indexes)
+		index1 := indexes[i]
+		index2 := indexes[j]
+		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(index1, index2) })
+	}
+}
+
+func TestStore_DropMeasurementMixedShards(t *testing.T) {
+	t.Parallel()
+
+	test := func(index1 string, index2 string) {
+		s := MustOpenStore(index1)
+		defer s.Close()
+
+		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+			t.Fatal(err)
+		}
+
+		s.MustWriteToShardString(1, "mem,server=a v=1 10")
+
+		s.EngineOptions.IndexVersion = index2
+		s.index = index2
+		if err := s.Reopen(); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+			t.Fatal(err)
+		}
+
+		s.MustWriteToShardString(2, "mem,server=b v=1 20")
+
+		s.MustWriteToShardString(1, "cpu,server=a v=1 10")
+		s.MustWriteToShardString(2, "cpu,server=b v=1 20")
+
+		err := s.DeleteMeasurement("db0", "cpu")
+		if err != tsdb.ErrMultipleIndexTypes {
+			t.Fatal(err)
+		} else if err == nil {
+			t.Fatal("expect failure deleting measurement on multiple index types")
+		}
+	}
+
+	indexes := tsdb.RegisteredIndexes()
+	for i, _ := range indexes {
+		j := (i + 1) % len(indexes)
+		index1 := indexes[i]
+		index2 := indexes[j]
+		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(index1, index2) })
+	}
+}
+
+func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) {
+		s := MustOpenStore(index)
+		defer s.Close()
+
+		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+			t.Fatal(err)
+		}
+
+		s.MustWriteToShardString(1, "mem,server=a v=1 10")
+
+		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+			t.Fatal(err)
+		}
+
+		s.MustWriteToShardString(2, "mem,server=b v=1 20")
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 50; i++ {
+				s.MustWriteToShardString(1, "cpu,server=a v=1 10")
+				s.MustWriteToShardString(2, "cpu,server=b v=1 20")
+			}
+		}()
+
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 50; i++ {
+				err := s.DeleteMeasurement("db0", "cpu")
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+		}()
+
+		wg.Wait()
+
+		err := s.DeleteMeasurement("db0", "cpu")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		measurements, err := s.MeasurementNames(query.OpenAuthorizer, "db0", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		exp := [][]byte{[]byte("mem")}
+		if got, exp := measurements, exp; !reflect.DeepEqual(got, exp) {
+			t.Fatal(fmt.Errorf("got measurements %v, expected %v", got, exp))
+		}
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
+func TestStore_WriteMixedShards(t *testing.T) {
+	t.Parallel()
+
+	test := func(index1 string, index2 string) {
+		s := MustOpenStore(index1)
+		defer s.Close()
+
+		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
+			t.Fatal(err)
+		}
+
+		s.MustWriteToShardString(1, "mem,server=a v=1 10")
+
+		s.EngineOptions.IndexVersion = index2
+		s.index = index2
+		if err := s.Reopen(); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
+			t.Fatal(err)
+		}
+
+		s.MustWriteToShardString(2, "mem,server=b v=1 20")
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 50; i++ {
+				s.MustWriteToShardString(1, fmt.Sprintf("cpu,server=a,f%0.2d=a v=1", i*2))
+			}
+		}()
+
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 50; i++ {
+				s.MustWriteToShardString(2, fmt.Sprintf("cpu,server=b,f%0.2d=b v=1 20", i*2+1))
+			}
+		}()
+
+		wg.Wait()
+
+		keys, err := s.TagKeys(nil, []uint64{1, 2}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		cpuKeys := make([]string, 101)
+		for i := 0; i < 100; i++ {
+			cpuKeys[i] = fmt.Sprintf("f%0.2d", i)
+		}
+		cpuKeys[100] = "server"
+		expKeys := []tsdb.TagKeys{
+			{Measurement: "cpu", Keys: cpuKeys},
+			{Measurement: "mem", Keys: []string{"server"}},
+		}
+		if got, exp := keys, expKeys; !reflect.DeepEqual(got, exp) {
+			t.Fatalf("got keys %v, expected %v", got, exp)
+		}
+	}
+
+	indexes := tsdb.RegisteredIndexes()
+	for i, _ := range indexes {
+		j := (i + 1) % len(indexes)
+		index1 := indexes[i]
+		index2 := indexes[j]
+		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(index1, index2) })
 	}
 }
 
