@@ -5,8 +5,7 @@ import {PureComponent} from 'react'
 import {RemoteDataState} from 'src/types'
 
 interface Props<T> {
-  link: string
-  fetcher: (link: string) => Promise<T>
+  fetcher: () => Promise<T>
   children: (resources: T, loading: RemoteDataState) => JSX.Element
 }
 
@@ -28,8 +27,8 @@ export default class ResourceFetcher<T> extends PureComponent<
   }
 
   public async componentDidMount() {
-    const {link, fetcher} = this.props
-    const resources = await fetcher(link)
+    const {fetcher} = this.props
+    const resources = await fetcher()
     this.setState({resources, loading: RemoteDataState.Done})
   }
 

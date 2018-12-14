@@ -14,19 +14,17 @@ import {Panel, Spinner} from 'src/clockface'
 import {getOrganizations, getDashboards} from 'src/organizations/apis'
 
 // Types
-import {Links, Organization, Dashboard, MeState} from 'src/types/v2'
+import {Dashboard, MeState} from 'src/types/v2'
+import {Organization} from 'src/api'
 
 const VERSION = process.env.npm_package_version
 
 interface Props {
   me: MeState
-  links: Links
 }
 
 class ResourceLists extends PureComponent<Props> {
   public render() {
-    const {links} = this.props
-
     return (
       <>
         <Panel>
@@ -47,10 +45,7 @@ class ResourceLists extends PureComponent<Props> {
         <Panel>
           <Panel.Header title="Organizations" />
           <Panel.Body>
-            <ResourceFetcher<Organization[]>
-              link={links.orgs}
-              fetcher={getOrganizations}
-            >
+            <ResourceFetcher<Organization[]> fetcher={getOrganizations}>
               {(orgs, loading) => (
                 <Spinner loading={loading}>
                   <OrgsList orgs={orgs} />
@@ -62,10 +57,7 @@ class ResourceLists extends PureComponent<Props> {
         <Panel>
           <Panel.Header title="Dashboards" />
           <Panel.Body>
-            <ResourceFetcher<Dashboard[]>
-              link={links.dashboards}
-              fetcher={getDashboards}
-            >
+            <ResourceFetcher<Dashboard[]> fetcher={getDashboards}>
               {(dashboards, loading) => (
                 <Spinner loading={loading}>
                   <DashboardsList dashboards={dashboards} />

@@ -6,10 +6,11 @@ import {RemoteDataState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Organization} from 'src/api'
 
 interface Props<T> {
-  link: string
-  fetcher: (link: string) => Promise<T>
+  organization: Organization
+  fetcher: (org: Organization) => Promise<T>
   children: (resources: T, loading: RemoteDataState) => JSX.Element
 }
 
@@ -32,8 +33,8 @@ export default class GetOrgResources<T> extends PureComponent<
   }
 
   public async componentDidMount() {
-    const {link, fetcher} = this.props
-    const resources = await fetcher(link)
+    const {fetcher, organization} = this.props
+    const resources = await fetcher(organization)
     this.setState({resources, loading: RemoteDataState.Done})
   }
 

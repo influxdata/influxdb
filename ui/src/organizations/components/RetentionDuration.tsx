@@ -2,13 +2,13 @@ import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
 import {Form, Input, InputType, Columns} from 'src/clockface'
-import {RetentionRuleTypes} from 'src/types/v2'
 
 // Utils
 import {secondsToDuration} from 'src/utils/formatting'
+import {BucketRetentionRules} from 'src/api'
 
 interface Props {
-  type: RetentionRuleTypes
+  type: BucketRetentionRules.TypeEnum
   retentionSeconds: number
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
 }
@@ -25,7 +25,7 @@ export default class RetentionDuration extends PureComponent<Props> {
     const {type, retentionSeconds, onChangeInput} = this.props
     const {days, hours, minutes, seconds} = secondsToDuration(retentionSeconds)
 
-    if (type === RetentionRuleTypes.Forever) {
+    if (type === null) {
       return null
     }
 

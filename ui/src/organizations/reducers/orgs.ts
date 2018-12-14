@@ -1,4 +1,4 @@
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/api'
 import {ActionTypes, Actions} from 'src/organizations/actions'
 
 const defaultState = []

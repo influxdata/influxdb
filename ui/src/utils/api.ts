@@ -10,6 +10,7 @@ import {
   SourcesApi,
   DefaultApi,
   BucketsApi,
+  OrganizationsApi,
 } from 'src/api'
 
 const basePath = '/api/v2'
@@ -25,3 +26,4 @@ export const authorizationsAPI = new AuthorizationsApi({basePath})
 export const writeAPI = new WriteApi({basePath})
 export const sourcesAPI = new SourcesApi({basePath})
 export const bucketsAPI = new BucketsApi({basePath})
+export const orgsAPI = new OrganizationsApi({basePath})

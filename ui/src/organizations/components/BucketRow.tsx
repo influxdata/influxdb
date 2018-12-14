@@ -5,7 +5,8 @@ import React, {PureComponent} from 'react'
 import {IndexList} from 'src/clockface'
 
 // Types
-import {Bucket, OverlayState} from 'src/types/v2'
+import {OverlayState} from 'src/types/v2'
+import {Bucket} from 'src/api'
 
 export interface PrettyBucket extends Bucket {
   ruleString: string

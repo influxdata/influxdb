@@ -15,7 +15,7 @@ import {
 } from 'src/clockface'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/api'
 import {createOrg} from 'src/organizations/actions'
 
 interface Props {
@@ -25,7 +25,7 @@ interface Props {
 }
 
 interface State {
-  org: Partial<Organization>
+  org: Organization
   nameInputStatus: ComponentStatus
   errorMessage: string
 }
@@ -34,7 +34,7 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      org: {},
+      org: {name: ''},
       nameInputStatus: ComponentStatus.Default,
       errorMessage: '',
     }
@@ -82,8 +82,8 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
 
   private handleCreateOrg = async () => {
     const {org} = this.state
-    const {link, onCreateOrg, onCloseModal} = this.props
-    await onCreateOrg(link, org)
+    const {onCreateOrg, onCloseModal} = this.props
+    await onCreateOrg(org)
     onCloseModal()
   }
 

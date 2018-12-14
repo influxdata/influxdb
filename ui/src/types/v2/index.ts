@@ -20,7 +20,7 @@ import {
 import {Cell, Dashboard, Source} from 'src/api'
 import {Task} from 'src/types/v2/tasks'
 import {Member} from 'src/types/v2/members'
-import {Organization} from 'src/types/v2/orgs'
+import {Organization} from 'src/api'
 import {Links} from 'src/types/v2/links'
 import {Notification} from 'src/types'
 import {TimeRange} from 'src/types/queries'

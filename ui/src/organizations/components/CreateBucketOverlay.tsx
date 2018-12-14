@@ -11,7 +11,7 @@ import {
 import BucketOverlayForm from 'src/organizations/components/BucketOverlayForm'
 
 // Types
-import {Bucket, RetentionRuleTypes, Organization} from 'src/types/v2'
+import {Bucket, BucketRetentionRules, Organization} from 'src/api'
 
 interface Props {
   link: string
@@ -23,7 +23,7 @@ interface Props {
 interface State {
   bucket: Bucket
   errorMessage: string
-  ruleType: RetentionRuleTypes
+  ruleType: BucketRetentionRules.TypeEnum
   nameInputStatus: ComponentStatus
 }
 
@@ -38,7 +38,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     this.state = {
       errorMessage: '',
       bucket: emptyBucket,
-      ruleType: RetentionRuleTypes.Forever,
+      ruleType: null,
       nameInputStatus: ComponentStatus.Default,
     }
   }
@@ -74,7 +74,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
 
   private get retentionSeconds(): number {
     const rule = this.state.bucket.retentionRules.find(
-      r => r.type === RetentionRuleTypes.Expire
+      r => r.type === BucketRetentionRules.TypeEnum.Expire
     )
 
     if (!rule) {
@@ -88,7 +88,9 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     let retentionRules = []
 
     if (everySeconds > 0) {
-      retentionRules = [{type: RetentionRuleTypes.Expire, everySeconds}]
+      retentionRules = [
+        {type: BucketRetentionRules.TypeEnum.Expire, everySeconds},
+      ]
     }
 
     const bucket = {...this.state.bucket, retentionRules}
