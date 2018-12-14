@@ -21,41 +21,49 @@ type UserResourceMappingService struct {
 	BasePath           string
 }
 
-type userResourceResponse struct {
-	Links map[string]string `json:"links"`
-	platform.UserResourceMapping
+type resourceUserResponse struct {
+	Role platform.UserType `json:"role"`
+	*userResponse
 }
 
-func newUserResourceResponse(u *platform.UserResourceMapping) *userResourceResponse {
-	return &userResourceResponse{
+func newResourceUserResponse(u *platform.User, userType platform.UserType) *resourceUserResponse {
+	return &resourceUserResponse{
+		Role:         userType,
+		userResponse: newUserResponse(u),
+	}
+}
+
+type resourceUsersResponse struct {
+	Links map[string]string       `json:"links"`
+	Users []*resourceUserResponse `json:"users"`
+}
+
+func newResourceUsersResponse(opts platform.FindOptions, f platform.UserResourceMappingFilter, users []*platform.User) *resourceUsersResponse {
+	rs := resourceUsersResponse{
 		Links: map[string]string{
-			"user":     fmt.Sprintf("/api/v2/users/%s", u.UserID),
-			"resource": fmt.Sprintf("/api/v2/%ss/%s", u.ResourceType, u.ResourceID),
+			"self": fmt.Sprintf("/api/v2/%ss/%s/%ss", f.ResourceType, f.ResourceID, f.UserType),
 		},
-		UserResourceMapping: *u,
+		Users: make([]*resourceUserResponse, 0, len(users)),
 	}
-}
 
-type userResourcesResponse struct {
-	UserResourceMappings []*userResourceResponse `json:"userResourceMappings"`
-}
-
-func newUserResourcesResponse(opt platform.FindOptions, f platform.UserResourceMappingFilter, ms []*platform.UserResourceMapping) *userResourcesResponse {
-	rs := make([]*userResourceResponse, 0, len(ms))
-	for _, m := range ms {
-		rs = append(rs, newUserResourceResponse(m))
+	for _, user := range users {
+		rs.Users = append(rs.Users, newResourceUserResponse(user, f.UserType))
 	}
-	return &userResourcesResponse{
-		UserResourceMappings: rs,
-	}
+	return &rs
 }
 
 // newPostMemberHandler returns a handler func for a POST to /members or /owners endpoints
-func newPostMemberHandler(s platform.UserResourceMappingService, resourceType platform.ResourceType, userType platform.UserType) http.HandlerFunc {
+func newPostMemberHandler(s platform.UserResourceMappingService, userService platform.UserService, resourceType platform.ResourceType, userType platform.UserType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
 		req, err := decodePostMemberRequest(ctx, r)
+		if err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		user, err := userService.FindUserByID(ctx, req.MemberID)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -73,7 +81,7 @@ func newPostMemberHandler(s platform.UserResourceMappingService, resourceType pl
 			return
 		}
 
-		if err := encodeResponse(ctx, w, http.StatusCreated, newUserResourceResponse(mapping)); err != nil {
+		if err := encodeResponse(ctx, w, http.StatusCreated, newResourceUserResponse(user, userType)); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
@@ -112,8 +120,8 @@ func decodePostMemberRequest(ctx context.Context, r *http.Request) (*postMemberR
 	}, nil
 }
 
-// newPostMemberHandler returns a handler func for a GET to /members or /owners endpoints
-func newGetMembersHandler(s platform.UserResourceMappingService, userType platform.UserType) http.HandlerFunc {
+// newGetMembersHandler returns a handler func for a GET to /members or /owners endpoints
+func newGetMembersHandler(s platform.UserResourceMappingService, userService platform.UserService, resourceType platform.ResourceType, userType platform.UserType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -124,8 +132,9 @@ func newGetMembersHandler(s platform.UserResourceMappingService, userType platfo
 		}
 
 		filter := platform.UserResourceMappingFilter{
-			ResourceID: req.ResourceID,
-			UserType:   userType,
+			ResourceID:   req.ResourceID,
+			ResourceType: resourceType,
+			UserType:     userType,
 		}
 
 		opts := platform.FindOptions{}
@@ -135,7 +144,18 @@ func newGetMembersHandler(s platform.UserResourceMappingService, userType platfo
 			return
 		}
 
-		if err := encodeResponse(ctx, w, http.StatusOK, newUserResourcesResponse(opts, filter, mappings)); err != nil {
+		users := make([]*platform.User, 0, len(mappings))
+		for _, m := range mappings {
+			user, err := userService.FindUserByID(ctx, m.UserID)
+			if err != nil {
+				EncodeError(ctx, err, w)
+				return
+			}
+
+			users = append(users, user)
+		}
+
+		if err := encodeResponse(ctx, w, http.StatusOK, newResourceUsersResponse(opts, filter, users)); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}

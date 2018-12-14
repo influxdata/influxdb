@@ -75,11 +75,13 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService)
 	h.BucketHandler.BucketService = b.BucketService
 	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
+	h.BucketHandler.UserService = b.UserService
 
 	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService)
 	h.OrgHandler.OrganizationService = b.OrganizationService
 	h.OrgHandler.BucketService = b.BucketService
 	h.OrgHandler.OrganizationOperationLogService = b.OrganizationOperationLogService
+	h.OrgHandler.UserService = b.UserService
 
 	h.UserHandler = NewUserHandler()
 	h.UserHandler.UserService = b.UserService
@@ -89,9 +91,11 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService)
 	h.DashboardHandler.DashboardService = b.DashboardService
 	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
+	h.DashboardHandler.UserService = b.UserService
 
 	h.ViewHandler = NewViewHandler(b.UserResourceMappingService, b.LabelService)
 	h.ViewHandler.ViewService = b.ViewService
+	h.ViewHandler.UserService = b.UserService
 
 	h.MacroHandler = NewMacroHandler()
 	h.MacroHandler.MacroService = b.MacroService
@@ -112,6 +116,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.TaskHandler.TaskService = b.TaskService
 	h.TaskHandler.AuthorizationService = b.AuthorizationService
 	h.TaskHandler.UserResourceMappingService = b.UserResourceMappingService
+	h.TaskHandler.UserService = b.UserService
 
 	h.TelegrafHandler = NewTelegrafHandler(
 		b.Logger.With(zap.String("handler", "telegraf")),
@@ -119,6 +124,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 		b.LabelService,
 		b.TelegrafService,
 	)
+	h.TelegrafHandler.UserService = b.UserService
 
 	h.WriteHandler = NewWriteHandler(b.PointsWriter)
 	h.WriteHandler.OrganizationService = b.OrganizationService
