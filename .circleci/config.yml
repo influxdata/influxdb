@@ -113,4 +113,19 @@ workflows:
           filters:
             branches:
               only: master
-
+  nightly:
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - deploy:
+          requires:
+            - gotest
+            - jstest
+          filters:
+            branches:
+              only: master
