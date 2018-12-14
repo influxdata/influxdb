@@ -11,6 +11,8 @@ import {
   DefaultApi,
   BucketsApi,
   OrganizationsApi,
+  QueryApi,
+  SetupApi,
 } from 'src/api'
 
 const basePath = '/api/v2'
@@ -27,3 +29,5 @@ export const writeAPI = new WriteApi({basePath})
 export const sourcesAPI = new SourcesApi({basePath})
 export const bucketsAPI = new BucketsApi({basePath})
 export const orgsAPI = new OrganizationsApi({basePath})
+export const queryAPI = new QueryApi({basePath})
+export const setupAPI = new SetupApi({basePath})

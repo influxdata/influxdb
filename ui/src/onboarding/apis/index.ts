@@ -1,21 +1,17 @@
 // Libraries
 import _ from 'lodash'
 
-import {baseAPI} from 'src/utils/api'
+import {baseAPI, setupAPI, sourcesAPI} from 'src/utils/api'
 
 // Utils
-import AJAX from 'src/utils/ajax'
 import {telegrafsAPI, authorizationsAPI, writeAPI} from 'src/utils/api'
 import {Telegraf, WritePrecision, TelegrafRequest} from 'src/api'
 
 import {getDeep} from 'src/utils/wrappers'
 
-export const getSetupStatus = async (url: string): Promise<boolean> => {
+export const getSetupStatus = async (): Promise<boolean> => {
   try {
-    const {data} = await AJAX({
-      method: 'GET',
-      url,
-    })
+    const {data} = await setupAPI.setupGet()
     const {allowed} = data
     return allowed
   } catch (error) {
@@ -49,15 +45,10 @@ export interface SetupParams {
 }
 
 export const setSetupParams = async (
-  url: string,
   setupParams: SetupParams
 ): Promise<void> => {
   try {
-    await AJAX({
-      method: 'POST',
-      url,
-      data: setupParams,
-    })
+    await setupAPI.setupPost(setupParams)
   } catch (error) {
     console.error("Can't set setup parameters", error)
     throw error
@@ -77,12 +68,9 @@ export const signin = async (params: {
   }
 }
 
-export const trySources = async (url: string): Promise<boolean> => {
+export const trySources = async (): Promise<boolean> => {
   try {
-    await AJAX({
-      method: 'GET',
-      url,
-    })
+    await sourcesAPI.sourcesGet(null)
     return true
   } catch (error) {
     console.error('Sign in has failed', error)

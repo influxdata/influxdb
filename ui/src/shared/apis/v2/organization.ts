@@ -1,14 +1,9 @@
 import _ from 'lodash'
-import AJAX from 'src/utils/ajax'
+import {orgsAPI} from 'src/utils/api'
 
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/api'
 
-export const getOrganizations = async (
-  url: string
-): Promise<Organization[]> => {
-  const {data} = await AJAX({
-    url,
-  })
-
-  return _.get(data, 'orgs', [])
+export const getOrganizations = async (): Promise<Organization[]> => {
+  const {data} = await orgsAPI.orgsGet()
+  return data.orgs
 }

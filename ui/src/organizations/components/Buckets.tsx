@@ -94,7 +94,6 @@ export default class Buckets extends PureComponent<Props, State> {
         <OverlayTechnology visible={overlayState === OverlayState.Open}>
           <CreateBucketOverlay
             org={org}
-            link={org.links.buckets}
             onCloseModal={this.handleCloseModal}
             onCreateBucket={this.handleCreateBucket}
           />
@@ -117,10 +116,10 @@ export default class Buckets extends PureComponent<Props, State> {
   }
 
   private handleCreateBucket = async (
-    link: string,
-    bucket: Partial<Bucket>
+    org: Organization,
+    bucket: Bucket
   ): Promise<void> => {
-    const b = await createBucket(link, bucket)
+    const b = await createBucket(org, bucket)
     const buckets = this.prettyBuckets([b, ...this.props.buckets])
     this.setState({buckets})
     this.handleCloseModal()

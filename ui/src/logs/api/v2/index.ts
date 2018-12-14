@@ -1,11 +1,11 @@
 // Utils
-import AJAX from 'src/utils/ajax'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Types
-import {InfluxLanguage} from 'src/types/v2/dashboards'
 import {FluxTable} from 'src/types'
 import {SearchStatus} from 'src/types/logs'
+import {queryAPI} from 'src/utils/api'
+import {Query, Dialect} from 'src/api'
 
 export interface QueryResponse {
   tables: FluxTable[]
@@ -13,26 +13,27 @@ export interface QueryResponse {
 }
 
 export const executeQueryAsync = async (
-  link: string,
   query: string,
-  type: InfluxLanguage = InfluxLanguage.Flux
+  type: Query.TypeEnum = Query.TypeEnum.Influxql
 ): Promise<QueryResponse> => {
   try {
     const dialect = {
       header: true,
-      annotations: ['datatype', 'group', 'default'],
+      annotations: [
+        Dialect.AnnotationsEnum.Datatype,
+        Dialect.AnnotationsEnum.Group,
+        Dialect.AnnotationsEnum.Default,
+      ],
       delimiter: ',',
     }
 
-    const {data} = await AJAX({
-      method: 'POST',
-      url: link,
-      data: {
-        type,
-        query,
-        dialect,
-      },
-    })
+    const {data} = await queryAPI.queryPost(
+      'text/csv',
+      'application/json',
+      null,
+      null,
+      {type, query, dialect}
+    )
 
     const tables = parseResponse(data)
     const status = responseStatus(tables)
