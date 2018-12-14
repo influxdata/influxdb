@@ -115,7 +115,6 @@ func (m *Main) URL() string {
 
 // Shutdown shuts down the HTTP server and waits for all services to clean up.
 func (m *Main) Shutdown(ctx context.Context) {
-	m.cancel()
 	m.httpServer.Shutdown(ctx)
 
 	m.logger.Info("Stopping", zap.String("service", "task"))
@@ -143,6 +142,9 @@ func (m *Main) Shutdown(ctx context.Context) {
 
 	m.logger.Sync()
 }
+
+// Cancel executes the context cancel on the program. Used for testing.
+func (m *Main) Cancel() { m.cancel() }
 
 // Run executes the program with the given CLI arguments.
 func (m *Main) Run(ctx context.Context, args ...string) error {
