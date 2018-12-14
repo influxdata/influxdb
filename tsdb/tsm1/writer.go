@@ -390,7 +390,7 @@ func copyBuffer(f syncer, dst io.Writer, src io.Reader, buf []byte) (written int
 				written += int64(nw)
 			}
 
-			if written-lastSync > fsyncEvery {
+			if f != nil && written-lastSync > fsyncEvery {
 				if err := f.Sync(); err != nil {
 					return 0, err
 				}
