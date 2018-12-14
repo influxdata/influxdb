@@ -22,9 +22,13 @@ const (
 	v2header   = 0x1502
 	v3header   = 0x1503
 	v4header   = 0x1504
+	v5header   = 0x1505
 )
 
-var errIncompatibleVersion = errors.New("incompatible v4 version")
+var (
+	errIncompatibleV4Version = errors.New("incompatible v4 version")
+	errIncompatibleV5Version = errors.New("incompatible v5 version")
+)
 
 // Tombstoner records tombstones when entries are deleted.
 type Tombstoner struct {
@@ -110,7 +114,7 @@ func (t *Tombstoner) AddRange(keys [][]byte, min, max int64) error {
 
 	t.statsLoaded = false
 
-	if err := t.prepareV4(); err == errIncompatibleVersion {
+	if err := t.prepareLatest(); err == errIncompatibleV4Version {
 		if cap(t.tombstones) < len(t.tombstones)+len(keys) {
 			ts := make([]Tombstone, len(t.tombstones), len(t.tombstones)+len(keys))
 			copy(ts, t.tombstones)
@@ -139,7 +143,7 @@ func (t *Tombstoner) AddRange(keys [][]byte, min, max int64) error {
 			continue
 		}
 
-		if err := t.writeTombstone(t.gz, Tombstone{
+		if err := t.writeTombstoneV4(t.gz, Tombstone{
 			Key: k,
 			Min: min,
 			Max: max,
@@ -241,10 +245,7 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 
 	var b [4]byte
 	if _, err := f.Read(b[:]); err != nil {
-		// Might be a zero length file which should not exist, but
-		// an old bug allowed them to occur.  Treat it as an empty
-		// v1 tombstone file so we don't abort loading the TSM file.
-		return t.readTombstoneV1(f, fn)
+		return errors.New("unable to read header")
 	}
 
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
@@ -254,12 +255,10 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 	header := binary.BigEndian.Uint32(b[:])
 	if header == v4header {
 		return t.readTombstoneV4(f, fn)
-	} else if header == v3header {
-		return t.readTombstoneV3(f, fn)
-	} else if header == v2header {
-		return t.readTombstoneV2(f, fn)
+	} else if header == v5header {
+		return t.readTombstone(f, fn)
 	}
-	return t.readTombstoneV1(f, fn)
+	return errors.New("invalid tombstone file")
 }
 
 func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
@@ -280,7 +279,7 @@ func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
 
 	gz := gzip.NewWriter(bw)
 	for _, ts := range tombstones {
-		if err := t.writeTombstone(gz, ts); err != nil {
+		if err := t.writeTombstoneV4(gz, ts); err != nil {
 			return err
 		}
 	}
@@ -293,7 +292,7 @@ func (t *Tombstoner) writeTombstoneV3(tombstones []Tombstone) error {
 	return t.commit()
 }
 
-func (t *Tombstoner) prepareV4() error {
+func (t *Tombstoner) prepareLatest() error {
 	if t.pendingFile != nil {
 		return nil
 	}
@@ -316,11 +315,11 @@ func (t *Tombstoner) prepareV4() error {
 		var b [4]byte
 		if n, err := f.Read(b[:]); n == 4 && err == nil {
 			header := binary.BigEndian.Uint32(b[:])
-			// There is an existing tombstone on disk and it's not a v3.  Just rewrite it as a v3
+			// There is an existing tombstone on disk and it's not a v5.
 			// version again.
 			if header != v4header {
 				removeTmp()
-				return errIncompatibleVersion
+				return errIncompatibleV4Version
 			}
 
 			// Seek back to the beginning we copy the header
@@ -329,7 +328,7 @@ func (t *Tombstoner) prepareV4() error {
 				return err
 			}
 
-			// Copy the while file
+			// Copy the whole file
 			if _, err := io.Copy(tmp, f); err != nil {
 				f.Close()
 				removeTmp()
@@ -417,107 +416,7 @@ func (t *Tombstoner) rollback() error {
 	return os.Remove(tmpFilename)
 }
 
-// readTombstoneV1 reads the first version of tombstone files that were not
-// capable of storing a min and max time for a key.  This is used for backwards
-// compatibility with versions prior to 0.13.  This format is a simple newline
-// separated text file.
-func (t *Tombstoner) readTombstoneV1(f *os.File, fn func(t Tombstone) error) error {
-	r := bufio.NewScanner(f)
-	for r.Scan() {
-		line := r.Text()
-		if line == "" {
-			continue
-		}
-		if err := fn(Tombstone{
-			Key: []byte(line),
-			Min: math.MinInt64,
-			Max: math.MaxInt64,
-		}); err != nil {
-			return err
-		}
-	}
-
-	if err := r.Err(); err != nil {
-		return err
-	}
-
-	for _, t := range t.tombstones {
-		if err := fn(t); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// readTombstoneV2 reads the second version of tombstone files that are capable
-// of storing keys and the range of time for the key that points were deleted. This
-// format is binary.
-func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) error {
-	// Skip header, already checked earlier
-	if _, err := f.Seek(headerSize, io.SeekStart); err != nil {
-		return err
-	}
-	n := int64(4)
-
-	fi, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	size := fi.Size()
-
-	var (
-		min, max int64
-		key      []byte
-	)
-	b := make([]byte, 4096)
-	for {
-		if n >= size {
-			break
-		}
-
-		if _, err = f.Read(b[:4]); err != nil {
-			return err
-		}
-		n += 4
-
-		keyLen := int(binary.BigEndian.Uint32(b[:4]))
-		if keyLen > len(b) {
-			b = make([]byte, keyLen)
-		}
-
-		if _, err := f.Read(b[:keyLen]); err != nil {
-			return err
-		}
-		key = b[:keyLen]
-		n += int64(keyLen)
-
-		if _, err := f.Read(b[:8]); err != nil {
-			return err
-		}
-		n += 8
-
-		min = int64(binary.BigEndian.Uint64(b[:8]))
-
-		if _, err := f.Read(b[:8]); err != nil {
-			return err
-		}
-		n += 8
-		max = int64(binary.BigEndian.Uint64(b[:8]))
-
-		if err := fn(Tombstone{
-			Key: key,
-			Min: min,
-			Max: max,
-		}); err != nil {
-			return err
-		}
-	}
-
-	for _, t := range t.tombstones {
-		if err := fn(t); err != nil {
-			return err
-		}
-	}
+func (t *Tombstoner) readTombstone(f *os.File, fn func(t Tombstone) error) error {
 	return nil
 }
 
@@ -705,7 +604,7 @@ func (t *Tombstoner) tombstonePath() string {
 	return filepath.Join(filepath.Dir(t.Path), filename+".tombstone")
 }
 
-func (t *Tombstoner) writeTombstone(dst io.Writer, ts Tombstone) error {
+func (t *Tombstoner) writeTombstoneV4(dst io.Writer, ts Tombstone) error {
 	binary.BigEndian.PutUint32(t.tmp[:4], uint32(len(ts.Key)))
 	if _, err := dst.Write(t.tmp[:4]); err != nil {
 		return err
@@ -722,3 +621,5 @@ func (t *Tombstoner) writeTombstone(dst io.Writer, ts Tombstone) error {
 	_, err := dst.Write(t.tmp[:])
 	return err
 }
+
+func (t *Tombstoner) writeTombstone(dst io.Writer, ts Tombstone) error { return nil }

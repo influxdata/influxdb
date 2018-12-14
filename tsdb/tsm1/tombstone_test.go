@@ -2,7 +2,6 @@ package tsm1_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -280,67 +279,16 @@ func TestTombstoner_Delete(t *testing.T) {
 	}
 }
 
-func TestTombstoner_ReadV1(t *testing.T) {
+func TestTombstoner_ReadV4(t *testing.T) {
 	dir := MustTempDir()
 	defer func() { os.RemoveAll(dir) }()
-
-	f := MustTempFile(dir)
-	if err := ioutil.WriteFile(f.Name(), []byte("foo\n"), 0x0600); err != nil {
-		t.Fatalf("write v1 file: %v", err)
-	}
-	f.Close()
-
-	if err := os.Rename(f.Name(), f.Name()+".tombstone"); err != nil {
-		t.Fatalf("rename tombstone failed: %v", err)
-	}
-
-	ts := tsm1.NewTombstoner(f.Name(), nil)
-
-	// Read once
-	_ = mustReadAll(ts)
-
-	// Read again
-	entries := mustReadAll(ts)
-
-	if got, exp := len(entries), 1; got != exp {
-		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := string(entries[0].Key), "foo"; got != exp {
-		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
-	}
-
-	// Use a new Tombstoner to verify values are persisted
-	ts = tsm1.NewTombstoner(f.Name(), nil)
-	entries = mustReadAll(ts)
-	if got, exp := len(entries), 1; got != exp {
-		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := string(entries[0].Key), "foo"; got != exp {
-		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
-	}
+	t.Skip("TODO")
 }
 
-func TestTombstoner_ReadEmptyV1(t *testing.T) {
+func TestTombstoner_ReadV5(t *testing.T) {
 	dir := MustTempDir()
 	defer func() { os.RemoveAll(dir) }()
-
-	f := MustTempFile(dir)
-	f.Close()
-
-	if err := os.Rename(f.Name(), f.Name()+".tombstone"); err != nil {
-		t.Fatalf("rename tombstone failed: %v", err)
-	}
-
-	ts := tsm1.NewTombstoner(f.Name(), nil)
-
-	_ = mustReadAll(ts)
-
-	entries := mustReadAll(ts)
-	if got, exp := len(entries), 0; got != exp {
-		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
-	}
+	t.Skip("TODO")
 }
 
 func mustReadAll(t *tsm1.Tombstoner) []tsm1.Tombstone {
