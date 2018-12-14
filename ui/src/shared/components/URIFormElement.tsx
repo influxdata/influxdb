@@ -14,6 +14,7 @@ interface Props {
   name: string
   autoFocus?: boolean
   value: string
+  helpText: string
   onChange: (e: ChangeEvent<HTMLInputElement>) => void
 }
 
@@ -37,10 +38,15 @@ class URIFormElement extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {name, value, autoFocus} = this.props
+    const {name, value, autoFocus, helpText} = this.props
 
     return (
-      <FormElement label={name} key={name} errorMessage={this.errorMessage}>
+      <FormElement
+        label={name}
+        key={name}
+        errorMessage={this.errorMessage}
+        helpText={helpText}
+      >
         <Input
           name={name}
           autoFocus={autoFocus}

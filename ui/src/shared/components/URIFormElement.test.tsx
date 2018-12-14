@@ -11,6 +11,7 @@ const setup = (override = {}) => {
     name: '',
     value: '',
     onChange: jest.fn(),
+    helpText: '',
     ...override,
   }
 

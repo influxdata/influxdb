@@ -89,7 +89,12 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
     },
   },
   [TelegrafPluginInputDocker.NameEnum.Docker]: {
-    fields: {endpoint: ConfigFieldType.String},
+    fields: {
+      endpoint: {
+        type: ConfigFieldType.String,
+        isRequired: true,
+      },
+    },
     defaults: {
       name: TelegrafPluginInputDocker.NameEnum.Docker,
       type: TelegrafPluginInputDocker.TypeEnum.Input,
@@ -97,7 +102,12 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
     },
   },
   [TelegrafPluginInputFile.NameEnum.File]: {
-    fields: {files: ConfigFieldType.StringArray},
+    fields: {
+      files: {
+        type: ConfigFieldType.StringArray,
+        isRequired: true,
+      },
+    },
     defaults: {
       name: TelegrafPluginInputFile.NameEnum.File,
       type: TelegrafPluginInputFile.TypeEnum.Input,
@@ -113,7 +123,12 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
     },
   },
   [TelegrafPluginInputKubernetes.NameEnum.Kubernetes]: {
-    fields: {url: ConfigFieldType.Uri},
+    fields: {
+      url: {
+        type: ConfigFieldType.Uri,
+        isRequired: true,
+      },
+    },
     defaults: {
       name: TelegrafPluginInputKubernetes.NameEnum.Kubernetes,
       type: TelegrafPluginInputKubernetes.TypeEnum.Input,
@@ -121,7 +136,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
     },
   },
   [TelegrafPluginInputLogParser.NameEnum.Logparser]: {
-    fields: {files: ConfigFieldType.StringArray},
+    fields: {files: {type: ConfigFieldType.StringArray, isRequired: true}},
     defaults: {
       name: TelegrafPluginInputLogParser.NameEnum.Logparser,
       type: TelegrafPluginInputLogParser.TypeEnum.Input,
@@ -169,7 +184,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
     },
   },
   [TelegrafPluginInputProcstat.NameEnum.Procstat]: {
-    fields: {exe: ConfigFieldType.String},
+    fields: {exe: {type: ConfigFieldType.String, isRequired: false}},
     defaults: {
       name: TelegrafPluginInputProcstat.NameEnum.Procstat,
       type: TelegrafPluginInputProcstat.TypeEnum.Input,
@@ -177,7 +192,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
     },
   },
   [TelegrafPluginInputPrometheus.NameEnum.Prometheus]: {
-    fields: {urls: ConfigFieldType.UriArray},
+    fields: {urls: {type: ConfigFieldType.UriArray, isRequired: true}},
     defaults: {
       name: TelegrafPluginInputPrometheus.NameEnum.Prometheus,
       type: TelegrafPluginInputPrometheus.TypeEnum.Input,
@@ -186,8 +201,8 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
   },
   [TelegrafPluginInputRedis.NameEnum.Redis]: {
     fields: {
-      servers: ConfigFieldType.StringArray,
-      password: ConfigFieldType.String,
+      servers: {type: ConfigFieldType.StringArray, isRequired: true},
+      password: {type: ConfigFieldType.String, isRequired: false},
     },
     defaults: {
       name: TelegrafPluginInputRedis.NameEnum.Redis,
@@ -196,7 +211,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
     },
   },
   [TelegrafPluginInputSyslog.NameEnum.Syslog]: {
-    fields: {server: ConfigFieldType.String},
+    fields: {server: {type: ConfigFieldType.String, isRequired: true}},
     defaults: {
       name: TelegrafPluginInputSyslog.NameEnum.Syslog,
       type: TelegrafPluginInputSyslog.TypeEnum.Input,

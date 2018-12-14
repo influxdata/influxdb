@@ -1,17 +1,17 @@
 // Libraries
 import React from 'react'
-import {shallow} from 'enzyme'
+import {shallow, mount} from 'enzyme'
 
 // Components
 import ConfigFieldSwitcher from 'src/onboarding/components/configureStep/streaming/ConfigFieldSwitcher'
 import ArrayFormElement from 'src/onboarding/components/configureStep/streaming/ArrayFormElement'
 import URIFormElement from 'src/shared/components/URIFormElement'
-import {Input} from 'src/clockface'
+import {Input, FormElement} from 'src/clockface'
 
 // Types
 import {ConfigFieldType} from 'src/types/v2/dataLoaders'
 
-const setup = (override = {}) => {
+const setup = (override = {}, shouldMount = false) => {
   const props = {
     fieldName: '',
     fieldType: ConfigFieldType.String,
@@ -20,10 +20,13 @@ const setup = (override = {}) => {
     removeTagValue: jest.fn(),
     index: 0,
     value: '',
+    isRequired: true,
     ...override,
   }
 
-  const wrapper = shallow(<ConfigFieldSwitcher {...props} />)
+  const wrapper = shouldMount
+    ? mount(<ConfigFieldSwitcher {...props} />)
+    : shallow(<ConfigFieldSwitcher {...props} />)
 
   return {wrapper}
 }
@@ -40,29 +43,89 @@ describe('Onboarding.Components.ConfigureStep.Streaming.ConfigFieldSwitcher', ()
       expect(wrapper.exists()).toBe(true)
       expect(input.exists()).toBe(true)
     })
+
+    describe('if not required', () => {
+      it('optional is displayed as help text', () => {
+        const fieldName = 'yo'
+        const fieldType = ConfigFieldType.String
+        const value = ''
+        const {wrapper} = setup({
+          fieldName,
+          fieldType,
+          isRequired: false,
+          value,
+        })
+
+        const input = wrapper.find(Input)
+        const formElement = wrapper.find(FormElement)
+
+        expect(wrapper.exists()).toBe(true)
+        expect(input.exists()).toBe(true)
+        expect(formElement.prop('helpText')).toBe('optional')
+      })
+    })
   })
+
   describe('if type is array', () => {
     it('renders an array input', () => {
       const fieldName = ['yo']
       const fieldType = ConfigFieldType.StringArray
-      const {wrapper} = setup({fieldName, fieldType})
+      const value = []
+      const {wrapper} = setup({fieldName, fieldType, value}, true)
 
       const input = wrapper.find(ArrayFormElement)
+      const formElement = wrapper.find(FormElement)
+
+      expect(input.exists()).toBe(true)
+      expect(formElement.prop('helpText')).toBe('')
+    })
+
+    describe('if not required', () => {
+      const fieldName = ['yo']
+      const value = []
+      const fieldType = ConfigFieldType.StringArray
+      const {wrapper} = setup(
+        {fieldName, fieldType, value, isRequired: false},
+        true
+      )
+
+      const input = wrapper.find(ArrayFormElement)
+      const formElement = wrapper.find(FormElement)
 
       expect(wrapper.exists()).toBe(true)
       expect(input.exists()).toBe(true)
+      expect(formElement.prop('helpText')).toBe('optional')
     })
   })
+
   describe('if type is uri', () => {
     it('renders a uri input ', () => {
       const fieldName = ['http://google.com']
       const fieldType = ConfigFieldType.Uri
-      const {wrapper} = setup({fieldName, fieldType})
+      const value = ''
+      const {wrapper} = setup({fieldName, fieldType, value}, true)
 
       const input = wrapper.find(URIFormElement)
 
       expect(wrapper.exists()).toBe(true)
       expect(input.exists()).toBe(true)
+    })
+
+    describe('if not required', () => {
+      it('optional is displayed as help text', () => {
+        const fieldName = ['http://google.com']
+        const fieldType = ConfigFieldType.Uri
+        const value = ''
+        const {wrapper} = setup(
+          {fieldName, fieldType, value, isRequired: false},
+          true
+        )
+
+        const input = wrapper.find(URIFormElement)
+
+        expect(wrapper.exists()).toBe(true)
+        expect(input.exists()).toBe(true)
+      })
     })
   })
 })

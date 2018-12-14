@@ -18,6 +18,7 @@ interface Props {
   addTagValue: (item: string, fieldName: string) => void
   removeTagValue: (item: string, fieldName: string) => void
   value: string | string[]
+  isRequired: boolean
 }
 
 class ConfigFieldSwitcher extends PureComponent<Props> {
@@ -33,6 +34,7 @@ class ConfigFieldSwitcher extends PureComponent<Props> {
             autoFocus={this.autoFocus}
             onChange={onChange}
             value={value as string}
+            helpText={this.optionalText}
           />
         )
       case ConfigFieldType.UriArray:
@@ -44,11 +46,16 @@ class ConfigFieldSwitcher extends PureComponent<Props> {
             removeTagValue={this.props.removeTagValue}
             autoFocus={this.autoFocus}
             value={value as string[]}
+            helpText={this.optionalText}
           />
         )
       case ConfigFieldType.String:
         return (
-          <Form.Element label={fieldName} key={fieldName}>
+          <Form.Element
+            label={fieldName}
+            key={fieldName}
+            helpText={this.optionalText}
+          >
             <Input
               name={fieldName}
               autoFocus={this.autoFocus}
@@ -59,6 +66,12 @@ class ConfigFieldSwitcher extends PureComponent<Props> {
         )
       default:
         return <div />
+    }
+  }
+
+  private get optionalText(): string {
+    if (!this.props.isRequired) {
+      return 'optional'
     }
   }
 
