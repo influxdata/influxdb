@@ -1874,6 +1874,30 @@ const (
 	indexBlockCount = 100
 )
 
+var (
+	globalIndex  *indirectIndex
+	indexOffsets []uint32
+	indexAllKeys [][]byte
+	indexBytes   []byte
+)
+
+func getIndex(tb testing.TB) *indirectIndex {
+	if globalIndex != nil {
+		globalIndex.offsets = append([]uint32(nil), indexOffsets...)
+		globalIndex.tombstones = make(map[uint32][]TimeRange)
+		return globalIndex
+	}
+
+	globalIndex, indexBytes = mustMakeIndex(tb, indexKeyCount, indexBlockCount)
+	indexOffsets = append([]uint32(nil), globalIndex.offsets...)
+
+	for i := 0; i < indexKeyCount; i++ {
+		indexAllKeys = append(indexAllKeys, []byte(fmt.Sprintf("cpu-%08d", i)))
+	}
+
+	return globalIndex
+}
+
 func mustMakeIndex(tb testing.TB, keys, blocks int) (*indirectIndex, []byte) {
 	index := NewIndexWriter()
 	for i := 0; i < keys; i++ {
@@ -1896,12 +1920,12 @@ func mustMakeIndex(tb testing.TB, keys, blocks int) (*indirectIndex, []byte) {
 }
 
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
-	indirect, bytes := mustMakeIndex(b, indexKeyCount, indexBlockCount)
+	indirect := getIndex(b)
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		if err := indirect.UnmarshalBinary(bytes); err != nil {
+		if err := indirect.UnmarshalBinary(indexBytes); err != nil {
 			b.Fatalf("unexpected error unmarshaling index: %v", err)
 		}
 	}
@@ -1941,7 +1965,7 @@ func BenchmarkBlockIterator_Next(b *testing.B) {
 }
 
 func BenchmarkIndirectIndex_DeleteRangeLast(b *testing.B) {
-	indirect, _ := mustMakeIndex(b, indexKeyCount, indexBlockCount)
+	indirect := getIndex(b)
 	keys := [][]byte{[]byte("cpu-00999999")}
 
 	b.ReportAllocs()
@@ -1949,61 +1973,43 @@ func BenchmarkIndirectIndex_DeleteRangeLast(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		indirect.DeleteRange(keys, 10, 50)
-		// do a cheap reset of the state.
-		for key := range indirect.tombstones {
-			delete(indirect.tombstones, key)
-		}
 	}
 }
 
 func BenchmarkIndirectIndex_DeleteRangeFull(b *testing.B) {
-	indirect, _ := mustMakeIndex(b, indexKeyCount, indexBlockCount)
-
-	var keys [][]byte
-	for i := 0; i < indexKeyCount; i++ {
-		keys = append(keys, []byte(fmt.Sprintf("cpu-%08d", i)))
-	}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		for i := 0; i < len(keys); i += 4096 {
-			n := i + 4096
-			if n > len(keys) {
-				n = len(keys)
-			}
-			indirect.DeleteRange(keys[i:n], 10, 50)
-		}
-		// do a cheap reset of the state.
-		for key := range indirect.tombstones {
-			delete(indirect.tombstones, key)
-		}
-	}
-}
-
-func BenchmarkIndirectIndex_Delete(b *testing.B) {
-	indirect, bytes := mustMakeIndex(b, indexKeyCount, indexBlockCount)
-
-	var keys [][]byte
-	for i := 0; i < indexKeyCount; i++ {
-		keys = append(keys, []byte(fmt.Sprintf("cpu-%08d", i)))
-	}
-
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		indirect.UnmarshalBinary(bytes)
+		indirect := getIndex(b)
 		b.StartTimer()
 
-		for i := 0; i < len(keys); i += 4096 {
+		for i := 0; i < len(indexAllKeys); i += 4096 {
 			n := i + 4096
-			if n > len(keys) {
-				n = len(keys)
+			if n > len(indexAllKeys) {
+				n = len(indexAllKeys)
 			}
-			indirect.Delete(keys[i:n])
+			indirect.DeleteRange(indexAllKeys[i:n], 10, 50)
+		}
+	}
+}
+
+func BenchmarkIndirectIndex_Delete(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		indirect := getIndex(b)
+		b.StartTimer()
+
+		for i := 0; i < len(indexAllKeys); i += 4096 {
+			n := i + 4096
+			if n > len(indexAllKeys) {
+				n = len(indexAllKeys)
+			}
+			indirect.Delete(indexAllKeys[i:n])
 		}
 	}
 }
