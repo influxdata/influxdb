@@ -756,7 +756,7 @@ type indirectIndex struct {
 	// tombstones contains only the tombstoned keys with subset of time values deleted.  An
 	// entry would exist here if a subset of the points for a key were deleted and the file
 	// had not be re-compacted to remove the points on disk.
-	tombstones map[string][]TimeRange
+	tombstones map[uint32][]TimeRange
 }
 
 // TimeRange holds a min and max timestamp.
@@ -771,7 +771,7 @@ func (t TimeRange) Overlaps(min, max int64) bool {
 // NewIndirectIndex returns a new indirect index.
 func NewIndirectIndex() *indirectIndex {
 	return &indirectIndex{
-		tombstones: make(map[string][]TimeRange),
+		tombstones: make(map[uint32][]TimeRange),
 	}
 }
 
@@ -1007,11 +1007,12 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	}
 
 	fullKeys := make([][]byte, 0, len(keys))
-	tombstones := map[string][]TimeRange{}
+	tombstones := map[uint32][]TimeRange{}
 	var ie []IndexEntry
 
 	for i := d.searchOffset(keys[0]); len(keys) > 0 && i < d.KeyCount(); i++ {
-		k, entries := d.readEntriesAt(d.offsets[i], &ie)
+		offset := d.offsets[i]
+		k, entries := d.readEntriesAt(offset, &ie)
 
 		// Skip any keys that don't exist.  These are less than the current key.
 		for len(keys) > 0 && bytes.Compare(keys[0], k) < 0 {
@@ -1048,11 +1049,11 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 		}
 
 		d.mu.RLock()
-		existing := d.tombstones[string(k)]
+		existing := d.tombstones[offset]
 		d.mu.RUnlock()
 
 		// Append the new tombonstes to the existing ones
-		newTs := append(existing, append(tombstones[string(k)], TimeRange{minTime, maxTime})...)
+		newTs := append(existing, append(tombstones[offset], TimeRange{minTime, maxTime})...)
 		fn := func(i, j int) bool {
 			a, b := newTs[i], newTs[j]
 			if a.Min == b.Min {
@@ -1066,7 +1067,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 			sort.Slice(newTs, fn)
 		}
 
-		tombstones[string(k)] = newTs
+		tombstones[offset] = newTs
 
 		// We need to see if all the tombstones end up deleting the entire series.  This
 		// could happen if their is one tombstore with min,max time spanning all the block
@@ -1122,7 +1123,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 // TombstoneRange returns ranges of time that are deleted for the given key.
 func (d *indirectIndex) TombstoneRange(key []byte) []TimeRange {
 	d.mu.RLock()
-	r := d.tombstones[string(key)]
+	r := d.tombstones[d.search(key)]
 	d.mu.RUnlock()
 	return r
 }
@@ -1140,7 +1141,8 @@ func (d *indirectIndex) ContainsValue(key []byte, timestamp int64) bool {
 	}
 
 	d.mu.RLock()
-	tombstones := d.tombstones[string(key)]
+	// TODO(jeff): we already did the search when calling d.Entry
+	tombstones := d.tombstones[d.search(key)]
 	d.mu.RUnlock()
 
 	for _, t := range tombstones {
