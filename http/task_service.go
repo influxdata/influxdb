@@ -53,7 +53,7 @@ const (
 func NewTaskHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, logger *zap.Logger) *TaskHandler {
 	h := &TaskHandler{
 		logger: logger,
-		Router: httprouter.New(),
+		Router: NewRouter(),
 
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,

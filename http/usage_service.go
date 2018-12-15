@@ -20,7 +20,7 @@ type UsageHandler struct {
 // NewUsageHandler returns a new instance of UsageHandler.
 func NewUsageHandler() *UsageHandler {
 	h := &UsageHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 	}
 
 	h.HandlerFunc("GET", "/api/v2/usage", h.handleGetUsage)

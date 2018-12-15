@@ -38,7 +38,7 @@ const (
 // NewWriteHandler creates a new handler at /api/v2/write to receive line protocol.
 func NewWriteHandler(writer storage.PointsWriter) *WriteHandler {
 	h := &WriteHandler{
-		Router:       httprouter.New(),
+		Router:       NewRouter(),
 		Logger:       zap.NewNop(),
 		PointsWriter: writer,
 	}

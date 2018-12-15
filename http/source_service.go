@@ -91,7 +91,7 @@ type SourceHandler struct {
 // NewSourceHandler returns a new instance of SourceHandler.
 func NewSourceHandler() *SourceHandler {
 	h := &SourceHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 		Logger: zap.NewNop(),
 		NewBucketService: func(s *platform.Source) (platform.BucketService, error) {
 			return nil, fmt.Errorf("bucket service not set")

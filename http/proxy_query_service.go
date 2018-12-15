@@ -33,7 +33,7 @@ type ProxyQueryHandler struct {
 // NewProxyQueryHandler returns a new instance of ProxyQueryHandler.
 func NewProxyQueryHandler() *ProxyQueryHandler {
 	h := &ProxyQueryHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 	}
 
 	h.HandlerFunc("POST", proxyQueryPath, h.handlePostQuery)

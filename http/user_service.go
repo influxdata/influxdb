@@ -35,7 +35,7 @@ const (
 // NewUserHandler returns a new instance of UserHandler.
 func NewUserHandler() *UserHandler {
 	h := &UserHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 	}
 
 	h.HandlerFunc("POST", usersPath, h.handlePostUser)

@@ -27,7 +27,7 @@ type AuthorizationHandler struct {
 // NewAuthorizationHandler returns a new instance of AuthorizationHandler.
 func NewAuthorizationHandler() *AuthorizationHandler {
 	h := &AuthorizationHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 	}
 
 	h.HandlerFunc("POST", "/api/v2/authorizations", h.handlePostAuthorization)
