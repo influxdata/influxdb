@@ -743,7 +743,7 @@ type indirectIndex struct {
 
 	// offsets contains the positions in b for each key.  It points to the 2 byte length of
 	// key.
-	offsets []int32
+	offsets []uint32
 
 	// minKey, maxKey are the minium and maximum (lexicographically sorted) contained in the
 	// file
@@ -792,9 +792,9 @@ func (d *indirectIndex) searchOffset(key []byte) int {
 
 // search returns the byte position of key in the index.  If key is not
 // in the index, len(index) is returned.
-func (d *indirectIndex) search(key []byte) int {
+func (d *indirectIndex) search(key []byte) uint32 {
 	if !d.ContainsKey(key) {
-		return len(d.b)
+		return uint32(len(d.b))
 	}
 
 	// We use a binary search across our indirect offsets (pointers to all the keys
@@ -807,15 +807,15 @@ func (d *indirectIndex) search(key []byte) int {
 		// searched should be inserted at postion 0.  Make sure the key in the index
 		// matches the search value.
 		if !bytes.Equal(key, k) {
-			return len(d.b)
+			return uint32(len(d.b))
 		}
 
-		return int(offset)
+		return offset
 	}
 
 	// The key is not in the index.  i is the index where it would be inserted so return
 	// a value outside our offset range.
-	return len(d.b)
+	return uint32(len(d.b))
 }
 
 // ContainsKey returns true of key may exist in this index.
@@ -828,16 +828,16 @@ func (d *indirectIndex) Entries(key []byte) []IndexEntry {
 	return d.ReadEntries(key, nil)
 }
 
-func (d *indirectIndex) readEntriesAt(ofs int, entries *[]IndexEntry) ([]byte, []IndexEntry) {
-	n, k := readKey(d.b[ofs:])
+func (d *indirectIndex) readEntriesAt(offset uint32, entries *[]IndexEntry) ([]byte, []IndexEntry) {
+	n, k := readKey(d.b[offset:])
 
 	// Read and return all the entries
-	ofs += n
+	offset += n
 	var ie indexEntries
 	if entries != nil {
 		ie.entries = *entries
 	}
-	if _, err := readEntries(d.b[ofs:], &ie); err != nil {
+	if _, err := readEntries(d.b[offset:], &ie); err != nil {
 		panic(fmt.Sprintf("error reading entries: %v", err))
 	}
 	if entries != nil {
@@ -851,9 +851,9 @@ func (d *indirectIndex) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEn
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	ofs := d.search(key)
-	if ofs < len(d.b) {
-		k, entries := d.readEntriesAt(ofs, entries)
+	offset := d.search(key)
+	if offset < uint32(len(d.b)) {
+		k, entries := d.readEntriesAt(offset, entries)
 		// The search may have returned an i == 0 which could indicated that the value
 		// searched should be inserted at position 0.  Make sure the key in the index
 		// matches the search value.
@@ -888,16 +888,16 @@ func (d *indirectIndex) Key(idx int, entries *[]IndexEntry) ([]byte, byte, []Ind
 	if idx < 0 || idx >= len(d.offsets) {
 		return nil, 0, nil
 	}
+
 	offset := d.offsets[idx]
 	n, key := readKey(d.b[offset:])
-
-	typ := d.b[int(offset)+n]
+	typ := d.b[offset+n]
 
 	var ie indexEntries
 	if entries != nil {
 		ie.entries = *entries
 	}
-	if _, err := readEntries(d.b[int(offset)+n:], &ie); err != nil {
+	if _, err := readEntries(d.b[offset+n:], &ie); err != nil {
 		return nil, 0, nil
 	}
 	if entries != nil {
@@ -917,7 +917,7 @@ func (d *indirectIndex) KeyAt(idx int) ([]byte, byte) {
 	}
 	offset := d.offsets[idx]
 	n, key := readKey(d.b[offset:])
-	offset = offset + int32(n)
+	offset = offset + uint32(n)
 	typ := d.b[offset]
 	d.mu.RUnlock()
 	return key, typ
@@ -1011,7 +1011,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	var ie []IndexEntry
 
 	for i := d.searchOffset(keys[0]); len(keys) > 0 && i < d.KeyCount(); i++ {
-		k, entries := d.readEntriesAt(int(d.offsets[i]), &ie)
+		k, entries := d.readEntriesAt(d.offsets[i], &ie)
 
 		// Skip any keys that don't exist.  These are less than the current key.
 		for len(keys) > 0 && bytes.Compare(keys[0], k) < 0 {
@@ -1156,12 +1156,12 @@ func (d *indirectIndex) Type(key []byte) (byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	ofs := d.search(key)
-	if ofs < len(d.b) {
-		n, _ := readKey(d.b[ofs:])
-		ofs += n
-		return d.b[ofs], nil
+	if offset := d.search(key); offset < uint32(len(d.b)) {
+		n, _ := readKey(d.b[offset:])
+		offset += n
+		return d.b[offset], nil
 	}
+
 	return 0, fmt.Errorf("key does not exist: %s", key)
 }
 
@@ -1205,7 +1205,11 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		return nil
 	}
 
-	//var minKey, maxKey []byte
+	// make sure a uint32 is sufficient to store any offset into the index.
+	if uint64(len(b)) != uint64(uint32(len(b))) {
+		return fmt.Errorf("indirectIndex: too large to open")
+	}
+
 	var minTime, maxTime int64 = math.MaxInt64, 0
 
 	// To create our "indirect" index, we need to find the location of all the keys in
@@ -1213,24 +1217,27 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	// each key is a time ordered list of index entry blocks for that key.  The loop below
 	// basically skips across the slice keeping track of the counter when we are at a key
 	// field.
-	var i int32
-	var offsets []int32
-	iMax := int32(len(b))
+	var i uint32
+	var offsets []uint32
+	iMax := uint32(len(b))
 	for i < iMax {
 		offsets = append(offsets, i)
 
 		// Skip to the start of the values
 		// key length value (2) + type (1) + length of key
-		if i+2 >= iMax {
+		if i+2+indexTypeSize >= iMax {
 			return fmt.Errorf("indirectIndex: not enough data for key length value")
 		}
-		i += 3 + int32(binary.BigEndian.Uint16(b[i:i+2]))
+		i += 1 + indexCountSize + uint32(binary.BigEndian.Uint16(b[i:i+2]))
 
 		// count of index entries
 		if i+indexCountSize >= iMax {
 			return fmt.Errorf("indirectIndex: not enough data for index entries count")
 		}
-		count := int32(binary.BigEndian.Uint16(b[i : i+indexCountSize]))
+		count := uint32(binary.BigEndian.Uint16(b[i : i+indexCountSize]))
+		if count == 0 {
+			return fmt.Errorf("indirectIndex: key exits with no entries")
+		}
 		i += indexCountSize
 
 		// Find the min time for the block
@@ -1581,14 +1588,14 @@ func (a *indexEntries) WriteTo(w io.Writer) (total int64, err error) {
 	return total, nil
 }
 
-func readKey(b []byte) (n int, key []byte) {
+func readKey(b []byte) (n uint32, key []byte) {
 	// 2 byte size of key
-	n, size := 2, int(binary.BigEndian.Uint16(b[:2]))
+	n, size := 2, uint32(binary.BigEndian.Uint16(b[:2]))
 
 	// N byte key
 	key = b[n : n+size]
 
-	n += len(key)
+	n += uint32(len(key))
 	return
 }
 
