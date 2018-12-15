@@ -4,7 +4,11 @@ This is the [monorepo](https://danluu.com/monorepo/) for InfluxData Platform, a.
 
 ## Installation
 
-This project requires Go 1.11 and Go module support. Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
+This project requires Go 1.11 and Go module support.
+
+Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
+
+If you are getting an `error loading module requirements` error with `bzr executable file not found in $PATH”` on `make`, `brew install bazaar` (on macOSX) before continuing.
 
 For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
 
