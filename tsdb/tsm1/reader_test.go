@@ -1995,6 +1995,25 @@ func BenchmarkIndirectIndex_DeleteRangeFull(b *testing.B) {
 	}
 }
 
+func BenchmarkIndirectIndex_DeleteRangeFull_Covered(b *testing.B) {
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		indirect := getIndex(b)
+		b.StartTimer()
+
+		for i := 0; i < len(indexAllKeys); i += 4096 {
+			n := i + 4096
+			if n > len(indexAllKeys) {
+				n = len(indexAllKeys)
+			}
+			indirect.DeleteRange(indexAllKeys[i:n], 0, math.MaxInt64)
+		}
+	}
+}
+
 func BenchmarkIndirectIndex_Delete(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
