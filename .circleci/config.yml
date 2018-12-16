@@ -122,6 +122,8 @@ workflows:
               only:
                 - master
     jobs:
+      - gotest
+      - jstest
       - deploy:
           requires:
             - gotest
