@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdata/platform"
-	errors "github.com/influxdata/platform/kit/errors"
+	"github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -196,8 +196,8 @@ func newBucketResponse(b *platform.Bucket) *bucketResponse {
 }
 
 type bucketsResponse struct {
-	Links   map[string]string `json:"links"`
-	Buckets []*bucketResponse `json:"buckets"`
+	Links   *platform.PagingLinks `json:"links"`
+	Buckets []*bucketResponse     `json:"buckets"`
 }
 
 func newBucketsResponse(opts platform.FindOptions, f platform.BucketFilter, bs []*platform.Bucket) *bucketsResponse {
@@ -206,10 +206,7 @@ func newBucketsResponse(opts platform.FindOptions, f platform.BucketFilter, bs [
 		rs = append(rs, newBucketResponse(b))
 	}
 	return &bucketsResponse{
-		// TODO(desa): update links to include paging and filter information
-		Links: map[string]string{
-			"self": "/api/v2/buckets",
-		},
+		Links:   newPagingLinks(bucketsPath, opts, f, len(bs)),
 		Buckets: rs,
 	}
 }
@@ -358,14 +355,13 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	opts := platform.FindOptions{}
-	bs, _, err := h.BucketService.FindBuckets(ctx, req.filter, opts)
+	bs, _, err := h.BucketService.FindBuckets(ctx, req.filter, req.opts)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(opts, req.filter, bs)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(req.opts, req.filter, bs)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -373,11 +369,19 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 
 type getBucketsRequest struct {
 	filter platform.BucketFilter
+	opts   platform.FindOptions
 }
 
 func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsRequest, error) {
 	qp := r.URL.Query()
 	req := &getBucketsRequest{}
+
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	req.opts = *opts
 
 	if orgID := qp.Get("orgID"); orgID != "" {
 		id, err := platform.IDFromString(orgID)

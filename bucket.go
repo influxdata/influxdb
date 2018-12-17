@@ -75,12 +75,26 @@ type BucketFilter struct {
 	Organization   *string
 }
 
-// FindOptions represents options passed to all find methods with multiple results.
-type FindOptions struct {
-	Limit      int
-	Offset     int
-	SortBy     string
-	Descending bool
+// QueryParams Converts BucketFilter fields to url query params.
+func (f BucketFilter) QueryParams() map[string][]string {
+	qp := map[string][]string{}
+	if f.ID != nil {
+		qp["id"] = []string{f.ID.String()}
+	}
+
+	if f.Name != nil {
+		qp["name"] = []string{*f.Name}
+	}
+
+	if f.OrganizationID != nil {
+		qp["orgID"] = []string{f.OrganizationID.String()}
+	}
+
+	if f.Organization != nil {
+		qp["org"] = []string{*f.Organization}
+	}
+
+	return qp
 }
 
 // InternalBucketID returns the ID for an organization's specified internal bucket
