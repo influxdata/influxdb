@@ -55,7 +55,7 @@ func newAuthResponse(a *platform.Authorization) *authResponse {
 
 type authsResponse struct {
 	Links map[string]string `json:"links"`
-	Auths []*authResponse   `json:"auths"`
+	Auths []*authResponse   `json:"authorizations"`
 }
 
 func newAuthsResponse(opts platform.FindOptions, f platform.AuthorizationFilter, as []*platform.Authorization) *authsResponse {
