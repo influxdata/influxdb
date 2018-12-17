@@ -35,7 +35,7 @@ const (
 // NewViewHandler returns a new instance of ViewHandler.
 func NewViewHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService) *ViewHandler {
 	h := &ViewHandler{
-		Router:                     httprouter.New(),
+		Router:                     NewRouter(),
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
 	}

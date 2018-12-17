@@ -27,7 +27,7 @@ type MacroHandler struct {
 // NewMacroHandler creates a new MacroHandler
 func NewMacroHandler() *MacroHandler {
 	h := &MacroHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 	}
 
 	h.HandlerFunc("GET", "/api/v2/macros", h.handleGetMacros)

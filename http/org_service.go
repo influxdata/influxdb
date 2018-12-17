@@ -46,7 +46,7 @@ const (
 func NewOrgHandler(mappingService platform.UserResourceMappingService,
 	labelService platform.LabelService) *OrgHandler {
 	h := &OrgHandler{
-		Router:                     httprouter.New(),
+		Router:                     NewRouter(),
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
 	}

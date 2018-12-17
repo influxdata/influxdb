@@ -45,7 +45,7 @@ func NewTelegrafHandler(
 	telegrafSvc platform.TelegrafConfigStore,
 ) *TelegrafHandler {
 	h := &TelegrafHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,

@@ -24,7 +24,7 @@ const (
 // NewSetupHandler returns a new instance of SetupHandler.
 func NewSetupHandler() *SetupHandler {
 	h := &SetupHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 	}
 	h.HandlerFunc("POST", setupPath, h.handlePostSetup)
 	h.HandlerFunc("GET", setupPath, h.isOnboarding)

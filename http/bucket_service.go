@@ -41,7 +41,7 @@ const (
 // NewBucketHandler returns a new instance of BucketHandler.
 func NewBucketHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService) *BucketHandler {
 	h := &BucketHandler{
-		Router:                     httprouter.New(),
+		Router:                     NewRouter(),
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
 	}

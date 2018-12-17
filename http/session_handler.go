@@ -22,7 +22,7 @@ type SessionHandler struct {
 // NewSessionHandler returns a new instance of SessionHandler.
 func NewSessionHandler() *SessionHandler {
 	h := &SessionHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 	}
 
 	h.HandlerFunc("POST", "/api/v2/signin", h.handleSignin)

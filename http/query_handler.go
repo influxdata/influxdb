@@ -43,7 +43,7 @@ type FluxHandler struct {
 // NewFluxHandler returns a new handler at /api/v2/query for flux queries.
 func NewFluxHandler() *FluxHandler {
 	h := &FluxHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 		Now:    time.Now,
 		Logger: zap.NewNop(),
 	}

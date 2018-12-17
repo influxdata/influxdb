@@ -173,7 +173,7 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 			},
 			wants: wants{
 				statusCode:  400,
-				contentType: "application/json",
+				contentType: "application/json; charset=utf-8",
 				body:        `{"code":"invalid","msg":"An internal error has occurred.","err":"id must have a length of 16 bytes"}`,
 			},
 		},

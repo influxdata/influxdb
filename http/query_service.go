@@ -34,7 +34,7 @@ type QueryHandler struct {
 // NewQueryHandler returns a new instance of QueryHandler.
 func NewQueryHandler() *QueryHandler {
 	h := &QueryHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 		csvDialect: csv.Dialect{
 			ResultEncoderConfig: csv.DefaultEncoderConfig(),
 		},

@@ -17,7 +17,7 @@ type ChronografHandler struct {
 // NewChronografHandler is the constructor an chronograf handler.
 func NewChronografHandler(s *server.Service) *ChronografHandler {
 	h := &ChronografHandler{
-		Router:  httprouter.New(),
+		Router:  NewRouter(),
 		Service: s,
 	}
 	/* API */

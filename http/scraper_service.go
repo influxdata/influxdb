@@ -26,7 +26,7 @@ const (
 // NewScraperHandler returns a new instance of ScraperHandler.
 func NewScraperHandler() *ScraperHandler {
 	h := &ScraperHandler{
-		Router: httprouter.New(),
+		Router: NewRouter(),
 	}
 	h.HandlerFunc("POST", targetPath, h.handlePostScraperTarget)
 	h.HandlerFunc("GET", targetPath, h.handleGetScraperTargets)

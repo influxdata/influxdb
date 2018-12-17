@@ -121,7 +121,7 @@ func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 			httpCode = http.StatusBadRequest
 		}
 		w.Header().Set(PlatformErrorCodeHeader, code)
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(httpCode)
 		b, _ := json.Marshal(&platform.Error{
 			Code: code,
