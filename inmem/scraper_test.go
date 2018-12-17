@@ -8,7 +8,7 @@ import (
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, func()) {
+func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, string, func()) {
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
 	ctx := context.Background()
@@ -17,7 +17,7 @@ func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T)
 			t.Fatalf("failed to populate scraper targets")
 		}
 	}
-	return s, func() {}
+	return s, OpPrefix, func() {}
 }
 
 func TestScraperTargetStoreService_AddTarget(t *testing.T) {

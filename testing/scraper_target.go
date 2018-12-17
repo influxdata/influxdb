@@ -3,14 +3,12 @@ package testing
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -40,11 +38,11 @@ var targetCmpOptions = cmp.Options{
 
 // ScraperService tests all the service functions.
 func ScraperService(
-	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, func()), t *testing.T,
+	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()), t *testing.T,
 ) {
 	tests := []struct {
 		name string
-		fn   func(init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, func()),
+		fn   func(init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
 			t *testing.T)
 	}{
 		{
@@ -77,7 +75,7 @@ func ScraperService(
 
 // AddTarget testing.
 func AddTarget(
-	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, func()),
+	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -170,19 +168,11 @@ func AddTarget(
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.AddTarget(ctx, tt.args.target)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 			defer s.RemoveTarget(ctx, tt.args.target.ID)
 
 			targets, err := s.ListTargets(ctx)
@@ -199,7 +189,7 @@ func AddTarget(
 
 // ListTargets testing
 func ListTargets(
-	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, func()),
+	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
 	t *testing.T,
 ) {
 
@@ -259,19 +249,11 @@ func ListTargets(
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			targets, err := s.ListTargets(ctx)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(targets, tt.wants.targets, targetCmpOptions...); diff != "" {
 				t.Errorf("targets are different -got/+want\ndiff %s", diff)
@@ -282,7 +264,7 @@ func ListTargets(
 
 // GetTargetByID testing
 func GetTargetByID(
-	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, func()),
+	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -323,24 +305,41 @@ func GetTargetByID(
 				},
 			},
 		},
+		{
+			name: "find target by id not find",
+			fields: TargetFields{
+				Targets: []*platform.ScraperTarget{
+					{
+						ID:   MustIDBase16(targetOneID),
+						Name: "target1",
+					},
+					{
+						ID:   MustIDBase16(targetTwoID),
+						Name: "target2",
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(threeID),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpGetTargetByID,
+					Msg:  "scraper target is not found",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
 			target, err := s.GetTargetByID(ctx, tt.args.id)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(target, tt.wants.target, targetCmpOptions...); diff != "" {
 				t.Errorf("target is different -got/+want\ndiff %s", diff)
@@ -350,7 +349,7 @@ func GetTargetByID(
 }
 
 // RemoveTarget testing
-func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, func()),
+func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
 	t *testing.T) {
 	type args struct {
 		ID platform.ID
@@ -404,7 +403,11 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 				ID: MustIDBase16(targetThreeID),
 			},
 			wants: wants{
-				err: fmt.Errorf("scraper target is not found"),
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpRemoveTarget,
+					Msg:  "scraper target is not found",
+				},
 				targets: []platform.ScraperTarget{
 					{
 						ID: MustIDBase16(targetOneID),
@@ -418,19 +421,11 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.RemoveTarget(ctx, tt.args.ID)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			targets, err := s.ListTargets(ctx)
 			if err != nil {
@@ -445,7 +440,7 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 
 // UpdateTarget testing
 func UpdateTarget(
-	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, func()),
+	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -481,7 +476,11 @@ func UpdateTarget(
 				url: "changed",
 			},
 			wants: wants{
-				err: errors.New("update scraper: id is invalid"),
+				err: &platform.Error{
+					Code: platform.EInvalid,
+					Op:   platform.OpUpdateTarget,
+					Msg:  "id is invalid",
+				},
 			},
 		},
 		{
@@ -503,7 +502,11 @@ func UpdateTarget(
 				url: "changed",
 			},
 			wants: wants{
-				err: errors.New("scraper target is not found"),
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpUpdateTarget,
+					Msg:  "scraper target is not found",
+				},
 			},
 		},
 		{
@@ -535,7 +538,7 @@ func UpdateTarget(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
@@ -545,15 +548,7 @@ func UpdateTarget(
 			}
 
 			target, err := s.UpdateTarget(ctx, upd)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(target, tt.wants.target, targetCmpOptions...); diff != "" {
 				t.Errorf("scraper target is different -got/+want\ndiff %s", diff)

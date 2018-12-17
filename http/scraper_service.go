@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"path"
 
@@ -174,6 +173,8 @@ type ScraperService struct {
 	Addr               string
 	Token              string
 	InsecureSkipVerify bool
+	// OpPrefix is for update invalid ops
+	OpPrefix string
 }
 
 // ListTargets returns a list of all scraper targets.
@@ -198,7 +199,7 @@ func (s *ScraperService) ListTargets(ctx context.Context) ([]platform.ScraperTar
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -219,7 +220,11 @@ func (s *ScraperService) ListTargets(ctx context.Context) ([]platform.ScraperTar
 // Returns the new target state after update.
 func (s *ScraperService) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (*platform.ScraperTarget, error) {
 	if !update.ID.Valid() {
-		return nil, errors.New("update scraper: id is invalid")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   s.OpPrefix + platform.OpUpdateTarget,
+			Msg:  "id is invalid",
+		}
 	}
 	url, err := newURL(s.Addr, targetIDPath(update.ID))
 	if err != nil {
@@ -244,7 +249,7 @@ func (s *ScraperService) UpdateTarget(ctx context.Context, update *platform.Scra
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 	var targetResp targetResponse
@@ -284,7 +289,7 @@ func (s *ScraperService) AddTarget(ctx context.Context, target *platform.Scraper
 	}
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
@@ -315,7 +320,7 @@ func (s *ScraperService) RemoveTarget(ctx context.Context, id platform.ID) error
 		return err
 	}
 
-	return CheckErrorStatus(http.StatusNoContent, resp)
+	return CheckErrorStatus(http.StatusNoContent, resp, true)
 }
 
 // GetTargetByID returns a single target by ID.
@@ -337,7 +342,7 @@ func (s *ScraperService) GetTargetByID(ctx context.Context, id platform.ID) (*pl
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 

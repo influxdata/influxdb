@@ -4,6 +4,15 @@ import (
 	"context"
 )
 
+// ops for ScraperTarget Store
+const (
+	OpListTargets   = "ListTargets"
+	OpAddTarget     = "AddTarget"
+	OpGetTargetByID = "GetTargetByID"
+	OpRemoveTarget  = "RemoveTarget"
+	OpUpdateTarget  = "UpdateTarget"
+)
+
 // ScraperTarget is a target to scrape
 type ScraperTarget struct {
 	ID         ID          `json:"id,omitempty"`

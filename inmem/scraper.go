@@ -2,27 +2,32 @@ package inmem
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/influxdata/platform"
 )
 
-var (
-	errScraperTargetNotFound = fmt.Errorf("scraper target is not found")
+const (
+	errScraperTargetNotFound = "scraper target is not found"
 )
 
 var _ platform.ScraperTargetStoreService = (*Service)(nil)
 
-func (s *Service) loadScraperTarget(id platform.ID) (*platform.ScraperTarget, error) {
+func (s *Service) loadScraperTarget(id platform.ID) (*platform.ScraperTarget, *platform.Error) {
 	i, ok := s.scraperTargetKV.Load(id.String())
 	if !ok {
-		return nil, errScraperTargetNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  errScraperTargetNotFound,
+		}
 	}
 
 	b, ok := i.(platform.ScraperTarget)
 	if !ok {
-		return nil, fmt.Errorf("type %T is not a scraper target", i)
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  fmt.Sprintf("type %T is not a scraper target", i),
+		}
 	}
 	return &b, nil
 }
@@ -33,7 +38,10 @@ func (s *Service) ListTargets(ctx context.Context) (list []platform.ScraperTarge
 	s.scraperTargetKV.Range(func(_, v interface{}) bool {
 		b, ok := v.(platform.ScraperTarget)
 		if !ok {
-			err = fmt.Errorf("type %T is not a scraper target", v)
+			err = &platform.Error{
+				Code: platform.EInvalid,
+				Msg:  fmt.Sprintf("type %T is not a scraper target", v),
+			}
 			return false
 		}
 		list = append(list, b)
@@ -45,13 +53,22 @@ func (s *Service) ListTargets(ctx context.Context) (list []platform.ScraperTarge
 // AddTarget add a new scraper target into storage.
 func (s *Service) AddTarget(ctx context.Context, target *platform.ScraperTarget) (err error) {
 	target.ID = s.IDGenerator.ID()
-	return s.PutTarget(ctx, target)
+	if err := s.PutTarget(ctx, target); err != nil {
+		return &platform.Error{
+			Op:  OpPrefix + platform.OpAddTarget,
+			Err: err,
+		}
+	}
+	return nil
 }
 
 // RemoveTarget removes a scraper target from the bucket.
 func (s *Service) RemoveTarget(ctx context.Context, id platform.ID) error {
-	if _, err := s.loadScraperTarget(id); err != nil {
-		return err
+	if _, pe := s.loadScraperTarget(id); pe != nil {
+		return &platform.Error{
+			Err: pe,
+			Op:  OpPrefix + platform.OpRemoveTarget,
+		}
 	}
 	s.scraperTargetKV.Delete(id.String())
 	return nil
@@ -59,20 +76,41 @@ func (s *Service) RemoveTarget(ctx context.Context, id platform.ID) error {
 
 // UpdateTarget updates a scraper target.
 func (s *Service) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (target *platform.ScraperTarget, err error) {
+	op := OpPrefix + platform.OpUpdateTarget
 	if !update.ID.Valid() {
-		return nil, errors.New("update scraper: id is invalid")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   op,
+			Msg:  "id is invalid",
+		}
 	}
-	_, err = s.loadScraperTarget(update.ID)
-	if err != nil {
-		return nil, err
+	_, pe := s.loadScraperTarget(update.ID)
+	if pe != nil {
+		return nil, &platform.Error{
+			Op:  op,
+			Err: pe,
+		}
 	}
-	err = s.PutTarget(ctx, update)
-	return update, err
+	if err = s.PutTarget(ctx, update); err != nil {
+		return nil, &platform.Error{
+			Op:  op,
+			Err: pe,
+		}
+	}
+
+	return update, nil
 }
 
 // GetTargetByID retrieves a scraper target by id.
 func (s *Service) GetTargetByID(ctx context.Context, id platform.ID) (target *platform.ScraperTarget, err error) {
-	return s.loadScraperTarget(id)
+	var pe *platform.Error
+	if target, pe = s.loadScraperTarget(id); pe != nil {
+		return nil, &platform.Error{
+			Op:  OpPrefix + platform.OpGetTargetByID,
+			Err: pe,
+		}
+	}
+	return target, nil
 }
 
 // PutTarget will put a scraper target without setting an ID.
