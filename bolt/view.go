@@ -40,21 +40,28 @@ func (c *Client) FindViewByID(ctx context.Context, id platform.ID) (*platform.Vi
 	return d, nil
 }
 
-func (c *Client) findViewByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.View, error) {
+func (c *Client) findViewByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.View, *platform.Error) {
 	var d platform.View
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	v := tx.Bucket(viewBucket).Get(encodedID)
 	if len(v) == 0 {
-		return nil, platform.ErrViewNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  platform.ErrViewNotFound,
+		}
 	}
 
 	if err := json.Unmarshal(v, &d); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	return &d, nil
@@ -99,11 +106,16 @@ func (c *Client) FindView(ctx context.Context, filter platform.ViewFilter) (*pla
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	if d == nil {
-		return nil, platform.ErrViewNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  platform.ErrViewNotFound,
+		}
 	}
 
 	return d, nil
@@ -269,20 +281,29 @@ func (c *Client) DeleteView(ctx context.Context, id platform.ID) error {
 	})
 }
 
-func (c *Client) deleteView(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
-	_, err := c.findViewByID(ctx, tx, id)
-	if err != nil {
-		return err
+func (c *Client) deleteView(ctx context.Context, tx *bolt.Tx, id platform.ID) *platform.Error {
+	_, pe := c.findViewByID(ctx, tx, id)
+	if pe != nil {
+		return pe
 	}
 	encodedID, err := id.Encode()
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 	if err := tx.Bucket(viewBucket).Delete(encodedID); err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
-	return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+	if err := c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
 		ResourceID:   id,
 		ResourceType: platform.ViewResourceType,
-	})
+	}); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+	return nil
 }
