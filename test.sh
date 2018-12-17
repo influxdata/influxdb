@@ -9,7 +9,7 @@
 #      1: race enabled 64bit tests
 #      2: normal 32bit tests
 #      3: tsi build
-#      4: go 1.9
+#      4: go 1.11
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
 #
