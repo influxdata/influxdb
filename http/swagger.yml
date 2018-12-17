@@ -473,7 +473,7 @@ paths:
     get:
       tags:
         - Macros
-      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      summary: get all macros
       parameters:
         - in: query
           name: org
@@ -501,23 +501,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
-      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      summary: create a macro
       tags:
         - Macros
-      parameters:
-        - in: query
-          name: org
-          required: true
-          schema:
-            type: string
-          description: filter macros to a specific organization name
+      requestBody:
+        description: macro to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Macro"
       responses:
         '201':
           description: macro created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Macros"
+                $ref: "#/components/schemas/Macro"
         default:
           description: internal server error
           content:
@@ -528,7 +528,7 @@ paths:
     delete:
       tags:
         - Macros
-      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      summary: delete a macro
       parameters:
         - in: path
           name: macroID
@@ -536,12 +536,6 @@ paths:
           schema:
             type: string
           description: id of the macro
-        - in: query
-          name: org
-          required: true
-          schema:
-            type: string
-          description: filter macros to a specific organization name
       responses:
         '204':
           description: macro deleted
@@ -552,7 +546,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
-      summary: keywords that specify how input data gets mapped to a replacement output sequence
+      summary: update a macro
       tags:
         - Macros
       parameters:
@@ -562,19 +556,51 @@ paths:
           schema:
             type: string
           description: id of the macro
-        - in: query
-          name: org
-          required: true
-          schema:
-            type: string
-          description: filter macros to a specific organization name
+      requestBody:
+        description: macro update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Macro"
       responses:
         '200':
           description: macro updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Macros"
+                $ref: "#/components/schemas/Macro"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      summary: replace a macro
+      tags:
+        - Macros
+      parameters:
+        - in: path
+          name: macroID
+          required: true
+          schema:
+            type: string
+          description: id of the macro
+      requestBody:
+        description: macro to replace
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Macro"
+      responses:
+        '200':
+          description: macro updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Macro"
         default:
           description: internal server error
           content:
@@ -5191,6 +5217,7 @@ components:
       properties:
         links:
           type: object
+          readOnly: true
           properties:
             self:
               type: string
