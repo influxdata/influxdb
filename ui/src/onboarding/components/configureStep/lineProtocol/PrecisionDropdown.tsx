@@ -14,17 +14,15 @@ interface Props {
 }
 
 const writePrecisions: WritePrecision[] = [
+  WritePrecision.Ns,
+  WritePrecision.Us,
   WritePrecision.Ms,
   WritePrecision.S,
-  WritePrecision.U,
-  WritePrecision.Us,
-  WritePrecision.Ns,
 ]
 
-const transformPrecision = {
+const makePrecisionReadable = {
   [WritePrecision.Ns]: Precision.Nanoseconds,
   [WritePrecision.Us]: Precision.Microseconds,
-  [WritePrecision.U]: Precision.U,
   [WritePrecision.S]: Precision.Seconds,
   [WritePrecision.Ms]: Precision.Milliseconds,
 }
@@ -42,7 +40,7 @@ class PrecisionDropdown extends PureComponent<Props> {
         >
           {writePrecisions.map(value => (
             <Dropdown.Item key={value} value={value} id={value}>
-              {transformPrecision[value]}
+              {makePrecisionReadable[value]}
             </Dropdown.Item>
           ))}
         </Dropdown>
