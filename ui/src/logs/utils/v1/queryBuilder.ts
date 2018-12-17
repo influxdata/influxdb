@@ -12,7 +12,7 @@ import {
   buildFill,
 } from 'src/utils/influxql'
 
-import {DEFAULT_TIME_FORMAT} from 'src/logs/constants'
+import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 const keyMapping = (key: string): string => {
   switch (key) {

@@ -1,6 +1,6 @@
 import {FluxTable} from 'src/types'
 
-interface SeriesDescription {
+export interface SeriesDescription {
   // A key identifying a unique (column, table, result) triple for a particular
   // Flux response—i.e. a single time series
   key: string

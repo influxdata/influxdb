@@ -38,13 +38,14 @@ const DygraphContainer: SFC<Props> = props => {
 
   return (
     <DygraphTransformation tables={tables}>
-      {({labels, dygraphsData}) => (
+      {({labels, dygraphsData, seriesDescriptions}) => (
         <DygraphCell loading={loading}>
           <Dygraph
             axes={axes}
             viewID={viewID}
             colors={colors}
             labels={labels}
+            seriesDescriptions={seriesDescriptions}
             queries={queries}
             options={geomToDygraphOptions[properties.geom]}
             timeSeries={dygraphsData}

@@ -3,11 +3,8 @@ import _ from 'lodash'
 import {fastMap, fastReduce, fastFilter} from 'src/utils/fast'
 
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
-import {
-  DEFAULT_TIME_FIELD,
-  DEFAULT_TIME_FORMAT,
-  TimeField,
-} from 'src/dashboards/constants'
+import {DEFAULT_TIME_FIELD, TimeField} from 'src/dashboards/constants'
+import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 import {
   Sort,
   FieldOption,

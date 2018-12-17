@@ -31,7 +31,7 @@ import {
 } from 'src/logs/utils/table'
 
 // Constants
-import {DEFAULT_TIME_FORMAT} from 'src/logs/constants'
+import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 import {INITIAL_LIMIT} from 'src/logs/actions'
 
 // Types

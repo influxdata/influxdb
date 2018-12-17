@@ -7,7 +7,7 @@ import {
   SeverityFormat,
   SeverityFormatOptions,
 } from 'src/types/logs'
-import {DEFAULT_TIME_FORMAT} from 'src/logs/constants'
+import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 import {
   orderTableColumns,
   filterTableColumns,

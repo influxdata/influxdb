@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, MouseEvent} from 'react'
+import React, {Component} from 'react'
 import {get, filter, isEqual} from 'lodash'
 import NanoDate from 'nano-date'
 import ReactResizeDetector from 'react-resize-detector'
@@ -7,9 +7,9 @@ import memoizeOne from 'memoize-one'
 
 // Components
 import Dygraphs from 'src/external/dygraph'
-import DygraphLegend from 'src/shared/components/DygraphLegend'
-import Crosshair from 'src/shared/components/crosshair/Crosshair'
+import Legend from 'src/shared/components/Legend'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import HoverTimeMarker from 'src/shared/components/HoverTimeMarker'
 
 // Utils
 import getRange, {getStackedRange} from 'src/shared/parsing/getRangeForDygraph'
@@ -26,9 +26,10 @@ import {
 
 // Types
 import {Axes, TimeRange} from 'src/types'
-import {DygraphData, Options} from 'src/external/dygraph'
+import {DygraphData, Options, SeriesLegendData} from 'src/external/dygraph'
 import {Color} from 'src/types/colors'
 import {DashboardQuery} from 'src/types/v2/dashboards'
+import {SeriesDescription} from 'src/shared/parsing/flux/spreadTables'
 
 const getRangeMemoizedY = memoizeOne(getRange)
 
@@ -46,11 +47,19 @@ const DEFAULT_DYGRAPH_OPTIONS = {
   connectSeparatedPoints: true,
 }
 
+interface LegendData {
+  x: number
+  series: SeriesLegendData[]
+  xHTML: string
+  dygraph: Dygraphs
+}
+
 interface OwnProps {
   viewID: string
   queries?: DashboardQuery[]
   timeSeries: DygraphData
   labels: string[]
+  seriesDescriptions: SeriesDescription[]
   options?: Partial<Options>
   colors: Color[]
   timeRange?: TimeRange
@@ -64,8 +73,13 @@ interface OwnProps {
 type Props = OwnProps & InjectedHoverProps
 
 interface State {
-  xAxisRange: [number, number]
-  isMouseInLegend: boolean
+  legendData?: {
+    time: number
+    x: number
+    visRect: DOMRect
+    values: {[seriesKey: string]: number}
+    colors: {[seriesKey: string]: string}
+  }
 }
 
 @ErrorHandling
@@ -91,24 +105,19 @@ class Dygraph extends Component<Props, State> {
     options: {},
   }
 
-  private graphRef: React.RefObject<HTMLDivElement>
+  public state: State = {}
+
+  private graphRef: React.RefObject<HTMLDivElement> = React.createRef()
   private dygraph: Dygraphs
   private dygraphOptions?: Options
 
-  constructor(props: Props) {
-    super(props)
-
-    this.state = {
-      xAxisRange: [0, 0],
-      isMouseInLegend: false,
-    }
-
-    this.graphRef = React.createRef<HTMLDivElement>()
-  }
-
   public componentDidMount() {
     const options = this.collectDygraphOptions()
-    const initialOptions = {...DEFAULT_DYGRAPH_OPTIONS, ...options}
+    const initialOptions = {
+      ...DEFAULT_DYGRAPH_OPTIONS,
+      ...options,
+      legendFormatter: this.captureLegendData,
+    }
 
     this.dygraph = new Dygraphs(
       this.graphRef.current,
@@ -117,7 +126,6 @@ class Dygraph extends Component<Props, State> {
     )
 
     this.dygraphOptions = options
-    this.setState({xAxisRange: this.dygraph.xAxisRange()})
   }
 
   public componentWillUnmount() {
@@ -148,25 +156,16 @@ class Dygraph extends Component<Props, State> {
   }
 
   public render() {
-    const {viewID} = this.props
+    const {viewID, seriesDescriptions, hoverTime} = this.props
+    const {legendData} = this.state
 
     return (
-      <div
-        className="dygraph-child"
-        onMouseMove={this.handleShowLegend}
-        onMouseLeave={this.handleHideLegend}
-      >
-        {this.dygraph && (
-          <div className="dygraph-addons">
-            <DygraphLegend
-              viewID={viewID}
-              dygraph={this.dygraph}
-              onHide={this.handleHideLegend}
-              onShow={this.handleShowLegend}
-              onMouseEnter={this.handleMouseEnterLegend}
-            />
-            <Crosshair dygraph={this.dygraph} />
-          </div>
+      <div className="dygraph-child" onMouseLeave={this.handleMouseLeave}>
+        {legendData && (
+          <Legend {...legendData} seriesDescriptions={seriesDescriptions} />
+        )}
+        {hoverTime && (
+          <HoverTimeMarker x={this.dygraph.toDomXCoord(hoverTime)} />
         )}
         {this.nestedGraph}
         <div
@@ -264,19 +263,6 @@ class Dygraph extends Component<Props, State> {
     return onZoom({lower: null, upper: null})
   }
 
-  private handleDraw = () => {
-    if (!this.dygraph) {
-      return
-    }
-
-    const {xAxisRange} = this.state
-    const newXAxisRange = this.dygraph.xAxisRange()
-
-    if (!isEqual(xAxisRange, newXAxisRange)) {
-      this.setState({xAxisRange: newXAxisRange})
-    }
-  }
-
   private formatYVal = (
     yval: number,
     __,
@@ -291,35 +277,6 @@ class Dygraph extends Component<Props, State> {
     return numberValueFormatter(yval, opts, prefix, suffix)
   }
 
-  private eventToTimestamp = ({
-    pageX: pxBetweenMouseAndPage,
-  }: MouseEvent<HTMLDivElement>): number => {
-    const pxBetweenGraphAndPage = this.graphRef.current.getBoundingClientRect()
-      .left
-    const graphXCoordinate = pxBetweenMouseAndPage - pxBetweenGraphAndPage
-    const timestamp = this.dygraph.toDataXCoord(graphXCoordinate)
-    const [xRangeStart] = this.dygraph.xAxisRange()
-    const clamped = Math.max(xRangeStart, timestamp)
-
-    return clamped
-  }
-
-  private handleHideLegend = () => {
-    this.setState({isMouseInLegend: false})
-    this.props.onSetHoverTime(null)
-  }
-
-  private handleShowLegend = (e: MouseEvent<HTMLDivElement>): void => {
-    const {isMouseInLegend} = this.state
-
-    if (isMouseInLegend) {
-      return
-    }
-
-    const newTime = this.eventToTimestamp(e)
-    this.props.onSetHoverTime(newTime)
-  }
-
   private collectDygraphOptions(): Options {
     const {
       labels,
@@ -330,7 +287,6 @@ class Dygraph extends Component<Props, State> {
     } = this.props
 
     const {
-      handleDraw,
       handleZoom,
       timeSeries,
       labelWidth,
@@ -345,7 +301,6 @@ class Dygraph extends Component<Props, State> {
       colors,
       file: timeSeries as any,
       zoomCallback: handleZoom,
-      drawCallback: handleDraw,
       fillGraph: isGraphFilled,
       logscale: y.scale === LOG,
       ylabel: yLabel,
@@ -402,8 +357,45 @@ class Dygraph extends Component<Props, State> {
     return nanoDate.toISOString()
   }
 
-  private handleMouseEnterLegend = () => {
-    this.setState({isMouseInLegend: true})
+  private handleMouseLeave = () => {
+    this.setState({legendData: null})
+    this.props.onSetHoverTime(null)
+  }
+
+  private captureLegendData = ({x: time, dygraph, series}: LegendData) => {
+    if (!time) {
+      return ''
+    }
+
+    const values = series.reduce(
+      (acc, d) => ({
+        ...acc,
+        [d.label]: d.y,
+      }),
+      {}
+    )
+
+    const colors = series.reduce(
+      (acc, d) => ({
+        ...acc,
+        [d.label]: d.color,
+      }),
+      {}
+    )
+
+    this.setState({
+      legendData: {
+        time,
+        values,
+        colors,
+        x: dygraph.toDomXCoord(time),
+        visRect: this.graphRef.current.getBoundingClientRect() as DOMRect,
+      },
+    })
+
+    this.props.onSetHoverTime(time)
+
+    return ''
   }
 }
 

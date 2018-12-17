@@ -1,6 +1,6 @@
 import moment from 'moment'
 
-import {DEFAULT_TIME_FORMAT} from 'src/logs/constants'
+import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 import {getDeep} from 'src/utils/wrappers'
 
