@@ -62,8 +62,7 @@ const SingleStatOptions: SFC<Props> = props => {
 
     const config: ColorConfig = {
       color,
-      isDeletable: !isBase,
-      disableColor: false,
+      isBase,
     }
 
     if (isBase) {

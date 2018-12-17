@@ -19,6 +19,7 @@ import {
   COLOR_TYPE_THRESHOLD,
   THRESHOLD_COLORS,
   MAX_THRESHOLDS,
+  DEFAULT_VALUE_MAX,
 } from 'src/shared/constants/thresholds'
 
 // Types
@@ -47,6 +48,7 @@ class ThresholdList extends PureComponent<Props> {
             const {
               color: threshold,
               isDeletable,
+              isBase,
               disableColor,
               label,
             } = colorConfig
@@ -56,6 +58,7 @@ class ThresholdList extends PureComponent<Props> {
                 label={label}
                 key={uuid.v4()}
                 threshold={threshold}
+                isBase={isBase}
                 isDeletable={isDeletable}
                 disableColor={disableColor}
                 onChooseColor={this.handleChooseColor}
@@ -76,7 +79,14 @@ class ThresholdList extends PureComponent<Props> {
     if (sortedColors.length <= MAX_THRESHOLDS) {
       const randomColor = _.random(0, THRESHOLD_COLORS.length - 1)
 
-      const maxValue = sortedColors[sortedColors.length - 1].value
+      const maxColor = sortedColors[sortedColors.length - 1]
+
+      let maxValue = DEFAULT_VALUE_MAX
+
+      if (sortedColors.length > 1) {
+        maxValue = maxColor.value
+      }
+
       const minValue = sortedColors[0].value
 
       const randomValue = _.round(_.random(minValue, maxValue, true), 2)

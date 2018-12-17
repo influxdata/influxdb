@@ -1,7 +1,13 @@
 // Types
 import {TimeMachineState} from 'src/shared/reducers/v2/timeMachines'
 import {TimeRange, ViewType, BuilderConfig} from 'src/types/v2'
-import {Axes, DecimalPlaces, XYViewGeom} from 'src/types/v2/dashboards'
+import {
+  Axes,
+  DecimalPlaces,
+  XYViewGeom,
+  FieldOption,
+  TableOptions,
+} from 'src/types/v2/dashboards'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {Color} from 'src/types/colors'
 
@@ -40,6 +46,9 @@ export type Action =
   | EditActiveQueryWithBuilderAction
   | BuildQueryAction
   | UpdateActiveQueryNameAction
+  | SetFieldOptionsAction
+  | SetTableOptionsAction
+  | SetTimeFormatAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -379,4 +388,44 @@ export const updateActiveQueryName = (
 ): UpdateActiveQueryNameAction => ({
   type: 'UPDATE_ACTIVE_QUERY_NAME',
   payload: {queryName},
+})
+
+interface SetFieldOptionsAction {
+  type: 'SET_FIELD_OPTIONS'
+  payload: {
+    fieldOptions: FieldOption[]
+  }
+}
+
+export const setFieldOptions = (
+  fieldOptions: FieldOption[]
+): SetFieldOptionsAction => ({
+  type: 'SET_FIELD_OPTIONS',
+  payload: {fieldOptions},
+})
+
+interface SetTableOptionsAction {
+  type: 'SET_TABLE_OPTIONS'
+  payload: {
+    tableOptions: TableOptions
+  }
+}
+
+export const setTableOptions = (
+  tableOptions: TableOptions
+): SetTableOptionsAction => ({
+  type: 'SET_TABLE_OPTIONS',
+  payload: {tableOptions},
+})
+
+interface SetTimeFormatAction {
+  type: 'SET_TIME_FORMAT'
+  payload: {
+    timeFormat: string
+  }
+}
+
+export const setTimeFormat = (timeFormat: string): SetTimeFormatAction => ({
+  type: 'SET_TIME_FORMAT',
+  payload: {timeFormat},
 })

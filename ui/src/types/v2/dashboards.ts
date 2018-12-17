@@ -116,7 +116,20 @@ export type QueryViewProperties = Extract<
   {queries: DashboardQuery[]}
 >
 
-export type QueryView = View<QueryViewProperties> | NewView<QueryViewProperties>
+export type WorkingView<T extends ViewProperties> = View<T> | NewView<T>
+export type QueryView = WorkingView<QueryViewProperties>
+
+/**
+ * Conditional type that narrows QueryView to those Views satisfying
+ * an interface, e.g. the action payload's. It's useful when a
+ * payload has a specific interface we know forces it to be a
+ * certain subset of ViewProperties.
+ *
+ * @example
+ *    type xyViewPayload = typeof someXYAction.payload
+ *    const workingXYView = state.view as ExtractWorkingView<xyViewPayload>
+ */
+export type ExtractWorkingView<T> = WorkingView<Extract<QueryViewProperties, T>>
 
 export interface EmptyView {
   type: ViewShape.Empty

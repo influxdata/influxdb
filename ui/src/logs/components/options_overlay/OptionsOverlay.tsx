@@ -1,13 +1,18 @@
 import React, {Component} from 'react'
 import _ from 'lodash'
 
+// Components
 import {Button, ComponentStatus} from 'src/clockface'
 import Container from 'src/clockface/components/overlays/OverlayContainer'
 import Heading from 'src/clockface/components/overlays/OverlayHeading'
 import Body from 'src/clockface/components/overlays/OverlayBody'
 import SeverityOptions from 'src/logs/components/options_overlay/SeverityOptions'
-import ColumnsOptions from 'src/logs/components/options_overlay/ColumnsOptions'
+import ColumnsOptions from 'src/shared/components/columns_options/ColumnsOptions'
 
+// Utils
+import {move} from 'src/shared/utils/move'
+
+// Types
 import {
   SeverityLevelColor,
   SeverityColor,
@@ -17,7 +22,10 @@ import {
   LogConfig,
 } from 'src/types/logs'
 
+// Contstants
 import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
+
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -68,6 +76,7 @@ class OptionsOverlay extends Component<Props, State> {
 
   public render() {
     const {workingLevelColumns, workingColumns, workingFormat} = this.state
+    const columns = workingColumns.filter(col => col.internalName !== 'time')
 
     return (
       <Container maxWidth={800}>
@@ -87,7 +96,8 @@ class OptionsOverlay extends Component<Props, State> {
             </div>
             <div className="col-sm-7">
               <ColumnsOptions
-                columns={workingColumns}
+                className="logs-options--columns"
+                columns={columns}
                 onMoveColumn={this.handleMoveColumn}
                 onUpdateColumn={this.handleUpdateColumn}
               />
@@ -167,22 +177,13 @@ class OptionsOverlay extends Component<Props, State> {
   }
 
   private handleMoveColumn = (dragIndex, hoverIndex) => {
-    const {workingColumns} = this.state
-
-    const draggedField = workingColumns[dragIndex]
-
-    const columnsRemoved = _.concat(
-      _.slice(workingColumns, 0, dragIndex),
-      _.slice(workingColumns, dragIndex + 1)
+    const workingColumns = move(
+      this.state.workingColumns,
+      dragIndex,
+      hoverIndex
     )
 
-    const columnsAdded = _.concat(
-      _.slice(columnsRemoved, 0, hoverIndex),
-      [draggedField],
-      _.slice(columnsRemoved, hoverIndex)
-    )
-
-    this.setState({workingColumns: columnsAdded})
+    this.setState({workingColumns})
   }
 
   private handleUpdateColumn = (column: LogsTableColumn) => {

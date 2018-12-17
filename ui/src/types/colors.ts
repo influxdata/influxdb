@@ -15,5 +15,6 @@ export interface ColorConfig {
   color: Color
   label?: string
   isDeletable?: boolean
+  isBase?: boolean
   disableColor?: boolean
 }

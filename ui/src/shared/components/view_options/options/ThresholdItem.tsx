@@ -19,6 +19,7 @@ import {SeverityColor, SeverityColorOptions} from 'src/types/logs'
 interface Props {
   label?: string
   threshold: Color
+  isBase?: boolean
   isDeletable?: boolean
   disableColor?: boolean
   onChooseColor: (threshold: Color) => void
@@ -38,6 +39,7 @@ class Threshold extends PureComponent<Props, State> {
     label: 'Threshold',
     disableColor: false,
     isDeletable: true,
+    isBase: false,
   }
 
   constructor(props) {
@@ -50,36 +52,40 @@ class Threshold extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {isDeletable, disableColor} = this.props
+    const {isDeletable, disableColor, isBase} = this.props
     const {workingValue} = this.state
 
     return (
       <div className="threshold-item">
         <div className={this.labelClass}>
           {this.props.label}
-          {isDeletable && (
-            <Button
-              shape={ButtonShape.Square}
-              onClick={this.handleDelete}
-              icon={IconFont.Remove}
-              type={ButtonType.Button}
-            />
-          )}
+          {isDeletable &&
+            !isBase && (
+              <Button
+                shape={ButtonShape.Square}
+                onClick={this.handleDelete}
+                icon={IconFont.Remove}
+                type={ButtonType.Button}
+              />
+            )}
         </div>
-        <Input
-          value={workingValue.toString()}
-          customClass="threshold-item--input"
-          type={InputType.Number}
-          onChange={this.handleChangeWorkingValue}
-          onBlur={this.handleBlur}
-          onKeyUp={this.handleKeyUp}
-          status={this.inputStatus}
-        />
+        {!isBase && (
+          <Input
+            value={workingValue.toString()}
+            customClass="threshold-item--input"
+            type={InputType.Number}
+            onChange={this.handleChangeWorkingValue}
+            onBlur={this.handleBlur}
+            onKeyUp={this.handleKeyUp}
+            status={this.inputStatus}
+          />
+        )}
         <ColorDropdown
           colors={THRESHOLD_COLORS}
           selected={this.selectedColor}
           onChoose={this.handleChooseColor}
           disabled={disableColor}
+          stretchToFit={isBase}
         />
       </div>
     )

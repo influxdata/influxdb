@@ -17,6 +17,7 @@ import {
   DEFAULT_GAUGE_COLORS,
   DEFAULT_THRESHOLDS_LIST_COLORS,
 } from 'src/shared/constants/thresholds'
+import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 
 function defaultView() {
   return {
@@ -147,17 +148,13 @@ const NEW_VIEW_CREATORS = {
       type: ViewType.Table,
       shape: ViewShape.ChronografV2,
       queries: [defaultViewQuery()],
-      colors: [],
+      colors: DEFAULT_THRESHOLDS_LIST_COLORS,
       tableOptions: {
         verticalTimeAxis: false,
-        sortBy: {
-          internalName: '',
-          displayName: '',
-          visible: false,
-        },
+        sortBy: DEFAULT_TIME_FIELD,
         fixFirstColumn: false,
       },
-      fieldOptions: [],
+      fieldOptions: [DEFAULT_TIME_FIELD],
       decimalPlaces: {
         isEnforced: false,
         digits: 2,

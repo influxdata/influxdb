@@ -5,6 +5,7 @@ import React, {PureComponent} from 'react'
 import LineOptions from 'src/shared/components/view_options/LineOptions'
 import GaugeOptions from 'src/shared/components/view_options/GaugeOptions'
 import SingleStatOptions from 'src/shared/components/view_options/SingleStatOptions'
+import TableOptions from 'src/shared/components/view_options/TableOptions'
 
 // Types
 import {ViewType, View, NewView} from 'src/types/v2'
@@ -25,6 +26,8 @@ class OptionsSwitcher extends PureComponent<Props> {
         return <GaugeOptions {...view.properties} />
       case ViewType.SingleStat:
         return <SingleStatOptions />
+      case ViewType.Table:
+        return <TableOptions />
       default:
         return <div />
     }

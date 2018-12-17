@@ -1,6 +1,5 @@
 // Libraries
-import React, {Component, ComponentClass} from 'react'
-import _ from 'lodash'
+import React, {SFC, Component} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -18,6 +17,10 @@ interface Props {
   onSubmit?: (e: React.FormEvent) => void
 }
 
+interface BoxProps {
+  children: JSX.Element | JSX.Element[]
+}
+
 @ErrorHandling
 class Form extends Component<Props> {
   public static Element = FormElement
@@ -25,12 +28,9 @@ class Form extends Component<Props> {
   public static Divider = FormDivider
   public static Footer = FormFooter
 
-  public static ValidChildTypes: ComponentClass[] = [
-    FormElement,
-    FormLabel,
-    FormDivider,
-    FormFooter,
-  ]
+  public static Box: SFC<BoxProps> = ({children}) => (
+    <div className="form--box">{children}</div>
+  )
 
   public render() {
     const {children, style} = this.props
