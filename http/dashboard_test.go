@@ -162,7 +162,8 @@ func TestService_handleGetDashboards(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mappingService := mock.NewUserResourceMappingService()
 			labelService := mock.NewLabelService()
-			h := NewDashboardHandler(mappingService, labelService)
+			userService := mock.NewUserService()
+			h := NewDashboardHandler(mappingService, labelService, userService)
 			h.DashboardService = tt.fields.DashboardService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -307,7 +308,8 @@ func TestService_handleGetDashboard(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mappingService := mock.NewUserResourceMappingService()
 			labelService := mock.NewLabelService()
-			h := NewDashboardHandler(mappingService, labelService)
+			userService := mock.NewUserService()
+			h := NewDashboardHandler(mappingService, labelService, userService)
 			h.DashboardService = tt.fields.DashboardService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -435,7 +437,8 @@ func TestService_handlePostDashboard(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mappingService := mock.NewUserResourceMappingService()
 			labelService := mock.NewLabelService()
-			h := NewDashboardHandler(mappingService, labelService)
+			userService := mock.NewUserService()
+			h := NewDashboardHandler(mappingService, labelService, userService)
 			h.DashboardService = tt.fields.DashboardService
 
 			b, err := json.Marshal(tt.args.dashboard)
@@ -526,7 +529,8 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mappingService := mock.NewUserResourceMappingService()
 			labelService := mock.NewLabelService()
-			h := NewDashboardHandler(mappingService, labelService)
+			userService := mock.NewUserService()
+			h := NewDashboardHandler(mappingService, labelService, userService)
 			h.DashboardService = tt.fields.DashboardService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -697,7 +701,8 @@ func TestService_handlePatchDashboard(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mappingService := mock.NewUserResourceMappingService()
 			labelService := mock.NewLabelService()
-			h := NewDashboardHandler(mappingService, labelService)
+			userService := mock.NewUserService()
+			h := NewDashboardHandler(mappingService, labelService, userService)
 			h.DashboardService = tt.fields.DashboardService
 
 			upd := platform.DashboardUpdate{}
@@ -807,7 +812,8 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mappingService := mock.NewUserResourceMappingService()
 			labelService := mock.NewLabelService()
-			h := NewDashboardHandler(mappingService, labelService)
+			userService := mock.NewUserService()
+			h := NewDashboardHandler(mappingService, labelService, userService)
 			h.DashboardService = tt.fields.DashboardService
 
 			b, err := json.Marshal(tt.args.cell)
@@ -891,7 +897,8 @@ func TestService_handleDeleteDashboardCell(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mappingService := mock.NewUserResourceMappingService()
 			labelService := mock.NewLabelService()
-			h := NewDashboardHandler(mappingService, labelService)
+			userService := mock.NewUserService()
+			h := NewDashboardHandler(mappingService, labelService, userService)
 			h.DashboardService = tt.fields.DashboardService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -1006,7 +1013,8 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mappingService := mock.NewUserResourceMappingService()
 			labelService := mock.NewLabelService()
-			h := NewDashboardHandler(mappingService, labelService)
+			userService := mock.NewUserService()
+			h := NewDashboardHandler(mappingService, labelService, userService)
 			h.DashboardService = tt.fields.DashboardService
 
 			upd := platform.CellUpdate{}
@@ -1105,9 +1113,10 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 
 	mappingService := mock.NewUserResourceMappingService()
 	labelService := mock.NewLabelService()
-	handler := NewDashboardHandler(mappingService, labelService)
-	handler.DashboardService = svc
-	server := httptest.NewServer(handler)
+	userService := mock.NewUserService()
+	h := NewDashboardHandler(mappingService, labelService, userService)
+	h.DashboardService = svc
+	server := httptest.NewServer(h)
 	client := DashboardService{
 		Addr: server.URL,
 	}

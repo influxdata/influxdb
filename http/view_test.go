@@ -129,7 +129,7 @@ func TestService_handleGetViews(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService())
+			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
 			h.ViewService = tt.fields.ViewService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -237,7 +237,7 @@ func TestService_handleGetView(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService())
+			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
 			h.ViewService = tt.fields.ViewService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -342,7 +342,7 @@ func TestService_handlePostViews(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService())
+			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
 			h.ViewService = tt.fields.ViewService
 
 			b, err := json.Marshal(tt.args.view)
@@ -431,7 +431,7 @@ func TestService_handleDeleteView(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService())
+			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
 			h.ViewService = tt.fields.ViewService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -587,7 +587,7 @@ func TestService_handlePatchView(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService())
+			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
 			h.ViewService = tt.fields.ViewService
 
 			upd := platform.ViewUpdate{}
