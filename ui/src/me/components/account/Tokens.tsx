@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {Panel, Input, Spinner} from 'src/clockface'
@@ -9,6 +10,9 @@ import FilterList from 'src/shared/components/Filter'
 
 // APIs
 import {getAuthorizations} from 'src/authorizations/apis'
+
+// Actions
+import {notify} from 'src/shared/actions/notifications'
 
 // Types
 import {Authorization} from 'src/api'
@@ -22,7 +26,11 @@ enum AuthSearchKeys {
   Status = 'status',
 }
 
-export class Tokens extends PureComponent<{}, State> {
+interface Props {
+  onNotify: typeof notify
+}
+
+export class Tokens extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -31,6 +39,7 @@ export class Tokens extends PureComponent<{}, State> {
   }
 
   public render() {
+    const {onNotify} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -52,7 +61,13 @@ export class Tokens extends PureComponent<{}, State> {
                   searchTerm={searchTerm}
                   searchKeys={this.searchKeys}
                 >
-                  {filteredAuths => <TokenList auths={filteredAuths} />}
+                  {filteredAuths => (
+                    <TokenList
+                      auths={filteredAuths}
+                      onNotify={onNotify}
+                      searchTerm={searchTerm}
+                    />
+                  )}
                 </FilterList>
               </Spinner>
             )}
@@ -71,4 +86,11 @@ export class Tokens extends PureComponent<{}, State> {
   }
 }
 
-export default Tokens
+const mdtp = {
+  onNotify: notify,
+}
+
+export default connect<Props>(
+  null,
+  mdtp
+)(Tokens)

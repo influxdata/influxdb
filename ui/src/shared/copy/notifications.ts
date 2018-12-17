@@ -287,6 +287,16 @@ export const chronografUserMissingNameAndProvider = (): Notification => ({
   message: 'User must have a Name and Provider.',
 })
 
+export const TokenDeletionSuccess: Notification = {
+  ...defaultSuccessNotification,
+  message: `Deleted token successfully`,
+}
+
+export const TokenDeletionError: Notification = {
+  ...defaultErrorNotification,
+  message: `Failed to delete token`,
+}
+
 //  InfluxDB Admin Notifications
 //  ----------------------------------------------------------------------------
 export const dbUserCreated = (): Notification => ({
