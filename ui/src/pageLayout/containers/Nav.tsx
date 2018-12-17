@@ -42,7 +42,7 @@ class SideNav extends PureComponent<Props> {
         <NavMenu.Item
           title="My Profile"
           link="/me"
-          icon={IconFont.Cubouniform}
+          icon={IconFont.CuboNav}
           location={location.pathname}
           highlightWhen={['me', 'account']}
         >
@@ -63,21 +63,21 @@ class SideNav extends PureComponent<Props> {
         <NavMenu.Item
           title="Dashboards"
           link="/dashboards"
-          icon={IconFont.DashJ}
+          icon={IconFont.Dashboards}
           location={location.pathname}
           highlightWhen={['dashboards']}
         />
         <NavMenu.Item
           title="Tasks"
           link="/tasks"
-          icon={IconFont.Alerts}
+          icon={IconFont.Calendar}
           location={location.pathname}
           highlightWhen={['tasks']}
         />
         <NavMenu.Item
           title="Organizations"
           link="/organizations"
-          icon={IconFont.Group}
+          icon={IconFont.UsersDuo}
           location={location.pathname}
           highlightWhen={['organizations']}
         />
