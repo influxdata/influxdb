@@ -105,7 +105,7 @@ export const getAuthorizationToken = async (
 ): Promise<string> => {
   try {
     const data = await authorizationsAPI.authorizationsGet(undefined, username)
-    return getDeep<string>(data, 'data.auths.0.token', '')
+    return getDeep<string>(data, 'data.authorizations.0.token', '')
   } catch (error) {
     console.error(error)
   }
