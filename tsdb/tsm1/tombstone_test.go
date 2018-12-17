@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"reflect"
 	"testing"
@@ -15,7 +16,6 @@ import (
 )
 
 func TestTombstoner_Add(t *testing.T) {
-	t.Skip("TODO")
 	dir := MustTempDir()
 	defer func() { os.RemoveAll(dir) }()
 
@@ -74,10 +74,97 @@ func TestTombstoner_Add(t *testing.T) {
 	if got, exp := string(entries[0].Key), "foo"; got != exp {
 		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
 	}
+
+	if got, exp := entries[0].Prefix, false; got != exp {
+		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestTombstoner_AddPrefix(t *testing.T) {
+	dir := MustTempDir()
+	defer func() { os.RemoveAll(dir) }()
+
+	f := MustTempFile(dir)
+	ts := tsm1.NewTombstoner(f.Name(), nil)
+
+	entries := mustReadAll(ts)
+	if got, exp := len(entries), 0; got != exp {
+		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
+	}
+
+	stats := ts.TombstoneFiles()
+	if got, exp := len(stats), 0; got != exp {
+		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if err := ts.AddPrefix([]byte("some-prefix")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
+
+	exp := tsm1.Tombstone{
+		Key:    []byte("some-prefix"),
+		Min:    math.MinInt64,
+		Max:    math.MaxInt64,
+		Prefix: true,
+	}
+
+	entries = mustReadAll(ts)
+	if got, exp := len(entries), 1; got != exp {
+		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got := entries[0]; !reflect.DeepEqual(got, exp) {
+		t.Fatalf("unexpected tombstone entry. Got %s, expected %s", got, exp)
+	}
+}
+
+func TestTombstoner_AddPrefixRange(t *testing.T) {
+	dir := MustTempDir()
+	defer func() { os.RemoveAll(dir) }()
+
+	f := MustTempFile(dir)
+	ts := tsm1.NewTombstoner(f.Name(), nil)
+
+	entries := mustReadAll(ts)
+	if got, exp := len(entries), 0; got != exp {
+		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
+	}
+
+	stats := ts.TombstoneFiles()
+	if got, exp := len(stats), 0; got != exp {
+		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if err := ts.AddPrefixRange([]byte("some-prefix"), 20, 30); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
+
+	exp := tsm1.Tombstone{
+		Key:    []byte("some-prefix"),
+		Min:    20,
+		Max:    30,
+		Prefix: true,
+	}
+
+	entries = mustReadAll(ts)
+	if got, exp := len(entries), 1; got != exp {
+		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got := entries[0]; !reflect.DeepEqual(got, exp) {
+		t.Fatalf("unexpected tombstone entry. Got %s, expected %s", got, exp)
+	}
 }
 
 func TestTombstoner_Add_LargeKey(t *testing.T) {
-	t.Skip("TODO")
 	dir := MustTempDir()
 	defer func() { os.RemoveAll(dir) }()
 
@@ -139,8 +226,43 @@ func TestTombstoner_Add_LargeKey(t *testing.T) {
 	}
 }
 
+func TestTombstoner_Add_KeyTooBig(t *testing.T) {
+	dir := MustTempDir()
+	defer func() { os.RemoveAll(dir) }()
+
+	f := MustTempFile(dir)
+	ts := tsm1.NewTombstoner(f.Name(), nil)
+
+	entries := mustReadAll(ts)
+	if got, exp := len(entries), 0; got != exp {
+		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
+	}
+
+	stats := ts.TombstoneFiles()
+	if got, exp := len(stats), 0; got != exp {
+		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
+	}
+
+	key := bytes.Repeat([]byte{'a'}, 0x00ffffff) // This is OK.
+	if err := ts.Add([][]byte{key}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
+
+	key = append(key, 'a') // This is not
+	if err := ts.Add([][]byte{key}); err == nil {
+		t.Fatalf("got no error, expected key length error")
+	}
+
+	if err := ts.Flush(); err != nil {
+		t.Fatalf("unexpected error flushing tombstone: %v", err)
+	}
+}
+
 func TestTombstoner_Add_Multiple(t *testing.T) {
-	t.Skip("TODO")
 	dir := MustTempDir()
 	defer func() { os.RemoveAll(dir) }()
 
@@ -210,10 +332,17 @@ func TestTombstoner_Add_Multiple(t *testing.T) {
 		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
 	}
 
+	if got, exp := entries[0].Prefix, false; got != exp {
+		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
+	}
+
 	if got, exp := string(entries[1].Key), "bar"; got != exp {
 		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
 	}
 
+	if got, exp := entries[1].Prefix, false; got != exp {
+		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
+	}
 }
 
 func TestTombstoner_Add_Empty(t *testing.T) {
@@ -249,7 +378,6 @@ func TestTombstoner_Add_Empty(t *testing.T) {
 }
 
 func TestTombstoner_Delete(t *testing.T) {
-	t.Skip("TODO")
 	dir := MustTempDir()
 	defer func() { os.RemoveAll(dir) }()
 
@@ -289,7 +417,7 @@ func TestTombstoner_Delete(t *testing.T) {
 	}
 }
 
-func TestTombstoner_V4(t *testing.T) {
+func TestTombstoner_Existing(t *testing.T) {
 	dir := MustTempDir()
 	defer func() { os.RemoveAll(dir) }()
 
@@ -331,9 +459,8 @@ func TestTombstoner_V4(t *testing.T) {
 		panic(err)
 	}
 
-	ts := tsm1.NewTombstoner(name, nil)
-
 	t.Run("read", func(t *testing.T) {
+		ts := tsm1.NewTombstoner(name, nil)
 		var gotKeys []string
 		if err := ts.Walk(func(tombstone tsm1.Tombstone) error {
 			gotKeys = append(gotKeys, string(tombstone.Key))
@@ -341,6 +468,8 @@ func TestTombstoner_V4(t *testing.T) {
 				t.Fatalf("got max time %d, expected %d", got, exp)
 			} else if got, exp := tombstone.Max, expMax; got != exp {
 				t.Fatalf("got max time %d, expected %d", got, exp)
+			} else if got, exp := tombstone.Prefix, false; got != exp {
+				t.Fatalf("got prefix key, expected non-prefix key")
 			}
 			return nil
 		}); err != nil {
@@ -351,12 +480,36 @@ func TestTombstoner_V4(t *testing.T) {
 			t.Fatalf("tombstone entries differ:\n%s\n", cmp.Diff(gotKeys, expKeys, nil))
 		}
 	})
-}
 
-func TestTombstoner_ReadV5(t *testing.T) {
-	dir := MustTempDir()
-	defer func() { os.RemoveAll(dir) }()
-	t.Skip("TODO")
+	t.Run("add_prefix", func(t *testing.T) {
+		ts := tsm1.NewTombstoner(name, nil)
+		if err := ts.AddPrefixRange([]byte("new-prefix"), 10, 20); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := ts.Flush(); err != nil {
+			t.Fatal(err)
+		}
+
+		var got tsm1.Tombstone
+		if err := ts.Walk(func(tombstone tsm1.Tombstone) error {
+			got = tombstone
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		exp := tsm1.Tombstone{
+			Key:    []byte("new-prefix"),
+			Min:    10,
+			Max:    20,
+			Prefix: true,
+		}
+
+		if !reflect.DeepEqual(got, exp) {
+			t.Fatalf("unexpected tombstone entry. Got %s, expected %s", got, exp)
+		}
+	})
 }
 
 func mustReadAll(t *tsm1.Tombstoner) []tsm1.Tombstone {
@@ -365,9 +518,10 @@ func mustReadAll(t *tsm1.Tombstoner) []tsm1.Tombstone {
 		b := make([]byte, len(t.Key))
 		copy(b, t.Key)
 		tombstones = append(tombstones, tsm1.Tombstone{
-			Min: t.Min,
-			Max: t.Max,
-			Key: b,
+			Min:    t.Min,
+			Max:    t.Max,
+			Key:    b,
+			Prefix: t.Prefix,
 		})
 		return nil
 	}); err != nil {
