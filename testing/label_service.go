@@ -17,12 +17,14 @@ var labelCmpOptions = cmp.Options{
 	}),
 	cmp.Transformer("Sort", func(in []*platform.Label) []*platform.Label {
 		out := append([]*platform.Label(nil), in...) // Copy input to avoid mutating it
+		fmt.Printf("out: %v\n", out)
 		sort.Slice(out, func(i, j int) bool {
 			if out[i].Name != out[j].Name {
 				return out[i].Name < out[j].Name
 			}
 			return out[i].ResourceID.String() < out[j].ResourceID.String()
 		})
+		fmt.Printf("sorted out: %v\n", out)
 		return out
 	}),
 }

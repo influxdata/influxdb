@@ -1,15 +1,15 @@
-// Resource types that can have labels:
-// Dashboards, Users, Tokens, Buckets
-
 package platform
 
 import (
 	"context"
 	"errors"
+	"regexp"
 )
 
 // ErrLabelNotFound is the error for a missing Label.
 const ErrLabelNotFound = ChronografError("label not found")
+
+var colorPattern = regexp.MustCompile(`^([A-Fa-f0-9]{6})$`)
 
 type LabelService interface {
 	// FindLabels returns a list of labels that match a filter
@@ -18,6 +18,9 @@ type LabelService interface {
 	// CreateLabel creates a new label
 	CreateLabel(ctx context.Context, l *Label) error
 
+	// UpdateLabel updates a label
+	UpdateLabel(ctx context.Context, l *)
+
 	// DeleteLabel deletes a label
 	DeleteLabel(ctx context.Context, l Label) error
 }
@@ -25,6 +28,7 @@ type LabelService interface {
 type Label struct {
 	ResourceID ID     `json:"resource_id"`
 	Name       string `json:"name"`
+	Color      string `json:"color"`
 }
 
 // Validate returns an error if the label is invalid.
@@ -35,6 +39,10 @@ func (l *Label) Validate() error {
 
 	if l.Name == "" {
 		return errors.New("label name is required")
+	}
+
+	if l.Color != "" && !colorPattern.MatchString(l.Color) {
+		return errors.New("label color must be valid hex string")
 	}
 
 	return nil
