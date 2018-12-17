@@ -4633,7 +4633,7 @@ components:
         orgs:
           type: string
           format: uri
-        auths:
+        authorizations:
           type: string
           format: uri
         buckets:

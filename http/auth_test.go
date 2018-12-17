@@ -68,7 +68,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
   "links": {
     "self": "/api/v2/authorizations"
   },
-  "auths": [
+  "authorizations": [
     {
       "links": {
         "user": "/api/v2/users/2070616e656d2076",
@@ -114,7 +114,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
   "links": {
     "self": "/api/v2/authorizations"
   },
-  "auths": []
+  "authorizations": []
 }`,
 			},
 		},
