@@ -117,10 +117,10 @@ func ErrorMessage(err error) string {
 
 // errEncode an JSON encoding helper that is needed to handle the recursive stack of errors.
 type errEncode struct {
-	Code string `json:"code"`          // Code is the machine-readable error code.
-	Msg  string `json:"msg,omitempty"` // Msg is a human-readable message.
-	Op   string `json:"op,omitempty"`  // Op describes the logical code operation during error.
-	Err  string `json:"err,omitempty"` // Err is a stack of additional errors.
+	Code string      `json:"code"`          // Code is the machine-readable error code.
+	Msg  string      `json:"msg,omitempty"` // Msg is a human-readable message.
+	Op   string      `json:"op,omitempty"`  // Op describes the logical code operation during error.
+	Err  interface{} `json:"err,omitempty"` // Err is a stack of additional errors.
 }
 
 // MarshalJSON recursively marshals the stack of Err.
@@ -132,11 +132,11 @@ func (e *Error) MarshalJSON() (result []byte, err error) {
 	}
 	if e.Err != nil {
 		if _, ok := e.Err.(*Error); ok {
-			b, err := e.Err.(*Error).MarshalJSON()
+			_, err := e.Err.(*Error).MarshalJSON()
 			if err != nil {
 				return result, err
 			}
-			ee.Err = string(b)
+			ee.Err = e.Err
 		} else {
 			ee.Err = e.Err.Error()
 		}
@@ -151,15 +151,27 @@ func (e *Error) UnmarshalJSON(b []byte) (err error) {
 	e.Code = ee.Code
 	e.Msg = ee.Msg
 	e.Op = ee.Op
-	if ee.Err != "" {
-		var innerErr error
-		innerResult := new(Error)
-		innerErr = innerResult.UnmarshalJSON([]byte(ee.Err))
-		if innerErr != nil {
-			e.Err = errors.New(ee.Err)
-			return err
-		}
-		e.Err = innerResult
-	}
+	e.Err = decodeInternalError(ee.Err)
 	return err
+}
+
+func decodeInternalError(target interface{}) error {
+	if errStr, ok := target.(string); ok {
+		return errors.New(errStr)
+	}
+	if internalErrMap, ok := target.(map[string]interface{}); ok {
+		internalErr := new(Error)
+		if code, ok := internalErrMap["code"].(string); ok {
+			internalErr.Code = code
+		}
+		if msg, ok := internalErrMap["msg"].(string); ok {
+			internalErr.Msg = msg
+		}
+		if op, ok := internalErrMap["op"].(string); ok {
+			internalErr.Op = op
+		}
+		internalErr.Err = decodeInternalError(internalErrMap["err"])
+		return internalErr
+	}
+	return nil
 }
