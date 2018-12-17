@@ -6,8 +6,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/apache/arrow/go/arrow/array"
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
 )
 
@@ -104,7 +107,7 @@ type queryTable struct {
 	row      *Row
 	groupKey flux.GroupKey
 	colMeta  []flux.ColMeta
-	cols     []interface{}
+	cols     []array.Interface
 }
 
 func newQueryTable(r *Row) (*queryTable, error) {
@@ -124,88 +127,113 @@ func (t *queryTable) Statistics() flux.Statistics {
 // Data in a column is laid out in the following way:
 //   [ r.row.Columns... , r.tagKeys()... , r.row.Name ]
 func (t *queryTable) translateRowsToColumns() error {
-	cols := t.Cols()
-	t.cols = make([]interface{}, len(cols))
-	for i, col := range cols {
+	t.cols = make([]array.Interface, len(t.Cols()))
+	for i := range t.row.Columns {
+		col := t.Cols()[i]
 		switch col.Type {
 		case flux.TFloat:
-			t.cols[i] = make([]float64, 0, t.Len())
+			b := arrow.NewFloatBuilder(&memory.Allocator{})
+			b.Reserve(t.Len())
+			for _, row := range t.row.Values {
+				val, ok := row[i].(float64)
+				if !ok {
+					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
+				}
+				b.Append(val)
+			}
+			t.cols[i] = b.NewArray()
+			b.Release()
 		case flux.TInt:
-			t.cols[i] = make([]int64, 0, t.Len())
+			b := arrow.NewIntBuilder(&memory.Allocator{})
+			b.Reserve(t.Len())
+			for _, row := range t.row.Values {
+				val, ok := row[i].(int64)
+				if !ok {
+					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
+				}
+				b.Append(val)
+			}
+			t.cols[i] = b.NewArray()
+			b.Release()
 		case flux.TUInt:
-			t.cols[i] = make([]uint64, 0, t.Len())
+			b := arrow.NewUintBuilder(&memory.Allocator{})
+			b.Reserve(t.Len())
+			for _, row := range t.row.Values {
+				val, ok := row[i].(uint64)
+				if !ok {
+					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
+				}
+				b.Append(val)
+			}
+			t.cols[i] = b.NewArray()
+			b.Release()
 		case flux.TString:
-			t.cols[i] = make([]string, 0, t.Len())
+			b := arrow.NewStringBuilder(&memory.Allocator{})
+			b.Reserve(t.Len())
+			for _, row := range t.row.Values {
+				val, ok := row[i].(string)
+				if !ok {
+					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
+				}
+				b.AppendString(val)
+			}
+			t.cols[i] = b.NewArray()
+			b.Release()
 		case flux.TBool:
-			t.cols[i] = make([]bool, 0, t.Len())
+			b := arrow.NewBoolBuilder(&memory.Allocator{})
+			b.Reserve(t.Len())
+			for _, row := range t.row.Values {
+				val, ok := row[i].(bool)
+				if !ok {
+					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
+				}
+				b.Append(val)
+			}
+			t.cols[i] = b.NewArray()
+			b.Release()
 		case flux.TTime:
-			t.cols[i] = make([]values.Time, 0, t.Len())
-		}
-	}
-	for _, els := range t.row.Values {
-		for i, el := range els {
-			col := cols[i]
-			switch col.Type {
-			case flux.TFloat:
-				val, ok := el.(float64)
-				if !ok {
-					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
-				}
-				t.cols[i] = append(t.cols[i].([]float64), val)
-			case flux.TInt:
-				val, ok := el.(int64)
-				if !ok {
-					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
-				}
-				t.cols[i] = append(t.cols[i].([]int64), val)
-			case flux.TUInt:
-				val, ok := el.(uint64)
-				if !ok {
-					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
-				}
-				t.cols[i] = append(t.cols[i].([]uint64), val)
-			case flux.TString:
-				val, ok := el.(string)
-				if !ok {
-					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
-				}
-				t.cols[i] = append(t.cols[i].([]string), val)
-			case flux.TBool:
-				val, ok := el.(bool)
-				if !ok {
-					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
-				}
-				t.cols[i] = append(t.cols[i].([]bool), val)
-			case flux.TTime:
-				switch val := el.(type) {
+			b := arrow.NewIntBuilder(&memory.Allocator{})
+			b.Reserve(t.Len())
+			for _, row := range t.row.Values {
+				switch val := row[i].(type) {
 				case int64:
-					t.cols[i] = append(t.cols[i].([]values.Time), values.Time(val))
+					b.Append(val)
 				case float64:
-					t.cols[i] = append(t.cols[i].([]values.Time), values.Time(val))
+					b.Append(int64(val))
 				case string:
 					tm, err := time.Parse(time.RFC3339, val)
 					if err != nil {
 						return fmt.Errorf("could not parse string %q as time: %v", val, err)
 					}
-					t.cols[i] = append(t.cols[i].([]values.Time), values.ConvertTime(tm))
+					b.Append(tm.UnixNano())
 				default:
 					return fmt.Errorf("unsupported type %T found in column %s", val, col.Label)
 				}
-			default:
-				return fmt.Errorf("invalid type %T found in column %s", el, col.Label)
 			}
+			t.cols[i] = b.NewArray()
+			b.Release()
+		default:
+			return fmt.Errorf("invalid type %T found in column %s", col.Type, col.Label)
 		}
-
-		j := len(t.row.Columns)
-		for j < len(t.row.Columns)+len(t.row.Tags) {
-			col := cols[j]
-			t.cols[j] = append(t.cols[j].([]string), t.row.Tags[col.Label])
-			j++
-		}
-
-		t.cols[j] = append(t.cols[j].([]string), t.row.Name)
 	}
 
+	for j := len(t.row.Columns); j < len(t.Cols()); j++ {
+		b := arrow.NewStringBuilder(&memory.Allocator{})
+		b.Reserve(t.Len())
+
+		var value string
+		if key := t.Cols()[j].Label; key == "_measurement" {
+			value = t.row.Name
+		} else {
+			value = t.row.Tags[key]
+		}
+
+		for i := 0; i < t.Len(); i++ {
+			b.AppendString(value)
+		}
+		t.cols[j] = b.NewArray()
+		b.Release()
+	}
 	return nil
 }
 
@@ -313,6 +341,12 @@ func (r *queryTable) Cols() []flux.ColMeta {
 // Do applies f to itself. This is because Row is a flux.ColReader.
 // It is used to implement flux.Table.
 func (r *queryTable) Do(f func(flux.ColReader) error) error {
+	return r.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (r *queryTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	return f(r)
 }
 
@@ -333,41 +367,41 @@ func (r *queryTable) Len() int {
 // Bools returns the values in column index j as bools.
 // It will panic if the column is not a []bool.
 // It is used to implement flux.ColReader.
-func (r *queryTable) Bools(j int) []bool {
-	return r.cols[j].([]bool)
+func (r *queryTable) Bools(j int) *array.Boolean {
+	return r.cols[j].(*array.Boolean)
 }
 
 // Ints returns the values in column index j as ints.
 // It will panic if the column is not a []int64.
 // It is used to implement flux.ColReader.
-func (r *queryTable) Ints(j int) []int64 {
-	return r.cols[j].([]int64)
+func (r *queryTable) Ints(j int) *array.Int64 {
+	return r.cols[j].(*array.Int64)
 }
 
 // UInts returns the values in column index j as ints.
 // It will panic if the column is not a []uint64.
 // It is used to implement flux.ColReader.
-func (r *queryTable) UInts(j int) []uint64 {
-	return r.cols[j].([]uint64)
+func (r *queryTable) UInts(j int) *array.Uint64 {
+	return r.cols[j].(*array.Uint64)
 }
 
 // Floats returns the values in column index j as floats.
 // It will panic if the column is not a []float64.
 // It is used to implement flux.ColReader.
-func (r *queryTable) Floats(j int) []float64 {
-	return r.cols[j].([]float64)
+func (r *queryTable) Floats(j int) *array.Float64 {
+	return r.cols[j].(*array.Float64)
 }
 
 // Strings returns the values in column index j as strings.
 // It will panic if the column is not a []string.
 // It is used to implement flux.ColReader.
-func (r *queryTable) Strings(j int) []string {
-	return r.cols[j].([]string)
+func (r *queryTable) Strings(j int) *array.Binary {
+	return r.cols[j].(*array.Binary)
 }
 
 // Times returns the values in column index j as values.Times.
 // It will panic if the column is not a []values.Time.
 // It is used to implement flux.ColReader.
-func (r *queryTable) Times(j int) []values.Time {
-	return r.cols[j].([]values.Time)
+func (r *queryTable) Times(j int) *array.Int64 {
+	return r.cols[j].(*array.Int64)
 }

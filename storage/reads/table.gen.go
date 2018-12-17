@@ -7,6 +7,8 @@
 package reads
 
 import (
+	"github.com/influxdata/flux/arrow"
+	"github.com/influxdata/flux/memory"
 	"sync"
 
 	"github.com/influxdata/flux"
@@ -70,6 +72,12 @@ func (t *floatTable) Statistics() flux.Statistics {
 }
 
 func (t *floatTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *floatTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -94,24 +102,21 @@ func (t *floatTable) advance() bool {
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]float64, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -162,6 +167,12 @@ func (t *floatGroupTable) Close() {
 }
 
 func (t *floatGroupTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *floatGroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -191,24 +202,21 @@ RETRY:
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]float64, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -302,6 +310,12 @@ func (t *integerTable) Statistics() flux.Statistics {
 }
 
 func (t *integerTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *integerTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -326,24 +340,21 @@ func (t *integerTable) advance() bool {
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]int64, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -394,6 +405,12 @@ func (t *integerGroupTable) Close() {
 }
 
 func (t *integerGroupTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *integerGroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -423,24 +440,21 @@ RETRY:
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]int64, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -534,6 +548,12 @@ func (t *unsignedTable) Statistics() flux.Statistics {
 }
 
 func (t *unsignedTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *unsignedTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -558,24 +578,21 @@ func (t *unsignedTable) advance() bool {
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]uint64, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -626,6 +643,12 @@ func (t *unsignedGroupTable) Close() {
 }
 
 func (t *unsignedGroupTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *unsignedGroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -655,24 +678,21 @@ RETRY:
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]uint64, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -766,6 +786,12 @@ func (t *stringTable) Statistics() flux.Statistics {
 }
 
 func (t *stringTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *stringTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -790,24 +816,21 @@ func (t *stringTable) advance() bool {
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]string, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -858,6 +881,12 @@ func (t *stringGroupTable) Close() {
 }
 
 func (t *stringGroupTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *stringGroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -887,24 +916,21 @@ RETRY:
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]string, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -998,6 +1024,12 @@ func (t *booleanTable) Statistics() flux.Statistics {
 }
 
 func (t *booleanTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *booleanTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -1022,24 +1054,21 @@ func (t *booleanTable) advance() bool {
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]bool, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -1090,6 +1119,12 @@ func (t *booleanGroupTable) Close() {
 }
 
 func (t *booleanGroupTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *booleanGroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -1119,24 +1154,21 @@ RETRY:
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]bool, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
