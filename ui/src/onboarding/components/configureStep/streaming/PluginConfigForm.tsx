@@ -29,7 +29,6 @@ interface Props {
   onSetPluginConfiguration: typeof setPluginConfiguration
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
-  authToken: string
   onSetConfigArrayValue: typeof setConfigArrayValue
 }
 

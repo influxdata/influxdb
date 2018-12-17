@@ -20,16 +20,11 @@ import {
   setPluginConfiguration,
   addConfigValue,
   removeConfigValue,
-  createTelegrafConfigAsync,
   setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
-import {
-  TelegrafConfigCreationSuccess,
-  TelegrafConfigCreationError,
-} from 'src/shared/copy/notifications'
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
@@ -47,7 +42,6 @@ export interface OwnProps extends OnboardingStepProps {
   type: DataLoaderType
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
-  onSaveTelegrafConfig: typeof createTelegrafConfigAsync
   authToken: string
   onSetConfigArrayValue: typeof setConfigArrayValue
 }
@@ -82,7 +76,6 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
     const {
       telegrafPlugins,
       type,
-      authToken,
       params: {substepID},
       setupParams,
       onUpdateTelegrafPluginConfig,
@@ -105,7 +98,6 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
           onRemoveConfigValue={onRemoveConfigValue}
           dataLoaderType={type}
           currentIndex={+substepID}
-          authToken={authToken}
           onSetConfigArrayValue={onSetConfigArrayValue}
         />
         <div className="wizard-button-container">
@@ -201,11 +193,7 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       onSetActiveTelegrafPlugin,
       onSetPluginConfiguration,
       telegrafPlugins,
-      authToken,
-      notify,
       params: {substepID, stepID},
-      type,
-      onSaveTelegrafConfig,
       onSetSubstepIndex,
     } = this.props
 
@@ -216,15 +204,6 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
     this.handleSetStepStatus()
 
     if (index >= telegrafPlugins.length - 1) {
-      if (type === DataLoaderType.Streaming) {
-        try {
-          await onSaveTelegrafConfig(authToken)
-          notify(TelegrafConfigCreationSuccess)
-        } catch (error) {
-          notify(TelegrafConfigCreationError)
-        }
-      }
-
       onIncrementCurrentStepIndex()
       onSetActiveTelegrafPlugin('')
     } else {

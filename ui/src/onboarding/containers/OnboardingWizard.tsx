@@ -24,7 +24,7 @@ import {
   removeConfigValue,
   setActiveTelegrafPlugin,
   setPluginConfiguration,
-  createTelegrafConfigAsync,
+  createOrUpdateTelegrafConfigAsync,
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
   setConfigArrayValue,
@@ -81,8 +81,8 @@ interface DispatchProps {
   onRemoveConfigValue: typeof removeConfigValue
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onSetPluginConfiguration: typeof setPluginConfiguration
-  onSaveTelegrafConfig: typeof createTelegrafConfigAsync
   onSetConfigArrayValue: typeof setConfigArrayValue
+  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
 }
 
 interface StateProps {
@@ -297,7 +297,7 @@ const mdtp: DispatchProps = {
   onAddConfigValue: addConfigValue,
   onRemoveConfigValue: removeConfigValue,
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
-  onSaveTelegrafConfig: createTelegrafConfigAsync,
+  onSaveTelegrafConfig: createOrUpdateTelegrafConfigAsync,
   onAddPluginBundle: addPluginBundleWithPlugins,
   onRemovePluginBundle: removePluginBundleWithPlugins,
   onSetPluginConfiguration: setPluginConfiguration,

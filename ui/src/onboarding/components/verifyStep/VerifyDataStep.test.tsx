@@ -19,6 +19,9 @@ const setup = (override = {}) => {
     type: DataLoaderType.Empty,
     telegrafPlugins: [],
     stepIndex: 4,
+    authToken: '',
+    telegrafConfigID: '',
+    onSaveTelegrafConfig: jest.fn(),
     onSetActiveTelegrafPlugin: jest.fn(),
     ...override,
   }

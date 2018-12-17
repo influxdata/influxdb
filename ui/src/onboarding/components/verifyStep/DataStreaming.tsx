@@ -4,9 +4,12 @@ import _ from 'lodash'
 
 // Components
 import TelegrafInstructions from 'src/onboarding/components/verifyStep/TelegrafInstructions'
-import FetchConfigID from 'src/onboarding/components/verifyStep/FetchConfigID'
+import CreateOrUpdateConfig from 'src/onboarding/components/verifyStep/CreateOrUpdateConfig'
 import FetchAuthToken from 'src/onboarding/components/verifyStep/FetchAuthToken'
 import DataListening from 'src/onboarding/components/verifyStep/DataListening'
+
+// Actions
+import {createOrUpdateTelegrafConfigAsync} from 'src/onboarding/actions/dataLoaders'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
@@ -17,22 +20,37 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   bucket: string
   org: string
+  configID: string
   username: string
   stepIndex: number
+  authToken: string
   onSetStepStatus: (index: number, status: StepStatus) => void
+  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
 }
 
 @ErrorHandling
 class DataStreaming extends PureComponent<Props> {
   public render() {
+    const {
+      authToken,
+      org,
+      username,
+      configID,
+      onSaveTelegrafConfig,
+      onSetStepStatus,
+      bucket,
+      stepIndex,
+    } = this.props
+
     return (
       <>
-        <FetchConfigID org={this.props.org}>
-          {configID => (
-            <FetchAuthToken
-              bucket={this.props.bucket}
-              username={this.props.username}
-            >
+        <CreateOrUpdateConfig
+          org={org}
+          authToken={authToken}
+          onSaveTelegrafConfig={onSaveTelegrafConfig}
+        >
+          {() => (
+            <FetchAuthToken bucket={bucket} username={username}>
               {authToken => (
                 <TelegrafInstructions
                   authToken={authToken}
@@ -41,12 +59,12 @@ class DataStreaming extends PureComponent<Props> {
               )}
             </FetchAuthToken>
           )}
-        </FetchConfigID>
+        </CreateOrUpdateConfig>
 
         <DataListening
-          bucket={this.props.bucket}
-          stepIndex={this.props.stepIndex}
-          onSetStepStatus={this.props.onSetStepStatus}
+          bucket={bucket}
+          stepIndex={stepIndex}
+          onSetStepStatus={onSetStepStatus}
         />
       </>
     )
