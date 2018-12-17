@@ -102,10 +102,9 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 }
 
 func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
-	if upd.Flux == nil && upd.Status == nil {
-		return nil, errors.New("cannot update task without content")
+	if err := upd.Validate(); err != nil {
+		return nil, err
 	}
-
 	req := backend.UpdateTaskRequest{ID: id}
 	if upd.Flux != nil {
 		req.Script = *upd.Flux
@@ -113,11 +112,14 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 	if upd.Status != nil {
 		req.Status = backend.TaskStatus(*upd.Status)
 	}
+	req.Options = upd.Options
 	res, err := p.s.UpdateTask(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-
+	if res.NewTask.Script == "" {
+		return nil, errors.New("script not defined in the store")
+	}
 	opts, err := options.FromScript(res.NewTask.Script)
 	if err != nil {
 		return nil, err

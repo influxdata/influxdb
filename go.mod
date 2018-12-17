@@ -128,14 +128,15 @@ require (
 	github.com/yudai/pp v2.0.1+incompatible // indirect
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
-	golang.org/x/net v0.0.0-20181023162649-9b4f9f5ad519
+	golang.org/x/net v0.0.0-20181106065722-10aee1819953
 	golang.org/x/oauth2 v0.0.0-20181017192945-9dcd33a902f4
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
 	golang.org/x/sys v0.0.0-20181205085412-a5c9d58dba9a
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
 	golang.org/x/tools v0.0.0-20181221154417-3ad2d988d5e2
 	google.golang.org/api v0.0.0-20181021000519-a2651947f503
-	google.golang.org/grpc v1.15.0
+	google.golang.org/genproto v0.0.0-20190108161440-ae2f86662275 // indirect
+	google.golang.org/grpc v1.16.0
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	gopkg.in/ldap.v2 v2.5.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce // indirect
