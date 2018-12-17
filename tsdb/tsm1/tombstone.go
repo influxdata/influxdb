@@ -38,6 +38,9 @@ Tombstone file format:
 ║ │      ││               ││            ││                        ││               ││               │ ║
 ║ └──────┘└───────────────┘└────────────┘└────────────────────────┘└───────────────┘└───────────────┘ ║
 ╚═════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+NOTE: v1, v2 and v3 tombstone supports have been dropped from 2.x. Only v4 is now
+supported.
 */
 
 import (
@@ -133,12 +136,12 @@ func (t *Tombstoner) WithObserver(obs FileStoreObserver) {
 	t.obs = obs
 }
 
-// AddPrefix adds a prefix-based tomstone key.
+// AddPrefix adds a prefix-based tombstone key.
 func (t *Tombstoner) AddPrefix(key []byte) error {
 	return t.AddPrefixRange(key, math.MinInt64, math.MaxInt64)
 }
 
-// AddPrefixRange adds a prefix-based tomstone key with an explicit range.
+// AddPrefixRange adds a prefix-based tombstone key with an explicit range.
 func (t *Tombstoner) AddPrefixRange(key []byte, min, max int64) error {
 	if t.FilterFn != nil && !t.FilterFn(key) {
 		return nil
