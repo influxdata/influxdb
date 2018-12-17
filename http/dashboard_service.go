@@ -89,9 +89,12 @@ type dashboardResponse struct {
 }
 
 func (d dashboardResponse) toPlatform() *platform.Dashboard {
-	cells := make([]*platform.Cell, 0, len(d.Cells))
+	var cells []*platform.Cell
+	if len(d.Cells) > 0 {
+		cells = make([]*platform.Cell, len(d.Cells))
+	}
 	for i := range d.Cells {
-		cells = append(cells, d.Cells[i].toPlatform())
+		cells[i] = d.Cells[i].toPlatform()
 	}
 	return &platform.Dashboard{
 		ID:    d.ID,
@@ -222,7 +225,7 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 
 	dashboards, _, err := h.DashboardService.FindDashboards(ctx, req.filter, req.opts)
 	if err != nil {
-		EncodeError(ctx, errors.InternalErrorf("Error loading dashboards: %v", err), w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
@@ -293,7 +296,9 @@ func newGetDashboardsResponse(dashboards []*platform.Dashboard) getDashboardsRes
 	}
 
 	for _, dashboard := range dashboards {
-		res.Dashboards = append(res.Dashboards, newDashboardResponse(dashboard))
+		if dashboard != nil {
+			res.Dashboards = append(res.Dashboards, newDashboardResponse(dashboard))
+		}
 	}
 
 	return res
@@ -345,9 +350,6 @@ func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Req
 
 	dashboard, err := h.DashboardService.FindDashboardByID(ctx, req.DashboardID)
 	if err != nil {
-		if err == platform.ErrDashboardNotFound {
-			err = errors.New(err.Error(), errors.NotFound)
-		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -455,9 +457,6 @@ func (h *DashboardHandler) handleDeleteDashboard(w http.ResponseWriter, r *http.
 	}
 
 	if err := h.DashboardService.DeleteDashboard(ctx, req.DashboardID); err != nil {
-		if err == platform.ErrDashboardNotFound {
-			err = errors.New(err.Error(), errors.NotFound)
-		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -497,9 +496,6 @@ func (h *DashboardHandler) handlePatchDashboard(w http.ResponseWriter, r *http.R
 	}
 	dashboard, err := h.DashboardService.UpdateDashboard(ctx, req.DashboardID, req.Upd)
 	if err != nil {
-		if err == platform.ErrDashboardNotFound {
-			err = errors.New(err.Error(), errors.NotFound)
-		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -521,7 +517,6 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, errors.MalformedDataf(err.Error())
 	}
-
 	req.Upd = upd
 
 	params := httprouter.ParamsFromContext(ctx)
@@ -549,7 +544,10 @@ func (r *patchDashboardRequest) Valid() error {
 		return fmt.Errorf("missing dashboard ID")
 	}
 
-	return r.Upd.Valid()
+	if pe := r.Upd.Valid(); pe != nil {
+		return pe
+	}
+	return nil
 }
 
 type postDashboardCellRequest struct {
@@ -596,9 +594,6 @@ func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *htt
 		return
 	}
 	if err := h.DashboardService.AddDashboardCell(ctx, req.dashboardID, req.cell, req.opts); err != nil {
-		if err == platform.ErrDashboardNotFound {
-			err = errors.New(err.Error(), errors.NotFound)
-		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -693,9 +688,6 @@ func (h *DashboardHandler) handleDeleteDashboardCell(w http.ResponseWriter, r *h
 		return
 	}
 	if err := h.DashboardService.RemoveDashboardCell(ctx, req.dashboardID, req.cellID); err != nil {
-		if err == platform.ErrDashboardNotFound || err == platform.ErrCellNotFound {
-			err = errors.New(err.Error(), errors.NotFound)
-		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -715,7 +707,10 @@ func decodePatchDashboardCellRequest(ctx context.Context, r *http.Request) (*pat
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 	if err := req.dashboardID.DecodeFromString(id); err != nil {
 		return nil, err
@@ -723,18 +718,24 @@ func decodePatchDashboardCellRequest(ctx context.Context, r *http.Request) (*pat
 
 	cellID := params.ByName("cellID")
 	if cellID == "" {
-		return nil, errors.InvalidDataf("url missing cellID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "cannot provide empty cell id",
+		}
 	}
 	if err := req.cellID.DecodeFromString(cellID); err != nil {
 		return nil, err
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req.upd); err != nil {
-		return nil, errors.MalformedDataf(err.Error())
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 
-	if err := req.upd.Valid(); err != nil {
-		return nil, errors.InvalidDataf(err.Error())
+	if pe := req.upd.Valid(); pe != nil {
+		return nil, pe
 	}
 
 	return req, nil
@@ -751,9 +752,6 @@ func (h *DashboardHandler) handlePatchDashboardCell(w http.ResponseWriter, r *ht
 	}
 	cell, err := h.DashboardService.UpdateDashboardCell(ctx, req.dashboardID, req.cellID, req.upd)
 	if err != nil {
-		if err == platform.ErrDashboardNotFound || err == platform.ErrCellNotFound {
-			err = errors.New(err.Error(), errors.NotFound)
-		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -769,6 +767,8 @@ type DashboardService struct {
 	Addr               string
 	Token              string
 	InsecureSkipVerify bool
+	// OpPrefix is the op prefix for certain errors op.
+	OpPrefix string
 }
 
 // FindDashboardByID returns a single dashboard by ID.
@@ -792,7 +792,7 @@ func (s *DashboardService) FindDashboardByID(ctx context.Context, id platform.ID
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -808,9 +808,11 @@ func (s *DashboardService) FindDashboardByID(ctx context.Context, id platform.ID
 // FindDashboards returns a list of dashboards that match filter and the total count of matching dashboards.
 // Additional options provide pagination & sorting.
 func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
+	dashboards := []*platform.Dashboard{}
 	url, err := newURL(s.Addr, dashboardsPath)
+
 	if err != nil {
-		return nil, 0, err
+		return dashboards, 0, err
 	}
 
 	qp := url.Query()
@@ -822,7 +824,7 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
-		return nil, 0, err
+		return dashboards, 0, err
 	}
 
 	SetToken(s.Token, req)
@@ -830,19 +832,19 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return nil, 0, err
+		return dashboards, 0, err
 	}
 
-	if err := CheckError(resp); err != nil {
-		return nil, 0, err
+	if err := CheckError(resp, true); err != nil {
+		return dashboards, 0, err
 	}
 
 	var dr getDashboardsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&dr); err != nil {
-		return nil, 0, err
+		return dashboards, 0, err
 	}
 
-	dashboards := dr.toPlatform()
+	dashboards = dr.toPlatform()
 	return dashboards, len(dashboards), nil
 }
 
@@ -873,7 +875,7 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, d *platform.Dash
 		return err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
@@ -887,6 +889,7 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, d *platform.Dash
 // UpdateDashboard updates a single dashboard with changeset.
 // Returns the new dashboard state after update.
 func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
+	//op := s.OpPrefix + platform.OpUpdateDashboard
 	u, err := newURL(s.Addr, dashboardIDPath(id))
 	if err != nil {
 		return nil, err
@@ -912,7 +915,7 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, 
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -946,7 +949,7 @@ func (s *DashboardService) DeleteDashboard(ctx context.Context, id platform.ID) 
 	if err != nil {
 		return err
 	}
-	return CheckError(resp)
+	return CheckError(resp, true)
 }
 
 // AddDashboardCell adds a cell to a dashboard.
@@ -976,7 +979,7 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, id platform.ID,
 		return err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
@@ -1002,13 +1005,17 @@ func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID,
 	if err != nil {
 		return err
 	}
-	return CheckError(resp)
+	return CheckError(resp, true)
 }
 
 // UpdateDashboardCell replaces the dashboard cell with the provided ID.
 func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+	op := s.OpPrefix + platform.OpUpdateDashboardCell
 	if err := upd.Valid(); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Op:  op,
+			Err: err,
+		}
 	}
 
 	u, err := newURL(s.Addr, dashboardCellIDPath(dashboardID, cellID))
@@ -1036,7 +1043,7 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID,
 		return nil, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -1077,7 +1084,7 @@ func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id platfor
 		return err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 

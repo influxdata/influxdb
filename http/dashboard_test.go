@@ -290,7 +290,10 @@ func TestService_handleGetDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*platform.Dashboard, error) {
-						return nil, platform.ErrDashboardNotFound
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  platform.ErrDashboardNotFound,
+						}
 					},
 				},
 			},
@@ -509,7 +512,10 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					DeleteDashboardF: func(ctx context.Context, id platform.ID) error {
-						return platform.ErrDashboardNotFound
+						return &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  platform.ErrDashboardNotFound,
+						}
 					},
 				},
 			},
@@ -679,7 +685,10 @@ func TestService_handlePatchDashboard(t *testing.T) {
 			fields: fields{
 				&mock.DashboardService{
 					UpdateDashboardF: func(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
-						return nil, platform.ErrDashboardNotFound
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  platform.ErrDashboardNotFound,
+						}
 					},
 				},
 			},
@@ -1086,7 +1095,7 @@ func Test_dashboardCellIDPath(t *testing.T) {
 	}
 }
 
-func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (platform.DashboardService, func()) {
+func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (platform.DashboardService, string, func()) {
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
@@ -1109,11 +1118,12 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 	handler.DashboardService = svc
 	server := httptest.NewServer(handler)
 	client := DashboardService{
-		Addr: server.URL,
+		Addr:     server.URL,
+		OpPrefix: inmem.OpPrefix,
 	}
 	done := server.Close
 
-	return &client, done
+	return &client, inmem.OpPrefix, done
 }
 
 func TestDashboardService(t *testing.T) {

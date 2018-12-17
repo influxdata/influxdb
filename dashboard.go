@@ -2,16 +2,28 @@ package platform
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 )
 
-// ErrDashboardNotFound is the error for a missing dashboard.
-const ErrDashboardNotFound = ChronografError("dashboard not found")
+// ErrDashboardNotFound is the error msg for a missing dashboard.
+const ErrDashboardNotFound = "dashboard not found"
 
-// ErrCellNotFound is the error for a missing cell.
-const ErrCellNotFound = ChronografError("cell not found")
+// ErrCellNotFound is the error msg for a missing cell.
+const ErrCellNotFound = "cell not found"
+
+// ops for dashboard service.
+const (
+	OpFindDashboardByID     = "FindDashboardByID"
+	OpFindDashboards        = "FindDashboards"
+	OpCreateDashboard       = "CreateDashboard"
+	OpUpdateDashboard       = "UpdateDashboard"
+	OpAddDashboardCell      = "AddDashboardCell"
+	OpRemoveDashboardCell   = "RemoveDashboardCell"
+	OpUpdateDashboardCell   = "UpdateDashboardCell"
+	OpDeleteDashboard       = "DeleteDashboard"
+	OpReplaceDashboardCells = "ReplaceDashboardCells"
+)
 
 // DashboardService represents a service for managing dashboard data.
 type DashboardService interface {
@@ -54,7 +66,7 @@ type Dashboard struct {
 	Meta        DashboardMeta `json:"meta"`
 }
 
-// Dashboard meta contains meta information about dashboards
+// DashboardMeta contains meta information about dashboards
 type DashboardMeta struct {
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -125,9 +137,12 @@ func (u DashboardUpdate) Apply(d *Dashboard) error {
 }
 
 // Valid returns an error if the dashboard update is invalid.
-func (u DashboardUpdate) Valid() error {
+func (u DashboardUpdate) Valid() *Error {
 	if u.Name == nil && u.Description == nil {
-		return fmt.Errorf("must update at least one attribute")
+		return &Error{
+			Code: EInvalid,
+			Msg:  "must update at least one attribute",
+		}
 	}
 
 	return nil
@@ -175,9 +190,12 @@ func (u CellUpdate) Apply(c *Cell) error {
 }
 
 // Valid returns an error if the cell update is invalid.
-func (u CellUpdate) Valid() error {
+func (u CellUpdate) Valid() *Error {
 	if u.H == nil && u.W == nil && u.Y == nil && u.X == nil && !u.ViewID.Valid() {
-		return fmt.Errorf("must update at least one attribute")
+		return &Error{
+			Code: EInvalid,
+			Msg:  "must update at least one attribute",
+		}
 	}
 
 	return nil
