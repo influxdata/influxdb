@@ -158,8 +158,5 @@ func (c *MetaClient) Users() []meta.UserInfo {
 
 // DefaultMetaClientDatabaseFn returns a single database (db0) with a retention policy.
 func DefaultMetaClientDatabaseFn(name string) *meta.DatabaseInfo {
-	return &meta.DatabaseInfo{
-		Name: DefaultDatabase,
-		DefaultRetentionPolicy: DefaultRetentionPolicy,
-	}
+	return &meta.DatabaseInfo{Name: DefaultDatabase, DefaultRetentionPolicy: DefaultRetentionPolicy}
 }

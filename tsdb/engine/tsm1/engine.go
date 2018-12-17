@@ -246,6 +246,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		enableCompactionsOnOpen:       true,
 		WALEnabled:                    opt.WALEnabled,
 		GenerateFormatFileNameFunc:    func() FormatFileNameFunc { return DefaultFormatFileName },
+
 		stats:             stats,
 		compactionLimiter: opt.CompactionLimiter,
 		scheduler:         newScheduler(stats, opt.CompactionLimiter.Capacity()),
