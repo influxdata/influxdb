@@ -3,8 +3,6 @@ package bolt
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
@@ -37,71 +35,124 @@ func (c *Client) ListTargets(ctx context.Context) (list []platform.ScraperTarget
 		}
 		return err
 	})
+	if err != nil {
+		return nil, &platform.Error{
+			Op:  getOp(platform.OpListTargets),
+			Err: err,
+		}
+	}
 	return list, err
 }
 
 // AddTarget add a new scraper target into storage.
 func (c *Client) AddTarget(ctx context.Context, target *platform.ScraperTarget) (err error) {
-	return c.db.Update(func(tx *bolt.Tx) error {
+	err = c.db.Update(func(tx *bolt.Tx) error {
 		target.ID = c.IDGenerator.ID()
 		return c.putTarget(ctx, tx, target)
 	})
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  OpPrefix + platform.OpAddTarget,
+		}
+	}
+	return nil
 }
 
 // RemoveTarget removes a scraper target from the bucket.
 func (c *Client) RemoveTarget(ctx context.Context, id platform.ID) error {
-	return c.db.Update(func(tx *bolt.Tx) error {
-		_, err := c.findTargetByID(ctx, tx, id)
-		if err != nil {
-			return err
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		_, pe := c.findTargetByID(ctx, tx, id)
+		if pe != nil {
+			return pe
 		}
 		encID, err := id.Encode()
 		if err != nil {
-			return err
+			return &platform.Error{
+				Code: platform.EInvalid,
+				Err:  err,
+			}
 		}
 		return tx.Bucket(scraperBucket).Delete(encID)
 	})
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  OpPrefix + platform.OpRemoveTarget,
+		}
+	}
+	return nil
 }
 
 // UpdateTarget updates a scraper target.
 func (c *Client) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (target *platform.ScraperTarget, err error) {
+	op := getOp(platform.OpUpdateTarget)
+	var pe *platform.Error
 	if !update.ID.Valid() {
-		return nil, errors.New("update scraper: id is invalid")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   op,
+			Msg:  "id is invalid",
+		}
 	}
 	err = c.db.Update(func(tx *bolt.Tx) error {
-		target, err = c.findTargetByID(ctx, tx, update.ID)
-		if err != nil {
-			return err
+		target, pe = c.findTargetByID(ctx, tx, update.ID)
+		if pe != nil {
+			return pe
 		}
 		target = update
 		return c.putTarget(ctx, tx, target)
 	})
 
-	return target, err
+	if err != nil {
+		return nil, &platform.Error{
+			Op:  op,
+			Err: err,
+		}
+	}
+
+	return target, nil
 }
 
 // GetTargetByID retrieves a scraper target by id.
 func (c *Client) GetTargetByID(ctx context.Context, id platform.ID) (target *platform.ScraperTarget, err error) {
+	var pe *platform.Error
 	err = c.db.View(func(tx *bolt.Tx) error {
-		target, err = c.findTargetByID(ctx, tx, id)
-		return err
+		target, pe = c.findTargetByID(ctx, tx, id)
+		if pe != nil {
+			return &platform.Error{
+				Op:  getOp(platform.OpGetTargetByID),
+				Err: pe,
+			}
+		}
+		return nil
 	})
-	return target, err
-}
-
-func (c *Client) findTargetByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (target *platform.ScraperTarget, err error) {
-	target = new(platform.ScraperTarget)
-	encID, err := id.Encode()
 	if err != nil {
 		return nil, err
 	}
+	return target, nil
+}
+
+func (c *Client) findTargetByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (target *platform.ScraperTarget, pe *platform.Error) {
+	target = new(platform.ScraperTarget)
+	encID, err := id.Encode()
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+		}
+	}
 	v := tx.Bucket(scraperBucket).Get(encID)
 	if len(v) == 0 {
-		return nil, fmt.Errorf("scraper target is not found")
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "scraper target is not found",
+		}
 	}
 
 	if err := json.Unmarshal(v, target); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 	return target, nil
 }

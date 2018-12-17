@@ -10,7 +10,7 @@ import (
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initScraperService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, func()) {
+func initScraperService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, string, func()) {
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
@@ -26,11 +26,12 @@ func initScraperService(f platformtesting.TargetFields, t *testing.T) (platform.
 	handler.ScraperStorageService = svc
 	server := httptest.NewServer(handler)
 	client := ScraperService{
-		Addr: server.URL,
+		Addr:     server.URL,
+		OpPrefix: inmem.OpPrefix,
 	}
 	done := server.Close
 
-	return &client, done
+	return &client, inmem.OpPrefix, done
 }
 
 func TestScraperService(t *testing.T) {

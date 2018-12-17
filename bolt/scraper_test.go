@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/bolt"
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, func()) {
+func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, string, func()) {
 	c, closeFn, err := NewTestClient()
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
@@ -20,7 +21,7 @@ func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T)
 			t.Fatalf("failed to populate users")
 		}
 	}
-	return c, func() {
+	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, target := range f.Targets {
 			if err := c.RemoveTarget(ctx, target.ID); err != nil {
