@@ -36,6 +36,7 @@ class FetchAuthToken extends PureComponent<Props, State> {
 
     this.setState({loading: RemoteDataState.Loading})
     const authToken = await getAuthorizationToken(username)
+
     this.setState({authToken, loading: RemoteDataState.Done})
   }
 

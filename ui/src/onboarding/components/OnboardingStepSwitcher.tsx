@@ -19,7 +19,7 @@ import {
   setActiveTelegrafPlugin,
   addConfigValue,
   removeConfigValue,
-  createTelegrafConfigAsync,
+  createOrUpdateTelegrafConfigAsync,
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
   setPluginConfiguration,
@@ -42,7 +42,7 @@ interface Props {
   setupParams: SetupParams
   dataLoaders: DataLoadersState
   currentStepIndex: number
-  onSaveTelegrafConfig: typeof createTelegrafConfigAsync
+  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   onAddPluginBundle: typeof addPluginBundleWithPlugins
   onRemovePluginBundle: typeof removePluginBundleWithPlugins
   onSetConfigArrayValue: typeof setConfigArrayValue
@@ -100,7 +100,6 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
                 onSetPluginConfiguration={onSetPluginConfiguration}
                 onAddConfigValue={onAddConfigValue}
                 onRemoveConfigValue={onRemoveConfigValue}
-                onSaveTelegrafConfig={onSaveTelegrafConfig}
                 onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
                 onSetConfigArrayValue={onSetConfigArrayValue}
               />
@@ -109,12 +108,21 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
         )
       case 4:
         return (
-          <VerifyDataStep
-            {...onboardingStepProps}
-            {...dataLoaders}
-            onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
-            stepIndex={currentStepIndex}
-          />
+          <FetchAuthToken
+            bucket={_.get(setupParams, 'bucket', '')}
+            username={_.get(setupParams, 'username', '')}
+          >
+            {authToken => (
+              <VerifyDataStep
+                {...onboardingStepProps}
+                {...dataLoaders}
+                authToken={authToken}
+                onSaveTelegrafConfig={onSaveTelegrafConfig}
+                onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
+                stepIndex={currentStepIndex}
+              />
+            )}
+          </FetchAuthToken>
         )
       case 5:
         return <CompletionStep {...onboardingStepProps} />

@@ -28,14 +28,12 @@ interface Props {
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
   currentIndex: number
-  authToken: string
   onSetConfigArrayValue: typeof setConfigArrayValue
 }
 
 class PluginConfigSwitcher extends PureComponent<Props> {
   public render() {
     const {
-      authToken,
       onUpdateTelegrafPluginConfig,
       onSetPluginConfiguration,
       onAddConfigValue,
@@ -46,7 +44,6 @@ class PluginConfigSwitcher extends PureComponent<Props> {
     if (this.currentTelegrafPlugin) {
       return (
         <PluginConfigForm
-          authToken={authToken}
           telegrafPlugin={this.currentTelegrafPlugin}
           onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
           onSetPluginConfiguration={onSetPluginConfiguration}

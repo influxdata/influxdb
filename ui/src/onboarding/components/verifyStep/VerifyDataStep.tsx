@@ -13,7 +13,10 @@ import {
 import VerifyDataSwitcher from 'src/onboarding/components/verifyStep/VerifyDataSwitcher'
 
 // Actions
-import {setActiveTelegrafPlugin} from 'src/onboarding/actions/dataLoaders'
+import {
+  setActiveTelegrafPlugin,
+  createOrUpdateTelegrafConfigAsync,
+} from 'src/onboarding/actions/dataLoaders'
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
@@ -21,8 +24,11 @@ import {DataLoaderType, TelegrafPlugin} from 'src/types/v2/dataLoaders'
 
 export interface Props extends OnboardingStepProps {
   type: DataLoaderType
+  authToken: string
+  telegrafConfigID: string
   telegrafPlugins: TelegrafPlugin[]
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
+  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   stepIndex: number
 }
 
@@ -31,7 +37,10 @@ class VerifyDataStep extends PureComponent<Props> {
   public render() {
     const {
       setupParams,
+      telegrafConfigID,
+      authToken,
       type,
+      onSaveTelegrafConfig,
       onIncrementCurrentStepIndex,
       onSetStepStatus,
       stepIndex,
@@ -41,6 +50,9 @@ class VerifyDataStep extends PureComponent<Props> {
       <div className="onboarding-step">
         <VerifyDataSwitcher
           type={type}
+          telegrafConfigID={telegrafConfigID}
+          authToken={authToken}
+          onSaveTelegrafConfig={onSaveTelegrafConfig}
           org={_.get(setupParams, 'org', '')}
           username={_.get(setupParams, 'username', '')}
           bucket={_.get(setupParams, 'bucket', '')}
