@@ -12,6 +12,7 @@ var _ platform.LabelService = &LabelService{}
 type LabelService struct {
 	FindLabelsFn  func(context.Context, platform.LabelFilter) ([]*platform.Label, error)
 	CreateLabelFn func(context.Context, *platform.Label) error
+	UpdateLabelFn func(context.Context, *platform.Label, platform.LabelUpdate) (*platform.Label, error)
 	DeleteLabelFn func(context.Context, platform.Label) error
 }
 
@@ -23,6 +24,7 @@ func NewLabelService() *LabelService {
 			return nil, nil
 		},
 		CreateLabelFn: func(context.Context, *platform.Label) error { return nil },
+		UpdateLabelFn: func(context.Context, *platform.Label, platform.LabelUpdate) (*platform.Label, error) { return nil, nil },
 		DeleteLabelFn: func(context.Context, platform.Label) error { return nil },
 	}
 }
@@ -33,8 +35,13 @@ func (s *LabelService) FindLabels(ctx context.Context, filter platform.LabelFilt
 }
 
 // CreateLabel creates a new Label.
-func (s *LabelService) CreateLabel(ctx context.Context, m *platform.Label) error {
-	return s.CreateLabelFn(ctx, m)
+func (s *LabelService) CreateLabel(ctx context.Context, l *platform.Label) error {
+	return s.CreateLabelFn(ctx, l)
+}
+
+// UpdateLabel updates a label.
+func (s *LabelService) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+	return s.UpdateLabelFn(ctx, l, upd)
 }
 
 // DeleteLabel removes a Label.

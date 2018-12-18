@@ -92,6 +92,14 @@ func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
 	return nil
 }
 
+func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+	// label, err := s.UpdateLabel(ctx, l, upd)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	return nil, nil
+}
+
 func (s *Service) PutLabel(ctx context.Context, l *platform.Label) error {
 	s.labelKV.Store(encodeLabelKey(l.ResourceID, l.Name), *l)
 	return nil

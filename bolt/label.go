@@ -131,10 +131,61 @@ func (c *Client) uniqueLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 	return len(v) == 0
 }
 
+// UpdateLabel updates a label.
+func (c *Client) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+	var label *platform.Label
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		labelResponse, err := c.updateLabel(ctx, tx, l, upd)
+		if err != nil {
+			return err
+		}
+		label = labelResponse
+		return nil
+	})
+
+	return label, err
+}
+
+func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+	labels, err := c.findLabels(ctx, tx, platform.LabelFilter{Name: l.Name, ResourceID: l.ResourceID})
+	if err != nil {
+		return nil, err
+	}
+	if len(labels) > 1 {
+		return nil, &platform.Error{
+			Msg: "more than one label with the same name and resourceID",
+		}
+	}
+
+	if upd.Color != nil {
+		l.Color = *upd.Color
+	}
+
+	// TODO(jm): probably have to fix index here
+	if upd.Name != nil {
+		l.Name = *upd.Name
+	}
+
+	if err := l.Validate(); err != nil {
+		return nil, err
+	}
+
+	if err := c.putLabel(ctx, tx, l); err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}
+
+// set a label and overwrite any existing label
+func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) *platform.Error {
+	return nil
+}
+
 // DeleteLabel deletes a label.
 func (c *Client) DeleteLabel(ctx context.Context, l platform.Label) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.deleteLabel(ctx, tx, platform.LabelFilter(l))
+		return c.deleteLabel(ctx, tx, platform.LabelFilter{Name: l.Name, ResourceID: l.ResourceID})
 	})
 }
 

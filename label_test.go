@@ -44,7 +44,7 @@ func TestLabelValidate(t *testing.T) {
 			fields: fields{
 				ResourceID: platformtesting.MustIDBase16("020f755c3c082000"),
 				Name:       "iot",
-				Color:      "#ff0000",
+				Color:      "ff0000",
 			},
 		},
 		{

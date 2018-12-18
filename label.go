@@ -18,8 +18,8 @@ type LabelService interface {
 	// CreateLabel creates a new label
 	CreateLabel(ctx context.Context, l *Label) error
 
-	// UpdateLabel updates a label
-	UpdateLabel(ctx context.Context, l *)
+	// UpdateLabel updates a label with a changeset.
+	UpdateLabel(ctx context.Context, l *Label, upd LabelUpdate) (*Label, error)
 
 	// DeleteLabel deletes a label
 	DeleteLabel(ctx context.Context, l Label) error
@@ -46,6 +46,13 @@ func (l *Label) Validate() error {
 	}
 
 	return nil
+}
+
+// LabelUpdate represents a changeset for a label.
+// Only fields which are set are updated.
+type LabelUpdate struct {
+	Name  *string `json:"name,omitempty"`
+	Color *string `json:"color,omitempty"`
 }
 
 type LabelFilter struct {
