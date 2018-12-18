@@ -32,7 +32,7 @@ type LabelService struct {
 
 type labelResponse struct {
 	Links map[string]string `json:"links"`
-	Label string            `json:"label"`
+	Label plat.Label        `json:"label"`
 }
 
 // TODO: remove "dashboard" from this
@@ -41,37 +41,22 @@ func newLabelResponse(l *plat.Label) *labelResponse {
 		Links: map[string]string{
 			"resource": fmt.Sprintf("/api/v2/%ss/%s", "dashboard", l.ResourceID),
 		},
-		Label: l.Name,
+		Label: *l,
 	}
 }
 
 type labelsResponse struct {
 	Links  map[string]string `json:"links"`
-	Labels []string          `json:"labels"`
-}
-
-func (ls labelsResponse) ToPlatform() []*plat.Label {
-	labels := make([]*plat.Label, len(ls.Labels))
-	for i := range ls.Labels {
-		labels[i] = &plat.Label{
-			Name: ls.Labels[i],
-		}
-	}
-	return labels
+	Labels []labelResponse   `json:"labels"`
 }
 
 func newLabelsResponse(opts plat.FindOptions, f plat.LabelFilter, ls []*plat.Label) *labelsResponse {
-	var labels []string
-	for _, l := range ls {
-		labels = append(labels, l.Name)
-	}
-
 	// TODO: Remove "dashboard" from this
 	return &labelsResponse{
 		Links: map[string]string{
 			"resource": fmt.Sprintf("/api/v2/%ss/%s", "dashboard", f.ResourceID),
 		},
-		Labels: labels,
+		Labels: ls,
 	}
 }
 
@@ -330,8 +315,7 @@ func (s *LabelService) FindLabels(ctx context.Context, filter plat.LabelFilter, 
 		return nil, err
 	}
 
-	rs := r.ToPlatform()
-	return rs, nil
+	return r.Labels, nil
 }
 
 func (s *LabelService) CreateLabel(ctx context.Context, l *plat.Label) error {
