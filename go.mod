@@ -25,8 +25,8 @@ require (
 	github.com/campoy/unique v0.0.0-20180121183637-88950e537e7e // indirect
 	github.com/cenkalti/backoff v2.0.0+incompatible // indirect
 	github.com/cespare/xxhash v1.1.0
-	github.com/circonus-labs/circonus-gometrics v2.2.4+incompatible // indirect
-	github.com/circonus-labs/circonusllhist v0.1.1 // indirect
+	github.com/circonus-labs/circonus-gometrics v2.2.5+incompatible // indirect
+	github.com/circonus-labs/circonusllhist v0.1.3 // indirect
 	github.com/containerd/continuity v0.0.0-20181027224239-bea7585dbfac // indirect
 	github.com/coreos/bbolt v1.3.1-coreos.6
 	github.com/davecgh/go-spew v1.1.1
@@ -50,6 +50,7 @@ require (
 	github.com/gocql/gocql v0.0.0-20181117210152-33c0e89ca93a // indirect
 	github.com/gogo/protobuf v1.1.1
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
+	github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c
 	github.com/google/go-cmp v0.2.0
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/google/go-querystring v1.0.0 // indirect
@@ -91,7 +92,7 @@ require (
 	github.com/mattn/go-isatty v0.0.4
 	github.com/mattn/go-zglob v0.0.0-20180803001819-2ea3427bfa53 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
-	github.com/miekg/dns v1.0.15 // indirect
+	github.com/miekg/dns v1.1.1 // indirect
 	github.com/mitchellh/copystructure v1.0.0 // indirect
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
