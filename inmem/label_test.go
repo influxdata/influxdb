@@ -8,7 +8,7 @@ import (
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.LabelService, func()) {
+func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.LabelService, string, func()) {
 	s := NewService()
 	ctx := context.TODO()
 	for _, m := range f.Labels {
@@ -17,7 +17,7 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 		}
 	}
 
-	return s, func() {}
+	return s, OpPrefix, func() {}
 }
 
 func TestLabelService(t *testing.T) {

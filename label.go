@@ -9,6 +9,13 @@ import (
 // ErrLabelNotFound is the error for a missing Label.
 const ErrLabelNotFound = ChronografError("label not found")
 
+const (
+	OpFindLabels  = "FindLabels"
+	OpCreateLabel = "CreateLabel"
+	OpUpdateLabel = "UpdateLabel"
+	OpDeleteLabel = "DeleteLabel"
+)
+
 var colorPattern = regexp.MustCompile(`^([A-Fa-f0-9]{6})$`)
 
 type LabelService interface {

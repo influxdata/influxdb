@@ -73,7 +73,11 @@ func (c *Client) createLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 	unique := c.uniqueLabel(ctx, tx, l)
 
 	if !unique {
-		return fmt.Errorf("label %s already exists", l.Name)
+		return &platform.Error{
+			Code: platform.EConflict,
+			Op:   getOp(platform.OpCreateLabel),
+			Msg:  fmt.Sprintf("label %s already exists", l.Name),
+		}
 	}
 
 	v, err := json.Marshal(l)
@@ -167,7 +171,11 @@ func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 	}
 
 	if err := l.Validate(); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   OpPrefix + platform.OpUpdateLabel,
+			Msg:  err.Error(),
+		}
 	}
 
 	if err := c.putLabel(ctx, tx, l); err != nil {
@@ -195,7 +203,11 @@ func (c *Client) deleteLabel(ctx context.Context, tx *bolt.Tx, filter platform.L
 		return err
 	}
 	if len(ls) == 0 {
-		return platform.ErrLabelNotFound
+		return &platform.Error{
+			Code: platform.ENotFound,
+			Op:   getOp(platform.OpDeleteLabel),
+			Err:  platform.ErrLabelNotFound,
+		}
 	}
 
 	key, err := labelKey(ls[0])

@@ -3,7 +3,6 @@ package testing
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 
@@ -37,13 +36,13 @@ type LabelFields struct {
 }
 
 type labelServiceF func(
-	init func(LabelFields, *testing.T) (platform.LabelService, func()),
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
 	t *testing.T,
 )
 
 // LabelService tests all the service functions.
 func LabelService(
-	init func(LabelFields, *testing.T) (platform.LabelService, func()),
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
 	t *testing.T,
 ) {
 	tests := []struct {
@@ -75,7 +74,7 @@ func LabelService(
 }
 
 func CreateLabel(
-	init func(LabelFields, *testing.T) (platform.LabelService, func()),
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -144,26 +143,23 @@ func CreateLabel(
 						Name:       "Tag1",
 					},
 				},
-				err: fmt.Errorf("label Tag1 already exists"),
+				err: &platform.Error{
+					Code: platform.EConflict,
+					Op:   platform.OpCreateLabel,
+					Msg:  "label Tag1 already exists",
+				},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.CreateLabel(ctx, tt.args.label)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
 			defer s.DeleteLabel(ctx, *tt.args.label)
 
 			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
@@ -178,7 +174,7 @@ func CreateLabel(
 }
 
 func FindLabels(
-	init func(LabelFields, *testing.T) (platform.LabelService, func()),
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -262,19 +258,11 @@ func FindLabels(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			labels, err := s.FindLabels(ctx, tt.args.filter)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
 				t.Errorf("labels are different -got/+want\ndiff %s", diff)
@@ -284,7 +272,7 @@ func FindLabels(
 }
 
 func UpdateLabel(
-	init func(LabelFields, *testing.T) (platform.LabelService, func()),
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -328,10 +316,6 @@ func UpdateLabel(
 						Name:       "Tag1",
 						Color:      "fff000",
 					},
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag2",
-					},
 				},
 			},
 		},
@@ -359,12 +343,12 @@ func UpdateLabel(
 					{
 						ResourceID: MustIDBase16(bucketOneID),
 						Name:       "Tag1",
-						Color:      "fff000",
 					},
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag2",
-					},
+				},
+				err: &platform.Error{
+					Code: platform.EInvalid,
+					Op:   platform.OpUpdateLabel,
+					Msg:  "label color must be valid hex string",
 				},
 			},
 		},
@@ -372,19 +356,11 @@ func UpdateLabel(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			_, err := s.UpdateLabel(ctx, &tt.args.label, tt.args.update)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
 			if err != nil {
@@ -398,7 +374,7 @@ func UpdateLabel(
 }
 
 func DeleteLabel(
-	init func(LabelFields, *testing.T) (platform.LabelService, func()),
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -467,26 +443,21 @@ func DeleteLabel(
 						Name:       "Tag1",
 					},
 				},
-				err: platform.ErrLabelNotFound,
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpDeleteLabel,
+				},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.DeleteLabel(ctx, tt.args.label)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
 			if err != nil {
