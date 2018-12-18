@@ -11,20 +11,23 @@ import (
 	"github.com/influxdata/platform"
 )
 
+var (
+	validColor   = "fff000"
+	invalidColor = "xyz123"
+)
+
 var labelCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
 	cmp.Transformer("Sort", func(in []*platform.Label) []*platform.Label {
 		out := append([]*platform.Label(nil), in...) // Copy input to avoid mutating it
-		fmt.Printf("out: %v\n", out)
 		sort.Slice(out, func(i, j int) bool {
 			if out[i].Name != out[j].Name {
 				return out[i].Name < out[j].Name
 			}
 			return out[i].ResourceID.String() < out[j].ResourceID.String()
 		})
-		fmt.Printf("sorted out: %v\n", out)
 		return out
 	}),
 }
@@ -54,6 +57,10 @@ func LabelService(
 		{
 			name: "FindLabels",
 			fn:   FindLabels,
+		},
+		{
+			name: "UpdateLabel",
+			fn:   UpdateLabel,
 		},
 		{
 			name: "DeleteLabel",
@@ -269,6 +276,120 @@ func FindLabels(
 				}
 			}
 
+			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
+				t.Errorf("labels are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+func UpdateLabel(
+	init func(LabelFields, *testing.T) (platform.LabelService, func()),
+	t *testing.T,
+) {
+	type args struct {
+		label  platform.Label
+		update platform.LabelUpdate
+	}
+	type wants struct {
+		err    error
+		labels []*platform.Label
+	}
+
+	tests := []struct {
+		name   string
+		fields LabelFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "update label color",
+			fields: LabelFields{
+				Labels: []*platform.Label{
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag1",
+					},
+				},
+			},
+			args: args{
+				label: platform.Label{
+					ResourceID: MustIDBase16(bucketOneID),
+					Name:       "Tag1",
+				},
+				update: platform.LabelUpdate{
+					Color: &validColor,
+				},
+			},
+			wants: wants{
+				labels: []*platform.Label{
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag1",
+						Color:      "fff000",
+					},
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag2",
+					},
+				},
+			},
+		},
+		{
+			name: "invalid label color update",
+			fields: LabelFields{
+				Labels: []*platform.Label{
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag1",
+					},
+				},
+			},
+			args: args{
+				label: platform.Label{
+					ResourceID: MustIDBase16(bucketOneID),
+					Name:       "Tag1",
+				},
+				update: platform.LabelUpdate{
+					Color: &invalidColor,
+				},
+			},
+			wants: wants{
+				labels: []*platform.Label{
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag1",
+						Color:      "fff000",
+					},
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag2",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, done := init(tt.fields, t)
+			defer done()
+			ctx := context.TODO()
+			_, err := s.UpdateLabel(ctx, &tt.args.label, tt.args.update)
+			if (err != nil) != (tt.wants.err != nil) {
+				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
+			}
+
+			if err != nil && tt.wants.err != nil {
+				if err.Error() != tt.wants.err.Error() {
+					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
+				}
+			}
+
+			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
+			if err != nil {
+				t.Fatalf("failed to retrieve labels: %v", err)
+			}
 			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
 				t.Errorf("labels are different -got/+want\ndiff %s", diff)
 			}
