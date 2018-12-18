@@ -361,9 +361,9 @@ describe('dataLoader reducer', () => {
     const expected = {
       ...INITIAL_STATE,
       telegrafPlugins: [
-        redisTelegrafPlugin,
-        diskTelegrafPlugin,
         cpuTelegrafPlugin,
+        diskTelegrafPlugin,
+        redisTelegrafPlugin,
       ],
     }
 

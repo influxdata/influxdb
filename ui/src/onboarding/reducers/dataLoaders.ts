@@ -78,9 +78,12 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
     case 'ADD_TELEGRAF_PLUGINS':
       return {
         ...state,
-        telegrafPlugins: _.uniqBy(
-          [...state.telegrafPlugins, ...action.payload.telegrafPlugins],
-          'name'
+        telegrafPlugins: _.sortBy(
+          _.uniqBy(
+            [...state.telegrafPlugins, ...action.payload.telegrafPlugins],
+            'name'
+          ),
+          ['name']
         ),
       }
     case 'UPDATE_TELEGRAF_PLUGIN':
