@@ -1,9 +1,9 @@
 # List any generated files here
-TARGETS = meta.pb.go
+TARGETS =
 # List any source files used to generate the targets here
-SOURCES = meta.proto
+SOURCES =
 # List any directories that have their own Makefile here
-SUBDIRS =
+SUBDIRS = dist server canned
 
 # Default target
 all: $(SUBDIRS) $(TARGETS)

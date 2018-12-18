@@ -1,9 +1,9 @@
 # List any generated files here
-TARGETS = meta.pb.go
+TARGETS = ../ui/src/api/api.ts
 # List any source files used to generate the targets here
-SOURCES = meta.proto
+SOURCES = cur_swagger.yml
 # List any directories that have their own Makefile here
-SUBDIRS =
+SUBDIRS = 
 
 # Default target
 all: $(SUBDIRS) $(TARGETS)
@@ -16,11 +16,9 @@ $(SUBDIRS):
 clean: $(SUBDIRS)
 	rm -f $(TARGETS)
 
-# Define go generate if not already defined
-GO_GENERATE := go generate
-
-# Run go generate for the targets
-$(TARGETS): $(SOURCES)
-	$(GO_GENERATE) -x
+../ui/src/api/api.ts: $(SOURCES)
+	cat cur_swagger.yml | go run ../internal/yaml2json > openapi.json
+	openapi-generator generate -g typescript-axios -o ../ui/src/api -i openapi.json
+	rm openapi.json
 
 .PHONY: all clean $(SUBDIRS)

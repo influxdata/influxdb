@@ -8,10 +8,12 @@
 #    * All cmds must be added to this top level Makefile.
 #    * All binaries are placed in ./bin, its recommended to add this directory to your PATH.
 #    * Each package that has a need to run go generate, must have its own Makefile for that purpose.
-#    * All recursive Makefiles must support the all target
+#    * All recursive Makefiles must support the all and clean targets
 #
 
-SUBDIRS := query task
+# SUBDIRS are directories that have their own Makefile.
+# It is required that all subdirs have the `all` and `clean` targets.
+SUBDIRS := http ui query storage task
 
 GO_ARGS=-tags '$(GO_TAGS)'
 
@@ -55,10 +57,6 @@ all: node_modules subdirs ui generate $(CMDS)
 subdirs: $(SUBDIRS)
 	@for d in $^; do $(MAKE) -C $$d all; done
 
-
-ui:
-	$(MAKE) -C ui all
-
 #
 # Define targets for commands
 #
@@ -96,16 +94,10 @@ tidy:
 checktidy:
 	./etc/checktidy.sh
 
-chronograf/dist/dist_gen.go: ui/build $(UISOURCES)
-	 $(GO_GENERATE) ./chronograf/dist/...
+checkgenerate:
+	./etc/checkgenerate.sh
 
-chronograf/server/swagger_gen.go: chronograf/server/swagger.json
-	 $(GO_GENERATE) ./chronograf/server/...
-
-chronograf/canned/bin_gen.go: $(PRECANNED)
-	 $(GO_GENERATE) ./chronograf/canned/...
-
-generate: chronograf/dist/dist_gen.go chronograf/server/swagger_gen.go chronograf/canned/bin_gen.go
+generate: subdirs
 
 test-js: node_modules
 	make -C ui test
@@ -132,7 +124,7 @@ nightly: all
 	env GO111MODULE=on go run github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
 
 clean:
-	$(MAKE) -C ui $(MAKECMDGOALS)
+	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
 	rm -rf bin
 
 
@@ -153,10 +145,6 @@ chronogiraffe: subdirs generate $(CMDS)
 run: chronogiraffe
 	./bin/$(GOOS)/influxd --developer-mode=true
 
-generate-typescript-client:
-	cat http/cur_swagger.yml | go run ./internal/yaml2json > openapi.json
-	openapi-generator generate -g typescript-axios -o ui/src/api -i openapi.json
-	rm openapi.json
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) ui run fmt checkfmt tidy checktidy test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe
+.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe

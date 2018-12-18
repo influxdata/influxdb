@@ -1,7 +1,7 @@
 # List any generated files here
-TARGETS = meta.pb.go
+TARGETS = swagger_gen.go
 # List any source files used to generate the targets here
-SOURCES = meta.proto
+SOURCES = swagger.json
 # List any directories that have their own Makefile here
 SUBDIRS =
 

@@ -1,7 +1,12 @@
 # List any generated files here
-TARGETS = meta.pb.go
+TARGETS = predicate.pb.go \
+	storage_common.pb.go
+
 # List any source files used to generate the targets here
-SOURCES = meta.proto
+SOURCES = gen.go \
+	predicate.proto \
+	storage_common.proto
+
 # List any directories that have their own Makefile here
 SUBDIRS =
 
@@ -19,7 +24,6 @@ clean: $(SUBDIRS)
 # Define go generate if not already defined
 GO_GENERATE := go generate
 
-# Run go generate for the targets
 $(TARGETS): $(SOURCES)
 	$(GO_GENERATE) -x
 
