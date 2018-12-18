@@ -69,6 +69,7 @@ func NewTelegrafHandler(
 	h.HandlerFunc("GET", telegrafsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", telegrafsIDLabelsPath, newPostLabelHandler(h.LabelService))
 	h.HandlerFunc("DELETE", telegrafsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
+	h.HandlerFunc("PATCH", telegrafsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
 
 	return h
 }

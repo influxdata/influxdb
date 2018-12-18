@@ -74,6 +74,7 @@ func NewOrgHandler(mappingService platform.UserResourceMappingService,
 	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(h.LabelService))
 	h.HandlerFunc("DELETE", organizationsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
+	h.HandlerFunc("PATCH", organizationsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
 
 	return h
 }
