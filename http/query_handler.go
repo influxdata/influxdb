@@ -50,6 +50,7 @@ func NewFluxHandler() *FluxHandler {
 
 	h.HandlerFunc("POST", fluxPath, h.handlePostQuery)
 	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
+	h.HandlerFunc("POST", "/api/v2/query/analyze", h.postQueryAnalyze)
 	h.HandlerFunc("POST", "/api/v2/query/plan", h.postFluxPlan)
 	h.HandlerFunc("POST", "/api/v2/query/spec", h.postFluxSpec)
 	h.HandlerFunc("GET", "/api/v2/query/suggestions", h.getFluxSuggestions)
@@ -123,6 +124,27 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+// postQueryAnalyze parses a query and returns any query errors.
+func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req QueryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		EncodeError(ctx, errors.MalformedDataf("invalid json: %v", err), w)
+		return
+	}
+
+	a, err := req.Analyze()
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+	if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
