@@ -352,6 +352,28 @@ func UpdateLabel(
 				},
 			},
 		},
+		{
+			name: "updating a non-existent label",
+			fields: LabelFields{
+				Labels: []*platform.Label{},
+			},
+			args: args{
+				label: platform.Label{
+					ResourceID: MustIDBase16(bucketOneID),
+					Name:       "Tag1",
+				},
+				update: platform.LabelUpdate{
+					Color: &validColor,
+				},
+			},
+			wants: wants{
+				labels: []*platform.Label{},
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpUpdateLabel,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
