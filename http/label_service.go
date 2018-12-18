@@ -184,12 +184,18 @@ func decodePatchLabelRequest(ctx context.Context, r *http.Request) (*patchLabelR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing resource id")
+		return nil, &plat.Error{
+			Code: plat.EInvalid,
+			Msg:  "url missing resource id",
+		}
 	}
 
 	name := params.ByName("name")
 	if name == "" {
-		return nil, kerrors.InvalidDataf("label name is missing")
+		return nil, &plat.Error{
+			Code: plat.EInvalid,
+			Msg:  "label name is missing",
+		}
 	}
 
 	var rid plat.ID
@@ -266,12 +272,18 @@ func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabe
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing resource id")
+		return nil, &plat.Error{
+			Code: plat.EInvalid,
+			Msg:  "url missing resource id",
+		}
 	}
 
 	name := params.ByName("name")
 	if name == "" {
-		return nil, kerrors.InvalidDataf("label name is missing")
+		return nil, &plat.Error{
+			Code: plat.EInvalid,
+			Msg:  "label name is missing",
+		}
 	}
 
 	var rid plat.ID

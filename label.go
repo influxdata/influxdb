@@ -70,7 +70,7 @@ type LabelUpdate struct {
 }
 
 func (l *LabelUpdate) Validate() error {
-	if l.Color != "" && !colorPattern.MatchString(l.Color) {
+	if *l.Color != "" && !colorPattern.MatchString(*l.Color) {
 		return &Error{
 			Code: EInvalid,
 			Msg:  "label color must be valid hex string",
