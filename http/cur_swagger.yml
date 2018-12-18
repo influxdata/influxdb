@@ -3414,32 +3414,6 @@ components:
         query:
           description: flux query script to be analyzed
           type: string
-    PlanRequest:
-      description: flux query or specification to be planned. The spec and query fields are mutually exclusive.
-      type: object
-      properties:
-        query:
-          description: flux query script to be analyzed
-          type: string
-        spec:
-          $ref: "#/components/schemas/QuerySpecification"
-    PlanResponse:
-      description: flux query or specification to be planned.
-      type: object
-      required:
-        - query
-      properties:
-        spec:
-          $ref: "#/components/schemas/QuerySpecification"
-          readOnly: true
-        logical:
-          description: logical plan of the query.
-          readOnly: true
-          type: object #TODO(goller): document the logical plan format
-        physical:
-          description: physical plan of the query.
-          readOnly: true
-          type: object #TODO(goller): document the physical plan format
     Query:
       description: query influx with specified return formatting. The spec and query fields are mutually exclusive.
       type: object

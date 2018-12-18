@@ -1806,52 +1806,6 @@ export namespace Permission {
 }
 
 /**
- * flux query or specification to be planned. The spec and query fields are mutually exclusive.
- * @export
- * @interface PlanRequest
- */
-export interface PlanRequest {
-    /**
-     * flux query script to be analyzed
-     * @type {string}
-     * @memberof PlanRequest
-     */
-    query?: string;
-    /**
-     * 
-     * @type {QuerySpecification}
-     * @memberof PlanRequest
-     */
-    spec?: QuerySpecification;
-}
-
-/**
- * flux query or specification to be planned.
- * @export
- * @interface PlanResponse
- */
-export interface PlanResponse {
-    /**
-     * logical plan of the query.
-     * @type {any}
-     * @memberof PlanResponse
-     */
-    logical?: any;
-    /**
-     * physical plan of the query.
-     * @type {any}
-     * @memberof PlanResponse
-     */
-    physical?: any;
-    /**
-     * 
-     * @type {QuerySpecification}
-     * @memberof PlanResponse
-     */
-    spec?: QuerySpecification;
-}
-
-/**
  * query influx with specified return formatting. The spec and query fields are mutually exclusive.
  * @export
  * @interface Query
