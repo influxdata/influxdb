@@ -27,6 +27,21 @@ func filterLabelsFn(filter platform.LabelFilter) func(l *platform.Label) bool {
 	}
 }
 
+// func (c *Client) findLabel(ctx context.Context, tx *bolt.Tx, resourceID platform.ID, name string) (*platform.Label, error) {
+// 	key, err := labelKey(&platform.Label{ResourceID: resourceID, Name: name})
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	l := &platform.Label{}
+// 	v := tx.Bucket(labelBucket).Get(key)
+// 	if err := json.Unmarshal(v, l); err != nil {
+// 		return nil, err
+// 	}
+//
+// 	return l, nil
+// }
+
 // FindLabels returns a list of labels that match a filter.
 func (c *Client) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
 	ls := []*platform.Label{}
@@ -100,7 +115,10 @@ func (c *Client) createLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 func labelKey(l *platform.Label) ([]byte, error) {
 	encodedResourceID, err := l.ResourceID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 
 	key := make([]byte, len(encodedResourceID)+len(l.Name))
@@ -151,26 +169,30 @@ func (c *Client) UpdateLabel(ctx context.Context, l *platform.Label, upd platfor
 }
 
 func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
-	labels, err := c.findLabels(ctx, tx, platform.LabelFilter{Name: l.Name, ResourceID: l.ResourceID})
+	ls, err := c.findLabels(ctx, tx, platform.LabelFilter{Name: l.Name, ResourceID: l.ResourceID})
 	if err != nil {
 		return nil, err
 	}
-	if len(labels) > 1 {
+	if len(ls) == 0 {
 		return nil, &platform.Error{
-			Msg: "more than one label with the same name and resourceID",
+			Code: platform.ENotFound,
+			Op:   getOp(platform.OpUpdateLabel),
+			Err:  platform.ErrLabelNotFound,
 		}
 	}
 
+	label := ls[0]
+
 	if upd.Color != nil {
-		l.Color = *upd.Color
+		label.Color = *upd.Color
 	}
 
 	// TODO(jm): probably have to fix index here
 	if upd.Name != nil {
-		l.Name = *upd.Name
+		label.Name = *upd.Name
 	}
 
-	if err := l.Validate(); err != nil {
+	if err := label.Validate(); err != nil {
 		return nil, &platform.Error{
 			Code: platform.EInvalid,
 			Op:   OpPrefix + platform.OpUpdateLabel,
@@ -178,15 +200,33 @@ func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 		}
 	}
 
-	if err := c.putLabel(ctx, tx, l); err != nil {
+	if err := c.putLabel(ctx, tx, label); err != nil {
 		return nil, err
 	}
 
-	return l, nil
+	return label, nil
 }
 
 // set a label and overwrite any existing label
-func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) *platform.Error {
+func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) error {
+	v, err := json.Marshal(l)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	key, pe := labelKey(l)
+	if pe != nil {
+		return pe
+	}
+
+	if err := tx.Bucket(labelBucket).Put(key, v); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
 	return nil
 }
 
