@@ -1,10 +1,12 @@
 import React, {ChangeEvent, KeyboardEvent, PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import './InputClickToEdit.scss'
 
 interface Props {
   wrapperClass: string
   value?: string
   onChange?: (value: string) => void
+  onKeyDown?: (value: string) => void
   onBlur: (value: string) => void
   disabled?: boolean
   tabIndex?: number
@@ -67,16 +69,18 @@ class InputClickToEdit extends PureComponent<Props, State> {
   }
 
   public handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    const {onBlur, value} = this.props
-    if (e.key === 'Enter') {
-      if (value !== e.currentTarget.value) {
-        onBlur(e.currentTarget.value)
-      }
+    const {onKeyDown, value} = this.props
+    if (onKeyDown) {
+      if (e.key === 'Enter') {
+        if (value !== e.currentTarget.value) {
+          onKeyDown(e.currentTarget.value)
+        }
 
-      this.setState({
-        initialValue: e.currentTarget.value,
-        isEditing: false,
-      })
+        this.setState({
+          initialValue: e.currentTarget.value,
+          isEditing: false,
+        })
+      }
     }
     if (e.key === 'Escape') {
       this.handleCancel()
@@ -138,7 +142,7 @@ class InputClickToEdit extends PureComponent<Props, State> {
             onFocus={this.handleInputClick}
             tabIndex={tabIndex}
           >
-            {value || placeholder}
+            <span className="input-cte-span">{value || placeholder}</span>
             {appearAsNormalInput || (
               <span data-test="icon" className="icon pencil" />
             )}

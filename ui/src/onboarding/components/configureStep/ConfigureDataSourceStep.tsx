@@ -21,6 +21,7 @@ import {
   addConfigValue,
   removeConfigValue,
   createTelegrafConfigAsync,
+  setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Constants
@@ -48,6 +49,7 @@ export interface OwnProps extends OnboardingStepProps {
   onRemoveConfigValue: typeof removeConfigValue
   onSaveTelegrafConfig: typeof createTelegrafConfigAsync
   authToken: string
+  onSetConfigArrayValue: typeof setConfigArrayValue
 }
 
 interface RouterProps {
@@ -87,6 +89,7 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       onSetPluginConfiguration,
       onAddConfigValue,
       onRemoveConfigValue,
+      onSetConfigArrayValue,
     } = this.props
 
     return (
@@ -103,6 +106,7 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
           dataLoaderType={type}
           currentIndex={+substepID}
           authToken={authToken}
+          onSetConfigArrayValue={onSetConfigArrayValue}
         />
         <div className="wizard-button-container">
           <div className="wizard-button-bar">

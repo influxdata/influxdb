@@ -8,7 +8,10 @@ import URIFormElement from 'src/shared/components/URIFormElement'
 import ArrayFormElement from 'src/onboarding/components/configureStep/streaming/ArrayFormElement'
 
 // Types
-import {ConfigFieldType} from 'src/types/v2/dataLoaders'
+import {ConfigFieldType, TelegrafPluginName} from 'src/types/v2/dataLoaders'
+
+// Actions
+import {setConfigArrayValue} from 'src/onboarding/actions/dataLoaders'
 
 interface Props {
   fieldName: string
@@ -19,11 +22,20 @@ interface Props {
   removeTagValue: (item: string, fieldName: string) => void
   value: string | string[]
   isRequired: boolean
+  onSetConfigArrayValue: typeof setConfigArrayValue
+  telegrafPluginName: TelegrafPluginName
 }
 
 class ConfigFieldSwitcher extends PureComponent<Props> {
   public render() {
-    const {fieldType, fieldName, onChange, value} = this.props
+    const {
+      fieldType,
+      fieldName,
+      onChange,
+      value,
+      onSetConfigArrayValue,
+      telegrafPluginName,
+    } = this.props
 
     switch (fieldType) {
       case ConfigFieldType.Uri:
@@ -47,6 +59,8 @@ class ConfigFieldSwitcher extends PureComponent<Props> {
             autoFocus={this.autoFocus}
             value={value as string[]}
             helpText={this.optionalText}
+            onSetConfigArrayValue={onSetConfigArrayValue}
+            telegrafPluginName={telegrafPluginName}
           />
         )
       case ConfigFieldType.String:

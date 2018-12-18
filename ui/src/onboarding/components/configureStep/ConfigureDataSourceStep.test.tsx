@@ -37,6 +37,7 @@ const setup = (override = {}) => {
     location: null,
     router: null,
     routes: [],
+    onSetConfigArrayValue: jest.fn(),
     ...override,
   }
 
