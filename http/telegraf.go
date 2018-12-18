@@ -129,9 +129,6 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 	}
 	tcs, _, err := h.TelegrafService.FindTelegrafConfigs(ctx, *filter)
 	if err != nil {
-		if err == platform.ErrViewNotFound {
-			err = errors.New(err.Error(), errors.NotFound)
-		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -150,9 +147,6 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 	}
 	tc, err := h.TelegrafService.FindTelegrafConfigByID(ctx, id)
 	if err != nil {
-		if err == platform.ErrViewNotFound {
-			err = errors.New(err.Error(), errors.NotFound)
-		}
 		EncodeError(ctx, err, w)
 		return
 	}

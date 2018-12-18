@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/bolt"
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initViewService(f platformtesting.ViewFields, t *testing.T) (platform.ViewService, func()) {
+func initViewService(f platformtesting.ViewFields, t *testing.T) (platform.ViewService, string, func()) {
 	c, closeFn, err := NewTestClient()
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
@@ -20,7 +21,7 @@ func initViewService(f platformtesting.ViewFields, t *testing.T) (platform.ViewS
 			t.Fatalf("failed to populate cells")
 		}
 	}
-	return c, func() {
+	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, b := range f.Views {
 			if err := c.DeleteView(ctx, b.ID); err != nil {

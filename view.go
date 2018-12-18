@@ -9,6 +9,15 @@ import (
 // ErrViewNotFound is the error msg for a missing View.
 const ErrViewNotFound = "view not found"
 
+// ops for view.
+const (
+	OpFindViewByID = "FindViewByID"
+	OpFindViews    = "FindViews"
+	OpCreateView   = "CreateView"
+	OpUpdateView   = "UpdateView"
+	OpDeleteView   = "DeleteView"
+)
+
 // ViewService represents a service for managing View data.
 type ViewService interface {
 	// FindViewByID returns a single View by ID.
