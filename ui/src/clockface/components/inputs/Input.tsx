@@ -53,7 +53,6 @@ interface Props {
 
 class Input extends Component<Props> {
   public static defaultProps: Partial<Props> = {
-    id: '',
     name: '',
     value: '',
     placeholder: '',

@@ -56,7 +56,6 @@ class MultipleInput extends PureComponent<Props, State> {
         <Input
           placeholder={`Type and hit 'Enter' to add to list of ${title}`}
           autocomplete={AutoComplete.Off}
-          id={this.id}
           type={InputType.Text}
           onKeyDown={this.handleKeyDown}
           autoFocus={autoFocus || false}
