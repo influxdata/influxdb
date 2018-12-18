@@ -8459,6 +8459,39 @@ export const OrganizationsApiAxiosParamCreator = function (configuration?: Confi
         },
         /**
          * 
+         * @summary delete an organization
+         * @param {string} orgID ID of organization to get
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        orgsOrgIDDelete(orgID: string, options: any = {}): RequestArgs {
+            // verify required parameter 'orgID' is not null or undefined
+            if (orgID === null || orgID === undefined) {
+                throw new RequiredError('orgID','Required parameter orgID was null or undefined when calling orgsOrgIDDelete.');
+            }
+            const localVarPath = `/orgs/{orgID}`
+                .replace(`{${"orgID"}}`, encodeURIComponent(String(orgID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'DELETE' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary Retrieve an organization
          * @param {string} orgID ID of organization to get
          * @param {*} [options] Override http request option.
@@ -8820,6 +8853,20 @@ export const OrganizationsApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary delete an organization
+         * @param {string} orgID ID of organization to get
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        orgsOrgIDDelete(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+            const localVarAxiosArgs = OrganizationsApiAxiosParamCreator(configuration).orgsOrgIDDelete(orgID, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary Retrieve an organization
          * @param {string} orgID ID of organization to get
          * @param {*} [options] Override http request option.
@@ -8969,6 +9016,16 @@ export const OrganizationsApiFactory = function (configuration?: Configuration, 
         },
         /**
          * 
+         * @summary delete an organization
+         * @param {string} orgID ID of organization to get
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        orgsOrgIDDelete(orgID: string, options?: any) {
+            return OrganizationsApiFp(configuration).orgsOrgIDDelete(orgID, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary Retrieve an organization
          * @param {string} orgID ID of organization to get
          * @param {*} [options] Override http request option.
@@ -9081,6 +9138,18 @@ export class OrganizationsApi extends BaseAPI {
      */
     public orgsGet(options?: any) {
         return OrganizationsApiFp(this.configuration).orgsGet(options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary delete an organization
+     * @param {string} orgID ID of organization to get
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof OrganizationsApi
+     */
+    public orgsOrgIDDelete(orgID: string, options?: any) {
+        return OrganizationsApiFp(this.configuration).orgsOrgIDDelete(orgID, options)(this.axios, this.basePath);
     }
 
     /**

@@ -1786,175 +1786,176 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /query:
-   get:
-    tags:
-      - Query
-    summary: query influx with specified return formatting. The spec and query fields are mutually exclusive.
-    parameters:
-      - in: query
-        name: org
-        description: specifies the organization of the resource
-        required: true
-        schema:
-          type: string
-      - in: query
-        name: query
-        description: query script to execute.
-        required: true
-        schema:
-          type: string
-      - in: header
-        name: Authorization
-        description: the authorization header should be in the format of `Token <key>`
-        schema:
-          type: string
-    responses:
-        '200':
-          description: query results
+    get:
+      tags:
+        - Query
+      summary: query influx with specified return formatting. The spec and query fields are mutually exclusive.
+      parameters:
+        - in: query
+          name: org
+          description: specifies the organization of the resource
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: query
+          description: query script to execute.
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          schema:
+            type: string
+      responses:
+          '200':
+            description: query results
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    result,table,_start,_stop,_time,region,host,_value
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
+          '400':
+            description: error processing query
+            headers:
+              X-Influx-Error:
+                description: error string describing the problem
+                schema:
+                  type: string
+              X-Influx-Reference:
+                description: reference code unique to the error type
+                schema:
+                  type: integer
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    error,reference
+                    Failed to parse query,897
+          default:
+            description: internal server error
+            headers:
+              X-Influx-Error:
+                description: error string describing the problem
+                schema:
+                  type: string
+              X-Influx-Reference:
+                description: reference code unique to the error type
+                schema:
+                  type: integer
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    error,reference
+                    Failed to parse query,897
+    post:
+      tags:
+        - Query
+      summary: query an influx
+      parameters:
+        - in: header
+          name: Accept
+          description: specifies the return content format. Each response content type will have its own dialect options.
+          schema:
+            type: string
+            description: return format of either CSV or Arrow buffers
+            default: text/csv
+            enum:
+              - text/csv
+              - application/vnd.influx.arrow
+        - in: header
+          name: Content-Type
+          schema:
+            type: string
+            enum:
+              - application/json
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          schema:
+            type: string
+        - in: query
+          name: org
+          description: specifies the name of the organization executing the query.
+          schema:
+            type: string
+      requestBody:
+          description: flux query or specification to execute
           content:
-            text/csv:
+            application/json:
               schema:
-                type: string
-                example: >
-                  result,table,_start,_stop,_time,region,host,_value
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
-        '400':
-          description: error processing query
-          headers:
-            X-Influx-Error:
-              description: error string describing the problem
-              schema:
-                type: string
-            X-Influx-Reference:
-              description: reference code unique to the error type
-              schema:
-                type: integer
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  error,reference
-                  Failed to parse query,897
-        default:
-          description: internal server error
-          headers:
-            X-Influx-Error:
-              description: error string describing the problem
-              schema:
-                type: string
-            X-Influx-Reference:
-              description: reference code unique to the error type
-              schema:
-                type: integer
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  error,reference
-                  Failed to parse query,897
-   post:
-    tags:
-      - Query
-    summary: query an influx
-    parameters:
-      - in: header
-        name: Accept
-        description: specifies the return content format. Each response content type will have its own dialect options.
-        schema:
-          type: string
-          description: return format of either CSV or Arrow buffers
-          default: text/csv
-          enum:
-            - text/csv
-            - application/vnd.influx.arrow
-      - in: header
-        name: Content-Type
-        schema:
-          type: string
-          enum:
-            - application/json
-      - in: header
-        name: Authorization
-        description: the authorization header should be in the format of `Token <key>`
-        schema:
-          type: string
-      - in: query
-        name: org
-        description: specifies the name of the organization executing the query.
-        schema:
-          type: string
-    requestBody:
-        description: flux query or specification to execute
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Query"
-    responses:
-        '200':
-          description: query results
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  result,table,_start,_stop,_time,region,host,_value
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
-            application/vnd.influx.arrow:
-              schema:
-                type: string
-                format: binary
-        '400':
-          description: error processing query
-          headers:
-            X-Influx-Error:
-              description: error string describing the problem
-              schema:
-                type: string
-            X-Influx-Reference:
-              description: reference code unique to the error type
-              schema:
-                type: integer
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  error,reference
-                  Failed to parse query,897
-            application/vnd.influx.arrow:
-              schema:
+                $ref: "#/components/schemas/Query"
+      responses:
+          '200':
+            description: query results
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    result,table,_start,_stop,_time,region,host,_value
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
+              application/vnd.influx.arrow:
+                schema:
                   type: string
                   format: binary
-        default:
-          description: internal server error
-          headers:
-            X-Influx-Error:
-              description: error string describing the problem
-              schema:
-                type: string
-            X-Influx-Reference:
-              description: reference code unique to the error type
-              schema:
-                type: integer
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  error,reference
-                  Failed to parse query,897
-            application/vnd.influx.arrow:
-              schema:
+          '400':
+            description: error processing query
+            headers:
+              X-Influx-Error:
+                description: error string describing the problem
+                schema:
                   type: string
-                  format: binary
+              X-Influx-Reference:
+                description: reference code unique to the error type
+                schema:
+                  type: integer
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    error,reference
+                    Failed to parse query,897
+              application/vnd.influx.arrow:
+                schema:
+                    type: string
+                    format: binary
+          default:
+            description: internal server error
+            headers:
+              X-Influx-Error:
+                description: error string describing the problem
+                schema:
+                  type: string
+              X-Influx-Reference:
+                description: reference code unique to the error type
+                schema:
+                  type: integer
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    error,reference
+                    Failed to parse query,897
+              application/vnd.influx.arrow:
+                schema:
+                    type: string
+                    format: binary
   /buckets:
     get:
+      x-generated: true
       tags:
         - Buckets
       summary: List all buckets
@@ -1979,6 +1980,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      x-generated: true
       tags:
         - Buckets
       summary: Create a bucket
@@ -2011,6 +2013,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}':
     get:
+      x-generated: true
       tags:
         - Buckets
       summary: Retrieve a bucket
@@ -2035,6 +2038,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      x-generated: true
       tags:
         - Buckets
       summary: Update a bucket
@@ -2239,6 +2243,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /orgs:
     get:
+      x-generated: true
       tags:
         - Organizations
       summary: List all organizations
@@ -2256,6 +2261,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      x-generated: true
       tags:
         - Organizations
       summary: Create an organization
@@ -2281,6 +2287,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}':
     get:
+      x-generated: true
       tags:
         - Organizations
       summary: Retrieve an organization
@@ -2305,6 +2312,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      x-generated: true
       tags:
         - Organizations
       summary: Update an organization
@@ -2329,6 +2337,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Organization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      x-generated: true
+      tags:
+        - Organizations
+      summary: delete an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of organization to get
+      responses:
+        '200':
+          description: organization deleted
         default:
           description: unexpected error
           content:

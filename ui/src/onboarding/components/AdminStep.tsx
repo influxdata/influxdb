@@ -262,7 +262,6 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
 
   private handleNext = async () => {
     const {
-      links,
       onSetStepStatus,
       currentStepIndex,
       handleSetSetupParams,
@@ -286,7 +285,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     }
 
     try {
-      await setSetupParams(links.setup, setupParams)
+      await setSetupParams(setupParams)
       await signin({username, password})
       notify(copy.SetupSuccess)
       handleSetSetupParams(setupParams)

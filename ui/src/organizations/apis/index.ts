@@ -1,5 +1,4 @@
 // Libraries
-import AJAX from 'src/utils/ajax'
 import _ from 'lodash'
 
 import {orgsAPI, bucketsAPI, dashboardsAPI, taskAPI} from 'src/utils/api'
@@ -27,12 +26,9 @@ export const createOrg = async (org: Organization): Promise<Organization> => {
   }
 }
 
-export const deleteOrg = async (url: string): Promise<void> => {
+export const deleteOrg = async (org: Organization): Promise<void> => {
   try {
-    await AJAX({
-      url,
-      method: 'DELETE',
-    })
+    await orgsAPI.orgsOrgIDDelete(org.id)
   } catch (error) {
     console.error('Could not delete org', error)
     throw error
@@ -75,15 +71,11 @@ export const getBuckets = async (org: Organization): Promise<Bucket[]> => {
 }
 
 export const createBucket = async (
-  url: string,
-  bucket: Partial<Bucket>
+  org: Organization,
+  bucket: Bucket
 ): Promise<Bucket> => {
   try {
-    const {data} = await AJAX({
-      method: 'POST',
-      url,
-      data: bucket,
-    })
+    const {data} = await bucketsAPI.bucketsPost(org.name, bucket)
 
     return data
   } catch (error) {
@@ -94,11 +86,7 @@ export const createBucket = async (
 
 export const updateBucket = async (bucket: Bucket): Promise<Bucket> => {
   try {
-    const {data} = await AJAX({
-      url: bucket.links.self,
-      method: 'PATCH',
-      data: bucket,
-    })
+    const {data} = await bucketsAPI.bucketsBucketIDPatch(bucket.id, bucket)
 
     return data
   } catch (error) {

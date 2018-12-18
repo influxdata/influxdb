@@ -1,6 +1,5 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 // APIs
 import {trySources} from 'src/onboarding/apis'
@@ -12,7 +11,6 @@ import Notifications from 'src/shared/components/notifications/Notifications'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Links} from 'src/types/v2/links'
 
 interface State {
   loading: RemoteDataState
@@ -20,7 +18,6 @@ interface State {
 }
 
 interface Props {
-  links: Links
   children: ReactElement<any>
 }
 
@@ -36,8 +33,7 @@ export class Signin extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {links} = this.props
-    const isSourcesAllowed = await trySources(links.sources)
+    const isSourcesAllowed = await trySources()
     const isUserSignedIn = isSourcesAllowed
     this.setState({loading: RemoteDataState.Done, isUserSignedIn})
   }
@@ -73,8 +69,4 @@ export class Signin extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({links}) => ({
-  links,
-})
-
-export default connect(mstp)(Signin)
+export default Signin

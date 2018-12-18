@@ -5,11 +5,11 @@ import React, {Component} from 'react'
 import {Button, ComponentColor, ComponentSize} from 'src/clockface'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/api'
 
 interface Props {
   org: Organization
-  onDeleteOrg: (link: string) => void
+  onDeleteOrg: (org: Organization) => void
 }
 
 class DeleteOrgButton extends Component<Props> {
@@ -26,7 +26,7 @@ class DeleteOrgButton extends Component<Props> {
 
   private handleDeleteOrg = () => {
     const {org, onDeleteOrg} = this.props
-    onDeleteOrg(org.links.self)
+    onDeleteOrg(org)
   }
 }
 

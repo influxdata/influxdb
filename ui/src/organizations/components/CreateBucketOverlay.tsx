@@ -14,10 +14,9 @@ import BucketOverlayForm from 'src/organizations/components/BucketOverlayForm'
 import {Bucket, BucketRetentionRules, Organization} from 'src/api'
 
 interface Props {
-  link: string
   org: Organization
   onCloseModal: () => void
-  onCreateBucket: (link: string, bucket: Partial<Bucket>) => Promise<void>
+  onCreateBucket: (org: Organization, bucket: Partial<Bucket>) => Promise<void>
 }
 
 interface State {
@@ -106,7 +105,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
   }
 
   private handleCreateBucket = (): void => {
-    const {link, onCreateBucket, org} = this.props
+    const {onCreateBucket, org} = this.props
     const organizationID = org.id
     const organization = org.name
 
@@ -116,7 +115,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
       organization,
     }
 
-    onCreateBucket(link, bucket)
+    onCreateBucket(org, bucket)
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {

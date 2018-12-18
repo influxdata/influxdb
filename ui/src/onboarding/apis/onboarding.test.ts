@@ -7,12 +7,13 @@ import {
   getAuthorizationToken,
 } from 'src/onboarding/apis'
 
-import AJAX from 'src/utils/ajax'
-
 import {telegrafConfig, token} from 'mocks/dummyData'
-import {telegrafsAPI, authorizationsAPI} from 'src/onboarding/apis/mocks'
+import {
+  telegrafsAPI,
+  authorizationsAPI,
+  setupAPI,
+} from 'src/onboarding/apis/mocks'
 
-jest.mock('src/utils/ajax', () => require('mocks/utils/ajax'))
 jest.mock('src/utils/api', () => require('src/onboarding/apis/mocks'))
 
 describe('Onboarding.Apis', () => {
@@ -22,30 +23,21 @@ describe('Onboarding.Apis', () => {
 
   describe('getSetupStatus', () => {
     it('is called with the expected body', () => {
-      const url = '/api/v2/setup'
-      getSetupStatus(url)
-      expect(AJAX).toHaveBeenCalledWith({
-        method: 'GET',
-        url,
-      })
+      getSetupStatus()
+      expect(setupAPI.setupGet).toHaveBeenCalled()
     })
   })
 
   describe('setSetupParams', () => {
     it('is called with the expected body', () => {
-      const url = '/api/v2/setup'
       const setupParams: SetupParams = {
         username: 'moo',
         password: 'pwoo',
         bucket: 'boo',
         org: 'ooo',
       }
-      setSetupParams(url, setupParams)
-      expect(AJAX).toHaveBeenCalledWith({
-        method: 'POST',
-        url,
-        data: setupParams,
-      })
+      setSetupParams(setupParams)
+      expect(setupAPI.setupPost).toHaveBeenCalledWith(setupParams)
     })
   })
 
