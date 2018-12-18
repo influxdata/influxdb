@@ -114,7 +114,7 @@ func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platfo
 		return nil, &platform.Error{
 			Code: platform.EInvalid,
 			Op:   OpPrefix + platform.OpUpdateLabel,
-			Msg:  err.Error(),
+			Err:  err,
 		}
 	}
 

@@ -157,9 +157,12 @@ func (c *Client) uniqueLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 func (c *Client) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
 	var label *platform.Label
 	err := c.db.Update(func(tx *bolt.Tx) error {
-		labelResponse, err := c.updateLabel(ctx, tx, l, upd)
-		if err != nil {
-			return err
+		labelResponse, pe := c.updateLabel(ctx, tx, l, upd)
+		if pe != nil {
+			return &platform.Error{
+				Err: pe,
+				Op:  getOp(platform.OpUpdateLabel),
+			}
 		}
 		label = labelResponse
 		return nil
@@ -176,7 +179,6 @@ func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 	if len(ls) == 0 {
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
-			Op:   getOp(platform.OpUpdateLabel),
 			Err:  platform.ErrLabelNotFound,
 		}
 	}
@@ -190,13 +192,14 @@ func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 	if err := label.Validate(); err != nil {
 		return nil, &platform.Error{
 			Code: platform.EInvalid,
-			Op:   OpPrefix + platform.OpUpdateLabel,
-			Msg:  err.Error(),
+			Err:  err,
 		}
 	}
 
 	if err := c.putLabel(ctx, tx, label); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	return label, nil
