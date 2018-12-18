@@ -320,6 +320,44 @@ func UpdateLabel(
 			},
 		},
 		{
+			name: "label update proliferation",
+			fields: LabelFields{
+				Labels: []*platform.Label{
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag1",
+					},
+					{
+						ResourceID: MustIDBase16(bucketTwoID),
+						Name:       "Tag1",
+					},
+				},
+			},
+			args: args{
+				label: platform.Label{
+					ResourceID: MustIDBase16(bucketOneID),
+					Name:       "Tag1",
+				},
+				update: platform.LabelUpdate{
+					Color: &validColor,
+				},
+			},
+			wants: wants{
+				labels: []*platform.Label{
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag1",
+						Color:      "fff000",
+					},
+					{
+						ResourceID: MustIDBase16(bucketTwoID),
+						Name:       "Tag1",
+						Color:      "fff000",
+					},
+				},
+			},
+		},
+		{
 			name: "invalid label color update",
 			fields: LabelFields{
 				Labels: []*platform.Label{
