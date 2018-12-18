@@ -6,6 +6,8 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/query/functions/inputs/storage"
 	"github.com/pkg/errors"
 )
@@ -55,6 +57,16 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 		return nil, errors.New("no database")
 	}
 
+	if deps.AuthEnabled {
+		user := meta.UserFromContext(a.Context())
+		if user == nil {
+			return nil, errors.New("createFromSource: no user")
+		}
+		if err := deps.Authorizer.AuthorizeDatabase(user, influxql.ReadPrivilege, db); err != nil {
+			return nil, err
+		}
+	}
+
 	if rp == "" {
 		rp = di.DefaultRetentionPolicy
 	}
@@ -85,14 +97,23 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 	), nil
 }
 
+type Authorizer interface {
+	AuthorizeDatabase(u meta.User, priv influxql.Privilege, database string) error
+}
+
 type Dependencies struct {
-	Reader     storage.Reader
-	MetaClient MetaClient
+	Reader      storage.Reader
+	MetaClient  MetaClient
+	Authorizer  Authorizer
+	AuthEnabled bool
 }
 
 func (d Dependencies) Validate() error {
 	if d.Reader == nil {
 		return errors.New("missing reader dependency")
+	}
+	if d.AuthEnabled && d.Authorizer == nil {
+		return errors.New("validate Dependencies: missing Authorizer")
 	}
 	return nil
 }
