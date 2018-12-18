@@ -58,6 +58,7 @@ func NewViewHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("GET", viewsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", viewsIDLabelsPath, newPostLabelHandler(h.LabelService))
 	h.HandlerFunc("DELETE", viewsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
+	h.HandlerFunc("PATCH", viewsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
 
 	return h
 }

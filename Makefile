@@ -154,7 +154,7 @@ run: chronogiraffe
 	./bin/$(GOOS)/influxd --developer-mode=true
 
 generate-typescript-client:
-	cat http/cur_swagger.yml | yq read -j - > openapi.json
+	cat http/cur_swagger.yml | go run ./internal/yaml2json > openapi.json
 	openapi-generator generate -g typescript-axios -o ui/src/api -i openapi.json
 	rm openapi.json
 

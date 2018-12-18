@@ -162,7 +162,6 @@ export enum Precision {
   Milliseconds = 'Milliseconds',
   Seconds = 'Seconds',
   Microseconds = 'Microseconds',
-  U = 'U',
   Nanoseconds = 'Nanoseconds',
 }
 

@@ -9,8 +9,7 @@ import {oneline} from 'src/logs/utils/helpers/formatting'
 
 import {QueryConfig} from 'src/types'
 import {Filter, LogQuery} from 'src/types/logs'
-import {InfluxLanguage} from 'src/types/v2'
-import {Source} from 'src/api'
+import {Source, Query} from 'src/api'
 
 describe('Logs.LogQuery', () => {
   let config: QueryConfig
@@ -57,7 +56,7 @@ describe('Logs.LogQuery', () => {
   })
 
   it('can build a flux query', () => {
-    const actual = buildLogQuery(InfluxLanguage.Flux, {
+    const actual = buildLogQuery(Query.TypeEnum.Flux, {
       lower,
       upper,
       config,
@@ -86,7 +85,7 @@ describe('Logs.LogQuery', () => {
 
   it('can build an influxql query', () => {
     filters = [{key: 'severity', operator: '==', value: 'notice', id: '1'}]
-    const actual = buildLogQuery(InfluxLanguage.InfluxQL, {
+    const actual = buildLogQuery(Query.TypeEnum.Influxql, {
       lower,
       upper,
       config,

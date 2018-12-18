@@ -4,7 +4,7 @@ import {AxiosResponse} from 'axios'
 
 export const getAuthorizations = async (): Promise<Authorization[]> => {
   const {data} = await authorizationsAPI.authorizationsGet()
-  return data.auths
+  return data.authorizations
 }
 
 export const deleteAuthorization = async (

@@ -212,9 +212,7 @@ paths:
                 type: object
                 properties:
                   labels:
-                    type: array
-                    items:
-                      type: string
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -253,9 +251,7 @@ paths:
                 type: object
                 properties:
                   labels:
-                    type: array
-                    items:
-                      type: string
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -285,6 +281,45 @@ paths:
       responses:
         '204':
           description: delete has been accepted
+        '404':
+          description: telegraf config not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Telegrafs
+      summary: update a label from a telegraf config
+      parameters:
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+        - in: path
+          name: label
+          schema:
+            type: string
+          required: true
+          description: the label name
+      requestBody:
+        description: label update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Label"
+      responses:
+        '200':
+          description: updated successfully
         '404':
           description: telegraf config not found
           content:
@@ -1150,9 +1185,7 @@ paths:
                 type: object
                 properties:
                   labels:
-                    type: array
-                    items:
-                      type: string
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -1191,9 +1224,7 @@ paths:
                 type: object
                 properties:
                   labels:
-                    type: array
-                    items:
-                      type: string
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -1223,6 +1254,45 @@ paths:
       responses:
         '204':
           description: delete has been accepted
+        '404':
+          description: view not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Views
+      summary: update a label from a view
+      parameters:
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+        - in: path
+          name: label
+          schema:
+            type: string
+          required: true
+          description: the label name
+      requestBody:
+        description: label update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Label"
+      responses:
+        '200':
+          description: updated successfully
         '404':
           description: view not found
           content:
@@ -1748,9 +1818,7 @@ paths:
                 type: object
                 properties:
                   labels:
-                    type: array
-                    items:
-                      type: string
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -1789,9 +1857,7 @@ paths:
                 type: object
                 properties:
                   labels:
-                    type: array
-                    items:
-                      type: string
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -2233,6 +2299,46 @@ paths:
           description: authorization deleted
         default:
           description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /query/analyze:
+   post:
+    tags:
+      - Query
+    summary: analyze an influxql or flux query
+    parameters:
+      - in: header
+        name: Content-Type
+        schema:
+          type: string
+          enum:
+            - application/json
+    requestBody:
+        description: flux or influxql query to analyze
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Query"
+    responses:
+        '200':
+          description: query analyze results. Errors will be empty if the query is valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzeQueryResponse"
+        default:
+          description: internal server error
+          headers:
+            X-Influx-Error:
+              description: error string describing the problem
+              schema:
+                type: string
+            X-Influx-Reference:
+              description: reference code unique to the error type
+              schema:
+                type: integer
           content:
             application/json:
               schema:
@@ -2861,9 +2967,7 @@ paths:
                 type: object
                 properties:
                   labels:
-                    type: array
-                    items:
-                      type: string
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -2902,9 +3006,7 @@ paths:
                 type: object
                 properties:
                   labels:
-                    type: array
-                    items:
-                      type: string
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -2946,6 +3048,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+      patch:
+        tags:
+          - Organizations
+        summary: update a label from an organization
+        parameters:
+          - in: path
+            name: orgID
+            schema:
+              type: string
+            required: true
+            description: ID of the organization
+          - in: path
+            name: label
+            schema:
+              type: string
+            required: true
+            description: the label name
+        requestBody:
+          description: label update to apply
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Label"
+        responses:
+          '200':
+            description: updated successfully
+          '404':
+            description: organization not found
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Error"
+          default:
+            description: unexpected error
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/secrets':
     get:
       tags:
@@ -3614,6 +3755,45 @@ paths:
       responses:
         '204':
           description: delete has been accepted
+        '404':
+          description: task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Tasks
+      summary: update a label from a task
+      parameters:
+        - in: path
+          name: taskID
+          schema:
+            type: string
+          required: true
+          description: ID of the task
+        - in: path
+          name: label
+          schema:
+            type: string
+          required: true
+          description: the label name
+      requestBody:
+        description: label update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Label"
+      responses:
+        '200':
+          description: updated successfully
         '404':
           description: task not found
           content:
@@ -5360,6 +5540,22 @@ components:
         usingView:
           type: string
           description: makes a copy of the provided view
+    AnalyzeQueryResponse:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              line:
+                type: integer
+              column:
+                type: integer
+              character:
+                type: integer
+              message:
+                type: string
     Cell:
       type: object
       properties:
@@ -5520,20 +5716,20 @@ components:
               type: integer
         plugins:
           type: array
-          items: 
+          items:
             $ref: "#/components/schemas/TelegrafRequestPlugin"
     TelegrafRequestPlugin:
       type: object
-      discriminator: 
+      discriminator:
         propertyName: "name"
-      required: 
+      required:
         - name
       properties:
         name:
           type: string
     TelegrafPluginInputCpu:
       type: object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5578,7 +5774,7 @@ components:
     TelegrafPluginInputDiskio:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5593,15 +5789,15 @@ components:
           type: string
         config:
           $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputDiskioRequest: 
+    TelegrafPluginInputDiskioRequest:
       type: object
       allOf:
         - $ref: "#/components/schemas/TelegrafRequestPlugin"
         - $ref: "#/components/schemas/TelegrafPluginInputDiskio"
-    TelegrafPluginInputDocker: 
-      type: 
+    TelegrafPluginInputDocker:
+      type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5624,7 +5820,7 @@ components:
     TelegrafPluginInputFile:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5647,7 +5843,7 @@ components:
     TelegrafPluginInputKernel:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5670,7 +5866,7 @@ components:
     TelegrafPluginInputKubernetes:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5693,7 +5889,7 @@ components:
     TelegrafPluginInputLogParser:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5716,7 +5912,7 @@ components:
     TelegrafPluginInputMem:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5739,7 +5935,7 @@ components:
     TelegrafPluginInputNetResponse:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5759,10 +5955,10 @@ components:
       allOf:
         - $ref: "#/components/schemas/TelegrafRequestPlugin"
         - $ref: "#/components/schemas/TelegrafPluginInputNetResponse"
-    TelegrafPluginInputNet: 
+    TelegrafPluginInputNet:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5785,7 +5981,7 @@ components:
     TelegrafPluginInputNgnix:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5808,7 +6004,7 @@ components:
     TelegrafPluginInputProcesses:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5831,7 +6027,7 @@ components:
     TelegrafPluginInputProcstat:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5854,7 +6050,7 @@ components:
     TelegrafPluginInputPrometheus:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5877,7 +6073,7 @@ components:
     TelegrafPluginInputRedis:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5900,7 +6096,7 @@ components:
     TelegrafPluginInputSyslog:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5923,7 +6119,7 @@ components:
     TelegrafPluginInputSwap:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5946,7 +6142,7 @@ components:
     TelegrafPluginInputSystem:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5969,7 +6165,7 @@ components:
     TelegrafPluginInputTail:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5992,7 +6188,7 @@ components:
     TelegrafPluginOutputFile:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -6015,7 +6211,7 @@ components:
     TelegrafPluginOutputInfluxDBV2:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -6074,7 +6270,7 @@ components:
       type: object
     TelegrafPluginInputDockerConfig:
       type: object
-      required: 
+      required:
         - endpoint
       properties:
         endpoint:
@@ -6228,3 +6424,17 @@ components:
           enum:
             - pass
             - fail
+    Labels:
+      type: array
+      items:
+        $ref: "#/components/schemas/Label"
+    Label:
+      type: object
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+          description: A six-character hex color.
+          pattern: '^([A-Fa-f0-9]{6})$'
+          example: 'ffb3b3'

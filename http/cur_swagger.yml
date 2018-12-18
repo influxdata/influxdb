@@ -1785,92 +1785,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /query:
-   get:
-    tags:
-      - Query
-    summary: query influx with specified return formatting. The spec and query fields are mutually exclusive.
-    parameters:
-      - in: query
-        name: org
-        description: specifies the organization of the resource
-        required: true
-        schema:
-          type: string
-      - in: query
-        name: query
-        description: query script to execute.
-        required: true
-        schema:
-          type: string
-      - in: header
-        name: Authorization
-        description: the authorization header should be in the format of `Token <key>`
-        schema:
-          type: string
-    responses:
-        '200':
-          description: query results
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  result,table,_start,_stop,_time,region,host,_value
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
-        '400':
-          description: error processing query
-          headers:
-            X-Influx-Error:
-              description: error string describing the problem
-              schema:
-                type: string
-            X-Influx-Reference:
-              description: reference code unique to the error type
-              schema:
-                type: integer
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  error,reference
-                  Failed to parse query,897
-        default:
-          description: internal server error
-          headers:
-            X-Influx-Error:
-              description: error string describing the problem
-              schema:
-                type: string
-            X-Influx-Reference:
-              description: reference code unique to the error type
-              schema:
-                type: integer
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  error,reference
-                  Failed to parse query,897
+  /query/analyze:
    post:
     tags:
       - Query
-    summary: query an influx
+    summary: analyze an influxql or flux query
     parameters:
-      - in: header
-        name: Accept
-        description: specifies the return content format. Each response content type will have its own dialect options.
-        schema:
-          type: string
-          description: return format of either CSV or Arrow buffers
-          default: text/csv
-          enum:
-            - text/csv
-            - application/vnd.influx.arrow
       - in: header
         name: Content-Type
         schema:
@@ -1882,55 +1802,19 @@ paths:
         description: the authorization header should be in the format of `Token <key>`
         schema:
           type: string
-      - in: query
-        name: org
-        description: specifies the name of the organization executing the query.
-        schema:
-          type: string
     requestBody:
-        description: flux query or specification to execute
+        description: flux or influxql query to analyze
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/Query"
     responses:
         '200':
-          description: query results
+          description: query analyze results. Errors will be empty if the query is valid.
           content:
-            text/csv:
+            application/json:
               schema:
-                type: string
-                example: >
-                  result,table,_start,_stop,_time,region,host,_value
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
-            application/vnd.influx.arrow:
-              schema:
-                type: string
-                format: binary
-        '400':
-          description: error processing query
-          headers:
-            X-Influx-Error:
-              description: error string describing the problem
-              schema:
-                type: string
-            X-Influx-Reference:
-              description: reference code unique to the error type
-              schema:
-                type: integer
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  error,reference
-                  Failed to parse query,897
-            application/vnd.influx.arrow:
-              schema:
-                  type: string
-                  format: binary
+                $ref: "#/components/schemas/AnalyzeQueryResponse"
         default:
           description: internal server error
           headers:
@@ -1943,18 +1827,180 @@ paths:
               schema:
                 type: integer
           content:
-            text/csv:
+            application/json:
               schema:
-                type: string
-                example: >
-                  error,reference
-                  Failed to parse query,897
-            application/vnd.influx.arrow:
+                $ref: "#/components/schemas/Error"
+  /query:
+    get:
+      tags:
+        - Query
+      summary: query influx with specified return formatting. The spec and query fields are mutually exclusive.
+      parameters:
+        - in: query
+          name: org
+          description: specifies the organization of the resource
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: query
+          description: query script to execute.
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          schema:
+            type: string
+      responses:
+          '200':
+            description: query results
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    result,table,_start,_stop,_time,region,host,_value
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
+          '400':
+            description: error processing query
+            headers:
+              X-Influx-Error:
+                description: error string describing the problem
+                schema:
+                  type: string
+              X-Influx-Reference:
+                description: reference code unique to the error type
+                schema:
+                  type: integer
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    error,reference
+                    Failed to parse query,897
+          default:
+            description: internal server error
+            headers:
+              X-Influx-Error:
+                description: error string describing the problem
+                schema:
+                  type: string
+              X-Influx-Reference:
+                description: reference code unique to the error type
+                schema:
+                  type: integer
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    error,reference
+                    Failed to parse query,897
+    post:
+      tags:
+        - Query
+      summary: query an influx
+      parameters:
+        - in: header
+          name: Accept
+          description: specifies the return content format. Each response content type will have its own dialect options.
+          schema:
+            type: string
+            description: return format of either CSV or Arrow buffers
+            default: text/csv
+            enum:
+              - text/csv
+              - application/vnd.influx.arrow
+        - in: header
+          name: Content-Type
+          schema:
+            type: string
+            enum:
+              - application/json
+        - in: header
+          name: Authorization
+          description: the authorization header should be in the format of `Token <key>`
+          schema:
+            type: string
+        - in: query
+          name: org
+          description: specifies the name of the organization executing the query.
+          schema:
+            type: string
+      requestBody:
+          description: flux query or specification to execute
+          content:
+            application/json:
               schema:
+                $ref: "#/components/schemas/Query"
+      responses:
+          '200':
+            description: query results
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    result,table,_start,_stop,_time,region,host,_value
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
+                    mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
+              application/vnd.influx.arrow:
+                schema:
                   type: string
                   format: binary
+          '400':
+            description: error processing query
+            headers:
+              X-Influx-Error:
+                description: error string describing the problem
+                schema:
+                  type: string
+              X-Influx-Reference:
+                description: reference code unique to the error type
+                schema:
+                  type: integer
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    error,reference
+                    Failed to parse query,897
+              application/vnd.influx.arrow:
+                schema:
+                    type: string
+                    format: binary
+          default:
+            description: internal server error
+            headers:
+              X-Influx-Error:
+                description: error string describing the problem
+                schema:
+                  type: string
+              X-Influx-Reference:
+                description: reference code unique to the error type
+                schema:
+                  type: integer
+            content:
+              text/csv:
+                schema:
+                  type: string
+                  example: >
+                    error,reference
+                    Failed to parse query,897
+              application/vnd.influx.arrow:
+                schema:
+                    type: string
+                    format: binary
   /buckets:
     get:
+      x-generated: true
       tags:
         - Buckets
       summary: List all buckets
@@ -1979,6 +2025,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      x-generated: true
       tags:
         - Buckets
       summary: Create a bucket
@@ -2011,6 +2058,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}':
     get:
+      x-generated: true
       tags:
         - Buckets
       summary: Retrieve a bucket
@@ -2035,6 +2083,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      x-generated: true
       tags:
         - Buckets
       summary: Update a bucket
@@ -2239,6 +2288,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /orgs:
     get:
+      x-generated: true
       tags:
         - Organizations
       summary: List all organizations
@@ -2256,6 +2306,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      x-generated: true
       tags:
         - Organizations
       summary: Create an organization
@@ -2281,6 +2332,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}':
     get:
+      x-generated: true
       tags:
         - Organizations
       summary: Retrieve an organization
@@ -2305,6 +2357,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      x-generated: true
       tags:
         - Organizations
       summary: Update an organization
@@ -2329,6 +2382,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Organization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      x-generated: true
+      tags:
+        - Organizations
+      summary: delete an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of organization to get
+      responses:
+        '200':
+          description: organization deleted
         default:
           description: unexpected error
           content:
@@ -3592,7 +3666,7 @@ components:
         links:
           readOnly: true
           $ref: "#/components/schemas/Links"
-        auths:
+        authorizations:
           type: array
           items:
             $ref: "#/components/schemas/Authorization"
@@ -4601,6 +4675,22 @@ components:
         usingView:
           type: string
           description: makes a copy of the provided view
+    AnalyzeQueryResponse:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              line:
+                type: integer
+              column:
+                type: integer
+              character:
+                type: integer
+              message:
+                type: string
     Cell:
       type: object
       properties:
@@ -4753,16 +4843,16 @@ components:
             $ref: "#/components/schemas/TelegrafRequestPlugin"
     TelegrafRequestPlugin:
       type: object
-      discriminator: 
+      discriminator:
         propertyName: "name"
-      required: 
+      required:
         - name
       properties:
         name:
           type: string
     TelegrafPluginInputCpu:
       type: object
-      required: 
+      required:
         - name
         - type
         - config
@@ -4807,7 +4897,7 @@ components:
     TelegrafPluginInputDiskio:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -4822,15 +4912,15 @@ components:
           type: string
         config:
           $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputDiskioRequest: 
+    TelegrafPluginInputDiskioRequest:
       type: object
       allOf:
         - $ref: "#/components/schemas/TelegrafRequestPlugin"
         - $ref: "#/components/schemas/TelegrafPluginInputDiskio"
-    TelegrafPluginInputDocker: 
-      type: 
+    TelegrafPluginInputDocker:
+      type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -4853,7 +4943,7 @@ components:
     TelegrafPluginInputFile:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -4876,7 +4966,7 @@ components:
     TelegrafPluginInputKernel:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -4899,7 +4989,7 @@ components:
     TelegrafPluginInputKubernetes:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -4922,7 +5012,7 @@ components:
     TelegrafPluginInputLogParser:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -4945,7 +5035,7 @@ components:
     TelegrafPluginInputMem:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -4968,7 +5058,7 @@ components:
     TelegrafPluginInputNetResponse:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -4988,10 +5078,10 @@ components:
       allOf:
         - $ref: "#/components/schemas/TelegrafRequestPlugin"
         - $ref: "#/components/schemas/TelegrafPluginInputNetResponse"
-    TelegrafPluginInputNet: 
+    TelegrafPluginInputNet:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5014,7 +5104,7 @@ components:
     TelegrafPluginInputNgnix:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5037,7 +5127,7 @@ components:
     TelegrafPluginInputProcesses:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5060,7 +5150,7 @@ components:
     TelegrafPluginInputProcstat:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5083,7 +5173,7 @@ components:
     TelegrafPluginInputPrometheus:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5106,7 +5196,7 @@ components:
     TelegrafPluginInputRedis:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5129,7 +5219,7 @@ components:
     TelegrafPluginInputSyslog:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5152,7 +5242,7 @@ components:
     TelegrafPluginInputSwap:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5175,7 +5265,7 @@ components:
     TelegrafPluginInputSystem:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5198,7 +5288,7 @@ components:
     TelegrafPluginInputTail:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5221,7 +5311,7 @@ components:
     TelegrafPluginOutputFile:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5244,7 +5334,7 @@ components:
     TelegrafPluginOutputInfluxDBV2:
       type:
         object
-      required: 
+      required:
         - name
         - type
         - config
@@ -5303,7 +5393,7 @@ components:
       type: object
     TelegrafPluginInputDockerConfig:
       type: object
-      required: 
+      required:
         - endpoint
       properties:
         endpoint:

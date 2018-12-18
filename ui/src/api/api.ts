@@ -72,6 +72,52 @@ export class RequiredError extends Error {
 /**
  * 
  * @export
+ * @interface AnalyzeQueryResponse
+ */
+export interface AnalyzeQueryResponse {
+    /**
+     * 
+     * @type {Array<AnalyzeQueryResponseErrors>}
+     * @memberof AnalyzeQueryResponse
+     */
+    errors?: Array<AnalyzeQueryResponseErrors>;
+}
+
+/**
+ * 
+ * @export
+ * @interface AnalyzeQueryResponseErrors
+ */
+export interface AnalyzeQueryResponseErrors {
+    /**
+     * 
+     * @type {number}
+     * @memberof AnalyzeQueryResponseErrors
+     */
+    character?: number;
+    /**
+     * 
+     * @type {number}
+     * @memberof AnalyzeQueryResponseErrors
+     */
+    column?: number;
+    /**
+     * 
+     * @type {number}
+     * @memberof AnalyzeQueryResponseErrors
+     */
+    line?: number;
+    /**
+     * 
+     * @type {string}
+     * @memberof AnalyzeQueryResponseErrors
+     */
+    message?: string;
+}
+
+/**
+ * 
+ * @export
  * @interface Authorization
  */
 export interface Authorization {
@@ -171,7 +217,7 @@ export interface Authorizations {
      * @type {Array<Authorization>}
      * @memberof Authorizations
      */
-    auths?: Array<Authorization>;
+    authorizations?: Array<Authorization>;
     /**
      * 
      * @type {Links}
@@ -453,14 +499,6 @@ export interface CellUpdate {
 /**
  * 
  * @export
- * @interface Cells
- */
-export interface Cells extends Array<Cell> {
-}
-
-/**
- * 
- * @export
  * @interface ConstantMacroProperties
  */
 export interface ConstantMacroProperties {
@@ -550,10 +588,10 @@ export interface CreateCell {
 export interface Dashboard {
     /**
      * 
-     * @type {Cells}
+     * @type {Array<Cell>}
      * @memberof Dashboard
      */
-    cells?: Cells;
+    cells?: Array<Cell>;
     /**
      * user-facing description of the dashboard
      * @type {string}
@@ -8459,6 +8497,39 @@ export const OrganizationsApiAxiosParamCreator = function (configuration?: Confi
         },
         /**
          * 
+         * @summary delete an organization
+         * @param {string} orgID ID of organization to get
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        orgsOrgIDDelete(orgID: string, options: any = {}): RequestArgs {
+            // verify required parameter 'orgID' is not null or undefined
+            if (orgID === null || orgID === undefined) {
+                throw new RequiredError('orgID','Required parameter orgID was null or undefined when calling orgsOrgIDDelete.');
+            }
+            const localVarPath = `/orgs/{orgID}`
+                .replace(`{${"orgID"}}`, encodeURIComponent(String(orgID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'DELETE' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary Retrieve an organization
          * @param {string} orgID ID of organization to get
          * @param {*} [options] Override http request option.
@@ -8820,6 +8891,20 @@ export const OrganizationsApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary delete an organization
+         * @param {string} orgID ID of organization to get
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        orgsOrgIDDelete(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+            const localVarAxiosArgs = OrganizationsApiAxiosParamCreator(configuration).orgsOrgIDDelete(orgID, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary Retrieve an organization
          * @param {string} orgID ID of organization to get
          * @param {*} [options] Override http request option.
@@ -8969,6 +9054,16 @@ export const OrganizationsApiFactory = function (configuration?: Configuration, 
         },
         /**
          * 
+         * @summary delete an organization
+         * @param {string} orgID ID of organization to get
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        orgsOrgIDDelete(orgID: string, options?: any) {
+            return OrganizationsApiFp(configuration).orgsOrgIDDelete(orgID, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary Retrieve an organization
          * @param {string} orgID ID of organization to get
          * @param {*} [options] Override http request option.
@@ -9081,6 +9176,18 @@ export class OrganizationsApi extends BaseAPI {
      */
     public orgsGet(options?: any) {
         return OrganizationsApiFp(this.configuration).orgsGet(options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary delete an organization
+     * @param {string} orgID ID of organization to get
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof OrganizationsApi
+     */
+    public orgsOrgIDDelete(orgID: string, options?: any) {
+        return OrganizationsApiFp(this.configuration).orgsOrgIDDelete(orgID, options)(this.axios, this.basePath);
     }
 
     /**
@@ -9204,6 +9311,48 @@ export class OrganizationsApi extends BaseAPI {
  */
 export const QueryApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
+        /**
+         * 
+         * @summary analyze an influxql or flux query
+         * @param {'application/json'} [contentType] 
+         * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
+         * @param {Query} [query] flux or influxql query to analyze
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        queryAnalyzePost(contentType?: 'application/json', authorization?: string, query?: Query, options: any = {}): RequestArgs {
+            const localVarPath = `/query/analyze`;
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'POST' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (contentType !== undefined && contentType !== null) {
+                localVarHeaderParameter['Content-Type'] = String(contentType);
+            }
+
+            if (authorization !== undefined && authorization !== null) {
+                localVarHeaderParameter['Authorization'] = String(authorization);
+            }
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"Query" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(query || {}) : (query || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
         /**
          * analyzes flux query and generates a query specification.
          * @param {'application/json'} [contentType] 
@@ -9497,6 +9646,22 @@ export const QueryApiAxiosParamCreator = function (configuration?: Configuration
 export const QueryApiFp = function(configuration?: Configuration) {
     return {
         /**
+         * 
+         * @summary analyze an influxql or flux query
+         * @param {'application/json'} [contentType] 
+         * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
+         * @param {Query} [query] flux or influxql query to analyze
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        queryAnalyzePost(contentType?: 'application/json', authorization?: string, query?: Query, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<AnalyzeQueryResponse> {
+            const localVarAxiosArgs = QueryApiAxiosParamCreator(configuration).queryAnalyzePost(contentType, authorization, query, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
          * analyzes flux query and generates a query specification.
          * @param {'application/json'} [contentType] 
          * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
@@ -9610,6 +9775,18 @@ export const QueryApiFp = function(configuration?: Configuration) {
 export const QueryApiFactory = function (configuration?: Configuration, basePath?: string, axios?: AxiosInstance) {
     return {
         /**
+         * 
+         * @summary analyze an influxql or flux query
+         * @param {'application/json'} [contentType] 
+         * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
+         * @param {Query} [query] flux or influxql query to analyze
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        queryAnalyzePost(contentType?: 'application/json', authorization?: string, query?: Query, options?: any) {
+            return QueryApiFp(configuration).queryAnalyzePost(contentType, authorization, query, options)(axios, basePath);
+        },
+        /**
          * analyzes flux query and generates a query specification.
          * @param {'application/json'} [contentType] 
          * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
@@ -9695,6 +9872,20 @@ export const QueryApiFactory = function (configuration?: Configuration, basePath
  * @extends {BaseAPI}
  */
 export class QueryApi extends BaseAPI {
+    /**
+     * 
+     * @summary analyze an influxql or flux query
+     * @param {'application/json'} [contentType] 
+     * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
+     * @param {Query} [query] flux or influxql query to analyze
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof QueryApi
+     */
+    public queryAnalyzePost(contentType?: 'application/json', authorization?: string, query?: Query, options?: any) {
+        return QueryApiFp(this.configuration).queryAnalyzePost(contentType, authorization, query, options)(this.axios, this.basePath);
+    }
+
     /**
      * analyzes flux query and generates a query specification.
      * @param {'application/json'} [contentType] 

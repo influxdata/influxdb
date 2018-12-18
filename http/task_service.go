@@ -85,6 +85,7 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(h.LabelService))
 	h.HandlerFunc("DELETE", tasksIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
+	h.HandlerFunc("PATCH", tasksIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
 
 	return h
 }

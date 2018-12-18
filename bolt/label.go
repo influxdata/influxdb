@@ -27,6 +27,21 @@ func filterLabelsFn(filter platform.LabelFilter) func(l *platform.Label) bool {
 	}
 }
 
+// func (c *Client) findLabel(ctx context.Context, tx *bolt.Tx, resourceID platform.ID, name string) (*platform.Label, error) {
+// 	key, err := labelKey(&platform.Label{ResourceID: resourceID, Name: name})
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	l := &platform.Label{}
+// 	v := tx.Bucket(labelBucket).Get(key)
+// 	if err := json.Unmarshal(v, l); err != nil {
+// 		return nil, err
+// 	}
+//
+// 	return l, nil
+// }
+
 // FindLabels returns a list of labels that match a filter.
 func (c *Client) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
 	ls := []*platform.Label{}
@@ -73,7 +88,11 @@ func (c *Client) createLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 	unique := c.uniqueLabel(ctx, tx, l)
 
 	if !unique {
-		return fmt.Errorf("label %s already exists", l.Name)
+		return &platform.Error{
+			Code: platform.EConflict,
+			Op:   getOp(platform.OpCreateLabel),
+			Msg:  fmt.Sprintf("label %s already exists", l.Name),
+		}
 	}
 
 	v, err := json.Marshal(l)
@@ -96,7 +115,10 @@ func (c *Client) createLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 func labelKey(l *platform.Label) ([]byte, error) {
 	encodedResourceID, err := l.ResourceID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 
 	key := make([]byte, len(encodedResourceID)+len(l.Name))
@@ -131,10 +153,85 @@ func (c *Client) uniqueLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 	return len(v) == 0
 }
 
+// UpdateLabel updates a label.
+func (c *Client) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+	var label *platform.Label
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		labelResponse, pe := c.updateLabel(ctx, tx, l, upd)
+		if pe != nil {
+			return &platform.Error{
+				Err: pe,
+				Op:  getOp(platform.OpUpdateLabel),
+			}
+		}
+		label = labelResponse
+		return nil
+	})
+
+	return label, err
+}
+
+func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+	ls, err := c.findLabels(ctx, tx, platform.LabelFilter{Name: l.Name, ResourceID: l.ResourceID})
+	if err != nil {
+		return nil, err
+	}
+	if len(ls) == 0 {
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Err:  platform.ErrLabelNotFound,
+		}
+	}
+
+	label := ls[0]
+
+	if upd.Color != nil {
+		label.Color = *upd.Color
+	}
+
+	if err := label.Validate(); err != nil {
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
+	}
+
+	if err := c.putLabel(ctx, tx, label); err != nil {
+		return nil, &platform.Error{
+			Err: err,
+		}
+	}
+
+	return label, nil
+}
+
+// set a label and overwrite any existing label
+func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) error {
+	v, err := json.Marshal(l)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	key, pe := labelKey(l)
+	if pe != nil {
+		return pe
+	}
+
+	if err := tx.Bucket(labelBucket).Put(key, v); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // DeleteLabel deletes a label.
 func (c *Client) DeleteLabel(ctx context.Context, l platform.Label) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.deleteLabel(ctx, tx, platform.LabelFilter(l))
+		return c.deleteLabel(ctx, tx, platform.LabelFilter{Name: l.Name, ResourceID: l.ResourceID})
 	})
 }
 
@@ -144,7 +241,11 @@ func (c *Client) deleteLabel(ctx context.Context, tx *bolt.Tx, filter platform.L
 		return err
 	}
 	if len(ls) == 0 {
-		return platform.ErrLabelNotFound
+		return &platform.Error{
+			Code: platform.ENotFound,
+			Op:   getOp(platform.OpDeleteLabel),
+			Err:  platform.ErrLabelNotFound,
+		}
 	}
 
 	key, err := labelKey(ls[0])

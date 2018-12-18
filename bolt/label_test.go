@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/bolt"
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.LabelService, func()) {
+func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.LabelService, string, func()) {
 	c, closeFn, err := NewTestClient()
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
@@ -20,7 +21,7 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 		}
 	}
 
-	return c, func() {
+	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, l := range f.Labels {
 			if err := c.DeleteLabel(ctx, *l); err != nil {

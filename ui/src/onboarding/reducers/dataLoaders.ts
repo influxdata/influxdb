@@ -31,7 +31,7 @@ export const INITIAL_STATE: DataLoadersState = {
   lineProtocolBody: '',
   activeLPTab: LineProtocolTab.UploadFile,
   lpStatus: RemoteDataState.NotStarted,
-  precision: WritePrecision.Ms,
+  precision: WritePrecision.Ns,
   telegrafConfigID: null,
   pluginBundles: [],
 }

@@ -11,8 +11,7 @@ import {buildFluxQuery} from 'src/logs/utils/v2/queryBuilder'
 import {buildInfluxQLQuery} from 'src/logs/utils/v1/queryBuilder'
 
 // Types
-import {Bucket} from 'src/api'
-import {InfluxLanguage} from 'src/types/v2/dashboards'
+import {Bucket, Query} from 'src/api'
 import {QueryConfig} from 'src/types'
 import {
   LogSearchParams,
@@ -91,13 +90,13 @@ export const buildTableQueryConfig = (bucket: Bucket): QueryConfig => {
 }
 
 export const buildLogQuery = (
-  type: InfluxLanguage,
+  type: Query.TypeEnum,
   searchParams: LogSearchParams
 ): string => {
   switch (type) {
-    case InfluxLanguage.InfluxQL:
+    case Query.TypeEnum.Influxql:
       return `${buildInfluxQLQuery(searchParams)} ORDER BY time DESC`
-    case InfluxLanguage.Flux:
+    case Query.TypeEnum.Flux:
       return buildFluxQuery(searchParams)
   }
 }
@@ -107,14 +106,11 @@ export const getTableData = async (
   logQuery: LogQuery
 ): Promise<TableData> => {
   const {source, ...searchParams} = logQuery
-  const {
-    links: {query: queryLink},
-  } = source
   // TODO: get type from source
-  const type = InfluxLanguage.Flux
+  const type = Query.TypeEnum.Flux
   const query = buildLogQuery(type, searchParams)
 
-  const response = await executeQuery(queryLink, query, type)
+  const response = await executeQuery(query, type)
 
   const {config} = searchParams
   const columnNames: string[] = config.fields.map(f => f.alias)

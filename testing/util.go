@@ -20,15 +20,15 @@ func diffPlatformErrors(name string, actual, expected error, opPrefix string, t 
 	}
 
 	if platform.ErrorCode(expected) != platform.ErrorCode(actual) {
-		t.Fatalf("%s failed, expected error %q but received error code %q", name, platform.ErrorCode(expected), platform.ErrorCode(actual))
+		t.Fatalf("%s failed, expected error code %q but received %q", name, platform.ErrorCode(expected), platform.ErrorCode(actual))
 	}
 
 	if opPrefix+platform.ErrorOp(expected) != platform.ErrorOp(actual) {
-		t.Fatalf("%s failed, expected error %q but received error op %q", name, opPrefix+platform.ErrorOp(expected), platform.ErrorOp(actual))
+		t.Fatalf("%s failed, expected error op %q but received %q", name, opPrefix+platform.ErrorOp(expected), platform.ErrorOp(actual))
 	}
 
 	if platform.ErrorMessage(expected) != platform.ErrorMessage(actual) {
-		t.Fatalf("%s failed, expected error %q but received error message %q", name, platform.ErrorMessage(expected), platform.ErrorMessage(actual))
+		t.Fatalf("%s failed, expected error message %q but received %q", name, platform.ErrorMessage(expected), platform.ErrorMessage(actual))
 	}
 }
 

@@ -50,13 +50,13 @@ export const addOrg = (org: Organization): AddOrg => ({
 export interface RemoveOrg {
   type: ActionTypes.RemoveOrg
   payload: {
-    link: string
+    org: Organization
   }
 }
 
-export const removeOrg = (link: string): RemoveOrg => ({
+export const removeOrg = (org: Organization): RemoveOrg => ({
   type: ActionTypes.RemoveOrg,
-  payload: {link},
+  payload: {org},
 })
 
 export interface EditOrg {
@@ -95,12 +95,12 @@ export const createOrg = (org: Organization) => async (
   }
 }
 
-export const deleteOrg = (link: string) => async (
+export const deleteOrg = (org: Organization) => async (
   dispatch: Dispatch<RemoveOrg>
 ): Promise<void> => {
   try {
-    await deleteOrgAPI(link)
-    dispatch(removeOrg(link))
+    await deleteOrgAPI(org)
+    dispatch(removeOrg(org))
   } catch (e) {
     console.error(e)
   }

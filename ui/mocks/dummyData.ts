@@ -417,7 +417,7 @@ export const createTelegrafConfigResponse = {
 export const authResponse = {
   data: {
     links: {self: '/api/v2/authorizations'},
-    auths: [
+    authorizations: [
       {
         links: {
           self: '/api/v2/authorizations/030358b6aa718000',

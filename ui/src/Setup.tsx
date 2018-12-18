@@ -17,7 +17,6 @@ import {isOnboardingURL} from 'src/onboarding/utils'
 
 // Types
 import {Notification, NotificationFunc, RemoteDataState} from 'src/types'
-import {Links} from 'src/types/v2/links'
 
 interface State {
   loading: RemoteDataState
@@ -25,7 +24,6 @@ interface State {
 }
 
 interface Props {
-  links: Links
   router: InjectedRouter
   children: ReactElement<any>
   notify: (message: Notification | NotificationFunc) => void
@@ -43,7 +41,7 @@ export class Setup extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {links, router} = this.props
+    const {router} = this.props
 
     if (isOnboardingURL()) {
       this.setState({
@@ -52,7 +50,7 @@ export class Setup extends PureComponent<Props, State> {
       return
     }
 
-    const isSetupAllowed = await getSetupStatus(links.setup)
+    const isSetupAllowed = await getSetupStatus()
     this.setState({
       loading: RemoteDataState.Done,
     })
@@ -81,13 +79,11 @@ export class Setup extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({links}) => ({links})
-
 const mdtp = {
   notify: notifyAction,
 }
 
 export default connect(
-  mstp,
+  null,
   mdtp
 )(Setup)
