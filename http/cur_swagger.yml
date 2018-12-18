@@ -3666,7 +3666,7 @@ components:
         links:
           readOnly: true
           $ref: "#/components/schemas/Links"
-        auths:
+        authorizations:
           type: array
           items:
             $ref: "#/components/schemas/Authorization"
