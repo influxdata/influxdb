@@ -1142,7 +1142,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(len(compressed)))
 }
 
-func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user meta.User) {
 	atomic.AddInt64(&h.stats.FluxQueryRequests, 1)
 	defer func(start time.Time) {
 		atomic.AddInt64(&h.stats.FluxQueryRequestDuration, time.Since(start).Nanoseconds())
@@ -1159,6 +1159,10 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request) {
 		if nodeID, err := strconv.ParseUint(val, 10, 64); err == nil {
 			ctx = storage.NewContextWithReadOptions(ctx, &storage.ReadOptions{NodeID: nodeID})
 		}
+	}
+
+	if h.Config.AuthEnabled {
+		ctx = meta.NewContextWithUser(ctx, user)
 	}
 
 	pr := req.ProxyRequest()
@@ -1433,12 +1437,21 @@ type credentials struct {
 	Token    string
 }
 
+func parseToken(token string) (user, pass string, ok bool) {
+	s := strings.IndexByte(token, ':')
+	if s < 0 {
+		return
+	}
+	return token[:s], token[s+1:], true
+}
+
 // parseCredentials parses a request and returns the authentication credentials.
 // The credentials may be present as URL query params, or as a Basic
 // Authentication header.
 // As params: http://127.0.0.1/query?u=username&p=password
 // As basic auth: http://username:password@127.0.0.1
 // As Bearer token in Authorization header: Bearer <JWT_TOKEN_BLOB>
+// As Token in Authorization header: Token <username:password>
 func parseCredentials(r *http.Request) (*credentials, error) {
 	q := r.URL.Query()
 
@@ -1455,11 +1468,22 @@ func parseCredentials(r *http.Request) (*credentials, error) {
 	if s := r.Header.Get("Authorization"); s != "" {
 		// Check for Bearer token.
 		strs := strings.Split(s, " ")
-		if len(strs) == 2 && strs[0] == "Bearer" {
-			return &credentials{
-				Method: BearerAuthentication,
-				Token:  strs[1],
-			}, nil
+		if len(strs) == 2 {
+			switch strs[0] {
+			case "Bearer":
+				return &credentials{
+					Method: BearerAuthentication,
+					Token:  strs[1],
+				}, nil
+			case "Token":
+				if u, p, ok := parseToken(strs[1]); ok {
+					return &credentials{
+						Method:   UserAuthentication,
+						Username: u,
+						Password: p,
+					}, nil
+				}
+			}
 		}
 
 		// Check for basic auth.

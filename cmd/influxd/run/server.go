@@ -281,7 +281,8 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	}
 	srv := httpd.NewService(c)
 	srv.Handler.MetaClient = s.MetaClient
-	srv.Handler.QueryAuthorizer = meta.NewQueryAuthorizer(s.MetaClient)
+	authorizer := meta.NewQueryAuthorizer(s.MetaClient)
+	srv.Handler.QueryAuthorizer = authorizer
 	srv.Handler.WriteAuthorizer = meta.NewWriteAuthorizer(s.MetaClient)
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.Monitor = s.Monitor
@@ -290,7 +291,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.BuildType = "OSS"
 	ss := storage.NewStore(s.TSDBStore, s.MetaClient)
 	srv.Handler.Store = ss
-	srv.Handler.Controller = control.NewController(s.MetaClient, reads.NewReader(ss), s.Logger)
+	srv.Handler.Controller = control.NewController(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.Logger)
 
 	s.Services = append(s.Services, srv)
 }
