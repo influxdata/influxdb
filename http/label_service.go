@@ -47,7 +47,7 @@ func newLabelResponse(l *plat.Label) *labelResponse {
 
 type labelsResponse struct {
 	Links  map[string]string `json:"links"`
-	Labels []labelResponse   `json:"labels"`
+	Labels []*plat.Label     `json:"labels"`
 }
 
 func newLabelsResponse(opts plat.FindOptions, f plat.LabelFilter, ls []*plat.Label) *labelsResponse {
