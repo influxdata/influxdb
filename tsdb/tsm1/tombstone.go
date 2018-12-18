@@ -337,9 +337,14 @@ func (t *Tombstoner) prepareLatest() error {
 		os.Remove(tmp.Name())
 	}
 
-	// Copy the existing v5 file if it exists
+	// Copy the existing v4 file if it exists
 	f, err := os.Open(t.tombstonePath())
-	if !os.IsNotExist(err) {
+	if err != nil && !os.IsNotExist(err) {
+		// An unexpected error should be returned
+		removeTmp()
+		return err
+	} else if err == nil {
+		// No error so load the tombstone file.
 		defer f.Close()
 		var b [4]byte
 		if n, err := f.Read(b[:]); n == 4 && err == nil {
@@ -364,11 +369,9 @@ func (t *Tombstoner) prepareLatest() error {
 				return err
 			}
 		}
-	} else if err != nil && !os.IsNotExist(err) {
-		removeTmp()
-		return err
 	}
 
+	// Else, the error was that the file does not exist. Create a new one.
 	var b [8]byte
 	bw := bufio.NewWriterSize(tmp, 64*1024)
 
