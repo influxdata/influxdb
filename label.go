@@ -69,6 +69,17 @@ type LabelUpdate struct {
 	Color *string `json:"color,omitempty"`
 }
 
+func (l *LabelUpdate) Validate() error {
+	if l.Color != "" && !colorPattern.MatchString(l.Color) {
+		return &Error{
+			Code: EInvalid,
+			Msg:  "label color must be valid hex string",
+		}
+	}
+
+	return nil
+}
+
 type LabelFilter struct {
 	ResourceID ID
 	Name       string
