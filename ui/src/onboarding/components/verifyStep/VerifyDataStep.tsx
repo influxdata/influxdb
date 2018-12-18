@@ -51,17 +51,19 @@ class VerifyDataStep extends PureComponent<Props> {
           <div className="wizard-button-bar">
             <Button
               color={ComponentColor.Default}
-              text="Back"
+              text={this.backButtonText}
               size={ComponentSize.Medium}
               onClick={this.handleDecrementStep}
+              data-test="back"
             />
             <Button
               color={ComponentColor.Primary}
-              text="Next"
+              text="Continue to Completion"
               size={ComponentSize.Medium}
               onClick={onIncrementCurrentStepIndex}
               status={ComponentStatus.Default}
               titleText={'Next'}
+              data-test="next"
             />
           </div>
           {this.skipLink}
@@ -83,17 +85,37 @@ class VerifyDataStep extends PureComponent<Props> {
     )
   }
 
+  private get backButtonText(): string {
+    return `Back to ${_.startCase(this.previousStepName) || ''} Configuration`
+  }
+
+  private get previousStepName() {
+    const {telegrafPlugins, type} = this.props
+
+    if (type === DataLoaderType.Streaming) {
+      return _.get(telegrafPlugins, `${telegrafPlugins.length - 1}.name`, '')
+    }
+
+    return type
+  }
+
   private handleDecrementStep = () => {
     const {
       telegrafPlugins,
       onSetActiveTelegrafPlugin,
       onDecrementCurrentStepIndex,
+      onSetSubstepIndex,
+      stepIndex,
+      type,
     } = this.props
 
-    const name = _.get(telegrafPlugins, `${telegrafPlugins.length - 1}.name`)
-    onSetActiveTelegrafPlugin(name)
-
-    onDecrementCurrentStepIndex()
+    if (type === DataLoaderType.Streaming) {
+      onSetSubstepIndex(stepIndex - 1, telegrafPlugins.length - 1 || 0)
+      onSetActiveTelegrafPlugin(this.previousStepName)
+    } else {
+      onDecrementCurrentStepIndex()
+      onSetActiveTelegrafPlugin('')
+    }
   }
 
   private jumpToCompletionStep = () => {

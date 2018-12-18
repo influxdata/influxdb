@@ -47,6 +47,7 @@ export interface OnboardingStepProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetStepStatus: (index: number, status: StepStatus) => void
+  onSetSubstepIndex: (index: number, subStep: number | 'streaming') => void
   stepStatuses: StepStatus[]
   stepTitles: string[]
   setupParams: SetupParams
@@ -64,10 +65,7 @@ interface OwnProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetCurrentStepIndex: (stepNumber: number) => void
-  onSetCurrentSubStepIndex: (
-    stepNumber: number,
-    substep: number | 'streaming'
-  ) => void
+  onSetSubstepIndex: (stepNumber: number, substep: number | 'streaming') => void
 }
 
 interface DispatchProps {
@@ -208,13 +206,15 @@ class OnboardingWizard extends PureComponent<Props> {
   }
 
   private handleNewSourceClick = () => {
-    const {onSetCurrentSubStepIndex} = this.props
-    onSetCurrentSubStepIndex(2, 'streaming')
+    const {onSetSubstepIndex, onSetActiveTelegrafPlugin} = this.props
+
+    onSetActiveTelegrafPlugin('')
+    onSetSubstepIndex(2, 'streaming')
   }
 
   private handleClickSideBarTab = (telegrafPluginID: string) => {
     const {
-      onSetCurrentSubStepIndex,
+      onSetSubstepIndex,
       onSetActiveTelegrafPlugin,
       dataLoaders: {telegrafPlugins},
     } = this.props
@@ -226,7 +226,7 @@ class OnboardingWizard extends PureComponent<Props> {
       0
     )
 
-    onSetCurrentSubStepIndex(3, index)
+    onSetSubstepIndex(3, index)
     onSetActiveTelegrafPlugin(telegrafPluginID)
   }
 
@@ -247,6 +247,7 @@ class OnboardingWizard extends PureComponent<Props> {
       onSetStepStatus,
       onSetSetupParams,
       onSetCurrentStepIndex,
+      onSetSubstepIndex,
       onDecrementCurrentStepIndex,
       onIncrementCurrentStepIndex,
     } = this.props
@@ -256,6 +257,7 @@ class OnboardingWizard extends PureComponent<Props> {
       stepTitles: this.stepTitles,
       currentStepIndex,
       onSetCurrentStepIndex,
+      onSetSubstepIndex,
       onIncrementCurrentStepIndex,
       onDecrementCurrentStepIndex,
       onSetStepStatus,

@@ -29,7 +29,7 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
         <div className="wizard-button-bar">
           <Button
             color={ComponentColor.Default}
-            text="Back"
+            text="Back to Verify"
             size={ComponentSize.Medium}
             onClick={onDecrementCurrentStepIndex}
           />

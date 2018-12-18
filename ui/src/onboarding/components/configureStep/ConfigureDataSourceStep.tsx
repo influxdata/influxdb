@@ -60,7 +60,7 @@ interface RouterProps {
 type Props = OwnProps & WithRouterProps & RouterProps
 
 @ErrorHandling
-class ConfigureDataSourceStep extends PureComponent<Props> {
+export class ConfigureDataSourceStep extends PureComponent<Props> {
   constructor(props: Props) {
     super(props)
   }
@@ -108,23 +108,67 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
           <div className="wizard-button-bar">
             <Button
               color={ComponentColor.Default}
-              text="Back"
+              text={this.backButtonText}
               size={ComponentSize.Medium}
               onClick={this.handlePrevious}
+              data-test="back"
             />
             <Button
               color={ComponentColor.Primary}
-              text="Next"
+              text={this.nextButtonText}
               size={ComponentSize.Medium}
               onClick={this.handleNext}
               status={ComponentStatus.Default}
               titleText={'Next'}
+              data-test="next"
             />
           </div>
           {this.skipLink}
         </div>
       </div>
     )
+  }
+
+  private get nextButtonText(): string {
+    const {
+      telegrafPlugins,
+      params: {substepID},
+      type,
+    } = this.props
+
+    const index = +substepID
+
+    if (type === DataLoaderType.Streaming) {
+      if (index + 1 > telegrafPlugins.length - 1) {
+        return 'Continue to Verify'
+      }
+      return `Continue to ${_.startCase(
+        _.get(telegrafPlugins, `${index + 1}.name`)
+      )}`
+    }
+
+    return 'Continue to Verify'
+  }
+
+  private get backButtonText(): string {
+    const {
+      telegrafPlugins,
+      params: {substepID},
+      type,
+    } = this.props
+
+    const index = +substepID
+
+    if (type === DataLoaderType.Streaming) {
+      if (index < 1) {
+        return 'Back to Select Streaming Sources'
+      }
+      return `Back to ${_.startCase(
+        _.get(telegrafPlugins, `${index - 1}.name`)
+      )}`
+    }
+
+    return 'Back to Select Data Source Type'
   }
 
   private get skipLink() {
@@ -156,9 +200,9 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
       authToken,
       notify,
       params: {substepID, stepID},
-      router,
       type,
       onSaveTelegrafConfig,
+      onSetSubstepIndex,
     } = this.props
 
     const index = +substepID
@@ -182,19 +226,19 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     } else {
       const name = _.get(telegrafPlugins, `${index + 1}.name`, '')
       onSetActiveTelegrafPlugin(name)
-
-      router.push(`/onboarding/${stepID}/${index + 1}`)
+      onSetSubstepIndex(+stepID, index + 1)
     }
   }
 
   private handlePrevious = () => {
     const {
-      router,
       type,
       onSetActiveTelegrafPlugin,
       onSetPluginConfiguration,
-      params: {substepID},
+      params: {substepID, stepID},
       telegrafPlugins,
+      onSetSubstepIndex,
+      onDecrementCurrentStepIndex,
     } = this.props
 
     const index = +substepID
@@ -203,16 +247,20 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     if (type === DataLoaderType.Streaming) {
       onSetPluginConfiguration(telegrafPlugin)
       this.handleSetStepStatus()
+
+      if (index > 0) {
+        const name = _.get(telegrafPlugins, `${index - 1}.name`)
+        onSetActiveTelegrafPlugin(name)
+        onSetSubstepIndex(+stepID, index - 1)
+      } else {
+        onSetActiveTelegrafPlugin('')
+        onSetSubstepIndex(+stepID - 1, 'streaming')
+      }
+
+      return
     }
 
-    if (index >= 0) {
-      const name = _.get(telegrafPlugins, `${index - 1}.name`)
-      onSetActiveTelegrafPlugin(name)
-    } else {
-      onSetActiveTelegrafPlugin('')
-    }
-
-    router.goBack()
+    onDecrementCurrentStepIndex()
   }
 
   private handleSetStepStatus = () => {
