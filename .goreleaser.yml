@@ -64,7 +64,7 @@ s3:
   -
     bucket: dl.influxdata.com
     region: us-east-1
-    folder: "flux/nightlies/"
+    folder: "platform/nightlies/"
 
 dockers:
   -
