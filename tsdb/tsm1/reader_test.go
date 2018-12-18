@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync/atomic"
 	"testing"
 )
 
@@ -1881,10 +1882,21 @@ var (
 	indexBytes   []byte
 )
 
+func getFaults(indirect *indirectIndex) int64 {
+	return int64(atomic.LoadUint64(&indirect.b.faults))
+}
+
+func resetFaults(indirect *indirectIndex) {
+	if indirect != nil {
+		indirect.b = faultBuffer{b: indirect.b.b}
+	}
+}
+
 func getIndex(tb testing.TB) *indirectIndex {
 	if globalIndex != nil {
 		globalIndex.offsets = append([]uint32(nil), indexOffsets...)
 		globalIndex.tombstones = make(map[uint32][]TimeRange)
+		resetFaults(globalIndex)
 		return globalIndex
 	}
 
@@ -1937,8 +1949,12 @@ func BenchmarkIndirectIndex_Entries(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		resetFaults(indirect)
 		indirect.Entries([]byte("cpu-00000001"))
 	}
+
+	b.SetBytes(getFaults(globalIndex) * 4096)
+	b.Log("recorded faults:", getFaults(indirect))
 }
 
 func BenchmarkIndirectIndex_ReadEntries(b *testing.B) {
@@ -1948,8 +1964,12 @@ func BenchmarkIndirectIndex_ReadEntries(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		resetFaults(indirect)
 		indirect.ReadEntries([]byte("cpu-00000001"), &cache)
 	}
+
+	b.SetBytes(getFaults(globalIndex) * 4096)
+	b.Log("recorded faults:", getFaults(indirect))
 }
 
 func BenchmarkBlockIterator_Next(b *testing.B) {
@@ -1958,10 +1978,14 @@ func BenchmarkBlockIterator_Next(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		resetFaults(indirect)
 		bi := r.BlockIterator()
 		for bi.Next() {
 		}
 	}
+
+	b.SetBytes(getFaults(globalIndex) * 4096)
+	b.Log("recorded faults:", getFaults(indirect))
 }
 
 func BenchmarkIndirectIndex_DeleteRangeLast(b *testing.B) {
@@ -1972,8 +1996,12 @@ func BenchmarkIndirectIndex_DeleteRangeLast(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		resetFaults(indirect)
 		indirect.DeleteRange(keys, 10, 50)
 	}
+
+	b.SetBytes(getFaults(globalIndex) * 4096)
+	b.Log("recorded faults:", getFaults(globalIndex))
 }
 
 func BenchmarkIndirectIndex_DeleteRangeFull(b *testing.B) {
@@ -1993,6 +2021,9 @@ func BenchmarkIndirectIndex_DeleteRangeFull(b *testing.B) {
 			indirect.DeleteRange(indexAllKeys[i:n], 10, 50)
 		}
 	}
+
+	b.SetBytes(getFaults(globalIndex) * 4096)
+	b.Log("recorded faults:", getFaults(globalIndex))
 }
 
 func BenchmarkIndirectIndex_DeleteRangeFull_Covered(b *testing.B) {
@@ -2012,6 +2043,9 @@ func BenchmarkIndirectIndex_DeleteRangeFull_Covered(b *testing.B) {
 			indirect.DeleteRange(indexAllKeys[i:n], 0, math.MaxInt64)
 		}
 	}
+
+	b.SetBytes(getFaults(globalIndex) * 4096)
+	b.Log("recorded faults:", getFaults(globalIndex))
 }
 
 func BenchmarkIndirectIndex_Delete(b *testing.B) {
@@ -2031,4 +2065,7 @@ func BenchmarkIndirectIndex_Delete(b *testing.B) {
 			indirect.Delete(indexAllKeys[i:n])
 		}
 	}
+
+	b.SetBytes(getFaults(globalIndex) * 4096)
+	b.Log("recorded faults:", getFaults(globalIndex))
 }

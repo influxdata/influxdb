@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"os"
+	"runtime"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -740,7 +742,7 @@ type indirectIndex struct {
 
 	// b is the underlying index byte slice.  This could be a copy on the heap or an MMAP
 	// slice reference
-	b []byte
+	b faultBuffer
 
 	// offsets contains the positions in b for each key.  It points to the 2 byte length of
 	// key.
@@ -786,7 +788,7 @@ func (d *indirectIndex) Seek(key []byte) int {
 // offsets where key would exist.
 func (d *indirectIndex) searchOffset(key []byte) int {
 	return sort.Search(len(d.offsets), func(i int) bool {
-		_, k := readKey(d.b[d.offsets[i]:])
+		_, k := readKey(d.b.access(d.offsets[i], 0))
 		return bytes.Compare(k, key) >= 0
 	})
 }
@@ -795,20 +797,20 @@ func (d *indirectIndex) searchOffset(key []byte) int {
 // in the index, len(index) is returned.
 func (d *indirectIndex) search(key []byte) uint32 {
 	if !d.ContainsKey(key) {
-		return uint32(len(d.b))
+		return d.b.len()
 	}
 
 	// We use a binary search across our indirect offsets (pointers to all the keys
 	// in the index slice). We then check if we have found the right index.
 	if i := d.searchOffset(key); i < len(d.offsets) {
 		offset := d.offsets[i]
-		_, k := readKey(d.b[offset:])
+		_, k := readKey(d.b.access(offset, 0))
 
 		// The search may have returned an i == 0 which could indicated that the value
 		// searched should be inserted at postion 0.  Make sure the key in the index
 		// matches the search value.
 		if !bytes.Equal(key, k) {
-			return uint32(len(d.b))
+			return d.b.len()
 		}
 
 		return offset
@@ -816,7 +818,7 @@ func (d *indirectIndex) search(key []byte) uint32 {
 
 	// The key is not in the index.  i is the index where it would be inserted so return
 	// a value outside our offset range.
-	return uint32(len(d.b))
+	return d.b.len()
 }
 
 // ContainsKey returns true of key may exist in this index.
@@ -830,7 +832,7 @@ func (d *indirectIndex) Entries(key []byte) []IndexEntry {
 }
 
 func (d *indirectIndex) readEntriesAt(offset uint32, entries *[]IndexEntry) ([]byte, []IndexEntry) {
-	n, k := readKey(d.b[offset:])
+	n, k := readKey(d.b.access(offset, 0))
 
 	// Read and return all the entries
 	offset += n
@@ -838,7 +840,7 @@ func (d *indirectIndex) readEntriesAt(offset uint32, entries *[]IndexEntry) ([]b
 	if entries != nil {
 		ie.entries = *entries
 	}
-	if _, err := readEntries(d.b[offset:], &ie); err != nil {
+	if _, err := readEntries(d.b.access(offset, 0), &ie); err != nil {
 		panic(fmt.Sprintf("error reading entries: %v", err))
 	}
 	if entries != nil {
@@ -853,7 +855,7 @@ func (d *indirectIndex) ReadEntries(key []byte, entries *[]IndexEntry) []IndexEn
 	defer d.mu.RUnlock()
 
 	offset := d.search(key)
-	if offset < uint32(len(d.b)) {
+	if offset < d.b.len() {
 		k, entries := d.readEntriesAt(offset, entries)
 		// The search may have returned an i == 0 which could indicated that the value
 		// searched should be inserted at position 0.  Make sure the key in the index
@@ -891,14 +893,14 @@ func (d *indirectIndex) Key(idx int, entries *[]IndexEntry) ([]byte, byte, []Ind
 	}
 
 	offset := d.offsets[idx]
-	n, key := readKey(d.b[offset:])
-	typ := d.b[offset+n]
+	n, key := readKey(d.b.access(offset, 0))
+	typ := d.b.access(offset+n, 1)[0]
 
 	var ie indexEntries
 	if entries != nil {
 		ie.entries = *entries
 	}
-	if _, err := readEntries(d.b[offset+n:], &ie); err != nil {
+	if _, err := readEntries(d.b.access(offset+n, 0), &ie); err != nil {
 		return nil, 0, nil
 	}
 	if entries != nil {
@@ -917,9 +919,9 @@ func (d *indirectIndex) KeyAt(idx int) ([]byte, byte) {
 		return nil, 0
 	}
 	offset := d.offsets[idx]
-	n, key := readKey(d.b[offset:])
+	n, key := readKey(d.b.access(offset, 0))
 	offset = offset + uint32(n)
-	typ := d.b[offset]
+	typ := d.b.access(offset, 1)[0]
 	d.mu.RUnlock()
 	return key, typ
 }
@@ -951,7 +953,7 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 
 	for ; i < len(d.offsets) && len(keys) > 0; i++ {
 		offset := d.offsets[i]
-		_, indexKey := readKey(d.b[offset:])
+		_, indexKey := readKey(d.b.access(offset, 0))
 
 		// pop keys to delete while they're smaller than the indexKey.
 		for len(keys) > 0 && bytes.Compare(keys[0], indexKey) < 0 {
@@ -1060,7 +1062,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 
 	attempt: // loads the key from disk and compares it to the current key
 		keyOffset := d.offsets[index]
-		n, indexKey := readKey(d.b[keyOffset:])
+		n, indexKey := readKey(d.b.access(keyOffset, 0))
 		entryOffset := keyOffset + n
 
 		// if we haven't done an exact find, check the comparision. if it
@@ -1077,7 +1079,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 		}
 
 		// read the entries for the key so that we can determine the time ranges.
-		entries, err = readEntriesTimes(d.b[entryOffset:], entries)
+		entries, err = readEntriesTimes(d.b.access(entryOffset, 0), entries)
 		if err != nil {
 			// If we have an error reading the entries for a key, we should just pretend
 			// the whole key is deleted. Maybe a better idea is to report this up somehow
@@ -1146,7 +1148,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 		// rare and only during concurrent deletes to the same key. We could make
 		// a copy of the entries before getting here, but that penalizes the common
 		// no-concurrent case.
-		entries, err = readEntriesTimes(d.b[tsEntry.EntryOffset:], entries)
+		entries, err = readEntriesTimes(d.b.access(tsEntry.EntryOffset, 0), entries)
 		if err != nil {
 			// If we have an error reading the entries for a key, we should just pretend
 			// the whole key is deleted. Maybe a better idea is to report this up somehow
@@ -1222,10 +1224,10 @@ func (d *indirectIndex) Type(key []byte) (byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	if offset := d.search(key); offset < uint32(len(d.b)) {
-		n, _ := readKey(d.b[offset:])
+	if offset := d.search(key); offset < d.b.len() {
+		n, _ := readKey(d.b.access(offset, 0))
 		offset += n
-		return d.b[offset], nil
+		return d.b.access(offset, 1)[0], nil
 	}
 
 	return 0, fmt.Errorf("key does not exist: %s", key)
@@ -1256,7 +1258,7 @@ func (d *indirectIndex) MarshalBinary() ([]byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	return d.b, nil
+	return d.b.b, nil
 }
 
 // UnmarshalBinary populates an index from an encoded byte slice
@@ -1266,7 +1268,7 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	defer d.mu.Unlock()
 
 	// Keep a reference to the actual index bytes
-	d.b = b
+	d.b = faultBuffer{b: b}
 	if len(b) == 0 {
 		return nil
 	}
@@ -1349,7 +1351,7 @@ func (d *indirectIndex) Size() uint32 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	return uint32(len(d.b))
+	return d.b.len()
 }
 
 func (d *indirectIndex) Close() error {
@@ -1754,4 +1756,40 @@ func timeRangesCoverEntries(ts []TimeRange, entries []IndexEntry) (covers bool) 
 	}
 
 	return len(entries) == 0
+}
+
+const (
+	faultBufferEnabled      = false
+	faultBufferSampleStacks = false
+)
+
+type faultBuffer struct {
+	faults  uint64
+	page    uint64
+	b       []byte
+	samples [][]uintptr
+}
+
+func (m *faultBuffer) len() uint32 { return uint32(len(m.b)) }
+
+func (m *faultBuffer) access(start, length uint32) []byte {
+	if faultBufferEnabled {
+		current, page := int64(atomic.LoadUint64(&m.page)), int64(start)/4096
+		if page != current && page != current+1 { // assume kernel precaches next page
+			atomic.AddUint64(&m.faults, 1)
+			if faultBufferSampleStacks && rand.Intn(1000) == 0 {
+				var stack [256]uintptr
+				n := runtime.Callers(0, stack[:])
+				m.samples = append(m.samples, stack[:n:n])
+			}
+		}
+		atomic.StoreUint64(&m.page, uint64(page))
+	}
+
+	end := m.len()
+	if length > 0 {
+		end = start + length
+	}
+
+	return m.b[start:end]
 }
