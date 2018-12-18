@@ -171,7 +171,7 @@ func (s *QueryService) Query(ctx context.Context, req *query.Request) (flux.Resu
 	if err != nil {
 		return nil, err
 	}
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
