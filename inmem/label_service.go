@@ -122,7 +122,7 @@ func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platfo
 		}
 	}
 
-	s.labelKV.Store(encodeLabelKey(l.ResourceID, l.Name), *l)
+	s.labelKV.Store(encodeLabelKey(label.ResourceID, label.Name), *label)
 
 	return label, nil
 }
