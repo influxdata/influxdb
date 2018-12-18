@@ -134,7 +134,7 @@ export const createTelegrafConfig = async (
 export const updateTelegrafConfig = async (
   telegrafID: string,
   telegrafConfig: TelegrafRequest
-) => {
+): Promise<Telegraf> => {
   try {
     const {data} = await telegrafsAPI.telegrafsTelegrafIDPut(
       telegrafID,
