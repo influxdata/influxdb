@@ -85,11 +85,42 @@ func (s *Service) FindLabels(ctx context.Context, filter platform.LabelFilter, o
 func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
 	label, _ := s.FindLabelBy(ctx, l.ResourceID, l.Name)
 	if label != nil {
-		return fmt.Errorf("label %s already exists", l.Name)
+		return &platform.Error{
+			Code: platform.EConflict,
+			Op:   OpPrefix + platform.OpCreateLabel,
+			Msg:  fmt.Sprintf("label %s already exists", l.Name),
+		}
 	}
 
 	s.labelKV.Store(encodeLabelKey(l.ResourceID, l.Name), *l)
 	return nil
+}
+
+func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+	label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
+	if err != nil {
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Op:   OpPrefix + platform.OpUpdateLabel,
+			Err:  err,
+		}
+	}
+
+	if upd.Color != nil {
+		label.Color = *upd.Color
+	}
+
+	if err := label.Validate(); err != nil {
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   OpPrefix + platform.OpUpdateLabel,
+			Err:  err,
+		}
+	}
+
+	s.labelKV.Store(encodeLabelKey(label.ResourceID, label.Name), *label)
+
+	return label, nil
 }
 
 func (s *Service) PutLabel(ctx context.Context, l *platform.Label) error {
@@ -100,7 +131,11 @@ func (s *Service) PutLabel(ctx context.Context, l *platform.Label) error {
 func (s *Service) DeleteLabel(ctx context.Context, l platform.Label) error {
 	label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
 	if label == nil && err != nil {
-		return err
+		return &platform.Error{
+			Code: platform.ENotFound,
+			Op:   OpPrefix + platform.OpDeleteLabel,
+			Err:  platform.ErrLabelNotFound,
+		}
 	}
 
 	s.labelKV.Delete(encodeLabelKey(l.ResourceID, l.Name))

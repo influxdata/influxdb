@@ -64,6 +64,7 @@ func NewBucketHandler(mappingService platform.UserResourceMappingService, labelS
 	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(h.LabelService))
 	h.HandlerFunc("DELETE", bucketsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
+	h.HandlerFunc("PATCH", bucketsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
 
 	return h
 }
