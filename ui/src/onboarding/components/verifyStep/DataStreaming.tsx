@@ -5,7 +5,6 @@ import _ from 'lodash'
 // Components
 import TelegrafInstructions from 'src/onboarding/components/verifyStep/TelegrafInstructions'
 import CreateOrUpdateConfig from 'src/onboarding/components/verifyStep/CreateOrUpdateConfig'
-import FetchAuthToken from 'src/onboarding/components/verifyStep/FetchAuthToken'
 import DataListening from 'src/onboarding/components/verifyStep/DataListening'
 
 // Actions
@@ -21,7 +20,6 @@ interface Props {
   bucket: string
   org: string
   configID: string
-  username: string
   stepIndex: number
   authToken: string
   onSetStepStatus: (index: number, status: StepStatus) => void
@@ -34,7 +32,6 @@ class DataStreaming extends PureComponent<Props> {
     const {
       authToken,
       org,
-      username,
       configID,
       onSaveTelegrafConfig,
       onSetStepStatus,
@@ -50,14 +47,7 @@ class DataStreaming extends PureComponent<Props> {
           onSaveTelegrafConfig={onSaveTelegrafConfig}
         >
           {() => (
-            <FetchAuthToken bucket={bucket} username={username}>
-              {authToken => (
-                <TelegrafInstructions
-                  authToken={authToken}
-                  configID={configID}
-                />
-              )}
-            </FetchAuthToken>
+            <TelegrafInstructions authToken={authToken} configID={configID} />
           )}
         </CreateOrUpdateConfig>
 

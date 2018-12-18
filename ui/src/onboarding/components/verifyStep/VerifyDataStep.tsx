@@ -54,7 +54,6 @@ class VerifyDataStep extends PureComponent<Props> {
           authToken={authToken}
           onSaveTelegrafConfig={onSaveTelegrafConfig}
           org={_.get(setupParams, 'org', '')}
-          username={_.get(setupParams, 'username', '')}
           bucket={_.get(setupParams, 'bucket', '')}
           onSetStepStatus={onSetStepStatus}
           stepIndex={stepIndex}

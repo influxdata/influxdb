@@ -17,7 +17,6 @@ import {DataLoaderType} from 'src/types/v2/dataLoaders'
 export interface Props {
   type: DataLoaderType
   org: string
-  username: string
   bucket: string
   stepIndex: number
   authToken: string
@@ -31,7 +30,6 @@ class VerifyDataSwitcher extends PureComponent<Props> {
   public render() {
     const {
       org,
-      username,
       bucket,
       type,
       stepIndex,
@@ -48,7 +46,6 @@ class VerifyDataSwitcher extends PureComponent<Props> {
             org={org}
             configID={telegrafConfigID}
             authToken={authToken}
-            username={username}
             bucket={bucket}
             onSetStepStatus={onSetStepStatus}
             onSaveTelegrafConfig={onSaveTelegrafConfig}
