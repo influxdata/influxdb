@@ -187,11 +187,6 @@ func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 		label.Color = *upd.Color
 	}
 
-	// TODO(jm): probably have to fix index here
-	if upd.Name != nil {
-		label.Name = *upd.Name
-	}
-
 	if err := label.Validate(); err != nil {
 		return nil, &platform.Error{
 			Code: platform.EInvalid,

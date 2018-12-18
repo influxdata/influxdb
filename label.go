@@ -58,7 +58,6 @@ func (l *Label) Validate() error {
 // LabelUpdate represents a changeset for a label.
 // Only fields which are set are updated.
 type LabelUpdate struct {
-	Name  *string `json:"name,omitempty"`
 	Color *string `json:"color,omitempty"`
 }
 
