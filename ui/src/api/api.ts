@@ -9445,47 +9445,6 @@ export const QueryApiAxiosParamCreator = function (configuration?: Configuration
             };
         },
         /**
-         * analyzes flux query or specification and generates a query plan.
-         * @param {'application/json'} [contentType] 
-         * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
-         * @param {PlanRequest} [planRequest] flux query or specification to generate plan.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        queryPlanPost(contentType?: 'application/json', authorization?: string, planRequest?: PlanRequest, options: any = {}): RequestArgs {
-            const localVarPath = `/query/plan`;
-            const localVarUrlObj = url.parse(localVarPath, true);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-            const localVarRequestOptions = Object.assign({ method: 'POST' }, baseOptions, options);
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            if (contentType !== undefined && contentType !== null) {
-                localVarHeaderParameter['Content-Type'] = String(contentType);
-            }
-
-            if (authorization !== undefined && authorization !== null) {
-                localVarHeaderParameter['Authorization'] = String(authorization);
-            }
-
-            localVarHeaderParameter['Content-Type'] = 'application/json';
-
-            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
-            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
-            delete localVarUrlObj.search;
-            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
-            const needsSerialization = (<any>"PlanRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
-            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(planRequest || {}) : (planRequest || "");
-
-            return {
-                url: url.format(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
          * 
          * @summary query an influx
          * @param {'text/csv' | 'application/vnd.influx.arrow'} [accept] specifies the return content format. Each response content type will have its own dialect options.
@@ -9693,21 +9652,6 @@ export const QueryApiFp = function(configuration?: Configuration) {
             };
         },
         /**
-         * analyzes flux query or specification and generates a query plan.
-         * @param {'application/json'} [contentType] 
-         * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
-         * @param {PlanRequest} [planRequest] flux query or specification to generate plan.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        queryPlanPost(contentType?: 'application/json', authorization?: string, planRequest?: PlanRequest, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<PlanResponse> {
-            const localVarAxiosArgs = QueryApiAxiosParamCreator(configuration).queryPlanPost(contentType, authorization, planRequest, options);
-            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
-                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
-                return axios.request(axiosRequestArgs);                
-            };
-        },
-        /**
          * 
          * @summary query an influx
          * @param {'text/csv' | 'application/vnd.influx.arrow'} [accept] specifies the return content format. Each response content type will have its own dialect options.
@@ -9810,17 +9754,6 @@ export const QueryApiFactory = function (configuration?: Configuration, basePath
             return QueryApiFp(configuration).queryGet(org, query, authorization, options)(axios, basePath);
         },
         /**
-         * analyzes flux query or specification and generates a query plan.
-         * @param {'application/json'} [contentType] 
-         * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
-         * @param {PlanRequest} [planRequest] flux query or specification to generate plan.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        queryPlanPost(contentType?: 'application/json', authorization?: string, planRequest?: PlanRequest, options?: any) {
-            return QueryApiFp(configuration).queryPlanPost(contentType, authorization, planRequest, options)(axios, basePath);
-        },
-        /**
          * 
          * @summary query an influx
          * @param {'text/csv' | 'application/vnd.influx.arrow'} [accept] specifies the return content format. Each response content type will have its own dialect options.
@@ -9911,19 +9844,6 @@ export class QueryApi extends BaseAPI {
      */
     public queryGet(org: string, query: string, authorization?: string, options?: any) {
         return QueryApiFp(this.configuration).queryGet(org, query, authorization, options)(this.axios, this.basePath);
-    }
-
-    /**
-     * analyzes flux query or specification and generates a query plan.
-     * @param {'application/json'} [contentType] 
-     * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
-     * @param {PlanRequest} [planRequest] flux query or specification to generate plan.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof QueryApi
-     */
-    public queryPlanPost(contentType?: 'application/json', authorization?: string, planRequest?: PlanRequest, options?: any) {
-        return QueryApiFp(this.configuration).queryPlanPost(contentType, authorization, planRequest, options)(this.axios, this.basePath);
     }
 
     /**

@@ -2102,37 +2102,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /query/plan:
-    post:
-      description: analyzes flux query or specification and generates a query plan.
-      tags:
-        - Query
-      parameters:
-      - in: header
-        name: Content-Type
-        schema:
-          type: string
-          enum:
-            - application/json
-      requestBody:
-        description: flux query or specification to generate plan.
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PlanRequest"
-      responses:
-        '200':
-          description: Logical plan of flux query.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PlanResponse"
-        default:
-          description: Any response other than 200 is an internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   /query/suggestions:
     get:
       tags:
