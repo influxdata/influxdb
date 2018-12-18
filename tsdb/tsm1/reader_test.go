@@ -1876,10 +1876,11 @@ const (
 )
 
 var (
-	globalIndex  *indirectIndex
-	indexOffsets []uint32
-	indexAllKeys [][]byte
-	indexBytes   []byte
+	globalIndex   *indirectIndex
+	indexOffsets  []uint32
+	indexPrefixes []prefixEntry
+	indexAllKeys  [][]byte
+	indexBytes    []byte
 )
 
 func getFaults(indirect *indirectIndex) int64 {
@@ -1895,6 +1896,7 @@ func resetFaults(indirect *indirectIndex) {
 func getIndex(tb testing.TB) *indirectIndex {
 	if globalIndex != nil {
 		globalIndex.offsets = append([]uint32(nil), indexOffsets...)
+		globalIndex.prefixes = append([]prefixEntry(nil), indexPrefixes...)
 		globalIndex.tombstones = make(map[uint32][]TimeRange)
 		resetFaults(globalIndex)
 		return globalIndex
@@ -1902,6 +1904,7 @@ func getIndex(tb testing.TB) *indirectIndex {
 
 	globalIndex, indexBytes = mustMakeIndex(tb, indexKeyCount, indexBlockCount)
 	indexOffsets = append([]uint32(nil), globalIndex.offsets...)
+	indexPrefixes = append([]prefixEntry(nil), globalIndex.prefixes...)
 
 	for i := 0; i < indexKeyCount; i++ {
 		indexAllKeys = append(indexAllKeys, []byte(fmt.Sprintf("cpu-%08d", i)))
