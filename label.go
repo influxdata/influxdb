@@ -2,7 +2,6 @@ package platform
 
 import (
 	"context"
-	"errors"
 	"regexp"
 )
 
@@ -41,15 +40,24 @@ type Label struct {
 // Validate returns an error if the label is invalid.
 func (l *Label) Validate() error {
 	if !l.ResourceID.Valid() {
-		return errors.New("resourceID is required")
+		return &Error{
+			Code: EInvalid,
+			Msg:  "resourceID is required",
+		}
 	}
 
 	if l.Name == "" {
-		return errors.New("label name is required")
+		return &Error{
+			Code: EInvalid,
+			Msg:  "label name is required",
+		}
 	}
 
 	if l.Color != "" && !colorPattern.MatchString(l.Color) {
-		return errors.New("label color must be valid hex string")
+		return &Error{
+			Code: EInvalid,
+			Msg:  "label color must be valid hex string",
+		}
 	}
 
 	return nil

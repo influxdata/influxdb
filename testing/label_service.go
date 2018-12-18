@@ -386,7 +386,7 @@ func UpdateLabel(
 				err: &platform.Error{
 					Code: platform.EInvalid,
 					Op:   platform.OpUpdateLabel,
-					Msg:  "label color must be valid hex string",
+					Msg:  "<invalid> label color must be valid hex string",
 				},
 			},
 		},
