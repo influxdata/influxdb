@@ -19,12 +19,12 @@ import {
 // Types
 import {
   TelegrafPlugin,
+  TelegrafPluginName,
   DataLoaderType,
   LineProtocolTab,
   Plugin,
   BundleName,
   ConfigurationState,
-  TelegrafPluginName,
 } from 'src/types/v2/dataLoaders'
 import {AppState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
@@ -52,6 +52,7 @@ export type Action =
   | RemoveBundlePlugins
   | RemovePluginBundle
   | SetPluginConfiguration
+  | SetConfigArrayValue
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -123,6 +124,26 @@ export const removeConfigValue = (
 ): RemoveConfigValue => ({
   type: 'REMOVE_TELEGRAF_PLUGIN_CONFIG_VALUE',
   payload: {pluginName, fieldName, value},
+})
+
+interface SetConfigArrayValue {
+  type: 'SET_TELEGRAF_PLUGIN_CONFIG_VALUE'
+  payload: {
+    pluginName: TelegrafPluginName
+    field: string
+    valueIndex: number
+    value: string
+  }
+}
+
+export const setConfigArrayValue = (
+  pluginName: TelegrafPluginName,
+  field: string,
+  valueIndex: number,
+  value: string
+): SetConfigArrayValue => ({
+  type: 'SET_TELEGRAF_PLUGIN_CONFIG_VALUE',
+  payload: {pluginName, field, valueIndex, value},
 })
 
 interface SetTelegrafConfigID {

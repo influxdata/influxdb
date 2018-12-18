@@ -14,6 +14,7 @@ import {
   setPluginConfiguration,
   addConfigValue,
   removeConfigValue,
+  setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
@@ -31,6 +32,7 @@ export interface Props {
   bucket: string
   org: string
   username: string
+  onSetConfigArrayValue: typeof setConfigArrayValue
 }
 
 @ErrorHandling
@@ -47,6 +49,7 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
       onSetPluginConfiguration,
       onAddConfigValue,
       onRemoveConfigValue,
+      onSetConfigArrayValue,
     } = this.props
 
     switch (dataLoaderType) {
@@ -60,6 +63,7 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
             currentIndex={currentIndex}
             onAddConfigValue={onAddConfigValue}
             authToken={authToken}
+            onSetConfigArrayValue={onSetConfigArrayValue}
           />
         )
       case DataLoaderType.LineProtocol:

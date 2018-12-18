@@ -10,6 +10,7 @@ import {Input, FormElement} from 'src/clockface'
 
 // Types
 import {ConfigFieldType} from 'src/types/v2/dataLoaders'
+import {TelegrafPluginInputCpu} from 'src/api'
 
 const setup = (override = {}, shouldMount = false) => {
   const props = {
@@ -21,6 +22,8 @@ const setup = (override = {}, shouldMount = false) => {
     index: 0,
     value: '',
     isRequired: true,
+    onSetConfigArrayValue: jest.fn(),
+    telegrafPluginName: TelegrafPluginInputCpu.NameEnum.Cpu,
     ...override,
   }
 

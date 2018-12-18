@@ -168,6 +168,28 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
           return tp
         }),
       }
+    case 'SET_TELEGRAF_PLUGIN_CONFIG_VALUE':
+      return {
+        ...state,
+        telegrafPlugins: state.telegrafPlugins.map(tp => {
+          if (tp.name === action.payload.pluginName) {
+            const plugin = _.get(tp, 'plugin', createNewPlugin(tp.name))
+            const configValues = _.get(
+              plugin,
+              `config.${action.payload.field}`,
+              []
+            )
+            configValues[action.payload.valueIndex] = action.payload.value
+            return {
+              ...tp,
+              plugin: updateConfigFields(plugin, action.payload.field, [
+                ...configValues,
+              ]),
+            }
+          }
+          return tp
+        }),
+      }
     case 'SET_ACTIVE_TELEGRAF_PLUGIN':
       return {
         ...state,

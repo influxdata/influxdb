@@ -9,6 +9,7 @@ import PluginConfigForm from 'src/onboarding/components/configureStep/streaming/
 
 // Constants
 import {telegrafPlugin, token} from 'mocks/dummyData'
+import {TelegrafPluginInputCpu} from 'src/api'
 
 const setup = (override = {}) => {
   const props = {
@@ -19,6 +20,8 @@ const setup = (override = {}) => {
     onSetPluginConfiguration: jest.fn(),
     onAddConfigValue: jest.fn(),
     onRemoveConfigValue: jest.fn(),
+    onSetConfigArrayValue: jest.fn(),
+    telegrafPluginName: TelegrafPluginInputCpu.NameEnum.Cpu,
     ...override,
   }
 

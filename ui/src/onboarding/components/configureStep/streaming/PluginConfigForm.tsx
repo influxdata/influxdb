@@ -12,6 +12,7 @@ import {
   addConfigValue,
   removeConfigValue,
   setPluginConfiguration,
+  setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
@@ -29,6 +30,7 @@ interface Props {
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
   authToken: string
+  onSetConfigArrayValue: typeof setConfigArrayValue
 }
 
 class PluginConfigForm extends PureComponent<Props> {
@@ -45,7 +47,7 @@ class PluginConfigForm extends PureComponent<Props> {
   }
 
   private get formFields(): JSX.Element[] | JSX.Element {
-    const {configFields, telegrafPlugin} = this.props
+    const {configFields, telegrafPlugin, onSetConfigArrayValue} = this.props
 
     if (!configFields) {
       return <p>No configuration required.</p>
@@ -64,6 +66,8 @@ class PluginConfigForm extends PureComponent<Props> {
             isRequired={isRequired}
             addTagValue={this.handleAddConfigFieldValue}
             removeTagValue={this.handleRemoveConfigFieldValue}
+            onSetConfigArrayValue={onSetConfigArrayValue}
+            telegrafPluginName={telegrafPlugin.name}
           />
         )
       }
@@ -99,7 +103,6 @@ class PluginConfigForm extends PureComponent<Props> {
     } else {
       defaultEmpty = []
     }
-
     return _.get(telegrafPlugin, `plugin.config.${fieldName}`, defaultEmpty)
   }
 

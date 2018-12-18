@@ -24,6 +24,8 @@ const setup = (override = {}) => {
     onAddConfigValue: jest.fn(),
     onRemoveConfigValue: jest.fn(),
     authToken: '',
+    onSetConfigArrayValue: jest.fn(),
+    telegrafPluginName: TelegrafPluginInputCpu.NameEnum.Cpu,
     ...override,
   }
 

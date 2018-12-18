@@ -23,6 +23,7 @@ import {
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
   setPluginConfiguration,
+  setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
@@ -44,6 +45,7 @@ interface Props {
   onSaveTelegrafConfig: typeof createTelegrafConfigAsync
   onAddPluginBundle: typeof addPluginBundleWithPlugins
   onRemovePluginBundle: typeof removePluginBundleWithPlugins
+  onSetConfigArrayValue: typeof setConfigArrayValue
 }
 
 @ErrorHandling
@@ -63,6 +65,7 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
       onRemoveConfigValue,
       onAddPluginBundle,
       onRemovePluginBundle,
+      onSetConfigArrayValue,
     } = this.props
 
     switch (currentStepIndex) {
@@ -99,6 +102,7 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
                 onRemoveConfigValue={onRemoveConfigValue}
                 onSaveTelegrafConfig={onSaveTelegrafConfig}
                 onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
+                onSetConfigArrayValue={onSetConfigArrayValue}
               />
             )}
           </FetchAuthToken>
