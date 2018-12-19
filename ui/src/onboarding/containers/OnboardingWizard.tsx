@@ -24,9 +24,10 @@ import {
   removeConfigValue,
   setActiveTelegrafPlugin,
   setPluginConfiguration,
-  createTelegrafConfigAsync,
+  createOrUpdateTelegrafConfigAsync,
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
+  setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Constants
@@ -47,6 +48,7 @@ export interface OnboardingStepProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetStepStatus: (index: number, status: StepStatus) => void
+  onSetSubstepIndex: (index: number, subStep: number | 'streaming') => void
   stepStatuses: StepStatus[]
   stepTitles: string[]
   setupParams: SetupParams
@@ -64,10 +66,7 @@ interface OwnProps {
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
   onSetCurrentStepIndex: (stepNumber: number) => void
-  onSetCurrentSubStepIndex: (
-    stepNumber: number,
-    substep: number | 'streaming'
-  ) => void
+  onSetSubstepIndex: (stepNumber: number, substep: number | 'streaming') => void
 }
 
 interface DispatchProps {
@@ -82,7 +81,8 @@ interface DispatchProps {
   onRemoveConfigValue: typeof removeConfigValue
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onSetPluginConfiguration: typeof setPluginConfiguration
-  onSaveTelegrafConfig: typeof createTelegrafConfigAsync
+  onSetConfigArrayValue: typeof setConfigArrayValue
+  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
 }
 
 interface StateProps {
@@ -127,6 +127,7 @@ class OnboardingWizard extends PureComponent<Props> {
       onRemovePluginBundle,
       setupParams,
       notify,
+      onSetConfigArrayValue,
     } = this.props
 
     return (
@@ -158,6 +159,7 @@ class OnboardingWizard extends PureComponent<Props> {
               onSaveTelegrafConfig={onSaveTelegrafConfig}
               onAddPluginBundle={onAddPluginBundle}
               onRemovePluginBundle={onRemovePluginBundle}
+              onSetConfigArrayValue={onSetConfigArrayValue}
             />
           </div>
         </div>
@@ -208,13 +210,15 @@ class OnboardingWizard extends PureComponent<Props> {
   }
 
   private handleNewSourceClick = () => {
-    const {onSetCurrentSubStepIndex} = this.props
-    onSetCurrentSubStepIndex(2, 'streaming')
+    const {onSetSubstepIndex, onSetActiveTelegrafPlugin} = this.props
+
+    onSetActiveTelegrafPlugin('')
+    onSetSubstepIndex(2, 'streaming')
   }
 
   private handleClickSideBarTab = (telegrafPluginID: string) => {
     const {
-      onSetCurrentSubStepIndex,
+      onSetSubstepIndex,
       onSetActiveTelegrafPlugin,
       dataLoaders: {telegrafPlugins},
     } = this.props
@@ -226,7 +230,7 @@ class OnboardingWizard extends PureComponent<Props> {
       0
     )
 
-    onSetCurrentSubStepIndex(3, index)
+    onSetSubstepIndex(3, index)
     onSetActiveTelegrafPlugin(telegrafPluginID)
   }
 
@@ -247,6 +251,7 @@ class OnboardingWizard extends PureComponent<Props> {
       onSetStepStatus,
       onSetSetupParams,
       onSetCurrentStepIndex,
+      onSetSubstepIndex,
       onDecrementCurrentStepIndex,
       onIncrementCurrentStepIndex,
     } = this.props
@@ -256,6 +261,7 @@ class OnboardingWizard extends PureComponent<Props> {
       stepTitles: this.stepTitles,
       currentStepIndex,
       onSetCurrentStepIndex,
+      onSetSubstepIndex,
       onIncrementCurrentStepIndex,
       onDecrementCurrentStepIndex,
       onSetStepStatus,
@@ -291,10 +297,11 @@ const mdtp: DispatchProps = {
   onAddConfigValue: addConfigValue,
   onRemoveConfigValue: removeConfigValue,
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
-  onSaveTelegrafConfig: createTelegrafConfigAsync,
+  onSaveTelegrafConfig: createOrUpdateTelegrafConfigAsync,
   onAddPluginBundle: addPluginBundleWithPlugins,
   onRemovePluginBundle: removePluginBundleWithPlugins,
   onSetPluginConfiguration: setPluginConfiguration,
+  onSetConfigArrayValue: setConfigArrayValue,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

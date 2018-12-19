@@ -15,6 +15,7 @@ import {
   setPluginConfiguration,
   addConfigValue,
   removeConfigValue,
+  setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
@@ -27,29 +28,29 @@ interface Props {
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
   currentIndex: number
-  authToken: string
+  onSetConfigArrayValue: typeof setConfigArrayValue
 }
 
 class PluginConfigSwitcher extends PureComponent<Props> {
   public render() {
     const {
-      authToken,
       onUpdateTelegrafPluginConfig,
       onSetPluginConfiguration,
       onAddConfigValue,
       onRemoveConfigValue,
+      onSetConfigArrayValue,
     } = this.props
 
     if (this.currentTelegrafPlugin) {
       return (
         <PluginConfigForm
-          authToken={authToken}
           telegrafPlugin={this.currentTelegrafPlugin}
           onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
           onSetPluginConfiguration={onSetPluginConfiguration}
           configFields={this.configFields}
           onAddConfigValue={onAddConfigValue}
           onRemoveConfigValue={onRemoveConfigValue}
+          onSetConfigArrayValue={onSetConfigArrayValue}
         />
       )
     }

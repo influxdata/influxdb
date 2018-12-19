@@ -23,10 +23,11 @@ export enum AutoComplete {
 }
 
 interface Props {
+  id?: string
   min?: number
   max?: number
   name?: string
-  value?: string | number
+  value: string | number
   placeholder?: string
   autocomplete?: AutoComplete
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void
@@ -66,6 +67,7 @@ class Input extends Component<Props> {
 
   public render() {
     const {
+      id,
       min,
       max,
       name,
@@ -89,6 +91,7 @@ class Input extends Component<Props> {
     return (
       <div className={this.className} style={this.containerStyle}>
         <input
+          id={id}
           min={min}
           max={max}
           title={this.title}

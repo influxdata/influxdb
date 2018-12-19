@@ -1,13 +1,3 @@
-// responses from /labels should look like:
-// {
-//   labels: [
-//     "foo",
-//     "bar"
-//   ]
-// }
-//
-// this list (under key "labels") should be returned with any labelled resource that is requested via other endpoints
-
 package http
 
 import (

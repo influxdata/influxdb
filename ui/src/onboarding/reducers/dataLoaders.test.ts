@@ -18,7 +18,7 @@ import {
   removeBundlePlugins,
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
-  createTelegrafConfigAsync,
+  createOrUpdateTelegrafConfigAsync,
   setPluginConfiguration,
 } from 'src/onboarding/actions/dataLoaders'
 
@@ -361,9 +361,9 @@ describe('dataLoader reducer', () => {
     const expected = {
       ...INITIAL_STATE,
       telegrafPlugins: [
-        redisTelegrafPlugin,
-        diskTelegrafPlugin,
         cpuTelegrafPlugin,
+        diskTelegrafPlugin,
+        redisTelegrafPlugin,
       ],
     }
 
@@ -415,7 +415,7 @@ describe('dataLoader reducer', () => {
         },
       },
     })
-    await createTelegrafConfigAsync(token)(dispatch, getState)
+    await createOrUpdateTelegrafConfigAsync(token)(dispatch, getState)
 
     expect(dispatch).toBeCalledWith(setTelegrafConfigID(telegrafConfig.id))
   })

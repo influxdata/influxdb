@@ -61,7 +61,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
           onDecrementCurrentStepIndex={this.handleDecrementStepIndex}
           onIncrementCurrentStepIndex={this.handleIncrementStepIndex}
           onSetCurrentStepIndex={this.setStepIndex}
-          onSetCurrentSubStepIndex={this.setSubstepIndex}
+          onSetSubstepIndex={this.setSubstepIndex}
           currentStepIndex={+params.stepID}
           onCompleteSetup={this.handleCompleteSetup}
         />
@@ -74,9 +74,11 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
   }
 
   private handleDecrementStepIndex = () => {
-    const {router} = this.props
+    const {
+      params: {stepID},
+    } = this.props
 
-    router.goBack()
+    this.setStepIndex(+stepID - 1)
   }
 
   private handleIncrementStepIndex = () => {

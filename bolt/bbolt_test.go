@@ -64,3 +64,24 @@ func TestClientOpen(t *testing.T) {
 		t.Fatalf("unable to close database %s: %v", boltFile, err)
 	}
 }
+
+func NewTestKVStore() (*bolt.KVStore, func(), error) {
+	f, err := ioutil.TempFile("", "influxdata-platform-bolt-")
+	if err != nil {
+		return nil, nil, errors.New("unable to open temporary boltdb file")
+	}
+	f.Close()
+
+	path := f.Name()
+	s := bolt.NewKVStore(path)
+	if err := s.Open(context.TODO()); err != nil {
+		return nil, nil, err
+	}
+
+	close := func() {
+		s.Close()
+		os.Remove(path)
+	}
+
+	return s, close, nil
+}

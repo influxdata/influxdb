@@ -2,6 +2,8 @@ import _ from 'lodash'
 
 import {TemplateValueType, TemplateType} from 'src/types'
 
+export const DEFAULT_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss'
+
 export const DEFAULT_DURATION_MS = 1000
 export const DEFAULT_PIXELS = 333
 

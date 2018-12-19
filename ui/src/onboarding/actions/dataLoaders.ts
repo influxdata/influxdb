@@ -5,6 +5,8 @@ import _ from 'lodash'
 import {
   writeLineProtocol,
   createTelegrafConfig,
+  getTelegrafConfigs,
+  updateTelegrafConfig,
 } from 'src/onboarding/apis/index'
 
 // Utils
@@ -19,12 +21,12 @@ import {
 // Types
 import {
   TelegrafPlugin,
+  TelegrafPluginName,
   DataLoaderType,
   LineProtocolTab,
   Plugin,
   BundleName,
   ConfigurationState,
-  TelegrafPluginName,
 } from 'src/types/v2/dataLoaders'
 import {AppState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
@@ -52,6 +54,7 @@ export type Action =
   | RemoveBundlePlugins
   | RemovePluginBundle
   | SetPluginConfiguration
+  | SetConfigArrayValue
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -123,6 +126,26 @@ export const removeConfigValue = (
 ): RemoveConfigValue => ({
   type: 'REMOVE_TELEGRAF_PLUGIN_CONFIG_VALUE',
   payload: {pluginName, fieldName, value},
+})
+
+interface SetConfigArrayValue {
+  type: 'SET_TELEGRAF_PLUGIN_CONFIG_VALUE'
+  payload: {
+    pluginName: TelegrafPluginName
+    field: string
+    valueIndex: number
+    value: string
+  }
+}
+
+export const setConfigArrayValue = (
+  pluginName: TelegrafPluginName,
+  field: string,
+  valueIndex: number,
+  value: string
+): SetConfigArrayValue => ({
+  type: 'SET_TELEGRAF_PLUGIN_CONFIG_VALUE',
+  payload: {pluginName, field, valueIndex, value},
 })
 
 interface SetTelegrafConfigID {
@@ -205,7 +228,7 @@ export const removePluginBundleWithPlugins = (
   dispatch(removeBundlePlugins(bundle))
 }
 
-export const createTelegrafConfigAsync = (authToken: string) => async (
+export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
   dispatch,
   getState: GetState
 ) => {
@@ -218,7 +241,28 @@ export const createTelegrafConfigAsync = (authToken: string) => async (
     },
   } = getState()
 
-  let plugins = telegrafPlugins.map(tp => tp.plugin || createNewPlugin(tp.name))
+  const telegrafConfigsFromServer = await getTelegrafConfigs(org)
+
+  let plugins = []
+  telegrafPlugins.forEach(tp => {
+    if (tp.configured === ConfigurationState.Configured) {
+      plugins = [...plugins, tp.plugin || createNewPlugin(tp.name)]
+    }
+  })
+
+  let body = {
+    name: 'new config',
+    agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
+    plugins,
+  }
+
+  if (telegrafConfigsFromServer.length) {
+    const id = _.get(telegrafConfigsFromServer, '0.id', '')
+
+    await updateTelegrafConfig(id, body)
+    dispatch(setTelegrafConfigID(id))
+    return
+  }
 
   const influxDB2Out = {
     name: TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2,
@@ -233,9 +277,8 @@ export const createTelegrafConfigAsync = (authToken: string) => async (
 
   plugins = [...plugins, influxDB2Out]
 
-  const body = {
-    name: 'new config',
-    agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
+  body = {
+    ...body,
     plugins,
   }
 

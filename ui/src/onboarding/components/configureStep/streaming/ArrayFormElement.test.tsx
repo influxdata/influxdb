@@ -5,7 +5,9 @@ import {shallow} from 'enzyme'
 // Components
 import ArrayFormElement from 'src/onboarding/components/configureStep/streaming/ArrayFormElement'
 import {FormElement} from 'src/clockface'
-import TagInput from 'src/shared/components/TagInput'
+import MultipleInput from './MultipleInput'
+
+import {TelegrafPluginInputCpu} from 'src/api'
 
 const setup = (override = {}) => {
   const props = {
@@ -15,6 +17,8 @@ const setup = (override = {}) => {
     autoFocus: true,
     value: [],
     helpText: '',
+    onSetConfigArrayValue: jest.fn(),
+    telegrafPluginName: TelegrafPluginInputCpu.NameEnum.Cpu,
     ...override,
   }
 
@@ -28,10 +32,10 @@ describe('Onboarding.Components.ConfigureStep.Streaming.ArrayFormElement', () =>
     const fieldName = 'yo'
     const {wrapper} = setup({fieldName})
     const formElement = wrapper.find(FormElement)
-    const tagInput = wrapper.find(TagInput)
+    const multipleInput = wrapper.find(MultipleInput)
 
     expect(wrapper.exists()).toBe(true)
     expect(formElement.exists()).toBe(true)
-    expect(tagInput.exists()).toBe(true)
+    expect(multipleInput.exists()).toBe(true)
   })
 })

@@ -1,0 +1,43 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Onboarding.Components.CompletionStep renders 1`] = `
+<div
+  className="onboarding-step"
+>
+  <div
+    className="splash-logo secondary"
+  />
+  <h3
+    className="wizard-step--title"
+  >
+    Setup Complete!
+  </h3>
+  <h5
+    className="wizard-step--sub-title"
+  />
+  <div
+    className="wizard--button-bar"
+  >
+    <Button
+      active={false}
+      color="default"
+      onClick={[MockFunction]}
+      shape="none"
+      size="lg"
+      status="default"
+      text="Back to Verify"
+      type="submit"
+    />
+    <Button
+      active={false}
+      color="success"
+      onClick={[MockFunction]}
+      shape="none"
+      size="lg"
+      status="default"
+      text="Go to InfluxDB 2.0"
+      type="submit"
+    />
+  </div>
+</div>
+`;

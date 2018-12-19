@@ -75,7 +75,7 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
         {this.tabSelector}
         <div className={'wizard-step--lp-body'}>{this.tabBody}</div>
         <PrecisionDropdown setPrecision={setPrecision} precision={precision} />
-        <div className="wizard-button-bar">{this.submitButton}</div>
+        <div className="wizard--button-bar">{this.submitButton}</div>
       </>
     )
   }

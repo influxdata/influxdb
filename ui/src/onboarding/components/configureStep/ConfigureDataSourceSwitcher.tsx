@@ -14,6 +14,7 @@ import {
   setPluginConfiguration,
   addConfigValue,
   removeConfigValue,
+  setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
@@ -27,10 +28,10 @@ export interface Props {
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
   dataLoaderType: DataLoaderType
-  authToken: string
   bucket: string
   org: string
   username: string
+  onSetConfigArrayValue: typeof setConfigArrayValue
 }
 
 @ErrorHandling
@@ -39,7 +40,6 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
     const {
       bucket,
       org,
-      authToken,
       telegrafPlugins,
       currentIndex,
       dataLoaderType,
@@ -47,6 +47,7 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
       onSetPluginConfiguration,
       onAddConfigValue,
       onRemoveConfigValue,
+      onSetConfigArrayValue,
     } = this.props
 
     switch (dataLoaderType) {
@@ -59,7 +60,7 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
             telegrafPlugins={telegrafPlugins}
             currentIndex={currentIndex}
             onAddConfigValue={onAddConfigValue}
-            authToken={authToken}
+            onSetConfigArrayValue={onSetConfigArrayValue}
           />
         )
       case DataLoaderType.LineProtocol:

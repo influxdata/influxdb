@@ -20,15 +20,11 @@ import {
   setPluginConfiguration,
   addConfigValue,
   removeConfigValue,
-  createTelegrafConfigAsync,
+  setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
-import {
-  TelegrafConfigCreationSuccess,
-  TelegrafConfigCreationError,
-} from 'src/shared/copy/notifications'
 
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
@@ -46,8 +42,8 @@ export interface OwnProps extends OnboardingStepProps {
   type: DataLoaderType
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
-  onSaveTelegrafConfig: typeof createTelegrafConfigAsync
   authToken: string
+  onSetConfigArrayValue: typeof setConfigArrayValue
 }
 
 interface RouterProps {
@@ -60,7 +56,7 @@ interface RouterProps {
 type Props = OwnProps & WithRouterProps & RouterProps
 
 @ErrorHandling
-class ConfigureDataSourceStep extends PureComponent<Props> {
+export class ConfigureDataSourceStep extends PureComponent<Props> {
   constructor(props: Props) {
     super(props)
   }
@@ -80,13 +76,13 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     const {
       telegrafPlugins,
       type,
-      authToken,
       params: {substepID},
       setupParams,
       onUpdateTelegrafPluginConfig,
       onSetPluginConfiguration,
       onAddConfigValue,
       onRemoveConfigValue,
+      onSetConfigArrayValue,
     } = this.props
 
     return (
@@ -102,23 +98,25 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
           onRemoveConfigValue={onRemoveConfigValue}
           dataLoaderType={type}
           currentIndex={+substepID}
-          authToken={authToken}
+          onSetConfigArrayValue={onSetConfigArrayValue}
         />
-        <div className="wizard-button-container">
-          <div className="wizard-button-bar">
+        <div className="wizard--button-container">
+          <div className="wizard--button-bar">
             <Button
               color={ComponentColor.Default}
-              text="Back"
+              text={this.backButtonText}
               size={ComponentSize.Medium}
               onClick={this.handlePrevious}
+              data-test="back"
             />
             <Button
               color={ComponentColor.Primary}
-              text="Next"
+              text={this.nextButtonText}
               size={ComponentSize.Medium}
               onClick={this.handleNext}
               status={ComponentStatus.Default}
               titleText={'Next'}
+              data-test="next"
             />
           </div>
           {this.skipLink}
@@ -127,24 +125,75 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     )
   }
 
+  private get nextButtonText(): string {
+    const {
+      telegrafPlugins,
+      params: {substepID},
+      type,
+    } = this.props
+
+    const index = +substepID
+
+    if (type === DataLoaderType.Streaming) {
+      if (index + 1 > telegrafPlugins.length - 1) {
+        return 'Continue to Verify'
+      }
+      return `Continue to ${_.startCase(
+        _.get(telegrafPlugins, `${index + 1}.name`)
+      )}`
+    }
+
+    return 'Continue to Verify'
+  }
+
+  private get backButtonText(): string {
+    const {
+      telegrafPlugins,
+      params: {substepID},
+      type,
+    } = this.props
+
+    const index = +substepID
+
+    if (type === DataLoaderType.Streaming) {
+      if (index < 1) {
+        return 'Back to Select Streaming Sources'
+      }
+      return `Back to ${_.startCase(
+        _.get(telegrafPlugins, `${index - 1}.name`)
+      )}`
+    }
+
+    return 'Back to Select Data Source Type'
+  }
+
   private get skipLink() {
+    const {type} = this.props
+    const skipText =
+      type === DataLoaderType.Streaming ? 'Skip to Verify' : 'Skip Config'
+
     return (
       <Button
+        customClass="wizard--skip-button"
+        size={ComponentSize.Medium}
         color={ComponentColor.Default}
-        text="Skip"
-        size={ComponentSize.Small}
+        text={skipText}
         onClick={this.jumpToCompletionStep}
-      >
-        skip
-      </Button>
+        data-test="skip"
+      />
     )
   }
 
   private jumpToCompletionStep = () => {
-    const {onSetCurrentStepIndex, stepStatuses} = this.props
+    const {onSetCurrentStepIndex, stepStatuses, type} = this.props
 
     this.handleSetStepStatus()
-    onSetCurrentStepIndex(stepStatuses.length - 1)
+
+    if (type === DataLoaderType.Streaming) {
+      onSetCurrentStepIndex(stepStatuses.length - 2)
+    } else {
+      onSetCurrentStepIndex(stepStatuses.length - 1)
+    }
   }
 
   private handleNext = async () => {
@@ -153,12 +202,8 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
       onSetActiveTelegrafPlugin,
       onSetPluginConfiguration,
       telegrafPlugins,
-      authToken,
-      notify,
       params: {substepID, stepID},
-      router,
-      type,
-      onSaveTelegrafConfig,
+      onSetSubstepIndex,
     } = this.props
 
     const index = +substepID
@@ -168,33 +213,24 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     this.handleSetStepStatus()
 
     if (index >= telegrafPlugins.length - 1) {
-      if (type === DataLoaderType.Streaming) {
-        try {
-          await onSaveTelegrafConfig(authToken)
-          notify(TelegrafConfigCreationSuccess)
-        } catch (error) {
-          notify(TelegrafConfigCreationError)
-        }
-      }
-
       onIncrementCurrentStepIndex()
       onSetActiveTelegrafPlugin('')
     } else {
       const name = _.get(telegrafPlugins, `${index + 1}.name`, '')
       onSetActiveTelegrafPlugin(name)
-
-      router.push(`/onboarding/${stepID}/${index + 1}`)
+      onSetSubstepIndex(+stepID, index + 1)
     }
   }
 
   private handlePrevious = () => {
     const {
-      router,
       type,
       onSetActiveTelegrafPlugin,
       onSetPluginConfiguration,
-      params: {substepID},
+      params: {substepID, stepID},
       telegrafPlugins,
+      onSetSubstepIndex,
+      onDecrementCurrentStepIndex,
     } = this.props
 
     const index = +substepID
@@ -203,16 +239,20 @@ class ConfigureDataSourceStep extends PureComponent<Props> {
     if (type === DataLoaderType.Streaming) {
       onSetPluginConfiguration(telegrafPlugin)
       this.handleSetStepStatus()
+
+      if (index > 0) {
+        const name = _.get(telegrafPlugins, `${index - 1}.name`)
+        onSetActiveTelegrafPlugin(name)
+        onSetSubstepIndex(+stepID, index - 1)
+      } else {
+        onSetActiveTelegrafPlugin('')
+        onSetSubstepIndex(+stepID - 1, 'streaming')
+      }
+
+      return
     }
 
-    if (index >= 0) {
-      const name = _.get(telegrafPlugins, `${index - 1}.name`)
-      onSetActiveTelegrafPlugin(name)
-    } else {
-      onSetActiveTelegrafPlugin('')
-    }
-
-    router.goBack()
+    onDecrementCurrentStepIndex()
   }
 
   private handleSetStepStatus = () => {

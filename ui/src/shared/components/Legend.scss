@@ -1,0 +1,59 @@
+@import "src/style/modules";
+
+.legend {
+  position: fixed;
+  top: 0;
+  max-height: 160px;
+  max-width: 800px;
+  background: $g2-kevlar;
+  z-index: $z--dygraph-legend;
+  border: 1px solid $g3-castle;
+  padding: 10px;
+  border-radius: $ix-radius;
+  color: $g14-chromium;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: $code-font;
+  letter-spacing: -0.5px;
+}
+
+.legend--time {
+  margin-bottom: 10px;
+}
+
+.legend--columns {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.legend--column {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  margin-right: 15px;
+
+  &:last-child {
+    margin-right: 0;
+  }
+}
+
+.legend--column.numeric {
+  align-items: flex-end;
+}
+
+.legend--column-header {
+  color: $g10-wolf;
+  margin-bottom: 5px;
+}
+
+.legend--column-row {
+  margin-bottom: 2px;
+
+  &.empty:after {
+    content: '—';
+    color: $g8-storm;
+  }
+}

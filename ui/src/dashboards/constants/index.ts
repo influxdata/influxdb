@@ -5,6 +5,7 @@ import {
 import {Cell} from 'src/types'
 import {DecimalPlaces} from 'src/types/v2/dashboards'
 import {Dashboard} from 'src/api'
+import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 export const UNTITLED_GRAPH: string = 'Untitled Graph'
 
@@ -34,13 +35,12 @@ export const DEFAULT_TABLE_OPTIONS = {
   fixFirstColumn: DEFAULT_FIX_FIRST_COLUMN,
 }
 
-export const DEFAULT_TIME_FORMAT: string = 'MM/DD/YYYY HH:mm:ss'
 export const TIME_FORMAT_CUSTOM: string = 'Custom'
 
 export const FORMAT_OPTIONS: Array<{text: string}> = [
   {text: DEFAULT_TIME_FORMAT},
   {text: 'MM/DD/YYYY HH:mm:ss.SSS'},
-  {text: 'YYYY-MM-DD HH:mm:ss'},
+  {text: 'YYYY/MM/DD HH:mm:ss'},
   {text: 'HH:mm:ss'},
   {text: 'HH:mm:ss.SSS'},
   {text: 'MMMM D, YYYY HH:mm:ss'},

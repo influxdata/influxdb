@@ -78,9 +78,12 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
     case 'ADD_TELEGRAF_PLUGINS':
       return {
         ...state,
-        telegrafPlugins: _.uniqBy(
-          [...state.telegrafPlugins, ...action.payload.telegrafPlugins],
-          'name'
+        telegrafPlugins: _.sortBy(
+          _.uniqBy(
+            [...state.telegrafPlugins, ...action.payload.telegrafPlugins],
+            'name'
+          ),
+          ['name']
         ),
       }
     case 'UPDATE_TELEGRAF_PLUGIN':
@@ -163,6 +166,28 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
                 action.payload.fieldName,
                 filteredConfigFieldValue
               ),
+            }
+          }
+          return tp
+        }),
+      }
+    case 'SET_TELEGRAF_PLUGIN_CONFIG_VALUE':
+      return {
+        ...state,
+        telegrafPlugins: state.telegrafPlugins.map(tp => {
+          if (tp.name === action.payload.pluginName) {
+            const plugin = _.get(tp, 'plugin', createNewPlugin(tp.name))
+            const configValues = _.get(
+              plugin,
+              `config.${action.payload.field}`,
+              []
+            )
+            configValues[action.payload.valueIndex] = action.payload.value
+            return {
+              ...tp,
+              plugin: updateConfigFields(plugin, action.payload.field, [
+                ...configValues,
+              ]),
             }
           }
           return tp

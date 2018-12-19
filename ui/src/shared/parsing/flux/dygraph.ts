@@ -2,7 +2,10 @@
 import _ from 'lodash'
 
 // Utils
-import {spreadTables} from 'src/shared/parsing/flux/spreadTables'
+import {
+  spreadTables,
+  SeriesDescription,
+} from 'src/shared/parsing/flux/spreadTables'
 
 // Types
 import {FluxTable} from 'src/types'
@@ -11,6 +14,7 @@ import {DygraphValue} from 'src/external/dygraph'
 export interface FluxTablesToDygraphResult {
   labels: string[]
   dygraphsData: DygraphValue[][]
+  seriesDescriptions: SeriesDescription[]
 }
 
 export const fluxTablesToDygraph = (
@@ -28,5 +32,5 @@ export const fluxTablesToDygraph = (
 
   dygraphsData.sort((a, b) => (a[0] as any) - (b[0] as any))
 
-  return {dygraphsData, labels: ['time', ...labels]}
+  return {dygraphsData, labels: ['time', ...labels], seriesDescriptions}
 }

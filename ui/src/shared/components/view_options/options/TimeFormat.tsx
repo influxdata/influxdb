@@ -5,10 +5,10 @@ import {Form, Input, InputType, Dropdown, Columns} from 'src/clockface'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 
 // Constants
+import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 import {
   FORMAT_OPTIONS,
   TIME_FORMAT_CUSTOM,
-  DEFAULT_TIME_FORMAT,
   TIME_FORMAT_TOOLTIP_LINK,
 } from 'src/dashboards/constants'
 

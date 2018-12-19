@@ -130,3 +130,19 @@ export const createTelegrafConfig = async (
     console.error(error)
   }
 }
+
+export const updateTelegrafConfig = async (
+  telegrafID: string,
+  telegrafConfig: TelegrafRequest
+): Promise<Telegraf> => {
+  try {
+    const {data} = await telegrafsAPI.telegrafsTelegrafIDPut(
+      telegrafID,
+      telegrafConfig
+    )
+
+    return data
+  } catch (error) {
+    console.error(error)
+  }
+}
