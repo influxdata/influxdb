@@ -11,6 +11,6 @@ exports[`SideBarButton rendering renders! wee! 1`] = `
   status="default"
   text="text"
   titleText="titleText"
-  type="submit"
+  type="button"
 />
 `;

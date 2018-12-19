@@ -5,14 +5,10 @@ import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  ComponentStatus,
-} from 'src/clockface'
+import {ComponentStatus, Form} from 'src/clockface'
 import TypeSelector from 'src/onboarding/components/selectionStep/TypeSelector'
 import StreamingSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
+import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 // Actions
 import {
@@ -67,34 +63,25 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <div className="onboarding-step">
-        <h3 className="wizard-step--title">{this.title}</h3>
-        <h5 className="wizard-step--sub-title">
-          You will be able to configure additional Data Sources later
-        </h5>
-        {this.selector}
-        <div className="wizard--button-container">
-          <div className="wizard--button-bar">
-            <Button
-              color={ComponentColor.Default}
-              text={this.backButtonText}
-              size={ComponentSize.Medium}
-              onClick={this.handleClickBack}
-              data-test="back"
-            />
-            <Button
-              color={ComponentColor.Primary}
-              text={this.nextButtonText}
-              size={ComponentSize.Medium}
-              onClick={this.handleClickNext}
-              status={this.nextButtonStatus}
-              titleText={'Next'}
-              data-test="next"
-            />
-          </div>
-          {this.skipLink}
+      <Form onSubmit={this.handleClickNext}>
+        <div className="onboarding-step">
+          <h3 className="wizard-step--title">{this.title}</h3>
+          <h5 className="wizard-step--sub-title">
+            You will be able to configure additional Data Sources later
+          </h5>
+          {this.selector}
+          <OnboardingButtons
+            onClickBack={this.handleClickBack}
+            onClickSkip={this.jumpToCompletionStep}
+            nextButtonText={this.nextButtonText}
+            backButtonText={this.backButtonText}
+            skipButtonText={'Skip to Complete'}
+            autoFocusNext={true}
+            nextButtonStatus={this.nextButtonStatus}
+            showSkip={this.showSkip}
+          />
         </div>
-      </div>
+      </Form>
     )
   }
 
@@ -172,29 +159,13 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
     )
   }
 
-  private get skipLink() {
+  private get showSkip(): boolean {
     const {telegrafPlugins} = this.props
-
     if (telegrafPlugins.length < 1) {
-      return
+      return false
     }
 
-    const allConfigured = telegrafPlugins.every(
-      plugin => plugin.configured === 'configured'
-    )
-
-    if (allConfigured) {
-      return (
-        <Button
-          color={ComponentColor.Default}
-          text="Skip to Verify"
-          customClass="wizard--skip-button"
-          size={ComponentSize.Medium}
-          onClick={this.jumpToCompletionStep}
-          data-test="skip"
-        />
-      )
-    }
+    return telegrafPlugins.every(plugin => plugin.configured === 'configured')
   }
 
   private jumpToCompletionStep = () => {

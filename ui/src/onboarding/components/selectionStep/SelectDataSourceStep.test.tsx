@@ -17,6 +17,7 @@ import {
   telegrafPlugin,
   cpuTelegrafPlugin,
 } from 'mocks/dummyData'
+import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 const setup = (override = {}) => {
   const props = {
@@ -48,75 +49,59 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
     it('renders type selector and buttons', async () => {
       const wrapper = setup()
       const typeSelector = wrapper.find(TypeSelector)
-      const backButton = wrapper.find('[data-test="back"]')
-      const nextButton = wrapper.find('[data-test="next"]')
+      const onboardingButtons = wrapper.find(OnboardingButtons)
 
       expect(wrapper.exists()).toBe(true)
       expect(typeSelector.exists()).toBe(true)
-      expect(backButton.prop('text')).toBe('Back to Admin Setup')
-      expect(nextButton.prop('text')).toBe('Continue to Configuration')
-      expect(nextButton.prop('status')).toBe(ComponentStatus.Disabled)
-    })
-
-    describe('if back button is clicked', () => {
-      it('calls prop functions as expected', () => {
-        const onDecrementCurrentStepIndex = jest.fn()
-        const wrapper = setup({
-          onDecrementCurrentStepIndex,
-        })
-        const backButton = wrapper.find('[data-test="back"]')
-        backButton.simulate('click')
-
-        expect(onDecrementCurrentStepIndex).toBeCalled()
-      })
-    })
-
-    describe('if next button is clicked', () => {
-      it('calls prop functions as expected', () => {
-        const onIncrementCurrentStepIndex = jest.fn()
-        const wrapper = setup({onIncrementCurrentStepIndex})
-        const nextButton = wrapper.find('[data-test="next"]')
-        nextButton.simulate('click')
-
-        expect(onIncrementCurrentStepIndex).toBeCalled()
-      })
+      expect(onboardingButtons.prop('backButtonText')).toBe(
+        'Back to Admin Setup'
+      )
+      expect(onboardingButtons.prop('nextButtonText')).toBe(
+        'Continue to Configuration'
+      )
+      expect(onboardingButtons.prop('nextButtonStatus')).toBe(
+        ComponentStatus.Disabled
+      )
     })
   })
 
-  describe('skip link', () => {
+  describe('skip info', () => {
     it('does not render if telegraf no plugins are selected', () => {
       const wrapper = setup()
-      const skipLink = wrapper.find('[data-test="skip"]')
+      const onboardingButtons = wrapper.find(OnboardingButtons)
 
-      expect(skipLink.exists()).toBe(false)
+      expect(onboardingButtons.prop('showSkip')).toBe(false)
     })
 
     it('renders if telegraf plugins are selected', () => {
       const wrapper = setup({telegrafPlugins: [cpuTelegrafPlugin]})
-      const skipLink = wrapper.find('[data-test="skip"]')
+      const onboardingButtons = wrapper.find(OnboardingButtons)
 
-      expect(skipLink.exists()).toBe(true)
+      expect(onboardingButtons.prop('showSkip')).toBe(true)
     })
 
     it('does not render if any telegraf plugins is incomplete', () => {
       const wrapper = setup({telegrafPlugins: [telegrafPlugin]})
-      const skipLink = wrapper.find('[data-test="skip"]')
+      const onboardingButtons = wrapper.find(OnboardingButtons)
 
-      expect(skipLink.exists()).toBe(false)
+      expect(onboardingButtons.prop('showSkip')).toBe(false)
     })
   })
 
   describe('if type is line protocol', () => {
     it('renders back and next buttons with correct text', () => {
       const wrapper = setup({type: DataLoaderType.LineProtocol})
-      const backButton = wrapper.find('[data-test="back"]')
-      const nextButton = wrapper.find('[data-test="next"]')
+      const onboardingButtons = wrapper.find(OnboardingButtons)
 
-      expect(backButton.prop('text')).toBe('Back to Admin Setup')
-      expect(nextButton.prop('text')).toBe(
+      expect(onboardingButtons.prop('backButtonText')).toBe(
+        'Back to Admin Setup'
+      )
+      expect(onboardingButtons.prop('nextButtonText')).toBe(
         'Continue to Line Protocol Configuration'
       )
-      expect(nextButton.prop('status')).toBe(ComponentStatus.Default)
+      expect(onboardingButtons.prop('nextButtonStatus')).toBe(
+        ComponentStatus.Default
+      )
     })
   })
 
@@ -128,13 +113,18 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
           params: {stepID: '2', substepID: 'streaming'},
         })
         const streamingSelector = wrapper.find(StreamingSelector)
-        const backButton = wrapper.find('[data-test="back"]')
-        const nextButton = wrapper.find('[data-test="next"]')
+        const onboardingButtons = wrapper.find(OnboardingButtons)
 
         expect(streamingSelector.exists()).toBe(true)
-        expect(backButton.prop('text')).toBe('Back to Data Source Selection')
-        expect(nextButton.prop('text')).toBe('Continue to Plugin Configuration')
-        expect(nextButton.prop('status')).toBe(ComponentStatus.Disabled)
+        expect(onboardingButtons.prop('backButtonText')).toBe(
+          'Back to Data Source Selection'
+        )
+        expect(onboardingButtons.prop('nextButtonText')).toBe(
+          'Continue to Plugin Configuration'
+        )
+        expect(onboardingButtons.prop('nextButtonStatus')).toBe(
+          ComponentStatus.Disabled
+        )
       })
     })
 
@@ -145,62 +135,15 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
           params: {stepID: '2', substepID: 'streaming'},
           telegrafPlugins: [cpuTelegrafPlugin],
         })
-        const backButton = wrapper.find('[data-test="back"]')
-        const nextButton = wrapper.find('[data-test="next"]')
+        const onboardingButtons = wrapper.find(OnboardingButtons)
 
-        expect(backButton.prop('text')).toBe('Back to Data Source Selection')
-        expect(nextButton.prop('text')).toBe('Continue to Cpu')
-        expect(nextButton.prop('status')).toBe(ComponentStatus.Default)
-      })
-    })
-
-    describe('if back button is clicked', () => {
-      it('calls prop functions as expected', () => {
-        const onSetCurrentStepIndex = jest.fn()
-        const wrapper = setup({
-          type: DataLoaderType.Streaming,
-          params: {stepID: '2', substepID: 'streaming'},
-          telegrafPlugins: [cpuTelegrafPlugin],
-          onSetCurrentStepIndex,
-        })
-        const backButton = wrapper.find('[data-test="back"]')
-        backButton.simulate('click')
-
-        expect(onSetCurrentStepIndex).toBeCalledWith(2)
-      })
-    })
-
-    describe('if next button is clicked', () => {
-      it('calls prop functions as expected', () => {
-        const onIncrementCurrentStepIndex = jest.fn()
-        const wrapper = setup({
-          type: DataLoaderType.Streaming,
-          params: {stepID: '2', substepID: 'streaming'},
-          telegrafPlugins: [cpuTelegrafPlugin],
-          onIncrementCurrentStepIndex,
-        })
-        const nextButton = wrapper.find('[data-test="next"]')
-        nextButton.simulate('click')
-
-        expect(onIncrementCurrentStepIndex).toBeCalled()
-      })
-    })
-  })
-
-  describe('if type is streaming but sub step is not', () => {
-    describe('if next button is clicked', () => {
-      it('calls prop functions as expected', () => {
-        const onSetSubstepIndex = jest.fn()
-        const wrapper = setup({
-          type: DataLoaderType.Streaming,
-          params: {stepID: '2', substepID: undefined},
-          telegrafPlugins: [cpuTelegrafPlugin],
-          onSetSubstepIndex,
-        })
-        const nextButton = wrapper.find('[data-test="next"]')
-        nextButton.simulate('click')
-
-        expect(onSetSubstepIndex).toBeCalledWith(2, 'streaming')
+        expect(onboardingButtons.prop('backButtonText')).toBe(
+          'Back to Data Source Selection'
+        )
+        expect(onboardingButtons.prop('nextButtonText')).toBe('Continue to Cpu')
+        expect(onboardingButtons.prop('nextButtonStatus')).toBe(
+          ComponentStatus.Default
+        )
       })
     })
   })

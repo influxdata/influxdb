@@ -5,8 +5,6 @@ import {getDeep} from 'src/utils/wrappers'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
-  Button,
-  ComponentColor,
   ComponentSize,
   Input,
   InputType,
@@ -16,6 +14,7 @@ import {
   Grid,
   ComponentStatus,
 } from 'src/clockface'
+import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 // APIS
 import {setSetupParams, SetupParams, signin} from 'src/onboarding/apis'
@@ -49,14 +48,6 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     }
   }
 
-  public componentDidMount() {
-    window.addEventListener('keydown', this.handleKeydown)
-  }
-
-  public componentWillUnmount() {
-    window.removeEventListener('keydown', this.handleKeydown)
-  }
-
   public render() {
     const {username, password, confirmPassword, org, bucket} = this.state
     const icon = this.InputIcon
@@ -68,7 +59,10 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
           You will be able to create additional Users, Buckets and Organizations
           later
         </h5>
-        <Form className="onboarding--admin-user-form">
+        <Form
+          className="onboarding--admin-user-form"
+          onSubmit={this.handleNext}
+        >
           <Grid>
             <Grid.Row>
               <Grid.Column widthXS={Columns.Ten} offsetXS={Columns.One}>
@@ -143,24 +137,13 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
               </Grid.Column>
             </Grid.Row>
           </Grid>
-          <div className="wizard--button-container">
-            <div className="wizard--button-bar">
-              <Button
-                color={ComponentColor.Default}
-                text="Back to Start"
-                size={ComponentSize.Medium}
-                onClick={this.props.onDecrementCurrentStepIndex}
-              />
-              <Button
-                color={ComponentColor.Primary}
-                text="Continue to Data Loading"
-                size={ComponentSize.Medium}
-                onClick={this.handleNext}
-                status={this.nextButtonStatus}
-                titleText={this.nextButtonTitle}
-              />
-            </div>
-          </div>
+          <OnboardingButtons
+            onClickBack={this.props.onDecrementCurrentStepIndex}
+            nextButtonText={this.nextButtonText}
+            backButtonText={'Back to Start'}
+            nextButtonStatus={this.nextButtonStatus}
+            autoFocusNext={false}
+          />
         </Form>
       </div>
     )
@@ -195,16 +178,14 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     this.setState({bucket})
   }
 
-  private handleKeydown = (e: KeyboardEvent): void => {
-    if (
-      e.key === 'Enter' &&
-      this.nextButtonStatus === ComponentStatus.Default
-    ) {
-      this.handleNext()
+  private get nextButtonStatus(): ComponentStatus {
+    if (this.areInputsValid) {
+      return ComponentStatus.Default
     }
+    return ComponentStatus.Disabled
   }
 
-  private get nextButtonStatus(): ComponentStatus {
+  private get areInputsValid(): boolean {
     const {
       username,
       password,
@@ -213,24 +194,21 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
       confirmPassword,
       isPassMismatched,
     } = this.state
-    if (
+
+    return (
       username &&
       password &&
       confirmPassword &&
       org &&
       bucket &&
       !isPassMismatched
-    ) {
-      return ComponentStatus.Default
-    }
-    return ComponentStatus.Disabled
+    )
   }
 
-  private get nextButtonTitle(): string {
-    const {username, password, org, bucket, confirmPassword} = this.state
-    if (username && password && confirmPassword && org && bucket) {
-      return 'Next'
+  private get nextButtonText(): string {
+    if (this.areInputsValid) {
     }
+    return 'Continue to Data Source Selection'
     return 'All fields are required to continue'
   }
 
