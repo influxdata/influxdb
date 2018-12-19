@@ -25,7 +25,6 @@ import (
 	influxlogger "github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/nats"
 	"github.com/influxdata/platform/query"
-	_ "github.com/influxdata/platform/query/builtin"
 	pcontrol "github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/snowflake"
 	"github.com/influxdata/platform/source"

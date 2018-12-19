@@ -179,6 +179,7 @@ func (o *ToOpSpec) BucketsAccessed() (readBuckets, writeBuckets []platform.Bucke
 
 // ToProcedureSpec is the procedure spec for the `to` flux function.
 type ToProcedureSpec struct {
+	plan.DefaultCost
 	Spec *ToOpSpec
 }
 
