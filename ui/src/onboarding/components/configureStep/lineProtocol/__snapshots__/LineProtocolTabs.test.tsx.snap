@@ -49,7 +49,7 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
   />
   <PrecisionDropdown />
   <div
-    className="wizard-button-bar"
+    className="wizard--button-bar"
   />
 </Fragment>
 `;

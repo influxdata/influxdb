@@ -12,7 +12,11 @@ import {ComponentStatus} from 'src/clockface'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 // Dummy Data
-import {defaultOnboardingStepProps, cpuTelegrafPlugin} from 'mocks/dummyData'
+import {
+  defaultOnboardingStepProps,
+  telegrafPlugin,
+  cpuTelegrafPlugin,
+} from 'mocks/dummyData'
 
 const setup = (override = {}) => {
   const props = {
@@ -76,6 +80,29 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
 
         expect(onIncrementCurrentStepIndex).toBeCalled()
       })
+    })
+  })
+
+  describe('skip link', () => {
+    it('does not render if telegraf no plugins are selected', () => {
+      const wrapper = setup()
+      const skipLink = wrapper.find('[data-test="skip"]')
+
+      expect(skipLink.exists()).toBe(false)
+    })
+
+    it('renders if telegraf plugins are selected', () => {
+      const wrapper = setup({telegrafPlugins: [cpuTelegrafPlugin]})
+      const skipLink = wrapper.find('[data-test="skip"]')
+
+      expect(skipLink.exists()).toBe(true)
+    })
+
+    it('does not render if any telegraf plugins is incomplete', () => {
+      const wrapper = setup({telegrafPlugins: [telegrafPlugin]})
+      const skipLink = wrapper.find('[data-test="skip"]')
+
+      expect(skipLink.exists()).toBe(false)
     })
   })
 

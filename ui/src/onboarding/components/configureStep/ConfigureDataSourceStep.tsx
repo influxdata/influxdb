@@ -100,8 +100,8 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
           currentIndex={+substepID}
           onSetConfigArrayValue={onSetConfigArrayValue}
         />
-        <div className="wizard-button-container">
-          <div className="wizard-button-bar">
+        <div className="wizard--button-container">
+          <div className="wizard--button-bar">
             <Button
               color={ComponentColor.Default}
               text={this.backButtonText}
@@ -168,23 +168,32 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
   }
 
   private get skipLink() {
+    const {type} = this.props
+    const skipText =
+      type === DataLoaderType.Streaming ? 'Skip to Verify' : 'Skip Config'
+
     return (
       <Button
+        customClass="wizard--skip-button"
+        size={ComponentSize.Medium}
         color={ComponentColor.Default}
-        text="Skip"
-        size={ComponentSize.Small}
+        text={skipText}
         onClick={this.jumpToCompletionStep}
-      >
-        skip
-      </Button>
+        data-test="skip"
+      />
     )
   }
 
   private jumpToCompletionStep = () => {
-    const {onSetCurrentStepIndex, stepStatuses} = this.props
+    const {onSetCurrentStepIndex, stepStatuses, type} = this.props
 
     this.handleSetStepStatus()
-    onSetCurrentStepIndex(stepStatuses.length - 1)
+
+    if (type === DataLoaderType.Streaming) {
+      onSetCurrentStepIndex(stepStatuses.length - 2)
+    } else {
+      onSetCurrentStepIndex(stepStatuses.length - 1)
+    }
   }
 
   private handleNext = async () => {

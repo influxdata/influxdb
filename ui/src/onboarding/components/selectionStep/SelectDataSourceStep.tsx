@@ -73,8 +73,8 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
           You will be able to configure additional Data Sources later
         </h5>
         {this.selector}
-        <div className="wizard-button-container">
-          <div className="wizard-button-bar">
+        <div className="wizard--button-container">
+          <div className="wizard--button-bar">
             <Button
               color={ComponentColor.Default}
               text={this.backButtonText}
@@ -173,16 +173,28 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
   }
 
   private get skipLink() {
-    return (
-      <Button
-        color={ComponentColor.Default}
-        text="Skip"
-        size={ComponentSize.Small}
-        onClick={this.jumpToCompletionStep}
-      >
-        skip
-      </Button>
+    const {telegrafPlugins} = this.props
+
+    if (telegrafPlugins.length < 1) {
+      return
+    }
+
+    const allConfigured = telegrafPlugins.every(
+      plugin => plugin.configured === 'configured'
     )
+
+    if (allConfigured) {
+      return (
+        <Button
+          color={ComponentColor.Default}
+          text="Skip to Verify"
+          customClass="wizard--skip-button"
+          size={ComponentSize.Medium}
+          onClick={this.jumpToCompletionStep}
+          data-test="skip"
+        />
+      )
+    }
   }
 
   private jumpToCompletionStep = () => {

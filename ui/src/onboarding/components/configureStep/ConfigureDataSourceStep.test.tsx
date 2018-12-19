@@ -110,6 +110,56 @@ describe('Onboarding.Components.ConfigureStep.ConfigureDataSourceStep', () => {
       })
     })
 
+    describe('if skip button is clicked', () => {
+      it('renders the correct skip button text for streaming sources', () => {
+        const wrapper = setup({
+          type: DataLoaderType.Streaming,
+          telegrafPlugins: [cpuTelegrafPlugin],
+          params: {stepID: '3', substepID: 'streaming'},
+        })
+        const skipButton = wrapper.find('[data-test="skip"]')
+
+        expect(skipButton.prop('text')).toBe('Skip to Verify')
+      })
+
+      it('renders the correct skip button text for Line Protocol', () => {
+        const wrapper = setup({
+          type: DataLoaderType.LineProtocol,
+        })
+        const skipButton = wrapper.find('[data-test="skip"]')
+
+        expect(skipButton.prop('text')).toBe('Skip Config')
+      })
+
+      it('calls prop functions as expected for streaming sources', () => {
+        const onSetCurrentStepIndex = jest.fn()
+        const wrapper = setup({
+          type: DataLoaderType.Streaming,
+          telegrafPlugins: [cpuTelegrafPlugin],
+          params: {stepID: '3', substepID: '0'},
+          onSetCurrentStepIndex,
+          stepStatuses: Array(5),
+        })
+        const skipButton = wrapper.find('[data-test="skip"]')
+        skipButton.simulate('click')
+
+        expect(onSetCurrentStepIndex).toBeCalledWith(3)
+      })
+
+      it('calls prop functions as expected for Line Protocol', () => {
+        const onSetCurrentStepIndex = jest.fn()
+        const wrapper = setup({
+          type: DataLoaderType.LineProtocol,
+          onSetCurrentStepIndex,
+          stepStatuses: Array(5),
+        })
+        const skipButton = wrapper.find('[data-test="skip"]')
+        skipButton.simulate('click')
+
+        expect(onSetCurrentStepIndex).toBeCalledWith(4)
+      })
+    })
+
     describe('if its the neither the last or firt stubstep', () => {
       it('renders the next and back buttons with correct text', () => {
         const wrapper = setup({

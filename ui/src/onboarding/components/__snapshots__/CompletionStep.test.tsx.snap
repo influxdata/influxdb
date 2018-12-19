@@ -16,14 +16,14 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
     className="wizard-step--sub-title"
   />
   <div
-    className="wizard-button-bar"
+    className="wizard--button-bar"
   >
     <Button
       active={false}
       color="default"
       onClick={[MockFunction]}
       shape="none"
-      size="md"
+      size="lg"
       status="default"
       text="Back to Verify"
       type="submit"
@@ -33,7 +33,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
       color="success"
       onClick={[MockFunction]}
       shape="none"
-      size="md"
+      size="lg"
       status="default"
       text="Go to InfluxDB 2.0"
       type="submit"

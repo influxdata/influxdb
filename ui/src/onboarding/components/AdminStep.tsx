@@ -144,23 +144,25 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
               disabledTitleText="Default bucket name has been set"
             />
           </Form.Element>
+          <div className="wizard--button-container">
+            <div className="wizard--button-bar">
+              <Button
+                color={ComponentColor.Default}
+                text="Back to Start"
+                size={ComponentSize.Medium}
+                onClick={this.props.onDecrementCurrentStepIndex}
+              />
+              <Button
+                color={ComponentColor.Primary}
+                text="Continue to Data Loading"
+                size={ComponentSize.Medium}
+                onClick={this.handleNext}
+                status={this.nextButtonStatus}
+                titleText={this.nextButtonTitle}
+              />
+            </div>
+          </div>
         </Form>
-        <div className="wizard-button-bar">
-          <Button
-            color={ComponentColor.Default}
-            text="Back to Start"
-            size={ComponentSize.Medium}
-            onClick={this.props.onDecrementCurrentStepIndex}
-          />
-          <Button
-            color={ComponentColor.Primary}
-            text="Continue to Data Loading"
-            size={ComponentSize.Medium}
-            onClick={this.handleNext}
-            status={this.nextButtonStatus}
-            titleText={this.nextButtonTitle}
-          />
-        </div>
       </div>
     )
   }

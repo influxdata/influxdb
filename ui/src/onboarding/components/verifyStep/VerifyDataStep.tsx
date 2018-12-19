@@ -58,8 +58,8 @@ class VerifyDataStep extends PureComponent<Props> {
           onSetStepStatus={onSetStepStatus}
           stepIndex={stepIndex}
         />
-        <div className="wizard-button-container">
-          <div className="wizard-button-bar">
+        <div className="wizard--button-container">
+          <div className="wizard--button-bar">
             <Button
               color={ComponentColor.Default}
               text={this.backButtonText}
@@ -88,7 +88,8 @@ class VerifyDataStep extends PureComponent<Props> {
       <Button
         color={ComponentColor.Default}
         text="Skip"
-        size={ComponentSize.Small}
+        customClass="wizard--skip-button"
+        size={ComponentSize.Medium}
         onClick={this.jumpToCompletionStep}
       >
         skip

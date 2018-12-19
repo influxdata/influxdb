@@ -26,17 +26,17 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
         <div className="splash-logo secondary" />
         <h3 className="wizard-step--title">Setup Complete!</h3>
         <h5 className="wizard-step--sub-title" />
-        <div className="wizard-button-bar">
+        <div className="wizard--button-bar">
           <Button
             color={ComponentColor.Default}
             text="Back to Verify"
-            size={ComponentSize.Medium}
+            size={ComponentSize.Large}
             onClick={onDecrementCurrentStepIndex}
           />
           <Button
             color={ComponentColor.Success}
             text="Go to InfluxDB 2.0"
-            size={ComponentSize.Medium}
+            size={ComponentSize.Large}
             onClick={onExit}
           />
         </div>
