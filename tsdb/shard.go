@@ -1719,12 +1719,12 @@ func (fs *MeasurementFieldSet) saveNoLock() error {
 	}
 	for name, mf := range fs.fields {
 		fs := &internal.MeasurementFields{
-			Name:   name,
+			Name:   []byte(name),
 			Fields: make([]*internal.Field, 0, mf.FieldN()),
 		}
 
 		mf.ForEachField(func(field string, typ influxql.DataType) bool {
-			fs.Fields = append(fs.Fields, &internal.Field{Name: field, Type: int32(typ)})
+			fs.Fields = append(fs.Fields, &internal.Field{Name: []byte(field), Type: int32(typ)})
 			return true
 		})
 
@@ -1791,16 +1791,16 @@ func (fs *MeasurementFieldSet) load() error {
 	for _, measurement := range pb.GetMeasurements() {
 		fields := make(map[string]*Field, len(measurement.GetFields()))
 		for _, field := range measurement.GetFields() {
-			fields[field.GetName()] = &Field{Name: field.GetName(), Type: influxql.DataType(field.GetType())}
+			fields[string(field.GetName())] = &Field{Name: string(field.GetName()), Type: influxql.DataType(field.GetType())}
 		}
 		set := &MeasurementFields{}
 		set.fields.Store(fields)
-		fs.fields[measurement.GetName()] = set
+		fs.fields[string(measurement.GetName())] = set
 	}
 	return nil
 }
 
-// Field represents a series field.
+// Field represents a series field. All of the fields must be hashable.
 type Field struct {
 	ID   uint8             `json:"id,omitempty"`
 	Name string            `json:"name,omitempty"`
