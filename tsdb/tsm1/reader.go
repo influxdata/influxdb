@@ -966,59 +966,24 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 		bytesutil.Sort(keys)
 	}
 
-	// Both keys and offsets are sorted.  Walk both in order and skip
-	// any keys that exist in both.
 	d.mu.Lock()
+	iter := d.ro.Iterator()
 
-	j := d.searchOffset(keys[0])
-	i := j
-
-	pi := searchPrefixesIndex(d.ro.prefixes, j)
-	ptotal := d.ro.prefixes[pi].total
-	psub := 0
-
-	for ; i < len(d.ro.offsets) && len(keys) > 0; i++ {
-		for i >= ptotal {
-			d.ro.prefixes[pi].total -= psub
-			pi++
-			ptotal = d.ro.prefixes[pi].total
-		}
-
-		offset := d.ro.offsets[i]
-		_, indexKey := readKey(d.b.access(offset, 0))
-
-		// pop keys to delete while they're smaller than the indexKey.
-		for len(keys) > 0 && bytes.Compare(keys[0], indexKey) < 0 {
-			keys = keys[1:]
-		}
-		if len(keys) == 0 {
+	for _, key := range keys {
+		pre := keyPrefix(key)
+		for iter.Next() {
+			cmp := iter.Compare(key, pre, &d.b)
+			if cmp == -1 {
+				continue
+			}
+			if cmp == 0 {
+				delete(d.tombstones, iter.Offset())
+				iter.Delete()
+			}
 			break
 		}
-
-		// if the indexKey matches, remove the key from consideration and
-		// continue, deleting the key.
-		if bytes.Equal(keys[0], indexKey) {
-			keys = keys[1:]
-			psub++
-			continue
-		}
-
-		if i != j {
-			d.ro.offsets[j] = d.ro.offsets[i]
-		}
-		j++
 	}
-
-	// if we deleted any keys, copy the suffix and reslice.
-	if i != j {
-		copy(d.ro.offsets[j:], d.ro.offsets[i:])
-		d.ro.offsets = d.ro.offsets[:len(d.ro.offsets)-(i-j)]
-
-		for ; pi < len(d.ro.prefixes); pi++ {
-			d.ro.prefixes[pi].total -= psub
-		}
-	}
-
+	iter.Done()
 	d.mu.Unlock()
 }
 
@@ -1075,48 +1040,26 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	}
 
 	d.mu.RLock()
-	var index = -2 // ensures we do the seek attempt on the first loop through
+	iter := d.ro.Iterator()
 	var entries []IndexEntry
 	var tombstones []tombstoneEntry
 	var err error
-	var found bool
 
 	for _, key := range keys {
-		// TODO(jeff): this is a very strange loop. these primitives do not compose well.
-
-		// often, the passed in keys are contiguous. check the next entry to see if it matches
-		// the key to avoid a seek.
-		found, index = false, index+1
-		if index >= 0 && index < len(d.ro.offsets) {
-			goto attempt
+		if !iter.Next() || !bytes.Equal(iter.Key(&d.b), key) {
+			exact, _ := iter.Seek(key, &d.b)
+			if !exact {
+				continue
+			}
 		}
-
-	seek: // seeks the index to the appropriate key. if not found, continues
-		if index = d.searchOffset(key); index >= len(d.ro.offsets) {
-			continue
-		}
-		found = true
-
-	attempt: // loads the key from disk and compares it to the current key
-		keyOffset := d.ro.offsets[index]
-		n, indexKey := readKey(d.b.access(keyOffset, 0))
-		entryOffset := keyOffset + n
-
-		// if we haven't done an exact find, check the comparision. if it
-		// doesn't match, go try a seek.
-		if !found && !bytes.Equal(key, indexKey) {
-			goto seek
-		}
-
-		// end very strange loop.
 
 		tsEntry := tombstoneEntry{
-			KeyOffset:   keyOffset,
-			EntryOffset: entryOffset,
+			KeyOffset:   iter.Offset(),
+			EntryOffset: iter.Offset() + 2 + uint32(len(key)),
 		}
 
 		// read the entries for the key so that we can determine the time ranges.
-		entries, err = readEntriesTimes(d.b.access(entryOffset, 0), entries)
+		entries, err = readEntriesTimes(d.b.access(tsEntry.EntryOffset, 0), entries)
 		if err != nil {
 			// If we have an error reading the entries for a key, we should just pretend
 			// the whole key is deleted. Maybe a better idea is to report this up somehow
@@ -1139,7 +1082,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 
 		// Get the sorted list of tombstones with our new range and check
 		// to see if they fully cover the key's entries.
-		ts := insertTombstone(d.tombstones[keyOffset])
+		ts := insertTombstone(d.tombstones[tsEntry.KeyOffset])
 		if timeRangesCoverEntries(ts, entries) {
 			tombstones = append(tombstones, tsEntry)
 			continue
@@ -1210,32 +1153,13 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	}
 
 	// Filter the offsets slice removing entries that are in toDelete.
-	j := 0
-	pi := 0
-	ptotal := d.ro.prefixes[pi].total
-	psub := 0
-
-	for i, offset := range d.ro.offsets {
-		for i >= ptotal {
-			d.ro.prefixes[pi].total -= psub
-			pi++
-			ptotal = d.ro.prefixes[pi].total
+	iter = d.ro.Iterator()
+	for iter.Next() {
+		if _, ok := toDelete[iter.Offset()]; ok {
+			iter.Delete()
 		}
-
-		if _, ok := toDelete[offset]; ok {
-			psub++
-			continue
-		}
-
-		if i != j {
-			d.ro.offsets[j] = offset
-		}
-
-		j++
 	}
-
-	d.ro.offsets = d.ro.offsets[:j]
-	d.ro.prefixes[len(d.ro.prefixes)-1].total -= psub
+	iter.Done()
 }
 
 // TombstoneRange returns ranges of time that are deleted for the given key.
