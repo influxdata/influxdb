@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/bolt"
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initSessionService(f platformtesting.SessionFields, t *testing.T) (platform.SessionService, func()) {
+func initSessionService(f platformtesting.SessionFields, t *testing.T) (platform.SessionService, string, func()) {
 	c, closeFn, err := NewTestClient()
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
@@ -26,7 +27,7 @@ func initSessionService(f platformtesting.SessionFields, t *testing.T) (platform
 			t.Fatalf("failed to populate sessions")
 		}
 	}
-	return c, func() {
+	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, u := range f.Users {
 			if err := c.DeleteUser(ctx, u.ID); err != nil {
