@@ -14,7 +14,6 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/influxdata/platform/pkg/bytesutil"
 	"github.com/influxdata/platform/pkg/file"
@@ -745,12 +744,9 @@ type indirectIndex struct {
 	// slice reference
 	b faultBuffer
 
-	// offsets contains the positions in b for each key.  It points to the 2 byte length of
-	// key.
-	offsets []uint32
-
-	// 8 byte prefixes of keys to avoid hitting the mmap when searching.
-	prefixes []prefixEntry
+	// ro contains the positions in b for each key as well as the first bytes of each key
+	// to avoid disk seeks.
+	ro readerOffsets
 
 	// minKey, maxKey are the minium and maximum (lexicographically sorted) contained in the
 	// file
@@ -764,25 +760,6 @@ type indirectIndex struct {
 	// entry would exist here if a subset of the points for a key were deleted and the file
 	// had not be re-compacted to remove the points on disk.
 	tombstones map[uint32][]TimeRange
-}
-
-type prefixEntry struct {
-	pre   prefix
-	total int // partial sums
-}
-
-func searchPrefixesIndex(prefixes []prefixEntry, n int) int {
-	return sort.Search(len(prefixes), func(i int) bool {
-		return prefixes[i].total > n
-	})
-}
-
-func searchPrefixes(prefixes []prefixEntry, n int) (prefix, bool) {
-	i := searchPrefixesIndex(prefixes, n)
-	if i < len(prefixes) {
-		return prefixes[i].pre, true
-	}
-	return prefix{}, false
 }
 
 // TimeRange holds a min and max timestamp.
@@ -807,19 +784,33 @@ func (d *indirectIndex) Seek(key []byte) int {
 	return d.searchOffset(key)
 }
 
+func searchPrefixesIndex(prefixes []prefixEntry, n int) int {
+	return sort.Search(len(prefixes), func(i int) bool {
+		return prefixes[i].total > n
+	})
+}
+
+func searchPrefixes(prefixes []prefixEntry, n int) (prefix, bool) {
+	i := searchPrefixesIndex(prefixes, n)
+	if i < len(prefixes) {
+		return prefixes[i].pre, true
+	}
+	return prefix{}, false
+}
+
 // searchOffset searches the offsets slice for key and returns the position in
 // offsets where key would exist.
 func (d *indirectIndex) searchOffset(key []byte) (index int) {
 	pre := keyPrefix(key)
-	return sort.Search(len(d.offsets), func(i int) bool {
-		if prei, ok := searchPrefixes(d.prefixes, i); ok {
+	return sort.Search(len(d.ro.offsets), func(i int) bool {
+		if prei, ok := searchPrefixes(d.ro.prefixes, i); ok {
 			if cmp := comparePrefix(prei, pre); cmp == -1 {
 				return false
 			} else if cmp == 1 {
 				return true
 			}
 		}
-		_, k := readKey(d.b.access(d.offsets[i], 0))
+		_, k := readKey(d.b.access(d.ro.offsets[i], 0))
 		return bytes.Compare(k, key) >= 0
 	})
 }
@@ -833,8 +824,8 @@ func (d *indirectIndex) search(key []byte) uint32 {
 
 	// We use a binary search across our indirect offsets (pointers to all the keys
 	// in the index slice). We then check if we have found the right index.
-	if i := d.searchOffset(key); i < len(d.offsets) {
-		offset := d.offsets[i]
+	if i := d.searchOffset(key); i < len(d.ro.offsets) {
+		offset := d.ro.offsets[i]
 		_, k := readKey(d.b.access(offset, 0))
 
 		// The search may have returned an i == 0 which could indicated that the value
@@ -919,11 +910,11 @@ func (d *indirectIndex) Key(idx int, entries *[]IndexEntry) ([]byte, byte, []Ind
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	if idx < 0 || idx >= len(d.offsets) {
+	if idx < 0 || idx >= len(d.ro.offsets) {
 		return nil, 0, nil
 	}
 
-	offset := d.offsets[idx]
+	offset := d.ro.offsets[idx]
 	n, key := readKey(d.b.access(offset, 0))
 	typ := d.b.access(offset+n, 1)[0]
 
@@ -945,11 +936,11 @@ func (d *indirectIndex) Key(idx int, entries *[]IndexEntry) ([]byte, byte, []Ind
 func (d *indirectIndex) KeyAt(idx int) ([]byte, byte) {
 	d.mu.RLock()
 
-	if idx < 0 || idx >= len(d.offsets) {
+	if idx < 0 || idx >= len(d.ro.offsets) {
 		d.mu.RUnlock()
 		return nil, 0
 	}
-	offset := d.offsets[idx]
+	offset := d.ro.offsets[idx]
 	n, key := readKey(d.b.access(offset, 0))
 	offset = offset + uint32(n)
 	typ := d.b.access(offset, 1)[0]
@@ -960,7 +951,7 @@ func (d *indirectIndex) KeyAt(idx int) ([]byte, byte) {
 // KeyCount returns the count of unique keys in the index.
 func (d *indirectIndex) KeyCount() int {
 	d.mu.RLock()
-	n := len(d.offsets)
+	n := len(d.ro.offsets)
 	d.mu.RUnlock()
 	return n
 }
@@ -982,18 +973,18 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 	j := d.searchOffset(keys[0])
 	i := j
 
-	pi := searchPrefixesIndex(d.prefixes, j)
-	ptotal := d.prefixes[pi].total
+	pi := searchPrefixesIndex(d.ro.prefixes, j)
+	ptotal := d.ro.prefixes[pi].total
 	psub := 0
 
-	for ; i < len(d.offsets) && len(keys) > 0; i++ {
+	for ; i < len(d.ro.offsets) && len(keys) > 0; i++ {
 		for i >= ptotal {
-			d.prefixes[pi].total -= psub
+			d.ro.prefixes[pi].total -= psub
 			pi++
-			ptotal = d.prefixes[pi].total
+			ptotal = d.ro.prefixes[pi].total
 		}
 
-		offset := d.offsets[i]
+		offset := d.ro.offsets[i]
 		_, indexKey := readKey(d.b.access(offset, 0))
 
 		// pop keys to delete while they're smaller than the indexKey.
@@ -1013,18 +1004,18 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 		}
 
 		if i != j {
-			d.offsets[j] = d.offsets[i]
+			d.ro.offsets[j] = d.ro.offsets[i]
 		}
 		j++
 	}
 
 	// if we deleted any keys, copy the suffix and reslice.
 	if i != j {
-		copy(d.offsets[j:], d.offsets[i:])
-		d.offsets = d.offsets[:len(d.offsets)-(i-j)]
+		copy(d.ro.offsets[j:], d.ro.offsets[i:])
+		d.ro.offsets = d.ro.offsets[:len(d.ro.offsets)-(i-j)]
 
-		for ; pi < len(d.prefixes); pi++ {
-			d.prefixes[pi].total -= psub
+		for ; pi < len(d.ro.prefixes); pi++ {
+			d.ro.prefixes[pi].total -= psub
 		}
 	}
 
@@ -1096,18 +1087,18 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 		// often, the passed in keys are contiguous. check the next entry to see if it matches
 		// the key to avoid a seek.
 		found, index = false, index+1
-		if index >= 0 && index < len(d.offsets) {
+		if index >= 0 && index < len(d.ro.offsets) {
 			goto attempt
 		}
 
 	seek: // seeks the index to the appropriate key. if not found, continues
-		if index = d.searchOffset(key); index >= len(d.offsets) {
+		if index = d.searchOffset(key); index >= len(d.ro.offsets) {
 			continue
 		}
 		found = true
 
 	attempt: // loads the key from disk and compares it to the current key
-		keyOffset := d.offsets[index]
+		keyOffset := d.ro.offsets[index]
 		n, indexKey := readKey(d.b.access(keyOffset, 0))
 		entryOffset := keyOffset + n
 
@@ -1221,14 +1212,14 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	// Filter the offsets slice removing entries that are in toDelete.
 	j := 0
 	pi := 0
-	ptotal := d.prefixes[pi].total
+	ptotal := d.ro.prefixes[pi].total
 	psub := 0
 
-	for i, offset := range d.offsets {
+	for i, offset := range d.ro.offsets {
 		for i >= ptotal {
-			d.prefixes[pi].total -= psub
+			d.ro.prefixes[pi].total -= psub
 			pi++
-			ptotal = d.prefixes[pi].total
+			ptotal = d.ro.prefixes[pi].total
 		}
 
 		if _, ok := toDelete[offset]; ok {
@@ -1237,14 +1228,14 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 		}
 
 		if i != j {
-			d.offsets[j] = offset
+			d.ro.offsets[j] = offset
 		}
 
 		j++
 	}
 
-	d.offsets = d.offsets[:j]
-	d.prefixes[len(d.prefixes)-1].total -= psub
+	d.ro.offsets = d.ro.offsets[:j]
+	d.ro.prefixes[len(d.ro.prefixes)-1].total -= psub
 }
 
 // TombstoneRange returns ranges of time that are deleted for the given key.
@@ -1322,33 +1313,6 @@ func (d *indirectIndex) MarshalBinary() ([]byte, error) {
 	return d.b.b, nil
 }
 
-type prefix = [8]byte
-
-// comparePrefix is like bytes.Compare but for a prefix.
-func comparePrefix(a, b prefix) int {
-	return compare64(binary.BigEndian.Uint64(a[:]), binary.BigEndian.Uint64(b[:]))
-}
-
-// compare64 is like bytes.Compare but for uint64s.
-func compare64(a, b uint64) int {
-	if a == b {
-		return 0
-	} else if a < b {
-		return -1
-	}
-	return 1
-}
-
-// keyPrefix returns a prefix that can be used with compare
-// to sort the same way the bytes would.
-func keyPrefix(key []byte) (pre prefix) {
-	if len(key) >= 8 {
-		return *(*[8]byte)(unsafe.Pointer(&key[0]))
-	}
-	copy(pre[:], key)
-	return pre
-}
-
 // UnmarshalBinary populates an index from an encoded byte slice
 // representation of an index.
 func (d *indirectIndex) UnmarshalBinary(b []byte) error {
@@ -1374,13 +1338,11 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	// basically skips across the slice keeping track of the counter when we are at a key
 	// field.
 	var i uint32
-	var offsets []uint32
-	var pentry prefixEntry
-	var prefixes []prefixEntry
+	var ro readerOffsets
 
 	iMax := uint32(len(b))
 	for i < iMax {
-		offsets = append(offsets, i)
+		offset := i // save for when we add to the data structure
 
 		// Skip to the start of the values
 		// key length value (2) + type (1) + length of key
@@ -1393,12 +1355,7 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		if i+keyLength+indexTypeSize >= iMax {
 			return fmt.Errorf("indirectIndex: not enough data for key and type")
 		}
-		pre := keyPrefix(b[i : i+keyLength])
-		if pre != pentry.pre && pentry.total > 0 {
-			prefixes = append(prefixes, pentry)
-		}
-		pentry.total++
-		pentry.pre = pre
+		ro.AddKey(offset, b[i:i+keyLength])
 		i += keyLength + indexTypeSize
 
 		// count of index entries
@@ -1434,20 +1391,19 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		i += indexEntrySize
 	}
 
-	prefixes = append(prefixes, pentry)
+	ro.Done()
 
-	firstOfs := offsets[0]
+	firstOfs := ro.offsets[0]
 	_, key := readKey(b[firstOfs:])
 	d.minKey = key
 
-	lastOfs := offsets[len(offsets)-1]
+	lastOfs := ro.offsets[len(ro.offsets)-1]
 	_, key = readKey(b[lastOfs:])
 	d.maxKey = key
 
 	d.minTime = minTime
 	d.maxTime = maxTime
-	d.offsets = offsets
-	d.prefixes = prefixes
+	d.ro = ro
 
 	return nil
 }
