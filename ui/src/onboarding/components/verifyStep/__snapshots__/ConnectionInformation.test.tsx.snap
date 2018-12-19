@@ -5,7 +5,7 @@ exports[`Onboarding.Components.ConnectionInformation matches snapshot if error 1
   <h4
     className="wizard-step--text-state error"
   >
-    Connection Not Found
+    Error Listening for Data
   </h4>
   <p>
     Check config and try again
@@ -22,6 +22,19 @@ exports[`Onboarding.Components.ConnectionInformation matches snapshot if loading
   </h4>
   <p>
     Timeout in 60 seconds
+  </p>
+</Fragment>
+`;
+
+exports[`Onboarding.Components.ConnectionInformation matches snapshot if no data is found 1`] = `
+<Fragment>
+  <h4
+    className="wizard-step--text-state error"
+  >
+    Data Not Found
+  </h4>
+  <p>
+    Check config and try again
   </p>
 </Fragment>
 `;

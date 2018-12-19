@@ -5,11 +5,16 @@ import _ from 'lodash'
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Types
-import {RemoteDataState} from 'src/types'
+export enum LoadingState {
+  NotStarted = 'NotStarted',
+  Loading = 'Loading',
+  Done = 'Done',
+  NotFound = 'NotFound',
+  Error = 'Error',
+}
 
 export interface Props {
-  loading: RemoteDataState
+  loading: LoadingState
   bucket: string
   countDownSeconds: number
 }
@@ -29,33 +34,37 @@ class ListeningResults extends PureComponent<Props> {
 
   private get className(): string {
     switch (this.props.loading) {
-      case RemoteDataState.Loading:
+      case LoadingState.Loading:
         return 'loading'
-      case RemoteDataState.Done:
+      case LoadingState.Done:
         return 'success'
-      case RemoteDataState.Error:
+      case LoadingState.NotFound:
+      case LoadingState.Error:
         return 'error'
     }
   }
 
   private get header(): string {
     switch (this.props.loading) {
-      case RemoteDataState.Loading:
+      case LoadingState.Loading:
         return 'Awaiting Connection...'
-      case RemoteDataState.Done:
+      case LoadingState.Done:
         return 'Connection Found!'
-      case RemoteDataState.Error:
-        return 'Connection Not Found'
+      case LoadingState.NotFound:
+        return 'Data Not Found'
+      case LoadingState.Error:
+        return 'Error Listening for Data'
     }
   }
 
   private get additionalText(): string {
     switch (this.props.loading) {
-      case RemoteDataState.Loading:
+      case LoadingState.Loading:
         return `Timeout in ${this.props.countDownSeconds} seconds`
-      case RemoteDataState.Done:
+      case LoadingState.Done:
         return `${this.props.bucket} is receiving data loud and clear!`
-      case RemoteDataState.Error:
+      case LoadingState.NotFound:
+      case LoadingState.Error:
         return 'Check config and try again'
     }
   }

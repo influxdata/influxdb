@@ -3,14 +3,15 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import ConnectionInformation from 'src/onboarding/components/verifyStep/ConnectionInformation'
+import ConnectionInformation, {
+  LoadingState,
+} from 'src/onboarding/components/verifyStep/ConnectionInformation'
 
 // Types
-import {RemoteDataState} from 'src/types'
 
 const setup = (override = {}) => {
   const props = {
-    loading: RemoteDataState.NotStarted,
+    loading: LoadingState.NotStarted,
     bucket: 'defbuck',
     countDownSeconds: 60,
     ...override,
@@ -29,19 +30,25 @@ describe('Onboarding.Components.ConnectionInformation', () => {
   })
 
   it('matches snapshot if loading', () => {
-    const {wrapper} = setup({loading: RemoteDataState.Loading})
+    const {wrapper} = setup({loading: LoadingState.Loading})
 
     expect(wrapper).toMatchSnapshot()
   })
 
   it('matches snapshot if success', () => {
-    const {wrapper} = setup({loading: RemoteDataState.Done})
+    const {wrapper} = setup({loading: LoadingState.Done})
+
+    expect(wrapper).toMatchSnapshot()
+  })
+
+  it('matches snapshot if no data is found', () => {
+    const {wrapper} = setup({loading: LoadingState.NotFound})
 
     expect(wrapper).toMatchSnapshot()
   })
 
   it('matches snapshot if error', () => {
-    const {wrapper} = setup({loading: RemoteDataState.Error})
+    const {wrapper} = setup({loading: LoadingState.Error})
 
     expect(wrapper).toMatchSnapshot()
   })

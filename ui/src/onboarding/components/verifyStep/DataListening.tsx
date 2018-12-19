@@ -13,13 +13,14 @@ import {
   ComponentSize,
   ComponentStatus,
 } from 'src/clockface'
-import ConnectionInformation from 'src/onboarding/components/verifyStep/ConnectionInformation'
+import ConnectionInformation, {
+  LoadingState,
+} from 'src/onboarding/components/verifyStep/ConnectionInformation'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
 
 // Types
-import {RemoteDataState} from 'src/types'
 import {InfluxLanguage} from 'src/types/v2/dashboards'
 
 export interface Props {
@@ -29,7 +30,7 @@ export interface Props {
 }
 
 interface State {
-  loading: RemoteDataState
+  loading: LoadingState
   timePassedInSeconds: number
   secondsLeft: number
 }
@@ -49,7 +50,7 @@ class DataListening extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      loading: RemoteDataState.NotStarted,
+      loading: LoadingState.NotStarted,
       timePassedInSeconds: 0,
       secondsLeft: SECONDS,
     }
@@ -76,7 +77,7 @@ class DataListening extends PureComponent<Props, State> {
   private get connectionInfo(): JSX.Element {
     const {loading} = this.state
 
-    if (loading === RemoteDataState.NotStarted) {
+    if (loading === LoadingState.NotStarted) {
       return
     }
 
@@ -88,13 +89,11 @@ class DataListening extends PureComponent<Props, State> {
       />
     )
   }
+
   private get listenButton(): JSX.Element {
     const {loading} = this.state
 
-    if (
-      loading === RemoteDataState.Loading ||
-      loading === RemoteDataState.Done
-    ) {
+    if (loading === LoadingState.Loading || loading === LoadingState.Done) {
       return
     }
 
@@ -112,7 +111,7 @@ class DataListening extends PureComponent<Props, State> {
 
   private handleClick = (): void => {
     this.startTimer()
-    this.setState({loading: RemoteDataState.Loading})
+    this.setState({loading: LoadingState.Loading})
     this.startTime = Number(new Date())
     this.checkForData()
   }
@@ -135,19 +134,19 @@ class DataListening extends PureComponent<Props, State> {
       rowCount = response.rowCount
       timePassed = Number(new Date()) - this.startTime
     } catch (err) {
-      this.setState({loading: RemoteDataState.Error})
+      this.setState({loading: LoadingState.Error})
       onSetStepStatus(stepIndex, StepStatus.Incomplete)
       return
     }
 
     if (rowCount > 1) {
-      this.setState({loading: RemoteDataState.Done})
+      this.setState({loading: LoadingState.Done})
       onSetStepStatus(stepIndex, StepStatus.Complete)
       return
     }
 
     if (timePassed >= MINUTE || secondsLeft <= 0) {
-      this.setState({loading: RemoteDataState.Error})
+      this.setState({loading: LoadingState.NotFound})
       onSetStepStatus(stepIndex, StepStatus.Incomplete)
       return
     }
@@ -159,6 +158,7 @@ class DataListening extends PureComponent<Props, State> {
 
     this.timer = setInterval(this.countDown, TIMER_WAIT)
   }
+
   private countDown = () => {
     const {secondsLeft} = this.state
     const secs = secondsLeft - 1
