@@ -56,6 +56,11 @@ jobs:
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
       - run: staticcheck ./...
+      # In go1.11, running go mod vendor when go.mod contains replace entries, "taints" go.sum, even with -mod=readonly.
+      # See https://github.com/golang/go/issues/27868.
+      # Clean up go.sum so that we save to the same module key we attempted to restore from.
+      # TODO: remove this call to git checkout after we are on go1.12.
+      - run: git checkout -- go.sum
 
       - save_cache:
           name: Saving GOCACHE
