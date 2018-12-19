@@ -2752,45 +2752,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-      patch:
-        tags:
-          - Buckets
-        summary: update a label from a bucket
-        parameters:
-          - in: path
-            name: bucketID
-            schema:
-              type: string
-            required: true
-            description: ID of the bucket
-          - in: path
-            name: label
-            schema:
-              type: string
-            required: true
-            description: the label name
-        requestBody:
-          description: label update to apply
+    patch:
+      tags:
+        - Buckets
+      summary: update a label from a bucket
+      parameters:
+        - in: path
+          name: bucketID
+          schema:
+            type: string
           required: true
+          description: ID of the bucket
+        - in: path
+          name: label
+          schema:
+            type: string
+          required: true
+          description: the label name
+      requestBody:
+        description: label update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Label"
+      responses:
+        '200':
+          description: updated successfully
+        '404':
+          description: bucket not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Label"
-        responses:
-          '200':
-            description: updated successfully
-          '404':
-            description: bucket not found
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Error"
-          default:
-            description: unexpected error
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/members':
     get:
       tags:
@@ -3189,45 +3189,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-      patch:
-        tags:
-          - Organizations
-        summary: update a label from an organization
-        parameters:
-          - in: path
-            name: orgID
-            schema:
-              type: string
-            required: true
-            description: ID of the organization
-          - in: path
-            name: label
-            schema:
-              type: string
-            required: true
-            description: the label name
-        requestBody:
-          description: label update to apply
+    patch:
+      tags:
+        - Organizations
+      summary: update a label from an organization
+      parameters:
+        - in: path
+          name: orgID
+          schema:
+            type: string
           required: true
+          description: ID of the organization
+        - in: path
+          name: label
+          schema:
+            type: string
+          required: true
+          description: the label name
+      requestBody:
+        description: label update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Label"
+      responses:
+        '200':
+          description: updated successfully
+        '404':
+          description: organization not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Label"
-        responses:
-          '200':
-            description: updated successfully
-          '404':
-            description: organization not found
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Error"
-          default:
-            description: unexpected error
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/secrets':
     get:
       tags:
