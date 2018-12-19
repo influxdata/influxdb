@@ -74,4 +74,4 @@ required = ["github.com/influxdata/platform/pkg/data/gen"]
 
 [[constraint]]
   name = "github.com/influxdata/flux"
-  version = "0.9.0"
+  version = "0.11.0"
