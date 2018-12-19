@@ -139,7 +139,7 @@ require (
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
 	golang.org/x/sys v0.0.0-20181205085412-a5c9d58dba9a
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
-	golang.org/x/tools v0.0.0-20181121193951-91f80e683c10 // indirect
+	golang.org/x/tools v0.0.0-20181121193951-91f80e683c10
 	google.golang.org/api v0.0.0-20181021000519-a2651947f503
 	google.golang.org/appengine v1.2.0 // indirect
 	google.golang.org/genproto v0.0.0-20181016170114-94acd270e44e // indirect

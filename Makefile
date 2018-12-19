@@ -13,7 +13,7 @@
 
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all subdirs have the `all` and `clean` targets.
-SUBDIRS := chronograf http ui query storage task
+SUBDIRS := http ui chronograf query storage task
 
 GO_ARGS=-tags '$(GO_TAGS)'
 
@@ -74,9 +74,6 @@ chronograf_lint:
 
 ui/node_modules:
 	make -C ui node_modules
-
-ui/build:
-	mkdir -p ui/build
 
 #
 # Define action only targets
