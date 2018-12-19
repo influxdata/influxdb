@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/influxdata/platform"
@@ -47,8 +46,8 @@ func (h *SessionHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s, err := h.SessionService.CreateSession(ctx, req.Username)
-	if err != nil {
+	s, e := h.SessionService.CreateSession(ctx, req.Username)
+	if e != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -62,10 +61,13 @@ type signinRequest struct {
 	Password string
 }
 
-func decodeSigninRequest(ctx context.Context, r *http.Request) (*signinRequest, error) {
+func decodeSigninRequest(ctx context.Context, r *http.Request) (*signinRequest, *platform.Error) {
 	u, p, ok := r.BasicAuth()
 	if !ok {
-		return nil, fmt.Errorf("invalid basic auth")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "invalid basic auth",
+		}
 	}
 
 	return &signinRequest{
@@ -98,7 +100,7 @@ type signoutRequest struct {
 	Key string
 }
 
-func decodeSignoutRequest(ctx context.Context, r *http.Request) (*signoutRequest, error) {
+func decodeSignoutRequest(ctx context.Context, r *http.Request) (*signoutRequest, *platform.Error) {
 	key, err := decodeCookieSession(ctx, r)
 	if err != nil {
 		return nil, err
@@ -118,10 +120,13 @@ func encodeCookieSession(w http.ResponseWriter, s *platform.Session) {
 
 	http.SetCookie(w, c)
 }
-func decodeCookieSession(ctx context.Context, r *http.Request) (string, error) {
+func decodeCookieSession(ctx context.Context, r *http.Request) (string, *platform.Error) {
 	c, err := r.Cookie(cookieSessionName)
 	if err != nil {
-		return "", err
+		return "", &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 	}
 	return c.Value, nil
 }
