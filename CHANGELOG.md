@@ -1,4 +1,4 @@
-v1.5.5 [unreleased]
+v1.5.5 [2018-12-19]
 -------------------
 
 ### Features
@@ -13,6 +13,8 @@ v1.5.5 [unreleased]
 -	[#10363](https://github.com/influxdata/influxdb/pull/10363): Fixing the stream iterator to not ignore the error.
 -	[#10372](https://github.com/influxdata/influxdb/pull/10372): Do not panic when a series id iterator is nil.
 -	[#10424](https://github.com/influxdata/influxdb/pull/10424): Fix panic in IndexSet.
+-	[#10559](https://github.com/influxdata/influxdb/pull/10559): Pass the query authorizer to subqueries.
+-	[#10577](https://github.com/influxdata/influxdb/pull/10577): Fix TSM1 panic on reader error.
 
 v1.5.4 [2018-06-21]
 -------------------
