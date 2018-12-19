@@ -3,6 +3,7 @@
 package platform
 
 import (
+	_ "github.com/benbjohnson/tmpl"
 	_ "github.com/gogo/protobuf/protoc-gen-gogo"
 	_ "github.com/gogo/protobuf/protoc-gen-gogofaster"
 	_ "github.com/goreleaser/goreleaser"
