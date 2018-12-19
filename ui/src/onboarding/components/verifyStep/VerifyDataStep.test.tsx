@@ -23,6 +23,7 @@ const setup = (override = {}) => {
     telegrafConfigID: '',
     onSaveTelegrafConfig: jest.fn(),
     onSetActiveTelegrafPlugin: jest.fn(),
+    onSetPluginConfiguration: jest.fn(),
     ...override,
   }
 

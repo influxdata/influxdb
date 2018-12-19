@@ -54,6 +54,7 @@ class ConfigFieldSwitcher extends PureComponent<Props> {
         return (
           <ArrayFormElement
             fieldName={fieldName}
+            fieldType={fieldType}
             addTagValue={this.props.addTagValue}
             removeTagValue={this.props.removeTagValue}
             autoFocus={this.autoFocus}

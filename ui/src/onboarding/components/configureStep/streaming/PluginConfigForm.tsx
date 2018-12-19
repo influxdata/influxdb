@@ -11,7 +11,6 @@ import {
   updateTelegrafPluginConfig,
   addConfigValue,
   removeConfigValue,
-  setPluginConfiguration,
   setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
@@ -26,7 +25,6 @@ interface Props {
   telegrafPlugin: TelegrafPlugin
   configFields: ConfigFields
   onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
-  onSetPluginConfiguration: typeof setPluginConfiguration
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
   onSetConfigArrayValue: typeof setConfigArrayValue

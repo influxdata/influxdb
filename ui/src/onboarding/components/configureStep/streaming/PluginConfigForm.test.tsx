@@ -20,7 +20,6 @@ const setup = (override = {}) => {
     configFields:
       telegrafPluginsInfo[TelegrafPluginInputCpu.NameEnum.Cpu].fields,
     onUpdateTelegrafPluginConfig: jest.fn(),
-    onSetPluginConfiguration: jest.fn(),
     onAddConfigValue: jest.fn(),
     onRemoveConfigValue: jest.fn(),
     authToken: '',
