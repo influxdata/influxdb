@@ -1062,6 +1062,10 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if rs == nil {
+		h.httpError(w, "no result set found", http.StatusNotFound)
+		return
+	}
 	defer rs.Close()
 
 	resp := &remote.ReadResponse{
