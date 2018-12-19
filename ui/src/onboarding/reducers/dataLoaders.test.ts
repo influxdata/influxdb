@@ -148,7 +148,7 @@ describe('dataLoader reducer', () => {
         },
         {
           name: TelegrafPluginInputFile.NameEnum.File,
-          configured: ConfigurationState.Unconfigured,
+          configured: ConfigurationState.InvalidConfiguration,
           active: false,
           plugin: {
             name: TelegrafPluginInputFile.NameEnum.File,
