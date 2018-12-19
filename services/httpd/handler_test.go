@@ -36,6 +36,8 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/storage/reads"
+	"github.com/influxdata/platform/storage/reads/datatypes"
 )
 
 // Ensure the handler returns results from a query (including nil results).
@@ -818,6 +820,52 @@ func TestHandler_Flux_DisabledByDefault(t *testing.T) {
 	exp := "Flux query service disabled. Verify flux-enabled=true in the [http] section of the InfluxDB config.\n"
 	if got := string(w.Body.Bytes()); !cmp.Equal(got, exp) {
 		t.Fatalf("unexpected body -got/+exp\n%s", cmp.Diff(got, exp))
+	}
+}
+
+func TestHandler_PromRead_NilResultSet(t *testing.T) {
+	req := &remote.ReadRequest{
+		Queries: []*remote.Query{{
+			Matchers: []*remote.LabelMatcher{
+				{
+					Type:  remote.MatchType_EQUAL,
+					Name:  "__name__",
+					Value: "value",
+				},
+			},
+			StartTimestampMs: 1,
+			EndTimestampMs:   2,
+		}},
+	}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		log.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+	b := bytes.NewReader(compressed)
+
+	h := NewHandler(false)
+
+	// Mocks the case when Store.Read() returns nil, nil
+	h.Handler.Store.(*internal.StorageStoreMock).ReadFn = func(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error) {
+		return nil, nil
+	}
+
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/read?db=foo&rp=bar", b))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+	var got map[string]string
+	if err = json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("error json-decoding response body: %v", err)
+	}
+	expected := map[string]string{
+		"error": "no result set found",
+	}
+	if !reflect.DeepEqual(got, expected) {
+		t.Fatalf("Results differ:\n%v", cmp.Diff(got, expected))
 	}
 }
 
