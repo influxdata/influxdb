@@ -14,6 +14,7 @@ import {
   Input,
   InputType,
   Form,
+  Grid,
   Columns,
   ButtonType,
 } from 'src/clockface'
@@ -60,38 +61,40 @@ class SigninPage extends PureComponent<Props, State> {
           <SplashPage.Logo />
           <SplashPage.Header title="InfluxData" />
           <Form onSubmit={this.handleSignIn}>
-            <Form.Element
-              label="Username"
-              colsXS={Columns.Twelve}
-              errorMessage=""
-            >
-              <Input
-                value={username}
-                onChange={this.handleUsername}
-                size={ComponentSize.Medium}
-                autoFocus={true}
-              />
-            </Form.Element>
-            <Form.Element
-              label="Password"
-              colsXS={Columns.Twelve}
-              errorMessage=""
-            >
-              <Input
-                value={password}
-                onChange={this.handlePassword}
-                size={ComponentSize.Medium}
-                type={InputType.Password}
-              />
-            </Form.Element>
-            <Form.Footer>
-              <Button
-                color={ComponentColor.Primary}
-                text="Sign In"
-                size={ComponentSize.Medium}
-                type={ButtonType.Submit}
-              />
-            </Form.Footer>
+            <Grid>
+              <Grid.Row>
+                <Grid.Column widthXS={Columns.Twelve}>
+                  <Form.Element label="Username">
+                    <Input
+                      value={username}
+                      onChange={this.handleUsername}
+                      size={ComponentSize.Medium}
+                      autoFocus={true}
+                    />
+                  </Form.Element>
+                </Grid.Column>
+                <Grid.Column widthXS={Columns.Twelve}>
+                  <Form.Element label="Password">
+                    <Input
+                      value={password}
+                      onChange={this.handlePassword}
+                      size={ComponentSize.Medium}
+                      type={InputType.Password}
+                    />
+                  </Form.Element>
+                </Grid.Column>
+                <Grid.Column widthXS={Columns.Twelve}>
+                  <Form.Footer>
+                    <Button
+                      color={ComponentColor.Primary}
+                      text="Sign In"
+                      size={ComponentSize.Medium}
+                      type={ButtonType.Submit}
+                    />
+                  </Form.Footer>
+                </Grid.Column>
+              </Grid.Row>
+            </Grid>
           </Form>
         </SplashPage.Panel>
       </SplashPage>

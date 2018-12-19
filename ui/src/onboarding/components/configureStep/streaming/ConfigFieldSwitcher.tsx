@@ -87,6 +87,8 @@ class ConfigFieldSwitcher extends PureComponent<Props> {
     if (!this.props.isRequired) {
       return 'optional'
     }
+
+    return ''
   }
 
   private get autoFocus(): boolean {

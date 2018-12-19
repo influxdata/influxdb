@@ -6,7 +6,7 @@ import {AXES_SCALE_OPTIONS} from 'src/dashboards/constants/cellEditor'
 const {LOG} = AXES_SCALE_OPTIONS
 
 // Components
-import {Form, Columns, AutoInput} from 'src/clockface'
+import {Form, Grid, Columns, AutoInput} from 'src/clockface'
 
 interface Props {
   label: string
@@ -20,15 +20,17 @@ class YAxisBound extends PureComponent<Props> {
     const {label, bound} = this.props
 
     return (
-      <Form.Element label={label} colsXS={Columns.Six}>
-        <AutoInput
-          name={bound}
-          inputPlaceholder="Enter a number"
-          value={Number(bound)}
-          onChange={this.handleChange}
-          min={this.inputMin}
-        />
-      </Form.Element>
+      <Grid.Column widthXS={Columns.Six}>
+        <Form.Element label={label}>
+          <AutoInput
+            name={bound}
+            inputPlaceholder="Enter a number"
+            value={Number(bound)}
+            onChange={this.handleChange}
+            min={this.inputMin}
+          />
+        </Form.Element>
+      </Grid.Column>
     )
   }
 
