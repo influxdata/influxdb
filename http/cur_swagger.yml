@@ -1579,42 +1579,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /query/plan:
-    post:
-      description: analyzes flux query or specification and generates a query plan.
-      tags:
-        - Query
-      parameters:
-      - in: header
-        name: Content-Type
-        schema:
-          type: string
-          enum:
-            - application/json
-      - in: header
-        name: Authorization
-        description: the authorization header should be in the format of `Token <key>`
-        schema:
-          type: string
-      requestBody:
-        description: flux query or specification to generate plan.
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PlanRequest"
-      responses:
-        '200':
-          description: Logical plan of flux query.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PlanResponse"
-        default:
-          description: Any response other than 200 is an internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   /query/suggestions:
     get:
       tags:
@@ -3450,32 +3414,6 @@ components:
         query:
           description: flux query script to be analyzed
           type: string
-    PlanRequest:
-      description: flux query or specification to be planned. The spec and query fields are mutually exclusive.
-      type: object
-      properties:
-        query:
-          description: flux query script to be analyzed
-          type: string
-        spec:
-          $ref: "#/components/schemas/QuerySpecification"
-    PlanResponse:
-      description: flux query or specification to be planned.
-      type: object
-      required:
-        - query
-      properties:
-        spec:
-          $ref: "#/components/schemas/QuerySpecification"
-          readOnly: true
-        logical:
-          description: logical plan of the query.
-          readOnly: true
-          type: object #TODO(goller): document the logical plan format
-        physical:
-          description: physical plan of the query.
-          readOnly: true
-          type: object #TODO(goller): document the physical plan format
     Query:
       description: query influx with specified return formatting. The spec and query fields are mutually exclusive.
       type: object

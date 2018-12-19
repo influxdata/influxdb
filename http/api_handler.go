@@ -161,7 +161,6 @@ var apiLinks = map[string]interface{}{
 		"self":        "/api/v2/query",
 		"ast":         "/api/v2/query/ast",
 		"analyze":     "/api/v2/query/analyze",
-		"plan":        "/api/v2/query/plan",
 		"spec":        "/api/v2/query/spec",
 		"suggestions": "/api/v2/query/suggestions",
 	},

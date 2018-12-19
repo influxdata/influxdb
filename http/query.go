@@ -246,7 +246,7 @@ func toSpec(p *ast.Program, now func() time.Time) (*flux.Spec, error) {
 		return nil, err
 	}
 
-	if err := itrp.Eval(semProg); err != nil {
+	if err := itrp.Eval(semProg, nil); err != nil {
 		return nil, err
 	}
 	return flux.ToSpec(itrp, itrp.SideEffects()...), nil

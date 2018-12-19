@@ -1,6 +1,8 @@
 package reads
 
 import (
+	"github.com/influxdata/flux/arrow"
+	"github.com/influxdata/flux/memory"
 	"sync"
 
 	"github.com/influxdata/flux"
@@ -64,6 +66,12 @@ func (t *{{.name}}Table) Statistics() flux.Statistics {
 }
 
 func (t *{{.name}}Table) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *{{.name}}Table) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -88,24 +96,21 @@ func (t *{{.name}}Table) advance() bool {
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]{{.Type}}, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -156,6 +161,12 @@ func (t *{{.name}}GroupTable) Close() {
 }
 
 func (t *{{.name}}GroupTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *{{.name}}GroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -185,24 +196,21 @@ RETRY:
 	}
 
 	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]execute.Time, t.l)
+		t.timeBuf = make([]int64, t.l)
 	} else {
 		t.timeBuf = t.timeBuf[:t.l]
 	}
-
-	for i := range a.Timestamps {
-		t.timeBuf[i] = execute.Time(a.Timestamps[i])
-	}
+	copy(t.timeBuf, a.Timestamps)
 
 	if cap(t.valBuf) < t.l {
 		t.valBuf = make([]{{.Type}}, t.l)
 	} else {
 		t.valBuf = t.valBuf[:t.l]
 	}
-
 	copy(t.valBuf, a.Values)
-	t.colBufs[timeColIdx] = t.timeBuf
-	t.colBufs[valueColIdx] = t.valBuf
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
 	t.appendTags()
 	t.appendBounds()
 	return true
