@@ -248,7 +248,10 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
             )
 
             if (!isValidConfig || _.isEmpty(config)) {
-              return {...tp, configured: ConfigurationState.Unconfigured}
+              return {
+                ...tp,
+                configured: ConfigurationState.InvalidConfiguration,
+              }
             } else {
               return {...tp, configured: ConfigurationState.Configured}
             }
