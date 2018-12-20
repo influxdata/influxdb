@@ -142,21 +142,17 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 }
 
 var apiLinks = map[string]interface{}{
-	"signin":         "/api/v2/signin",
-	"signout":        "/api/v2/signout",
-	"setup":          "/api/v2/setup",
-	"sources":        "/api/v2/sources",
-	"dashboards":     "/api/v2/dashboards",
-	"views":          "/api/v2/views",
-	"write":          "/api/v2/write",
-	"orgs":           "/api/v2/orgs",
+	// when adding new links, please take care to keep this list alphabetical
+	// as this makes it easier to verify values against the swagger document.
 	"authorizations": "/api/v2/authorizations",
 	"buckets":        "/api/v2/buckets",
-	"users":          "/api/v2/users",
-	"me":             "/api/v2/me",
-	"tasks":          "/api/v2/tasks",
-	"macros":         "/api/v2/macros",
-	"telegrafs":      "/api/v2/telegrafs",
+	"dashboards":     "/api/v2/dashboards",
+	"external": map[string]string{
+		"statusFeed": "https://www.influxdata.com/feed/json",
+	},
+	"macros": "/api/v2/macros",
+	"me":     "/api/v2/me",
+	"orgs":   "/api/v2/orgs",
 	"query": map[string]string{
 		"self":        "/api/v2/query",
 		"ast":         "/api/v2/query/ast",
@@ -164,14 +160,20 @@ var apiLinks = map[string]interface{}{
 		"spec":        "/api/v2/query/spec",
 		"suggestions": "/api/v2/query/suggestions",
 	},
-	"external": map[string]string{
-		"statusFeed": "https://www.influxdata.com/feed/json",
-	},
+	"setup":   "/api/v2/setup",
+	"signin":  "/api/v2/signin",
+	"signout": "/api/v2/signout",
+	"sources": "/api/v2/sources",
 	"system": map[string]string{
 		"metrics": "/metrics",
 		"debug":   "/debug/pprof",
 		"health":  "/health",
 	},
+	"tasks":     "/api/v2/tasks",
+	"telegrafs": "/api/v2/telegrafs",
+	"users":     "/api/v2/users",
+	"views":     "/api/v2/views",
+	"write":     "/api/v2/write",
 }
 
 func (h *APIHandler) serveLinks(w http.ResponseWriter, r *http.Request) {
