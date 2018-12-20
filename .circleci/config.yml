@@ -102,17 +102,11 @@ jobs:
 
 workflows:
   version: 2
-  build-and-deploy:
+  build:
     jobs:
       - gotest
       - jstest
-      - deploy:
-          requires:
-            - gotest
-            - jstest
-          filters:
-            branches:
-              only: master
+
   nightly:
     triggers:
       - schedule:
