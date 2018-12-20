@@ -9,6 +9,7 @@ import (
 
 // FindMacroByID implements the platform.MacroService interface
 func (s *Service) FindMacroByID(ctx context.Context, id platform.ID) (*platform.Macro, error) {
+	// todo(leodido) > use macro filter with id
 	op := OpPrefix + platform.OpFindMacroByID
 	i, ok := s.macroKV.Load(id.String())
 	if !ok {
@@ -31,7 +32,8 @@ func (s *Service) FindMacroByID(ctx context.Context, id platform.ID) (*platform.
 }
 
 // FindMacros implements the platform.MacroService interface
-func (s *Service) FindMacros(ctx context.Context) ([]*platform.Macro, error) {
+func (s *Service) FindMacros(ctx context.Context, filter platform.MacroFilter, opt ...platform.FindOptions) ([]*platform.Macro, error) {
+	// todo(leodido) > macro filtering (by id or org)
 	op := OpPrefix + platform.OpFindMacros
 	var err error
 	var macros []*platform.Macro
