@@ -24,6 +24,7 @@ export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
 export GO_GENERATE=go generate $(GO_ARGS)
 export GO_VET=env GO111MODULE=on go vet $(GO_ARGS)
+export GO_RUN=env GO111MODULE=on go run $(GO_ARGS)
 export PATH := $(PWD)/bin/$(GOOS):$(PATH)
 
 
@@ -120,7 +121,7 @@ bench:
 build: all
 
 nightly: build
-	env GO111MODULE=on go run github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
+	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
