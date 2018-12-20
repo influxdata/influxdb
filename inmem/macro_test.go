@@ -37,6 +37,11 @@ func TestMacroService_FindMacroByID(t *testing.T) {
 	platformtesting.FindMacroByID(initMacroService, t)
 }
 
+// todo(leodido)
+func TestMacroService_FindMacros(t *testing.T) {
+	platformtesting.FindMacros(initMacroService, t)
+}
+
 func TestMacroService_UpdateMacro(t *testing.T) {
 	platformtesting.UpdateMacro(initMacroService, t)
 }
