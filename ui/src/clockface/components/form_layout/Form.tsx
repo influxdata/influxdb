@@ -4,7 +4,6 @@ import classnames from 'classnames'
 
 // Components
 import FormElement from 'src/clockface/components/form_layout/FormElement'
-import FormValidationElement from 'src/clockface/components/form_layout/FormValidationElement'
 import FormLabel from 'src/clockface/components/form_layout/FormLabel'
 import FormDivider from 'src/clockface/components/form_layout/FormDivider'
 import FormFooter from 'src/clockface/components/form_layout/FormFooter'
@@ -24,7 +23,6 @@ interface BoxProps {
 
 @ErrorHandling
 class Form extends Component<Props> {
-  public static ValidationElement = FormValidationElement
   public static Element = FormElement
   public static Label = FormLabel
   public static Divider = FormDivider

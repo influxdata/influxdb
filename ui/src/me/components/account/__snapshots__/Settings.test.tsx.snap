@@ -70,91 +70,66 @@ exports[`Account rendering renders! 1`] = `
               className="form--wrapper"
               onSubmit={[Function]}
             >
-              <Grid>
+              <FormElement
+                colsXS={6}
+                errorMessage=""
+                helpText=""
+                label="Username"
+              >
                 <div
-                  className="grid--container"
+                  className="form--element col-xs-6"
                 >
-                  <Select
-                    type={[Function]}
+                  <FormLabel
+                    label="Username"
                   >
-                    <GridRow
-                      key=".0"
+                    <label
+                      className="form--label"
                     >
+                      Username
+                    </label>
+                  </FormLabel>
+                  <Input
+                    autoFocus={false}
+                    autocomplete="off"
+                    dataTest="nameInput"
+                    disabledTitleText="This input is disabled"
+                    name=""
+                    onChange={[Function]}
+                    placeholder=""
+                    size="sm"
+                    spellCheck={false}
+                    status="disabled"
+                    titleText="Username"
+                    value="groot"
+                  >
+                    <div
+                      className="input input-sm input--disabled"
+                      style={
+                        Object {
+                          "width": "100%",
+                        }
+                      }
+                    >
+                      <input
+                        autoComplete="off"
+                        autoFocus={false}
+                        className="input-field"
+                        data-test="nameInput"
+                        disabled={true}
+                        name=""
+                        onChange={[Function]}
+                        placeholder=""
+                        spellCheck={false}
+                        title="This input is disabled"
+                        value="groot"
+                      />
                       <div
-                        className="grid--row"
-                      >
-                        <GridColumn
-                          widthXS={6}
-                        >
-                          <div
-                            className="grid--column col-xs-6"
-                          >
-                            <FormElement
-                              label="Username"
-                            >
-                              <div
-                                className="form--element"
-                              >
-                                <FormLabel
-                                  label="Username"
-                                >
-                                  <label
-                                    className="form--label"
-                                  >
-                                    <span>
-                                      Username
-                                    </span>
-                                  </label>
-                                </FormLabel>
-                                <Input
-                                  autoFocus={false}
-                                  autocomplete="off"
-                                  dataTest="nameInput"
-                                  disabledTitleText="This input is disabled"
-                                  name=""
-                                  onChange={[Function]}
-                                  placeholder=""
-                                  size="sm"
-                                  spellCheck={false}
-                                  status="disabled"
-                                  titleText="Username"
-                                  value="groot"
-                                >
-                                  <div
-                                    className="input input-sm input--disabled"
-                                    style={
-                                      Object {
-                                        "width": "100%",
-                                      }
-                                    }
-                                  >
-                                    <input
-                                      autoComplete="off"
-                                      autoFocus={false}
-                                      className="input-field"
-                                      data-test="nameInput"
-                                      disabled={true}
-                                      name=""
-                                      onChange={[Function]}
-                                      placeholder=""
-                                      spellCheck={false}
-                                      title="This input is disabled"
-                                      value="groot"
-                                    />
-                                    <div
-                                      className="input-shadow"
-                                    />
-                                  </div>
-                                </Input>
-                              </div>
-                            </FormElement>
-                          </div>
-                        </GridColumn>
-                      </div>
-                    </GridRow>
-                  </Select>
+                        className="input-shadow"
+                      />
+                    </div>
+                  </Input>
                 </div>
-              </Grid>
+              </FormElement>
             </form>
           </Form>
         </div>

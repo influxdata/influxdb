@@ -49,10 +49,10 @@ const (
 //         Err: err,
 //     }.
 type Error struct {
-	Code string `json:"code"`              // Code is the machine-readable error code.
-	Msg  string `json:"message,omitempty"` // Msg is a human-readable message.
-	Op   string `json:"op,omitempty"`      // Op describes the logical code operation during error.
-	Err  error  `json:"error,omitempty"`   // Err is a stack of additional errors.
+	Code string `json:"code"`          // Code is the machine-readable error code.
+	Msg  string `json:"msg,omitempty"` // Msg is a human-readable message.
+	Op   string `json:"op,omitempty"`  // Op describes the logical code operation during error.
+	Err  error  `json:"err,omitempty"` // Err is a stack of additional errors.
 }
 
 // Error implement the error interface by outputing the Code and Err.

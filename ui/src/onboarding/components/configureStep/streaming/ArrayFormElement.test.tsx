@@ -16,7 +16,6 @@ const setup = (override = {}) => {
     removeTagValue: jest.fn(),
     autoFocus: true,
     value: [],
-    fieldType: null,
     helpText: '',
     onSetConfigArrayValue: jest.fn(),
     telegrafPluginName: TelegrafPluginInputCpu.NameEnum.Cpu,

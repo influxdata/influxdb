@@ -27,49 +27,43 @@ func (c *Client) FindViewByID(ctx context.Context, id platform.ID) (*platform.Vi
 	err := c.db.View(func(tx *bolt.Tx) error {
 		dash, err := c.findViewByID(ctx, tx, id)
 		if err != nil {
-			return &platform.Error{
-				Err: err,
-				Op:  getOp(platform.OpFindViewByID),
-			}
+			return err
 		}
 		d = dash
 		return nil
 	})
 
-	return d, err
+	if err != nil {
+		return nil, err
+	}
+
+	return d, nil
 }
 
-func (c *Client) findViewByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.View, *platform.Error) {
+func (c *Client) findViewByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.View, error) {
 	var d platform.View
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return nil, &platform.Error{
-			Err: err,
-		}
+		return nil, err
 	}
 
 	v := tx.Bucket(viewBucket).Get(encodedID)
 	if len(v) == 0 {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Msg:  platform.ErrViewNotFound,
-		}
+		return nil, platform.ErrViewNotFound
 	}
 
 	if err := json.Unmarshal(v, &d); err != nil {
-		return nil, &platform.Error{
-			Err: err,
-		}
+		return nil, err
 	}
 
 	return &d, nil
 }
 
-func (c *Client) copyView(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.View, *platform.Error) {
-	v, pe := c.findViewByID(ctx, tx, id)
-	if pe != nil {
-		return nil, pe
+func (c *Client) copyView(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.View, error) {
+	v, err := c.findViewByID(ctx, tx, id)
+	if err != nil {
+		return nil, err
 	}
 
 	view := &platform.View{
@@ -79,8 +73,8 @@ func (c *Client) copyView(ctx context.Context, tx *bolt.Tx, id platform.ID) (*pl
 		Properties: v.Properties,
 	}
 
-	if pe := c.createView(ctx, tx, view); pe != nil {
-		return nil, pe
+	if err := c.createView(ctx, tx, view); err != nil {
+		return nil, err
 	}
 
 	return view, nil
@@ -105,16 +99,11 @@ func (c *Client) FindView(ctx context.Context, filter platform.ViewFilter) (*pla
 	})
 
 	if err != nil {
-		return nil, &platform.Error{
-			Err: err,
-		}
+		return nil, err
 	}
 
 	if d == nil {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Msg:  platform.ErrViewNotFound,
-		}
+		return nil, platform.ErrViewNotFound
 	}
 
 	return d, nil
@@ -143,36 +132,30 @@ func filterViewsFn(filter platform.ViewFilter) func(v *platform.View) bool {
 
 // FindViews retrives all views that match an arbitrary view filter.
 func (c *Client) FindViews(ctx context.Context, filter platform.ViewFilter) ([]*platform.View, int, error) {
-	ds := []*platform.View{}
-	op := getOp(platform.OpFindViews)
 	if filter.ID != nil {
 		d, err := c.FindViewByID(ctx, *filter.ID)
-		if err != nil && platform.ErrorCode(err) != platform.ENotFound {
-			return nil, 0, &platform.Error{
-				Err: err,
-				Op:  op,
-			}
-		}
-		if d != nil {
-			ds = append(ds, d)
+		if err != nil {
+			return nil, 0, err
 		}
 
-		return ds, 1, nil
+		return []*platform.View{d}, 1, nil
 	}
 
+	ds := []*platform.View{}
 	err := c.db.View(func(tx *bolt.Tx) error {
 		dashs, err := c.findViews(ctx, tx, filter)
 		if err != nil {
-			return &platform.Error{
-				Err: err,
-				Op:  op,
-			}
+			return err
 		}
 		ds = dashs
 		return nil
 	})
 
-	return ds, len(ds), err
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return ds, len(ds), nil
 }
 
 func (c *Client) findViews(ctx context.Context, tx *bolt.Tx, filter platform.ViewFilter) ([]*platform.View, error) {
@@ -196,17 +179,11 @@ func (c *Client) findViews(ctx context.Context, tx *bolt.Tx, filter platform.Vie
 // CreateView creates a platform view and sets d.ID.
 func (c *Client) CreateView(ctx context.Context, d *platform.View) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		if pe := c.createView(ctx, tx, d); pe != nil {
-			return &platform.Error{
-				Op:  getOp(platform.OpCreateView),
-				Err: pe,
-			}
-		}
-		return nil
+		return c.createView(ctx, tx, d)
 	})
 }
 
-func (c *Client) createView(ctx context.Context, tx *bolt.Tx, d *platform.View) *platform.Error {
+func (c *Client) createView(ctx context.Context, tx *bolt.Tx, d *platform.View) error {
 	d.ID = c.IDGenerator.ID()
 	return c.putView(ctx, tx, d)
 }
@@ -214,30 +191,21 @@ func (c *Client) createView(ctx context.Context, tx *bolt.Tx, d *platform.View) 
 // PutView will put a view without setting an ID.
 func (c *Client) PutView(ctx context.Context, d *platform.View) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		if pe := c.putView(ctx, tx, d); pe != nil {
-			return pe
-		}
-		return nil
+		return c.putView(ctx, tx, d)
 	})
 }
 
-func (c *Client) putView(ctx context.Context, tx *bolt.Tx, d *platform.View) *platform.Error {
+func (c *Client) putView(ctx context.Context, tx *bolt.Tx, d *platform.View) error {
 	v, err := json.Marshal(d)
 	if err != nil {
-		return &platform.Error{
-			Err: err,
-		}
+		return err
 	}
 	encodedID, err := d.ID.Encode()
 	if err != nil {
-		return &platform.Error{
-			Err: err,
-		}
+		return err
 	}
 	if err := tx.Bucket(viewBucket).Put(encodedID, v); err != nil {
-		return &platform.Error{
-			Err: err,
-		}
+		return err
 	}
 	return nil
 }
@@ -262,12 +230,9 @@ func (c *Client) forEachView(ctx context.Context, tx *bolt.Tx, fn func(*platform
 func (c *Client) UpdateView(ctx context.Context, id platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
 	var d *platform.View
 	err := c.db.Update(func(tx *bolt.Tx) error {
-		dash, pe := c.updateView(ctx, tx, id, upd)
-		if pe != nil {
-			return &platform.Error{
-				Err: pe,
-				Op:  getOp(platform.OpUpdateView),
-			}
+		dash, err := c.updateView(ctx, tx, id, upd)
+		if err != nil {
+			return err
 		}
 		d = dash
 		return nil
@@ -300,39 +265,24 @@ func (c *Client) updateView(ctx context.Context, tx *bolt.Tx, id platform.ID, up
 // DeleteView deletes a view and prunes it from the index.
 func (c *Client) DeleteView(ctx context.Context, id platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		if pe := c.deleteView(ctx, tx, id); pe != nil {
-			return &platform.Error{
-				Err: pe,
-				Op:  getOp(platform.OpDeleteView),
-			}
-		}
-		return nil
+		return c.deleteView(ctx, tx, id)
 	})
 }
 
-func (c *Client) deleteView(ctx context.Context, tx *bolt.Tx, id platform.ID) *platform.Error {
-	_, pe := c.findViewByID(ctx, tx, id)
-	if pe != nil {
-		return pe
+func (c *Client) deleteView(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
+	_, err := c.findViewByID(ctx, tx, id)
+	if err != nil {
+		return err
 	}
 	encodedID, err := id.Encode()
 	if err != nil {
-		return &platform.Error{
-			Err: err,
-		}
+		return err
 	}
 	if err := tx.Bucket(viewBucket).Delete(encodedID); err != nil {
-		return &platform.Error{
-			Err: err,
-		}
+		return err
 	}
-	if err := c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+	return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
 		ResourceID:   id,
 		ResourceType: platform.ViewResourceType,
-	}); err != nil {
-		return &platform.Error{
-			Err: err,
-		}
-	}
-	return nil
+	})
 }

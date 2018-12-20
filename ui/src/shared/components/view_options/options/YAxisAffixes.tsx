@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
 import FormElement from 'src/clockface/components/form_layout/FormElement'
-import {Input, Grid, Columns} from 'src/clockface'
+import {Input} from 'src/clockface'
 
 interface Props {
   prefix: string
@@ -18,16 +18,12 @@ class YAxisAffixes extends PureComponent<Props> {
 
     return (
       <>
-        <Grid.Column widthSM={Columns.Six}>
-          <FormElement label="Y-Value's Prefix">
-            <Input value={prefix} onChange={this.handleUpdateYAxisPrefix} />
-          </FormElement>
-        </Grid.Column>
-        <Grid.Column widthSM={Columns.Six}>
-          <FormElement label="Y-Value's Suffix">
-            <Input value={suffix} onChange={this.handleUpdateYAxisSuffix} />
-          </FormElement>
-        </Grid.Column>
+        <FormElement label="Y-Value's Prefix">
+          <Input value={prefix} onChange={this.handleUpdateYAxisPrefix} />
+        </FormElement>
+        <FormElement label="Y-Value's Suffix">
+          <Input value={suffix} onChange={this.handleUpdateYAxisSuffix} />
+        </FormElement>
       </>
     )
   }

@@ -17,126 +17,117 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
   <Form
     className="onboarding--admin-user-form"
   >
-    <Grid>
-      <GridRow>
-        <GridColumn
-          offsetXS={3}
-          widthXS={6}
-        >
-          <FormElement
-            label="Admin Username"
-          >
-            <Input
-              autoFocus={true}
-              autocomplete="off"
-              disabledTitleText="Admin username has been set"
-              icon="checkmark"
-              name=""
-              onChange={[Function]}
-              placeholder=""
-              size="md"
-              spellCheck={false}
-              status="disabled"
-              titleText="Admin Username"
-              value=""
-            />
-          </FormElement>
-        </GridColumn>
-        <GridColumn
-          offsetXS={3}
-          widthXS={3}
-        >
-          <FormElement
-            label="Admin Password"
-          >
-            <Input
-              autoFocus={false}
-              autocomplete="off"
-              disabledTitleText="Admin password has been set"
-              icon="checkmark"
-              name=""
-              onChange={[Function]}
-              placeholder=""
-              size="md"
-              spellCheck={false}
-              status="disabled"
-              titleText="Admin Password"
-              type="password"
-              value=""
-            />
-          </FormElement>
-        </GridColumn>
-        <GridColumn
-          widthXS={3}
-        >
-          <FormElement
-            label="Confirm Admin Password"
-          >
-            <Input
-              autoFocus={false}
-              autocomplete="off"
-              disabledTitleText="Admin password has been set"
-              icon="checkmark"
-              name=""
-              onChange={[Function]}
-              placeholder=""
-              size="md"
-              spellCheck={false}
-              status="disabled"
-              titleText="Confirm Admin Password"
-              type="password"
-              value=""
-            />
-          </FormElement>
-        </GridColumn>
-        <GridColumn
-          offsetXS={3}
-          widthXS={6}
-        >
-          <FormElement
-            label="Default Organization Name"
-          >
-            <Input
-              autoFocus={false}
-              autocomplete="off"
-              disabledTitleText="Default organization name has been set"
-              icon="checkmark"
-              name=""
-              onChange={[Function]}
-              placeholder="Your organization is where everything you create lives"
-              size="md"
-              spellCheck={false}
-              status="default"
-              titleText="Default Organization Name"
-              value=""
-            />
-          </FormElement>
-        </GridColumn>
-        <GridColumn
-          offsetXS={3}
-          widthXS={6}
-        >
-          <FormElement
-            label="Default Bucket Name"
-          >
-            <Input
-              autoFocus={false}
-              autocomplete="off"
-              disabledTitleText="Default bucket name has been set"
-              icon="checkmark"
-              name=""
-              onChange={[Function]}
-              placeholder="Your bucket is where you will store all your data"
-              size="md"
-              spellCheck={false}
-              status="disabled"
-              titleText="Default Bucket Name"
-              value=""
-            />
-          </FormElement>
-        </GridColumn>
-      </GridRow>
-    </Grid>
+    <FormElement
+      colsXS={6}
+      errorMessage=""
+      helpText=""
+      label="Admin Username"
+      offsetXS={3}
+    >
+      <Input
+        autoFocus={true}
+        autocomplete="off"
+        disabledTitleText="Admin username has been set"
+        icon="checkmark"
+        name=""
+        onChange={[Function]}
+        placeholder=""
+        size="md"
+        spellCheck={false}
+        status="disabled"
+        titleText="Admin Username"
+        value=""
+      />
+    </FormElement>
+    <FormElement
+      colsXS={3}
+      errorMessage=""
+      helpText=""
+      label="Admin Password"
+      offsetXS={3}
+    >
+      <Input
+        autoFocus={false}
+        autocomplete="off"
+        disabledTitleText="Admin password has been set"
+        icon="checkmark"
+        name=""
+        onChange={[Function]}
+        placeholder=""
+        size="md"
+        spellCheck={false}
+        status="disabled"
+        titleText="Admin Password"
+        type="password"
+        value=""
+      />
+    </FormElement>
+    <FormElement
+      colsXS={3}
+      errorMessage=""
+      helpText=""
+      label="Confirm Admin Password"
+    >
+      <Input
+        autoFocus={false}
+        autocomplete="off"
+        disabledTitleText="Admin password has been set"
+        icon="checkmark"
+        name=""
+        onChange={[Function]}
+        placeholder=""
+        size="md"
+        spellCheck={false}
+        status="disabled"
+        titleText="Confirm Admin Password"
+        type="password"
+        value=""
+      />
+    </FormElement>
+    <FormElement
+      colsXS={6}
+      errorMessage=""
+      helpText=""
+      label="Default Organization Name"
+      offsetXS={3}
+    >
+      <Input
+        autoFocus={false}
+        autocomplete="off"
+        disabledTitleText="Default organization name has been set"
+        icon="checkmark"
+        name=""
+        onChange={[Function]}
+        placeholder="Your organization is where everything you create lives"
+        size="md"
+        spellCheck={false}
+        status="default"
+        titleText="Default Organization Name"
+        value=""
+      />
+    </FormElement>
+    <FormElement
+      colsXS={6}
+      errorMessage=""
+      helpText=""
+      label="Default Bucket Name"
+      offsetXS={3}
+    >
+      <Input
+        autoFocus={false}
+        autocomplete="off"
+        disabledTitleText="Default bucket name has been set"
+        icon="checkmark"
+        name=""
+        onChange={[Function]}
+        placeholder="Your bucket is where you will store all your data"
+        size="md"
+        spellCheck={false}
+        status="disabled"
+        titleText="Default Bucket Name"
+        value=""
+      />
+    </FormElement>
     <div
       className="wizard--button-container"
     >

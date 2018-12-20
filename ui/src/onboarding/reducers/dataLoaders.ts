@@ -227,36 +227,30 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
                 if (isRequired) {
                   const fieldValue = config[fieldName]
 
-                  switch (fieldType) {
-                    case ConfigFieldType.Uri:
-                      isValidConfig = validateURI(fieldValue as string)
-                      break
-                    case ConfigFieldType.String:
-                      isValidConfig = (fieldValue as string) !== ''
-                      break
-                    case ConfigFieldType.StringArray:
-                      isValidConfig = !!(fieldValue as string[]).length
-                      break
-                    case ConfigFieldType.UriArray:
-                      isValidConfig =
-                        !!(fieldValue as string[]).length &&
-                        !fieldValue.find(uri => !validateURI(uri))
-                      break
+                  const isValidUri =
+                    fieldType === ConfigFieldType.Uri &&
+                    validateURI(fieldValue as string)
+                  const isValidString =
+                    fieldType === ConfigFieldType.String &&
+                    (fieldValue as string) !== ''
+                  const isValidArray =
+                    (fieldType === ConfigFieldType.StringArray ||
+                      fieldType === ConfigFieldType.UriArray) &&
+                    (fieldValue as string[]).length
+
+                  if (!isValidUri && !isValidString && !isValidArray) {
+                    isValidConfig = false
                   }
                 }
               }
             )
 
             if (!isValidConfig || _.isEmpty(config)) {
-              return {
-                ...tp,
-                configured: ConfigurationState.InvalidConfiguration,
-              }
+              return {...tp, configured: ConfigurationState.Unconfigured}
             } else {
               return {...tp, configured: ConfigurationState.Configured}
             }
           }
-
           return {...tp}
         }),
       }

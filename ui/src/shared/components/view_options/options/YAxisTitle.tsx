@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Input, Grid, Form, Columns} from 'src/clockface'
+import {Input, FormElement} from 'src/clockface'
 
 interface Props {
   label: string
@@ -13,11 +13,9 @@ class YAxisTitle extends PureComponent<Props> {
     const {label} = this.props
 
     return (
-      <Grid.Column widthXS={Columns.Twelve}>
-        <Form.Element label="Title">
-          <Input value={label} onChange={this.handleChange} />
-        </Form.Element>
-      </Grid.Column>
+      <FormElement label="Title">
+        <Input value={label} onChange={this.handleChange} />
+      </FormElement>
     )
   }
 

@@ -10,11 +10,10 @@ import MultipleInput, {Item} from './MultipleInput'
 import {setConfigArrayValue} from 'src/onboarding/actions/dataLoaders'
 
 // Types
-import {TelegrafPluginName, ConfigFieldType} from 'src/types/v2/dataLoaders'
+import {TelegrafPluginName} from 'src/types/v2/dataLoaders'
 
 interface Props {
   fieldName: string
-  fieldType: ConfigFieldType
   addTagValue: (item: string, fieldName: string) => void
   removeTagValue: (item: string, fieldName: string) => void
   autoFocus: boolean
@@ -28,19 +27,16 @@ class ArrayFormElement extends PureComponent<Props> {
   public render() {
     const {
       fieldName,
-      fieldType,
       autoFocus,
       helpText,
       onSetConfigArrayValue,
       telegrafPluginName,
     } = this.props
-
     return (
       <div className="multiple-input-index">
         <Form.Element label={fieldName} key={fieldName} helpText={helpText}>
           <MultipleInput
             title={fieldName}
-            fieldType={fieldType}
             autoFocus={autoFocus}
             displayTitle={false}
             onAddRow={this.handleAddRow}

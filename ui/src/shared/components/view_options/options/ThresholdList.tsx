@@ -5,8 +5,8 @@ import uuid from 'uuid'
 
 // Components
 import ThresholdItem from 'src/shared/components/view_options/options/ThresholdItem'
+import FormElement from 'src/clockface/components/form_layout/FormElement'
 import {
-  Form,
   Button,
   ComponentSize,
   IconFont,
@@ -34,7 +34,7 @@ interface Props {
 class ThresholdList extends PureComponent<Props> {
   public render() {
     return (
-      <Form.Element label="Thresholds">
+      <FormElement>
         <div className="threshold-list">
           <Button
             size={ComponentSize.Small}
@@ -69,7 +69,7 @@ class ThresholdList extends PureComponent<Props> {
             )
           })}
         </div>
-      </Form.Element>
+      </FormElement>
     )
   }
 

@@ -50,7 +50,6 @@ export interface DataLoadersState {
 
 export enum ConfigurationState {
   Unconfigured = 'unconfigured',
-  InvalidConfiguration = 'invalid',
   Configured = 'configured',
 }
 

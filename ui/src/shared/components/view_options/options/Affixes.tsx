@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Form, Grid, Columns} from 'src/clockface'
+import FormElement from 'src/clockface/components/form_layout/FormElement'
 import {Input} from 'src/clockface'
 
 interface Props {
@@ -18,24 +18,20 @@ class Affixes extends PureComponent<Props> {
 
     return (
       <>
-        <Grid.Column widthXS={Columns.Six}>
-          <Form.Element label="Prefix">
-            <Input
-              value={prefix}
-              onChange={this.handleUpdatePrefix}
-              placeholder="%, MPH, etc."
-            />
-          </Form.Element>
-        </Grid.Column>
-        <Grid.Column widthXS={Columns.Six}>
-          <Form.Element label="Suffix">
-            <Input
-              value={suffix}
-              onChange={this.handleUpdateSuffix}
-              placeholder="%, MPH, etc."
-            />
-          </Form.Element>
-        </Grid.Column>
+        <FormElement colsXS={6} label="Prefix">
+          <Input
+            value={prefix}
+            onChange={this.handleUpdatePrefix}
+            placeholder="%, MPH, etc."
+          />
+        </FormElement>
+        <FormElement colsXS={6} label="Suffix">
+          <Input
+            value={suffix}
+            onChange={this.handleUpdateSuffix}
+            placeholder="%, MPH, etc."
+          />
+        </FormElement>
       </>
     )
   }

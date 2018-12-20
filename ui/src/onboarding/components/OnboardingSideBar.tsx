@@ -34,8 +34,6 @@ const configStateToTabStatus = (cs: ConfigurationState): TabStatus => {
   switch (cs) {
     case ConfigurationState.Unconfigured:
       return TabStatus.Default
-    case ConfigurationState.InvalidConfiguration:
-      return TabStatus.Error
     case ConfigurationState.Configured:
       return TabStatus.Success
   }

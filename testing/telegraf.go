@@ -3,13 +3,13 @@ package testing
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/telegraf/plugins/inputs"
@@ -24,14 +24,11 @@ type TelegrafConfigFields struct {
 }
 
 var telegrafCmpOptions = cmp.Options{
-	cmpopts.IgnoreUnexported(
-		inputs.CPUStats{},
-		inputs.MemStats{},
-		inputs.Kubernetes{},
-		inputs.File{},
-		outputs.File{},
-		outputs.InfluxDBV2{},
-	),
+	cmp.Comparer(func(a, b *platform.TelegrafConfig) bool {
+		x, _ := json.Marshal(a)
+		y, _ := json.Marshal(b)
+		return bytes.Equal(x, y)
+	}),
 	cmp.Transformer("Sort", func(in []*platform.TelegrafConfig) []*platform.TelegrafConfig {
 		out := append([]*platform.TelegrafConfig(nil), in...)
 		sort.Slice(out, func(i, j int) bool {
@@ -1136,102 +1133,6 @@ func UpdateTelegrafConfig(
 						{
 							Comment: "comment2",
 							Config:  &inputs.MemStats{},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "config update",
-			fields: TelegrafConfigFields{
-				TelegrafConfigs: []*platform.TelegrafConfig{
-					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
-					},
-					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config: &inputs.Kubernetes{
-									URL: "http://1.2.3.4",
-								},
-							},
-							{
-								Config: &inputs.Kubernetes{
-									URL: "123",
-								},
-							},
-						},
-					},
-				},
-			},
-			args: args{
-				userID: MustIDBase16(fourID),
-				now:    now,
-				id:     MustIDBase16(twoID),
-				telegrafConfig: &platform.TelegrafConfig{
-					Name:      "tc2",
-					LastModBy: MustIDBase16(threeID),
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment1",
-							Config: &inputs.File{
-								Files: []string{"f1", "f2", "f3"},
-							},
-						},
-						{
-							Comment: "comment2",
-							Config: &inputs.Kubernetes{
-								URL: "http://1.2.3.5",
-							},
-						},
-						{
-							Config: &inputs.Kubernetes{
-								URL: "1234",
-							},
-						},
-					},
-				},
-			},
-			wants: wants{
-				telegrafConfig: &platform.TelegrafConfig{
-					ID:        MustIDBase16(twoID),
-					Name:      "tc2",
-					LastModBy: MustIDBase16(fourID),
-					LastMod:   now,
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment1",
-							Config: &inputs.File{
-								Files: []string{"f1", "f2", "f3"},
-							},
-						},
-						{
-							Comment: "comment2",
-							Config: &inputs.Kubernetes{
-								URL: "http://1.2.3.5",
-							},
-						},
-						{
-							Config: &inputs.Kubernetes{
-								URL: "1234",
-							},
 						},
 					},
 				},

@@ -3,13 +3,11 @@
 package platform
 
 import (
-	_ "github.com/benbjohnson/tmpl"
 	_ "github.com/gogo/protobuf/protoc-gen-gogo"
 	_ "github.com/gogo/protobuf/protoc-gen-gogofaster"
 	_ "github.com/goreleaser/goreleaser"
 	_ "github.com/kevinburke/go-bindata/go-bindata"
 	_ "github.com/mna/pigeon"
-	_ "golang.org/x/tools/cmd/stringer"
 	_ "honnef.co/go/tools/cmd/megacheck"
 )
 

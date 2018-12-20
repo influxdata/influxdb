@@ -70,7 +70,7 @@ export const signin = async (params: {
 
 export const trySources = async (): Promise<boolean> => {
   try {
-    await sourcesAPI.sourcesGet('')
+    await sourcesAPI.sourcesGet(null)
     return true
   } catch (error) {
     console.error('Sign in has failed', error)

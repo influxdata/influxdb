@@ -3,8 +3,14 @@
   ------------------------------------------------------------------------------
 */
 
+$grid--form-gutter: 6px;
+
 .form--wrapper {
-  width: 100%;
+  width: calc(100% + #{$grid--form-gutter * 2});
+  margin-left: -$grid--form-gutter;
+  margin-right: -$grid--form-gutter;
+  display: inline-flex;
+  flex-wrap: wrap;
 }
 
 /*
@@ -12,11 +18,33 @@
   ------------------------------------------------------------------------------
 */
 .form--element {
-  width: 100%;
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   align-items: stretch;
   margin-bottom: $ix-marg-b;
+}
+
+.form--element.col {
+  &-xs,
+  &-sm,
+  &-md,
+  &-lg {
+    &-12,
+    &-11,
+    &-10,
+    &-9,
+    &-8,
+    &-7,
+    &-6,
+    &-5,
+    &-4,
+    &-3,
+    &-2,
+    &-1 {
+      padding-left: $grid--form-gutter;
+      padding-right: $grid--form-gutter;
+    }
+  }
 }
 
 /*
@@ -51,10 +79,6 @@
   line-height: 16px;
   color: $c-dreamsicle;
   margin: $ix-marg-a 0 0 0;
-}
-
-.form--label-required {
-  color: $c-curacao;
 }
 
 /*

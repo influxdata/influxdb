@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Form, Grid, Columns} from 'src/clockface'
+import Form from 'src/clockface/components/form_layout/Form'
 import Affixes from 'src/shared/components/view_options/options/Affixes'
 import DecimalPlacesOption from 'src/shared/components/view_options/options/DecimalPlaces'
 import ThresholdList from 'src/shared/components/view_options/options/ThresholdList'
@@ -50,7 +50,7 @@ class GaugeOptions extends PureComponent<Props> {
 
     return (
       <>
-        <Grid.Column widthSM={Columns.Six}>
+        <div className="col-xs-6">
           <h4 className="view-options--header">Customize Gauge</h4>
           <Affixes
             prefix={prefix}
@@ -59,8 +59,8 @@ class GaugeOptions extends PureComponent<Props> {
             onUpdateSuffix={onUpdateSuffix}
           />
           {this.decimalPlaces}
-        </Grid.Column>
-        <Grid.Column widthSM={Columns.Six}>
+        </div>
+        <div className="col-xs-6">
           <h4 className="view-options--header">Colorized Thresholds</h4>
           <Form>
             <ThresholdList
@@ -69,7 +69,7 @@ class GaugeOptions extends PureComponent<Props> {
               onValidateNewColor={this.handleValidateNewColor}
             />
           </Form>
-        </Grid.Column>
+        </div>
       </>
     )
   }

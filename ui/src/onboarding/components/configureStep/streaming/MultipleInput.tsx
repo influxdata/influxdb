@@ -3,20 +3,15 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import Rows from 'src/onboarding/components/configureStep/streaming/MultipleRow'
+import Rows from './MultipleRow'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Input, InputType, AutoComplete, ComponentStatus} from 'src/clockface'
-
-// Utils
-import {validateURI} from 'src/shared/utils/validateURI'
+import {Input, InputType, AutoComplete} from 'src/clockface'
 
 // Actions
 import {setConfigArrayValue} from 'src/onboarding/actions/dataLoaders'
 
 // Types
-import {TelegrafPluginName, ConfigFieldType} from 'src/types/v2/dataLoaders'
-
-const VALIDATE_DEBOUNCE_MS = 350
+import {TelegrafPluginName} from 'src/types/v2/dataLoaders'
 
 export interface Item {
   text?: string
@@ -29,7 +24,6 @@ interface Props {
   title: string
   displayTitle: boolean
   inputID?: string
-  fieldType?: ConfigFieldType
   autoFocus?: boolean
   onSetConfigArrayValue: typeof setConfigArrayValue
   telegrafPluginName: TelegrafPluginName
@@ -37,21 +31,13 @@ interface Props {
 
 interface State {
   editingText: string
-  status: ComponentStatus
 }
 
 @ErrorHandling
 class MultipleInput extends PureComponent<Props, State> {
-  private debouncedValidate: (value: string) => void
-
   constructor(props: Props) {
     super(props)
-    this.state = {editingText: '', status: ComponentStatus.Default}
-
-    this.debouncedValidate = _.debounce(
-      this.handleValidateURI,
-      VALIDATE_DEBOUNCE_MS
-    )
+    this.state = {editingText: ''}
   }
 
   public render() {
@@ -74,7 +60,6 @@ class MultipleInput extends PureComponent<Props, State> {
           onKeyDown={this.handleKeyDown}
           autoFocus={autoFocus || false}
           value={editingText}
-          status={this.state.status}
           onChange={this.handleInputChange}
         />
         <Rows
@@ -89,13 +74,7 @@ class MultipleInput extends PureComponent<Props, State> {
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const {fieldType} = this.props
-    const {value} = e.target
-
-    this.setState({editingText: value})
-    if (fieldType === ConfigFieldType.UriArray) {
-      this.debouncedValidate(value)
-    }
+    this.setState({editingText: e.target.value})
   }
 
   private get id(): string {
@@ -130,14 +109,6 @@ class MultipleInput extends PureComponent<Props, State> {
 
   private shouldAddToList(item: Item, tags: Item[]): boolean {
     return !_.isEmpty(item) && !tags.find(l => l === item)
-  }
-
-  private handleValidateURI = (value: string): void => {
-    if (validateURI(value)) {
-      this.setState({status: ComponentStatus.Valid})
-    } else {
-      this.setState({status: ComponentStatus.Error})
-    }
   }
 }
 

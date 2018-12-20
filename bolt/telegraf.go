@@ -190,11 +190,10 @@ func (c *Client) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *p
 		tc.LastModBy = userID
 		pErr = c.putTelegrafConfig(ctx, tx, tc)
 		if pErr != nil {
-			return &platform.Error{
-				Err: pErr,
-			}
+			pErr.Op = op
+			err = pErr
 		}
-		return nil
+		return err
 	})
 	return tc, err
 }

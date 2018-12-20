@@ -10,13 +10,11 @@ import (
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
-	"go.uber.org/zap"
 )
 
 // ScraperHandler represents an HTTP API handler for scraper targets.
 type ScraperHandler struct {
 	*httprouter.Router
-	Logger                *zap.Logger
 	ScraperStorageService platform.ScraperTargetStoreService
 }
 
@@ -28,7 +26,6 @@ const (
 func NewScraperHandler() *ScraperHandler {
 	h := &ScraperHandler{
 		Router: NewRouter(),
-		Logger: zap.NewNop(),
 	}
 	h.HandlerFunc("POST", targetPath, h.handlePostScraperTarget)
 	h.HandlerFunc("GET", targetPath, h.handleGetScraperTargets)
@@ -53,7 +50,7 @@ func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTargetResponse(*req)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -93,7 +90,7 @@ func (h *ScraperHandler) handlePatchScraperTarget(w http.ResponseWriter, r *http
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTargetResponse(*target)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -113,7 +110,7 @@ func (h *ScraperHandler) handleGetScraperTarget(w http.ResponseWriter, r *http.R
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTargetResponse(*target)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -129,7 +126,7 @@ func (h *ScraperHandler) handleGetScraperTargets(w http.ResponseWriter, r *http.
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newListTargetsResponse(targets)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		EncodeError(ctx, err, w)
 		return
 	}
 }

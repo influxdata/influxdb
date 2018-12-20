@@ -13,7 +13,7 @@
 
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all subdirs have the `all` and `clean` targets.
-SUBDIRS := http ui chronograf query storage task
+SUBDIRS := http ui query storage task
 
 GO_ARGS=-tags '$(GO_TAGS)'
 
@@ -24,7 +24,6 @@ export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
 export GO_GENERATE=go generate $(GO_ARGS)
 export GO_VET=env GO111MODULE=on go vet $(GO_ARGS)
-export GO_RUN=env GO111MODULE=on go run $(GO_ARGS)
 export PATH := $(PWD)/bin/$(GOOS):$(PATH)
 
 
@@ -51,7 +50,7 @@ CMDS := \
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
 all: GO_ARGS=-tags 'assets $(GO_TAGS)'
-all: subdirs generate $(CMDS)
+all: node_modules subdirs ui generate $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
@@ -75,6 +74,9 @@ chronograf_lint:
 
 ui/node_modules:
 	make -C ui node_modules
+
+ui/build:
+	mkdir -p ui/build
 
 #
 # Define action only targets
@@ -118,10 +120,8 @@ vet:
 bench:
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
-build: all
-
-nightly: build
-	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
+nightly: all
+	env GO111MODULE=on go run github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done

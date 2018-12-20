@@ -8,7 +8,7 @@ import (
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initViewService(f platformtesting.ViewFields, t *testing.T) (platform.ViewService, string, func()) {
+func initViewService(f platformtesting.ViewFields, t *testing.T) (platform.ViewService, func()) {
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
 	ctx := context.TODO()
@@ -17,7 +17,7 @@ func initViewService(f platformtesting.ViewFields, t *testing.T) (platform.ViewS
 			t.Fatalf("failed to populate Views")
 		}
 	}
-	return s, OpPrefix, func() {}
+	return s, func() {}
 }
 
 func TestViewService_CreateView(t *testing.T) {

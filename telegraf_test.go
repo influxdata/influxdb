@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"sort"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -13,27 +12,8 @@ import (
 	"github.com/influxdata/platform/telegraf/plugins/outputs"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/platform/telegraf/plugins/inputs"
 )
-
-var telegrafCmpOptions = cmp.Options{
-	cmpopts.IgnoreUnexported(
-		inputs.CPUStats{},
-		inputs.Kubernetes{},
-		inputs.File{},
-		outputs.File{},
-		outputs.InfluxDBV2{},
-		unsupportedPlugin{},
-	),
-	cmp.Transformer("Sort", func(in []*TelegrafConfig) []*TelegrafConfig {
-		out := append([]*TelegrafConfig(nil), in...)
-		sort.Slice(out, func(i, j int) bool {
-			return out[i].ID > out[j].ID
-		})
-		return out
-	}),
-}
 
 type unsupportedPluginType struct {
 	Field string `json:"field"`
@@ -73,79 +53,6 @@ func (u *unsupportedPlugin) Type() plugins.Type {
 
 func (u *unsupportedPlugin) UnmarshalTOML(data interface{}) error {
 	return nil
-}
-
-func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
-	s := `{
-		"name":"config 2",
-		"agent": {
-			"collectionInterval": 120000
-		},
-		"plugins": [
-			{
-				"name":"cpu",
-				"type":"input",
-				"comment": "cpu collect cpu metrics",
-				"config":{}
-			},
-			{
-				"name":"kubernetes",
-				"type":"input",
-				"config":{
-					"url":"http://1.1.1.1:12"
-				}
-			},
-			{
-				"name": "influxdb_v2",
-				"type": "output",
-				"comment": "3",
-				"config": {
-					"urls": [
-						"http://127.0.0.1:9999"
-					],
-					"token": "token1",
-					"organization": "org",
-					"bucket": "bucket"
-				}
-			}
-		]
-	}`
-	want := &TelegrafConfig{
-		Name: "config 2",
-		Agent: TelegrafAgentConfig{
-			Interval: 120000,
-		},
-		Plugins: []TelegrafPlugin{
-			{
-				Comment: "cpu collect cpu metrics",
-				Config:  &inputs.CPUStats{},
-			},
-			{
-				Config: &inputs.Kubernetes{
-					URL: "http://1.1.1.1:12",
-				},
-			},
-			{
-				Comment: "3",
-				Config: &outputs.InfluxDBV2{
-					URLs: []string{
-						"http://127.0.0.1:9999",
-					},
-					Token:        "token1",
-					Organization: "org",
-					Bucket:       "bucket",
-				},
-			},
-		},
-	}
-	got := new(TelegrafConfig)
-	err := json.Unmarshal([]byte(s), got)
-	if err != nil {
-		t.Fatal("json decode error", err.Error())
-	}
-	if diff := cmp.Diff(got, want, telegrafCmpOptions...); diff != "" {
-		t.Errorf("telegraf configs are different -got/+want\ndiff %s", diff)
-	}
 }
 
 func TestTelegrafConfigJSON(t *testing.T) {
@@ -246,8 +153,9 @@ func TestTelegrafConfigJSON(t *testing.T) {
 			t.Fatalf("%s decode failed, got err: %v, should be %v", c.name, err, c.err)
 		}
 
-		if diff := cmp.Diff(got, c.cfg, telegrafCmpOptions...); c.err == nil && diff != "" {
-			t.Errorf("failed %s, telegraf configs are different -got/+want\ndiff %s", c.name, diff)
+		// use DeepEqual to ignore unexported field panic
+		if c.err == nil && !reflect.DeepEqual(got, c.cfg) {
+			t.Fatalf("%s decode failed, want: %v, got: %v", c.name, c.cfg, got)
 		}
 	}
 }

@@ -219,12 +219,12 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 	return nil
 }
 
-func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *platform.Cell, opts platform.AddDashboardCellOptions) *platform.Error {
+func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
 	if opts.UsingView.Valid() {
 		// Creates a hard copy of a view
-		v, pe := c.findViewByID(ctx, tx, opts.UsingView)
-		if pe != nil {
-			return pe
+		v, err := c.findViewByID(ctx, tx, opts.UsingView)
+		if err != nil {
+			return err
 		}
 		view, err := c.copyView(ctx, tx, v.ID)
 		if err != nil {

@@ -119,7 +119,6 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
                 authToken={authToken}
                 onSaveTelegrafConfig={onSaveTelegrafConfig}
                 onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
-                onSetPluginConfiguration={onSetPluginConfiguration}
                 stepIndex={currentStepIndex}
               />
             )}
