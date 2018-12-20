@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form, Input} from 'src/clockface'
+import {Form, Input, ComponentSize, Grid, Columns} from 'src/clockface'
 import URIFormElement from 'src/shared/components/URIFormElement'
 import ArrayFormElement from 'src/onboarding/components/configureStep/streaming/ArrayFormElement'
 
@@ -66,18 +66,25 @@ class ConfigFieldSwitcher extends PureComponent<Props> {
         )
       case ConfigFieldType.String:
         return (
-          <Form.Element
-            label={fieldName}
-            key={fieldName}
-            helpText={this.optionalText}
-          >
-            <Input
-              name={fieldName}
-              autoFocus={this.autoFocus}
-              onChange={onChange}
-              value={value as string}
-            />
-          </Form.Element>
+          <Grid>
+            <Grid.Row>
+              <Grid.Column widthXS={Columns.Eight} offsetXS={Columns.Two}>
+                <Form.Element
+                  label={fieldName}
+                  key={fieldName}
+                  helpText={this.optionalText}
+                >
+                  <Input
+                    name={fieldName}
+                    autoFocus={this.autoFocus}
+                    onChange={onChange}
+                    size={ComponentSize.Medium}
+                    value={value as string}
+                  />
+                </Form.Element>
+              </Grid.Column>
+            </Grid.Row>
+          </Grid>
         )
       default:
         return <div />

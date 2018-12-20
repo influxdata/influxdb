@@ -71,7 +71,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
         <Form className="onboarding--admin-user-form">
           <Grid>
             <Grid.Row>
-              <Grid.Column widthXS={Columns.Six} offsetXS={Columns.Three}>
+              <Grid.Column widthXS={Columns.Ten} offsetXS={Columns.One}>
                 <Form.Element label="Admin Username">
                   <Input
                     value={username}
@@ -85,7 +85,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
                   />
                 </Form.Element>
               </Grid.Column>
-              <Grid.Column widthXS={Columns.Three} offsetXS={Columns.Three}>
+              <Grid.Column widthXS={Columns.Five} offsetXS={Columns.One}>
                 <Form.Element label="Admin Password">
                   <Input
                     type={InputType.Password}
@@ -99,7 +99,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
                   />
                 </Form.Element>
               </Grid.Column>
-              <Grid.Column widthXS={Columns.Three}>
+              <Grid.Column widthXS={Columns.Five}>
                 <Form.Element label="Confirm Admin Password">
                   <Input
                     type={InputType.Password}
@@ -113,7 +113,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
                   />
                 </Form.Element>
               </Grid.Column>
-              <Grid.Column widthXS={Columns.Six} offsetXS={Columns.Three}>
+              <Grid.Column widthXS={Columns.Ten} offsetXS={Columns.One}>
                 <Form.Element label="Default Organization Name">
                   <Input
                     value={org}
@@ -127,7 +127,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
                   />
                 </Form.Element>
               </Grid.Column>
-              <Grid.Column widthXS={Columns.Six} offsetXS={Columns.Three}>
+              <Grid.Column widthXS={Columns.Ten} offsetXS={Columns.One}>
                 <Form.Element label="Default Bucket Name">
                   <Input
                     value={bucket}

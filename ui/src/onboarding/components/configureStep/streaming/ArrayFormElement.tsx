@@ -3,7 +3,6 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form} from 'src/clockface'
 import MultipleInput, {Item} from './MultipleInput'
 
 // Actions
@@ -37,19 +36,17 @@ class ArrayFormElement extends PureComponent<Props> {
 
     return (
       <div className="multiple-input-index">
-        <Form.Element label={fieldName} key={fieldName} helpText={helpText}>
-          <MultipleInput
-            title={fieldName}
-            fieldType={fieldType}
-            autoFocus={autoFocus}
-            displayTitle={false}
-            onAddRow={this.handleAddRow}
-            onDeleteRow={this.handleRemoveRow}
-            tags={this.tags}
-            onSetConfigArrayValue={onSetConfigArrayValue}
-            telegrafPluginName={telegrafPluginName}
-          />
-        </Form.Element>
+        <MultipleInput
+          title={fieldName}
+          helpText={helpText}
+          fieldType={fieldType}
+          autoFocus={autoFocus}
+          onAddRow={this.handleAddRow}
+          onDeleteRow={this.handleRemoveRow}
+          tags={this.tags}
+          onSetConfigArrayValue={onSetConfigArrayValue}
+          telegrafPluginName={telegrafPluginName}
+        />
       </div>
     )
   }

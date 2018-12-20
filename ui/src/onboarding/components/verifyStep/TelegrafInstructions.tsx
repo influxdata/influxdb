@@ -5,6 +5,8 @@ import CopyToClipboard from 'react-copy-to-clipboard'
 
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Components
 import {Button, ComponentSize, ComponentColor} from 'src/clockface'
 
 export interface Props {

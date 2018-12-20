@@ -4,7 +4,6 @@ import {shallow} from 'enzyme'
 
 // Components
 import ArrayFormElement from 'src/onboarding/components/configureStep/streaming/ArrayFormElement'
-import {FormElement} from 'src/clockface'
 import MultipleInput from './MultipleInput'
 
 import {TelegrafPluginInputCpu} from 'src/api'
@@ -32,11 +31,9 @@ describe('Onboarding.Components.ConfigureStep.Streaming.ArrayFormElement', () =>
   it('renders', () => {
     const fieldName = 'yo'
     const {wrapper} = setup({fieldName})
-    const formElement = wrapper.find(FormElement)
     const multipleInput = wrapper.find(MultipleInput)
 
     expect(wrapper.exists()).toBe(true)
-    expect(formElement.exists()).toBe(true)
     expect(multipleInput.exists()).toBe(true)
   })
 })

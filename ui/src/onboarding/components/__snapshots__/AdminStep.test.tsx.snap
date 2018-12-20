@@ -20,8 +20,8 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
     <Grid>
       <GridRow>
         <GridColumn
-          offsetXS={3}
-          widthXS={6}
+          offsetXS={1}
+          widthXS={10}
         >
           <FormElement
             label="Admin Username"
@@ -43,8 +43,8 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           </FormElement>
         </GridColumn>
         <GridColumn
-          offsetXS={3}
-          widthXS={3}
+          offsetXS={1}
+          widthXS={5}
         >
           <FormElement
             label="Admin Password"
@@ -67,7 +67,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           </FormElement>
         </GridColumn>
         <GridColumn
-          widthXS={3}
+          widthXS={5}
         >
           <FormElement
             label="Confirm Admin Password"
@@ -90,8 +90,8 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           </FormElement>
         </GridColumn>
         <GridColumn
-          offsetXS={3}
-          widthXS={6}
+          offsetXS={1}
+          widthXS={10}
         >
           <FormElement
             label="Default Organization Name"
@@ -113,8 +113,8 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           </FormElement>
         </GridColumn>
         <GridColumn
-          offsetXS={3}
-          widthXS={6}
+          offsetXS={1}
+          widthXS={10}
         >
           <FormElement
             label="Default Bucket Name"
