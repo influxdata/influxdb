@@ -4502,6 +4502,9 @@ components:
         user:
           type: string
           description: name of user.
+        description:
+          type: string
+          description: a description of the token.
         permissions:
           type: array
           items:

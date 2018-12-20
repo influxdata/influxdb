@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	bolt "github.com/coreos/bbolt"
@@ -10,8 +11,6 @@ import (
 
 var onboardingBucket = []byte("onboardingv1")
 var onboardingKey = []byte("onboarding_key")
-
-const onboardingTokenDesc = "Deftok"
 
 var _ platform.OnboardingService = (*Client)(nil)
 
@@ -121,7 +120,7 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 	auth := &platform.Authorization{
 		User:        u.Name,
 		UserID:      u.ID,
-		Description: onboardingTokenDesc,
+		Description: fmt.Sprintf("%s's Token", u.Name),
 		Permissions: []platform.Permission{
 			platform.CreateUserPermission,
 			platform.DeleteUserPermission,
