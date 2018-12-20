@@ -127,6 +127,8 @@ clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
 	rm -rf bin
 
+generate-typescript-client:
+	make -C http
 
 define CHRONOGIRAFFE
              ._ o o
