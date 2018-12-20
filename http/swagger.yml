@@ -6564,7 +6564,7 @@ components:
           type: string
           enum:
             - pass
-            - fail
+            - failo
     Labels:
       type: array
       items:
@@ -6577,4 +6577,4 @@ components:
         properties:
           type: object
           description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
-          example: {color: ffb3b3, description: "this is a description"}
+          example: {"color": "ffb3b3", "description": "this is a description"}
