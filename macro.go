@@ -22,7 +22,7 @@ type MacroService interface {
 	FindMacroByID(ctx context.Context, id ID) (*Macro, error)
 
 	// FindMacros returns all macros in the store
-	FindMacros(ctx context.Context) ([]*Macro, error)
+	FindMacros(ctx context.Context, filter MacroFilter, opt ...FindOptions) ([]*Macro, error)
 
 	// CreateMacro creates a new macro and assigns it an ID
 	CreateMacro(ctx context.Context, m *Macro) error
@@ -40,10 +40,38 @@ type MacroService interface {
 // A Macro describes a keyword that can be expanded into several possible
 // values when used in an InfluxQL or Flux query
 type Macro struct {
-	ID        ID              `json:"id,omitempty"`
-	Name      string          `json:"name"`
-	Selected  []string        `json:"selected"`
-	Arguments *MacroArguments `json:"arguments"`
+	ID             ID              `json:"id,omitempty"`
+	OrganizationID ID              `json:"org_id,omitempty"` // todo(leodido) > remove omitempty
+	Name           string          `json:"name"`
+	Selected       []string        `json:"selected"`
+	Arguments      *MacroArguments `json:"arguments"`
+}
+
+// MacroFilter represents a set of filter that restrict the returned results.
+type MacroFilter struct {
+	ID             *ID
+	OrganizationID *ID
+	Organization   *string
+}
+
+// QueryParams implements PagingFilter.
+//
+// It converts MacroFilter fields to url query params.
+func (f MacroFilter) QueryParams() map[string][]string {
+	qp := map[string][]string{}
+	if f.ID != nil {
+		qp["id"] = []string{f.ID.String()}
+	}
+
+	if f.OrganizationID != nil {
+		qp["orgID"] = []string{f.OrganizationID.String()}
+	}
+
+	if f.Organization != nil {
+		qp["org"] = []string{*f.Organization}
+	}
+
+	return qp
 }
 
 // A MacroUpdate describes a set of changes that can be applied to a Macro
@@ -73,8 +101,10 @@ type MacroMapValues map[string]string
 
 // Valid returns an error if a Macro contains invalid data
 func (m *Macro) Valid() error {
+	// todo(leodido) > is organization mandatory? ie., every macro belongs to an organization? if yes, check it
+
 	if m.Name == "" {
-		return fmt.Errorf("name empty")
+		return fmt.Errorf("missing macro name")
 	}
 
 	validTypes := map[string]bool{
