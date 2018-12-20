@@ -29,8 +29,9 @@ type LabelService interface {
 }
 
 type Label struct {
-	ResourceID ID     `json:"resource_id"`
-	Name       string `json:"name"`
+	ResourceID ID                `json:"resource_id"`
+	Name       string            `json:"name"`
+	Properties map[string]string `json:"properties"`
 }
 
 // Validate returns an error if the label is invalid.
@@ -55,7 +56,7 @@ func (l *Label) Validate() error {
 // LabelUpdate represents a changeset for a label.
 // Only fields which are set are updated.
 type LabelUpdate struct {
-	// Color *string `json:"color,omitempty"`
+	Properties map[string]string `json:"properties",omitempty`
 }
 
 type LabelFilter struct {
