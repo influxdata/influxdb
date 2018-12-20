@@ -34,6 +34,15 @@ const (
 	BadTSMFileExtension = "bad"
 )
 
+type TSMIterator interface {
+	Next() bool
+	Peek() []byte
+	Key() []byte
+	Type() byte
+	Entries() []IndexEntry
+	Err() error
+}
+
 // TSMFile represents an on-disk TSM file.
 type TSMFile interface {
 	// Path returns the underlying file path for the TSMFile.  If the file
@@ -57,8 +66,7 @@ type TSMFile interface {
 	ReadBooleanArrayBlockAt(entry *IndexEntry, values *tsdb.BooleanArray) error
 
 	// Entries returns the index entries for all blocks for the given key.
-	Entries(key []byte) []IndexEntry
-	ReadEntries(key []byte, entries *[]IndexEntry) []IndexEntry
+	ReadEntries(key []byte, entries []IndexEntry) ([]IndexEntry, error)
 
 	// Returns true if the TSMFile may contain a value with the specified
 	// key and time.
@@ -86,11 +94,9 @@ type TSMFile interface {
 	// KeyCount returns the number of distinct keys in the file.
 	KeyCount() int
 
-	// Seek returns the position in the index with the key <= key.
-	Seek(key []byte) int
-
-	// KeyAt returns the key located at index position idx.
-	KeyAt(idx int) ([]byte, byte)
+	// Iterator returns an iterator over the keys starting at the provided key. You must
+	// call Next before calling any of the accessors.
+	Iterator([]byte) TSMIterator
 
 	// Type returns the block type of the values stored for the key.  Returns one of
 	// BlockFloat64, BlockInt64, BlockBoolean, BlockString.  If key does not exist,
@@ -981,7 +987,9 @@ func (f *FileStore) BlockCount(path string, idx int) int {
 // We need to determine the possible files that may be accessed by this query given
 // the time range.
 func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
-	var cache []IndexEntry
+	var entries []IndexEntry
+	var err error
+
 	cost := query.IteratorCost{}
 	for _, fd := range f.files {
 		minTime, maxTime := fd.TimeRange()
@@ -991,7 +999,12 @@ func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
 		skipped := true
 		tombstones := fd.TombstoneRange(key)
 
-		entries := fd.ReadEntries(key, &cache)
+		entries, err = fd.ReadEntries(key, entries)
+		if err != nil {
+			// TODO(jeff): log this somehow? we have an invalid entry in the tsm index
+			continue
+		}
+
 	ENTRIES:
 		for i := 0; i < len(entries); i++ {
 			ie := entries[i]
@@ -1023,7 +1036,9 @@ func (f *FileStore) cost(key []byte, min, max int64) query.IteratorCost {
 // whether the key will be scan in ascending time order or descenging time order.
 // This function assumes the read-lock has been taken.
 func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
-	var cache []IndexEntry
+	var entries []IndexEntry
+	var err error
+
 	locations := make([]*location, 0, len(f.files))
 	for _, fd := range f.files {
 		minTime, maxTime := fd.TimeRange()
@@ -1041,7 +1056,12 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 
 		// This file could potential contain points we are looking for so find the blocks for
 		// the given key.
-		entries := fd.ReadEntries(key, &cache)
+		entries, err = fd.ReadEntries(key, entries)
+		if err != nil {
+			// TODO(jeff): log this somehow? we have an invalid entry in the tsm index
+			continue
+		}
+
 	LOOP:
 		for i := 0; i < len(entries); i++ {
 			ie := entries[i]

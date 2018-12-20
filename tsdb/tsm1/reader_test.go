@@ -1090,7 +1090,10 @@ func TestIndirectIndex_Entries(t *testing.T) {
 		t.Fatalf("unexpected error unmarshaling index: %v", err)
 	}
 
-	entries := indirect.Entries([]byte("cpu"))
+	entries, err := indirect.ReadEntries([]byte("cpu"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if got, exp := len(entries), len(exp); got != exp {
 		t.Fatalf("entries length mismatch: got %v, exp %v", got, exp)
@@ -1133,7 +1136,10 @@ func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 	// mem has not been added to the index so we should get no entries back
 	// for both
 	exp := index.Entries([]byte("mem"))
-	entries := indirect.Entries([]byte("mem"))
+	entries, err := indirect.ReadEntries([]byte("mem"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if got, exp := len(entries), len(exp); got != exp && exp != 0 {
 		t.Fatalf("entries length mismatch: got %v, exp %v", got, exp)
@@ -1953,7 +1959,7 @@ func BenchmarkIndirectIndex_Entries(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		resetFaults(indirect)
-		indirect.Entries([]byte("cpu-00000001"))
+		indirect.ReadEntries([]byte("cpu-00000001"), nil)
 	}
 
 	b.SetBytes(getFaults(globalIndex) * 4096)
@@ -1961,14 +1967,14 @@ func BenchmarkIndirectIndex_Entries(b *testing.B) {
 }
 
 func BenchmarkIndirectIndex_ReadEntries(b *testing.B) {
-	var cache []IndexEntry
+	var entries []IndexEntry
 	indirect, _ := mustMakeIndex(b, 1000, 1000)
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		resetFaults(indirect)
-		indirect.ReadEntries([]byte("cpu-00000001"), &cache)
+		entries, _ = indirect.ReadEntries([]byte("cpu-00000001"), entries)
 	}
 
 	b.SetBytes(getFaults(globalIndex) * 4096)

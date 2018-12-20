@@ -818,10 +818,10 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 		// Delete each key we find in the file.  We seek to the min key and walk from there.
 		batch := r.BatchDelete()
-		n := r.KeyCount()
+		iter := r.Iterator(minKey)
 		var j int
-		for i := r.Seek(minKey); i < n; i++ {
-			indexKey, _ := r.KeyAt(i)
+		for iter.Next() {
+			indexKey := iter.Key()
 			seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
 
 			for j < len(seriesKeys) && bytes.Compare(seriesKeys[j], seriesKey) < 0 {
@@ -837,6 +837,10 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 					return err
 				}
 			}
+		}
+		if err := iter.Err(); err != nil {
+			batch.Rollback()
+			return err
 		}
 
 		return batch.Commit()
@@ -884,16 +888,16 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// Apply runs this func concurrently.  The seriesKeys slice is mutated concurrently
 	// by different goroutines setting positions to nil.
 	if err := e.FileStore.Apply(func(r TSMFile) error {
-		n := r.KeyCount()
 		var j int
 
 		// Start from the min deleted key that exists in this file.
-		for i := r.Seek(minKey); i < n; i++ {
+		iter := r.Iterator(minKey)
+		for iter.Next() {
 			if j >= len(seriesKeys) {
 				return nil
 			}
 
-			indexKey, _ := r.KeyAt(i)
+			indexKey := iter.Key()
 			seriesKey, _ := SeriesAndFieldFromCompositeKey(indexKey)
 
 			// Skip over any deleted keys that are less than our tsm key
@@ -912,7 +916,8 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 				j++
 			}
 		}
-		return nil
+
+		return iter.Err()
 	}); err != nil {
 		return err
 	}
