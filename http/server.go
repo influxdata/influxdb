@@ -39,7 +39,8 @@ func NewServer(handler http.Handler, logger *zap.Logger) *Server {
 	return &Server{
 		ShutdownTimeout: DefaultShutdownTimeout,
 		srv: &http.Server{
-			Handler: handler,
+			Handler:  handler,
+			ErrorLog: zap.NewStdLog(logger),
 		},
 		logger: logger,
 	}
