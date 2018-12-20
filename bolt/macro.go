@@ -20,7 +20,8 @@ func (c *Client) initializeMacros(ctx context.Context, tx *bolt.Tx) error {
 }
 
 // FindMacros returns all macros in the store
-func (c *Client) FindMacros(ctx context.Context) ([]*platform.Macro, error) {
+func (c *Client) FindMacros(ctx context.Context, filter platform.MacroFilter, opt ...platform.FindOptions) ([]*platform.Macro, error) {
+	// todo(leodido) > actually filter macros
 	op := getOp(platform.OpFindMacros)
 	macros := []*platform.Macro{}
 	err := c.db.View(func(tx *bolt.Tx) error {
