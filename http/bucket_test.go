@@ -61,7 +61,7 @@ func TestService_handleGetBuckets(t *testing.T) {
 			},
 			args: args{
 				map[string][]string{
-					"limit": []string{"1"},
+					"limit": {"1"},
 				},
 			},
 			wants: wants{
@@ -112,7 +112,7 @@ func TestService_handleGetBuckets(t *testing.T) {
 			},
 			args: args{
 				map[string][]string{
-					"limit": []string{"1"},
+					"limit": {"1"},
 				},
 			},
 			wants: wants{
