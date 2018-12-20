@@ -117,7 +117,9 @@ vet:
 bench:
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
-nightly: all
+build: all
+
+nightly: build
 	env GO111MODULE=on go run github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
 
 clean:
