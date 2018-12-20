@@ -29,7 +29,7 @@ type LabelService interface {
 }
 
 type Label struct {
-	ResourceID ID                `json:"resource_id"`
+	ResourceID ID                `json:"resourceID"`
 	Name       string            `json:"name"`
 	Properties map[string]string `json:"properties"`
 }
