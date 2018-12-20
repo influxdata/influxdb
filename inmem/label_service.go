@@ -106,6 +106,22 @@ func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platfo
 		}
 	}
 
+	properties := make(map[string]string)
+
+	for k, v := range label.Properties {
+		properties[k] = v
+	}
+
+	for k, v := range upd.Properties {
+		if v == "" {
+			delete(properties, k)
+		} else {
+			properties[k] = v
+		}
+	}
+
+	label.Properties = properties
+
 	if err := label.Validate(); err != nil {
 		return nil, &platform.Error{
 			Code: platform.EInvalid,

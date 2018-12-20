@@ -100,6 +100,9 @@ func CreateLabel(
 				label: &platform.Label{
 					ResourceID: MustIDBase16(bucketOneID),
 					Name:       "Tag2",
+					Properties: map[string]string{
+						"color": "fff000",
+					},
 				},
 			},
 			wants: wants{
@@ -111,6 +114,9 @@ func CreateLabel(
 					{
 						ResourceID: MustIDBase16(bucketOneID),
 						Name:       "Tag2",
+						Properties: map[string]string{
+							"color": "fff000",
+						},
 					},
 				},
 			},
