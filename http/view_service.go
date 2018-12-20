@@ -8,11 +8,14 @@ import (
 
 	"github.com/influxdata/platform"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // ViewHandler is the handler for the view service
 type ViewHandler struct {
 	*httprouter.Router
+
+	Logger *zap.Logger
 
 	ViewService                platform.ViewService
 	UserResourceMappingService platform.UserResourceMappingService
@@ -35,6 +38,7 @@ const (
 func NewViewHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService) *ViewHandler {
 	h := &ViewHandler{
 		Router:                     NewRouter(),
+		Logger:                     zap.NewNop(),
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
 	}
@@ -110,7 +114,7 @@ func (h *ViewHandler) handleGetViews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newGetViewsResponse(views)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -168,7 +172,7 @@ func (h *ViewHandler) handlePostViews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newViewResponse(req.View)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -204,7 +208,7 @@ func (h *ViewHandler) handleGetView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newViewResponse(view)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -291,7 +295,7 @@ func (h *ViewHandler) handlePatchView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newViewResponse(view)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }

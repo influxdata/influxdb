@@ -203,6 +203,16 @@ func (h *Handler) initMetrics() {
 	}, []string{"handler", "method", "path", "status"})
 }
 
+func logEncodingError(logger *zap.Logger, r *http.Request, err error) {
+	// If we encounter an error while encoding the response to an http request
+	// the best thing we can do is log that error, as we may have already written
+	// the headers for the http request in question.
+	logger.Info("error encoding response",
+		zap.String("path", r.URL.Path),
+		zap.String("method", r.Method),
+		zap.Error(err))
+}
+
 // InjectTrace writes any span from the request's context into the request headers.
 func InjectTrace(r *http.Request) {
 	if span := opentracing.SpanFromContext(r.Context()); span != nil {

@@ -133,7 +133,7 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponses(tcs)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -160,7 +160,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		w.Write([]byte(tc.TOML()))
 	case "application/json":
 		if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc)); err != nil {
-			EncodeError(ctx, err, w)
+			logEncodingError(h.Logger, r, err)
 			return
 		}
 	default:
@@ -239,7 +239,7 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTelegrafResponse(tc)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -267,7 +267,7 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -286,7 +286,7 @@ func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusNoContent, nil); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }

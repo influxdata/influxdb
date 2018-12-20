@@ -72,11 +72,6 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	scheme, err := ProbeAuthScheme(r)
 	if err != nil {
 		ForbiddenError(ctx, err, w)
-		// THIS IS TEMPORARY, remove after all errors endpoints converted.
-		EncodeError(ctx, &platform.Error{
-			Code: platform.EForbidden,
-			Err:  err,
-		}, w)
 		return
 	}
 
@@ -100,12 +95,6 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	ForbiddenError(ctx, fmt.Errorf("unauthorized"), w)
-	// THIS IS TEMPORARY, remove after all errors endpoints converted.
-	EncodeError(ctx, &platform.Error{
-		Code: platform.EForbidden,
-		Msg:  "unauthorized",
-	}, w)
-
 }
 
 func (h *AuthenticationHandler) extractAuthorization(ctx context.Context, r *http.Request) (context.Context, error) {

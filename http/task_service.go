@@ -204,7 +204,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(tasks)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -294,7 +294,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*req.Task)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -330,7 +330,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -374,7 +374,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -461,7 +461,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, logs); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -528,7 +528,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newRunsResponse(runs, *req.filter.Task)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -630,7 +630,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -727,7 +727,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
