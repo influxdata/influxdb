@@ -9,7 +9,7 @@ import (
 var _ platform.MacroService = &MacroService{}
 
 type MacroService struct {
-	FindMacrosF    func(context.Context) ([]*platform.Macro, error)
+	FindMacrosF    func(context.Context, platform.MacroFilter, ...platform.FindOptions) ([]*platform.Macro, error)
 	FindMacroByIDF func(context.Context, platform.ID) (*platform.Macro, error)
 	CreateMacroF   func(context.Context, *platform.Macro) error
 	UpdateMacroF   func(ctx context.Context, id platform.ID, update *platform.MacroUpdate) (*platform.Macro, error)
@@ -25,8 +25,8 @@ func (s *MacroService) ReplaceMacro(ctx context.Context, macro *platform.Macro) 
 	return s.ReplaceMacroF(ctx, macro)
 }
 
-func (s *MacroService) FindMacros(ctx context.Context) ([]*platform.Macro, error) {
-	return s.FindMacrosF(ctx)
+func (s *MacroService) FindMacros(ctx context.Context, filter platform.MacroFilter, opts ...platform.FindOptions) ([]*platform.Macro, error) {
+	return s.FindMacrosF(ctx, filter, opts...)
 }
 
 func (s *MacroService) FindMacroByID(ctx context.Context, id platform.ID) (*platform.Macro, error) {
