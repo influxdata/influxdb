@@ -3,7 +3,6 @@ package testing
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 
@@ -39,7 +38,7 @@ type ViewFields struct {
 
 // CreateView testing
 func CreateView(
-	init func(ViewFields, *testing.T) (platform.ViewService, func()),
+	init func(ViewFields, *testing.T) (platform.ViewService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -110,19 +109,11 @@ func CreateView(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.CreateView(ctx, tt.args.view)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 			defer s.DeleteView(ctx, tt.args.view.ID)
 
 			views, _, err := s.FindViews(ctx, platform.ViewFilter{})
@@ -138,7 +129,7 @@ func CreateView(
 
 // FindViewByID testing
 func FindViewByID(
-	init func(ViewFields, *testing.T) (platform.ViewService, func()),
+	init func(ViewFields, *testing.T) (platform.ViewService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -194,24 +185,50 @@ func FindViewByID(
 				},
 			},
 		},
+		{
+			name: "find view by id not found",
+			fields: ViewFields{
+				Views: []*platform.View{
+					{
+						ViewContents: platform.ViewContents{
+							ID:   MustIDBase16(viewOneID),
+							Name: "view1",
+						},
+						Properties: platform.EmptyViewProperties{},
+					},
+					{
+						ViewContents: platform.ViewContents{
+							ID:   MustIDBase16(viewTwoID),
+							Name: "view2",
+						},
+						Properties: platform.TableViewProperties{
+							Type:       "table",
+							TimeFormat: "rfc3339",
+						},
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(threeID),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindViewByID,
+					Msg:  "view not found",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
 			view, err := s.FindViewByID(ctx, tt.args.id)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(view, tt.wants.view, viewCmpOptions...); diff != "" {
 				t.Errorf("view is different -got/+want\ndiff %s", diff)
@@ -222,7 +239,7 @@ func FindViewByID(
 
 // FindViews testing
 func FindViews(
-	init func(ViewFields, *testing.T) (platform.ViewService, func()),
+	init func(ViewFields, *testing.T) (platform.ViewService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -326,11 +343,41 @@ func FindViews(
 				},
 			},
 		},
+		{
+			name: "find view by id not found",
+			fields: ViewFields{
+				Views: []*platform.View{
+					{
+						ViewContents: platform.ViewContents{
+							ID:   MustIDBase16(viewOneID),
+							Name: "view1",
+						},
+						Properties: platform.EmptyViewProperties{},
+					},
+					{
+						ViewContents: platform.ViewContents{
+							ID:   MustIDBase16(viewTwoID),
+							Name: "view2",
+						},
+						Properties: platform.TableViewProperties{
+							Type:       "table",
+							TimeFormat: "rfc3339",
+						},
+					},
+				},
+			},
+			args: args{
+				ID: MustIDBase16(threeID),
+			},
+			wants: wants{
+				views: []*platform.View{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
@@ -340,15 +387,7 @@ func FindViews(
 			}
 
 			views, _, err := s.FindViews(ctx, filter)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(views, tt.wants.views, viewCmpOptions...); diff != "" {
 				t.Errorf("views are different -got/+want\ndiff %s", diff)
@@ -359,7 +398,7 @@ func FindViews(
 
 // DeleteView testing
 func DeleteView(
-	init func(ViewFields, *testing.T) (platform.ViewService, func()),
+	init func(ViewFields, *testing.T) (platform.ViewService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -444,7 +483,11 @@ func DeleteView(
 				ID: MustIDBase16(viewThreeID),
 			},
 			wants: wants{
-				err: fmt.Errorf("view not found"),
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpDeleteView,
+					Msg:  "view not found",
+				},
 				views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
@@ -470,19 +513,11 @@ func DeleteView(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 			err := s.DeleteView(ctx, tt.args.ID)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			filter := platform.ViewFilter{}
 			views, _, err := s.FindViews(ctx, filter)
@@ -498,7 +533,7 @@ func DeleteView(
 
 // UpdateView testing
 func UpdateView(
-	init func(ViewFields, *testing.T) (platform.ViewService, func()),
+	init func(ViewFields, *testing.T) (platform.ViewService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -597,11 +632,46 @@ func UpdateView(
 				},
 			},
 		},
+		{
+			name: "update id not exists",
+			fields: ViewFields{
+				Views: []*platform.View{
+					{
+						ViewContents: platform.ViewContents{
+							ID:   MustIDBase16(viewOneID),
+							Name: "view1",
+						},
+						Properties: platform.EmptyViewProperties{},
+					},
+					{
+						ViewContents: platform.ViewContents{
+							ID:   MustIDBase16(viewTwoID),
+							Name: "view2",
+						},
+						Properties: platform.TableViewProperties{
+							Type:       "table",
+							TimeFormat: "rfc3339",
+						},
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(threeID),
+				name: "changed",
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpUpdateView,
+					Msg:  "view not found",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
 
@@ -614,15 +684,7 @@ func UpdateView(
 			}
 
 			view, err := s.UpdateView(ctx, tt.args.id, upd)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(view, tt.wants.view, viewCmpOptions...); diff != "" {
 				t.Errorf("view is different -got/+want\ndiff %s", diff)

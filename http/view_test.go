@@ -222,7 +222,10 @@ func TestService_handleGetView(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					FindViewByIDF: func(ctx context.Context, id platform.ID) (*platform.View, error) {
-						return nil, platform.ErrViewNotFound
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  platform.ErrViewNotFound,
+						}
 					},
 				},
 			},
@@ -416,7 +419,10 @@ func TestService_handleDeleteView(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					DeleteViewF: func(ctx context.Context, id platform.ID) error {
-						return platform.ErrViewNotFound
+						return &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  platform.ErrViewNotFound,
+						}
 					},
 				},
 			},
@@ -571,7 +577,10 @@ func TestService_handlePatchView(t *testing.T) {
 			fields: fields{
 				&mock.ViewService{
 					UpdateViewF: func(ctx context.Context, id platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
-						return nil, platform.ErrViewNotFound
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  platform.ErrViewNotFound,
+						}
 					},
 				},
 			},
