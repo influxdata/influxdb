@@ -53,6 +53,10 @@ func MacroService(
 			fn:   FindMacroByID,
 		},
 		{
+			name: "FindMacros",
+			fn:   FindMacros,
+		},
+		{
 			name: "UpdateMacro",
 			fn:   UpdateMacro,
 		},
@@ -149,7 +153,7 @@ func CreateMacro(init func(MacroFields, *testing.T) (platform.MacroService, stri
 		err := s.CreateMacro(ctx, tt.args.macro)
 		diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-		macros, err := s.FindMacros(ctx)
+		macros, err := s.FindMacros(ctx, platform.MacroFilter{})
 		if err != nil {
 			t.Fatalf("failed to retrieve macros: %v", err)
 		}
@@ -243,6 +247,11 @@ func FindMacroByID(init func(MacroFields, *testing.T) (platform.MacroService, st
 			t.Fatalf("found unexpected macro -got/+want\ndiff %s", diff)
 		}
 	}
+}
+
+// FindMacros tests platform.macroService FindMacros interface method
+func FindMacros(init func(MacroFields, *testing.T) (platform.MacroService, string, func()), t *testing.T) {
+	// todo(leodido)
 }
 
 // UpdateMacro tests platform.MacroService UpdateMacro interface method
@@ -349,7 +358,7 @@ func UpdateMacro(init func(MacroFields, *testing.T) (platform.MacroService, stri
 				}
 			}
 
-			macros, err := s.FindMacros(ctx)
+			macros, err := s.FindMacros(ctx, platform.MacroFilter{})
 			if err != nil {
 				t.Fatalf("failed to retrieve macros: %v", err)
 			}
@@ -446,7 +455,7 @@ func DeleteMacro(init func(MacroFields, *testing.T) (platform.MacroService, stri
 		})
 		diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-		macros, err := s.FindMacros(ctx)
+		macros, err := s.FindMacros(ctx, platform.MacroFilter{})
 		if err != nil {
 			t.Fatalf("failed to retrieve macros: %v", err)
 		}
