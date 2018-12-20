@@ -2325,7 +2325,7 @@ func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
 
 }
 
-// Ensure that the planner will compact all files if no writes
+// Ensure that the planner will compact files in groups if no writes
 // have happened in some interval
 func TestDefaultPlanner_Plan_FullOnCold(t *testing.T) {
 	data := []tsm1.FileStat{
@@ -2353,6 +2353,26 @@ func TestDefaultPlanner_Plan_FullOnCold(t *testing.T) {
 			Path: "06-01.tsm1",
 			Size: 2 * 1024 * 1024,
 		},
+		{
+			Path: "07-01.tsm1",
+			Size: 2 * 1024 * 1024,
+		},
+		{
+			Path: "08-01.tsm1",
+			Size: 2 * 1024 * 1024,
+		},
+		{
+			Path: "09-01.tsm1",
+			Size: 2 * 1024 * 1024,
+		},
+		{
+			Path: "10-01.tsm1",
+			Size: 2 * 1024 * 1024,
+		},
+		{
+			Path: "11-01.tsm1",
+			Size: 2 * 1024 * 1024,
+		},
 	}
 
 	cp := tsm1.NewDefaultPlanner(
@@ -2365,14 +2385,38 @@ func TestDefaultPlanner_Plan_FullOnCold(t *testing.T) {
 	)
 
 	tsm := cp.Plan(time.Now().Add(-time.Second))
-	if exp, got := len(data), len(tsm[0]); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	if exp, got := 2, len(tsm); got != exp {
+		t.Fatalf("tsm groups length mismatch: got %v, exp %v", got, exp)
 	}
 
-	for i, p := range data {
-		if got, exp := tsm[0][i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
+	if exp, got := 8, len(tsm[0]); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[0][0], data[0].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[0][1], data[1].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[0][2], data[2].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[0][3], data[3].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[0][4], data[4].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[0][5], data[5].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[0][6], data[6].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[0][7], data[7].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := 3, len(tsm[1]); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[1][0], data[8].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[1][1], data[9].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+	} else if got, exp := tsm[1][2], data[10].Path; got != exp {
+		t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
 	}
 }
 
@@ -2552,7 +2596,7 @@ func TestDefaultPlanner_Plan_TwoGenLevel3(t *testing.T) {
 		time.Hour)
 
 	tsm := cp.Plan(time.Now().Add(-24 * time.Hour))
-	if exp, got := 1, len(tsm); got != exp {
+	if exp, got := 2, len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 }
