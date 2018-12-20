@@ -11,7 +11,6 @@ import EmptyDataSourceState from 'src/onboarding/components/configureStep/EmptyD
 // Actions
 import {
   updateTelegrafPluginConfig,
-  setPluginConfiguration,
   addConfigValue,
   removeConfigValue,
   setConfigArrayValue,
@@ -24,7 +23,6 @@ export interface Props {
   telegrafPlugins: TelegrafPlugin[]
   currentIndex: number
   onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
-  onSetPluginConfiguration: typeof setPluginConfiguration
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
   dataLoaderType: DataLoaderType
@@ -44,7 +42,6 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
       currentIndex,
       dataLoaderType,
       onUpdateTelegrafPluginConfig,
-      onSetPluginConfiguration,
       onAddConfigValue,
       onRemoveConfigValue,
       onSetConfigArrayValue,
@@ -55,7 +52,6 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
         return (
           <PluginConfigSwitcher
             onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
-            onSetPluginConfiguration={onSetPluginConfiguration}
             onRemoveConfigValue={onRemoveConfigValue}
             telegrafPlugins={telegrafPlugins}
             currentIndex={currentIndex}

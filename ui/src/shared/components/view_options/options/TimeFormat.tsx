@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Form, Input, InputType, Dropdown, Columns} from 'src/clockface'
+import {Form, Grid, Input, InputType, Dropdown, Columns} from 'src/clockface'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 
 // Constants
@@ -33,50 +33,60 @@ class TimeFormat extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {format, customFormat} = this.state
-    const tipContent = `For information on formatting, see <br/><a href="#">${TIME_FORMAT_TOOLTIP_LINK}</a>`
-
-    const formatOption = FORMAT_OPTIONS.find(op => op.text === format)
-    const showCustom = !formatOption || customFormat
+    const {format} = this.state
 
     return (
-      <Form.Element colsXS={Columns.Twelve}>
-        <>
-          <Form.Label label="Time Format">
-            {showCustom && (
-              <a href={TIME_FORMAT_TOOLTIP_LINK} target="_blank">
-                <QuestionMarkTooltip
-                  tipID="Time Axis Format"
-                  tipContent={tipContent}
-                />
-              </a>
+      <Grid.Column widthXS={Columns.Twelve}>
+        <Form.Element label="Time Format" labelAddOn={this.timeFormatTooltip}>
+          <>
+            <Dropdown
+              selectedID={this.showCustom ? TIME_FORMAT_CUSTOM : format}
+              onChange={this.handleChooseFormat}
+              customClass="dropdown-stretch"
+            >
+              {FORMAT_OPTIONS.map(({text}) => (
+                <Dropdown.Item key={text} id={text} value={text}>
+                  {text}
+                </Dropdown.Item>
+              ))}
+            </Dropdown>
+            {this.showCustom && (
+              <Input
+                type={InputType.Text}
+                spellCheck={false}
+                placeholder="Enter custom format..."
+                value={format}
+                data-test="custom-time-format"
+                customClass="custom-time-format"
+                onChange={this.handleChangeFormat}
+              />
             )}
-          </Form.Label>
-          <Dropdown
-            selectedID={showCustom ? TIME_FORMAT_CUSTOM : format}
-            onChange={this.handleChooseFormat}
-            customClass="dropdown-stretch"
-          >
-            {FORMAT_OPTIONS.map(({text}) => (
-              <Dropdown.Item key={text} id={text} value={text}>
-                {text}
-              </Dropdown.Item>
-            ))}
-          </Dropdown>
-          {showCustom && (
-            <Input
-              type={InputType.Text}
-              spellCheck={false}
-              placeholder="Enter custom format..."
-              value={format}
-              data-test="custom-time-format"
-              customClass="custom-time-format"
-              onChange={this.handleChangeFormat}
-            />
-          )}
-        </>
-      </Form.Element>
+          </>
+        </Form.Element>
+      </Grid.Column>
     )
+  }
+
+  private get showCustom(): boolean {
+    const {format, customFormat} = this.state
+
+    const formatOption = FORMAT_OPTIONS.find(op => op.text === format)
+    return !formatOption || customFormat
+  }
+
+  private timeFormatTooltip = (): JSX.Element => {
+    const tipContent = `For information on formatting, see <br/><a href="#">${TIME_FORMAT_TOOLTIP_LINK}</a>`
+
+    if (this.showCustom) {
+      return (
+        <a href={TIME_FORMAT_TOOLTIP_LINK} target="_blank">
+          <QuestionMarkTooltip
+            tipID="Time Axis Format"
+            tipContent={tipContent}
+          />
+        </a>
+      )
+    }
   }
 
   private get onTimeFormatChange() {

@@ -3,7 +3,7 @@ import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import Form from 'src/clockface/components/form_layout/Form'
+import {Form, Grid, Columns} from 'src/clockface'
 import Affixes from 'src/shared/components/view_options/options/Affixes'
 import DecimalPlacesOption from 'src/shared/components/view_options/options/DecimalPlaces'
 import ThresholdList from 'src/shared/components/view_options/options/ThresholdList'
@@ -74,23 +74,27 @@ const SingleStatOptions: SFC<Props> = props => {
 
   return (
     <>
-      <div className="col-xs-6">
+      <Grid.Column widthXS={Columns.Six}>
         <h4 className="view-options--header">Customize Gauge</h4>
-        <Affixes
-          prefix={prefix}
-          suffix={suffix}
-          onUpdatePrefix={onSetPrefix}
-          onUpdateSuffix={onSetSuffix}
-        />
-        {decimalPlaces && (
-          <DecimalPlacesOption
-            digits={decimalPlaces.digits}
-            isEnforced={decimalPlaces.isEnforced}
-            onDecimalPlacesChange={onSetDecimalPlaces}
-          />
-        )}
-      </div>
-      <div className="col-xs-6">
+        <Grid>
+          <Grid.Row>
+            <Affixes
+              prefix={prefix}
+              suffix={suffix}
+              onUpdatePrefix={onSetPrefix}
+              onUpdateSuffix={onSetSuffix}
+            />
+            {decimalPlaces && (
+              <DecimalPlacesOption
+                digits={decimalPlaces.digits}
+                isEnforced={decimalPlaces.isEnforced}
+                onDecimalPlacesChange={onSetDecimalPlaces}
+              />
+            )}
+          </Grid.Row>
+        </Grid>
+      </Grid.Column>
+      <Grid.Column widthXS={Columns.Six}>
         <h4 className="view-options--header">Colorized Thresholds</h4>
         <Form>
           <ThresholdList
@@ -98,11 +102,11 @@ const SingleStatOptions: SFC<Props> = props => {
             onUpdateColors={onSetColors}
             onValidateNewColor={() => true}
           />
-          <Form.Element>
+          <Form.Element label="Colorization">
             <ThresholdColoring />
           </Form.Element>
         </Form>
-      </div>
+      </Grid.Column>
     </>
   )
 }

@@ -20,7 +20,6 @@ const setup = (override = {}) => {
     configFields:
       telegrafPluginsInfo[TelegrafPluginInputCpu.NameEnum.Cpu].fields,
     onUpdateTelegrafPluginConfig: jest.fn(),
-    onSetPluginConfiguration: jest.fn(),
     onAddConfigValue: jest.fn(),
     onRemoveConfigValue: jest.fn(),
     authToken: '',
@@ -43,7 +42,7 @@ describe('Onboarding.Components.ConfigureStep.Streaming.PluginConfigForm', () =>
           telegrafPluginsInfo[TelegrafPluginInputCpu.NameEnum.Cpu].fields,
       })
       const form = wrapper.find(Form)
-      const text = wrapper.find('p')
+      const text = wrapper.find('h5')
 
       expect(wrapper.exists()).toBe(true)
       expect(form.exists()).toBe(true)

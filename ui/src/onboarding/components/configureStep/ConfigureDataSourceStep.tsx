@@ -79,7 +79,6 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       params: {substepID},
       setupParams,
       onUpdateTelegrafPluginConfig,
-      onSetPluginConfiguration,
       onAddConfigValue,
       onRemoveConfigValue,
       onSetConfigArrayValue,
@@ -93,7 +92,6 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
           username={_.get(setupParams, 'username', '')}
           telegrafPlugins={telegrafPlugins}
           onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
-          onSetPluginConfiguration={onSetPluginConfiguration}
           onAddConfigValue={onAddConfigValue}
           onRemoveConfigValue={onRemoveConfigValue}
           dataLoaderType={type}

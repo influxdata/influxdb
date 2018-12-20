@@ -69,6 +69,9 @@ func newGetLabelsHandler(s plat.LabelService) http.HandlerFunc {
 		}
 
 		if err := encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(opts, req.filter, labels)); err != nil {
+			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
+			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
+			// is called is distinct from the time that a potential logger is set.
 			EncodeError(ctx, err, w)
 			return
 		}
@@ -129,6 +132,9 @@ func newPostLabelHandler(s plat.LabelService) http.HandlerFunc {
 		}
 
 		if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(label)); err != nil {
+			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
+			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
+			// is called is distinct from the time that a potential logger is set.
 			EncodeError(ctx, err, w)
 			return
 		}
@@ -222,6 +228,9 @@ func newPatchLabelHandler(s plat.LabelService) http.HandlerFunc {
 		}
 
 		if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(label)); err != nil {
+			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
+			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
+			// is called is distinct from the time that a potential logger is set.
 			EncodeError(ctx, err, w)
 			return
 		}

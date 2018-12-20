@@ -8,11 +8,14 @@ import (
 
 	"github.com/influxdata/platform"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // UsageHandler represents an HTTP API handler for usages.
 type UsageHandler struct {
 	*httprouter.Router
+
+	Logger *zap.Logger
 
 	UsageService platform.UsageService
 }
@@ -21,6 +24,7 @@ type UsageHandler struct {
 func NewUsageHandler() *UsageHandler {
 	h := &UsageHandler{
 		Router: NewRouter(),
+		Logger: zap.NewNop(),
 	}
 
 	h.HandlerFunc("GET", "/api/v2/usage", h.handleGetUsage)
@@ -44,7 +48,7 @@ func (h *UsageHandler) handleGetUsage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }

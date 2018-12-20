@@ -8,11 +8,14 @@ import (
 
 	"github.com/influxdata/platform"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // SetupHandler represents an HTTP API handler for onboarding setup.
 type SetupHandler struct {
 	*httprouter.Router
+
+	Logger *zap.Logger
 
 	OnboardingService platform.OnboardingService
 }
@@ -25,6 +28,7 @@ const (
 func NewSetupHandler() *SetupHandler {
 	h := &SetupHandler{
 		Router: NewRouter(),
+		Logger: zap.NewNop(),
 	}
 	h.HandlerFunc("POST", setupPath, h.handlePostSetup)
 	h.HandlerFunc("GET", setupPath, h.isOnboarding)
@@ -44,7 +48,7 @@ func (h *SetupHandler) isOnboarding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, isOnboardingResponse{result}); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -64,7 +68,7 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusCreated, newOnboardingResponse(results)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }

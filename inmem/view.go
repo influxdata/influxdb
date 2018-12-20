@@ -7,22 +7,35 @@ import (
 	"github.com/influxdata/platform"
 )
 
-func (s *Service) loadView(ctx context.Context, id platform.ID) (*platform.View, error) {
+func (s *Service) loadView(ctx context.Context, id platform.ID) (*platform.View, *platform.Error) {
 	i, ok := s.viewKV.Load(id.String())
 	if !ok {
-		return nil, fmt.Errorf("view not found")
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "view not found",
+		}
 	}
 
 	d, ok := i.(*platform.View)
 	if !ok {
-		return nil, fmt.Errorf("type %T is not a view", i)
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  fmt.Sprintf("type %T is not a view", i),
+		}
 	}
 	return d, nil
 }
 
 // FindViewByID returns a single view by ID.
 func (s *Service) FindViewByID(ctx context.Context, id platform.ID) (*platform.View, error) {
-	return s.loadView(ctx, id)
+	v, pe := s.loadView(ctx, id)
+	if pe != nil {
+		return nil, &platform.Error{
+			Err: pe,
+			Op:  OpPrefix + platform.OpFindViewByID,
+		}
+	}
+	return v, nil
 }
 
 func filterViewFn(filter platform.ViewFilter) func(d *platform.View) bool {
@@ -37,16 +50,22 @@ func filterViewFn(filter platform.ViewFilter) func(d *platform.View) bool {
 
 // FindViews implements platform.ViewService interface.
 func (s *Service) FindViews(ctx context.Context, filter platform.ViewFilter) ([]*platform.View, int, error) {
+	var ds []*platform.View
 	if filter.ID != nil {
 		d, err := s.FindViewByID(ctx, *filter.ID)
-		if err != nil {
-			return nil, 0, err
+		if err != nil && platform.ErrorCode(err) != platform.ENotFound {
+			return nil, 0, &platform.Error{
+				Err: err,
+				Op:  OpPrefix + platform.OpFindViews,
+			}
+		}
+		if d != nil {
+			ds = append(ds, d)
 		}
 
-		return []*platform.View{d}, 1, nil
+		return ds, len(ds), nil
 	}
 
-	var ds []*platform.View
 	var err error
 	filterF := filterViewFn(filter)
 	s.viewKV.Range(func(k, v interface{}) bool {
@@ -66,7 +85,13 @@ func (s *Service) FindViews(ctx context.Context, filter platform.ViewFilter) ([]
 // CreateView implements platform.ViewService interface.
 func (s *Service) CreateView(ctx context.Context, c *platform.View) error {
 	c.ID = s.IDGenerator.ID()
-	return s.PutView(ctx, c)
+	if err := s.PutView(ctx, c); err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  OpPrefix + platform.OpCreateView,
+		}
+	}
+	return nil
 }
 
 // PutView implements platform.ViewService interface.
@@ -82,7 +107,10 @@ func (s *Service) PutView(ctx context.Context, c *platform.View) error {
 func (s *Service) UpdateView(ctx context.Context, id platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
 	c, err := s.FindViewByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+			Op:  OpPrefix + platform.OpUpdateView,
+		}
 	}
 
 	if upd.Name != nil {
@@ -101,7 +129,10 @@ func (s *Service) UpdateView(ctx context.Context, id platform.ID, upd platform.V
 // DeleteView implements platform.ViewService interface.
 func (s *Service) DeleteView(ctx context.Context, id platform.ID) error {
 	if _, err := s.FindViewByID(ctx, id); err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+			Op:  OpPrefix + platform.OpDeleteView,
+		}
 	}
 	s.viewKV.Delete(id.String())
 	return nil

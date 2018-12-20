@@ -13,6 +13,7 @@ import {
   Form,
   Columns,
   IconFont,
+  Grid,
   ComponentStatus,
 } from 'src/clockface'
 
@@ -68,82 +69,80 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
           later
         </h5>
         <Form className="onboarding--admin-user-form">
-          <Form.Element
-            label="Admin Username"
-            colsXS={Columns.Six}
-            offsetXS={Columns.Three}
-          >
-            <Input
-              value={username}
-              onChange={this.handleUsername}
-              titleText="Admin Username"
-              size={ComponentSize.Medium}
-              icon={icon}
-              status={status}
-              disabledTitleText="Admin username has been set"
-              autoFocus={true}
-            />
-          </Form.Element>
-          <Form.Element
-            label="Admin Password"
-            colsXS={Columns.Three}
-            offsetXS={Columns.Three}
-          >
-            <Input
-              type={InputType.Password}
-              value={password}
-              onChange={this.handlePassword}
-              titleText="Admin Password"
-              size={ComponentSize.Medium}
-              icon={icon}
-              status={status}
-              disabledTitleText="Admin password has been set"
-            />
-          </Form.Element>
-          <Form.Element label="Confirm Admin Password" colsXS={Columns.Three}>
-            <Input
-              type={InputType.Password}
-              value={confirmPassword}
-              onChange={this.handleConfirmPassword}
-              titleText="Confirm Admin Password"
-              size={ComponentSize.Medium}
-              icon={icon}
-              status={this.passwordStatus}
-              disabledTitleText="Admin password has been set"
-            />
-          </Form.Element>
-          <Form.Element
-            label="Default Organization Name"
-            colsXS={Columns.Six}
-            offsetXS={Columns.Three}
-          >
-            <Input
-              value={org}
-              onChange={this.handleOrg}
-              titleText="Default Organization Name"
-              size={ComponentSize.Medium}
-              icon={icon}
-              status={ComponentStatus.Default}
-              placeholder="Your organization is where everything you create lives"
-              disabledTitleText="Default organization name has been set"
-            />
-          </Form.Element>
-          <Form.Element
-            label="Default Bucket Name"
-            colsXS={Columns.Six}
-            offsetXS={Columns.Three}
-          >
-            <Input
-              value={bucket}
-              onChange={this.handleBucket}
-              titleText="Default Bucket Name"
-              size={ComponentSize.Medium}
-              icon={icon}
-              status={status}
-              placeholder="Your bucket is where you will store all your data"
-              disabledTitleText="Default bucket name has been set"
-            />
-          </Form.Element>
+          <Grid>
+            <Grid.Row>
+              <Grid.Column widthXS={Columns.Six} offsetXS={Columns.Three}>
+                <Form.Element label="Admin Username">
+                  <Input
+                    value={username}
+                    onChange={this.handleUsername}
+                    titleText="Admin Username"
+                    size={ComponentSize.Medium}
+                    icon={icon}
+                    status={status}
+                    disabledTitleText="Admin username has been set"
+                    autoFocus={true}
+                  />
+                </Form.Element>
+              </Grid.Column>
+              <Grid.Column widthXS={Columns.Three} offsetXS={Columns.Three}>
+                <Form.Element label="Admin Password">
+                  <Input
+                    type={InputType.Password}
+                    value={password}
+                    onChange={this.handlePassword}
+                    titleText="Admin Password"
+                    size={ComponentSize.Medium}
+                    icon={icon}
+                    status={status}
+                    disabledTitleText="Admin password has been set"
+                  />
+                </Form.Element>
+              </Grid.Column>
+              <Grid.Column widthXS={Columns.Three}>
+                <Form.Element label="Confirm Admin Password">
+                  <Input
+                    type={InputType.Password}
+                    value={confirmPassword}
+                    onChange={this.handleConfirmPassword}
+                    titleText="Confirm Admin Password"
+                    size={ComponentSize.Medium}
+                    icon={icon}
+                    status={this.passwordStatus}
+                    disabledTitleText="Admin password has been set"
+                  />
+                </Form.Element>
+              </Grid.Column>
+              <Grid.Column widthXS={Columns.Six} offsetXS={Columns.Three}>
+                <Form.Element label="Default Organization Name">
+                  <Input
+                    value={org}
+                    onChange={this.handleOrg}
+                    titleText="Default Organization Name"
+                    size={ComponentSize.Medium}
+                    icon={icon}
+                    status={ComponentStatus.Default}
+                    placeholder="Your organization is where everything you create lives"
+                    disabledTitleText="Default organization name has been set"
+                  />
+                </Form.Element>
+              </Grid.Column>
+              <Grid.Column widthXS={Columns.Six} offsetXS={Columns.Three}>
+                <Form.Element label="Default Bucket Name">
+                  <Input
+                    value={bucket}
+                    onChange={this.handleBucket}
+                    titleText="Default Bucket Name"
+                    size={ComponentSize.Medium}
+                    icon={icon}
+                    status={status}
+                    placeholder="Your bucket is where you will store all your data"
+                    disabledTitleText="Default bucket name has been set"
+                  />
+                </Form.Element>
+              </Grid.Column>
+            </Grid.Row>
+          </Grid>
           <div className="wizard--button-container">
             <div className="wizard--button-bar">
               <Button

@@ -16,6 +16,7 @@ import VerifyDataSwitcher from 'src/onboarding/components/verifyStep/VerifyDataS
 import {
   setActiveTelegrafPlugin,
   createOrUpdateTelegrafConfigAsync,
+  setPluginConfiguration,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
@@ -28,12 +29,23 @@ export interface Props extends OnboardingStepProps {
   telegrafConfigID: string
   telegrafPlugins: TelegrafPlugin[]
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
+  onSetPluginConfiguration: typeof setPluginConfiguration
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   stepIndex: number
 }
 
 @ErrorHandling
 class VerifyDataStep extends PureComponent<Props> {
+  public componentDidMount() {
+    const {type, onSetPluginConfiguration, telegrafPlugins} = this.props
+
+    if (type === DataLoaderType.Streaming) {
+      telegrafPlugins.forEach(tp => {
+        onSetPluginConfiguration(tp.name)
+      })
+    }
+  }
+
   public render() {
     const {
       setupParams,

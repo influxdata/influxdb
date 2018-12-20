@@ -16,7 +16,6 @@ export interface Props {
 }
 
 const DATA_SOURCES_OPTIONS = [
-  DataLoaderType.CSV,
   DataLoaderType.Streaming,
   DataLoaderType.LineProtocol,
 ]

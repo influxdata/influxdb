@@ -17,7 +17,6 @@ const setup = (override = {}) => {
     currentIndex: 0,
     authToken: token,
     onUpdateTelegrafPluginConfig: jest.fn(),
-    onSetPluginConfiguration: jest.fn(),
     onAddConfigValue: jest.fn(),
     onRemoveConfigValue: jest.fn(),
     onSetConfigArrayValue: jest.fn(),

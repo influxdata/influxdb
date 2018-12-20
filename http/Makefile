@@ -16,8 +16,11 @@ $(SUBDIRS):
 clean: $(SUBDIRS)
 	rm -f $(TARGETS)
 
+
+GO_RUN := env GO111MODULE=on go run
+
 ../ui/src/api/api.ts: $(SOURCES)
-	cat cur_swagger.yml | go run ../internal/yaml2json > openapi.json
+	cat cur_swagger.yml | $(GO_RUN) ../internal/yaml2json > openapi.json
 	openapi-generator generate -g typescript-axios -o ../ui/src/api -i openapi.json
 	rm openapi.json
 

@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import Form from 'src/clockface/components/form_layout/Form'
+import {Form, Grid, Columns} from 'src/clockface'
 import Geom from 'src/shared/components/view_options/options/Geom'
 import YAxisTitle from 'src/shared/components/view_options/options/YAxisTitle'
 import YAxisBounds from 'src/shared/components/view_options/options/YAxisBounds'
@@ -80,38 +80,55 @@ class LineOptions extends PureComponent<Props> {
 
     return (
       <>
-        <div className="col-md-4">
+        <Grid.Column widthMD={Columns.Four}>
           <h4 className="view-options--header">Customize Graph</h4>
           <Form>
-            {geom && <Geom geom={geom} onSetGeom={onSetGeom} />}
-            <ColorSelector colors={colors} onUpdateColors={onUpdateColors} />
-            {this.decimalPlaces}
+            <Grid>
+              <Grid.Row>
+                {geom && <Geom geom={geom} onSetGeom={onSetGeom} />}
+                <ColorSelector
+                  colors={colors}
+                  onUpdateColors={onUpdateColors}
+                />
+                {this.decimalPlaces}
+              </Grid.Row>
+            </Grid>
           </Form>
-        </div>
-        <div className="col-md-4">
+        </Grid.Column>
+        <Grid.Column widthMD={Columns.Four}>
           <h4 className="view-options--header">Left Y Axis</h4>
           <Form>
-            <YAxisTitle label={label} onUpdateYAxisLabel={onUpdateYAxisLabel} />
-            <YAxisBounds
-              min={min}
-              max={max}
-              scale={scale}
-              onUpdateYAxisMaxBound={onUpdateYAxisMaxBound}
-              onUpdateYAxisMinBound={onUpdateYAxisMinBound}
-            />
-            <YAxisAffixes
-              prefix={prefix}
-              suffix={suffix}
-              onUpdateYAxisPrefix={onUpdateYAxisPrefix}
-              onUpdateYAxisSuffix={onUpdateYAxisSuffix}
-            />
-            <YAxisBase base={base} onUpdateYAxisBase={onUpdateYAxisBase} />
-            <YAxisScale scale={scale} onUpdateYAxisScale={onUpdateYAxisScale} />
+            <Grid>
+              <Grid.Row>
+                <YAxisTitle
+                  label={label}
+                  onUpdateYAxisLabel={onUpdateYAxisLabel}
+                />
+                <YAxisBounds
+                  min={min}
+                  max={max}
+                  scale={scale}
+                  onUpdateYAxisMaxBound={onUpdateYAxisMaxBound}
+                  onUpdateYAxisMinBound={onUpdateYAxisMinBound}
+                />
+                <YAxisAffixes
+                  prefix={prefix}
+                  suffix={suffix}
+                  onUpdateYAxisPrefix={onUpdateYAxisPrefix}
+                  onUpdateYAxisSuffix={onUpdateYAxisSuffix}
+                />
+                <YAxisBase base={base} onUpdateYAxisBase={onUpdateYAxisBase} />
+                <YAxisScale
+                  scale={scale}
+                  onUpdateYAxisScale={onUpdateYAxisScale}
+                />
+              </Grid.Row>
+            </Grid>
           </Form>
-        </div>
-        <div className="col-md-4">
+        </Grid.Column>
+        <Grid.Column widthMD={Columns.Four}>
           <h4 className="view-options--header">Right Y Axis</h4>
-        </div>
+        </Grid.Column>
       </>
     )
   }

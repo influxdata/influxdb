@@ -8,6 +8,7 @@ import {setType} from 'src/shared/actions/v2/timeMachines'
 // Components
 import OptionsSwitcher from 'src/shared/components/view_options/OptionsSwitcher'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import {Grid} from 'src/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
@@ -33,9 +34,11 @@ class ViewOptions extends PureComponent<Props> {
     return (
       <FancyScrollbar autoHide={false}>
         <div className="view-options">
-          <div className="row">
-            <OptionsSwitcher view={this.props.view} />
-          </div>
+          <Grid>
+            <Grid.Row>
+              <OptionsSwitcher view={this.props.view} />
+            </Grid.Row>
+          </Grid>
         </div>
       </FancyScrollbar>
     )
