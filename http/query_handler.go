@@ -122,7 +122,7 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -143,7 +143,7 @@ func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -174,7 +174,7 @@ func (h *FluxHandler) postFluxSpec(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -223,7 +223,7 @@ func (h *FluxHandler) getFluxSuggestions(w http.ResponseWriter, r *http.Request)
 	res := suggestionsResponse{Functions: functions}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -242,7 +242,7 @@ func (h *FluxHandler) getFluxSuggestion(w http.ResponseWriter, r *http.Request) 
 
 	res := suggestionResponse{Name: name, Params: suggestion.Params}
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
