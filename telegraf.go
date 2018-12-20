@@ -131,10 +131,10 @@ type telegrafConfigEncode struct {
 // telegrafPluginEncode is the helper struct for json encoding.
 type telegrafPluginEncode struct {
 	// Name of the telegraf plugin, exp "docker"
-	Name    string               `json:"name"`
-	Type    plugins.Type         `json:"type"`
-	Comment string               `json:"comment"`
-	Config  TelegrafPluginConfig `json:"config"`
+	Name    string         `json:"name"`
+	Type    plugins.Type   `json:"type"`
+	Comment string         `json:"comment"`
+	Config  plugins.Config `json:"config"`
 }
 
 // telegrafConfigDecode is the helper struct for json decoding.
@@ -161,26 +161,14 @@ type telegrafPluginDecode struct {
 
 // TelegrafPlugin is the general wrapper of the telegraf plugin config
 type TelegrafPlugin struct {
-	Comment string               `json:"comment"`
-	Config  TelegrafPluginConfig `json:"config"`
+	Comment string         `json:"comment"`
+	Config  plugins.Config `json:"config"`
 }
 
 // TelegrafAgentConfig is based telegraf/internal/config AgentConfig.
 type TelegrafAgentConfig struct {
 	// Interval at which to gather information in miliseconds.
 	Interval int64 `json:"collectionInterval"`
-}
-
-// TelegrafPluginConfig interface for all plugins.
-type TelegrafPluginConfig interface {
-	// TOML encodes to toml string
-	TOML() string
-	// UnmarshalTOML decodes the parsed data to the object
-	UnmarshalTOML(data interface{}) error
-	// Type is the plugin type
-	Type() plugins.Type
-	// PluginName is the string value of telegraf plugin package name.
-	PluginName() string
 }
 
 // errors
@@ -268,22 +256,25 @@ func (tc *TelegrafConfig) UnmarshalTOML(data interface{}) error {
 
 func (tc *TelegrafConfig) parseTOMLPluginConfig(typ, name string, configData interface{}) error {
 	var ok bool
-	var p TelegrafPluginConfig
+	var tpFn func() plugins.Config
 	switch typ {
 	case "inputs":
-		p, ok = availableInputPlugins[name]
+		tpFn, ok = availableInputPlugins[name]
 	case "outputs":
-		p, ok = availableOutputPlugins[name]
+		tpFn, ok = availableOutputPlugins[name]
 	default:
 		return &Error{
 			Msg: fmt.Sprintf(ErrUnsupportTelegrafPluginType, typ),
 		}
 	}
+
 	if !ok {
 		return &Error{
 			Msg: fmt.Sprintf(ErrUnsupportTelegrafPluginName, name, typ),
 		}
 	}
+	p := tpFn()
+
 	if err := p.UnmarshalTOML(configData); err != nil {
 		return err
 	}
@@ -314,13 +305,14 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 func decodePluginRaw(tcd *telegrafConfigDecode, tc *TelegrafConfig) (err error) {
 	op := "unmarshal telegraf config raw plugin"
 	for k, pr := range tcd.Plugins {
-		var config TelegrafPluginConfig
+		var tpFn func() plugins.Config
+		var config plugins.Config
 		var ok bool
 		switch pr.Type {
 		case plugins.Input:
-			config, ok = availableInputPlugins[pr.Name]
+			tpFn, ok = availableInputPlugins[pr.Name]
 		case plugins.Output:
-			config, ok = availableOutputPlugins[pr.Name]
+			tpFn, ok = availableOutputPlugins[pr.Name]
 		default:
 			return &Error{
 				Code: EInvalid,
@@ -329,6 +321,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode, tc *TelegrafConfig) (err error) 
 			}
 		}
 		if ok {
+			config = tpFn()
 			if err = json.Unmarshal(pr.Config, config); err != nil {
 				return &Error{
 					Code: EInvalid,
@@ -352,30 +345,30 @@ func decodePluginRaw(tcd *telegrafConfigDecode, tc *TelegrafConfig) (err error) 
 	return nil
 }
 
-var availableInputPlugins = map[string]TelegrafPluginConfig{
-	"cpu":          &inputs.CPUStats{},
-	"disk":         &inputs.DiskStats{},
-	"diskio":       &inputs.DiskIO{},
-	"docker":       &inputs.Docker{},
-	"file":         &inputs.File{},
-	"kernel":       &inputs.Kernel{},
-	"kubernetes":   &inputs.Kubernetes{},
-	"logparser":    &inputs.LogParserPlugin{},
-	"mem":          &inputs.MemStats{},
-	"net_response": &inputs.NetResponse{},
-	"net":          &inputs.NetIOStats{},
-	"ngnix":        &inputs.Nginx{},
-	"processes":    &inputs.Processes{},
-	"procstats":    &inputs.Procstat{},
-	"prometheus":   &inputs.Prometheus{},
-	"redis":        &inputs.Redis{},
-	"swap":         &inputs.SwapStats{},
-	"syslog":       &inputs.Syslog{},
-	"system":       &inputs.SystemStats{},
-	"tail":         &inputs.Tail{},
+var availableInputPlugins = map[string](func() plugins.Config){
+	"cpu":          func() plugins.Config { return &inputs.CPUStats{} },
+	"disk":         func() plugins.Config { return &inputs.DiskStats{} },
+	"diskio":       func() plugins.Config { return &inputs.DiskIO{} },
+	"docker":       func() plugins.Config { return &inputs.Docker{} },
+	"file":         func() plugins.Config { return &inputs.File{} },
+	"kernel":       func() plugins.Config { return &inputs.Kernel{} },
+	"kubernetes":   func() plugins.Config { return &inputs.Kubernetes{} },
+	"logparser":    func() plugins.Config { return &inputs.LogParserPlugin{} },
+	"mem":          func() plugins.Config { return &inputs.MemStats{} },
+	"net_response": func() plugins.Config { return &inputs.NetResponse{} },
+	"net":          func() plugins.Config { return &inputs.NetIOStats{} },
+	"ngnix":        func() plugins.Config { return &inputs.Nginx{} },
+	"processes":    func() plugins.Config { return &inputs.Processes{} },
+	"procstats":    func() plugins.Config { return &inputs.Procstat{} },
+	"prometheus":   func() plugins.Config { return &inputs.Prometheus{} },
+	"redis":        func() plugins.Config { return &inputs.Redis{} },
+	"swap":         func() plugins.Config { return &inputs.SwapStats{} },
+	"syslog":       func() plugins.Config { return &inputs.Syslog{} },
+	"system":       func() plugins.Config { return &inputs.SystemStats{} },
+	"tail":         func() plugins.Config { return &inputs.Tail{} },
 }
 
-var availableOutputPlugins = map[string]TelegrafPluginConfig{
-	"file":        &outputs.File{},
-	"influxdb_v2": &outputs.InfluxDBV2{},
+var availableOutputPlugins = map[string](func() plugins.Config){
+	"file":        func() plugins.Config { return &outputs.File{} },
+	"influxdb_v2": func() plugins.Config { return &outputs.InfluxDBV2{} },
 }
