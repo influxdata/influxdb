@@ -12,7 +12,6 @@ import {getConfigFields} from 'src/onboarding/utils/pluginConfigs'
 // Actions
 import {
   updateTelegrafPluginConfig,
-  setPluginConfiguration,
   addConfigValue,
   removeConfigValue,
   setConfigArrayValue,
@@ -24,7 +23,6 @@ import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
 interface Props {
   telegrafPlugins: TelegrafPlugin[]
   onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
-  onSetPluginConfiguration: typeof setPluginConfiguration
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
   currentIndex: number
@@ -35,7 +33,6 @@ class PluginConfigSwitcher extends PureComponent<Props> {
   public render() {
     const {
       onUpdateTelegrafPluginConfig,
-      onSetPluginConfiguration,
       onAddConfigValue,
       onRemoveConfigValue,
       onSetConfigArrayValue,
@@ -46,7 +43,6 @@ class PluginConfigSwitcher extends PureComponent<Props> {
         <PluginConfigForm
           telegrafPlugin={this.currentTelegrafPlugin}
           onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
-          onSetPluginConfiguration={onSetPluginConfiguration}
           configFields={this.configFields}
           onAddConfigValue={onAddConfigValue}
           onRemoveConfigValue={onRemoveConfigValue}

@@ -11,7 +11,6 @@ import {
   updateTelegrafPluginConfig,
   addConfigValue,
   removeConfigValue,
-  setPluginConfiguration,
   setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
@@ -26,7 +25,6 @@ interface Props {
   telegrafPlugin: TelegrafPlugin
   configFields: ConfigFields
   onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
-  onSetPluginConfiguration: typeof setPluginConfiguration
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
   onSetConfigArrayValue: typeof setConfigArrayValue
@@ -39,7 +37,7 @@ class PluginConfigForm extends PureComponent<Props> {
     } = this.props
     return (
       <>
-        <h3>{_.startCase(name)}</h3>
+        <h3 className="wizard-step--title">{_.startCase(name)}</h3>
         <Form>{this.formFields}</Form>
       </>
     )
@@ -49,7 +47,9 @@ class PluginConfigForm extends PureComponent<Props> {
     const {configFields, telegrafPlugin, onSetConfigArrayValue} = this.props
 
     if (!configFields) {
-      return <p>No configuration required.</p>
+      return (
+        <h5 className="wizard-step--sub-title">No configuration required.</h5>
+      )
     }
 
     return Object.entries(configFields).map(

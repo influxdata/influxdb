@@ -45,6 +45,7 @@ func (s *DatabasesOpSpec) Kind() flux.OperationKind {
 }
 
 type DatabasesProcedureSpec struct {
+	plan.DefaultCost
 }
 
 func newDatabasesProcedure(qs flux.OperationSpec, pa plan.Administration) (plan.ProcedureSpec, error) {

@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Form, Columns, AutoInput} from 'src/clockface'
+import {Form, Grid, Columns, AutoInput} from 'src/clockface'
 
 // Constants
 import {MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
@@ -25,16 +25,18 @@ class DecimalPlacesOption extends PureComponent<Props> {
 
   public render() {
     return (
-      <Form.Element label="Decimal Places" colsXS={Columns.Six}>
-        <AutoInput
-          name="decimal-places"
-          inputPlaceholder="Enter a number"
-          onChange={this.handleSetValue}
-          value={this.value}
-          min={MIN_DECIMAL_PLACES}
-          max={MAX_DECIMAL_PLACES}
-        />
-      </Form.Element>
+      <Grid.Column widthXS={Columns.Six}>
+        <Form.Element label="Decimal Places">
+          <AutoInput
+            name="decimal-places"
+            inputPlaceholder="Enter a number"
+            onChange={this.handleSetValue}
+            value={this.value}
+            min={MIN_DECIMAL_PLACES}
+            max={MAX_DECIMAL_PLACES}
+          />
+        </Form.Element>
+      </Grid.Column>
     )
   }
 

@@ -6,8 +6,17 @@ import (
 	"fmt"
 )
 
-// ErrViewNotFound is the error for a missing View.
-const ErrViewNotFound = ChronografError("view not found")
+// ErrViewNotFound is the error msg for a missing View.
+const ErrViewNotFound = "view not found"
+
+// ops for view.
+const (
+	OpFindViewByID = "FindViewByID"
+	OpFindViews    = "FindViews"
+	OpCreateView   = "CreateView"
+	OpUpdateView   = "UpdateView"
+	OpDeleteView   = "DeleteView"
+)
 
 // ViewService represents a service for managing View data.
 type ViewService interface {
@@ -36,10 +45,13 @@ type ViewUpdate struct {
 }
 
 // Valid validates the update struct. It expects minimal values to be set.
-func (u ViewUpdate) Valid() error {
+func (u ViewUpdate) Valid() *Error {
 	_, ok := u.Properties.(EmptyViewProperties)
 	if u.Name == nil && ok {
-		return fmt.Errorf("expected at least one attribute to be updated")
+		return &Error{
+			Code: EInvalid,
+			Msg:  "expected at least one attribute to be updated",
+		}
 	}
 
 	return nil

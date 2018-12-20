@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import FormElement from 'src/clockface/components/form_layout/FormElement'
+import {Form, Grid, Columns} from 'src/clockface'
 import ColorSchemeDropdown from 'src/shared/components/ColorSchemeDropdown'
 
 // Types
@@ -20,9 +20,11 @@ class LineGraphColorSelector extends PureComponent<Props> {
     const {colors, onUpdateColors} = this.props
 
     return (
-      <FormElement label="Line Colors">
-        <ColorSchemeDropdown value={colors} onChange={onUpdateColors} />
-      </FormElement>
+      <Grid.Column widthXS={Columns.Twelve}>
+        <Form.Element label="Line Colors">
+          <ColorSchemeDropdown value={colors} onChange={onUpdateColors} />
+        </Form.Element>
+      </Grid.Column>
     )
   }
 }

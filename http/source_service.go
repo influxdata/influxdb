@@ -222,9 +222,8 @@ func (h *SourceHandler) handleGetSourcesBuckets(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// TODO(desa): enrich returned data structure.
 	if err := encodeResponse(ctx, w, http.StatusOK, bs); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -267,7 +266,7 @@ func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request)
 	res := newSourceResponse(req.Source)
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, res); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -306,7 +305,7 @@ func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) 
 	res := newSourceResponse(s)
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -398,7 +397,7 @@ func (h *SourceHandler) handleGetSources(w http.ResponseWriter, r *http.Request)
 	res := newSourcesResponse(srcs)
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -429,7 +428,7 @@ func (h *SourceHandler) handlePatchSource(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }

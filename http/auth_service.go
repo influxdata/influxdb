@@ -92,8 +92,7 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newAuthResponse(req.Authorization)); err != nil {
-		h.Logger.Info("failed to encode response", zap.String("handler", "postAuthorization"), zap.Error(err))
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -133,8 +132,7 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthsResponse(opts, req.filter, as)); err != nil {
-		h.Logger.Info("failed to encode response", zap.String("handler", "getAuthorizations"), zap.Error(err))
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -193,8 +191,7 @@ func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a)); err != nil {
-		h.Logger.Info("failed to encode response", zap.String("handler", "getAuthorization"), zap.Error(err))
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -246,8 +243,7 @@ func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWrite
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a)); err != nil {
-		h.Logger.Info("failed to encode response", zap.String("handler", "updateAuthorization"), zap.Error(err))
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }

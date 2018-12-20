@@ -8,10 +8,11 @@ import {
   Form,
   Button,
   Input,
-  Columns,
   ComponentSize,
   ComponentStatus,
   Panel,
+  Grid,
+  Columns,
 } from 'src/clockface'
 
 interface StateProps {
@@ -40,16 +41,22 @@ export class Settings extends PureComponent<StateProps, State> {
         </Panel.Header>
         <Panel.Body>
           <Form>
-            <Form.Element label="Username" colsXS={Columns.Six}>
-              <Input
-                value={me.name}
-                dataTest="nameInput"
-                titleText="Username"
-                size={ComponentSize.Small}
-                status={ComponentStatus.Disabled}
-                onChange={this.handleChangeInput}
-              />
-            </Form.Element>
+            <Grid>
+              <Grid.Row>
+                <Grid.Column widthXS={Columns.Six}>
+                  <Form.Element label="Username">
+                    <Input
+                      value={me.name}
+                      dataTest="nameInput"
+                      titleText="Username"
+                      size={ComponentSize.Small}
+                      status={ComponentStatus.Disabled}
+                      onChange={this.handleChangeInput}
+                    />
+                  </Form.Element>
+                </Grid.Column>
+              </Grid.Row>
+            </Grid>
           </Form>
         </Panel.Body>
       </Panel>
