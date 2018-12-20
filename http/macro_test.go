@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io/ioutil"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -19,6 +20,9 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 	type fields struct {
 		MacroService platform.MacroService
 	}
+	type args struct {
+		queryParams map[string][]string
+	}
 	type wants struct {
 		statusCode  int
 		contentType string
@@ -28,13 +32,14 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 	tests := []struct {
 		name   string
 		fields fields
+		args   args
 		wants  wants
 	}{
 		{
 			name: "get all macros",
 			fields: fields{
 				&mock.MacroService{
-					FindMacrosF: func(ctx context.Context) ([]*platform.Macro, error) {
+					FindMacrosF: func(ctx context.Context, filter platform.MacroFilter, opts ...platform.FindOptions) ([]*platform.Macro, error) {
 						return []*platform.Macro{
 							{
 								ID:       platformtesting.MustIDBase16("6162207574726f71"),
@@ -59,38 +64,106 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 				},
 			},
 			wants: wants{
-				statusCode:  200,
+				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body: `{"macros":[{"id":"6162207574726f71","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71"}},{"id":"61726920617a696f","name":"macro-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/macros/61726920617a696f"}}],"links":{"self":"/api/v2/macros"}}
-`,
+				body:        `{"macros":[{"id":"6162207574726f71","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71"}},{"id":"61726920617a696f","name":"macro-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/macros/61726920617a696f"}}],"links":{"self":"/api/v2/macros?descending=false&limit=20&offset=0"}}`,
 			},
 		},
+		{
+			name: "get all macros when there are none",
+			fields: fields{
+				&mock.MacroService{
+					FindMacrosF: func(ctx context.Context, filter platform.MacroFilter, opts ...platform.FindOptions) ([]*platform.Macro, error) {
+						return []*platform.Macro{}, nil
+					},
+				},
+			},
+			args: args{
+				map[string][]string{
+					"limit": []string{"1"},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body:        `{"links":{"self":"/api/v2/macros?descending=false&limit=1&offset=0"},"macros":[]}`,
+			},
+		},
+		// todo(leodido) > activate whenever filtering functionality is done
+		// {
+		// 	name: "get all macros belonging to an org",
+		// 	fields: fields{
+		// 		&mock.MacroService{
+		// 			FindMacrosF: func(ctx context.Context, filter platform.MacroFilter, opts ...platform.FindOptions) ([]*platform.Macro, error) {
+		// 				return []*platform.Macro{
+		// 					{
+		// 						ID:             platformtesting.MustIDBase16("6162207574726f71"),
+		// 						OrganizationID: platformtesting.MustIDBase16("0000000000000022"),
+		// 						Name:           "macro-a",
+		// 						Selected:       []string{"b"},
+		// 						Arguments: &platform.MacroArguments{
+		// 							Type:   "constant",
+		// 							Values: platform.MacroConstantValues{"a", "b"},
+		// 						},
+		// 					},
+		// 					{
+		// 						ID:             platformtesting.MustIDBase16("61726920617a696f"),
+		// 						OrganizationID: platformtesting.MustIDBase16("0000000000000016"),
+		// 						Name:           "macro-b",
+		// 						Selected:       []string{"c"},
+		// 						Arguments: &platform.MacroArguments{
+		// 							Type:   "map",
+		// 							Values: platform.MacroMapValues{"a": "b", "c": "d"},
+		// 						},
+		// 					},
+		// 				}, nil
+		// 			},
+		// 		},
+		// 	},
+		// 	args: args{
+		// 		map[string][]string{
+		// 			"orgID": []string{"0000000000000022"},
+		// 		},
+		// 	},
+		// 	wants: wants{
+		// 		statusCode:  http.StatusOK,
+		// 		contentType: "application/json; charset=utf-8",
+		// 		body:        `{"macros":[{"id":"6162207574726f71","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71"}}],"links":{"self":"/api/v2/macros?descending=false&limit=20&offset=0"}}`,
+		// 	},
+		// },
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := NewMacroHandler()
 			h.MacroService = tt.fields.MacroService
+
 			r := httptest.NewRequest("GET", "http://howdy.tld", nil)
+			qp := r.URL.Query()
+			for k, vs := range tt.args.queryParams {
+				for _, v := range vs {
+					qp.Add(k, v)
+				}
+			}
+			r.URL.RawQuery = qp.Encode()
+
 			w := httptest.NewRecorder()
 
 			h.handleGetMacros(w, r)
 
 			res := w.Result()
 			contentType := res.Header.Get("Content-Type")
-			bodyBytes, _ := ioutil.ReadAll(res.Body)
-			body := string(bodyBytes[:])
+			body, _ := ioutil.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("got = %v, want %v", res.StatusCode, tt.wants.statusCode)
+				t.Errorf("%q. handleGetMacros() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
 			}
 			if contentType != tt.wants.contentType {
-				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
+				t.Errorf("%q. handleGetMacros() = %v, want %v", tt.name, contentType, tt.wants.contentType)
 			}
-			if body != tt.wants.body {
-				t.Errorf("got = %v, want %v", body, tt.wants.body)
+			if err := platformtesting.CompareJSON(string(body), tt.wants.body, tt.name, "handleGetMacros()"); err != nil {
+				t.Error(err)
 			}
-
 		})
 	}
 }
