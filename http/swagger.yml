@@ -6574,8 +6574,7 @@ components:
       properties:
         name:
           type: string
-        color:
-          type: string
-          description: A six-character hex color.
-          pattern: '^([A-Fa-f0-9]{6})$'
-          example: 'ffb3b3'
+        properties:
+          type: object
+          description: Key/Value pairs associated with this label.
+          example: {color: ffb3b3, description: "this is a description"}

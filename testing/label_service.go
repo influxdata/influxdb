@@ -10,11 +10,6 @@ import (
 	"github.com/influxdata/platform"
 )
 
-var (
-	validColor   = "fff000"
-	invalidColor = "xyz123"
-)
-
 var labelCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
@@ -57,10 +52,10 @@ func LabelService(
 			name: "FindLabels",
 			fn:   FindLabels,
 		},
-		{
-			name: "UpdateLabel",
-			fn:   UpdateLabel,
-		},
+		// {
+		// 	name: "UpdateLabel",
+		// 	fn:   UpdateLabel,
+		// },
 		{
 			name: "DeleteLabel",
 			fn:   DeleteLabel,
@@ -271,167 +266,167 @@ func FindLabels(
 	}
 }
 
-func UpdateLabel(
-	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
-	t *testing.T,
-) {
-	type args struct {
-		label  platform.Label
-		update platform.LabelUpdate
-	}
-	type wants struct {
-		err    error
-		labels []*platform.Label
-	}
-
-	tests := []struct {
-		name   string
-		fields LabelFields
-		args   args
-		wants  wants
-	}{
-		{
-			name: "update label color",
-			fields: LabelFields{
-				Labels: []*platform.Label{
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
-					},
-				},
-			},
-			args: args{
-				label: platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
-				},
-				update: platform.LabelUpdate{
-					Color: &validColor,
-				},
-			},
-			wants: wants{
-				labels: []*platform.Label{
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
-						Color:      "fff000",
-					},
-				},
-			},
-		},
-		// {
-		// 	name: "label update proliferation",
-		// 	fields: LabelFields{
-		// 		Labels: []*platform.Label{
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketOneID),
-		// 				Name:       "Tag1",
-		// 			},
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketTwoID),
-		// 				Name:       "Tag1",
-		// 			},
-		// 		},
-		// 	},
-		// 	args: args{
-		// 		label: platform.Label{
-		// 			ResourceID: MustIDBase16(bucketOneID),
-		// 			Name:       "Tag1",
-		// 		},
-		// 		update: platform.LabelUpdate{
-		// 			Color: &validColor,
-		// 		},
-		// 	},
-		// 	wants: wants{
-		// 		labels: []*platform.Label{
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketOneID),
-		// 				Name:       "Tag1",
-		// 				Color:      "fff000",
-		// 			},
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketTwoID),
-		// 				Name:       "Tag1",
-		// 				Color:      "fff000",
-		// 			},
-		// 		},
-		// 	},
-		// },
-		{
-			name: "invalid label color update",
-			fields: LabelFields{
-				Labels: []*platform.Label{
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
-					},
-				},
-			},
-			args: args{
-				label: platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
-				},
-				update: platform.LabelUpdate{
-					Color: &invalidColor,
-				},
-			},
-			wants: wants{
-				labels: []*platform.Label{
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
-					},
-				},
-				err: &platform.Error{
-					Code: platform.EInvalid,
-					Op:   platform.OpUpdateLabel,
-					Msg:  "label color must be valid hex string",
-				},
-			},
-		},
-		{
-			name: "updating a non-existent label",
-			fields: LabelFields{
-				Labels: []*platform.Label{},
-			},
-			args: args{
-				label: platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
-				},
-				update: platform.LabelUpdate{
-					Color: &validColor,
-				},
-			},
-			wants: wants{
-				labels: []*platform.Label{},
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpUpdateLabel,
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s, opPrefix, done := init(tt.fields, t)
-			defer done()
-			ctx := context.TODO()
-			_, err := s.UpdateLabel(ctx, &tt.args.label, tt.args.update)
-			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
-
-			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
-			if err != nil {
-				t.Fatalf("failed to retrieve labels: %v", err)
-			}
-			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
-				t.Errorf("labels are different -got/+want\ndiff %s", diff)
-			}
-		})
-	}
-}
+// func UpdateLabel(
+// 	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+// 	t *testing.T,
+// ) {
+// 	type args struct {
+// 		label  platform.Label
+// 		update platform.LabelUpdate
+// 	}
+// 	type wants struct {
+// 		err    error
+// 		labels []*platform.Label
+// 	}
+//
+// 	tests := []struct {
+// 		name   string
+// 		fields LabelFields
+// 		args   args
+// 		wants  wants
+// 	}{
+// 		{
+// 			name: "update label color",
+// 			fields: LabelFields{
+// 				Labels: []*platform.Label{
+// 					{
+// 						ResourceID: MustIDBase16(bucketOneID),
+// 						Name:       "Tag1",
+// 					},
+// 				},
+// 			},
+// 			args: args{
+// 				label: platform.Label{
+// 					ResourceID: MustIDBase16(bucketOneID),
+// 					Name:       "Tag1",
+// 				},
+// 				update: platform.LabelUpdate{
+// 					Color: &validColor,
+// 				},
+// 			},
+// 			wants: wants{
+// 				labels: []*platform.Label{
+// 					{
+// 						ResourceID: MustIDBase16(bucketOneID),
+// 						Name:       "Tag1",
+// 						Color:      "fff000",
+// 					},
+// 				},
+// 			},
+// 		},
+// 		// {
+// 		// 	name: "label update proliferation",
+// 		// 	fields: LabelFields{
+// 		// 		Labels: []*platform.Label{
+// 		// 			{
+// 		// 				ResourceID: MustIDBase16(bucketOneID),
+// 		// 				Name:       "Tag1",
+// 		// 			},
+// 		// 			{
+// 		// 				ResourceID: MustIDBase16(bucketTwoID),
+// 		// 				Name:       "Tag1",
+// 		// 			},
+// 		// 		},
+// 		// 	},
+// 		// 	args: args{
+// 		// 		label: platform.Label{
+// 		// 			ResourceID: MustIDBase16(bucketOneID),
+// 		// 			Name:       "Tag1",
+// 		// 		},
+// 		// 		update: platform.LabelUpdate{
+// 		// 			Color: &validColor,
+// 		// 		},
+// 		// 	},
+// 		// 	wants: wants{
+// 		// 		labels: []*platform.Label{
+// 		// 			{
+// 		// 				ResourceID: MustIDBase16(bucketOneID),
+// 		// 				Name:       "Tag1",
+// 		// 				Color:      "fff000",
+// 		// 			},
+// 		// 			{
+// 		// 				ResourceID: MustIDBase16(bucketTwoID),
+// 		// 				Name:       "Tag1",
+// 		// 				Color:      "fff000",
+// 		// 			},
+// 		// 		},
+// 		// 	},
+// 		// },
+// 		{
+// 			name: "invalid label color update",
+// 			fields: LabelFields{
+// 				Labels: []*platform.Label{
+// 					{
+// 						ResourceID: MustIDBase16(bucketOneID),
+// 						Name:       "Tag1",
+// 					},
+// 				},
+// 			},
+// 			args: args{
+// 				label: platform.Label{
+// 					ResourceID: MustIDBase16(bucketOneID),
+// 					Name:       "Tag1",
+// 				},
+// 				update: platform.LabelUpdate{
+// 					Color: &invalidColor,
+// 				},
+// 			},
+// 			wants: wants{
+// 				labels: []*platform.Label{
+// 					{
+// 						ResourceID: MustIDBase16(bucketOneID),
+// 						Name:       "Tag1",
+// 					},
+// 				},
+// 				err: &platform.Error{
+// 					Code: platform.EInvalid,
+// 					Op:   platform.OpUpdateLabel,
+// 					Msg:  "label color must be valid hex string",
+// 				},
+// 			},
+// 		},
+// 		{
+// 			name: "updating a non-existent label",
+// 			fields: LabelFields{
+// 				Labels: []*platform.Label{},
+// 			},
+// 			args: args{
+// 				label: platform.Label{
+// 					ResourceID: MustIDBase16(bucketOneID),
+// 					Name:       "Tag1",
+// 				},
+// 				update: platform.LabelUpdate{
+// 					Color: &validColor,
+// 				},
+// 			},
+// 			wants: wants{
+// 				labels: []*platform.Label{},
+// 				err: &platform.Error{
+// 					Code: platform.ENotFound,
+// 					Op:   platform.OpUpdateLabel,
+// 				},
+// 			},
+// 		},
+// 	}
+//
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			s, opPrefix, done := init(tt.fields, t)
+// 			defer done()
+// 			ctx := context.TODO()
+// 			_, err := s.UpdateLabel(ctx, &tt.args.label, tt.args.update)
+// 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+//
+// 			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
+// 			if err != nil {
+// 				t.Fatalf("failed to retrieve labels: %v", err)
+// 			}
+// 			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
+// 				t.Errorf("labels are different -got/+want\ndiff %s", diff)
+// 			}
+// 		})
+// 	}
+// }
 
 func DeleteLabel(
 	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),

@@ -185,10 +185,6 @@ func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 
 	label := ls[0]
 
-	if upd.Color != nil {
-		label.Color = *upd.Color
-	}
-
 	if err := label.Validate(); err != nil {
 		return nil, &platform.Error{
 			Code: platform.EInvalid,

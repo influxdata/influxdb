@@ -106,10 +106,6 @@ func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platfo
 		}
 	}
 
-	if upd.Color != nil {
-		label.Color = *upd.Color
-	}
-
 	if err := label.Validate(); err != nil {
 		return nil, &platform.Error{
 			Code: platform.EInvalid,
