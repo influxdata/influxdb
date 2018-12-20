@@ -44,6 +44,8 @@ builds:
       - GO111MODULE=on
     ldflags: -s -w -X main.commit={{.Commit}}
     binary: influxd
+    hooks:
+      pre: make generate
 
 archive:
   format: tar.gz

@@ -120,7 +120,7 @@ bench:
 
 build: all
 
-nightly: build
+nightly:
 	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
 
 clean:
