@@ -50,7 +50,7 @@ CMDS := \
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
 all: GO_ARGS=-tags 'assets $(GO_TAGS)'
-all: node_modules subdirs ui generate $(CMDS)
+all: subdirs generate $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
