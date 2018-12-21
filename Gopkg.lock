@@ -66,6 +66,21 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:f3a114b164730d697416ffde3f7c0bab8fd4fc1db095ce6853b9a6e377c38795"
+  name = "github.com/apache/arrow"
+  packages = [
+    "go/arrow",
+    "go/arrow/array",
+    "go/arrow/internal/bitutil",
+    "go/arrow/internal/cpu",
+    "go/arrow/internal/debug",
+    "go/arrow/memory",
+  ]
+  pruneopts = "UT"
+  revision = "c6d97c59ef047cc9d5e2836b1945df26cd7c4622"
+
+[[projects]]
+  branch = "master"
   digest = "1:861e7c55835e36c4bb41132ee48a4669429096cc184b634b99809822b416f66b"
   name = "github.com/apex/log"
   packages = [
@@ -396,10 +411,11 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:d5919f2880c18c7932e0a65208389b58d40ec7b5cb313bfde56b4ca791bfa380"
+  digest = "1:4205df2c670d8ae7926fc57ff65ce5d4b259713be15c64b548c80f25485313b9"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
+    "arrow",
     "ast",
     "compiler",
     "control",
@@ -410,7 +426,10 @@
     "functions/outputs",
     "functions/transformations",
     "influxql",
+    "internal/parser",
     "internal/pkg/syncutil",
+    "internal/scanner",
+    "internal/token",
     "interpreter",
     "iocounter",
     "lang",
@@ -423,8 +442,8 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "adb2411fee9ccc65d671d4ce29861eb387174f6b"
-  version = "v0.7.1"
+  revision = "8baaec7baa7357d117db204eaeb47f0d82cd5dcc"
+  version = "v0.11.0"
 
 [[projects]]
   branch = "master"
@@ -446,8 +465,7 @@
   revision = "32c6aa80de5eb09d190ad284a8214a531c6bce57"
 
 [[projects]]
-  branch = "master"
-  digest = "1:423e244b01a2d7c36072f68f589643a41b814c1868865c2009b7bee49983ab04"
+  digest = "1:648b66ad037b167a0eedb199f8088fa4e4d1142a39d4fc4dcd7f40f07e23482d"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
@@ -471,7 +489,7 @@
     "tsdb/cursors",
   ]
   pruneopts = "UT"
-  revision = "dc5616e3f9ed409490e465a02ee3f1da50ad2e13"
+  revision = "0f79e4ea3248354c789cba274542e0a8e55971db"
 
 [[projects]]
   branch = "master"
