@@ -122,7 +122,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.token, func(t *testing.T) {
-			h := NewAuthorizationHandler()
+			h := NewAuthorizationHandler(mock.NewUserService())
 			h.AuthorizationService = tt.fields.AuthorizationService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -237,7 +237,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.token, func(t *testing.T) {
-			h := NewAuthorizationHandler()
+			h := NewAuthorizationHandler(mock.NewUserService())
 			h.AuthorizationService = tt.fields.AuthorizationService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -277,6 +277,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 func TestService_handlePostAuthorization(t *testing.T) {
 	type fields struct {
 		AuthorizationService platform.AuthorizationService
+		UserService          platform.UserService
 	}
 	type args struct {
 		authorization *platform.Authorization
@@ -296,10 +297,17 @@ func TestService_handlePostAuthorization(t *testing.T) {
 		{
 			token: "create a new authorization",
 			fields: fields{
-				&mock.AuthorizationService{
+				AuthorizationService: &mock.AuthorizationService{
 					CreateAuthorizationFn: func(ctx context.Context, c *platform.Authorization) error {
 						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
+					},
+				},
+				UserService: &mock.UserService{
+					FindUserFn: func(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
+						return &platform.User{
+							ID: platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+						}, nil
 					},
 				},
 			},
@@ -315,25 +323,53 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				statusCode:  http.StatusCreated,
 				contentType: "application/json; charset=utf-8",
 				body: `
-{
-  "links": {
-    "user": "/api/v2/users/aaaaaaaaaaaaaaaa",
-    "self": "/api/v2/authorizations/020f755c3c082000"
-  },
-  "id": "020f755c3c082000",
-  "userID": "aaaaaaaaaaaaaaaa",
-  "token": "hello",
-  "status": "",
-  "description": "swogtok"
-}
-`,
+		{
+		  "links": {
+		    "user": "/api/v2/users/aaaaaaaaaaaaaaaa",
+		    "self": "/api/v2/authorizations/020f755c3c082000"
+		  },
+		  "id": "020f755c3c082000",
+		  "userID": "aaaaaaaaaaaaaaaa",
+		  "token": "hello",
+		  "status": "",
+		  "description": "swogtok"
+		}
+		`,
+			},
+		},
+		{
+			token: "cannot create a new authorization for not existing user",
+			fields: fields{
+				AuthorizationService: &mock.AuthorizationService{
+					CreateAuthorizationFn: func(ctx context.Context, c *platform.Authorization) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						return nil
+					},
+				},
+				UserService: &mock.UserService{
+					FindUserFn: func(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
+						return nil, fmt.Errorf("user id not found")
+					},
+				},
+			},
+			args: args{
+				authorization: &platform.Authorization{
+					Token:       "hello",
+					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
+					UserID:      platformtesting.MustIDBase16("cccccccccccccccc"),
+					Description: "swogtok",
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.token, func(t *testing.T) {
-			h := NewAuthorizationHandler()
+			h := NewAuthorizationHandler(tt.fields.UserService)
 			h.AuthorizationService = tt.fields.AuthorizationService
 
 			b, err := json.Marshal(tt.args.authorization)
@@ -425,7 +461,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.token, func(t *testing.T) {
-			h := NewAuthorizationHandler()
+			h := NewAuthorizationHandler(mock.NewUserService())
 			h.AuthorizationService = tt.fields.AuthorizationService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -487,7 +523,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		}
 	}
 
-	handler := NewAuthorizationHandler()
+	handler := NewAuthorizationHandler(mock.NewUserService())
 	handler.AuthorizationService = svc
 	server := httptest.NewServer(handler)
 	client := AuthorizationService{
