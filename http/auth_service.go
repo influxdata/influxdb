@@ -22,12 +22,15 @@ type AuthorizationHandler struct {
 	Logger *zap.Logger
 
 	AuthorizationService platform.AuthorizationService
+	UserService          platform.UserService
 }
 
 // NewAuthorizationHandler returns a new instance of AuthorizationHandler.
-func NewAuthorizationHandler() *AuthorizationHandler {
+func NewAuthorizationHandler(userService platform.UserService) *AuthorizationHandler {
 	h := &AuthorizationHandler{
-		Router: NewRouter(),
+		Router:      NewRouter(),
+		Logger:      zap.NewNop(),
+		UserService: userService,
 	}
 
 	h.HandlerFunc("POST", "/api/v2/authorizations", h.handlePostAuthorization)
@@ -83,15 +86,29 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 		return
 	}
 
+	a := req.Authorization
+	userFilter := platform.UserFilter{
+		ID:   &a.UserID,
+		Name: &a.User,
+	}
+	if _, err := h.UserService.FindUser(ctx, userFilter); err != nil {
+		h.Logger.Info("failed to find user", zap.String("handler", "postAuthorization"), zap.Error(err))
+		EncodeError(ctx, &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}, w)
+		return
+	}
+
 	// TODO: Need to do some validation of req.Authorization.Permissions
 
-	if err := h.AuthorizationService.CreateAuthorization(ctx, req.Authorization); err != nil {
+	if err := h.AuthorizationService.CreateAuthorization(ctx, a); err != nil {
 		// Don't log here, it should already be handled by the service
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newAuthResponse(req.Authorization)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newAuthResponse(a)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
