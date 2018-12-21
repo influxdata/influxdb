@@ -307,7 +307,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
-						Key:   "tid",
+						Key:   "id",
 						Value: tt.args.taskID.String(),
 					},
 					{
@@ -419,7 +419,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
-						Key:   "tid",
+						Key:   "id",
 						Value: tt.args.taskID.String(),
 					},
 				}))
