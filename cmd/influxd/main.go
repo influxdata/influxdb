@@ -40,7 +40,7 @@ import (
 	_ "github.com/influxdata/platform/tsdb/tsi1"
 	_ "github.com/influxdata/platform/tsdb/tsm1"
 	pzap "github.com/influxdata/platform/zap"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -367,6 +367,7 @@ func (m *Main) run(ctx context.Context) (err error) {
 	}
 
 	handlerConfig := &http.APIBackend{
+		DeveloperMode:                   m.developerMode,
 		Logger:                          m.logger,
 		NewBucketService:                source.NewBucketService,
 		NewQueryService:                 source.NewQueryService,
