@@ -51,6 +51,7 @@ require (
 	github.com/go-test/deep v1.0.1 // indirect
 	github.com/gocql/gocql v0.0.0-20181117210152-33c0e89ca93a // indirect
 	github.com/gogo/protobuf v1.1.1
+	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
 	github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c
 	github.com/google/go-cmp v0.2.0
