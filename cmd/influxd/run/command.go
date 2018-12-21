@@ -169,11 +169,11 @@ func (cmd *Command) Close() error {
 }
 
 func (cmd *Command) monitorServerErrors() {
-	logger := log.New(cmd.Stderr, "", log.LstdFlags)
+	newLogger := log.New(cmd.Stderr, "", log.LstdFlags)
 	for {
 		select {
 		case err := <-cmd.Server.Err():
-			logger.Println(err)
+			newLogger.Println(err)
 		case <-cmd.closing:
 			return
 		}
