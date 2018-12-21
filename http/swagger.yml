@@ -986,17 +986,17 @@ paths:
             description: ID of the source
       responses:
         '200':
-          description: a source
+          description: the source is healthy
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Source"
-        '404':
-          description: source not found
+                $ref: "#/components/schemas/Check"
+        '503':
+          description: the source is not healthy
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/Check"
         default:
           description: unexpected error
           content:
