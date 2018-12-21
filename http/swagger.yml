@@ -2491,6 +2491,11 @@ paths:
         description: specifies the name of the organization executing the query.
         schema:
           type: string
+      - in: query
+        name: orgID
+        description: specifies the ID of the organization executing the query.
+        schema:
+          type: string
     requestBody:
         description: flux query or specification to execute
         content:
