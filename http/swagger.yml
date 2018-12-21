@@ -739,7 +739,6 @@ paths:
             enum:
               - ns
               - us
-              - u
               - ms
               - s
       responses:
