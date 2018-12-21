@@ -29,11 +29,11 @@ type TelegrafConfigStore interface {
 	FindTelegrafConfigs(ctx context.Context, filter UserResourceMappingFilter, opt ...FindOptions) ([]*TelegrafConfig, int, error)
 
 	// CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
-	CreateTelegrafConfig(ctx context.Context, tc *TelegrafConfig, userID ID, now time.Time) error
+	CreateTelegrafConfig(ctx context.Context, tc *TelegrafConfig, userID ID) error
 
 	// UpdateTelegrafConfig updates a single telegraf config.
 	// Returns the new telegraf config after update.
-	UpdateTelegrafConfig(ctx context.Context, id ID, tc *TelegrafConfig, userID ID, now time.Time) (*TelegrafConfig, error)
+	UpdateTelegrafConfig(ctx context.Context, id ID, tc *TelegrafConfig, userID ID) (*TelegrafConfig, error)
 
 	// DeleteTelegrafConfig removes a telegraf config by ID.
 	DeleteTelegrafConfig(ctx context.Context, id ID) error
@@ -41,11 +41,8 @@ type TelegrafConfigStore interface {
 
 // TelegrafConfig stores telegraf config for one telegraf instance.
 type TelegrafConfig struct {
-	ID        ID
-	Name      string
-	Created   time.Time
-	LastMod   time.Time
-	LastModBy ID
+	ID   ID
+	Name string
 
 	Agent   TelegrafAgentConfig
 	Plugins []TelegrafPlugin
@@ -117,11 +114,8 @@ func (tc TelegrafConfig) TOML() string {
 
 // telegrafConfigEncode is the helper struct for json encoding.
 type telegrafConfigEncode struct {
-	ID        ID        `json:"id"`
-	Name      string    `json:"name"`
-	Created   time.Time `json:"created"`
-	LastMod   time.Time `json:"lastModified"`
-	LastModBy ID        `json:"lastModifiedBy"`
+	ID   ID     `json:"id"`
+	Name string `json:"name"`
 
 	Agent TelegrafAgentConfig `json:"agent"`
 
@@ -139,11 +133,8 @@ type telegrafPluginEncode struct {
 
 // telegrafConfigDecode is the helper struct for json decoding.
 type telegrafConfigDecode struct {
-	ID        ID        `json:"id"`
-	Name      string    `json:"name"`
-	Created   time.Time `json:"created"`
-	LastMod   time.Time `json:"lastModified"`
-	LastModBy ID        `json:"lastModifiedBy"`
+	ID   ID     `json:"id"`
+	Name string `json:"name"`
 
 	Agent TelegrafAgentConfig `json:"agent"`
 
@@ -183,13 +174,10 @@ const (
 func (tc *TelegrafConfig) MarshalJSON() ([]byte, error) {
 	tce := new(telegrafConfigEncode)
 	*tce = telegrafConfigEncode{
-		ID:        tc.ID,
-		Name:      tc.Name,
-		Agent:     tc.Agent,
-		Created:   tc.Created,
-		LastMod:   tc.LastMod,
-		LastModBy: tc.LastModBy,
-		Plugins:   make([]telegrafPluginEncode, len(tc.Plugins)),
+		ID:      tc.ID,
+		Name:    tc.Name,
+		Agent:   tc.Agent,
+		Plugins: make([]telegrafPluginEncode, len(tc.Plugins)),
 	}
 	for k, p := range tc.Plugins {
 		tce.Plugins[k] = telegrafPluginEncode{
@@ -291,13 +279,10 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*tc = TelegrafConfig{
-		ID:        tcd.ID,
-		Name:      tcd.Name,
-		Created:   tcd.Created,
-		LastMod:   tcd.LastMod,
-		LastModBy: tcd.LastModBy,
-		Agent:     tcd.Agent,
-		Plugins:   make([]TelegrafPlugin, len(tcd.Plugins)),
+		ID:      tcd.ID,
+		Name:    tcd.Name,
+		Agent:   tcd.Agent,
+		Plugins: make([]TelegrafPlugin, len(tcd.Plugins)),
 	}
 	return decodePluginRaw(tcd, tc)
 }
