@@ -800,17 +800,17 @@ paths:
             description: ID of the source
       responses:
         '200':
-          description: the source is healthy
+          description: a source
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
-        '503':
-          description: the source is not healthy
+                $ref: "#/components/schemas/Source"
+        '404':
+          description: source not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
