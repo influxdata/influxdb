@@ -261,8 +261,7 @@ Usage: influxd run [flags]
     -cpuprofile <path>
             Write CPU profiling information to a file.
     -memprofile <path>
-            Write memory usage information to a file.
-`
+            Write memory usage information to a file.`
 
 // Options represents the command line options that can be parsed.
 type Options struct {
