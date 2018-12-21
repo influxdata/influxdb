@@ -310,7 +310,8 @@ func decodePatchViewRequest(ctx context.Context, r *http.Request) (*patchViewReq
 	upd := platform.ViewUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, &platform.Error{
-			Err: err,
+			Code: platform.EInvalid,
+			Err:  err,
 		}
 	}
 
