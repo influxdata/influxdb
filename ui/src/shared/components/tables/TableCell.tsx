@@ -12,14 +12,13 @@ import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 
 // Types
-import {Sort} from 'src/types/v2/dashboards'
+import {SortOptions, FieldOption} from 'src/types/v2/dashboards'
 import {TableView} from 'src/types/v2/dashboards'
-import {TimeSeriesValue} from 'src/types/series'
-import {CellRendererProps} from 'src/shared/components/tables/TableGraph'
+import {CellRendererProps} from 'src/shared/components/tables/TableGraphTable'
 
 interface Props extends CellRendererProps {
-  sort: Sort
-  data: TimeSeriesValue
+  sortOptions: SortOptions
+  data: string
   properties: TableView
   hoveredRowIndex: number
   hoveredColumnIndex: number
@@ -28,9 +27,10 @@ interface Props extends CellRendererProps {
   isFirstColumnFixed: boolean
   onClickFieldName: (data: string) => void
   onHover: (e: React.MouseEvent<HTMLElement>) => void
+  resolvedFieldOptions: FieldOption[]
 }
 
-export default class TableCell extends PureComponent<Props> {
+class TableCell extends PureComponent<Props> {
   public render() {
     const {rowIndex, columnIndex, onHover} = this.props
     return (
@@ -101,15 +101,15 @@ export default class TableCell extends PureComponent<Props> {
   }
 
   private get isSorted(): boolean {
-    const {sort, data} = this.props
+    const {sortOptions, data} = this.props
 
-    return sort.field === data
+    return sortOptions.field === data
   }
 
   private get isAscending(): boolean {
-    const {sort} = this.props
+    const {sortOptions} = this.props
 
-    return sort.direction === ASCENDING
+    return sortOptions.direction === ASCENDING
   }
 
   private get isFirstRow(): boolean {
@@ -145,15 +145,17 @@ export default class TableCell extends PureComponent<Props> {
   }
 
   private get timeFieldIndex(): number {
-    const {fieldOptions} = this.props.properties
+    const {resolvedFieldOptions} = this.props
 
     let hiddenBeforeTime = 0
-    const timeIndex = fieldOptions.findIndex(({internalName, visible}) => {
-      if (!visible) {
-        hiddenBeforeTime += 1
+    const timeIndex = resolvedFieldOptions.findIndex(
+      ({internalName, visible}) => {
+        if (!visible) {
+          hiddenBeforeTime += 1
+        }
+        return internalName === DEFAULT_TIME_FIELD.internalName
       }
-      return internalName === DEFAULT_TIME_FIELD.internalName
-    })
+    )
 
     return timeIndex - hiddenBeforeTime
   }
@@ -177,12 +179,11 @@ export default class TableCell extends PureComponent<Props> {
   }
 
   private get fieldName(): string {
-    const {data, properties} = this.props
-    const {fieldOptions = [DEFAULT_TIME_FIELD]} = properties
+    const {data, resolvedFieldOptions = [DEFAULT_TIME_FIELD]} = this.props
 
     const foundField =
       this.isFieldName &&
-      fieldOptions.find(({internalName}) => internalName === data)
+      resolvedFieldOptions.find(({internalName}) => internalName === data)
 
     return foundField && (foundField.displayName || foundField.internalName)
   }
@@ -210,3 +211,5 @@ export default class TableCell extends PureComponent<Props> {
     return _.defaultTo(data, '').toString()
   }
 }
+
+export default TableCell

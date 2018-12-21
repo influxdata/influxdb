@@ -1,41 +1,57 @@
+// Libraries
 import {PureComponent} from 'react'
 import _ from 'lodash'
+import memoizeOne from 'memoize-one'
 
-import {FluxTable} from 'src/types'
-import {TimeSeriesValue} from 'src/types/v2/dashboards'
+// Utils
+import {transformTableData} from 'src/dashboards/utils/tableGraph'
+
+// Types
+import {TableView, SortOptions} from 'src/types/v2/dashboards'
+import {TransformTableDataReturnType} from 'src/dashboards/utils/tableGraph'
 
 interface Props {
-  table: FluxTable
-  children: (values: TableGraphData) => JSX.Element
+  data: string[][]
+  properties: TableView
+  sortOptions: SortOptions
+  children: (transformedDataBundle: TransformTableDataReturnType) => JSX.Element
 }
 
-export interface Label {
-  label: string
-  seriesIndex: number
-  responseIndex: number
+const areFormatPropertiesEqual = (
+  prevProperties: Props,
+  newProperties: Props
+) => {
+  const formatProps = ['tableOptions', 'fieldOptions', 'timeFormat', 'sort']
+  if (!prevProperties.properties) {
+    return false
+  }
+  const propsEqual = formatProps.every(k =>
+    _.isEqual(prevProperties.properties[k], newProperties.properties[k])
+  )
+
+  return propsEqual
 }
 
-export interface TableGraphData {
-  data: TimeSeriesValue[][]
-  sortedLabels: Label[]
-}
+class TableGraphTransform extends PureComponent<Props> {
+  private memoizedTableTransform: typeof transformTableData = memoizeOne(
+    transformTableData,
+    areFormatPropertiesEqual
+  )
 
-export default class TableGraphTransform extends PureComponent<Props> {
   public render() {
-    return this.props.children(this.tableGraphData)
-  }
+    const {properties, data, sortOptions} = this.props
+    const {tableOptions, timeFormat, decimalPlaces, fieldOptions} = properties
 
-  private get tableGraphData(): TableGraphData {
-    const {
-      table: {data = []},
-    } = this.props
-
-    const sortedLabels = _.get(data, '0', []).map(label => ({
-      label,
-      seriesIndex: 0,
-      responseIndex: 0,
-    }))
-
-    return {data, sortedLabels}
+    const transformedDataBundle = this.memoizedTableTransform(
+      data,
+      sortOptions,
+      fieldOptions,
+      tableOptions,
+      timeFormat,
+      decimalPlaces
+    )
+    return this.props.children(transformedDataBundle)
   }
 }
+
+export default TableGraphTransform
