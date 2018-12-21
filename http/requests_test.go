@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -39,7 +38,10 @@ func Test_queryOrganization(t *testing.T) {
 								ID: platform.ID(1),
 							}, nil
 						}
-						return nil, fmt.Errorf("unknown ID")
+						return nil, &platform.Error{
+							Code: platform.EInvalid,
+							Msg:  "unknown org name",
+						}
 					},
 				},
 			},
@@ -69,7 +71,10 @@ func Test_queryOrganization(t *testing.T) {
 								Name: "org1",
 							}, nil
 						}
-						return nil, fmt.Errorf("unknown org name")
+						return nil, &platform.Error{
+							Code: platform.EInvalid,
+							Msg:  "unknown org name",
+						}
 					},
 				},
 			},
