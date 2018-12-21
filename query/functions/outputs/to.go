@@ -490,7 +490,7 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 
 	measurementStats := make(map[string]Stats)
 	measurementName := ""
-	return tbl.Do(func(er flux.ColReader) error {
+	return tbl.DoArrow(func(er flux.ArrowColReader) error {
 		var pointTime time.Time
 		var points models.Points
 		var tags models.Tags
@@ -502,16 +502,16 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 			for j, col := range er.Cols() {
 				switch {
 				case col.Label == spec.MeasurementColumn:
-					measurementName = er.Strings(j)[i]
+					measurementName = string(er.Strings(j).Value(i))
 				case col.Label == timeColLabel:
-					pointTime = er.Times(j)[i].Time()
+					pointTime = execute.ValueForRowArrow(er, i, j).Time().Time()
 				case isTag[j]:
 					if col.Type != flux.TString {
 						return errors.New("invalid type for tag column")
 					}
 					// TODO(docmerlin): instead of doing this sort of thing, it would be nice if we had a way that allocated a lot less.
 					// Note that tags are 2-tuples of key and then value.
-					tags = append(tags, models.NewTag([]byte(col.Label), []byte(er.Strings(j)[i])))
+					tags = append(tags, models.NewTag([]byte(col.Label), er.Strings(j).Value(i)))
 				}
 			}
 
@@ -567,7 +567,7 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 				return err
 			}
 			points = append(points, pt)
-			if err := execute.AppendRecord(i, er, builder); err != nil {
+			if err := execute.AppendRecordArrow(i, er, builder); err != nil {
 				return err
 			}
 		}
@@ -576,7 +576,7 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 	})
 }
 
-func defaultFieldMapping(er flux.ColReader, row int) (values.Object, error) {
+func defaultFieldMapping(er flux.ArrowColReader, row int) (values.Object, error) {
 	fieldColumnIdx := execute.ColIdx(defaultFieldColLabel, er.Cols())
 	valueColumnIdx := execute.ColIdx(execute.DefaultValueColLabel, er.Cols())
 
@@ -588,29 +588,11 @@ func defaultFieldMapping(er flux.ColReader, row int) (values.Object, error) {
 		return nil, errors.New("table has no _value column")
 	}
 
-	var value values.Value
-	valueColumnType := er.Cols()[valueColumnIdx].Type
-
-	switch valueColumnType {
-	case flux.TFloat:
-		value = values.NewFloat(er.Floats(valueColumnIdx)[row])
-	case flux.TInt:
-		value = values.NewInt(er.Ints(valueColumnIdx)[row])
-	case flux.TUInt:
-		value = values.NewUInt(er.UInts(valueColumnIdx)[row])
-	case flux.TString:
-		value = values.NewString(er.Strings(valueColumnIdx)[row])
-	case flux.TTime:
-		value = values.NewTime(er.Times(valueColumnIdx)[row])
-	case flux.TBool:
-		value = values.NewBool(er.Bools(valueColumnIdx)[row])
-	default:
-		return nil, fmt.Errorf("unsupported type %v for _value column", valueColumnType)
-	}
+	value := execute.ValueForRowArrow(er, row, valueColumnIdx)
 
 	fieldValueMapping := values.NewObject()
-	field := er.Strings(fieldColumnIdx)[row]
-	fieldValueMapping.Set(field, value)
+	field := execute.ValueForRowArrow(er, row, fieldColumnIdx)
+	fieldValueMapping.Set(field.Str(), value)
 
 	return fieldValueMapping, nil
 }
