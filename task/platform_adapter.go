@@ -205,6 +205,21 @@ func (p pAdapter) RetryRun(ctx context.Context, taskID, id platform.ID) (*platfo
 	}, nil
 }
 
+func (p pAdapter) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
+	requestedAt := time.Now()
+	m, err := p.s.ManuallyRunTimeRange(ctx, taskID, scheduledFor, scheduledFor, requestedAt.Unix())
+	if err != nil {
+		return nil, err
+	}
+	return &platform.Run{
+		ID:           platform.ID(m.RunID),
+		TaskID:       taskID,
+		RequestedAt:  requestedAt.UTC().Format(time.RFC3339),
+		Status:       backend.RunScheduled.String(),
+		ScheduledFor: time.Unix(scheduledFor, 0).UTC().Format(time.RFC3339),
+	}, nil
+}
+
 func (p pAdapter) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
 	return p.rc.CancelRun(ctx, taskID, runID)
 }

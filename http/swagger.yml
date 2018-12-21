@@ -3790,6 +3790,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Tasks
+      summary: manually start a run of the task now overriding the current schedule.
+      parameters:
+        - in: path
+          name: taskID
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunManually"
+      responses:
+        '201':
+          description: Run scheduled to start
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/runs/{runID}':
     get:
       tags:
@@ -4909,6 +4937,13 @@ components:
             retry:
               type: string
               format: uri
+    RunManually:
+      properties:
+        scheduledFor:
+          nullable: true
+          description: Time used for run's "now" option, RFC3339.  Default is the server's now time.
+          type: string
+          format: date-time
     Task:
       type: object
       properties:

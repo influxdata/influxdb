@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdata/platform"
@@ -79,6 +80,7 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("DELETE", tasksIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", tasksIDRunsPath, h.handleGetRuns)
+	h.HandlerFunc("POST", tasksIDRunsPath, h.handleForceRun)
 	h.HandlerFunc("GET", tasksIDRunsIDPath, h.handleGetRun)
 	h.HandlerFunc("POST", tasksIDRunsIDRetryPath, h.handleRetryRun)
 	h.HandlerFunc("DELETE", tasksIDRunsIDPath, h.handleCancelRun)
@@ -615,6 +617,67 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 	return req, nil
 }
 
+func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeForceRunRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	run, err := h.TaskService.ForceRun(ctx, req.TaskID, req.Timestamp)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type forceRunRequest struct {
+	TaskID    platform.ID
+	Timestamp int64
+}
+
+func decodeForceRunRequest(ctx context.Context, r *http.Request) (forceRunRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	tid := params.ByName("id")
+	if tid == "" {
+		return forceRunRequest{}, kerrors.InvalidDataf("you must provide a task ID")
+	}
+
+	var ti platform.ID
+	if err := ti.DecodeFromString(tid); err != nil {
+		return forceRunRequest{}, err
+	}
+
+	var req struct {
+		ScheduledFor string `json:"scheduledFor"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return forceRunRequest{}, err
+	}
+
+	var t time.Time
+	if req.ScheduledFor == "" {
+		t = time.Now()
+	} else {
+		var err error
+		t, err = time.Parse(time.RFC3339, req.ScheduledFor)
+		if err != nil {
+			return forceRunRequest{}, err
+		}
+	}
+
+	return forceRunRequest{
+		TaskID:    ti,
+		Timestamp: t.Unix(),
+	}, nil
+}
+
 func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -1135,8 +1198,52 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 			return nil, backend.ErrRunNotFound
 		}
 
-		// RetryAlreadyQueuedError is also part of the contract.
-		if e := backend.ParseRetryAlreadyQueuedError(err.Error()); e != nil {
+		// RequestStillQueuedError is also part of the contract.
+		if e := backend.ParseRequestStillQueuedError(err.Error()); e != nil {
+			return nil, *e
+		}
+
+		return nil, err
+	}
+
+	rs := &runResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(rs); err != nil {
+		return nil, err
+	}
+	return &rs.Run, nil
+}
+
+func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
+	u, err := newURL(t.Addr, taskIDRunsPath(taskID))
+	if err != nil {
+		return nil, err
+	}
+
+	body := fmt.Sprintf(`{"scheduledFor": %q}`, time.Unix(scheduledFor, 0).UTC().Format(time.RFC3339))
+	req, err := http.NewRequest("POST", u.String(), strings.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+
+	SetToken(t.Token, req)
+
+	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if err := CheckError(resp); err != nil {
+		if err.Error() == backend.ErrRunNotFound.Error() {
+			// ErrRunNotFound is expected as part of the RetryRun contract,
+			// so return that actual error instead of a different error that looks like it.
+			return nil, backend.ErrRunNotFound
+		}
+
+		// RequestStillQueuedError is also part of the contract.
+		if e := backend.ParseRequestStillQueuedError(err.Error()); e != nil {
 			return nil, *e
 		}
 

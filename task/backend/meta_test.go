@@ -265,7 +265,7 @@ func TestMeta_ManuallyRunTimeRange(t *testing.T) {
 	if err := stm.ManuallyRunTimeRange(1, 1, 2, nil); err != nil {
 		t.Fatal(err)
 	}
-	if exp, err := (backend.RetryAlreadyQueuedError{Start: 1, End: 1}), stm.ManuallyRunTimeRange(1, 1, 3, func() (platform.ID, error) { return platform.ID(1099), nil }); err != exp {
+	if exp, err := (backend.RequestStillQueuedError{Start: 1, End: 1}), stm.ManuallyRunTimeRange(1, 1, 3, func() (platform.ID, error) { return platform.ID(1099), nil }); err != exp {
 		t.Fatalf("expected %v, got %v", exp, err)
 	}
 
@@ -273,7 +273,7 @@ func TestMeta_ManuallyRunTimeRange(t *testing.T) {
 	if err := stm.ManuallyRunTimeRange(100, 200, 201, nil); err != nil {
 		t.Fatal(err)
 	}
-	if exp, err := (backend.RetryAlreadyQueuedError{Start: 100, End: 200}), stm.ManuallyRunTimeRange(100, 200, 202, nil); err != exp {
+	if exp, err := (backend.RequestStillQueuedError{Start: 100, End: 200}), stm.ManuallyRunTimeRange(100, 200, 202, nil); err != exp {
 		t.Fatalf("expected %v, got %v", exp, err)
 	}
 

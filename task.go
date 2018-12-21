@@ -70,6 +70,10 @@ type TaskService interface {
 
 	// RetryRun creates and returns a new run (which is a retry of another run).
 	RetryRun(ctx context.Context, taskID, runID ID) (*Run, error)
+
+	// ForceRun forces a run to occur with unix timestamp scheduledFor, to be executed as soon as possible.
+	// The value of scheduledFor may or may not align with the task's schedule.
+	ForceRun(ctx context.Context, taskID ID, scheduledFor int64) (*Run, error)
 }
 
 // TaskUpdate represents updates to a task

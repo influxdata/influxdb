@@ -6,11 +6,11 @@ import (
 	"github.com/influxdata/platform/task/backend"
 )
 
-func TestParseRetryAlreadyQueuedError(t *testing.T) {
-	e := backend.RetryAlreadyQueuedError{Start: 1000, End: 2000}
+func TestParseRequestStillQueuedError(t *testing.T) {
+	e := backend.RequestStillQueuedError{Start: 1000, End: 2000}
 	validMsg := e.Error()
 
-	if err := backend.ParseRetryAlreadyQueuedError(validMsg); err == nil || *err != e {
+	if err := backend.ParseRequestStillQueuedError(validMsg); err == nil || *err != e {
 		t.Fatalf("%q should have parsed to %v, but got %v", validMsg, e, err)
 	}
 }

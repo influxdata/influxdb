@@ -217,6 +217,9 @@ func (stm *StoreTaskMeta) NextDueRun() (int64, error) {
 // if start does not land on the task's schedule; and as late as, but not necessarily equal to, end.
 // requestedAt is the Unix timestamp indicating when this run range was requested.
 //
+// There is no schedule validation in this method,
+// so ManuallyRunTimeRange can be used to create a run at a specific time that isn't aligned with the task's schedule.
+//
 // If adding the range would exceed the queue size, ManuallyRunTimeRange returns ErrManualQueueFull.
 func (stm *StoreTaskMeta) ManuallyRunTimeRange(start, end, requestedAt int64, makeID func() (platform.ID, error)) error {
 	// Arbitrarily chosen upper limit that seems unlikely to be reached except in pathological cases.
@@ -232,7 +235,7 @@ func (stm *StoreTaskMeta) ManuallyRunTimeRange(start, end, requestedAt int64, ma
 	}
 	for _, mr := range stm.ManualRuns {
 		if mr.Start == start && mr.End == end {
-			return RetryAlreadyQueuedError{Start: start, End: end}
+			return RequestStillQueuedError{Start: start, End: end}
 		}
 	}
 	run := &StoreTaskMetaManualRun{
