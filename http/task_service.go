@@ -35,18 +35,18 @@ type TaskHandler struct {
 
 const (
 	tasksPath              = "/api/v2/tasks"
-	tasksIDPath            = "/api/v2/tasks/:tid"
-	tasksIDLogsPath        = "/api/v2/tasks/:tid/logs"
-	tasksIDMembersPath     = "/api/v2/tasks/:tid/members"
-	tasksIDMembersIDPath   = "/api/v2/tasks/:tid/members/:userID"
-	tasksIDOwnersPath      = "/api/v2/tasks/:tid/owners"
-	tasksIDOwnersIDPath    = "/api/v2/tasks/:tid/owners/:userID"
-	tasksIDRunsPath        = "/api/v2/tasks/:tid/runs"
-	tasksIDRunsIDPath      = "/api/v2/tasks/:tid/runs/:rid"
-	tasksIDRunsIDLogsPath  = "/api/v2/tasks/:tid/runs/:rid/logs"
-	tasksIDRunsIDRetryPath = "/api/v2/tasks/:tid/runs/:rid/retry"
-	tasksIDLabelsPath      = "/api/v2/tasks/:tid/labels"
-	tasksIDLabelsNamePath  = "/api/v2/tasks/:tid/labels/:name"
+	tasksIDPath            = "/api/v2/tasks/:id"
+	tasksIDLogsPath        = "/api/v2/tasks/:id/logs"
+	tasksIDMembersPath     = "/api/v2/tasks/:id/members"
+	tasksIDMembersIDPath   = "/api/v2/tasks/:id/members/:userID"
+	tasksIDOwnersPath      = "/api/v2/tasks/:id/owners"
+	tasksIDOwnersIDPath    = "/api/v2/tasks/:id/owners/:userID"
+	tasksIDRunsPath        = "/api/v2/tasks/:id/runs"
+	tasksIDRunsIDPath      = "/api/v2/tasks/:id/runs/:rid"
+	tasksIDRunsIDLogsPath  = "/api/v2/tasks/:id/runs/:rid/logs"
+	tasksIDRunsIDRetryPath = "/api/v2/tasks/:id/runs/:rid/retry"
+	tasksIDLabelsPath      = "/api/v2/tasks/:id/labels"
+	tasksIDLabelsNamePath  = "/api/v2/tasks/:id/labels/:name"
 )
 
 // NewTaskHandler returns a new instance of TaskHandler.
@@ -342,7 +342,7 @@ type getTaskRequest struct {
 
 func decodeGetTaskRequest(ctx context.Context, r *http.Request) (*getTaskRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("tid")
+	id := params.ByName("id")
 	if id == "" {
 		return nil, kerrors.InvalidDataf("url missing id")
 	}
@@ -387,7 +387,7 @@ type updateTaskRequest struct {
 
 func decodeUpdateTaskRequest(ctx context.Context, r *http.Request) (*updateTaskRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("tid")
+	id := params.ByName("id")
 	if id == "" {
 		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
@@ -431,7 +431,7 @@ type deleteTaskRequest struct {
 
 func decodeDeleteTaskRequest(ctx context.Context, r *http.Request) (*deleteTaskRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("tid")
+	id := params.ByName("id")
 	if id == "" {
 		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
@@ -473,7 +473,7 @@ type getLogsRequest struct {
 
 func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.OrganizationService) (*getLogsRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("tid")
+	id := params.ByName("id")
 	if id == "" {
 		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
@@ -540,7 +540,7 @@ type getRunsRequest struct {
 
 func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.OrganizationService) (*getRunsRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("tid")
+	id := params.ByName("id")
 	if id == "" {
 		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
@@ -643,7 +643,7 @@ type getRunRequest struct {
 
 func decodeGetRunRequest(ctx context.Context, r *http.Request) (*getRunRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	tid := params.ByName("tid")
+	tid := params.ByName("id")
 	if tid == "" {
 		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
@@ -677,7 +677,7 @@ func decodeCancelRunRequest(ctx context.Context, r *http.Request) (*cancelRunReq
 	if rid == "" {
 		return nil, kerrors.InvalidDataf("you must provide a run ID")
 	}
-	tid := params.ByName("tid")
+	tid := params.ByName("id")
 	if tid == "" {
 		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
@@ -739,7 +739,7 @@ type retryRunRequest struct {
 
 func decodeRetryRunRequest(ctx context.Context, r *http.Request) (*retryRunRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	tid := params.ByName("tid")
+	tid := params.ByName("id")
 	if tid == "" {
 		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
