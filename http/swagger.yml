@@ -2270,6 +2270,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Authorization"
+        '400':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
