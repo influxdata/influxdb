@@ -6707,7 +6707,7 @@ components:
           type: string
           enum:
             - pass
-            - failo
+            - fail
     Labels:
       type: array
       items:
