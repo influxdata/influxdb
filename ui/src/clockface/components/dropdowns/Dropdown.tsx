@@ -9,6 +9,7 @@ import DropdownDivider from 'src/clockface/components/dropdowns/DropdownDivider'
 import DropdownItem from 'src/clockface/components/dropdowns/DropdownItem'
 import DropdownButton from 'src/clockface/components/dropdowns/DropdownButton'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import WaitingText from 'src/shared/components/WaitingText'
 
 // Types
 import {
@@ -124,8 +125,17 @@ class Dropdown extends Component<Props, State> {
     const {expanded} = this.state
 
     const selectedChild = children.find(child => child.props.id === selectedID)
-    const dropdownLabel =
-      (selectedChild && selectedChild.props.children) || titleText
+    const isLoading = status === ComponentStatus.Loading
+
+    let dropdownLabel
+
+    if (isLoading) {
+      dropdownLabel = <WaitingText text="Loading" />
+    } else if (selectedChild) {
+      dropdownLabel = selectedChild.props.children
+    } else {
+      dropdownLabel = titleText
+    }
 
     return (
       <DropdownButton
@@ -211,6 +221,14 @@ class Dropdown extends Component<Props, State> {
     }
   }
 
+  private get shouldHaveChildren(): boolean {
+    const {status} = this.props
+
+    return (
+      status === ComponentStatus.Default || status === ComponentStatus.Valid
+    )
+  }
+
   private handleItemClick = (value: any): void => {
     const {onChange} = this.props
     onChange(value)
@@ -220,7 +238,7 @@ class Dropdown extends Component<Props, State> {
   private validateChildCount = (): void => {
     const {children} = this.props
 
-    if (React.Children.count(children) === 0) {
+    if (this.shouldHaveChildren && React.Children.count(children) === 0) {
       throw new Error(
         'Dropdowns require at least 1 child element. We recommend using Dropdown.Item and/or Dropdown.Divider.'
       )
@@ -236,6 +254,7 @@ class Dropdown extends Component<Props, State> {
 
     if (
       mode === DropdownMode.Radio &&
+      this.shouldHaveChildren &&
       (isUndefined(selectedID) || isNull(selectedID))
     ) {
       throw new Error('Dropdowns in Radio mode require a selectedID prop.')

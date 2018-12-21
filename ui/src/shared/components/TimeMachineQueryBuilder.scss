@@ -6,46 +6,55 @@
   right: 0;
   left: 0;
   bottom: 0;
-  display: flex;
   padding: 10px;
+  display: flex;
+  flex-direction: column;
   @include no-user-select();
   background: $g3-castle;
 }
 
-.query-builder--panel {
-  margin-left: 5px;
-  height: 100%;
-  flex: 1 1 0;
+.query-builder--buttons {
   display: flex;
-  flex-direction: column;
+  justify-content: flex-start;
 
-  &:first-child {
-    margin-left: 0;
+  > .form--element {
+    width: 200px;
+    margin-right: 5px;
   }
 }
 
-.query-builder--panel-header {
-  padding: 10px 0;
-  border-radius: 5px 5px 0 0;
-  text-transform: uppercase;
-  font-weight: 500;
-  font-size: 13px;
-  color: $g8-storm;
+.query-builder--cards {
+  flex: 1 1 0;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  justify-content: space-between;
+}
 
-  small {
-    margin-left: 10px;
-    padding: 2px 4px 2px 3px;
-    border-radius: 2px;
-    background-color: $g4-onyx;
-    font-style: italic;
-    font-size: 11px;
+.query-builder--tag-selectors {
+  display: flex;
+  flex-wrap: nowrap;
+  flex: 1 1 0;
+  height: 100%;
+
+  .tag-selector {
+    margin-right: 5px;
+    flex: 0 0 250px;
+
+    &:last-child {
+      margin-right: 0;
+    }
   }
 }
 
-.builder-card {
+.query-builder .function-selector {
+  flex: 0 0 250px;
+  margin-left: 10px;
+}
+
+button.query-builder--add-tag-selector {
   height: 100%;
-  flex: 1 1 0;
+  background-color: $g4-onyx;
+  border-color: $g4-onyx;
+  margin-right: 5px;
+  flex-grow: 0;
+  flex-shrink: 0;
 }

@@ -48,9 +48,8 @@ export enum QueryEditMode {
 
 export interface BuilderConfig {
   buckets: string[]
-  measurements: string[]
-  fields: string[]
-  functions: string[]
+  tags: Array<{key: string; values: string[]}>
+  functions: Array<{name: string}>
 }
 
 export interface DashboardQuery {

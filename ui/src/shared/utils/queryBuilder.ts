@@ -28,8 +28,11 @@ export const timeRangeVariables = (
 }
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
-  const {buckets, measurements} = builderConfig
-  const isConfigValid = buckets.length >= 1 && measurements.length >= 1
+  const {buckets, tags} = builderConfig
+  const isConfigValid =
+    buckets.length >= 1 &&
+    tags.length >= 1 &&
+    tags.some(({key, values}) => key && values.length > 0)
 
   return isConfigValid
 }
@@ -38,64 +41,72 @@ export function buildQuery(
   builderConfig: BuilderConfig,
   duration: string = '1h'
 ): string {
-  const {buckets, measurements, fields, functions} = builderConfig
+  const {functions} = builderConfig
 
-  let bucketFunctionPairs: Array<[string, string]>
+  let query: string
 
   if (functions.length) {
-    bucketFunctionPairs = [].concat(
-      ...buckets.map(b => functions.map(f => [b, f]))
-    )
+    query = functions
+      .map(f => buildQueryHelper(builderConfig, duration, f))
+      .join('\n\n')
   } else {
-    bucketFunctionPairs = buckets.map(b => [b, null] as [string, string])
+    query = buildQueryHelper(builderConfig, duration)
   }
-
-  const query = bucketFunctionPairs
-    .map(([b, f]) => buildQueryHelper(b, measurements, fields, f, duration))
-    .join('\n\n')
 
   return query
 }
 
 function buildQueryHelper(
-  bucket: string,
-  measurements: string[],
-  fields: string[],
-  functionName: string,
-  duration: string
+  builderConfig: BuilderConfig,
+  duration: string,
+  fn?: BuilderConfig['functions'][0]
 ): string {
-  let query = `from(bucket: "${bucket}")
-  |> range(start: -${duration})`
+  const [bucket] = builderConfig.buckets
+  const tagFilterCall = formatTagFilterCall(builderConfig.tags)
+  const fnCall = fn ? formatFunctionCall(fn, duration) : ''
 
-  if (measurements.length) {
-    const measurementsPredicate = measurements
-      .map(m => `r._measurement == "${m}"`)
-      .join(' or ')
-
-    query += `
-  |> filter(fn: (r) => ${measurementsPredicate})`
-  }
-
-  if (fields.length) {
-    const fieldsPredicate = fields.map(f => `r._field == "${f}"`).join(' or ')
-
-    query += `
-  |> filter(fn: (r) => ${fieldsPredicate})`
-  }
-
-  const fn = FUNCTIONS.find(f => f.name === functionName)
-
-  if (fn && fn.aggregate) {
-    query += `
-  |> window(every: ${WINDOW_INTERVALS[duration] || DEFAULT_WINDOW_INTERVAL})
-  ${fn.flux}
-  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
-  |> yield(name: "${fn.name}")`
-  } else if (fn) {
-    query += `
-  ${fn.flux}
-  |> yield(name: "${fn.name}")`
-  }
+  const query = `from(bucket: "${bucket}")
+  |> range(start: -${duration})${tagFilterCall}${fnCall}`
 
   return query
+}
+
+export function formatFunctionCall(
+  fn: BuilderConfig['functions'][0],
+  duration: string
+) {
+  const fnSpec = FUNCTIONS.find(f => f.name === fn.name)
+
+  let fnCall: string = ''
+
+  if (fnSpec && fnSpec.aggregate) {
+    fnCall = `
+  |> window(every: ${WINDOW_INTERVALS[duration] || DEFAULT_WINDOW_INTERVAL})
+  ${fnSpec.flux}
+  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
+  |> yield(name: "${fn.name}")`
+  } else {
+    fnCall = `
+  ${fnSpec.flux}
+  |> yield(name: "${fn.name}")`
+  }
+
+  return fnCall
+}
+
+export function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
+  if (!tagsSelections.length) {
+    return ''
+  }
+
+  const calls = tagsSelections
+    .filter(({key, values}) => key && values.length)
+    .map(({key, values}) => {
+      const fnBody = values.map(value => `r.${key} == "${value}"`).join(' or ')
+
+      return `|> filter(fn: (r) => ${fnBody})`
+    })
+    .join('\n  ')
+
+  return `\n  ${calls}`
 }

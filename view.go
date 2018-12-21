@@ -428,10 +428,14 @@ type DashboardQuery struct {
 }
 
 type BuilderConfig struct {
-	Buckets      []string `json:"buckets"`
-	Measurements []string `json:"measurements"`
-	Fields       []string `json:"fields"`
-	Functions    []string `json:"functions"`
+	Buckets []string `json:"buckets"`
+	Tags    []struct {
+		Key    string   `json:"key"`
+		Values []string `json:"values"`
+	} `json:"tags"`
+	Functions []struct {
+		Name string `json:"name"`
+	} `json:"functions"`
 }
 
 // Axis represents the visible extents of a visualization

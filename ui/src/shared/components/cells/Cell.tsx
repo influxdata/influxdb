@@ -113,7 +113,7 @@ class CellComponent extends Component<Props> {
     } = this.props
 
     return (
-      <Conditional isRendered={viewStatus !== RemoteDataState.Done}>
+      <Conditional isRendered={viewStatus === RemoteDataState.Done}>
         <ViewComponent
           view={view}
           onZoom={onZoom}

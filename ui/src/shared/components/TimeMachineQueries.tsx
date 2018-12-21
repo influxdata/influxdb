@@ -88,7 +88,9 @@ const TimeMachineQueries: SFC<Props> = props => {
         </div>
         <div className="time-machine-queries--buttons">
           <TimeMachineQueriesSwitcher />
-          <SubmitQueryButton queryStatus={queryStatus} />
+          {activeQuery.editMode !== QueryEditMode.Builder && (
+            <SubmitQueryButton queryStatus={queryStatus} />
+          )}
         </div>
       </div>
       <div className="time-machine-queries--body">{queryEditor}</div>

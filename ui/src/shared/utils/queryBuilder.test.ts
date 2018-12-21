@@ -3,11 +3,10 @@ import {buildQuery} from 'src/shared/utils/queryBuilder'
 import {BuilderConfig} from 'src/types/v2'
 
 describe('buildQuery', () => {
-  test('single bucket, single measurement', () => {
+  test('single tag', () => {
     const config: BuilderConfig = {
       buckets: ['b0'],
-      measurements: ['m0'],
-      fields: [],
+      tags: [{key: '_measurement', values: ['m0']}],
       functions: [],
     }
 
@@ -20,11 +19,13 @@ describe('buildQuery', () => {
     expect(actual).toEqual(expected)
   })
 
-  test('single bucket, multiple measurements, multiple fields', () => {
+  test('multiple tags', () => {
     const config: BuilderConfig = {
       buckets: ['b0'],
-      measurements: ['m0', 'm1'],
-      fields: ['f0', 'f1'],
+      tags: [
+        {key: '_measurement', values: ['m0', 'm1']},
+        {key: '_field', values: ['f0', 'f1']},
+      ],
       functions: [],
     }
 
@@ -38,12 +39,11 @@ describe('buildQuery', () => {
     expect(actual).toEqual(expected)
   })
 
-  test('multiple buckets, single measurement, multiple functions', () => {
+  test('single tag, multiple functions', () => {
     const config: BuilderConfig = {
-      buckets: ['b0', 'b1'],
-      measurements: ['m0'],
-      fields: [],
-      functions: ['mean', 'median'],
+      buckets: ['b0'],
+      tags: [{key: '_measurement', values: ['m0']}],
+      functions: [{name: 'mean'}, {name: 'median'}],
     }
 
     const expected = `from(bucket: "b0")
@@ -55,23 +55,6 @@ describe('buildQuery', () => {
   |> yield(name: "mean")
 
 from(bucket: "b0")
-  |> range(start: -1h)
-  |> filter(fn: (r) => r._measurement == "m0")
-  |> window(every: 1m)
-  |> toFloat()
-  |> median()
-  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
-  |> yield(name: "median")
-
-from(bucket: "b1")
-  |> range(start: -1h)
-  |> filter(fn: (r) => r._measurement == "m0")
-  |> window(every: 1m)
-  |> mean()
-  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
-  |> yield(name: "mean")
-
-from(bucket: "b1")
   |> range(start: -1h)
   |> filter(fn: (r) => r._measurement == "m0")
   |> window(every: 1m)
