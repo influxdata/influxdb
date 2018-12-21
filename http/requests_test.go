@@ -45,7 +45,7 @@ func Test_queryOrganization(t *testing.T) {
 			},
 		},
 		{
-			name:    "bad id returns errorn",
+			name:    "bad id returns error",
 			wantErr: true,
 			args: args{
 				ctx: context.Background(),
