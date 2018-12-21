@@ -30,7 +30,7 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 
 	h := http.NewAuthenticationHandler()
 	h.AuthorizationService = i
-	th := http.NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), zaptest.NewLogger(t))
+	th := http.NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), zaptest.NewLogger(t), mock.NewUserService())
 	th.TaskService = backingTS
 	th.AuthorizationService = i
 	h.Handler = th

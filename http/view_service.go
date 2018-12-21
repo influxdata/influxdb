@@ -35,12 +35,13 @@ const (
 )
 
 // NewViewHandler returns a new instance of ViewHandler.
-func NewViewHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService) *ViewHandler {
+func NewViewHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, userService platform.UserService) *ViewHandler {
 	h := &ViewHandler{
 		Router:                     NewRouter(),
 		Logger:                     zap.NewNop(),
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
+		UserService:                userService,
 	}
 
 	h.HandlerFunc("POST", viewsPath, h.handlePostViews)

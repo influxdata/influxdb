@@ -47,12 +47,13 @@ const (
 
 // NewOrgHandler returns a new instance of OrgHandler.
 func NewOrgHandler(mappingService platform.UserResourceMappingService,
-	labelService platform.LabelService) *OrgHandler {
+	labelService platform.LabelService, userService platform.UserService) *OrgHandler {
 	h := &OrgHandler{
 		Router:                     NewRouter(),
 		Logger:                     zap.NewNop(),
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
+		UserService:                userService,
 	}
 
 	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)

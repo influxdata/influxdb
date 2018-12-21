@@ -43,6 +43,7 @@ func NewTelegrafHandler(
 	mappingService platform.UserResourceMappingService,
 	labelService platform.LabelService,
 	telegrafSvc platform.TelegrafConfigStore,
+	userService platform.UserService,
 ) *TelegrafHandler {
 	h := &TelegrafHandler{
 		Router: NewRouter(),
@@ -51,6 +52,7 @@ func NewTelegrafHandler(
 		LabelService:               labelService,
 		TelegrafService:            telegrafSvc,
 		Logger:                     logger,
+		UserService:                userService,
 	}
 	h.HandlerFunc("POST", telegrafsPath, h.handlePostTelegraf)
 	h.HandlerFunc("GET", telegrafsPath, h.handleGetTelegrafs)

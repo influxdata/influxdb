@@ -72,30 +72,26 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.SessionHandler.SessionService = b.SessionService
 	h.SessionHandler.Logger = b.Logger.With(zap.String("handler", "basicAuth"))
 
-	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService)
+	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.BucketHandler.BucketService = b.BucketService
 	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
-	h.BucketHandler.UserService = b.UserService
 
-	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService)
+	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.OrgHandler.OrganizationService = b.OrganizationService
 	h.OrgHandler.BucketService = b.BucketService
 	h.OrgHandler.OrganizationOperationLogService = b.OrganizationOperationLogService
-	h.OrgHandler.UserService = b.UserService
 
 	h.UserHandler = NewUserHandler()
 	h.UserHandler.UserService = b.UserService
 	h.UserHandler.BasicAuthService = b.BasicAuthService
 	h.UserHandler.UserOperationLogService = b.UserOperationLogService
 
-	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService)
+	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.DashboardHandler.DashboardService = b.DashboardService
 	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
-	h.DashboardHandler.UserService = b.UserService
 
-	h.ViewHandler = NewViewHandler(b.UserResourceMappingService, b.LabelService)
+	h.ViewHandler = NewViewHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.ViewHandler.ViewService = b.ViewService
-	h.ViewHandler.UserService = b.UserService
 
 	h.MacroHandler = NewMacroHandler()
 	h.MacroHandler.MacroService = b.MacroService
@@ -112,19 +108,18 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.SetupHandler = NewSetupHandler()
 	h.SetupHandler.OnboardingService = b.OnboardingService
 
-	h.TaskHandler = NewTaskHandler(b.UserResourceMappingService, b.LabelService, b.Logger)
+	h.TaskHandler = NewTaskHandler(b.UserResourceMappingService, b.LabelService, b.Logger, b.UserService)
 	h.TaskHandler.TaskService = b.TaskService
 	h.TaskHandler.AuthorizationService = b.AuthorizationService
 	h.TaskHandler.UserResourceMappingService = b.UserResourceMappingService
-	h.TaskHandler.UserService = b.UserService
 
 	h.TelegrafHandler = NewTelegrafHandler(
 		b.Logger.With(zap.String("handler", "telegraf")),
 		b.UserResourceMappingService,
 		b.LabelService,
 		b.TelegrafService,
+		b.UserService,
 	)
-	h.TelegrafHandler.UserService = b.UserService
 
 	h.WriteHandler = NewWriteHandler(b.PointsWriter)
 	h.WriteHandler.OrganizationService = b.OrganizationService
