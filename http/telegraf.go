@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/influxdata/platform"
 	pctx "github.com/influxdata/platform/context"
@@ -228,14 +227,13 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 		EncodeError(ctx, err, w)
 		return
 	}
-	now := time.Now()
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := h.TelegrafService.CreateTelegrafConfig(ctx, tc, auth.GetUserID(), now); err != nil {
+	if err := h.TelegrafService.CreateTelegrafConfig(ctx, tc, auth.GetUserID()); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -255,14 +253,13 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 		EncodeError(ctx, err, w)
 		return
 	}
-	now := time.Now()
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	tc, err = h.TelegrafService.UpdateTelegrafConfig(ctx, tc.ID, tc, auth.GetUserID(), now)
+	tc, err = h.TelegrafService.UpdateTelegrafConfig(ctx, tc.ID, tc, auth.GetUserID())
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return

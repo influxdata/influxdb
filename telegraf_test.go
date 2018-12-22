@@ -150,7 +150,6 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 
 func TestTelegrafConfigJSON(t *testing.T) {
 	id1, _ := IDFromString("020f755c3c082000")
-	id2, _ := IDFromString("020f755c3c082002")
 	cases := []struct {
 		name string
 		cfg  *TelegrafConfig
@@ -159,9 +158,8 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "regular config",
 			cfg: &TelegrafConfig{
-				ID:        *id1,
-				Name:      "n1",
-				LastModBy: *id2,
+				ID:   *id1,
+				Name: "n1",
 				Agent: TelegrafAgentConfig{
 					Interval: 4000,
 				},
@@ -195,9 +193,8 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "unsupported plugin type",
 			cfg: &TelegrafConfig{
-				ID:        *id1,
-				Name:      "n1",
-				LastModBy: *id2,
+				ID:   *id1,
+				Name: "n1",
 				Plugins: []TelegrafPlugin{
 					{
 						Comment: "comment3",
@@ -216,9 +213,8 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "unsupported plugin",
 			cfg: &TelegrafConfig{
-				ID:        *id1,
-				Name:      "n1",
-				LastModBy: *id2,
+				ID:   *id1,
+				Name: "n1",
 				Plugins: []TelegrafPlugin{
 					{
 						Config: &unsupportedPlugin{
@@ -254,12 +250,10 @@ func TestTelegrafConfigJSON(t *testing.T) {
 
 func TestTOML(t *testing.T) {
 	id1, _ := IDFromString("020f755c3c082000")
-	id2, _ := IDFromString("020f755c3c082001")
 
 	tc := &TelegrafConfig{
-		ID:        *id1,
-		Name:      "n1",
-		LastModBy: *id2,
+		ID:   *id1,
+		Name: "n1",
 		Agent: TelegrafAgentConfig{
 			Interval: 4000,
 		},
