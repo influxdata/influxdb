@@ -19,7 +19,7 @@ func ToStatus(err *platform.Error) (*status.Status, error) {
 	switch err.Code {
 	case platform.EInternal:
 		c = codes.Internal
-	case platform.ENotFound:
+	case platform.ENotFound, platform.EMethodNotAllowed:
 		c = codes.NotFound
 	case platform.EConflict, platform.EInvalid, platform.EEmptyValue: // not really sure how to express this as gRPC only has Invalid
 		c = codes.InvalidArgument
