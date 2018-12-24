@@ -7,8 +7,8 @@
   branch = "master"
 
 [[constraint]]
-  name = "github.com/RoaringBitmap/roaring"
-  version = "=0.4.15"
+  name = "github.com/influxdata/roaring"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/boltdb/bolt"
@@ -69,3 +69,7 @@
 [prune]
   go-tests = true
   unused-packages = true
+
+[[constraint]]
+  name = "github.com/influxdata/flux"
+  version = "0.7.2"

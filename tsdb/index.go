@@ -24,6 +24,9 @@ const (
 	TSI1IndexName  = "tsi1"
 )
 
+// ErrIndexClosing can be returned to from an Index method if the index is currently closing.
+var ErrIndexClosing = errors.New("index is closing")
+
 type Index interface {
 	Open() error
 	Close() error
@@ -39,7 +42,7 @@ type Index interface {
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
 	DropSeries(seriesID uint64, key []byte, cascade bool) error
-	DropMeasurementIfSeriesNotExist(name []byte) error
+	DropMeasurementIfSeriesNotExist(name []byte) (bool, error)
 
 	// Used to clean up series in inmem index that were dropped with a shard.
 	DropSeriesGlobal(key []byte) error
@@ -133,7 +136,6 @@ func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
 
 		name, tags := ParseSeriesKey(key)
 		deleted := itr.sfile.IsDeleted(elem.SeriesID)
-
 		return &seriesElemAdapter{
 			name:    name,
 			tags:    tags,
@@ -282,6 +284,17 @@ func (a SeriesIDIterators) Close() (err error) {
 	return err
 }
 
+func (a SeriesIDIterators) filterNonNil() []SeriesIDIterator {
+	other := make([]SeriesIDIterator, 0, len(a))
+	for _, itr := range a {
+		if itr == nil {
+			continue
+		}
+		other = append(other, itr)
+	}
+	return other
+}
+
 // seriesQueryAdapterIterator adapts SeriesIDIterator to an influxql.Iterator.
 type seriesQueryAdapterIterator struct {
 	once     sync.Once
@@ -416,7 +429,7 @@ func (itr *seriesIDExprIterator) Next() (SeriesIDElem, error) {
 }
 
 // MergeSeriesIDIterators returns an iterator that merges a set of iterators.
-// Iterators that are first in the list take precendence and a deletion by those
+// Iterators that are first in the list take precedence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeSeriesIDIterators(itrs ...SeriesIDIterator) SeriesIDIterator {
 	if n := len(itrs); n == 0 {
@@ -424,6 +437,7 @@ func MergeSeriesIDIterators(itrs ...SeriesIDIterator) SeriesIDIterator {
 	} else if n == 1 {
 		return itrs[0]
 	}
+	itrs = SeriesIDIterators(itrs).filterNonNil()
 
 	// Merge as series id sets, if available.
 	if a := NewSeriesIDSetIterators(itrs); a != nil {
@@ -1285,7 +1299,11 @@ func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.E
 
 	// Return filtered list if expression exists.
 	if expr != nil {
-		return is.measurementNamesByExpr(auth, expr)
+		names, err := is.measurementNamesByExpr(auth, expr)
+		if err != nil {
+			return nil, err
+		}
+		return slices.CopyChunkedByteSlices(names, 1000), nil
 	}
 
 	itr, err := is.measurementIterator()

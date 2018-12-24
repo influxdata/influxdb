@@ -32,6 +32,10 @@ type arrayCursorIterator struct {
 	}
 }
 
+func (q *arrayCursorIterator) Stats() tsdb.CursorStats {
+	return tsdb.CursorStats{}
+}
+
 func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (tsdb.Cursor, error) {
 	// Look up fields for measurement.
 	mf := q.e.fieldset.Fields(r.Name)
@@ -66,7 +70,7 @@ func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (
 	case influxql.String:
 		return q.buildStringArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
 	case influxql.Boolean:
-		return q.buildStringArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
+		return q.buildBooleanArrayCursor(ctx, r.Name, r.Tags, r.Field, opt), nil
 	default:
 		panic(fmt.Sprintf("unreachable: %T", f.Type))
 	}

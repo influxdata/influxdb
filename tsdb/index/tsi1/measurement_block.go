@@ -54,11 +54,8 @@ type MeasurementBlock struct {
 	data     []byte
 	hashData []byte
 
-	// Series block sketch and tombstone sketch for cardinality estimation.
-	// While we have exact counts for the block, these sketches allow us to
-	// estimate cardinality across multiple blocks (which might contain
-	// duplicate series).
-	sketch, tSketch estimator.Sketch
+	// Measurement sketch and tombstone sketch for cardinality estimation.
+	sketchData, tSketchData []byte
 
 	version int // block version
 }
@@ -67,8 +64,6 @@ type MeasurementBlock struct {
 func (blk *MeasurementBlock) bytes() int {
 	var b int
 	// Do not count contents of blk.data or blk.hashData because they reference into an external []byte
-	b += blk.sketch.Bytes()
-	b += blk.tSketch.Bytes()
 	b += int(unsafe.Sizeof(*blk))
 	return b
 }
@@ -136,17 +131,9 @@ func (blk *MeasurementBlock) UnmarshalBinary(data []byte) error {
 	blk.hashData = data[t.HashIndex.Offset:]
 	blk.hashData = blk.hashData[:t.HashIndex.Size]
 
-	// Initialise sketches. We're currently using HLL+.
-	var s, ts = hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	if err := s.UnmarshalBinary(data[t.Sketch.Offset:][:t.Sketch.Size]); err != nil {
-		return err
-	}
-	blk.sketch = s
-
-	if err := ts.UnmarshalBinary(data[t.TSketch.Offset:][:t.TSketch.Size]); err != nil {
-		return err
-	}
-	blk.tSketch = ts
+	// Initialise sketch data.
+	blk.sketchData = data[t.Sketch.Offset:][:t.Sketch.Size]
+	blk.tSketchData = data[t.TSketch.Offset:][:t.TSketch.Size]
 
 	return nil
 }
@@ -167,6 +154,20 @@ func (blk *MeasurementBlock) SeriesIDIterator(name []byte) tsdb.SeriesIDIterator
 		return tsdb.NewSeriesIDSetIterator(e.seriesIDSet)
 	}
 	return &rawSeriesIDIterator{n: e.series.n, data: e.series.data}
+}
+
+// Sketches returns existence and tombstone measurement sketches.
+func (blk *MeasurementBlock) Sketches() (sketch, tSketch estimator.Sketch, err error) {
+	sketch = hll.NewDefaultPlus()
+	if err := sketch.UnmarshalBinary(blk.sketchData); err != nil {
+		return nil, nil, err
+	}
+
+	tSketch = hll.NewDefaultPlus()
+	if err := tSketch.UnmarshalBinary(blk.tSketchData); err != nil {
+		return nil, nil, err
+	}
+	return sketch, tSketch, nil
 }
 
 // blockMeasurementIterator iterates over a list measurements in a block.
@@ -658,7 +659,6 @@ func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, m
 // writeSketchTo writes an estimator.Sketch into w, updating the number of bytes
 // written via n.
 func writeSketchTo(w io.Writer, s estimator.Sketch, n *int64) error {
-	// TODO(edd): implement io.WriterTo on sketches.
 	data, err := s.MarshalBinary()
 	if err != nil {
 		return err

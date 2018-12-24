@@ -19,31 +19,29 @@ import (
 
 // statistics gathered by the httpd package.
 const (
-	statRequest                      = "req"                  // Number of HTTP requests served.
-	statQueryRequest                 = "queryReq"             // Number of query requests served.
-	statWriteRequest                 = "writeReq"             // Number of write requests serverd.
-	statPingRequest                  = "pingReq"              // Number of ping requests served.
-	statStatusRequest                = "statusReq"            // Number of status requests served.
-	statWriteRequestBytesReceived    = "writeReqBytes"        // Sum of all bytes in write requests.
-	statQueryRequestBytesTransmitted = "queryRespBytes"       // Sum of all bytes returned in query reponses.
-	statPointsWrittenOK              = "pointsWrittenOK"      // Number of points written OK.
-	statPointsWrittenDropped         = "pointsWrittenDropped" // Number of points dropped by the storage engine.
-	statPointsWrittenFail            = "pointsWrittenFail"    // Number of points that failed to be written.
-	statAuthFail                     = "authFail"             // Number of authentication failures.
-	statRequestDuration              = "reqDurationNs"        // Number of (wall-time) nanoseconds spent inside requests.
-	statQueryRequestDuration         = "queryReqDurationNs"   // Number of (wall-time) nanoseconds spent inside query requests.
-	statWriteRequestDuration         = "writeReqDurationNs"   // Number of (wall-time) nanoseconds spent inside write requests.
-	statRequestsActive               = "reqActive"            // Number of currently active requests.
-	statWriteRequestsActive          = "writeReqActive"       // Number of currently active write requests.
-	statClientError                  = "clientError"          // Number of HTTP responses due to client error.
-	statServerError                  = "serverError"          // Number of HTTP responses due to server error.
-	statRecoveredPanics              = "recoveredPanics"      // Number of panics recovered by HTTP handler.
-	statHitMaxRowLimit               = "hitMaxRowLimit"       // Number of request hit the MaxRowLimit
-
-	// Prometheus stats
-	statPromWriteRequest = "promWriteReq" // Number of write requests to the promtheus endpoint
-	statPromReadRequest  = "promReadReq"  // Number of read requests to the prometheus endpoint
-
+	statRequest                      = "req"                    // Number of HTTP requests served.
+	statQueryRequest                 = "queryReq"               // Number of query requests served.
+	statWriteRequest                 = "writeReq"               // Number of write requests serverd.
+	statPingRequest                  = "pingReq"                // Number of ping requests served.
+	statStatusRequest                = "statusReq"              // Number of status requests served.
+	statWriteRequestBytesReceived    = "writeReqBytes"          // Sum of all bytes in write requests.
+	statQueryRequestBytesTransmitted = "queryRespBytes"         // Sum of all bytes returned in query reponses.
+	statPointsWrittenOK              = "pointsWrittenOK"        // Number of points written OK.
+	statPointsWrittenDropped         = "pointsWrittenDropped"   // Number of points dropped by the storage engine.
+	statPointsWrittenFail            = "pointsWrittenFail"      // Number of points that failed to be written.
+	statAuthFail                     = "authFail"               // Number of authentication failures.
+	statRequestDuration              = "reqDurationNs"          // Number of (wall-time) nanoseconds spent inside requests.
+	statQueryRequestDuration         = "queryReqDurationNs"     // Number of (wall-time) nanoseconds spent inside query requests.
+	statWriteRequestDuration         = "writeReqDurationNs"     // Number of (wall-time) nanoseconds spent inside write requests.
+	statRequestsActive               = "reqActive"              // Number of currently active requests.
+	statWriteRequestsActive          = "writeReqActive"         // Number of currently active write requests.
+	statClientError                  = "clientError"            // Number of HTTP responses due to client error.
+	statServerError                  = "serverError"            // Number of HTTP responses due to server error.
+	statRecoveredPanics              = "recoveredPanics"        // Number of panics recovered by HTTP handler.
+	statPromWriteRequest             = "promWriteReq"           // Number of write requests to the prometheus endpoint.
+	statPromReadRequest              = "promReadReq"            // Number of read requests to the prometheus endpoint.
+	statFluxQueryRequests            = "fluxQueryReq"           // Number of flux query requests served.
+	statFluxQueryRequestDuration     = "fluxQueryReqDurationNs" // Number of (wall-time) nanoseconds spent executing Flux query requests.
 )
 
 // Service manages the listener and handler for an HTTP endpoint.
@@ -209,7 +207,6 @@ func (s *Service) Close() error {
 func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "httpd"))
 	s.Handler.Logger = s.Logger
-	s.Handler.Store.WithLogger(s.Logger)
 }
 
 // Err returns a channel for fatal errors that occur on the listener.

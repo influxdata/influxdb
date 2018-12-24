@@ -115,6 +115,47 @@ func TestIndex_Bytes(t *testing.T) {
 	}
 }
 
+func TestIndex_MeasurementTracking(t *testing.T) {
+	sfile := mustOpenSeriesFile()
+	defer sfile.Close()
+	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", sfile.SeriesFile)}
+	s1 := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt).(*inmem.ShardIndex)
+	s2 := inmem.NewShardIndex(2, tsdb.NewSeriesIDSet(), opt).(*inmem.ShardIndex)
+	b := func(s string) []byte { return []byte(s) }
+	mt := func(k, v string) models.Tag { return models.Tag{Key: b(k), Value: b(v)} }
+
+	s1.CreateSeriesIfNotExists(b("m,t=t1"), b("m"), models.Tags{mt("t", "t1")})
+	s1.CreateSeriesIfNotExists(b("m,t=t2"), b("m"), models.Tags{mt("t", "t2")})
+	s2.CreateSeriesIfNotExists(b("m,t=t1"), b("m"), models.Tags{mt("t", "t1")})
+	s2.CreateSeriesIfNotExists(b("m,t=t2"), b("m"), models.Tags{mt("t", "t2")})
+	series1, _ := s1.Series(b("m,t=t1"))
+	series2, _ := s1.Series(b("m,t=t2"))
+
+	if ok, err := s1.DropMeasurementIfSeriesNotExist(b("m")); err != nil || ok {
+		t.Fatal("invalid drop")
+	}
+	if ok, err := s2.DropMeasurementIfSeriesNotExist(b("m")); err != nil || ok {
+		t.Fatal("invalid drop")
+	}
+
+	s1.DropSeries(series1.ID, b(series1.Key), false)
+	s1.DropSeries(series2.ID, b(series2.Key), false)
+
+	if ok, err := s1.DropMeasurementIfSeriesNotExist(b("m")); err != nil || !ok {
+		t.Fatal("invalid drop")
+	}
+	if ok, err := s2.DropMeasurementIfSeriesNotExist(b("m")); err != nil || ok {
+		t.Fatal("invalid drop")
+	}
+
+	s2.DropSeries(series1.ID, b(series1.Key), false)
+	s2.DropSeries(series2.ID, b(series2.Key), false)
+
+	if ok, err := s2.DropMeasurementIfSeriesNotExist(b("m")); err != nil || !ok {
+		t.Fatal("invalid drop")
+	}
+}
+
 // seriesFileWrapper is a test wrapper for tsdb.seriesFileWrapper.
 type seriesFileWrapper struct {
 	*tsdb.SeriesFile

@@ -58,6 +58,7 @@ type Command struct {
 	portable         bool
 	manifest         backup_util.Manifest
 	portableFileBase string
+	continueOnError  bool
 
 	BackupFiles []string
 }
@@ -157,6 +158,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	fs.StringVar(&startArg, "start", "", "")
 	fs.StringVar(&endArg, "end", "", "")
 	fs.BoolVar(&cmd.portable, "portable", false, "")
+	fs.BoolVar(&cmd.continueOnError, "skip-errors", false, "")
 
 	fs.SetOutput(cmd.Stderr)
 	fs.Usage = cmd.printUsage
@@ -251,12 +253,12 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 
 	// TODO: verify shard backup data
 	err = cmd.downloadAndVerify(req, shardArchivePath, nil)
+	if err != nil {
+		os.Remove(shardArchivePath)
+		return err
+	}
 	if !cmd.portable {
 		cmd.BackupFiles = append(cmd.BackupFiles, shardArchivePath)
-	}
-
-	if err != nil {
-		return err
 	}
 
 	if cmd.portable {
@@ -379,7 +381,8 @@ func (cmd *Command) backupResponsePaths(response *snapshotter.Response) error {
 
 		err = cmd.backupShard(db, rp, id)
 
-		if err != nil {
+		if err != nil && !cmd.continueOnError {
+			cmd.StderrLogger.Printf("error (%s) when backing up db: %s, rp %s, shard %s. continuing backup on remaining shards", err, db, rp, id)
 			return err
 		}
 	}
@@ -615,6 +618,8 @@ Usage: influxd backup [options] PATH
     -since <2015-12-24T08:12:23Z>
             Create an incremental backup of all points after the timestamp (RFC3339 format). Optional. 
             Recommend using '-start <timestamp>' instead.
+    -skip-errors 
+            Optional flag to continue backing up the remaining shards when the current shard fails to backup. 
 `)
 
 }

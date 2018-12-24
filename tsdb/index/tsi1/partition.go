@@ -427,7 +427,7 @@ func (p *Partition) FieldSet() *tsdb.MeasurementFieldSet {
 func (p *Partition) RetainFileSet() (*FileSet, error) {
 	select {
 	case <-p.closing:
-		return nil, errors.New("index is closing")
+		return nil, tsdb.ErrIndexClosing
 	default:
 		p.mu.RLock()
 		defer p.mu.RUnlock()
@@ -638,31 +638,35 @@ func (p *Partition) DropMeasurement(name []byte) error {
 
 // createSeriesListIfNotExists creates a list of series if they doesn't exist in
 // bulk.
-func (p *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) error {
+func (p *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
 	// Is there anything to do? The partition may have been sent an empty batch.
 	if len(names) == 0 {
-		return nil
+		return nil, nil
 	} else if len(names) != len(tagsSlice) {
-		return fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", p.id, len(names), len(tagsSlice))
+		return nil, fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", p.id, len(names), len(tagsSlice))
 	}
 
 	// Maintain reference count on files in file set.
 	fs, err := p.RetainFileSet()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer fs.Release()
 
 	// Ensure fileset cannot change during insert.
 	p.mu.RLock()
 	// Insert series into log file.
-	if err := p.activeLogFile.AddSeriesList(p.seriesIDSet, names, tagsSlice); err != nil {
+	ids, err := p.activeLogFile.AddSeriesList(p.seriesIDSet, names, tagsSlice)
+	if err != nil {
 		p.mu.RUnlock()
-		return err
+		return nil, err
 	}
 	p.mu.RUnlock()
 
-	return p.CheckLogFile()
+	if err := p.CheckLogFile(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (p *Partition) DropSeries(seriesID uint64) error {

@@ -491,12 +491,17 @@ Usage: influx_inspect dumptsi [flags] path...
             Dump raw series for each tag value
     -measurement-filter REGEXP
             Filters data by measurement regular expression
+    -series-file PATH
+            Path to the "_series" directory under the database data directory.
+            Required.
     -tag-key-filter REGEXP
             Filters data by tag key regular expression
     -tag-value-filter REGEXP
             Filters data by tag value regular expression
 
-If no flags are specified then summary stats are provided for each file.
+One or more paths are required. Path must specify either a TSI index directory
+or it should specify one or more .tsi/.tsl files. If no flags are specified
+then summary stats are provided for each file.
 `
 
 	fmt.Fprintf(cmd.Stdout, usage)

@@ -39,7 +39,7 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl batch_cursor.gen.go.tmpl cursor_iterator.gen.go.tmpl array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
+//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl engine.gen.go.tmpl array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
 //go:generate go run ../../../_tools/tmpl/main.go -i -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
 //go:generate go run ../../../_tools/tmpl/main.go -i -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
@@ -1289,7 +1289,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 						continue
 					}
 
-					// Doesn't exsts, so try to insert
+					// Doesn't exist, so try to insert
 					vv, ok := e.seriesTypeMap.Insert(keyBuf, int(iter.Type()))
 
 					// We didn't insert and the type that exists isn't what we tried to insert, so
@@ -1616,7 +1616,14 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 	// Have we deleted all values for the series? If so, we need to remove
 	// the series from the index.
-	if len(seriesKeys) > 0 {
+	hasDeleted := false
+	for _, k := range seriesKeys {
+		if len(k) > 0 {
+			hasDeleted = true
+			break
+		}
+	}
+	if hasDeleted {
 		buf := make([]byte, 1024) // For use when accessing series file.
 		ids := tsdb.NewSeriesIDSet()
 		measurements := make(map[string]struct{}, 1)
@@ -1660,8 +1667,19 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			ids.Add(sid)
 		}
 
+		fielsetChanged := false
 		for k := range measurements {
-			if err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
+			if dropped, err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
+				return err
+			} else if dropped {
+				if err := e.cleanupMeasurement([]byte(k)); err != nil {
+					return err
+				}
+				fielsetChanged = true
+			}
+		}
+		if fielsetChanged {
+			if err := e.fieldset.Save(); err != nil {
 				return err
 			}
 		}
@@ -1681,9 +1699,6 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			name, tags := e.sfile.Series(id)
 			if err1 := e.sfile.DeleteSeriesID(id); err1 != nil {
 				err = err1
-			}
-
-			if err != nil {
 				return
 			}
 
@@ -1704,13 +1719,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	return nil
 }
 
-// DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) DeleteMeasurement(name []byte) error {
-	// Delete the bulk of data outside of the fields lock.
-	if err := e.deleteMeasurement(name); err != nil {
-		return err
-	}
-
+func (e *Engine) cleanupMeasurement(name []byte) error {
 	// A sentinel error message to cause DeleteWithLock to not delete the measurement
 	abortErr := fmt.Errorf("measurements still exist")
 
@@ -1719,10 +1728,11 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 	// were writes to the measurement while we are deleting it.
 	if err := e.fieldset.DeleteWithLock(string(name), func() error {
 		encodedName := models.EscapeMeasurement(name)
+		sep := len(encodedName)
 
 		// First scan the cache to see if any series exists for this measurement.
 		if err := e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-			if bytes.HasPrefix(k, encodedName) {
+			if bytes.HasPrefix(k, encodedName) && (k[sep] == ',' || k[sep] == keyFieldSeparator[0]) {
 				return abortErr
 			}
 			return nil
@@ -1731,8 +1741,8 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		}
 
 		// Check the filestore.
-		return e.FileStore.WalkKeys(name, func(k []byte, typ byte) error {
-			if bytes.HasPrefix(k, encodedName) {
+		return e.FileStore.WalkKeys(name, func(k []byte, _ byte) error {
+			if bytes.HasPrefix(k, encodedName) && (k[sep] == ',' || k[sep] == keyFieldSeparator[0]) {
 				return abortErr
 			}
 			return nil
@@ -1743,11 +1753,11 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return err
 	}
 
-	return e.fieldset.Save()
+	return nil
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) deleteMeasurement(name []byte) error {
+func (e *Engine) DeleteMeasurement(name []byte) error {
 	// Attempt to find the series keys.
 	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 	itr, err := indexSet.MeasurementSeriesByExprIterator(name, nil)
@@ -1777,19 +1787,19 @@ func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) err
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
 
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
-func (e *Engine) WriteSnapshot() error {
+func (e *Engine) WriteSnapshot() (err error) {
 	// Lock and grab the cache snapshot along with all the closed WAL
 	// filenames associated with the snapshot
 
 	started := time.Now()
-
 	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "tsm1_cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
 		e.Cache.UpdateCompactTime(elapsed)
-		log.Info("Snapshot for path written",
-			zap.String("path", e.path),
-			zap.Duration("duration", elapsed))
+
+		if err == nil {
+			log.Info("Snapshot for path written", zap.String("path", e.path), zap.Duration("duration", elapsed))
+		}
 		logEnd()
 	}()
 
@@ -1875,7 +1885,14 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, s
 
 	// update the file store with these new files
 	if err := e.FileStore.Replace(nil, newFiles); err != nil {
-		log.Info("Error adding new TSM files from snapshot", zap.Error(err))
+		log.Info("Error adding new TSM files from snapshot. Removing temp files.", zap.Error(err))
+
+		// Remove the new snapshot files. We will try again.
+		for _, file := range newFiles {
+			if err := os.Remove(file); err != nil {
+				log.Info("Unable to remove file", zap.String("path", file), zap.Error(err))
+			}
+		}
 		return err
 	}
 

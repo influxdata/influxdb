@@ -9,7 +9,16 @@ v1.7.0 [unreleased]
 
 -	[#9964](https://github.com/influxdata/influxdb/pull/9964): Enable the storage service by default.
 -	[#9996](https://github.com/influxdata/influxdb/pull/9996): Ensure read service regexes get optimised.
--	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation
+-	[#10408](https://github.com/influxdata/influxdb/pull/10408): Add Flux support to the influx CLI command.
+-	[#10257](https://github.com/influxdata/influxdb/issues/10257): Add chunked query into the Go client v2.
+-	[#9509](https://github.com/influxdata/influxdb/pull/9509): Add an access log filter for the access log.
+
+### Bugfixes
+
+-	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation.
+-	[#10246](https://github.com/influxdata/influxdb/pull/10246): Fix the inherited interval for derivative and others.
+-	[#10333](https://github.com/influxdata/influxdb/pull/10333): Fix subquery functionality when a function references a tag from the subquery.
+-	[#10333](https://github.com/influxdata/influxdb/pull/10333): Strip tags from a subquery when the outer query does not group by that tag.
 
 v1.6.0 [2018-07-05]
 -------------------
@@ -44,6 +53,10 @@ v1.6.0 [2018-07-05]
 -	[#10152](https://github.com/influxdata/influxdb/pull/10152): Add option to hint MADV_WILLNEED to kernel.
 -	[#9939](https://github.com/influxdata/influxdb/pull/9939): Add configuration parameter to expose rate limit for TSM compaction.
 -	[#10190](https://github.com/influxdata/influxdb/pull/10190): Reduce allocations in TSI TagSets implementation.
+-	[#10215](https://github.com/influxdata/influxdb/pull/10215): Switch digests to use snappy compression.
+-	[#10321](https://github.com/influxdata/influxdb/pull/10321): Changes /ping route to return status code 200 instead of 204 when verbose is set.
+-	[#10300](https://github.com/influxdata/influxdb/pull/10300): Improve Compaction Performance.
+-	[#10130](https://github.com/influxdata/influxdb/pull/10130): client/v2: support custom dialer, not just socks proxy.
 
 ### Bugfixes
 
@@ -77,6 +90,14 @@ v1.6.0 [2018-07-05]
 -	[#10175](https://github.com/influxdata/influxdb/pull/10175): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr.
 -	[#10181](https://github.com/influxdata/influxdb/pull/10181): Fix line protocol parsing panic.
 -	[#10212](https://github.com/influxdata/influxdb/pull/10212): Ensure orhpaned series cleaned up with shard drop.
+-	[#10262](https://github.com/influxdata/influxdb/pull/10262): Fix the derivative and others time ranges for aggregate data.
+-	[#10326](https://github.com/influxdata/influxdb/pull/10326): Fix append of possible nil iterator.
+-	[#10339](https://github.com/influxdata/influxdb/pull/10339): Fix series file tombstoning.
+-	[#10327](https://github.com/influxdata/influxdb/pull/10327): Cleanup failed TSM snapshots.
+-	[#10299](https://github.com/influxdata/influxdb/pull/10299): Fix TSM1 panic on reader error.
+-	[#9884](https://github.com/influxdata/influxdb/pull/9884): Add -series-file flag to dumptsi command help.
+-	[#10423](https://github.com/influxdata/influxdb/pull/10423): Fix panic in IndexSet.
+-	[#10494](https://github.com/influxdata/influxdb/pull/10494): Fix ApplyEnvOverrides when a type that implements Unmarshaler is in a slice.
 
 v1.5.4 [2018-06-21]
 -------------------

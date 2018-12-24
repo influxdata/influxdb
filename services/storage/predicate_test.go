@@ -6,148 +6,9 @@ import (
 	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/storage/reads"
+	"github.com/influxdata/platform/storage/reads/datatypes"
 )
-
-func TestPredicateToExprString(t *testing.T) {
-	cases := []struct {
-		n string
-		r *storage.Predicate
-		e string
-	}{
-		{
-			n: "returns [none] for nil",
-			r: nil,
-			e: "[none]",
-		},
-		{
-			n: "logical AND",
-			r: &storage.Predicate{
-				Root: &storage.Node{
-					NodeType: storage.NodeTypeLogicalExpression,
-					Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
-					Children: []*storage.Node{
-						{
-							NodeType: storage.NodeTypeComparisonExpression,
-							Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
-							Children: []*storage.Node{
-								{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "host"}},
-								{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
-							},
-						},
-						{
-							NodeType: storage.NodeTypeComparisonExpression,
-							Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
-							Children: []*storage.Node{
-								{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "region"}},
-								{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-west"}},
-							},
-						},
-					},
-				},
-			},
-			e: `'host' = "host1" AND 'region' =~ /^us-west/`,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.n, func(t *testing.T) {
-			assert.Equal(t, storage.PredicateToExprString(tc.r), tc.e)
-		})
-	}
-}
-
-func TestNodeToExpr(t *testing.T) {
-	cases := []struct {
-		n string
-		r *storage.Node
-		m map[string]string
-		e string
-	}{
-		{
-			n: "simple expression",
-			r: &storage.Node{
-				NodeType: storage.NodeTypeComparisonExpression,
-				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
-				Children: []*storage.Node{
-					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "host"}},
-					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
-				},
-			},
-			e: `host = 'host1'`,
-		},
-		{
-			n: "logical AND with regex",
-			r: &storage.Node{
-				NodeType: storage.NodeTypeLogicalExpression,
-				Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
-				Children: []*storage.Node{
-					{
-						NodeType: storage.NodeTypeComparisonExpression,
-						Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
-						Children: []*storage.Node{
-							{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "host"}},
-							{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
-						},
-					},
-					{
-						NodeType: storage.NodeTypeComparisonExpression,
-						Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
-						Children: []*storage.Node{
-							{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "region"}},
-							{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-west"}},
-						},
-					},
-				},
-			},
-			e: `host = 'host1' AND region =~ /^us-west/`,
-		},
-		{
-			n: "optimisable regex",
-			r: &storage.Node{
-				NodeType: storage.NodeTypeComparisonExpression,
-				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
-				Children: []*storage.Node{
-					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "region"}},
-					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-east$"}},
-				},
-			},
-			e: `region = 'us-east'`,
-		},
-		{
-			n: "optimisable regex with or",
-			r: &storage.Node{
-				NodeType: storage.NodeTypeComparisonExpression,
-				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
-				Children: []*storage.Node{
-					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "region"}},
-					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^(us-east|us-west)$"}},
-				},
-			},
-			e: `region = 'us-east' OR region = 'us-west'`,
-		},
-		{
-			n: "remap _measurement -> _name",
-			r: &storage.Node{
-				NodeType: storage.NodeTypeComparisonExpression,
-				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
-				Children: []*storage.Node{
-					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "_measurement"}},
-					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "foo"}},
-				},
-			},
-			m: map[string]string{"_measurement": "_name"},
-			e: `_name = 'foo'`,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.n, func(t *testing.T) {
-			expr, err := storage.NodeToExpr(tc.r, tc.m)
-			assert.NoError(t, err)
-			assert.Equal(t, expr.String(), tc.e)
-		})
-	}
-}
 
 func TestHasSingleMeasurementNoOR(t *testing.T) {
 	cases := []struct {
@@ -209,43 +70,43 @@ func TestHasSingleMeasurementNoOR(t *testing.T) {
 }
 
 func TestRewriteExprRemoveFieldKeyAndValue(t *testing.T) {
-	node := &storage.Node{
-		NodeType: storage.NodeTypeLogicalExpression,
-		Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
-		Children: []*storage.Node{
+	node := &datatypes.Node{
+		NodeType: datatypes.NodeTypeLogicalExpression,
+		Value:    &datatypes.Node_Logical_{Logical: datatypes.LogicalAnd},
+		Children: []*datatypes.Node{
 			{
-				NodeType: storage.NodeTypeComparisonExpression,
-				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
-				Children: []*storage.Node{
-					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "host"}},
-					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_StringValue{StringValue: "host1"}},
+				NodeType: datatypes.NodeTypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				Children: []*datatypes.Node{
+					{NodeType: datatypes.NodeTypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "host"}},
+					{NodeType: datatypes.NodeTypeLiteral, Value: &datatypes.Node_StringValue{StringValue: "host1"}},
 				},
 			},
 			{
-				NodeType: storage.NodeTypeComparisonExpression,
-				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
-				Children: []*storage.Node{
-					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "_field"}},
-					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-west"}},
+				NodeType: datatypes.NodeTypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonRegex},
+				Children: []*datatypes.Node{
+					{NodeType: datatypes.NodeTypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "_field"}},
+					{NodeType: datatypes.NodeTypeLiteral, Value: &datatypes.Node_RegexValue{RegexValue: "^us-west"}},
 				},
 			},
 			{
-				NodeType: storage.NodeTypeComparisonExpression,
-				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
-				Children: []*storage.Node{
-					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "$"}},
-					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_FloatValue{FloatValue: 0.5}},
+				NodeType: datatypes.NodeTypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				Children: []*datatypes.Node{
+					{NodeType: datatypes.NodeTypeFieldRef, Value: &datatypes.Node_FieldRefValue{FieldRefValue: "$"}},
+					{NodeType: datatypes.NodeTypeLiteral, Value: &datatypes.Node_FloatValue{FloatValue: 0.5}},
 				},
 			},
 		},
 	}
 
-	expr, err := storage.NodeToExpr(node, nil)
+	expr, err := reads.NodeToExpr(node, nil)
 	assert.NoError(t, err, "NodeToExpr failed")
-	assert.Equal(t, expr.String(), `host = 'host1' AND _field =~ /^us-west/ AND "$" = 0.500`)
+	assert.Equal(t, expr.String(), `host::tag = 'host1' AND _field::tag =~ /^us-west/ AND "$" = 0.500`)
 
 	expr = storage.RewriteExprRemoveFieldKeyAndValue(expr)
-	assert.Equal(t, expr.String(), `host = 'host1' AND true AND true`)
+	assert.Equal(t, expr.String(), `host::tag = 'host1' AND true AND true`)
 
 	expr = influxql.Reduce(expr, mapValuer{"host": "host1"})
 	assert.Equal(t, expr.String(), `true`)

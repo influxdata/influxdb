@@ -82,6 +82,7 @@ func TestIntegerValues_Exclude(t *testing.T) {
 		{"excl all but first and last", 12, 16, []int64{10, 18}},
 		{"excl none in middle", 13, 13, []int64{10, 12, 14, 16, 18}},
 		{"excl middle", 14, 14, []int64{10, 12, 16, 18}},
+		{"excl suffix", 16, 18, []int64{10, 12, 14}},
 	}
 
 	for _, tc := range cases {

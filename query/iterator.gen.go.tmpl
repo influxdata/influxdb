@@ -1204,10 +1204,17 @@ func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) Next() (*{{$v.Name}}Point, erro
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []{{$v.Name}}Point
 			for _, rp := range itr.m {
@@ -1232,8 +1239,6 @@ func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -1398,6 +1403,49 @@ func (itr *{{$k.name}}FilterIterator) Next() (*{{$k.Name}}Point, error) {
 		}
 		return p, nil
 	}
+}
+
+type {{$k.name}}TagSubsetIterator struct {
+	input      {{$k.Name}}Iterator
+	point      {{$k.Name}}Point
+	lastTags   Tags
+	dimensions []string
+}
+
+func new{{$k.Name}}TagSubsetIterator(input {{$k.Name}}Iterator, opt IteratorOptions) *{{$k.name}}TagSubsetIterator {
+	return &{{$k.name}}TagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *{{$k.name}}TagSubsetIterator) Next() (*{{$k.Name}}Point, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *{{$k.name}}TagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *{{$k.name}}TagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // new{{$k.Name}}DedupeIterator returns a new instance of {{$k.name}}DedupeIterator.

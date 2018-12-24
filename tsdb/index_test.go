@@ -26,6 +26,7 @@ func TestMergeSeriesIDIterators(t *testing.T) {
 	itr := tsdb.MergeSeriesIDIterators(
 		tsdb.NewSeriesIDSliceIterator([]uint64{1, 2, 3}),
 		tsdb.NewSeriesIDSliceIterator(nil),
+		nil,
 		tsdb.NewSeriesIDSliceIterator([]uint64{1, 2, 3, 4}),
 	)
 
@@ -191,6 +192,8 @@ func TestIndexSet_DedupeInmemIndexes(t *testing.T) {
 
 func TestIndex_Sketches(t *testing.T) {
 	checkCardinalities := func(t *testing.T, index *Index, state string, series, tseries, measurements, tmeasurements int) {
+		t.Helper()
+
 		// Get sketches and check cardinality...
 		sketch, tsketch, err := index.SeriesSketches()
 		if err != nil {
@@ -275,7 +278,14 @@ func TestIndex_Sketches(t *testing.T) {
 		}
 
 		// Check cardinalities after the delete
-		checkCardinalities(t, idx, "initial|reopen|delete", 2430, 486, 10, 2)
+		switch idx.Index.(type) {
+		case *tsi1.Index:
+			checkCardinalities(t, idx, "initial|reopen|delete", 2923, 0, 10, 2)
+		case *inmem.ShardIndex:
+			checkCardinalities(t, idx, "initial|reopen|delete", 2430, 486, 10, 2)
+		default:
+			panic("unreachable")
+		}
 
 		// Re-open step only applies to the TSI index.
 		if _, ok := idx.Index.(*tsi1.Index); ok {
@@ -285,7 +295,7 @@ func TestIndex_Sketches(t *testing.T) {
 			}
 
 			// Check cardinalities after the reopen
-			checkCardinalities(t, idx, "initial|reopen|delete|reopen", 2430, 486, 10, 2)
+			checkCardinalities(t, idx, "initial|reopen|delete|reopen", 2923, 0, 10, 2)
 		}
 		return nil
 	}
@@ -539,8 +549,10 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 //
 // Typical results for an i7 laptop
 //
-// BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000-8         	       1	5866592461 ns/op	2499768464 B/op		23964591 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000-8          	       1	30059490078 ns/op	32582973824 B/op	96705317 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000/cache-8   	  1	5963346204 ns/op	2499655768 B/op	 23964183 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000/no_cache-8    1	5314841090 ns/op	2499495280 B/op	 23963322 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000/cache-8        1	1645048376 ns/op	2215402840 B/op	 23048978 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000/no_cache-8     1	22242155616 ns/op	28277544136 B/op 79620463 allocs/op
 func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
 	keys := make([][]byte, 0, 1e6)
@@ -653,7 +665,15 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		b.Run(indexType, func(b *testing.B) {
 			for _, queryN := range queries {
 				b.Run(fmt.Sprintf("queries %d", queryN), func(b *testing.B) {
-					runBenchmark(b, indexType, queryN)
+					b.Run("cache", func(b *testing.B) {
+						tsi1.EnableBitsetCache = true
+						runBenchmark(b, indexType, queryN)
+					})
+
+					b.Run("no cache", func(b *testing.B) {
+						tsi1.EnableBitsetCache = false
+						runBenchmark(b, indexType, queryN)
+					})
 				})
 			}
 		})
