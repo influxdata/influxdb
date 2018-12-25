@@ -8,10 +8,11 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-// NewRouter returns a new router with a 404 handler and a panic handler.
+// NewRouter returns a new router with a 404 handler, a 405 handler, and a panic handler.
 func NewRouter() *httprouter.Router {
 	router := httprouter.New()
 	router.NotFound = http.HandlerFunc(notFoundHandler)
+	router.MethodNotAllowed = http.HandlerFunc(methodNotAllowedHandler)
 	router.PanicHandler = panicHandler
 	return router
 }
@@ -22,6 +23,18 @@ func notFoundHandler(w http.ResponseWriter, r *http.Request) {
 	pe := &platform.Error{
 		Code: platform.ENotFound,
 		Msg:  "path not found",
+	}
+
+	EncodeError(ctx, pe, w)
+}
+
+// methodNotAllowedHandler represents a 405 handler that return a JSON response.
+func methodNotAllowedHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	allow := w.Header().Get("Allow")
+	pe := &platform.Error{
+		Code: platform.EMethodNotAllowed,
+		Msg:  fmt.Sprintf("allow: %s", allow),
 	}
 
 	EncodeError(ctx, pe, w)
