@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/golang/gddo/httputil"
 	"github.com/influxdata/platform"
 	pctx "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/kit/errors"
@@ -152,7 +153,9 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	mimeType := r.Header.Get("Accept")
+	offers := []string{"application/toml", "application/json", "application/octet-stream"}
+	defaultOffer := "application/toml"
+	mimeType := httputil.NegotiateContentType(r, offers, defaultOffer)
 	switch mimeType {
 	case "application/octet-stream":
 		w.Header().Set("Content-Type", "application/octet-stream")
@@ -164,7 +167,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 			logEncodingError(h.Logger, r, err)
 			return
 		}
-	default:
+	case "application/toml":
 		w.Header().Set("Content-Type", "application/toml; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(tc.TOML()))
