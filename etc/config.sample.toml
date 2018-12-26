@@ -467,7 +467,7 @@
   # retention-policy = ""
   # consistency-level = "one"
   # tls-enabled = false
-  # certificate= "/etc/ssl/influxdb.pem"
+  # certificate = "/etc/ssl/influxdb.pem"
 
   # Log an error for every malformed point.
   # log-point-errors = true
