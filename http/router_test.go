@@ -30,8 +30,14 @@ func TestRouter_NotFound(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name:   "path not found",
-			fields: fields{},
+			name: "path not found",
+			fields: fields{
+				method: "GET",
+				path:   "/ping",
+				handlerFn: func(w http.ResponseWriter, r *http.Request) {
+					encodeResponse(r.Context(), w, http.StatusOK, map[string]string{"message": "pong"})
+				},
+			},
 			args: args{
 				method: "GET",
 				path:   "/404",
@@ -42,7 +48,7 @@ func TestRouter_NotFound(t *testing.T) {
 				body: `
 {
   "code": "not found",
-  "msg": "path not found"
+  "message": "path not found"
 }`,
 			},
 		},
@@ -71,7 +77,7 @@ func TestRouter_NotFound(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests[1:] {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			router := NewRouter()
 			router.HandlerFunc(tt.fields.method, tt.fields.path, tt.fields.handlerFn)
@@ -93,7 +99,6 @@ func TestRouter_NotFound(t *testing.T) {
 			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
 				t.Errorf("%q. get\n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
 			}
-
 		})
 	}
 }
@@ -162,8 +167,8 @@ func TestRouter_Panic(t *testing.T) {
 				body: `
 {
   "code": "internal error",
-  "msg": "a panic has occurred",
-  "err": "not implemented"
+  "message": "a panic has occurred",
+  "error": "not implemented"
 }`,
 			},
 		},
@@ -237,7 +242,7 @@ func TestRouter_MethodNotAllowed(t *testing.T) {
 				body: `
 {
   "code": "method not allowed",
-  "msg": "allow: GET, OPTIONS"
+  "message": "allow: GET, OPTIONS"
 }`,
 			},
 		},

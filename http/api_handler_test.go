@@ -36,7 +36,7 @@ func TestAPIHandler_NotFound(t *testing.T) {
 				body: `
 {
   "code": "not found",
-  "msg": "path not found"
+  "message": "path not found"
 }`,
 			},
 		},

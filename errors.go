@@ -50,10 +50,10 @@ const (
 //         Err: err,
 //     }.
 type Error struct {
-	Code string `json:"code"`              // Code is the machine-readable error code.
-	Msg  string `json:"message,omitempty"` // Msg is a human-readable message.
-	Op   string `json:"op,omitempty"`      // Op describes the logical code operation during error.
-	Err  error  `json:"error,omitempty"`   // Err is a stack of additional errors.
+	Code string
+	Msg  string
+	Op   string
+	Err  error
 }
 
 // Error implement the error interface by outputing the Code and Err.
@@ -118,10 +118,10 @@ func ErrorMessage(err error) string {
 
 // errEncode an JSON encoding helper that is needed to handle the recursive stack of errors.
 type errEncode struct {
-	Code string      `json:"code"`          // Code is the machine-readable error code.
-	Msg  string      `json:"msg,omitempty"` // Msg is a human-readable message.
-	Op   string      `json:"op,omitempty"`  // Op describes the logical code operation during error.
-	Err  interface{} `json:"err,omitempty"` // Err is a stack of additional errors.
+	Code string      `json:"code"`              // Code is the machine-readable error code.
+	Msg  string      `json:"message,omitempty"` // Msg is a human-readable message.
+	Op   string      `json:"op,omitempty"`      // Op describes the logical code operation during error.
+	Err  interface{} `json:"error,omitempty"`   // Err is a stack of additional errors.
 }
 
 // MarshalJSON recursively marshals the stack of Err.
@@ -165,13 +165,13 @@ func decodeInternalError(target interface{}) error {
 		if code, ok := internalErrMap["code"].(string); ok {
 			internalErr.Code = code
 		}
-		if msg, ok := internalErrMap["msg"].(string); ok {
+		if msg, ok := internalErrMap["message"].(string); ok {
 			internalErr.Msg = msg
 		}
 		if op, ok := internalErrMap["op"].(string); ok {
 			internalErr.Op = op
 		}
-		internalErr.Err = decodeInternalError(internalErrMap["err"])
+		internalErr.Err = decodeInternalError(internalErrMap["error"])
 		return internalErr
 	}
 	return nil
