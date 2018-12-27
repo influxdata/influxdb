@@ -575,7 +575,7 @@ func FindUser(
 	t *testing.T,
 ) {
 	type args struct {
-		name string
+		filter platform.UserFilter
 	}
 
 	type wants struct {
@@ -604,7 +604,9 @@ func FindUser(
 				},
 			},
 			args: args{
-				name: "abc",
+				filter: platform.UserFilter{
+					Name: func(s string) *string { return &s }("abc"),
+				},
 			},
 			wants: wants{
 				user: &platform.User{
@@ -614,12 +616,109 @@ func FindUser(
 			},
 		},
 		{
-			name: "user does not exist",
+			name: "find existing user by its id",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				filter: platform.UserFilter{
+					ID: func(id platform.ID) *platform.ID { return &id }(MustIDBase16(userOneID)),
+				},
+			},
+			wants: wants{
+				user: &platform.User{
+					ID:   MustIDBase16(userOneID),
+					Name: "abc",
+				},
+			},
+		},
+		{
+			name: "user with name does not exist",
 			fields: UserFields{
 				Users: []*platform.User{},
 			},
 			args: args{
-				name: "abc",
+				filter: platform.UserFilter{
+					Name: func(s string) *string { return &s }("abc"),
+				},
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Msg:  "user not found",
+					Op:   platform.OpFindUser,
+				},
+			},
+		},
+		{
+			name: "user with id does not exist",
+			fields: UserFields{
+				Users: []*platform.User{},
+			},
+			args: args{
+				filter: platform.UserFilter{
+					ID: func(id platform.ID) *platform.ID { return &id }(MustIDBase16(userOneID)),
+				},
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Msg:  "user not found",
+					Op:   platform.OpFindUser,
+				},
+			},
+		},
+		{
+			name: "filter with both name and ID prefers ID",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				filter: platform.UserFilter{
+					ID:   func(id platform.ID) *platform.ID { return &id }(MustIDBase16(userOneID)),
+					Name: func(s string) *string { return &s }("xyz"),
+				},
+			},
+			wants: wants{
+				user: &platform.User{
+					ID:   MustIDBase16(userOneID),
+					Name: "abc",
+				},
+			},
+		},
+		{
+			name: "filter both name and non-existent id returns no user",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				filter: platform.UserFilter{
+					ID:   func(id platform.ID) *platform.ID { return &id }(MustIDBase16(userOneID)),
+					Name: func(s string) *string { return &s }("xyz"),
+				},
 			},
 			wants: wants{
 				err: &platform.Error{
@@ -635,13 +734,8 @@ func FindUser(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
-			filter := platform.UserFilter{}
-			if tt.args.name != "" {
-				filter.Name = &tt.args.name
-			}
-
-			user, err := s.FindUser(ctx, filter)
+			ctx := context.Background()
+			user, err := s.FindUser(ctx, tt.args.filter)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
