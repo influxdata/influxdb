@@ -90,6 +90,10 @@ func (c *Client) getSecretKeys(ctx context.Context, tx *bolt.Tx, orgID platform.
 	}
 	k, _ := cur.Seek(prefix)
 
+	if len(k) == 0 {
+		return []string{}, nil
+	}
+
 	id, key, err := decodeSecretKey(k)
 	if err != nil {
 		return nil, err
