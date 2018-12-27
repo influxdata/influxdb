@@ -15,7 +15,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/influxdata/platform/pkg/bytesutil"
 	"github.com/influxdata/platform/pkg/file"
 )
 
@@ -752,27 +751,25 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 		return
 	}
 
-	if !bytesutil.IsSorted(keys) {
-		bytesutil.Sort(keys)
+	d.mu.RLock()
+	iter := d.ro.Iterator()
+	for _, key := range keys {
+		if !iter.Next() || !bytes.Equal(iter.Key(&d.b), key) {
+			if exact, _ := iter.Seek(key, &d.b); !exact {
+				continue
+			}
+		}
+
+		delete(d.tombstones, iter.Offset())
+		iter.Delete()
+	}
+	d.mu.RUnlock()
+
+	if !iter.HasDeletes() {
+		return
 	}
 
 	d.mu.Lock()
-	iter := d.ro.Iterator()
-
-	for _, key := range keys {
-		pre := keyPrefix(key)
-		for iter.Next() {
-			cmp := iter.Compare(key, pre, &d.b)
-			if cmp == -1 {
-				continue
-			}
-			if cmp == 0 {
-				delete(d.tombstones, iter.Offset())
-				iter.Delete()
-			}
-			break
-		}
-	}
 	iter.Done()
 	d.mu.Unlock()
 }
@@ -824,6 +821,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	// if the Ranges field is nil, that means that the key
 	// should be deleted.
 	type tombstoneEntry struct {
+		Index       int
 		KeyOffset   uint32
 		EntryOffset uint32
 		Ranges      []TimeRange
@@ -837,24 +835,18 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 
 	for _, key := range keys {
 		if !iter.Next() || !bytes.Equal(iter.Key(&d.b), key) {
-			exact, _ := iter.Seek(key, &d.b)
-			if !exact {
+			if exact, _ := iter.Seek(key, &d.b); !exact {
 				continue
 			}
 		}
 
-		tsEntry := tombstoneEntry{
-			KeyOffset:   iter.Offset(),
-			EntryOffset: iter.Offset() + 2 + uint32(len(key)),
-		}
-
-		// read the entries for the key so that we can determine the time ranges.
-		entries, err = readEntriesTimes(d.b.access(tsEntry.EntryOffset, 0), entries)
+		entryOffset := iter.EntryOffset(&d.b)
+		entries, err = readEntriesTimes(d.b.access(entryOffset, 0), entries)
 		if err != nil {
 			// If we have an error reading the entries for a key, we should just pretend
 			// the whole key is deleted. Maybe a better idea is to report this up somehow
 			// but that's for another time.
-			tombstones = append(tombstones, tsEntry)
+			iter.Delete()
 			continue
 		}
 
@@ -866,49 +858,44 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 
 		// Does the range passed in cover every value for the key?
 		if minTime <= min && maxTime >= max {
-			tombstones = append(tombstones, tsEntry)
+			iter.Delete()
 			continue
 		}
 
 		// Get the sorted list of tombstones with our new range and check
 		// to see if they fully cover the key's entries.
-		ts := insertTombstone(d.tombstones[tsEntry.KeyOffset])
+		ts := insertTombstone(d.tombstones[iter.Offset()])
 		if timeRangesCoverEntries(ts, entries) {
-			tombstones = append(tombstones, tsEntry)
+			iter.Delete()
 			continue
 		}
 
 		// We're adding a tombstone. Store a copy because `insertTombstone` reuses
 		// the same slice across calls.
-		tsEntry.Ranges = append([]TimeRange(nil), ts...)
-		tombstones = append(tombstones, tsEntry)
+		tombstones = append(tombstones, tombstoneEntry{
+			Index:       iter.Index(),
+			KeyOffset:   iter.Offset(),
+			EntryOffset: entryOffset,
+			Ranges:      append([]TimeRange(nil), ts...),
+		})
 	}
+
 	d.mu.RUnlock()
 
-	// Nothing in tombstones means no deletes are going to happen.
-	if len(tombstones) == 0 {
+	if len(tombstones) == 0 && !iter.HasDeletes() {
 		return
 	}
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// Keep track of which entries will be deleted.
-	toDelete := make(map[uint32]struct{}, len(tombstones))
 	for _, tsEntry := range tombstones {
-		// If the desired list is nil, the key should be fully deleted.
-		if tsEntry.Ranges == nil {
-			delete(d.tombstones, tsEntry.KeyOffset)
-			toDelete[tsEntry.KeyOffset] = struct{}{}
-			continue
-		}
-
 		// Check the existing tombstones. If the length did not
 		// change, then we know that we don't need to double
 		// check coverage, since we only ever increase the
 		// number of tombstones for a key.
 		dts := d.tombstones[tsEntry.KeyOffset]
-		if len(dts) == len(tsEntry.Ranges)-1 {
+		if len(dts)+1 == len(tsEntry.Ranges) {
 			d.tombstones[tsEntry.KeyOffset] = tsEntry.Ranges
 			continue
 		}
@@ -924,31 +911,27 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 			// the whole key is deleted. Maybe a better idea is to report this up somehow
 			// but that's for another time.
 			delete(d.tombstones, tsEntry.KeyOffset)
-			toDelete[tsEntry.KeyOffset] = struct{}{}
+			iter.SetIndex(tsEntry.Index)
+			if iter.Offset() == tsEntry.KeyOffset {
+				iter.Delete()
+			}
 			continue
 		}
 
 		ts := insertTombstone(dts)
 		if timeRangesCoverEntries(ts, entries) {
 			delete(d.tombstones, tsEntry.KeyOffset)
-			toDelete[tsEntry.KeyOffset] = struct{}{}
+			iter.SetIndex(tsEntry.Index)
+			if iter.Offset() == tsEntry.KeyOffset {
+				iter.Delete()
+			}
 		} else {
+			// Store a copy because `insertTombstone` reuses the same slice
+			// across calls.
 			d.tombstones[tsEntry.KeyOffset] = append([]TimeRange(nil), ts...)
 		}
 	}
 
-	// If we have nothing to fully delete, we're done.
-	if len(toDelete) == 0 {
-		return
-	}
-
-	// Filter the offsets slice removing entries that are in toDelete.
-	iter = d.ro.Iterator()
-	for iter.Next() {
-		if _, ok := toDelete[iter.Offset()]; ok {
-			iter.Delete()
-		}
-	}
 	iter.Done()
 }
 
@@ -1075,6 +1058,10 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	var ro readerOffsets
 
 	iMax := uint32(len(b))
+	if iMax > math.MaxInt32 {
+		return fmt.Errorf("indirectIndex: too large to store offsets")
+	}
+
 	for i < iMax {
 		offset := i // save for when we add to the data structure
 

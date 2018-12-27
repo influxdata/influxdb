@@ -20,6 +20,8 @@ type TSMIndexIterator struct {
 
 	offset  uint32
 	eoffset uint32
+
+	// lazily loaded from offset and eoffset
 	key     []byte
 	typ     byte
 	entries []IndexEntry
@@ -27,16 +29,19 @@ type TSMIndexIterator struct {
 
 // Next advances the iterator and reports if it is still valid.
 func (t *TSMIndexIterator) Next() bool {
-	if t.n != t.d.KeyCount() {
+	t.d.mu.RLock()
+	if n := len(t.d.ro.offsets); t.n != n {
 		t.err, t.ok = fmt.Errorf("Key count changed during iteration"), false
 	}
 	if !t.ok || t.err != nil {
+		t.d.mu.RUnlock()
 		return false
 	}
 	if !t.peeked && !t.first {
 		t.ok = t.iter.Next()
 	}
 	if !t.ok {
+		t.d.mu.RUnlock()
 		return false
 	}
 
@@ -45,6 +50,9 @@ func (t *TSMIndexIterator) Next() bool {
 
 	t.offset = t.iter.Offset()
 	t.eoffset = t.iter.EntryOffset(t.b)
+	t.d.mu.RUnlock()
+
+	// reset lazy loaded state
 	t.key = nil
 	t.typ = 0
 	t.entries = t.entries[:0]

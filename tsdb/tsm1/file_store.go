@@ -411,7 +411,7 @@ func (f *FileStore) WalkKeys(seek []byte, fn func(key []byte, typ byte) error) e
 		}
 	}
 
-	return nil
+	return ki.Err()
 }
 
 // Keys returns all keys and types for all files in the file store.

@@ -115,25 +115,20 @@ func TestReaderOffsets(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			ro, fb := makeRO()
 			deleted := make(map[string]struct{})
+			iter := ro.Iterator()
 
 			for i := 0; i < numKeys; i++ {
 				// delete a random key. if we seek past, delete the first key.
-				{
-					iter := ro.Iterator()
-					_, ok := iter.Seek([]byte(makeKey(rand.Intn(numKeys))), fb)
-					if !ok {
-						iter.Seek(nil, fb)
-					}
-
-					key := string(iter.Key(fb))
-					_, ok = deleted[key]
-					check(t, "key deleted", ok, false)
-					deleted[key] = struct{}{}
-
-					iter.Delete()
-					iter.Next()
-					iter.Done()
+				_, ok := iter.Seek([]byte(makeKey(rand.Intn(numKeys))), fb)
+				if !ok {
+					iter.Seek(nil, fb)
 				}
+				key := string(iter.Key(fb))
+				_, ok = deleted[key]
+				check(t, "key deleted", ok, false, "for key", key)
+				deleted[key] = struct{}{}
+				iter.Delete()
+				iter.Done()
 
 				// seek to every key that isn't deleted.
 				for i := 0; i < numKeys; i++ {
@@ -142,16 +137,15 @@ func TestReaderOffsets(t *testing.T) {
 						continue
 					}
 
-					iter := ro.Iterator()
 					exact, ok := iter.Seek([]byte(key), fb)
-					check(t, "exact", exact, true)
-					check(t, "ok", ok, true)
+					check(t, "exact", exact, true, "for key", key)
+					check(t, "ok", ok, true, "for key", key)
 					check(t, "key", string(iter.Key(fb)), key)
 				}
 			}
 
 			check(t, "amount deleted", len(deleted), numKeys)
-			iter := ro.Iterator()
+			iter = ro.Iterator()
 			check(t, "next", iter.Next(), false)
 		}
 	})
