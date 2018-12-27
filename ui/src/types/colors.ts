@@ -11,10 +11,22 @@ export interface ColorLabel {
   name: string
 }
 
-export interface ColorConfig {
+export interface ThresholdConfig {
   color: Color
   label?: string
   isDeletable?: boolean
   isBase?: boolean
   disableColor?: boolean
+}
+
+export enum LabelColorType {
+  Preset = 'preset',
+  Custom = 'custom',
+}
+
+export interface LabelColor {
+  id: string
+  colorHex: string
+  name: string
+  type: LabelColorType
 }

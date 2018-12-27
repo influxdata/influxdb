@@ -2,7 +2,6 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import NavMenu from 'src/pageLayout/components/NavMenu'

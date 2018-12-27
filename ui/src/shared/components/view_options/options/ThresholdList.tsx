@@ -23,10 +23,10 @@ import {
 } from 'src/shared/constants/thresholds'
 
 // Types
-import {Color, ColorConfig} from 'src/types/colors'
+import {Color, ThresholdConfig} from 'src/types/colors'
 
 interface Props {
-  colorConfigs: ColorConfig[]
+  colorConfigs: ThresholdConfig[]
   onUpdateColors: (colors: Color[]) => void
   onValidateNewColor: (colors: Color[], newColor: Color) => boolean
 }

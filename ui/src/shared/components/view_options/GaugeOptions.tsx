@@ -19,7 +19,7 @@ import {
 // Types
 import {ViewType} from 'src/types/v2'
 import {DecimalPlaces} from 'src/types/v2/dashboards'
-import {Color, ColorConfig} from 'src/types/colors'
+import {Color, ThresholdConfig} from 'src/types/colors'
 
 interface OwnProps {
   type: ViewType
@@ -90,7 +90,7 @@ class GaugeOptions extends PureComponent<Props> {
     )
   }
 
-  private get colorConfigs(): ColorConfig[] {
+  private get colorConfigs(): ThresholdConfig[] {
     const {maxColor, minColor} = this.extents
     const {colors} = this.props
 

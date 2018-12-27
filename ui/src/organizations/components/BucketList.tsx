@@ -23,6 +23,7 @@ interface State {
 export default class BucketList extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
+
     this.state = {
       bucketID: null,
       overlayState: OverlayState.Closed,

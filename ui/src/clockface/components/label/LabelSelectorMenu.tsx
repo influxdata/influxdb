@@ -42,7 +42,7 @@ class LabelSelectorMenu extends Component<Props> {
         <LabelSelectorMenuItem
           highlighted={highlightItemID === label.id}
           key={label.id}
-          text={label.text}
+          name={label.name}
           id={label.id}
           description={label.description}
           colorHex={label.colorHex}

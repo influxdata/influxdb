@@ -1,0 +1,23 @@
+/*
+  Label Color Dropdown Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.label-colors--item {
+  display: flex;
+  align-items: center;
+}
+
+.label-colors--swatch,
+.label-colors--custom {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-right: $ix-marg-a + $ix-border;
+}
+
+.label-colors--custom {
+  border: $ix-border solid $g8-storm;
+}

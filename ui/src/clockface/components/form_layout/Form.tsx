@@ -20,6 +20,7 @@ interface Props {
 
 interface BoxProps {
   children: JSX.Element | JSX.Element[]
+  className?: string
 }
 
 @ErrorHandling
@@ -30,8 +31,8 @@ class Form extends Component<Props> {
   public static Divider = FormDivider
   public static Footer = FormFooter
 
-  public static Box: SFC<BoxProps> = ({children}) => (
-    <div className="form--box">{children}</div>
+  public static Box: SFC<BoxProps> = ({children, className = ''}) => (
+    <div className={`form--box ${className}`}>{children}</div>
   )
 
   public render() {

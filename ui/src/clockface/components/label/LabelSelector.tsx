@@ -52,7 +52,7 @@ class LabelSelector extends Component<Props, State> {
     const initialFilteredLabels = _.differenceBy(
       props.allLabels,
       props.selectedLabels,
-      label => label.text
+      label => label.name
     )
 
     this.state = {
@@ -98,7 +98,7 @@ class LabelSelector extends Component<Props, State> {
           {selectedLabels.map(label => (
             <Label
               key={label.id}
-              text={label.text}
+              name={label.name}
               id={label.id}
               colorHex={label.colorHex}
               onDelete={this.handleDelete}
@@ -177,14 +177,14 @@ class LabelSelector extends Component<Props, State> {
     const availableLabels = _.differenceBy(
       allLabels,
       selectedLabels,
-      l => l.text
+      l => l.name
     )
 
     const filteredLabels = availableLabels.filter(label => {
       const filterChars = _.lowerCase(filterValue)
         .replace(/\s/g, '')
         .split('')
-      const labelChars = _.lowerCase(label.text)
+      const labelChars = _.lowerCase(label.name)
         .replace(/\s/g, '')
         .split('')
 
@@ -212,7 +212,7 @@ class LabelSelector extends Component<Props, State> {
     const {selectedLabels} = this.props
     const {filteredLabels} = this.state
 
-    return _.differenceBy(filteredLabels, selectedLabels, label => label.text)
+    return _.differenceBy(filteredLabels, selectedLabels, label => label.name)
   }
 
   private handleDelete = (labelID: string): void => {

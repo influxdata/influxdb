@@ -1,0 +1,16 @@
+/*
+  Create/Edit Label Overlay Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.label-overlay--preview {
+  display: flex;
+  justify-content: center;
+
+  > .label {
+    margin: $ix-marg-d 0;
+  }
+}
+
