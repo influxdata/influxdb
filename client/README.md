@@ -52,7 +52,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/influxdata/influxdb/client/v2"
+	client "github.com/influxdata/influxdb/client/v2"
 )
 
 const (
