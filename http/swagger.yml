@@ -4824,7 +4824,9 @@ components:
           readOnly: true
           example:
             self: "/api/v2/orgs/1"
-            users: "/api/v2/orgs/1/users"
+            members: "/api/v2/orgs/1/members"
+            labels: "/api/v2/orgs/1/labels"
+            secrets: "/api/v2/orgs/1/secrets"
             buckets: "/api/v2/buckets?org=myorg"
             tasks: "/api/v2/tasks?org=myorg"
             dashboards: "/api/v2/dashboards?org=myorg"
@@ -4833,7 +4835,15 @@ components:
               readOnly: true
               type: string
               format: uri
-            users:
+            members:
+              readOnly: true
+              type: string
+              format: uri
+            labels:
+              readOnly: true
+              type: string
+              format: uri
+            secrets:
               readOnly: true
               type: string
               format: uri
