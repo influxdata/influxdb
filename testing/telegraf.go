@@ -149,10 +149,10 @@ func CreateTelegrafConfig(
 			wants: wants{
 				userResourceMapping: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 				},
 				telegrafs: []*platform.TelegrafConfig{
@@ -202,10 +202,10 @@ func CreateTelegrafConfig(
 				},
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 			},
@@ -273,16 +273,16 @@ func CreateTelegrafConfig(
 				},
 				userResourceMapping: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 				},
 			},
@@ -309,8 +309,8 @@ func CreateTelegrafConfig(
 			}
 
 			tcs, _, err := s.FindTelegrafConfigs(ctx, platform.UserResourceMappingFilter{
-				UserID:       MustIDBase16(threeID),
-				ResourceType: platform.TelegrafResourceType,
+				UserID:   MustIDBase16(threeID),
+				Resource: platform.TelegrafsResource,
 			})
 			if err != nil {
 				t.Fatalf("failed to retrieve telegraf configs: %v", err)
@@ -320,8 +320,8 @@ func CreateTelegrafConfig(
 			}
 
 			urms, _, err := s.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
-				UserID:       tt.args.userID,
-				ResourceType: platform.TelegrafResourceType,
+				UserID:   tt.args.userID,
+				Resource: platform.TelegrafsResource,
 			})
 			if err != nil {
 				t.Fatalf("failed to retrieve user resource mappings: %v", err)
@@ -535,16 +535,16 @@ func FindTelegrafConfig(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
@@ -577,9 +577,9 @@ func FindTelegrafConfig(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID:       MustIDBase16(threeID),
-					ResourceType: platform.TelegrafResourceType,
-					UserType:     platform.Member,
+					UserID:   MustIDBase16(threeID),
+					Resource: platform.TelegrafsResource,
+					UserType: platform.Member,
 				},
 			},
 			wants: wants{
@@ -607,16 +607,16 @@ func FindTelegrafConfig(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
@@ -649,8 +649,8 @@ func FindTelegrafConfig(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID:       MustIDBase16(fourID),
-					ResourceType: platform.TelegrafResourceType,
+					UserID:   MustIDBase16(fourID),
+					Resource: platform.TelegrafsResource,
 				},
 			},
 			wants: wants{
@@ -711,7 +711,7 @@ func FindTelegrafConfigs(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					ResourceType: platform.TelegrafResourceType,
+					Resource: platform.TelegrafsResource,
 				},
 			},
 			wants: wants{
@@ -723,16 +723,16 @@ func FindTelegrafConfigs(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
@@ -765,8 +765,8 @@ func FindTelegrafConfigs(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID:       MustIDBase16(threeID),
-					ResourceType: platform.TelegrafResourceType,
+					UserID:   MustIDBase16(threeID),
+					Resource: platform.TelegrafsResource,
 				},
 			},
 			wants: wants{
@@ -804,16 +804,16 @@ func FindTelegrafConfigs(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
@@ -846,9 +846,9 @@ func FindTelegrafConfigs(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID:       MustIDBase16(threeID),
-					ResourceType: platform.TelegrafResourceType,
-					UserType:     platform.Owner,
+					UserID:   MustIDBase16(threeID),
+					Resource: platform.TelegrafsResource,
+					UserType: platform.Owner,
 				},
 			},
 			wants: wants{
@@ -870,16 +870,16 @@ func FindTelegrafConfigs(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
@@ -912,8 +912,8 @@ func FindTelegrafConfigs(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID:       MustIDBase16(fourID),
-					ResourceType: platform.TelegrafResourceType,
+					UserID:   MustIDBase16(fourID),
+					Resource: platform.TelegrafsResource,
 				},
 			},
 			wants: wants{
@@ -1234,16 +1234,16 @@ func DeleteTelegrafConfig(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(twoID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
@@ -1285,16 +1285,16 @@ func DeleteTelegrafConfig(
 				},
 				userResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(twoID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
@@ -1331,16 +1331,16 @@ func DeleteTelegrafConfig(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(twoID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
@@ -1381,16 +1381,16 @@ func DeleteTelegrafConfig(
 				},
 				userResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(twoID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
@@ -1427,16 +1427,16 @@ func DeleteTelegrafConfig(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(twoID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
@@ -1474,10 +1474,10 @@ func DeleteTelegrafConfig(
 			wants: wants{
 				userResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
@@ -1510,8 +1510,8 @@ func DeleteTelegrafConfig(
 				}
 			}
 			tcs, n, err := s.FindTelegrafConfigs(ctx, platform.UserResourceMappingFilter{
-				UserID:       tt.args.userID,
-				ResourceType: platform.TelegrafResourceType,
+				UserID:   tt.args.userID,
+				Resource: platform.TelegrafsResource,
 			})
 			if err != nil && tt.wants.err == nil {
 				t.Fatalf("expected errors to be nil got '%v'", err)
@@ -1530,8 +1530,8 @@ func DeleteTelegrafConfig(
 			}
 
 			urms, _, err := s.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
-				UserID:       tt.args.userID,
-				ResourceType: platform.TelegrafResourceType,
+				UserID:   tt.args.userID,
+				Resource: platform.TelegrafsResource,
 			})
 			if err != nil {
 				t.Fatalf("failed to retrieve user resource mappings: %v", err)

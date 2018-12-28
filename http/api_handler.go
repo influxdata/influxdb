@@ -63,6 +63,7 @@ type APIBackend struct {
 	TelegrafService                 platform.TelegrafConfigStore
 	ScraperTargetStoreService       platform.ScraperTargetStoreService
 	SecretService                   platform.SecretService
+	LookupService                   platform.LookupService
 	ChronografService               *server.Service
 }
 
@@ -100,7 +101,9 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.MacroHandler.MacroService = b.MacroService
 
 	h.AuthorizationHandler = NewAuthorizationHandler(b.UserService)
+	h.AuthorizationHandler.OrganizationService = b.OrganizationService
 	h.AuthorizationHandler.AuthorizationService = b.AuthorizationService
+	h.AuthorizationHandler.LookupService = b.LookupService
 	h.AuthorizationHandler.Logger = b.Logger.With(zap.String("handler", "auth"))
 
 	h.SourceHandler = NewSourceHandler()

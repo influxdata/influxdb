@@ -269,6 +269,7 @@ func (m *Main) run(ctx context.Context) (err error) {
 		userResourceSvc  platform.UserResourceMappingService      = m.boltClient
 		labelSvc         platform.LabelService                    = m.boltClient
 		secretSvc        platform.SecretService                   = m.boltClient
+		lookupSvc        platform.LookupService                   = m.boltClient
 	)
 
 	switch m.secretStore {
@@ -423,6 +424,7 @@ func (m *Main) run(ctx context.Context) (err error) {
 		ScraperTargetStoreService:       scraperTargetSvc,
 		ChronografService:               chronografSvc,
 		SecretService:                   secretSvc,
+		LookupService:                   lookupSvc,
 	}
 
 	// HTTP server

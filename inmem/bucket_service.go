@@ -37,8 +37,8 @@ func (s *Service) loadBucket(ctx context.Context, id platform.ID) (*platform.Buc
 	return &b, nil
 }
 
-func (c *Service) setOrganizationNameOnBucket(ctx context.Context, b *platform.Bucket) error {
-	o, err := c.loadOrganization(b.OrganizationID)
+func (s *Service) setOrganizationNameOnBucket(ctx context.Context, b *platform.Bucket) error {
+	o, err := s.loadOrganization(b.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -60,9 +60,9 @@ func (s *Service) FindBucketByID(ctx context.Context, id platform.ID) (*platform
 	return b, err
 }
 
-func (c *Service) forEachBucket(ctx context.Context, fn func(b *platform.Bucket) bool) error {
+func (s *Service) forEachBucket(ctx context.Context, fn func(b *platform.Bucket) bool) error {
 	var err error
-	c.bucketKV.Range(func(k, v interface{}) bool {
+	s.bucketKV.Range(func(k, v interface{}) bool {
 		b, ok := v.(platform.Bucket)
 		if !ok {
 			err = fmt.Errorf("type %T is not a bucket", v)

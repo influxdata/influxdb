@@ -80,7 +80,14 @@ func (c *Client) findSession(ctx context.Context, tx *bolt.Tx, key string) (*pla
 
 	ps := make([]platform.Permission, 0, len(mappings))
 	for _, m := range mappings {
-		ps = append(ps, m.ToPermissions()...)
+		p, err := m.ToPermissions()
+		if err != nil {
+			return nil, &platform.Error{
+				Err: err,
+			}
+		}
+
+		ps = append(ps, p...)
 	}
 	s.Permissions = ps
 	return s, nil

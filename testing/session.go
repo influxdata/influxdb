@@ -122,7 +122,7 @@ func CreateSession(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			session, err := s.CreateSession(ctx, tt.args.user)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -197,7 +197,7 @@ func FindSession(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			session, err := s.FindSession(ctx, tt.args.key)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -260,7 +260,7 @@ func ExpireSession(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			err := s.ExpireSession(ctx, tt.args.key)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)

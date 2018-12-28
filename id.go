@@ -124,9 +124,11 @@ func (i *ID) UnmarshalJSON(b []byte) error {
 	if b[0] == '"' {
 		b = b[1:]
 	}
+
 	if b[len(b)-1] == '"' {
 		b = b[:len(b)-1]
 	}
+
 	return i.Decode(b)
 }
 

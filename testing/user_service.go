@@ -185,7 +185,7 @@ func CreateUser(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.CreateUser(ctx, tt.args.user)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -279,7 +279,7 @@ func FindUserByID(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			user, err := s.FindUserByID(ctx, tt.args.id)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -447,7 +447,7 @@ func FindUsers(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			filter := platform.UserFilter{}
 			if tt.args.ID.Valid() {
@@ -553,7 +553,7 @@ func DeleteUser(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.DeleteUser(ctx, tt.args.ID)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -822,7 +822,7 @@ func UpdateUser(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			upd := platform.UserUpdate{}
 			if tt.args.name != "" {

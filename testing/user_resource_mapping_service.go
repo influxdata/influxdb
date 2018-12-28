@@ -86,34 +86,34 @@ func CreateUserResourceMapping(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketOneID),
-						UserID:       MustIDBase16(userOneID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
 			args: args{
 				mapping: &platform.UserResourceMapping{
-					ResourceID:   MustIDBase16(bucketTwoID),
-					UserID:       MustIDBase16(userTwoID),
-					UserType:     platform.Member,
-					ResourceType: platform.BucketResourceType,
+					ResourceID: MustIDBase16(bucketTwoID),
+					UserID:     MustIDBase16(userTwoID),
+					UserType:   platform.Member,
+					Resource:   platform.BucketsResource,
 				},
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketOneID),
-						UserID:       MustIDBase16(userOneID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(bucketTwoID),
-						UserID:       MustIDBase16(userTwoID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketTwoID),
+						UserID:     MustIDBase16(userTwoID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
@@ -153,7 +153,7 @@ func CreateUserResourceMapping(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.CreateUserResourceMapping(ctx, tt.args.mapping)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -235,7 +235,7 @@ func DeleteUserResourceMapping(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.DeleteUserResourceMapping(ctx, tt.args.resourceID, tt.args.userID)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -281,16 +281,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketOneID),
-						UserID:       MustIDBase16(userOneID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(bucketTwoID),
-						UserID:       MustIDBase16(userTwoID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketTwoID),
+						UserID:     MustIDBase16(userTwoID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
@@ -300,16 +300,16 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketOneID),
-						UserID:       MustIDBase16(userOneID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(bucketTwoID),
-						UserID:       MustIDBase16(userTwoID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketTwoID),
+						UserID:     MustIDBase16(userTwoID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
@@ -319,16 +319,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketOneID),
-						UserID:       MustIDBase16(userOneID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(bucketTwoID),
-						UserID:       MustIDBase16(userTwoID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketTwoID),
+						UserID:     MustIDBase16(userTwoID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
@@ -340,10 +340,10 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketOneID),
-						UserID:       MustIDBase16(userOneID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
@@ -353,16 +353,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketOneID),
-						UserID:       MustIDBase16(userOneID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(bucketTwoID),
-						UserID:       MustIDBase16(userTwoID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketTwoID),
+						UserID:     MustIDBase16(userTwoID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
@@ -374,10 +374,10 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketOneID),
-						UserID:       MustIDBase16(userOneID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
@@ -387,16 +387,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketOneID),
-						UserID:       MustIDBase16(userOneID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(bucketTwoID),
-						UserID:       MustIDBase16(userTwoID),
-						UserType:     platform.Owner,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketTwoID),
+						UserID:     MustIDBase16(userTwoID),
+						UserType:   platform.Owner,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
@@ -408,10 +408,10 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketTwoID),
-						UserID:       MustIDBase16(userTwoID),
-						UserType:     platform.Owner,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketTwoID),
+						UserID:     MustIDBase16(userTwoID),
+						UserType:   platform.Owner,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
@@ -421,31 +421,31 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketOneID),
-						UserID:       MustIDBase16(userOneID),
-						UserType:     platform.Member,
-						ResourceType: platform.DashboardResourceType,
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
+						UserType:   platform.Member,
+						Resource:   platform.DashboardsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(bucketTwoID),
-						UserID:       MustIDBase16(userTwoID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketTwoID),
+						UserID:     MustIDBase16(userTwoID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					ResourceType: platform.BucketResourceType,
+					Resource: platform.BucketsResource,
 				},
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(bucketTwoID),
-						UserID:       MustIDBase16(userTwoID),
-						UserType:     platform.Member,
-						ResourceType: platform.BucketResourceType,
+						ResourceID: MustIDBase16(bucketTwoID),
+						UserID:     MustIDBase16(userTwoID),
+						UserType:   platform.Member,
+						Resource:   platform.BucketsResource,
 					},
 				},
 			},
@@ -456,7 +456,7 @@ func FindUserResourceMappings(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			mappings, _, err := s.FindUserResourceMappings(ctx, tt.args.filter)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)

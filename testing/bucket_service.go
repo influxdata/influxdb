@@ -334,7 +334,7 @@ func CreateBucket(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.CreateBucket(ctx, tt.args.bucket)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -446,7 +446,7 @@ func FindBucketByID(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			bucket, err := s.FindBucketByID(ctx, tt.args.id)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -684,7 +684,7 @@ func FindBuckets(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			filter := platform.BucketFilter{}
 			if tt.args.ID.Valid() {
@@ -818,7 +818,7 @@ func DeleteBucket(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.DeleteBucket(ctx, MustIDBase16(tt.args.ID))
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -919,7 +919,7 @@ func FindBucket(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			filter := platform.BucketFilter{}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
@@ -1073,7 +1073,7 @@ func UpdateBucket(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			upd := platform.BucketUpdate{}
 			if tt.args.name != "" {

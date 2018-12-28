@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/influxdata/platform"
+	platcontext "github.com/influxdata/platform/context"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
@@ -21,8 +22,10 @@ type AuthorizationHandler struct {
 	*httprouter.Router
 	Logger *zap.Logger
 
-	AuthorizationService platform.AuthorizationService
+	OrganizationService  platform.OrganizationService
 	UserService          platform.UserService
+	AuthorizationService platform.AuthorizationService
+	LookupService        platform.LookupService
 }
 
 // NewAuthorizationHandler returns a new instance of AuthorizationHandler.
@@ -42,18 +45,74 @@ func NewAuthorizationHandler(userService platform.UserService) *AuthorizationHan
 }
 
 type authResponse struct {
-	Links map[string]string `json:"links"`
-	platform.Authorization
+	ID          platform.ID          `json:"id"`
+	Token       string               `json:"token"`
+	Status      platform.Status      `json:"status"`
+	Description string               `json:"description"`
+	OrgID       platform.ID          `json:"orgID"`
+	Org         string               `json:"org"`
+	UserID      platform.ID          `json:"userID"`
+	User        string               `json:"user"`
+	Permissions []permissionResponse `json:"permissions"`
+	Links       map[string]string    `json:"links"`
 }
 
-func newAuthResponse(a *platform.Authorization) *authResponse {
-	return &authResponse{
+func newAuthResponse(a *platform.Authorization, org *platform.Organization, user *platform.User, ps []permissionResponse) *authResponse {
+	res := &authResponse{
+		ID:          a.ID,
+		Token:       a.Token,
+		Status:      a.Status,
+		Description: a.Description,
+		OrgID:       a.OrgID,
+		UserID:      a.UserID,
+		User:        user.Name,
+		Org:         org.Name,
+		Permissions: ps,
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/authorizations/%s", a.ID),
 			"user": fmt.Sprintf("/api/v2/users/%s", a.UserID),
 		},
-		Authorization: *a,
 	}
+	return res
+}
+
+func (a *authResponse) toPlatform() *platform.Authorization {
+	res := &platform.Authorization{
+		ID:          a.ID,
+		Token:       a.Token,
+		Status:      a.Status,
+		Description: a.Description,
+		OrgID:       a.OrgID,
+		UserID:      a.UserID,
+	}
+	for _, p := range a.Permissions {
+		res.Permissions = append(res.Permissions, p.Permission)
+	}
+	return res
+}
+
+type permissionResponse struct {
+	platform.Permission
+	Name string `json:"name,omitempty"`
+}
+
+func newPermissionsResponse(ctx context.Context, ps []platform.Permission, svc platform.LookupService) ([]permissionResponse, error) {
+	res := make([]permissionResponse, len(ps))
+	for i, p := range ps {
+		res[i] = permissionResponse{
+			Permission: p,
+		}
+
+		if p.ID != nil {
+			fmt.Printf("IDIDIIDIDIDIDIDIDIDIDIDID %s\n", *p.ID)
+			name, err := svc.Name(ctx, p.Resource, *p.ID)
+			if err != nil {
+				return nil, err
+			}
+			res[i].Name = name
+		}
+	}
+	return res, nil
 }
 
 type authsResponse struct {
@@ -61,17 +120,13 @@ type authsResponse struct {
 	Auths []*authResponse   `json:"authorizations"`
 }
 
-func newAuthsResponse(opts platform.FindOptions, f platform.AuthorizationFilter, as []*platform.Authorization) *authsResponse {
-	rs := make([]*authResponse, 0, len(as))
-	for _, a := range as {
-		rs = append(rs, newAuthResponse(a))
-	}
+func newAuthsResponse(as []*authResponse) *authsResponse {
 	return &authsResponse{
 		// TODO(desa): update links to include paging and filter information
 		Links: map[string]string{
 			"self": "/api/v2/authorizations",
 		},
-		Auths: rs,
+		Auths: as,
 	}
 }
 
@@ -81,52 +136,126 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 
 	req, err := decodePostAuthorizationRequest(ctx, r)
 	if err != nil {
-		h.Logger.Info("failed to decode request", zap.String("handler", "postAuthorization"), zap.Error(err))
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	a := req.Authorization
-	userFilter := platform.UserFilter{
-		ID:   &a.UserID,
-		Name: &a.User,
-	}
-	if _, err := h.UserService.FindUser(ctx, userFilter); err != nil {
-		h.Logger.Info("failed to find user", zap.String("handler", "postAuthorization"), zap.Error(err))
-		EncodeError(ctx, &platform.Error{
-			Err:  err,
-			Code: platform.EInvalid,
-		}, w)
+	user, err := getAuthorizedUser(r, h.UserService)
+	if err != nil {
+		EncodeError(ctx, platform.ErrUnableToCreateToken, w)
 		return
 	}
 
-	// TODO: Need to do some validation of req.Authorization.Permissions
+	auth := req.toPlatform(user.ID)
 
-	if err := h.AuthorizationService.CreateAuthorization(ctx, a); err != nil {
-		// Don't log here, it should already be handled by the service
+	org, err := h.OrganizationService.FindOrganizationByID(ctx, auth.OrgID)
+	if err != nil {
+		EncodeError(ctx, platform.ErrUnableToCreateToken, w)
+		return
+	}
+
+	if err := h.AuthorizationService.CreateAuthorization(ctx, auth); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newAuthResponse(a)); err != nil {
-		logEncodingError(h.Logger, r, err)
+	perms, err := newPermissionsResponse(ctx, auth.Permissions, h.LookupService)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusCreated, newAuthResponse(auth, org, user, perms)); err != nil {
+		EncodeError(ctx, err, w)
 		return
 	}
 }
 
 type postAuthorizationRequest struct {
-	Authorization *platform.Authorization
+	Status      platform.Status       `json:"status"`
+	OrgID       platform.ID           `json:"orgID"`
+	Description string                `json:"description"`
+	Permissions []platform.Permission `json:"permissions"`
+}
+
+func (p *postAuthorizationRequest) toPlatform(userID platform.ID) *platform.Authorization {
+	return &platform.Authorization{
+		OrgID:       p.OrgID,
+		Status:      p.Status,
+		Description: p.Description,
+		Permissions: p.Permissions,
+		UserID:      userID,
+	}
+}
+
+func newPostAuthorizationRequest(a *platform.Authorization) (*postAuthorizationRequest, error) {
+	res := &postAuthorizationRequest{
+		OrgID:       a.OrgID,
+		Description: a.Description,
+		Permissions: a.Permissions,
+		Status:      a.Status,
+	}
+
+	res.SetDefaults()
+
+	return res, res.Validate()
+}
+
+func (p *postAuthorizationRequest) SetDefaults() {
+	if p.Status == "" {
+		p.Status = platform.Active
+	}
+}
+
+func (p *postAuthorizationRequest) Validate() error {
+	if len(p.Permissions) == 0 {
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "authorization must include permissions",
+		}
+	}
+
+	for _, perm := range p.Permissions {
+		if err := perm.Valid(); err != nil {
+			return &platform.Error{
+				Err: err,
+			}
+		}
+	}
+
+	if !p.OrgID.Valid() {
+		return &platform.Error{
+			Err:  platform.ErrInvalidID,
+			Code: platform.EInvalid,
+			Msg:  "org id required",
+		}
+	}
+
+	if p.Status == "" {
+		p.Status = platform.Active
+	}
+
+	err := p.Status.Valid()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func decodePostAuthorizationRequest(ctx context.Context, r *http.Request) (*postAuthorizationRequest, error) {
-	a := &platform.Authorization{}
+	a := &postAuthorizationRequest{}
 	if err := json.NewDecoder(r.Body).Decode(a); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "invalid json structure",
+			Err:  err,
+		}
 	}
 
-	return &postAuthorizationRequest{
-		Authorization: a,
-	}, nil
+	a.SetDefaults()
+
+	return a, a.Validate()
 }
 
 // handleGetAuthorizations is the HTTP handler for the GET /api/v2/authorizations route.
@@ -143,13 +272,35 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 	opts := platform.FindOptions{}
 	as, _, err := h.AuthorizationService.FindAuthorizations(ctx, req.filter, opts)
 	if err != nil {
-		// Don't log here, it should already be handled by the service
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newAuthsResponse(opts, req.filter, as)); err != nil {
-		logEncodingError(h.Logger, r, err)
+	auths := make([]*authResponse, len(as))
+	for i, a := range as {
+		o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
+		if err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		u, err := h.UserService.FindUserByID(ctx, a.UserID)
+		if err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		ps, err := newPermissionsResponse(ctx, a.Permissions, h.LookupService)
+		if err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		auths[i] = newAuthResponse(a, o, u, ps)
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newAuthsResponse(auths)); err != nil {
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -207,8 +358,26 @@ func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a)); err != nil {
-		logEncodingError(h.Logger, r, err)
+	o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	u, err := h.UserService.FindUserByID(ctx, a.UserID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	ps, err := newPermissionsResponse(ctx, a.Permissions, h.LookupService)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a, o, u, ps)); err != nil {
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -259,8 +428,26 @@ func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWrite
 		}
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a)); err != nil {
-		logEncodingError(h.Logger, r, err)
+	o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	u, err := h.UserService.FindUserByID(ctx, a.UserID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	ps, err := newPermissionsResponse(ctx, a.Permissions, h.LookupService)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a, o, u, ps)); err != nil {
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -338,6 +525,17 @@ func decodeDeleteAuthorizationRequest(ctx context.Context, r *http.Request) (*de
 	return &deleteAuthorizationRequest{
 		ID: i,
 	}, nil
+}
+
+func getAuthorizedUser(r *http.Request, svc platform.UserService) (*platform.User, error) {
+	ctx := r.Context()
+
+	a, err := platcontext.GetAuthorizer(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return svc.FindUserByID(ctx, a.GetUserID())
 }
 
 // AuthorizationService connects to Influx via HTTP using tokens to manage authorizations
@@ -426,15 +624,15 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 		return nil, 0, err
 	}
 
-	var bs authsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&bs); err != nil {
+	var as authsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&as); err != nil {
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
 
-	auths := make([]*platform.Authorization, 0, len(bs.Auths))
-	for _, b := range bs.Auths {
-		auths = append(auths, &b.Authorization)
+	auths := make([]*platform.Authorization, 0, len(as.Auths))
+	for _, a := range as.Auths {
+		auths = append(auths, a.toPlatform())
 	}
 
 	return auths, len(auths), nil
@@ -451,7 +649,12 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 		return err
 	}
 
-	octets, err := json.Marshal(a)
+	newAuth, err := newPostAuthorizationRequest(a)
+	if err != nil {
+		return err
+	}
+
+	octets, err := json.Marshal(newAuth)
 	if err != nil {
 		return err
 	}

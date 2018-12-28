@@ -6,13 +6,14 @@ import (
 	"github.com/influxdata/platform"
 )
 
+// TODO(goller): remove opPrefix argument
 func diffPlatformErrors(name string, actual, expected error, opPrefix string, t *testing.T) {
 	if expected == nil && actual == nil {
 		return
 	}
 
 	if expected == nil && actual != nil {
-		t.Fatalf("%s failed, unexpected error %s", name, actual.Error())
+		t.Errorf("%s failed, unexpected error %s", name, actual.Error())
 	}
 
 	if expected != nil && actual == nil {
@@ -21,10 +22,6 @@ func diffPlatformErrors(name string, actual, expected error, opPrefix string, t 
 
 	if platform.ErrorCode(expected) != platform.ErrorCode(actual) {
 		t.Errorf("%s failed, expected error code %q but received %q", name, platform.ErrorCode(expected), platform.ErrorCode(actual))
-	}
-
-	if opPrefix+platform.ErrorOp(expected) != platform.ErrorOp(actual) {
-		t.Errorf("%s failed, expected error op %q but received %q", name, opPrefix+platform.ErrorOp(expected), platform.ErrorOp(actual))
 	}
 
 	if platform.ErrorMessage(expected) != platform.ErrorMessage(actual) {

@@ -89,6 +89,7 @@ require (
 	github.com/jtolds/gls v4.2.1+incompatible // indirect
 	github.com/julienschmidt/httprouter v1.2.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
+	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
 	github.com/keybase/go-crypto v0.0.0-20181031135447-f919bfda4fc1 // indirect
 	github.com/mattn/go-colorable v0.0.9 // indirect
@@ -106,6 +107,8 @@ require (
 	github.com/nats-io/go-nats-streaming v0.4.0
 	github.com/nats-io/nats-streaming-server v0.11.2
 	github.com/nats-io/nuid v1.0.0 // indirect
+	github.com/onsi/ginkgo v1.7.0 // indirect
+	github.com/onsi/gomega v1.4.3 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
@@ -133,6 +136,9 @@ require (
 	github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926 // indirect
 	github.com/tylerb/graceful v1.2.15
 	github.com/willf/bitset v1.1.9 // indirect
+	github.com/yudai/gojsondiff v1.0.0
+	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
+	github.com/yudai/pp v2.0.1+incompatible // indirect
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
 	golang.org/x/net v0.0.0-20181023162649-9b4f9f5ad519

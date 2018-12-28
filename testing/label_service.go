@@ -261,7 +261,7 @@ func FindLabels(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			labels, err := s.FindLabels(ctx, tt.args.filter)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -467,7 +467,7 @@ func UpdateLabel(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			_, err := s.UpdateLabel(ctx, &tt.args.label, tt.args.update)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -564,7 +564,7 @@ func DeleteLabel(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.DeleteLabel(ctx, tt.args.label)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 

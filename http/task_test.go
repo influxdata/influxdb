@@ -43,7 +43,7 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 	if err := i.CreateUser(ctx, user); err != nil {
 		t.Fatal(err)
 	}
-	auth := platform.Authorization{UserID: user.ID}
+	auth := platform.Authorization{UserID: user.ID, OrgID: org.ID}
 	if err := i.CreateAuthorization(ctx, &auth); err != nil {
 		t.Fatal(err)
 	}

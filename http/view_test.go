@@ -15,6 +15,8 @@ import (
 	"github.com/influxdata/platform/mock"
 	platformtesting "github.com/influxdata/platform/testing"
 	"github.com/julienschmidt/httprouter"
+	"github.com/yudai/gojsondiff"
+	"github.com/yudai/gojsondiff/formatter"
 )
 
 func TestService_handleGetViews(t *testing.T) {
@@ -656,6 +658,42 @@ func jsonEqual(s1, s2 string) (eq bool, err error) {
 	}
 
 	return cmp.Equal(o1, o2), nil
+}
+
+func jsonEqual2(s1, s2 string) (eq bool, diff string, err error) {
+	var o1, o2 interface{}
+	if s1 == s2 {
+		return true, "", nil
+	}
+
+	if s1 == "" {
+		return false, s2, fmt.Errorf("s1 is empty")
+	}
+
+	if s2 == "" {
+		return false, s1, fmt.Errorf("s2 is empty")
+	}
+
+	if err = json.Unmarshal([]byte(s1), &o1); err != nil {
+		return
+	}
+
+	if err = json.Unmarshal([]byte(s2), &o2); err != nil {
+		return
+	}
+
+	differ := gojsondiff.New()
+	d, err := differ.Compare([]byte(s1), []byte(s2))
+	if err != nil {
+		return
+	}
+
+	config := formatter.AsciiFormatterConfig{}
+
+	formatter := formatter.NewAsciiFormatter(o1, config)
+	diff, err = formatter.Format(d)
+
+	return cmp.Equal(o1, o2), diff, err
 }
 
 /* TODO: Add a go view service client

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	pcontext "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/inmem"
 	platformtesting "github.com/influxdata/platform/testing"
 
@@ -21,10 +22,14 @@ import (
 func TestService_handleGetAuthorizations(t *testing.T) {
 	type fields struct {
 		AuthorizationService platform.AuthorizationService
+		UserService          platform.UserService
+		OrganizationService  platform.OrganizationService
 	}
+
 	type args struct {
 		queryParams map[string][]string
 	}
+
 	type wants struct {
 		statusCode  int
 		contentType string
@@ -32,13 +37,13 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 	}
 
 	tests := []struct {
-		token  string
+		name   string
 		fields fields
 		args   args
 		wants  wants
 	}{
 		{
-			token: "get all authorizations",
+			name: "get all authorizations",
 			fields: fields{
 				&mock.AuthorizationService{
 					FindAuthorizationsFn: func(ctx context.Context, filter platform.AuthorizationFilter, opts ...platform.FindOptions) ([]*platform.Authorization, int, error) {
@@ -47,15 +52,35 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 								ID:          platformtesting.MustIDBase16("0d0a657820696e74"),
 								Token:       "hello",
 								UserID:      platformtesting.MustIDBase16("2070616e656d2076"),
+								OrgID:       platformtesting.MustIDBase16("3070616e656d2076"),
 								Description: "t1",
+								Permissions: platform.OperPermissions(),
 							},
 							{
 								ID:          platformtesting.MustIDBase16("6669646573207375"),
 								Token:       "example",
 								UserID:      platformtesting.MustIDBase16("6c7574652c206f6e"),
+								OrgID:       platformtesting.MustIDBase16("9d70616e656d2076"),
 								Description: "t2",
+								Permissions: platform.OperPermissions(),
 							},
 						}, 2, nil
+					},
+				},
+				&mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						return &platform.User{
+							ID:   id,
+							Name: id.String(),
+						}, nil
+					},
+				},
+				&mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   id,
+							Name: id.String(),
+						}, nil
 					},
 				},
 			},
@@ -63,7 +88,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body: `
+				body: fmt.Sprintf(`
 {
   "links": {
     "self": "/api/v2/authorizations"
@@ -75,10 +100,14 @@ func TestService_handleGetAuthorizations(t *testing.T) {
         "self": "/api/v2/authorizations/0d0a657820696e74"
       },
       "id": "0d0a657820696e74",
-      "userID": "2070616e656d2076",
+	  "userID": "2070616e656d2076",
+	  "user": "2070616e656d2076",
+	  "org": "3070616e656d2076",
+	  "orgID": "3070616e656d2076",
       "status": "",
 	  "token": "hello",
-	  "description": "t1"
+	  "description": "t1",
+	  "permissions": %s
     },
     {
       "links": {
@@ -87,19 +116,23 @@ func TestService_handleGetAuthorizations(t *testing.T) {
       },
       "id": "6669646573207375",
       "userID": "6c7574652c206f6e",
+      "user": "6c7574652c206f6e",
+	  "org": "9d70616e656d2076",
+	  "orgID": "9d70616e656d2076",
       "status": "",
       "token": "example",
-	  "description": "t2"
+	  "description": "t2",
+	  "permissions": %s
     }
   ]
 }
-`,
+`, MustMarshal(platform.OperPermissions()), MustMarshal(platform.OperPermissions())),
 			},
 		},
 		{
-			token: "get all authorizations when there are none",
+			name: "get all authorizations when there are none",
 			fields: fields{
-				&mock.AuthorizationService{
+				AuthorizationService: &mock.AuthorizationService{
 					FindAuthorizationsFn: func(ctx context.Context, filter platform.AuthorizationFilter, opts ...platform.FindOptions) ([]*platform.Authorization, int, error) {
 						return []*platform.Authorization{}, 0, nil
 					},
@@ -121,9 +154,11 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.token, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			h := NewAuthorizationHandler(mock.NewUserService())
 			h.AuthorizationService = tt.fields.AuthorizationService
+			h.UserService = tt.fields.UserService
+			h.OrganizationService = tt.fields.OrganizationService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -144,13 +179,13 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 			body, _ := ioutil.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. handleGetAuthorizations() = %v, want %v", tt.token, res.StatusCode, tt.wants.statusCode)
+				t.Errorf("%q. handleGetAuthorizations() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
-				t.Errorf("%q. handleGetAuthorizations() = %v, want %v", tt.token, content, tt.wants.contentType)
+				t.Errorf("%q. handleGetAuthorizations() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetAuthorizations() = \n***%v***\n,\nwant\n***%v***", tt.token, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual2(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetAuthorizations() = -got/+want %s", tt.name, diff)
 			}
 
 		})
@@ -160,6 +195,9 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 func TestService_handleGetAuthorization(t *testing.T) {
 	type fields struct {
 		AuthorizationService platform.AuthorizationService
+		UserService          platform.UserService
+		OrganizationService  platform.OrganizationService
+		LookupService        platform.LookupService
 	}
 	type args struct {
 		id string
@@ -171,25 +209,57 @@ func TestService_handleGetAuthorization(t *testing.T) {
 	}
 
 	tests := []struct {
-		token  string
+		name   string
 		fields fields
 		args   args
 		wants  wants
 	}{
 		{
-			token: "get a authorization by id",
+			name: "get a authorization by id",
 			fields: fields{
-				&mock.AuthorizationService{
+				AuthorizationService: &mock.AuthorizationService{
 					FindAuthorizationByIDFn: func(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
 						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Authorization{
 								ID:     platformtesting.MustIDBase16("020f755c3c082000"),
 								UserID: platformtesting.MustIDBase16("020f755c3c082000"),
-								Token:  "hello",
+								OrgID:  platformtesting.MustIDBase16("020f755c3c083000"),
+								Permissions: []platform.Permission{
+									{
+										Action:   platform.ReadAction,
+										Resource: platform.BucketsResource,
+										ID: func() *platform.ID {
+											id := platformtesting.MustIDBase16("020f755c3c084000")
+											return &id
+										}(),
+									},
+								},
+								Token: "hello",
 							}, nil
 						}
 
 						return nil, fmt.Errorf("not found")
+					},
+				},
+				UserService: &mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						return &platform.User{
+							ID:   id,
+							Name: "u1",
+						}, nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   id,
+							Name: "o1",
+						}, nil
+					},
+				},
+				LookupService: &mock.LookupService{
+					NameFn: func(ctx context.Context, resource platform.Resource, id platform.ID) (string, error) {
+						return "b1", nil
 					},
 				},
 			},
@@ -206,18 +276,22 @@ func TestService_handleGetAuthorization(t *testing.T) {
     "self": "/api/v2/authorizations/020f755c3c082000"
   },
   "id": "020f755c3c082000",
+  "user": "u1",
   "userID": "020f755c3c082000",
+  "org": "o1",
+  "orgID": "020f755c3c083000",
   "token": "hello",
   "status": "",
-  "description": ""
+  "description": "",
+  "permissions": [{"action": "read","id": "020f755c3c084000", "name": "b1", "resource": "buckets"}]
 }
 `,
 			},
 		},
 		{
-			token: "not found",
+			name: "not found",
 			fields: fields{
-				&mock.AuthorizationService{
+				AuthorizationService: &mock.AuthorizationService{
 					FindAuthorizationByIDFn: func(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
 						return nil, &platform.Error{
 							Code: platform.ENotFound,
@@ -225,20 +299,26 @@ func TestService_handleGetAuthorization(t *testing.T) {
 						}
 					},
 				},
+				UserService:         &mock.UserService{},
+				OrganizationService: &mock.OrganizationService{},
 			},
 			args: args{
 				id: "020f755c3c082000",
 			},
 			wants: wants{
 				statusCode: http.StatusNotFound,
+				body:       `{"code":"not found","message":"authorization not found"}`,
 			},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.token, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			h := NewAuthorizationHandler(mock.NewUserService())
 			h.AuthorizationService = tt.fields.AuthorizationService
+			h.UserService = tt.fields.UserService
+			h.OrganizationService = tt.fields.OrganizationService
+			h.LookupService = tt.fields.LookupService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -259,16 +339,16 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
 			body, _ := ioutil.ReadAll(res.Body)
-			t.Logf(res.Header.Get("X-Influx-Error"))
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. handleGetAuthorization() = %v, want %v", tt.token, res.StatusCode, tt.wants.statusCode)
+				t.Logf("headers: %v body: %s", res.Header, body)
+				t.Errorf("%q. handleGetAuthorization() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
-				t.Errorf("%q. handleGetAuthorization() = %v, want %v", tt.token, content, tt.wants.contentType)
+				t.Errorf("%q. handleGetAuthorization() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetAuthorization() = \n***%v***\n,\nwant\n***%v***", tt.token, string(body), tt.wants.body)
+			if eq, diff, err := jsonEqual2(string(body), tt.wants.body); err != nil || (tt.wants.body != "" && !eq) {
+				t.Errorf("%q. handleGetAuthorization() = -got/+want %s**", tt.name, diff)
 			}
 		})
 	}
@@ -278,8 +358,10 @@ func TestService_handlePostAuthorization(t *testing.T) {
 	type fields struct {
 		AuthorizationService platform.AuthorizationService
 		UserService          platform.UserService
+		OrganizationService  platform.OrganizationService
 	}
 	type args struct {
+		session       *platform.Authorization
 		authorization *platform.Authorization
 	}
 	type wants struct {
@@ -289,88 +371,95 @@ func TestService_handlePostAuthorization(t *testing.T) {
 	}
 
 	tests := []struct {
-		token  string
+		name   string
 		fields fields
 		args   args
 		wants  wants
 	}{
 		{
-			token: "create a new authorization",
+			name: "create a new authorization",
 			fields: fields{
 				AuthorizationService: &mock.AuthorizationService{
 					CreateAuthorizationFn: func(ctx context.Context, c *platform.Authorization) error {
 						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						c.Token = "new-test-token"
 						return nil
 					},
 				},
 				UserService: &mock.UserService{
-					FindUserFn: func(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
 						return &platform.User{
-							ID: platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+							ID:   id,
+							Name: "u1",
+						}, nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   id,
+							Name: "o1",
 						}, nil
 					},
 				},
 			},
 			args: args{
-				authorization: &platform.Authorization{
-					Token:       "hello",
+				session: &platform.Authorization{
+					Token:       "session-token",
 					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
 					UserID:      platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
-					Description: "swogtok",
+					OrgID:       platformtesting.MustIDBase16("020f755c3c083000"),
+					Description: "can write to authorization resource",
+					Permissions: []platform.Permission{
+						{
+							Action:   platform.WriteAction,
+							Resource: platform.AuthorizationsResource,
+						},
+					},
+				},
+				authorization: &platform.Authorization{
+					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
+					UserID:      platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+					OrgID:       platformtesting.MustIDBase16("020f755c3c083000"),
+					Description: "only read dashboards sucka",
+					Permissions: []platform.Permission{
+						{
+							Action:   platform.ReadAction,
+							Resource: platform.DashboardsResource,
+						},
+					},
 				},
 			},
 			wants: wants{
 				statusCode:  http.StatusCreated,
 				contentType: "application/json; charset=utf-8",
 				body: `
-		{
-		  "links": {
-		    "user": "/api/v2/users/aaaaaaaaaaaaaaaa",
-		    "self": "/api/v2/authorizations/020f755c3c082000"
-		  },
-		  "id": "020f755c3c082000",
-		  "userID": "aaaaaaaaaaaaaaaa",
-		  "token": "hello",
-		  "status": "",
-		  "description": "swogtok"
-		}
-		`,
-			},
-		},
-		{
-			token: "cannot create a new authorization for not existing user",
-			fields: fields{
-				AuthorizationService: &mock.AuthorizationService{
-					CreateAuthorizationFn: func(ctx context.Context, c *platform.Authorization) error {
-						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
-						return nil
-					},
-				},
-				UserService: &mock.UserService{
-					FindUserFn: func(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
-						return nil, fmt.Errorf("user id not found")
-					},
-				},
-			},
-			args: args{
-				authorization: &platform.Authorization{
-					Token:       "hello",
-					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
-					UserID:      platformtesting.MustIDBase16("cccccccccccccccc"),
-					Description: "swogtok",
-				},
-			},
-			wants: wants{
-				statusCode:  http.StatusBadRequest,
-				contentType: "application/json; charset=utf-8",
+{
+  "links": {
+    "user": "/api/v2/users/aaaaaaaaaaaaaaaa",
+    "self": "/api/v2/authorizations/020f755c3c082000"
+  },
+  "id": "020f755c3c082000",
+  "user": "u1",
+  "userID": "aaaaaaaaaaaaaaaa",
+  "orgID": "020f755c3c083000",
+  "org": "o1",
+  "token": "new-test-token",
+  "status": "active",
+  "description": "only read dashboards sucka",
+  "permissions": [{"action": "read", "resource": "dashboards"}]
+}
+`,
 			},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.token, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			h := NewAuthorizationHandler(tt.fields.UserService)
 			h.AuthorizationService = tt.fields.AuthorizationService
+			h.UserService = tt.fields.UserService
+			h.OrganizationService = tt.fields.OrganizationService
 
 			b, err := json.Marshal(tt.args.authorization)
 			if err != nil {
@@ -380,6 +469,9 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(b))
 			w := httptest.NewRecorder()
 
+			ctx := pcontext.SetAuthorizer(context.Background(), tt.args.session)
+			r = r.WithContext(ctx)
+
 			h.handlePostAuthorization(w, r)
 
 			res := w.Result()
@@ -387,13 +479,14 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			body, _ := ioutil.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. handlePostAuthorization() = %v, want %v", tt.token, res.StatusCode, tt.wants.statusCode)
+				t.Logf("headers: %v body: %s", res.Header, body)
+				t.Errorf("%q. handlePostAuthorization() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
-				t.Errorf("%q. handlePostAuthorization() = %v, want %v", tt.token, content, tt.wants.contentType)
+				t.Errorf("%q. handlePostAuthorization() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostAuthorization() = \n***%v***\n,\nwant\n***%v***", tt.token, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual2(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePostAuthorization() = -got/+want%s", tt.name, diff)
 			}
 		})
 	}
@@ -402,6 +495,8 @@ func TestService_handlePostAuthorization(t *testing.T) {
 func TestService_handleDeleteAuthorization(t *testing.T) {
 	type fields struct {
 		AuthorizationService platform.AuthorizationService
+		UserService          platform.UserService
+		OrganizationService  platform.OrganizationService
 	}
 	type args struct {
 		id string
@@ -413,13 +508,13 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 	}
 
 	tests := []struct {
-		token  string
+		name   string
 		fields fields
 		args   args
 		wants  wants
 	}{
 		{
-			token: "remove a authorization by id",
+			name: "remove a authorization by id",
 			fields: fields{
 				&mock.AuthorizationService{
 					DeleteAuthorizationFn: func(ctx context.Context, id platform.ID) error {
@@ -430,6 +525,8 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 						return fmt.Errorf("wrong id")
 					},
 				},
+				&mock.UserService{},
+				&mock.OrganizationService{},
 			},
 			args: args{
 				id: "020f755c3c082000",
@@ -439,7 +536,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			},
 		},
 		{
-			token: "authorization not found",
+			name: "authorization not found",
 			fields: fields{
 				&mock.AuthorizationService{
 					DeleteAuthorizationFn: func(ctx context.Context, id platform.ID) error {
@@ -449,20 +546,25 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 						}
 					},
 				},
+				&mock.UserService{},
+				&mock.OrganizationService{},
 			},
 			args: args{
 				id: "020f755c3c082000",
 			},
 			wants: wants{
 				statusCode: http.StatusNotFound,
+				body:       `{"code":"not found","message":"authorization not found"}`,
 			},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.token, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			h := NewAuthorizationHandler(mock.NewUserService())
 			h.AuthorizationService = tt.fields.AuthorizationService
+			h.UserService = tt.fields.UserService
+			h.OrganizationService = tt.fields.OrganizationService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -485,13 +587,14 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			body, _ := ioutil.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. handleDeleteAuthorization() = %v, want %v", tt.token, res.StatusCode, tt.wants.statusCode)
+				t.Errorf("%q. handleDeleteAuthorization() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
-				t.Errorf("%q. handleDeleteAuthorization() = %v, want %v", tt.token, content, tt.wants.contentType)
+				t.Errorf("%q. handleDeleteAuthorization() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleDeleteAuthorization() = \n***%v***\n,\nwant\n***%v***", tt.token, string(body), tt.wants.body)
+
+			if eq, diff, _ := jsonEqual2(string(body), tt.wants.body); !eq {
+				t.Errorf("%q. handleDeleteAuthorization() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -507,27 +610,51 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		t.Skip("TestAuthorizationService_FindAuthorizations/find_authorization_by_token skipped because user tokens cannot be queried")
 	}
 
+	if t.Name() == "TestAuthorizationService_CreateAuthorization/providing_a_non_existing_user_is_invalid" {
+		t.Skip("HTTP authorization service does not required a user id on the authentication struct.  We get the user from the session token.")
+	}
+
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 
 	ctx := context.Background()
+
 	for _, u := range f.Users {
 		if err := svc.PutUser(ctx, u); err != nil {
 			t.Fatalf("failed to populate users")
 		}
 	}
-	for _, u := range f.Authorizations {
-		if err := svc.PutAuthorization(ctx, u); err != nil {
-			t.Fatalf("failed to populate authorizations")
+
+	for _, o := range f.Orgs {
+		if err := svc.PutOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to populate orgs")
 		}
 	}
 
-	handler := NewAuthorizationHandler(mock.NewUserService())
-	handler.AuthorizationService = svc
-	server := httptest.NewServer(handler)
+	var token string
+
+	for _, a := range f.Authorizations {
+		if err := svc.PutAuthorization(ctx, a); err != nil {
+			t.Fatalf("failed to populate authorizations")
+		}
+
+		token = a.Token
+	}
+
+	authZ := NewAuthorizationHandler(mock.NewUserService())
+	authZ.AuthorizationService = svc
+	authZ.UserService = svc
+	authZ.OrganizationService = svc
+
+	authN := NewAuthenticationHandler()
+	authN.AuthorizationService = svc
+	authN.Handler = authZ
+
+	server := httptest.NewServer(authN)
 	client := AuthorizationService{
-		Addr: server.URL,
+		Addr:  server.URL,
+		Token: token,
 	}
 	done := server.Close
 
@@ -557,4 +684,9 @@ func TestAuthorizationService_FindAuthorizations(t *testing.T) {
 
 func TestAuthorizationService_DeleteAuthorization(t *testing.T) {
 	platformtesting.DeleteAuthorization(initAuthorizationService, t)
+}
+
+func MustMarshal(o interface{}) []byte {
+	b, _ := json.Marshal(o)
+	return b
 }

@@ -209,7 +209,7 @@ export const populateTasks = () => async (
     const tasks = await getUserTasks(user)
 
     const mappedTasks = tasks.map(task => {
-      const org = orgs.find(org => org.id === task.organizationId)
+      const org = orgs.find(org => org.id === task.organizationID)
 
       return {
         ...task,
@@ -232,7 +232,7 @@ export const selectTaskByID = (id: string) => async (
     const {orgs} = getState()
 
     const task = await getTask(id)
-    const org = orgs.find(org => org.id === task.organizationId)
+    const org = orgs.find(org => org.id === task.organizationID)
 
     return dispatch(setCurrentTask({...task, organization: org}))
   } catch (e) {

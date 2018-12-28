@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/influxdata/platform"
@@ -39,7 +38,7 @@ func init() {
 	authorizationCreateCmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create authorization",
-		Run:   authorizationCreateF,
+		RunE:  authorizationCreateF,
 	}
 
 	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.user, "user", "u", "", "user name (required)")
@@ -54,46 +53,62 @@ func init() {
 	authorizationCmd.AddCommand(authorizationCreateCmd)
 }
 
-func authorizationCreateF(cmd *cobra.Command, args []string) {
+func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	var permissions []platform.Permission
 	if authorizationCreateFlags.createUserPermission {
-		permissions = append(permissions, platform.CreateUserPermission)
+		p, err := platform.NewPermission(platform.WriteAction, platform.UsersResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
 	}
+
 	if authorizationCreateFlags.deleteUserPermission {
-		permissions = append(permissions, platform.DeleteUserPermission)
+		p, err := platform.NewPermission(platform.WriteAction, platform.UsersResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
 	}
 
 	for _, p := range authorizationCreateFlags.writeBucketPermissions {
 		var id platform.ID
 		if err := id.DecodeFromString(p); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
-		permissions = append(permissions, platform.WriteBucketPermission(id))
+
+		p, err := platform.NewPermissionAtID(id, platform.WriteAction, platform.BucketsResource)
+		if err != nil {
+			return err
+		}
+
+		permissions = append(permissions, *p)
 	}
+
 	for _, p := range authorizationCreateFlags.readBucketPermissions {
 		var id platform.ID
 		if err := id.DecodeFromString(p); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
-		permissions = append(permissions, platform.ReadBucketPermission(id))
+
+		p, err := platform.NewPermissionAtID(id, platform.ReadAction, platform.BucketsResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
 	}
 
 	authorization := &platform.Authorization{
-		User:        authorizationCreateFlags.user,
 		Permissions: permissions,
 	}
 
 	s, err := newAuthorizationService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	if err := s.CreateAuthorization(context.Background(), authorization); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -115,11 +130,13 @@ func authorizationCreateF(cmd *cobra.Command, args []string) {
 		"ID":          authorization.ID.String(),
 		"Token":       authorization.Token,
 		"Status":      authorization.Status,
-		"User":        authorization.User,
 		"UserID":      authorization.UserID.String(),
 		"Permissions": ps,
 	})
+
 	w.Flush()
+
+	return nil
 }
 
 // AuthorizationFindFlags are command line args used when finding a authorization
@@ -135,7 +152,7 @@ func init() {
 	authorizationFindCmd := &cobra.Command{
 		Use:   "find",
 		Short: "Find authorization",
-		Run:   authorizationFindF,
+		RunE:  authorizationFindF,
 	}
 
 	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "user")
@@ -165,19 +182,17 @@ func newAuthorizationService(f Flags) (platform.AuthorizationService, error) {
 	}, nil
 }
 
-func authorizationFindF(cmd *cobra.Command, args []string) {
+func authorizationFindF(cmd *cobra.Command, args []string) error {
 	s, err := newAuthorizationService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	filter := platform.AuthorizationFilter{}
 	if authorizationFindFlags.id != "" {
 		fID, err := platform.IDFromString(authorizationFindFlags.id)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
 		filter.ID = fID
 	}
@@ -187,16 +202,14 @@ func authorizationFindF(cmd *cobra.Command, args []string) {
 	if authorizationFindFlags.userID != "" {
 		uID, err := platform.IDFromString(authorizationFindFlags.userID)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
 		filter.UserID = uID
 	}
 
 	authorizations, _, err := s.FindAuthorizations(context.Background(), filter)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -219,12 +232,14 @@ func authorizationFindF(cmd *cobra.Command, args []string) {
 			"ID":          a.ID,
 			"Token":       a.Token,
 			"Status":      a.Status,
-			"User":        a.User,
 			"UserID":      a.UserID.String(),
 			"Permissions": permissions,
 		})
 	}
+
 	w.Flush()
+
+	return nil
 }
 
 // AuthorizationDeleteFlags are command line args used when deleting a authorization
@@ -238,7 +253,7 @@ func init() {
 	authorizationDeleteCmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete authorization",
-		Run:   authorizationDeleteF,
+		RunE:  authorizationDeleteF,
 	}
 
 	authorizationDeleteCmd.Flags().StringVarP(&authorizationDeleteFlags.id, "id", "i", "", "authorization id (required)")
@@ -247,29 +262,25 @@ func init() {
 	authorizationCmd.AddCommand(authorizationDeleteCmd)
 }
 
-func authorizationDeleteF(cmd *cobra.Command, args []string) {
+func authorizationDeleteF(cmd *cobra.Command, args []string) error {
 	s, err := newAuthorizationService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	id, err := platform.IDFromString(authorizationDeleteFlags.id)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	ctx := context.TODO()
 	a, err := s.FindAuthorizationByID(ctx, *id)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	if err := s.DeleteAuthorization(context.Background(), *id); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -290,12 +301,14 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) {
 	w.Write(map[string]interface{}{
 		"ID":          a.ID.String(),
 		"Token":       a.Token,
-		"User":        a.User,
 		"UserID":      a.UserID.String(),
 		"Permissions": ps,
 		"Deleted":     true,
 	})
+
 	w.Flush()
+
+	return nil
 }
 
 // AuthorizationActiveFlags are command line args used when enabling an authorization
@@ -309,7 +322,7 @@ func init() {
 	authorizationActiveCmd := &cobra.Command{
 		Use:   "active",
 		Short: "active authorization",
-		Run:   authorizationActiveF,
+		RunE:  authorizationActiveF,
 	}
 
 	authorizationActiveCmd.Flags().StringVarP(&authorizationActiveFlags.id, "id", "i", "", "authorization id (required)")
@@ -318,29 +331,25 @@ func init() {
 	authorizationCmd.AddCommand(authorizationActiveCmd)
 }
 
-func authorizationActiveF(cmd *cobra.Command, args []string) {
+func authorizationActiveF(cmd *cobra.Command, args []string) error {
 	s, err := newAuthorizationService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	var id platform.ID
 	if err := id.DecodeFromString(authorizationActiveFlags.id); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	ctx := context.TODO()
 	a, err := s.FindAuthorizationByID(ctx, id)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	if err := s.SetAuthorizationStatus(context.Background(), id, platform.Active); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -362,11 +371,13 @@ func authorizationActiveF(cmd *cobra.Command, args []string) {
 		"ID":          a.ID.String(),
 		"Token":       a.Token,
 		"Status":      a.Status,
-		"User":        a.User,
 		"UserID":      a.UserID.String(),
 		"Permissions": ps,
 	})
+
 	w.Flush()
+
+	return nil
 }
 
 // AuthorizationInactiveFlags are command line args used when disabling an authorization
@@ -380,7 +391,7 @@ func init() {
 	authorizationInactiveCmd := &cobra.Command{
 		Use:   "inactive",
 		Short: "inactive authorization",
-		Run:   authorizationInactiveF,
+		RunE:  authorizationInactiveF,
 	}
 
 	authorizationInactiveCmd.Flags().StringVarP(&authorizationInactiveFlags.id, "id", "i", "", "authorization id (required)")
@@ -389,29 +400,25 @@ func init() {
 	authorizationCmd.AddCommand(authorizationInactiveCmd)
 }
 
-func authorizationInactiveF(cmd *cobra.Command, args []string) {
+func authorizationInactiveF(cmd *cobra.Command, args []string) error {
 	s, err := newAuthorizationService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	var id platform.ID
 	if err := id.DecodeFromString(authorizationInactiveFlags.id); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	ctx := context.TODO()
 	a, err := s.FindAuthorizationByID(ctx, id)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
-	if err := s.SetAuthorizationStatus(context.Background(), id, platform.Inactive); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	if err := s.SetAuthorizationStatus(ctx, id, platform.Inactive); err != nil {
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -433,9 +440,11 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) {
 		"ID":          a.ID.String(),
 		"Token":       a.Token,
 		"Status":      a.Status,
-		"User":        a.User,
 		"UserID":      a.UserID.String(),
 		"Permissions": ps,
 	})
+
 	w.Flush()
+
+	return nil
 }

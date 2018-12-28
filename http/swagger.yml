@@ -4646,29 +4646,73 @@ components:
                 - RFC3339
                 - RFC3339Nano
     Permission:
+      required: [action, resource]
       properties:
+        id:
+          type: string
+          nullable: true
+          description: if id is set that is a permission for a specific resource. if it is not set it is a permission for all resources of that resource type.
+        name:
+          type: string
+          nullable: true
+          description: optional name of the resource if the resource has a name field.
         action:
           type: string
           enum:
             - read
             - write
-            - create
-            - delete
         resource:
           type: string
           enum:
-            - user
-            - org
-            - task/:id
-            - bucket/:id
-            - dashboard/:id
-            - org/:id
-            - org/:id/task
-            - org/:id/bucket
-            - org/:id/source
-            - org/:id/dashboard
+            - authorizations
+            - buckets
+            - dashboards
+            - orgs
+            - sources
+            - tasks
+            - telegrafs
+            - users
     Authorization:
+      required: [orgID, permissions]
       properties:
+        orgID:
+          type: string
+          description: ID of org that authorization is scoped to.
+        status:
+          description: if inactive the token is inactive and requests using the token will be rejected.
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
+        description:
+          type: string
+          description: A description of the token.
+        permissions:
+          type: array
+          minLength: 1
+          description: List of permissions for an auth.  An auth must have at least one Permission.
+          items:
+            $ref: "#/components/schemas/Permission"
+        id:
+          readOnly: true
+          type: string
+        token:
+          readOnly: true
+          type: string
+          description: Passed via the Authorization Header and Token Authentication type.
+        userID:
+          readOnly: true
+          type: string
+          description: ID of user that created and owns the token.
+        user:
+          readOnly: true
+          type: string
+          description: Name of user that created and owns the token.
+        org:
+          readOnly: true
+          type: string
+          description: Name of the org token is scoped to.
         links:
           type: object
           readOnly: true
@@ -4684,32 +4728,6 @@ components:
               readOnly: true
               type: string
               format: uri
-        id:
-          readOnly: true
-          type: string
-        status:
-          description: if inactive the token is inactive and requests using the token will be rejected.
-          default: active
-          type: string
-          enum:
-            - active
-            - inactive
-        token:
-          readOnly: true
-          type: string
-        userID:
-          type: string
-          description: ID of user.
-        user:
-          type: string
-          description: name of user.
-        description:
-          type: string
-          description: a description of the token.
-        permissions:
-          type: array
-          items:
-            $ref: "#/components/schemas/Permission"
     Authorizations:
       type: object
       properties:
@@ -4960,7 +4978,7 @@ components:
         id:
           readOnly: true
           type: string
-        organizationId:
+        organizationID:
           description: The ID of the organization that owns this Task.
           type: string
         name:

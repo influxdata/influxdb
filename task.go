@@ -12,7 +12,7 @@ const (
 // Task is a task. 🎊
 type Task struct {
 	ID              ID     `json:"id,omitempty"`
-	Organization    ID     `json:"organizationId"`
+	Organization    ID     `json:"organizationID"`
 	Name            string `json:"name"`
 	Status          string `json:"status"`
 	Owner           User   `json:"owner"`

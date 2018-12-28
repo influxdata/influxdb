@@ -114,10 +114,10 @@ func (s *Service) CreateTelegrafConfig(ctx context.Context, tc *platform.Telegra
 	op := "inmem/create telegraf config"
 	tc.ID = s.IDGenerator.ID()
 	err := s.CreateUserResourceMapping(ctx, &platform.UserResourceMapping{
-		ResourceID:   tc.ID,
-		UserID:       userID,
-		UserType:     platform.Owner,
-		ResourceType: platform.TelegrafResourceType,
+		ResourceID: tc.ID,
+		UserID:     userID,
+		UserType:   platform.Owner,
+		Resource:   platform.TelegrafsResource,
 	})
 	if err != nil {
 		return err
@@ -169,8 +169,8 @@ func (s *Service) DeleteTelegrafConfig(ctx context.Context, id platform.ID) erro
 	s.telegrafConfigKV.Delete(id)
 
 	err = s.deleteUserResourceMapping(ctx, platform.UserResourceMappingFilter{
-		ResourceID:   id,
-		ResourceType: platform.TelegrafResourceType,
+		ResourceID: id,
+		Resource:   platform.TelegrafsResource,
 	})
 
 	if err != nil {

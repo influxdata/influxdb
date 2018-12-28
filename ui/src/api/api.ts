@@ -94,7 +94,7 @@ export interface AnalyzeQueryResponseErrors {
      * @type {number}
      * @memberof AnalyzeQueryResponseErrors
      */
-    character?: number;
+    line?: number;
     /**
      * 
      * @type {number}
@@ -106,7 +106,7 @@ export interface AnalyzeQueryResponseErrors {
      * @type {number}
      * @memberof AnalyzeQueryResponseErrors
      */
-    line?: number;
+    character?: number;
     /**
      * 
      * @type {string}
@@ -122,29 +122,11 @@ export interface AnalyzeQueryResponseErrors {
  */
 export interface Authorization {
     /**
-     * user defined description of the authorization
+     * ID of org that authorization is scoped to.
      * @type {string}
      * @memberof Authorization
      */
-    description?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof Authorization
-     */
-    id?: string;
-    /**
-     * 
-     * @type {AuthorizationLinks}
-     * @memberof Authorization
-     */
-    links?: AuthorizationLinks;
-    /**
-     * 
-     * @type {Array<Permission>}
-     * @memberof Authorization
-     */
-    permissions?: Array<Permission>;
+    orgID: string;
     /**
      * if inactive the token is inactive and requests using the token will be rejected.
      * @type {string}
@@ -152,23 +134,53 @@ export interface Authorization {
      */
     status?: Authorization.StatusEnum;
     /**
+     * A description of the token.
+     * @type {string}
+     * @memberof Authorization
+     */
+    description?: string;
+    /**
+     * List of permissions for an auth.  An auth must have at least one Permission.
+     * @type {Array<Permission>}
+     * @memberof Authorization
+     */
+    permissions: Array<Permission>;
+    /**
      * 
+     * @type {string}
+     * @memberof Authorization
+     */
+    id?: string;
+    /**
+     * Passed via the Authorization Header and Token Authentication type.
      * @type {string}
      * @memberof Authorization
      */
     token?: string;
     /**
-     * 
+     * ID of user that created and owns the token.
+     * @type {string}
+     * @memberof Authorization
+     */
+    userID?: string;
+    /**
+     * Name of user that created and owns the token.
      * @type {string}
      * @memberof Authorization
      */
     user?: string;
     /**
-     * 
+     * Name of the org token is scoped to.
      * @type {string}
      * @memberof Authorization
      */
-    userID?: string;
+    org?: string;
+    /**
+     * 
+     * @type {AuthorizationLinks}
+     * @memberof Authorization
+     */
+    links?: AuthorizationLinks;
 }
 
 /**
@@ -214,16 +226,16 @@ export interface AuthorizationLinks {
 export interface Authorizations {
     /**
      * 
-     * @type {Array<Authorization>}
-     * @memberof Authorizations
-     */
-    authorizations?: Array<Authorization>;
-    /**
-     * 
      * @type {Links}
      * @memberof Authorizations
      */
     links?: Links;
+    /**
+     * 
+     * @type {Array<Authorization>}
+     * @memberof Authorizations
+     */
+    authorizations?: Array<Authorization>;
 }
 
 /**
@@ -232,12 +244,6 @@ export interface Authorizations {
  * @interface Axis
  */
 export interface Axis {
-    /**
-     * Base represents the radix for formatting axis values.
-     * @type {string}
-     * @memberof Axis
-     */
-    base?: string;
     /**
      * The extents of an axis in the form [lower, upper]. Clients determine whether bounds are to be inclusive or exclusive of their limits
      * @type {Array<number>}
@@ -257,17 +263,23 @@ export interface Axis {
      */
     prefix?: string;
     /**
-     * Scale is the axis formatting scale. Supported: \"log\", \"linear\"
-     * @type {string}
-     * @memberof Axis
-     */
-    scale?: string;
-    /**
      * Suffix represents a label suffix for formatting axis values.
      * @type {string}
      * @memberof Axis
      */
     suffix?: string;
+    /**
+     * Base represents the radix for formatting axis values.
+     * @type {string}
+     * @memberof Axis
+     */
+    base?: string;
+    /**
+     * Scale is the axis formatting scale. Supported: \"log\", \"linear\"
+     * @type {string}
+     * @memberof Axis
+     */
+    scale?: string;
 }
 
 /**
@@ -278,16 +290,22 @@ export interface Axis {
 export interface Bucket {
     /**
      * 
+     * @type {BucketLinks}
+     * @memberof Bucket
+     */
+    links?: BucketLinks;
+    /**
+     * 
      * @type {string}
      * @memberof Bucket
      */
     id?: string;
     /**
      * 
-     * @type {BucketLinks}
+     * @type {Owners}
      * @memberof Bucket
      */
-    links?: BucketLinks;
+    owners?: Owners;
     /**
      * 
      * @type {string}
@@ -305,25 +323,19 @@ export interface Bucket {
      * @type {string}
      * @memberof Bucket
      */
-    organizationID?: string;
+    rp?: string;
     /**
      * 
-     * @type {Owners}
+     * @type {string}
      * @memberof Bucket
      */
-    owners?: Owners;
+    organizationID?: string;
     /**
      * rules to expire or retain data.  No rules means data never expires.
      * @type {Array<BucketRetentionRules>}
      * @memberof Bucket
      */
     retentionRules: Array<BucketRetentionRules>;
-    /**
-     * 
-     * @type {string}
-     * @memberof Bucket
-     */
-    rp?: string;
 }
 
 /**
@@ -337,13 +349,13 @@ export interface BucketLinks {
      * @type {string}
      * @memberof BucketLinks
      */
-    org?: string;
+    self?: string;
     /**
      * 
      * @type {string}
      * @memberof BucketLinks
      */
-    self?: string;
+    org?: string;
     /**
      * 
      * @type {string}
@@ -359,17 +371,17 @@ export interface BucketLinks {
  */
 export interface BucketRetentionRules {
     /**
-     * duration in seconds for how long data will be kept in the database.
-     * @type {number}
-     * @memberof BucketRetentionRules
-     */
-    everySeconds: number;
-    /**
      * 
      * @type {string}
      * @memberof BucketRetentionRules
      */
     type: BucketRetentionRules.TypeEnum;
+    /**
+     * duration in seconds for how long data will be kept in the database.
+     * @type {number}
+     * @memberof BucketRetentionRules
+     */
+    everySeconds: number;
 }
 
 /**
@@ -394,16 +406,16 @@ export namespace BucketRetentionRules {
 export interface Buckets {
     /**
      * 
-     * @type {Array<Bucket>}
-     * @memberof Buckets
-     */
-    buckets?: Array<Bucket>;
-    /**
-     * 
      * @type {Links}
      * @memberof Buckets
      */
     links?: Links;
+    /**
+     * 
+     * @type {Array<Bucket>}
+     * @memberof Buckets
+     */
+    buckets?: Array<Bucket>;
 }
 
 /**
@@ -412,12 +424,6 @@ export interface Buckets {
  * @interface Cell
  */
 export interface Cell {
-    /**
-     * 
-     * @type {number}
-     * @memberof Cell
-     */
-    h?: number;
     /**
      * 
      * @type {string}
@@ -437,18 +443,6 @@ export interface Cell {
      */
     name?: string;
     /**
-     * The reference to a view from the views API
-     * @type {string}
-     * @memberof Cell
-     */
-    viewID?: string;
-    /**
-     * 
-     * @type {number}
-     * @memberof Cell
-     */
-    w?: number;
-    /**
      * 
      * @type {number}
      * @memberof Cell
@@ -460,6 +454,24 @@ export interface Cell {
      * @memberof Cell
      */
     y?: number;
+    /**
+     * 
+     * @type {number}
+     * @memberof Cell
+     */
+    w?: number;
+    /**
+     * 
+     * @type {number}
+     * @memberof Cell
+     */
+    h?: number;
+    /**
+     * The reference to a view from the views API
+     * @type {string}
+     * @memberof Cell
+     */
+    viewID?: string;
 }
 
 /**
@@ -538,34 +550,10 @@ export namespace ConstantMacroProperties {
 export interface CreateCell {
     /**
      * 
-     * @type {number}
-     * @memberof CreateCell
-     */
-    h?: number;
-    /**
-     * 
      * @type {string}
      * @memberof CreateCell
      */
     name?: string;
-    /**
-     * makes a copy of the provided view
-     * @type {string}
-     * @memberof CreateCell
-     */
-    usingView?: string;
-    /**
-     * uses the view provided in the request
-     * @type {string}
-     * @memberof CreateCell
-     */
-    viewID?: string;
-    /**
-     * 
-     * @type {number}
-     * @memberof CreateCell
-     */
-    w?: number;
     /**
      * 
      * @type {number}
@@ -578,6 +566,30 @@ export interface CreateCell {
      * @memberof CreateCell
      */
     y?: number;
+    /**
+     * 
+     * @type {number}
+     * @memberof CreateCell
+     */
+    w?: number;
+    /**
+     * 
+     * @type {number}
+     * @memberof CreateCell
+     */
+    h?: number;
+    /**
+     * uses the view provided in the request
+     * @type {string}
+     * @memberof CreateCell
+     */
+    viewID?: string;
+    /**
+     * makes a copy of the provided view
+     * @type {string}
+     * @memberof CreateCell
+     */
+    usingView?: string;
 }
 
 /**
@@ -588,10 +600,22 @@ export interface CreateCell {
 export interface Dashboard {
     /**
      * 
-     * @type {Array<Cell>}
+     * @type {DashboardLinks}
      * @memberof Dashboard
      */
-    cells?: Array<Cell>;
+    links?: DashboardLinks;
+    /**
+     * 
+     * @type {string}
+     * @memberof Dashboard
+     */
+    id?: string;
+    /**
+     * user-facing name of the dashboard
+     * @type {string}
+     * @memberof Dashboard
+     */
+    name?: string;
     /**
      * user-facing description of the dashboard
      * @type {string}
@@ -600,28 +624,16 @@ export interface Dashboard {
     description?: string;
     /**
      * 
-     * @type {string}
-     * @memberof Dashboard
-     */
-    id?: string;
-    /**
-     * 
-     * @type {DashboardLinks}
-     * @memberof Dashboard
-     */
-    links?: DashboardLinks;
-    /**
-     * 
      * @type {DashboardMeta}
      * @memberof Dashboard
      */
     meta?: DashboardMeta;
     /**
-     * user-facing name of the dashboard
-     * @type {string}
+     * 
+     * @type {Array<Cell>}
      * @memberof Dashboard
      */
-    name?: string;
+    cells?: Array<Cell>;
 }
 
 /**
@@ -631,29 +643,29 @@ export interface Dashboard {
  */
 export interface DashboardColor {
     /**
-     * Hex is the hex number of the color
-     * @type {string}
-     * @memberof DashboardColor
-     */
-    hex?: string;
-    /**
      * ID is the unique id of the view color
      * @type {string}
      * @memberof DashboardColor
      */
     id?: string;
     /**
-     * Name is the user-facing name of the hex color
-     * @type {string}
-     * @memberof DashboardColor
-     */
-    name?: string;
-    /**
      * Type is how the color is used.
      * @type {string}
      * @memberof DashboardColor
      */
     type?: DashboardColor.TypeEnum;
+    /**
+     * Hex is the hex number of the color
+     * @type {string}
+     * @memberof DashboardColor
+     */
+    hex?: string;
+    /**
+     * Name is the user-facing name of the hex color
+     * @type {string}
+     * @memberof DashboardColor
+     */
+    name?: string;
     /**
      * Value is the data value mapped to this color
      * @type {number}
@@ -689,13 +701,13 @@ export interface DashboardLinks {
      * @type {string}
      * @memberof DashboardLinks
      */
-    cells?: string;
+    self?: string;
     /**
      * 
      * @type {string}
      * @memberof DashboardLinks
      */
-    self?: string;
+    cells?: string;
 }
 
 /**
@@ -731,11 +743,11 @@ export interface DashboardQuery {
      */
     label?: string;
     /**
-     * An optional word or phrase that refers to the query
-     * @type {string}
+     * 
+     * @type {DashboardQueryRange}
      * @memberof DashboardQuery
      */
-    name?: string;
+    range?: DashboardQueryRange;
     /**
      * 
      * @type {string}
@@ -743,23 +755,23 @@ export interface DashboardQuery {
      */
     query: string;
     /**
+     * Optional URI for data source for this query
+     * @type {string}
+     * @memberof DashboardQuery
+     */
+    source?: string;
+    /**
      * 
      * @type {QueryConfig}
      * @memberof DashboardQuery
      */
     queryConfig?: QueryConfig;
     /**
-     * 
-     * @type {DashboardQueryRange}
-     * @memberof DashboardQuery
-     */
-    range?: DashboardQueryRange;
-    /**
-     * Optional URI for data source for this query
+     * An optional word or phrase that refers to the query
      * @type {string}
      * @memberof DashboardQuery
      */
-    source?: string;
+    name?: string;
 }
 
 /**
@@ -769,17 +781,17 @@ export interface DashboardQuery {
  */
 export interface DashboardQueryRange {
     /**
-     * Lower bound of the display range of the Y-axis
-     * @type {number}
-     * @memberof DashboardQueryRange
-     */
-    lower: number;
-    /**
      * Upper bound of the display range of the Y-axis
      * @type {number}
      * @memberof DashboardQueryRange
      */
     upper: number;
+    /**
+     * Lower bound of the display range of the Y-axis
+     * @type {number}
+     * @memberof DashboardQueryRange
+     */
+    lower: number;
 }
 
 /**
@@ -790,16 +802,16 @@ export interface DashboardQueryRange {
 export interface Dashboards {
     /**
      * 
-     * @type {Array<Dashboard>}
-     * @memberof Dashboards
-     */
-    dashboards?: Array<Dashboard>;
-    /**
-     * 
      * @type {Links}
      * @memberof Dashboards
      */
     links?: Links;
+    /**
+     * 
+     * @type {Array<Dashboard>}
+     * @memberof Dashboards
+     */
+    dashboards?: Array<Dashboard>;
 }
 
 /**
@@ -808,6 +820,18 @@ export interface Dashboards {
  * @interface Dialect
  */
 export interface Dialect {
+    /**
+     * if true, the results will contain a header row
+     * @type {boolean}
+     * @memberof Dialect
+     */
+    header?: boolean;
+    /**
+     * separator between cells; the default is ,
+     * @type {string}
+     * @memberof Dialect
+     */
+    delimiter?: string;
     /**
      * https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
      * @type {Array<string>}
@@ -826,18 +850,6 @@ export interface Dialect {
      * @memberof Dialect
      */
     dateTimeFormat?: Dialect.DateTimeFormatEnum;
-    /**
-     * separator between cells; the default is ,
-     * @type {string}
-     * @memberof Dialect
-     */
-    delimiter?: string;
-    /**
-     * if true, the results will contain a header row
-     * @type {boolean}
-     * @memberof Dialect
-     */
-    header?: boolean;
 }
 
 /**
@@ -899,6 +911,18 @@ export namespace EmptyViewProperties {
  */
 export interface Field {
     /**
+     * value is the value of the field.  Meaning of the value is implied by the `type` key
+     * @type {string}
+     * @memberof Field
+     */
+    value?: string;
+    /**
+     * type describes the field type. func is a function; field is a field reference
+     * @type {string}
+     * @memberof Field
+     */
+    type?: Field.TypeEnum;
+    /**
      * Alias overrides the field name in the returned response.  Applies only if type is `func`
      * @type {string}
      * @memberof Field
@@ -910,18 +934,6 @@ export interface Field {
      * @memberof Field
      */
     args?: Array<Field>;
-    /**
-     * type describes the field type. func is a function; field is a field reference
-     * @type {string}
-     * @memberof Field
-     */
-    type?: Field.TypeEnum;
-    /**
-     * value is the value of the field.  Meaning of the value is implied by the `type` key
-     * @type {string}
-     * @memberof Field
-     */
-    value?: string;
 }
 
 /**
@@ -1011,10 +1023,10 @@ export interface FluxSuggestionsFuncs {
 export interface Health {
     /**
      * 
-     * @type {Array<Health>}
+     * @type {string}
      * @memberof Health
      */
-    checks?: Array<Health>;
+    name?: string;
     /**
      * 
      * @type {string}
@@ -1023,10 +1035,10 @@ export interface Health {
     message?: string;
     /**
      * 
-     * @type {string}
+     * @type {Array<Health>}
      * @memberof Health
      */
-    name?: string;
+    checks?: Array<Health>;
     /**
      * 
      * @type {string}
@@ -1058,16 +1070,16 @@ export namespace Health {
 export interface InlineResponse200 {
     /**
      * 
-     * @type {Links}
-     * @memberof InlineResponse200
-     */
-    links?: Links;
-    /**
-     * 
      * @type {Array<Task>}
      * @memberof InlineResponse200
      */
     tasks?: Array<Task>;
+    /**
+     * 
+     * @type {Links}
+     * @memberof InlineResponse200
+     */
+    links?: Links;
 }
 
 /**
@@ -1078,16 +1090,16 @@ export interface InlineResponse200 {
 export interface InlineResponse2001 {
     /**
      * 
-     * @type {Links}
-     * @memberof InlineResponse2001
-     */
-    links?: Links;
-    /**
-     * 
      * @type {Array<Run>}
      * @memberof InlineResponse2001
      */
     runs?: Array<Run>;
+    /**
+     * 
+     * @type {Links}
+     * @memberof InlineResponse2001
+     */
+    links?: Links;
 }
 
 /**
@@ -1171,18 +1183,6 @@ export interface LineProtocolError {
      */
     code: LineProtocolError.CodeEnum;
     /**
-     * err is a stack of errors that occurred during processing of the request. Useful for debugging.
-     * @type {string}
-     * @memberof LineProtocolError
-     */
-    err: string;
-    /**
-     * first line within sent body containing malformed data
-     * @type {number}
-     * @memberof LineProtocolError
-     */
-    line?: number;
-    /**
      * message is a human-readable message.
      * @type {string}
      * @memberof LineProtocolError
@@ -1194,6 +1194,18 @@ export interface LineProtocolError {
      * @memberof LineProtocolError
      */
     op: string;
+    /**
+     * err is a stack of errors that occurred during processing of the request. Useful for debugging.
+     * @type {string}
+     * @memberof LineProtocolError
+     */
+    err: string;
+    /**
+     * first line within sent body containing malformed data
+     * @type {number}
+     * @memberof LineProtocolError
+     */
+    line?: number;
 }
 
 /**
@@ -1227,17 +1239,17 @@ export interface LineProtocolLengthError {
      */
     code: LineProtocolLengthError.CodeEnum;
     /**
-     * max length in bytes for a body of line-protocol.
-     * @type {number}
-     * @memberof LineProtocolLengthError
-     */
-    maxLength: number;
-    /**
      * message is a human-readable message.
      * @type {string}
      * @memberof LineProtocolLengthError
      */
     message: string;
+    /**
+     * max length in bytes for a body of line-protocol.
+     * @type {number}
+     * @memberof LineProtocolLengthError
+     */
+    maxLength: number;
 }
 
 /**
@@ -1285,13 +1297,13 @@ export interface Links {
      * @type {Link}
      * @memberof Links
      */
-    prev?: Link;
+    self: Link;
     /**
      * 
      * @type {Link}
      * @memberof Links
      */
-    self: Link;
+    prev?: Link;
 }
 
 /**
@@ -1301,17 +1313,17 @@ export interface Links {
  */
 export interface LogEvent {
     /**
-     * A description of the event that occurred.
-     * @type {string}
-     * @memberof LogEvent
-     */
-    message?: string;
-    /**
      * Time event occurred, RFC3339Nano.
      * @type {Date}
      * @memberof LogEvent
      */
     time?: Date;
+    /**
+     * A description of the event that occurred.
+     * @type {string}
+     * @memberof LogEvent
+     */
+    message?: string;
 }
 
 /**
@@ -1320,12 +1332,6 @@ export interface LogEvent {
  * @interface LogViewProperties
  */
 export interface LogViewProperties {
-    /**
-     * Defines the order, names, and visibility of columns in the log viewer table
-     * @type {Array<LogViewerColumn>}
-     * @memberof LogViewProperties
-     */
-    columns: Array<LogViewerColumn>;
     /**
      * 
      * @type {string}
@@ -1338,6 +1344,12 @@ export interface LogViewProperties {
      * @memberof LogViewProperties
      */
     type: LogViewProperties.TypeEnum;
+    /**
+     * Defines the order, names, and visibility of columns in the log viewer table
+     * @type {Array<LogViewerColumn>}
+     * @memberof LogViewProperties
+     */
+    columns: Array<LogViewerColumn>;
 }
 
 /**
@@ -1398,12 +1410,6 @@ export interface LogViewerColumnSettings {
      * @type {string}
      * @memberof LogViewerColumnSettings
      */
-    name?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof LogViewerColumnSettings
-     */
     type: string;
     /**
      * 
@@ -1411,6 +1417,12 @@ export interface LogViewerColumnSettings {
      * @memberof LogViewerColumnSettings
      */
     value: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof LogViewerColumnSettings
+     */
+    name?: string;
 }
 
 /**
@@ -1435,22 +1447,16 @@ export interface Logs {
 export interface Macro {
     /**
      * 
-     * @type {any}
+     * @type {UserLinks}
      * @memberof Macro
      */
-    arguments?: any;
+    links?: UserLinks;
     /**
      * 
      * @type {string}
      * @memberof Macro
      */
     id?: string;
-    /**
-     * 
-     * @type {MacroLinks}
-     * @memberof Macro
-     */
-    links?: MacroLinks;
     /**
      * 
      * @type {string}
@@ -1463,20 +1469,12 @@ export interface Macro {
      * @memberof Macro
      */
     selected?: Array<string>;
-}
-
-/**
- * 
- * @export
- * @interface MacroLinks
- */
-export interface MacroLinks {
     /**
      * 
-     * @type {string}
-     * @memberof MacroLinks
+     * @type {any}
+     * @memberof Macro
      */
-    self?: string;
+    arguments?: any;
 }
 
 /**
@@ -1540,12 +1538,6 @@ export interface ModelError {
      */
     code: ModelError.CodeEnum;
     /**
-     * err is a stack of errors that occurred during processing of the request. Useful for debugging.
-     * @type {string}
-     * @memberof ModelError
-     */
-    err: string;
-    /**
      * message is a human-readable message.
      * @type {string}
      * @memberof ModelError
@@ -1557,6 +1549,12 @@ export interface ModelError {
      * @memberof ModelError
      */
     op: string;
+    /**
+     * err is a stack of errors that occurred during processing of the request. Useful for debugging.
+     * @type {string}
+     * @memberof ModelError
+     */
+    err: string;
 }
 
 /**
@@ -1588,7 +1586,13 @@ export interface OnboardingRequest {
      * @type {string}
      * @memberof OnboardingRequest
      */
-    bucket: string;
+    username: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof OnboardingRequest
+     */
+    password: string;
     /**
      * 
      * @type {string}
@@ -1600,19 +1604,13 @@ export interface OnboardingRequest {
      * @type {string}
      * @memberof OnboardingRequest
      */
-    password: string;
+    bucket: string;
     /**
      * 
      * @type {number}
      * @memberof OnboardingRequest
      */
     retentionPeriodHrs?: number;
-    /**
-     * 
-     * @type {string}
-     * @memberof OnboardingRequest
-     */
-    username: string;
 }
 
 /**
@@ -1623,16 +1621,10 @@ export interface OnboardingRequest {
 export interface OnboardingResponse {
     /**
      * 
-     * @type {Authorization}
+     * @type {User}
      * @memberof OnboardingResponse
      */
-    auth?: Authorization;
-    /**
-     * 
-     * @type {Bucket}
-     * @memberof OnboardingResponse
-     */
-    bucket?: Bucket;
+    user?: User;
     /**
      * 
      * @type {Organization}
@@ -1641,10 +1633,16 @@ export interface OnboardingResponse {
     org?: Organization;
     /**
      * 
-     * @type {User}
+     * @type {Bucket}
      * @memberof OnboardingResponse
      */
-    user?: User;
+    bucket?: Bucket;
+    /**
+     * 
+     * @type {Authorization}
+     * @memberof OnboardingResponse
+     */
+    auth?: Authorization;
 }
 
 /**
@@ -1653,12 +1651,6 @@ export interface OnboardingResponse {
  * @interface Organization
  */
 export interface Organization {
-    /**
-     * 
-     * @type {string}
-     * @memberof Organization
-     */
-    id?: string;
     /**
      * 
      * @type {OrganizationLinks}
@@ -1670,19 +1662,25 @@ export interface Organization {
      * @type {string}
      * @memberof Organization
      */
-    name: string;
+    id?: string;
     /**
      * 
-     * @type {Owners}
+     * @type {string}
      * @memberof Organization
      */
-    owners?: Owners;
+    name: string;
     /**
      * if inactive the organization is inactive.
      * @type {string}
      * @memberof Organization
      */
     status?: Organization.StatusEnum;
+    /**
+     * 
+     * @type {Owners}
+     * @memberof Organization
+     */
+    owners?: Owners;
 }
 
 /**
@@ -1711,19 +1709,19 @@ export interface OrganizationLinks {
      * @type {string}
      * @memberof OrganizationLinks
      */
-    buckets?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof OrganizationLinks
-     */
-    dashboards?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof OrganizationLinks
-     */
     self?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof OrganizationLinks
+     */
+    users?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof OrganizationLinks
+     */
+    buckets?: string;
     /**
      * 
      * @type {string}
@@ -1735,7 +1733,7 @@ export interface OrganizationLinks {
      * @type {string}
      * @memberof OrganizationLinks
      */
-    users?: string;
+    dashboards?: string;
 }
 
 /**
@@ -1766,16 +1764,16 @@ export interface Organizations {
 export interface Owners {
     /**
      * 
-     * @type {Organizations}
-     * @memberof Owners
-     */
-    organizations?: Organizations;
-    /**
-     * 
      * @type {Users}
      * @memberof Owners
      */
     users?: Users;
+    /**
+     * 
+     * @type {Organizations}
+     * @memberof Owners
+     */
+    organizations?: Organizations;
 }
 
 /**
@@ -1799,17 +1797,23 @@ export interface PasswordResetBody {
  */
 export interface Permission {
     /**
-     * 
+     * if id is set that is a permission for a specific resource. if it is not set it is a permission for all resources of that resource type.
      * @type {string}
      * @memberof Permission
      */
-    action?: Permission.ActionEnum;
+    id?: string;
     /**
      * 
      * @type {string}
      * @memberof Permission
      */
-    resource?: Permission.ResourceEnum;
+    action: Permission.ActionEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof Permission
+     */
+    resource: Permission.ResourceEnum;
 }
 
 /**
@@ -1823,25 +1827,21 @@ export namespace Permission {
      */
     export enum ActionEnum {
         Read = 'read',
-        Write = 'write',
-        Create = 'create',
-        Delete = 'delete'
+        Write = 'write'
     }
     /**
      * @export
      * @enum {string}
      */
     export enum ResourceEnum {
-        User = 'user',
-        Org = 'org',
-        Taskid = 'task/:id',
-        Bucketid = 'bucket/:id',
-        Dashboardid = 'dashboard/:id',
-        Orgid = 'org/:id',
-        Orgidtask = 'org/:id/task',
-        Orgidbucket = 'org/:id/bucket',
-        Orgidsource = 'org/:id/source',
-        Orgiddashboard = 'org/:id/dashboard'
+        Authorizations = 'authorizations',
+        Buckets = 'buckets',
+        Dashboards = 'dashboards',
+        Orgs = 'orgs',
+        Sources = 'sources',
+        Tasks = 'tasks',
+        Telegrafs = 'telegrafs',
+        Users = 'users'
     }
 }
 
@@ -1852,35 +1852,11 @@ export namespace Permission {
  */
 export interface Query {
     /**
-     * required for influxql type queries
-     * @type {string}
-     * @memberof Query
-     */
-    cluster?: string;
-    /**
-     * required for influxql type queries
-     * @type {string}
-     * @memberof Query
-     */
-    db?: string;
-    /**
-     * 
-     * @type {Dialect}
-     * @memberof Query
-     */
-    dialect?: Dialect;
-    /**
      * query script to execute.
      * @type {string}
      * @memberof Query
      */
     query: string;
-    /**
-     * required for influxql type queries
-     * @type {string}
-     * @memberof Query
-     */
-    rp?: string;
     /**
      * 
      * @type {QuerySpecification}
@@ -1893,6 +1869,30 @@ export interface Query {
      * @memberof Query
      */
     type?: Query.TypeEnum;
+    /**
+     * required for influxql type queries
+     * @type {string}
+     * @memberof Query
+     */
+    db?: string;
+    /**
+     * required for influxql type queries
+     * @type {string}
+     * @memberof Query
+     */
+    rp?: string;
+    /**
+     * required for influxql type queries
+     * @type {string}
+     * @memberof Query
+     */
+    cluster?: string;
+    /**
+     * 
+     * @type {Dialect}
+     * @memberof Query
+     */
+    dialect?: Dialect;
 }
 
 /**
@@ -1918,30 +1918,6 @@ export namespace Query {
 export interface QueryConfig {
     /**
      * 
-     * @type {boolean}
-     * @memberof QueryConfig
-     */
-    areTagsAccepted: boolean;
-    /**
-     * 
-     * @type {string}
-     * @memberof QueryConfig
-     */
-    database: string;
-    /**
-     * 
-     * @type {Array<Field>}
-     * @memberof QueryConfig
-     */
-    fields: Array<Field>;
-    /**
-     * 
-     * @type {QueryConfigGroupBy}
-     * @memberof QueryConfig
-     */
-    groupBy: QueryConfigGroupBy;
-    /**
-     * 
      * @type {string}
      * @memberof QueryConfig
      */
@@ -1951,19 +1927,13 @@ export interface QueryConfig {
      * @type {string}
      * @memberof QueryConfig
      */
-    measurement: string;
-    /**
-     * 
-     * @type {QueryConfigRange}
-     * @memberof QueryConfig
-     */
-    range?: QueryConfigRange;
+    database: string;
     /**
      * 
      * @type {string}
      * @memberof QueryConfig
      */
-    rawText?: string;
+    measurement: string;
     /**
      * 
      * @type {string}
@@ -1972,10 +1942,40 @@ export interface QueryConfig {
     retentionPolicy: string;
     /**
      * 
+     * @type {boolean}
+     * @memberof QueryConfig
+     */
+    areTagsAccepted: boolean;
+    /**
+     * 
+     * @type {string}
+     * @memberof QueryConfig
+     */
+    rawText?: string;
+    /**
+     * 
      * @type {any}
      * @memberof QueryConfig
      */
     tags: any;
+    /**
+     * 
+     * @type {QueryConfigGroupBy}
+     * @memberof QueryConfig
+     */
+    groupBy: QueryConfigGroupBy;
+    /**
+     * 
+     * @type {Array<Field>}
+     * @memberof QueryConfig
+     */
+    fields: Array<Field>;
+    /**
+     * 
+     * @type {QueryConfigRange}
+     * @memberof QueryConfig
+     */
+    range?: QueryConfigRange;
 }
 
 /**
@@ -1986,16 +1986,16 @@ export interface QueryConfig {
 export interface QueryConfigGroupBy {
     /**
      * 
-     * @type {Array<string>}
-     * @memberof QueryConfigGroupBy
-     */
-    tags: Array<string>;
-    /**
-     * 
      * @type {string}
      * @memberof QueryConfigGroupBy
      */
     time: string;
+    /**
+     * 
+     * @type {Array<string>}
+     * @memberof QueryConfigGroupBy
+     */
+    tags: Array<string>;
 }
 
 /**
@@ -2029,6 +2029,12 @@ export interface QueryMacroProperties {
      * @type {string}
      * @memberof QueryMacroProperties
      */
+    type?: QueryMacroProperties.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof QueryMacroProperties
+     */
     query?: string;
     /**
      * 
@@ -2036,12 +2042,6 @@ export interface QueryMacroProperties {
      * @memberof QueryMacroProperties
      */
     queryType?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof QueryMacroProperties
-     */
-    type?: QueryMacroProperties.TypeEnum;
 }
 
 /**
@@ -2066,10 +2066,10 @@ export namespace QueryMacroProperties {
 export interface QuerySpecification {
     /**
      * 
-     * @type {Dialect}
+     * @type {Array<QuerySpecificationOperations>}
      * @memberof QuerySpecification
      */
-    dialect?: Dialect;
+    operations?: Array<QuerySpecificationOperations>;
     /**
      * list of declaring a parent child id relationship between operations
      * @type {Array<QuerySpecificationEdges>}
@@ -2078,16 +2078,16 @@ export interface QuerySpecification {
     edges?: Array<QuerySpecificationEdges>;
     /**
      * 
-     * @type {Array<QuerySpecificationOperations>}
-     * @memberof QuerySpecification
-     */
-    operations?: Array<QuerySpecificationOperations>;
-    /**
-     * 
      * @type {QuerySpecificationResources}
      * @memberof QuerySpecification
      */
     resources?: QuerySpecificationResources;
+    /**
+     * 
+     * @type {Dialect}
+     * @memberof QuerySpecification
+     */
+    dialect?: Dialect;
 }
 
 /**
@@ -2097,17 +2097,17 @@ export interface QuerySpecification {
  */
 export interface QuerySpecificationEdges {
     /**
-     * id of child node of parent within the graph of operations
-     * @type {string}
-     * @memberof QuerySpecificationEdges
-     */
-    child?: string;
-    /**
      * id of parent node of child within graph of opertions
      * @type {string}
      * @memberof QuerySpecificationEdges
      */
     parent?: string;
+    /**
+     * id of child node of parent within the graph of operations
+     * @type {string}
+     * @memberof QuerySpecificationEdges
+     */
+    child?: string;
 }
 
 /**
@@ -2117,17 +2117,17 @@ export interface QuerySpecificationEdges {
  */
 export interface QuerySpecificationOperations {
     /**
-     * identifier for this operation; it must be unique per query specification; used in edges
-     * @type {string}
-     * @memberof QuerySpecificationOperations
-     */
-    id?: string;
-    /**
      * name of the operation to perform
      * @type {string}
      * @memberof QuerySpecificationOperations
      */
     kind?: string;
+    /**
+     * identifier for this operation; it must be unique per query specification; used in edges
+     * @type {string}
+     * @memberof QuerySpecificationOperations
+     */
+    id?: string;
     /**
      * set of properties that specify details of the operation. These vary by the kind of operation.
      * @type {any}
@@ -2143,6 +2143,12 @@ export interface QuerySpecificationOperations {
  */
 export interface QuerySpecificationResources {
     /**
+     * priority of the query
+     * @type {any}
+     * @memberof QuerySpecificationResources
+     */
+    priority?: any;
+    /**
      * number of concurrent workers allowed to process this query; 0 indicates the planner can pick the optimal concurrency.
      * @type {number}
      * @memberof QuerySpecificationResources
@@ -2154,12 +2160,6 @@ export interface QuerySpecificationResources {
      * @memberof QuerySpecificationResources
      */
     memoryBytesQuota?: number;
-    /**
-     * priority of the query
-     * @type {any}
-     * @memberof QuerySpecificationResources
-     */
-    priority?: any;
 }
 
 /**
@@ -2169,17 +2169,17 @@ export interface QuerySpecificationResources {
  */
 export interface RenamableField {
     /**
-     * This is the name that a field is renamed to by the user
-     * @type {string}
-     * @memberof RenamableField
-     */
-    displayName?: string;
-    /**
      * This is the calculated name of a field
      * @type {string}
      * @memberof RenamableField
      */
     internalName?: string;
+    /**
+     * This is the name that a field is renamed to by the user
+     * @type {string}
+     * @memberof RenamableField
+     */
+    displayName?: string;
     /**
      * Indicates whether this field should be visible on the table
      * @type {boolean}
@@ -2199,6 +2199,36 @@ export interface Routes {
      * @type {string}
      * @memberof Routes
      */
+    sources?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Routes
+     */
+    dashboards?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Routes
+     */
+    query?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Routes
+     */
+    write?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Routes
+     */
+    orgs?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Routes
+     */
     auths?: string;
     /**
      * 
@@ -2211,7 +2241,19 @@ export interface Routes {
      * @type {string}
      * @memberof Routes
      */
-    dashboards?: string;
+    users?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Routes
+     */
+    tasks?: string;
+    /**
+     * 
+     * @type {RoutesSystem}
+     * @memberof Routes
+     */
+    system?: RoutesSystem;
     /**
      * 
      * @type {RoutesExternal}
@@ -2224,48 +2266,6 @@ export interface Routes {
      * @memberof Routes
      */
     flux?: FluxLinks;
-    /**
-     * 
-     * @type {string}
-     * @memberof Routes
-     */
-    orgs?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof Routes
-     */
-    query?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof Routes
-     */
-    sources?: string;
-    /**
-     * 
-     * @type {RoutesSystem}
-     * @memberof Routes
-     */
-    system?: RoutesSystem;
-    /**
-     * 
-     * @type {string}
-     * @memberof Routes
-     */
-    tasks?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof Routes
-     */
-    users?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof Routes
-     */
-    write?: string;
 }
 
 /**
@@ -2293,6 +2293,12 @@ export interface RoutesSystem {
      * @type {string}
      * @memberof RoutesSystem
      */
+    metrics?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof RoutesSystem
+     */
     debug?: string;
     /**
      * 
@@ -2300,12 +2306,6 @@ export interface RoutesSystem {
      * @memberof RoutesSystem
      */
     health?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof RoutesSystem
-     */
-    metrics?: string;
 }
 
 /**
@@ -2316,34 +2316,22 @@ export interface RoutesSystem {
 export interface Run {
     /**
      * 
-     * @type {Error}
-     * @memberof Run
-     */
-    error?: Error;
-    /**
-     * Time run finished executing, RFC3339Nano.
-     * @type {Date}
-     * @memberof Run
-     */
-    finishedAt?: Date;
-    /**
-     * 
      * @type {string}
      * @memberof Run
      */
     id?: string;
     /**
-     * Link to the full logs for a run.
+     * 
      * @type {string}
      * @memberof Run
      */
-    log?: string;
+    taskID?: string;
     /**
-     * Time run was manually requested, RFC3339Nano.
-     * @type {Date}
+     * 
+     * @type {string}
      * @memberof Run
      */
-    requestedAt?: Date;
+    status?: Run.StatusEnum;
     /**
      * Time used for run's \"now\" option, RFC3339.
      * @type {Date}
@@ -2357,17 +2345,29 @@ export interface Run {
      */
     startedAt?: Date;
     /**
-     * 
-     * @type {string}
+     * Time run finished executing, RFC3339Nano.
+     * @type {Date}
      * @memberof Run
      */
-    status?: Run.StatusEnum;
+    finishedAt?: Date;
+    /**
+     * Time run was manually requested, RFC3339Nano.
+     * @type {Date}
+     * @memberof Run
+     */
+    requestedAt?: Date;
     /**
      * 
+     * @type {Error}
+     * @memberof Run
+     */
+    error?: Error;
+    /**
+     * Link to the full logs for a run.
      * @type {string}
      * @memberof Run
      */
-    taskID?: string;
+    log?: string;
 }
 
 /**
@@ -2395,30 +2395,6 @@ export namespace Run {
 export interface Source {
     /**
      * 
-     * @type {string}
-     * @memberof Source
-     */
-    defaultRP?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof Source
-     */
-    id?: string;
-    /**
-     * 
-     * @type {boolean}
-     * @memberof Source
-     */
-    insecureSkipVerify?: boolean;
-    /**
-     * 
-     * @type {Array<string>}
-     * @memberof Source
-     */
-    languages?: Array<Source.LanguagesEnum>;
-    /**
-     * 
      * @type {SourceLinks}
      * @memberof Source
      */
@@ -2428,13 +2404,7 @@ export interface Source {
      * @type {string}
      * @memberof Source
      */
-    metaUrl?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof Source
-     */
-    name?: string;
+    id?: string;
     /**
      * 
      * @type {string}
@@ -2446,13 +2416,25 @@ export interface Source {
      * @type {string}
      * @memberof Source
      */
-    password?: string;
+    name?: string;
     /**
      * 
      * @type {string}
      * @memberof Source
      */
-    sharedSecret?: string;
+    type?: Source.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof Source
+     */
+    url?: string;
+    /**
+     * 
+     * @type {boolean}
+     * @memberof Source
+     */
+    insecureSkipVerify?: boolean;
     /**
      * 
      * @type {string}
@@ -2470,19 +2452,37 @@ export interface Source {
      * @type {string}
      * @memberof Source
      */
-    type?: Source.TypeEnum;
-    /**
-     * 
-     * @type {string}
-     * @memberof Source
-     */
-    url?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof Source
-     */
     username?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Source
+     */
+    password?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Source
+     */
+    sharedSecret?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Source
+     */
+    metaUrl?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Source
+     */
+    defaultRP?: string;
+    /**
+     * 
+     * @type {Array<string>}
+     * @memberof Source
+     */
+    languages?: Array<Source.LanguagesEnum>;
 }
 
 /**
@@ -2494,19 +2494,19 @@ export namespace Source {
      * @export
      * @enum {string}
      */
-    export enum LanguagesEnum {
-        Flux = 'flux',
-        Influxql = 'influxql',
-        Spec = 'spec'
+    export enum TypeEnum {
+        V1 = 'v1',
+        V2 = 'v2',
+        Self = 'self'
     }
     /**
      * @export
      * @enum {string}
      */
-    export enum TypeEnum {
-        V1 = 'v1',
-        V2 = 'v2',
-        Self = 'self'
+    export enum LanguagesEnum {
+        Flux = 'flux',
+        Influxql = 'influxql',
+        Spec = 'spec'
     }
 }
 
@@ -2521,13 +2521,7 @@ export interface SourceLinks {
      * @type {string}
      * @memberof SourceLinks
      */
-    buckets?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof SourceLinks
-     */
-    health?: string;
+    self?: string;
     /**
      * 
      * @type {string}
@@ -2539,7 +2533,13 @@ export interface SourceLinks {
      * @type {string}
      * @memberof SourceLinks
      */
-    self?: string;
+    health?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof SourceLinks
+     */
+    buckets?: string;
 }
 
 /**
@@ -2550,10 +2550,10 @@ export interface SourceLinks {
 export interface Sources {
     /**
      * 
-     * @type {MacroLinks}
+     * @type {UserLinks}
      * @memberof Sources
      */
-    links?: MacroLinks;
+    links?: UserLinks;
     /**
      * 
      * @type {Array<Source>}
@@ -2569,35 +2569,17 @@ export interface Sources {
  */
 export interface Task {
     /**
-     * A task repetition schedule in the form '* * * * * *'; parsed from Flux.
-     * @type {string}
-     * @memberof Task
-     */
-    cron?: string;
-    /**
-     * A simple task repetition schedule; parsed from Flux.
-     * @type {string}
-     * @memberof Task
-     */
-    every?: string;
-    /**
-     * The Flux script to run for this task.
-     * @type {string}
-     * @memberof Task
-     */
-    flux: string;
-    /**
      * 
      * @type {string}
      * @memberof Task
      */
     id?: string;
     /**
-     * 
-     * @type {TaskLinks}
+     * The ID of the organization that owns this Task.
+     * @type {string}
      * @memberof Task
      */
-    links?: TaskLinks;
+    organizationID?: string;
     /**
      * A description of the task.
      * @type {string}
@@ -2605,17 +2587,11 @@ export interface Task {
      */
     name: string;
     /**
-     * How long to wait before running the task
+     * The current status of the task. When updated to 'inactive', cancels all queued jobs of this task.
      * @type {string}
      * @memberof Task
      */
-    offset?: string;
-    /**
-     * The ID of the organization that owns this Task.
-     * @type {string}
-     * @memberof Task
-     */
-    organizationId?: string;
+    status?: Task.StatusEnum;
     /**
      * 
      * @type {User}
@@ -2623,11 +2599,35 @@ export interface Task {
      */
     owner?: User;
     /**
-     * The current status of the task. When updated to 'inactive', cancels all queued jobs of this task.
+     * The Flux script to run for this task.
      * @type {string}
      * @memberof Task
      */
-    status?: Task.StatusEnum;
+    flux: string;
+    /**
+     * A simple task repetition schedule; parsed from Flux.
+     * @type {string}
+     * @memberof Task
+     */
+    every?: string;
+    /**
+     * A task repetition schedule in the form '* * * * * *'; parsed from Flux.
+     * @type {string}
+     * @memberof Task
+     */
+    cron?: string;
+    /**
+     * How long to wait before running the task
+     * @type {string}
+     * @memberof Task
+     */
+    offset?: string;
+    /**
+     * 
+     * @type {TaskLinks}
+     * @memberof Task
+     */
+    links?: TaskLinks;
 }
 
 /**
@@ -2652,23 +2652,23 @@ export namespace Task {
  */
 export interface TaskCreateRequest {
     /**
-     * The Flux script to run for this task.
-     * @type {string}
-     * @memberof TaskCreateRequest
-     */
-    flux: string;
-    /**
      * The ID of the organization that owns this Task.
      * @type {string}
      * @memberof TaskCreateRequest
      */
-    organizationId: string;
+    organizationID: string;
     /**
      * Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
      * @type {string}
      * @memberof TaskCreateRequest
      */
     status?: TaskCreateRequest.StatusEnum;
+    /**
+     * The Flux script to run for this task.
+     * @type {string}
+     * @memberof TaskCreateRequest
+     */
+    flux: string;
 }
 
 /**
@@ -2697,13 +2697,7 @@ export interface TaskLinks {
      * @type {string}
      * @memberof TaskLinks
      */
-    logs?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof TaskLinks
-     */
-    members?: string;
+    self?: string;
     /**
      * 
      * @type {string}
@@ -2715,13 +2709,19 @@ export interface TaskLinks {
      * @type {string}
      * @memberof TaskLinks
      */
+    members?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof TaskLinks
+     */
     runs?: string;
     /**
      * 
      * @type {string}
      * @memberof TaskLinks
      */
-    self?: string;
+    logs?: string;
 }
 
 /**
@@ -2731,17 +2731,17 @@ export interface TaskLinks {
  */
 export interface TaskUpdateRequest {
     /**
-     * The Flux script to run for this task.
-     * @type {string}
-     * @memberof TaskUpdateRequest
-     */
-    flux?: string;
-    /**
      * Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
      * @type {string}
      * @memberof TaskUpdateRequest
      */
     status?: TaskUpdateRequest.StatusEnum;
+    /**
+     * The Flux script to run for this task.
+     * @type {string}
+     * @memberof TaskUpdateRequest
+     */
+    flux?: string;
 }
 
 /**
@@ -2804,18 +2804,6 @@ export interface TelegrafPluginInputCpu {
      * @type {string}
      * @memberof TelegrafPluginInputCpu
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputCpu
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputCpu
-     */
     name: TelegrafPluginInputCpu.NameEnum;
     /**
      * 
@@ -2823,6 +2811,18 @@ export interface TelegrafPluginInputCpu {
      * @memberof TelegrafPluginInputCpu
      */
     type: TelegrafPluginInputCpu.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputCpu
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputCpu
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -2872,18 +2872,6 @@ export interface TelegrafPluginInputDisk {
      * @type {string}
      * @memberof TelegrafPluginInputDisk
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputDisk
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputDisk
-     */
     name: TelegrafPluginInputDisk.NameEnum;
     /**
      * 
@@ -2891,6 +2879,18 @@ export interface TelegrafPluginInputDisk {
      * @memberof TelegrafPluginInputDisk
      */
     type: TelegrafPluginInputDisk.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDisk
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputDisk
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -2940,18 +2940,6 @@ export interface TelegrafPluginInputDiskio {
      * @type {string}
      * @memberof TelegrafPluginInputDiskio
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputDiskio
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputDiskio
-     */
     name: TelegrafPluginInputDiskio.NameEnum;
     /**
      * 
@@ -2959,6 +2947,18 @@ export interface TelegrafPluginInputDiskio {
      * @memberof TelegrafPluginInputDiskio
      */
     type: TelegrafPluginInputDiskio.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDiskio
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputDiskio
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -3008,18 +3008,6 @@ export interface TelegrafPluginInputDocker {
      * @type {string}
      * @memberof TelegrafPluginInputDocker
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginInputDockerConfig}
-     * @memberof TelegrafPluginInputDocker
-     */
-    config: TelegrafPluginInputDockerConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputDocker
-     */
     name: TelegrafPluginInputDocker.NameEnum;
     /**
      * 
@@ -3027,6 +3015,18 @@ export interface TelegrafPluginInputDocker {
      * @memberof TelegrafPluginInputDocker
      */
     type: TelegrafPluginInputDocker.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputDocker
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputDockerConfig}
+     * @memberof TelegrafPluginInputDocker
+     */
+    config: TelegrafPluginInputDockerConfig;
 }
 
 /**
@@ -3090,18 +3090,6 @@ export interface TelegrafPluginInputFile {
      * @type {string}
      * @memberof TelegrafPluginInputFile
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginInputFileConfig}
-     * @memberof TelegrafPluginInputFile
-     */
-    config: TelegrafPluginInputFileConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputFile
-     */
     name: TelegrafPluginInputFile.NameEnum;
     /**
      * 
@@ -3109,6 +3097,18 @@ export interface TelegrafPluginInputFile {
      * @memberof TelegrafPluginInputFile
      */
     type: TelegrafPluginInputFile.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputFile
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputFileConfig}
+     * @memberof TelegrafPluginInputFile
+     */
+    config: TelegrafPluginInputFileConfig;
 }
 
 /**
@@ -3172,18 +3172,6 @@ export interface TelegrafPluginInputKernel {
      * @type {string}
      * @memberof TelegrafPluginInputKernel
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputKernel
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputKernel
-     */
     name: TelegrafPluginInputKernel.NameEnum;
     /**
      * 
@@ -3191,6 +3179,18 @@ export interface TelegrafPluginInputKernel {
      * @memberof TelegrafPluginInputKernel
      */
     type: TelegrafPluginInputKernel.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputKernel
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputKernel
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -3240,18 +3240,6 @@ export interface TelegrafPluginInputKubernetes {
      * @type {string}
      * @memberof TelegrafPluginInputKubernetes
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginInputKubernetesConfig}
-     * @memberof TelegrafPluginInputKubernetes
-     */
-    config: TelegrafPluginInputKubernetesConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputKubernetes
-     */
     name: TelegrafPluginInputKubernetes.NameEnum;
     /**
      * 
@@ -3259,6 +3247,18 @@ export interface TelegrafPluginInputKubernetes {
      * @memberof TelegrafPluginInputKubernetes
      */
     type: TelegrafPluginInputKubernetes.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputKubernetes
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputKubernetesConfig}
+     * @memberof TelegrafPluginInputKubernetes
+     */
+    config: TelegrafPluginInputKubernetesConfig;
 }
 
 /**
@@ -3322,18 +3322,6 @@ export interface TelegrafPluginInputLogParser {
      * @type {string}
      * @memberof TelegrafPluginInputLogParser
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginInputLogParserConfig}
-     * @memberof TelegrafPluginInputLogParser
-     */
-    config: TelegrafPluginInputLogParserConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputLogParser
-     */
     name: TelegrafPluginInputLogParser.NameEnum;
     /**
      * 
@@ -3341,6 +3329,18 @@ export interface TelegrafPluginInputLogParser {
      * @memberof TelegrafPluginInputLogParser
      */
     type: TelegrafPluginInputLogParser.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputLogParser
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputLogParserConfig}
+     * @memberof TelegrafPluginInputLogParser
+     */
+    config: TelegrafPluginInputLogParserConfig;
 }
 
 /**
@@ -3404,18 +3404,6 @@ export interface TelegrafPluginInputMem {
      * @type {string}
      * @memberof TelegrafPluginInputMem
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputMem
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputMem
-     */
     name: TelegrafPluginInputMem.NameEnum;
     /**
      * 
@@ -3423,6 +3411,18 @@ export interface TelegrafPluginInputMem {
      * @memberof TelegrafPluginInputMem
      */
     type: TelegrafPluginInputMem.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputMem
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputMem
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -3472,18 +3472,6 @@ export interface TelegrafPluginInputNet {
      * @type {string}
      * @memberof TelegrafPluginInputNet
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputNet
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputNet
-     */
     name: TelegrafPluginInputNet.NameEnum;
     /**
      * 
@@ -3491,6 +3479,18 @@ export interface TelegrafPluginInputNet {
      * @memberof TelegrafPluginInputNet
      */
     type: TelegrafPluginInputNet.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNet
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputNet
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -3540,18 +3540,6 @@ export interface TelegrafPluginInputNetResponse {
      * @type {string}
      * @memberof TelegrafPluginInputNetResponse
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputNetResponse
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputNetResponse
-     */
     name: TelegrafPluginInputNetResponse.NameEnum;
     /**
      * 
@@ -3559,6 +3547,18 @@ export interface TelegrafPluginInputNetResponse {
      * @memberof TelegrafPluginInputNetResponse
      */
     type: TelegrafPluginInputNetResponse.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNetResponse
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputNetResponse
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -3608,18 +3608,6 @@ export interface TelegrafPluginInputNgnix {
      * @type {string}
      * @memberof TelegrafPluginInputNgnix
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputNgnix
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputNgnix
-     */
     name: TelegrafPluginInputNgnix.NameEnum;
     /**
      * 
@@ -3627,6 +3615,18 @@ export interface TelegrafPluginInputNgnix {
      * @memberof TelegrafPluginInputNgnix
      */
     type: TelegrafPluginInputNgnix.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputNgnix
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputNgnix
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -3676,18 +3676,6 @@ export interface TelegrafPluginInputProcesses {
      * @type {string}
      * @memberof TelegrafPluginInputProcesses
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputProcesses
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputProcesses
-     */
     name: TelegrafPluginInputProcesses.NameEnum;
     /**
      * 
@@ -3695,6 +3683,18 @@ export interface TelegrafPluginInputProcesses {
      * @memberof TelegrafPluginInputProcesses
      */
     type: TelegrafPluginInputProcesses.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputProcesses
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputProcesses
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -3744,18 +3744,6 @@ export interface TelegrafPluginInputProcstat {
      * @type {string}
      * @memberof TelegrafPluginInputProcstat
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginInputProcstatConfig}
-     * @memberof TelegrafPluginInputProcstat
-     */
-    config: TelegrafPluginInputProcstatConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputProcstat
-     */
     name: TelegrafPluginInputProcstat.NameEnum;
     /**
      * 
@@ -3763,6 +3751,18 @@ export interface TelegrafPluginInputProcstat {
      * @memberof TelegrafPluginInputProcstat
      */
     type: TelegrafPluginInputProcstat.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputProcstat
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputProcstatConfig}
+     * @memberof TelegrafPluginInputProcstat
+     */
+    config: TelegrafPluginInputProcstatConfig;
 }
 
 /**
@@ -3826,18 +3826,6 @@ export interface TelegrafPluginInputPrometheus {
      * @type {string}
      * @memberof TelegrafPluginInputPrometheus
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginInputPrometheusConfig}
-     * @memberof TelegrafPluginInputPrometheus
-     */
-    config: TelegrafPluginInputPrometheusConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputPrometheus
-     */
     name: TelegrafPluginInputPrometheus.NameEnum;
     /**
      * 
@@ -3845,6 +3833,18 @@ export interface TelegrafPluginInputPrometheus {
      * @memberof TelegrafPluginInputPrometheus
      */
     type: TelegrafPluginInputPrometheus.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputPrometheus
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputPrometheusConfig}
+     * @memberof TelegrafPluginInputPrometheus
+     */
+    config: TelegrafPluginInputPrometheusConfig;
 }
 
 /**
@@ -3908,18 +3908,6 @@ export interface TelegrafPluginInputRedis {
      * @type {string}
      * @memberof TelegrafPluginInputRedis
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginInputRedisConfig}
-     * @memberof TelegrafPluginInputRedis
-     */
-    config: TelegrafPluginInputRedisConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputRedis
-     */
     name: TelegrafPluginInputRedis.NameEnum;
     /**
      * 
@@ -3927,6 +3915,18 @@ export interface TelegrafPluginInputRedis {
      * @memberof TelegrafPluginInputRedis
      */
     type: TelegrafPluginInputRedis.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputRedis
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputRedisConfig}
+     * @memberof TelegrafPluginInputRedis
+     */
+    config: TelegrafPluginInputRedisConfig;
 }
 
 /**
@@ -3958,16 +3958,16 @@ export namespace TelegrafPluginInputRedis {
 export interface TelegrafPluginInputRedisConfig {
     /**
      * 
-     * @type {string}
-     * @memberof TelegrafPluginInputRedisConfig
-     */
-    password?: string;
-    /**
-     * 
      * @type {Array<string>}
      * @memberof TelegrafPluginInputRedisConfig
      */
     servers?: Array<string>;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputRedisConfig
+     */
+    password?: string;
 }
 
 /**
@@ -3996,18 +3996,6 @@ export interface TelegrafPluginInputSwap {
      * @type {string}
      * @memberof TelegrafPluginInputSwap
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputSwap
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputSwap
-     */
     name: TelegrafPluginInputSwap.NameEnum;
     /**
      * 
@@ -4015,6 +4003,18 @@ export interface TelegrafPluginInputSwap {
      * @memberof TelegrafPluginInputSwap
      */
     type: TelegrafPluginInputSwap.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSwap
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputSwap
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -4064,18 +4064,6 @@ export interface TelegrafPluginInputSyslog {
      * @type {string}
      * @memberof TelegrafPluginInputSyslog
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginInputSyslogConfig}
-     * @memberof TelegrafPluginInputSyslog
-     */
-    config: TelegrafPluginInputSyslogConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputSyslog
-     */
     name: TelegrafPluginInputSyslog.NameEnum;
     /**
      * 
@@ -4083,6 +4071,18 @@ export interface TelegrafPluginInputSyslog {
      * @memberof TelegrafPluginInputSyslog
      */
     type: TelegrafPluginInputSyslog.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSyslog
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginInputSyslogConfig}
+     * @memberof TelegrafPluginInputSyslog
+     */
+    config: TelegrafPluginInputSyslogConfig;
 }
 
 /**
@@ -4146,18 +4146,6 @@ export interface TelegrafPluginInputSystem {
      * @type {string}
      * @memberof TelegrafPluginInputSystem
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputSystem
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputSystem
-     */
     name: TelegrafPluginInputSystem.NameEnum;
     /**
      * 
@@ -4165,6 +4153,18 @@ export interface TelegrafPluginInputSystem {
      * @memberof TelegrafPluginInputSystem
      */
     type: TelegrafPluginInputSystem.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputSystem
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputSystem
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -4214,18 +4214,6 @@ export interface TelegrafPluginInputTail {
      * @type {string}
      * @memberof TelegrafPluginInputTail
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputTail
-     */
-    config: TelegrafPluginConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginInputTail
-     */
     name: TelegrafPluginInputTail.NameEnum;
     /**
      * 
@@ -4233,6 +4221,18 @@ export interface TelegrafPluginInputTail {
      * @memberof TelegrafPluginInputTail
      */
     type: TelegrafPluginInputTail.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginInputTail
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginConfig}
+     * @memberof TelegrafPluginInputTail
+     */
+    config: TelegrafPluginConfig;
 }
 
 /**
@@ -4282,18 +4282,6 @@ export interface TelegrafPluginOutputFile {
      * @type {string}
      * @memberof TelegrafPluginOutputFile
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginOutputFileConfig}
-     * @memberof TelegrafPluginOutputFile
-     */
-    config: TelegrafPluginOutputFileConfig;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginOutputFile
-     */
     name: TelegrafPluginOutputFile.NameEnum;
     /**
      * 
@@ -4301,6 +4289,18 @@ export interface TelegrafPluginOutputFile {
      * @memberof TelegrafPluginOutputFile
      */
     type: TelegrafPluginOutputFile.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginOutputFile
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginOutputFileConfig}
+     * @memberof TelegrafPluginOutputFile
+     */
+    config: TelegrafPluginOutputFileConfig;
 }
 
 /**
@@ -4349,13 +4349,13 @@ export interface TelegrafPluginOutputFileConfigFiles {
      * @type {string}
      * @memberof TelegrafPluginOutputFileConfigFiles
      */
-    path?: string;
+    type?: TelegrafPluginOutputFileConfigFiles.TypeEnum;
     /**
      * 
      * @type {string}
      * @memberof TelegrafPluginOutputFileConfigFiles
      */
-    type?: TelegrafPluginOutputFileConfigFiles.TypeEnum;
+    path?: string;
 }
 
 /**
@@ -4399,18 +4399,6 @@ export interface TelegrafPluginOutputInfluxDBV2 {
      * @type {string}
      * @memberof TelegrafPluginOutputInfluxDBV2
      */
-    comment?: string;
-    /**
-     * 
-     * @type {TelegrafPluginOutputInfluxDBV2Config}
-     * @memberof TelegrafPluginOutputInfluxDBV2
-     */
-    config: TelegrafPluginOutputInfluxDBV2Config;
-    /**
-     * 
-     * @type {string}
-     * @memberof TelegrafPluginOutputInfluxDBV2
-     */
     name: TelegrafPluginOutputInfluxDBV2.NameEnum;
     /**
      * 
@@ -4418,6 +4406,18 @@ export interface TelegrafPluginOutputInfluxDBV2 {
      * @memberof TelegrafPluginOutputInfluxDBV2
      */
     type: TelegrafPluginOutputInfluxDBV2.TypeEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafPluginOutputInfluxDBV2
+     */
+    comment?: string;
+    /**
+     * 
+     * @type {TelegrafPluginOutputInfluxDBV2Config}
+     * @memberof TelegrafPluginOutputInfluxDBV2
+     */
+    config: TelegrafPluginOutputInfluxDBV2Config;
 }
 
 /**
@@ -4449,10 +4449,16 @@ export namespace TelegrafPluginOutputInfluxDBV2 {
 export interface TelegrafPluginOutputInfluxDBV2Config {
     /**
      * 
+     * @type {Array<string>}
+     * @memberof TelegrafPluginOutputInfluxDBV2Config
+     */
+    urls: Array<string>;
+    /**
+     * 
      * @type {string}
      * @memberof TelegrafPluginOutputInfluxDBV2Config
      */
-    bucket: string;
+    token: string;
     /**
      * 
      * @type {string}
@@ -4464,13 +4470,7 @@ export interface TelegrafPluginOutputInfluxDBV2Config {
      * @type {string}
      * @memberof TelegrafPluginOutputInfluxDBV2Config
      */
-    token: string;
-    /**
-     * 
-     * @type {Array<string>}
-     * @memberof TelegrafPluginOutputInfluxDBV2Config
-     */
-    urls: Array<string>;
+    bucket: string;
 }
 
 /**
@@ -4496,16 +4496,16 @@ export namespace TelegrafPluginOutputInfluxDBV2Request {
 export interface TelegrafRequest {
     /**
      * 
-     * @type {TelegrafRequestAgent}
-     * @memberof TelegrafRequest
-     */
-    agent?: TelegrafRequestAgent;
-    /**
-     * 
      * @type {string}
      * @memberof TelegrafRequest
      */
     name?: string;
+    /**
+     * 
+     * @type {TelegrafRequestAgent}
+     * @memberof TelegrafRequest
+     */
+    agent?: TelegrafRequestAgent;
     /**
      * 
      * @type {Array<TelegrafRequestPlugin>}
@@ -4578,12 +4578,6 @@ export interface User {
     id?: string;
     /**
      * 
-     * @type {MacroLinks}
-     * @memberof User
-     */
-    links?: MacroLinks;
-    /**
-     * 
      * @type {string}
      * @memberof User
      */
@@ -4594,6 +4588,12 @@ export interface User {
      * @memberof User
      */
     status?: User.StatusEnum;
+    /**
+     * 
+     * @type {UserLinks}
+     * @memberof User
+     */
+    links?: UserLinks;
 }
 
 /**
@@ -4614,15 +4614,29 @@ export namespace User {
 /**
  * 
  * @export
+ * @interface UserLinks
+ */
+export interface UserLinks {
+    /**
+     * 
+     * @type {string}
+     * @memberof UserLinks
+     */
+    self?: string;
+}
+
+/**
+ * 
+ * @export
  * @interface Users
  */
 export interface Users {
     /**
      * 
-     * @type {MacroLinks}
+     * @type {UserLinks}
      * @memberof Users
      */
-    links?: MacroLinks;
+    links?: UserLinks;
     /**
      * 
      * @type {Array<User>}
@@ -4639,40 +4653,10 @@ export interface Users {
 export interface V1ViewProperties {
     /**
      * 
-     * @type {V1ViewPropertiesAxes}
-     * @memberof V1ViewProperties
-     */
-    axes?: V1ViewPropertiesAxes;
-    /**
-     * Colors define color encoding of data into a visualization
-     * @type {Array<DashboardColor>}
-     * @memberof V1ViewProperties
-     */
-    colors?: Array<DashboardColor>;
-    /**
-     * 
-     * @type {V1ViewPropertiesDecimalPoints}
-     * @memberof V1ViewProperties
-     */
-    decimalPoints?: V1ViewPropertiesDecimalPoints;
-    /**
-     * fieldOptions represent the fields retrieved by the query with customization options
-     * @type {Array<RenamableField>}
-     * @memberof V1ViewProperties
-     */
-    fieldOptions?: Array<RenamableField>;
-    /**
-     * The viewport for a view's graph/visualization
      * @type {string}
      * @memberof V1ViewProperties
      */
-    graphType?: V1ViewProperties.GraphTypeEnum;
-    /**
-     * 
-     * @type {V1ViewPropertiesLegend}
-     * @memberof V1ViewProperties
-     */
-    legend?: V1ViewPropertiesLegend;
+    type?: V1ViewProperties.TypeEnum;
     /**
      * 
      * @type {Array<DashboardQuery>}
@@ -4681,10 +4665,40 @@ export interface V1ViewProperties {
     queries?: Array<DashboardQuery>;
     /**
      * 
+     * @type {V1ViewPropertiesAxes}
+     * @memberof V1ViewProperties
+     */
+    axes?: V1ViewPropertiesAxes;
+    /**
+     * The viewport for a view's graph/visualization
+     * @type {string}
+     * @memberof V1ViewProperties
+     */
+    graphType?: V1ViewProperties.GraphTypeEnum;
+    /**
+     * Colors define color encoding of data into a visualization
+     * @type {Array<DashboardColor>}
+     * @memberof V1ViewProperties
+     */
+    colors?: Array<DashboardColor>;
+    /**
+     * 
+     * @type {V1ViewPropertiesLegend}
+     * @memberof V1ViewProperties
+     */
+    legend?: V1ViewPropertiesLegend;
+    /**
+     * 
      * @type {any}
      * @memberof V1ViewProperties
      */
     tableOptions?: any;
+    /**
+     * fieldOptions represent the fields retrieved by the query with customization options
+     * @type {Array<RenamableField>}
+     * @memberof V1ViewProperties
+     */
+    fieldOptions?: Array<RenamableField>;
     /**
      * timeFormat describes the display format for time values according to moment.js date formatting
      * @type {string}
@@ -4693,10 +4707,10 @@ export interface V1ViewProperties {
     timeFormat?: string;
     /**
      * 
-     * @type {string}
+     * @type {V1ViewPropertiesDecimalPoints}
      * @memberof V1ViewProperties
      */
-    type?: V1ViewProperties.TypeEnum;
+    decimalPoints?: V1ViewPropertiesDecimalPoints;
 }
 
 /**
@@ -4704,6 +4718,13 @@ export interface V1ViewProperties {
  * @namespace V1ViewProperties
  */
 export namespace V1ViewProperties {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        ChronografV1 = 'chronograf-v1'
+    }
     /**
      * @export
      * @enum {string}
@@ -4718,13 +4739,6 @@ export namespace V1ViewProperties {
         Gauge = 'gauge',
         Table = 'table'
     }
-    /**
-     * @export
-     * @enum {string}
-     */
-    export enum TypeEnum {
-        ChronografV1 = 'chronograf-v1'
-    }
 }
 
 /**
@@ -4738,13 +4752,13 @@ export interface V1ViewPropertiesAxes {
      * @type {Axis}
      * @memberof V1ViewPropertiesAxes
      */
-    _true?: Axis;
+    x?: Axis;
     /**
      * 
      * @type {Axis}
      * @memberof V1ViewPropertiesAxes
      */
-    x?: Axis;
+    y?: Axis;
     /**
      * 
      * @type {Axis}
@@ -4760,17 +4774,17 @@ export interface V1ViewPropertiesAxes {
  */
 export interface V1ViewPropertiesDecimalPoints {
     /**
-     * The number of digists after decimal to display
-     * @type {number}
-     * @memberof V1ViewPropertiesDecimalPoints
-     */
-    digits?: number;
-    /**
      * Indicates whether decimal point setting should be enforced
      * @type {boolean}
      * @memberof V1ViewPropertiesDecimalPoints
      */
     isEnforced?: boolean;
+    /**
+     * The number of digists after decimal to display
+     * @type {number}
+     * @memberof V1ViewPropertiesDecimalPoints
+     */
+    digits?: number;
 }
 
 /**
@@ -4780,17 +4794,17 @@ export interface V1ViewPropertiesDecimalPoints {
  */
 export interface V1ViewPropertiesLegend {
     /**
-     * orientation is the location of the legend with respect to the view graph
-     * @type {string}
-     * @memberof V1ViewPropertiesLegend
-     */
-    orientation?: V1ViewPropertiesLegend.OrientationEnum;
-    /**
      * type is the style of the legend
      * @type {string}
      * @memberof V1ViewPropertiesLegend
      */
     type?: V1ViewPropertiesLegend.TypeEnum;
+    /**
+     * orientation is the location of the legend with respect to the view graph
+     * @type {string}
+     * @memberof V1ViewPropertiesLegend
+     */
+    orientation?: V1ViewPropertiesLegend.OrientationEnum;
 }
 
 /**
@@ -4802,18 +4816,18 @@ export namespace V1ViewPropertiesLegend {
      * @export
      * @enum {string}
      */
-    export enum OrientationEnum {
-        Top = 'top',
-        Bottom = 'bottom',
-        Left = 'left',
-        Right = 'right'
+    export enum TypeEnum {
+        Static = 'static'
     }
     /**
      * @export
      * @enum {string}
      */
-    export enum TypeEnum {
-        Static = 'static'
+    export enum OrientationEnum {
+        Top = 'top',
+        Bottom = 'bottom',
+        Left = 'left',
+        Right = 'right'
     }
 }
 
@@ -4825,16 +4839,16 @@ export namespace V1ViewPropertiesLegend {
 export interface View {
     /**
      * 
-     * @type {string}
-     * @memberof View
-     */
-    id?: string;
-    /**
-     * 
      * @type {ViewLinks}
      * @memberof View
      */
     links?: ViewLinks;
+    /**
+     * 
+     * @type {string}
+     * @memberof View
+     */
+    id?: string;
     /**
      * 
      * @type {string}
@@ -9656,7 +9670,7 @@ export const QueryApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        queryPost(accept?: 'text/csv' | 'application/vnd.influx.arrow', contentType?: 'application/json', authorization?: string, org?: string, query?: Query, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<any> {
+        queryPost(accept?: 'text/csv' | 'application/vnd.influx.arrow', contentType?: 'application/json', authorization?: string, org?: string, query?: Query, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<string> {
             const localVarAxiosArgs = QueryApiAxiosParamCreator(configuration).queryPost(accept, contentType, authorization, org, query, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})

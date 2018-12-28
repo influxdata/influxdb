@@ -37,6 +37,7 @@ type AuthorizationFields struct {
 	TokenGenerator platform.TokenGenerator
 	Authorizations []*platform.Authorization
 	Users          []*platform.User
+	Orgs           []*platform.Organization
 }
 
 // AuthorizationService tests all the service functions.
@@ -96,49 +97,6 @@ func CreateAuthorization(
 		wants  wants
 	}{
 		{
-			name: "create authorizations with empty set",
-			fields: AuthorizationFields{
-				IDGenerator: mock.NewIDGenerator(authOneID, t),
-				TokenGenerator: &mock.TokenGenerator{
-					TokenFn: func() (string, error) {
-						return "rand", nil
-					},
-				},
-				Authorizations: []*platform.Authorization{},
-				Users: []*platform.User{
-					{
-						Name: "cooluser",
-						ID:   MustIDBase16(userOneID),
-					},
-				},
-			},
-			args: args{
-				authorization: &platform.Authorization{
-					ID:   MustIDBase16(authOneID),
-					User: "cooluser",
-					Permissions: []platform.Permission{
-						platform.CreateUserPermission,
-						platform.DeleteUserPermission,
-					},
-				},
-			},
-			wants: wants{
-				authorizations: []*platform.Authorization{
-					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand",
-						Status: platform.Active,
-						User:   "cooluser",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
-					},
-				},
-			},
-		},
-		{
 			name: "basic create authorization",
 			fields: AuthorizationFields{
 				IDGenerator: mock.NewIDGenerator(authTwoID, t),
@@ -152,60 +110,57 @@ func CreateAuthorization(
 						Name: "cooluser",
 						ID:   MustIDBase16(userOneID),
 					},
+				},
+				Orgs: []*platform.Organization{
 					{
-						Name: "regularuser",
-						ID:   MustIDBase16(userTwoID),
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "supersecret",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "supersecret",
+						Permissions: allUsersPermission(),
+						Description: "already existing auth",
 					},
 				},
 			},
 			args: args{
 				authorization: &platform.Authorization{
-					User: "regularuser",
-					ID:   MustIDBase16(authTwoID),
-					Permissions: []platform.Permission{
-						platform.CreateUserPermission,
-					},
+					OrgID:       MustIDBase16(orgOneID),
+					UserID:      MustIDBase16(userOneID),
+					Permissions: createUsersPermission(),
+					Description: "new auth",
 				},
 			},
 			wants: wants{
 				authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						User:   "cooluser",
-						Status: platform.Active,
-						Token:  "supersecret",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Status:      platform.Active,
+						Token:       "supersecret",
+						Permissions: allUsersPermission(),
+						Description: "already existing auth",
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						User:   "regularuser",
-						Token:  "rand",
-						Status: platform.Active,
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand",
+						Status:      platform.Active,
+						Permissions: createUsersPermission(),
+						Description: "new auth",
 					},
 				},
 			},
 		},
 		{
-			name: "missing id authorization",
+			name: "if auth ID supplied it is ignored",
 			fields: AuthorizationFields{
 				IDGenerator: mock.NewIDGenerator(authTwoID, t),
 				TokenGenerator: &mock.TokenGenerator{
@@ -218,55 +173,160 @@ func CreateAuthorization(
 						Name: "cooluser",
 						ID:   MustIDBase16(userOneID),
 					},
+				},
+				Orgs: []*platform.Organization{
 					{
-						Name: "regularuser",
-						ID:   MustIDBase16(userTwoID),
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 				Authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "supersecret",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "supersecret",
+						Permissions: allUsersPermission(),
 					},
 				},
 			},
 			args: args{
 				authorization: &platform.Authorization{
-					User: "regularuser",
-					Permissions: []platform.Permission{
-						platform.CreateUserPermission,
-					},
+					ID:          platform.ID(1), // Should be ignored.
+					UserID:      MustIDBase16(userOneID),
+					OrgID:       MustIDBase16(orgOneID),
+					Permissions: createUsersPermission(),
 				},
 			},
 			wants: wants{
 				authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						User:   "cooluser",
-						Status: platform.Active,
-						Token:  "supersecret",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Status:      platform.Active,
+						Token:       "supersecret",
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						User:   "regularuser",
-						Token:  "rand",
-						Status: platform.Active,
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand",
+						Status:      platform.Active,
+						Permissions: createUsersPermission(),
 					},
 				},
+			},
+		},
+		{
+			name: "providing a non existing user is invalid",
+			fields: AuthorizationFields{
+				IDGenerator: mock.NewIDGenerator(authTwoID, t),
+				TokenGenerator: &mock.TokenGenerator{
+					TokenFn: func() (string, error) {
+						return "rand", nil
+					},
+				},
+				Users: []*platform.User{
+					{
+						Name: "cooluser",
+						ID:   MustIDBase16(userOneID),
+					},
+				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "supersecret",
+						Permissions: allUsersPermission(),
+						Description: "already existing auth",
+					},
+				},
+			},
+			args: args{
+				authorization: &platform.Authorization{
+					OrgID:       MustIDBase16(orgOneID),
+					UserID:      MustIDBase16(userTwoID),
+					Permissions: createUsersPermission(),
+					Description: "auth with non-existent user",
+				},
+			},
+			wants: wants{
+				authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Status:      platform.Active,
+						Token:       "supersecret",
+						Permissions: allUsersPermission(),
+						Description: "already existing auth",
+					},
+				},
+				err: platform.ErrUnableToCreateToken,
+			},
+		},
+		{
+			name: "providing a non existing org is invalid",
+			fields: AuthorizationFields{
+				IDGenerator: mock.NewIDGenerator(authTwoID, t),
+				TokenGenerator: &mock.TokenGenerator{
+					TokenFn: func() (string, error) {
+						return "rand", nil
+					},
+				},
+				Users: []*platform.User{
+					{
+						Name: "cooluser",
+						ID:   MustIDBase16(userOneID),
+					},
+				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "supersecret",
+						Permissions: allUsersPermission(),
+						Description: "already existing auth",
+					},
+				},
+			},
+			args: args{
+				authorization: &platform.Authorization{
+					OrgID:       MustIDBase16(orgTwoID),
+					UserID:      MustIDBase16(userOneID),
+					Permissions: createUsersPermission(),
+					Description: "auth with non-existent org",
+				},
+			},
+			wants: wants{
+				authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Status:      platform.Active,
+						Token:       "supersecret",
+						Permissions: allUsersPermission(),
+						Description: "already existing auth",
+					},
+				},
+				err: platform.ErrUnableToCreateToken,
 			},
 		},
 	}
@@ -275,22 +335,15 @@ func CreateAuthorization(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.CreateAuthorization(ctx, tt.args.authorization)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
 
-			diffPlatformErrors(tt.name, tt.wants.err, err, opPrefix, t)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
-			// if tt.args.authorization.ID != nil {
 			defer s.DeleteAuthorization(ctx, tt.args.authorization.ID)
-			// }
 
 			authorizations, _, err := s.FindAuthorizations(ctx, platform.AuthorizationFilter{})
 			if err != nil {
@@ -337,21 +390,24 @@ func FindAuthorizationByID(
 				},
 				Authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand1",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						Token:  "rand2",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
+					},
+				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -360,14 +416,12 @@ func FindAuthorizationByID(
 			},
 			wants: wants{
 				authorization: &platform.Authorization{
-					ID:     MustIDBase16(authTwoID),
-					UserID: MustIDBase16(userTwoID),
-					User:   "regularuser",
-					Status: platform.Active,
-					Token:  "rand2",
-					Permissions: []platform.Permission{
-						platform.CreateUserPermission,
-					},
+					ID:          MustIDBase16(authTwoID),
+					UserID:      MustIDBase16(userTwoID),
+					OrgID:       MustIDBase16(orgOneID),
+					Status:      platform.Active,
+					Token:       "rand2",
+					Permissions: createUsersPermission(),
 				},
 			},
 		},
@@ -377,7 +431,7 @@ func FindAuthorizationByID(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			authorization, err := s.FindAuthorizationByID(ctx, tt.args.id)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -421,42 +475,45 @@ func FindAuthorizationByToken(
 						ID:   MustIDBase16(userTwoID),
 					},
 				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+					{
+						Name: "o2",
+						ID:   MustIDBase16(orgTwoID),
+					},
+				},
 				Authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand1",
-						Status: platform.Inactive,
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						Token:       "rand1",
+						Status:      platform.Inactive,
+						OrgID:       MustIDBase16(orgTwoID),
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authZeroID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand0",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authZeroID),
+						UserID:      MustIDBase16(userOneID),
+						Token:       "rand0",
+						OrgID:       MustIDBase16(orgOneID),
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						Token:  "rand2",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authThreeID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand3",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authThreeID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand3",
+						Permissions: allUsersPermission(),
 					},
 				},
 			},
@@ -465,15 +522,12 @@ func FindAuthorizationByToken(
 			},
 			wants: wants{
 				authorization: &platform.Authorization{
-					ID:     MustIDBase16(authOneID),
-					UserID: MustIDBase16(userOneID),
-					Status: platform.Inactive,
-					User:   "cooluser",
-					Token:  "rand1",
-					Permissions: []platform.Permission{
-						platform.CreateUserPermission,
-						platform.DeleteUserPermission,
-					},
+					ID:          MustIDBase16(authOneID),
+					UserID:      MustIDBase16(userOneID),
+					OrgID:       MustIDBase16(orgTwoID),
+					Status:      platform.Inactive,
+					Token:       "rand1",
+					Permissions: allUsersPermission(),
 				},
 			},
 		},
@@ -483,7 +537,7 @@ func FindAuthorizationByToken(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			authorization, err := s.FindAuthorizationByToken(ctx, tt.args.token)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -529,23 +583,26 @@ func FindAuthorizations(
 						ID:   MustIDBase16(userTwoID),
 					},
 				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
 				Authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand1",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						Token:  "rand2",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
 					},
 				},
 			},
@@ -553,25 +610,20 @@ func FindAuthorizations(
 			wants: wants{
 				authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						User:   "cooluser",
-						Token:  "rand1",
-						Status: platform.Active,
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Status:      platform.Active,
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						User:   "regularuser",
-						Token:  "rand2",
-						Status: platform.Active,
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Status:      platform.Active,
+						Permissions: createUsersPermission(),
 					},
 				},
 			},
@@ -589,32 +641,34 @@ func FindAuthorizations(
 						ID:   MustIDBase16(userTwoID),
 					},
 				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
 				Authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand1",
-						Status: platform.Active,
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Status:      platform.Active,
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						Token:  "rand2",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authThreeID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand3",
-						Permissions: []platform.Permission{
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authThreeID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand3",
+						Permissions: deleteUsersPermission(),
 					},
 				},
 			},
@@ -624,25 +678,20 @@ func FindAuthorizations(
 			wants: wants{
 				authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						User:   "cooluser",
-						Status: platform.Active,
-						Token:  "rand1",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Status:      platform.Active,
+						Token:       "rand1",
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authThreeID),
-						UserID: MustIDBase16(userOneID),
-						User:   "cooluser",
-						Status: platform.Active,
-						Token:  "rand3",
-						Permissions: []platform.Permission{
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authThreeID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Status:      platform.Active,
+						Token:       "rand3",
+						Permissions: deleteUsersPermission(),
 					},
 				},
 			},
@@ -660,39 +709,40 @@ func FindAuthorizations(
 						ID:   MustIDBase16(userTwoID),
 					},
 				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
 				Authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authZeroID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand1",
-						Permissions: []platform.Permission{
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authZeroID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Permissions: deleteUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand1",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						Token:  "rand2",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authThreeID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand3",
-						Permissions: []platform.Permission{
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authThreeID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand3",
+						Permissions: deleteUsersPermission(),
 					},
 				},
 			},
@@ -702,14 +752,12 @@ func FindAuthorizations(
 			wants: wants{
 				authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						User:   "regularuser",
-						Token:  "rand2",
-						Status: platform.Active,
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Status:      platform.Active,
+						Permissions: createUsersPermission(),
 					},
 				},
 			},
@@ -720,7 +768,7 @@ func FindAuthorizations(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			filter := platform.AuthorizationFilter{}
 			if tt.args.ID.Valid() {
@@ -774,23 +822,26 @@ func DeleteAuthorization(
 						ID:   MustIDBase16(userTwoID),
 					},
 				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
 				Authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand1",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						Token:  "rand2",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
 					},
 				},
 			},
@@ -800,14 +851,12 @@ func DeleteAuthorization(
 			wants: wants{
 				authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						User:   "regularuser",
-						Status: platform.Active,
-						Token:  "rand2",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Status:      platform.Active,
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
 					},
 				},
 			},
@@ -825,23 +874,26 @@ func DeleteAuthorization(
 						ID:   MustIDBase16(userTwoID),
 					},
 				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
 				Authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						Token:  "rand1",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						Token:  "rand2",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						UserID:      MustIDBase16(userTwoID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
 					},
 				},
 			},
@@ -856,25 +908,20 @@ func DeleteAuthorization(
 				},
 				authorizations: []*platform.Authorization{
 					{
-						ID:     MustIDBase16(authOneID),
-						UserID: MustIDBase16(userOneID),
-						User:   "cooluser",
-						Token:  "rand1",
-						Status: platform.Active,
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-						},
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						Token:       "rand1",
+						Status:      platform.Active,
+						OrgID:       MustIDBase16(orgOneID),
+						Permissions: allUsersPermission(),
 					},
 					{
-						ID:     MustIDBase16(authTwoID),
-						UserID: MustIDBase16(userTwoID),
-						User:   "regularuser",
-						Token:  "rand2",
-						Status: platform.Active,
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-						},
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Status:      platform.Active,
+						Permissions: createUsersPermission(),
 					},
 				},
 			},
@@ -885,7 +932,7 @@ func DeleteAuthorization(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.DeleteAuthorization(ctx, tt.args.ID)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -898,5 +945,24 @@ func DeleteAuthorization(
 				t.Errorf("authorizations are different -got/+want\ndiff %s", diff)
 			}
 		})
+	}
+}
+
+func allUsersPermission() []platform.Permission {
+	return []platform.Permission{
+		{Action: platform.WriteAction, Resource: platform.UsersResource},
+		{Action: platform.ReadAction, Resource: platform.UsersResource},
+	}
+}
+
+func createUsersPermission() []platform.Permission {
+	return []platform.Permission{
+		{Action: platform.WriteAction, Resource: platform.UsersResource},
+	}
+}
+
+func deleteUsersPermission() []platform.Permission {
+	return []platform.Permission{
+		{Action: platform.WriteAction, Resource: platform.UsersResource},
 	}
 }

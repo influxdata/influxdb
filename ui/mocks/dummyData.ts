@@ -224,7 +224,7 @@ export const cell: Cell = {
 export const tasks: Task[] = [
   {
     id: '02ef9deff2141000',
-    organizationId: '02ee9e2a29d73000',
+    organizationID: '02ee9e2a29d73000',
     name: 'pasdlak',
     status: TaskStatus.Active,
     owner: {id: '02ee9e2a19d73000', name: ''},
@@ -246,7 +246,7 @@ export const tasks: Task[] = [
   },
   {
     id: '02f12c50dba72000',
-    organizationId: '02ee9e2a29d73000',
+    organizationID: '02ee9e2a29d73000',
     name: 'somename',
     status: TaskStatus.Active,
     owner: {id: '02ee9e2a19d73000', name: ''},

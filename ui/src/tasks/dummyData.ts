@@ -3,7 +3,7 @@ import {Task} from 'src/api'
 export const dummyTasks: Task[] = [
   {
     id: '02ef9deff2141000',
-    organizationId: '02ee9e2a29d73000',
+    organizationID: '02ee9e2a29d73000',
     name: 'pasdlak',
     status: Task.StatusEnum.Active,
     owner: null,
@@ -13,7 +13,7 @@ export const dummyTasks: Task[] = [
   },
   {
     id: '02f12c50dba72000',
-    organizationId: '02ee9e2a29d73000',
+    organizationID: '02ee9e2a29d73000',
     name: 'somename',
     status: Task.StatusEnum.Active,
     owner: null,

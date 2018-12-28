@@ -1,0 +1,565 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Account rendering renders! 1`] = `
+<ViewTokenOverlay
+  auth={
+    Object {
+      "description": "im a token",
+      "id": "030444b11fb10000",
+      "links": Object {
+        "self": "/api/v2/authorizations/030444b11fb10000",
+        "user": "/api/v2/users/030444b10a710000",
+      },
+      "orgID": "030444b10a713000",
+      "permissions": Array [
+        Object {
+          "action": "write",
+          "resource": "orgs",
+        },
+        Object {
+          "action": "write",
+          "resource": "buckets",
+        },
+      ],
+      "status": "active",
+      "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
+      "user": "watts",
+      "userID": "030444b10a710000",
+    }
+  }
+>
+  <OverlayContainer
+    maxWidth={600}
+  >
+    <div
+      className="overlay--container"
+      style={
+        Object {
+          "maxWidth": "600px",
+        }
+      }
+    >
+      <OverlayHeading
+        onDismiss={[Function]}
+        title="im a token"
+      >
+        <div
+          className="overlay--heading"
+        >
+          <div
+            className="overlay--title"
+          >
+            im a token
+          </div>
+          <button
+            className="overlay--dismiss"
+            onClick={[Function]}
+          />
+        </div>
+      </OverlayHeading>
+      <OverlayBody>
+        <div
+          className="overlay--body"
+        >
+          <PermissionsWidget
+            heightPixels={500}
+            mode="read"
+          >
+            <div
+              className="permissions-widget"
+              style={
+                Object {
+                  "height": "500px",
+                }
+              }
+            >
+              <div
+                className="permissions-widget--header"
+              >
+                Summary of access permissions
+              </div>
+              <div
+                className="permissions-widget--body"
+              >
+                <FancyScrollbar
+                  autoHeight={false}
+                  autoHide={false}
+                  maxHeight={null}
+                  setScrollTop={[Function]}
+                  style={Object {}}
+                >
+                  <Scrollbars
+                    autoHeight={false}
+                    autoHeightMax={null}
+                    autoHeightMin={0}
+                    autoHide={false}
+                    autoHideDuration={250}
+                    autoHideTimeout={1000}
+                    className="fancy-scroll--container"
+                    hideTracksWhenNotNeeded={false}
+                    onScroll={[Function]}
+                    renderThumbHorizontal={[Function]}
+                    renderThumbVertical={[Function]}
+                    renderTrackHorizontal={[Function]}
+                    renderTrackVertical={[Function]}
+                    renderView={[Function]}
+                    style={Object {}}
+                    tagName="div"
+                    thumbMinSize={30}
+                    universal={false}
+                  >
+                    <div
+                      className="fancy-scroll--container"
+                      style={
+                        Object {
+                          "height": "100%",
+                          "overflow": "hidden",
+                          "position": "relative",
+                          "width": "100%",
+                        }
+                      }
+                    >
+                      <div
+                        className="fancy-scroll--view"
+                        key="view"
+                        style={
+                          Object {
+                            "WebkitOverflowScrolling": "touch",
+                            "bottom": 0,
+                            "left": 0,
+                            "marginBottom": 0,
+                            "marginRight": 0,
+                            "overflow": "scroll",
+                            "position": "absolute",
+                            "right": 0,
+                            "top": 0,
+                          }
+                        }
+                      >
+                        <PermissionsWidgetSection
+                          id="users"
+                          key=".$0"
+                          mode="read"
+                          title="users:*"
+                        >
+                          <section
+                            className="permissions-widget--section"
+                          >
+                            <header
+                              className="permissions-widget--section-heading"
+                            >
+                              <h3
+                                className="permissions-widget--section-title"
+                              >
+                                users:*
+                              </h3>
+                            </header>
+                            <ul
+                              className="permissions-widget--section-list"
+                            >
+                              <PermissionsWidgetItem
+                                id="users-read"
+                                key=".$0"
+                                label="read"
+                                mode="read"
+                                selected="selected"
+                              >
+                                <li
+                                  className="permissions-widget--item selected"
+                                  onClick={[Function]}
+                                >
+                                  <div
+                                    className="permissions-widget--icon"
+                                  >
+                                    <span
+                                      className="icon checkmark"
+                                    />
+                                  </div>
+                                  <label
+                                    className="permissions-widget--item-label"
+                                  >
+                                    read
+                                  </label>
+                                </li>
+                              </PermissionsWidgetItem>
+                              <PermissionsWidgetItem
+                                id="users-write"
+                                key=".$1"
+                                label="write"
+                                mode="read"
+                                selected="selected"
+                              >
+                                <li
+                                  className="permissions-widget--item selected"
+                                  onClick={[Function]}
+                                >
+                                  <div
+                                    className="permissions-widget--icon"
+                                  >
+                                    <span
+                                      className="icon checkmark"
+                                    />
+                                  </div>
+                                  <label
+                                    className="permissions-widget--item-label"
+                                  >
+                                    write
+                                  </label>
+                                </li>
+                              </PermissionsWidgetItem>
+                            </ul>
+                          </section>
+                        </PermissionsWidgetSection>
+                        <PermissionsWidgetSection
+                          id="1"
+                          key=".$1"
+                          mode="read"
+                          title="orgs:myorg"
+                        >
+                          <section
+                            className="permissions-widget--section"
+                          >
+                            <header
+                              className="permissions-widget--section-heading"
+                            >
+                              <h3
+                                className="permissions-widget--section-title"
+                              >
+                                orgs:myorg
+                              </h3>
+                            </header>
+                            <ul
+                              className="permissions-widget--section-list"
+                            >
+                              <PermissionsWidgetItem
+                                id="1-read"
+                                key=".$0"
+                                label="read"
+                                mode="read"
+                                selected="selected"
+                              >
+                                <li
+                                  className="permissions-widget--item selected"
+                                  onClick={[Function]}
+                                >
+                                  <div
+                                    className="permissions-widget--icon"
+                                  >
+                                    <span
+                                      className="icon checkmark"
+                                    />
+                                  </div>
+                                  <label
+                                    className="permissions-widget--item-label"
+                                  >
+                                    read
+                                  </label>
+                                </li>
+                              </PermissionsWidgetItem>
+                              <PermissionsWidgetItem
+                                id="1-write"
+                                key=".$1"
+                                label="write"
+                                mode="read"
+                                selected="unselected"
+                              >
+                                <li
+                                  className="permissions-widget--item unselected"
+                                  onClick={[Function]}
+                                >
+                                  <div
+                                    className="permissions-widget--icon"
+                                  >
+                                    <span
+                                      className="icon remove"
+                                    />
+                                  </div>
+                                  <label
+                                    className="permissions-widget--item-label"
+                                  >
+                                    write
+                                  </label>
+                                </li>
+                              </PermissionsWidgetItem>
+                            </ul>
+                          </section>
+                        </PermissionsWidgetSection>
+                        <PermissionsWidgetSection
+                          id="2"
+                          key=".$2"
+                          mode="read"
+                          title="buckets:telegraf"
+                        >
+                          <section
+                            className="permissions-widget--section"
+                          >
+                            <header
+                              className="permissions-widget--section-heading"
+                            >
+                              <h3
+                                className="permissions-widget--section-title"
+                              >
+                                buckets:telegraf
+                              </h3>
+                            </header>
+                            <ul
+                              className="permissions-widget--section-list"
+                            >
+                              <PermissionsWidgetItem
+                                id="2-read"
+                                key=".$0"
+                                label="read"
+                                mode="read"
+                                selected="selected"
+                              >
+                                <li
+                                  className="permissions-widget--item selected"
+                                  onClick={[Function]}
+                                >
+                                  <div
+                                    className="permissions-widget--icon"
+                                  >
+                                    <span
+                                      className="icon checkmark"
+                                    />
+                                  </div>
+                                  <label
+                                    className="permissions-widget--item-label"
+                                  >
+                                    read
+                                  </label>
+                                </li>
+                              </PermissionsWidgetItem>
+                              <PermissionsWidgetItem
+                                id="2-write"
+                                key=".$1"
+                                label="write"
+                                mode="read"
+                                selected="unselected"
+                              >
+                                <li
+                                  className="permissions-widget--item unselected"
+                                  onClick={[Function]}
+                                >
+                                  <div
+                                    className="permissions-widget--icon"
+                                  >
+                                    <span
+                                      className="icon remove"
+                                    />
+                                  </div>
+                                  <label
+                                    className="permissions-widget--item-label"
+                                  >
+                                    write
+                                  </label>
+                                </li>
+                              </PermissionsWidgetItem>
+                            </ul>
+                          </section>
+                        </PermissionsWidgetSection>
+                        <PermissionsWidgetSection
+                          id="tasks"
+                          key=".$3"
+                          mode="read"
+                          title="tasks:task1"
+                        >
+                          <section
+                            className="permissions-widget--section"
+                          >
+                            <header
+                              className="permissions-widget--section-heading"
+                            >
+                              <h3
+                                className="permissions-widget--section-title"
+                              >
+                                tasks:task1
+                              </h3>
+                            </header>
+                            <ul
+                              className="permissions-widget--section-list"
+                            >
+                              <PermissionsWidgetItem
+                                id="tasks-read"
+                                key=".$0"
+                                label="read"
+                                mode="read"
+                                selected="selected"
+                              >
+                                <li
+                                  className="permissions-widget--item selected"
+                                  onClick={[Function]}
+                                >
+                                  <div
+                                    className="permissions-widget--icon"
+                                  >
+                                    <span
+                                      className="icon checkmark"
+                                    />
+                                  </div>
+                                  <label
+                                    className="permissions-widget--item-label"
+                                  >
+                                    read
+                                  </label>
+                                </li>
+                              </PermissionsWidgetItem>
+                              <PermissionsWidgetItem
+                                id="tasks-write"
+                                key=".$1"
+                                label="write"
+                                mode="read"
+                                selected="unselected"
+                              >
+                                <li
+                                  className="permissions-widget--item unselected"
+                                  onClick={[Function]}
+                                >
+                                  <div
+                                    className="permissions-widget--icon"
+                                  >
+                                    <span
+                                      className="icon remove"
+                                    />
+                                  </div>
+                                  <label
+                                    className="permissions-widget--item-label"
+                                  >
+                                    write
+                                  </label>
+                                </li>
+                              </PermissionsWidgetItem>
+                            </ul>
+                          </section>
+                        </PermissionsWidgetSection>
+                        <PermissionsWidgetSection
+                          id="2"
+                          key=".$4"
+                          mode="read"
+                          title="tasks:task1"
+                        >
+                          <section
+                            className="permissions-widget--section"
+                          >
+                            <header
+                              className="permissions-widget--section-heading"
+                            >
+                              <h3
+                                className="permissions-widget--section-title"
+                              >
+                                tasks:task1
+                              </h3>
+                            </header>
+                            <ul
+                              className="permissions-widget--section-list"
+                            >
+                              <PermissionsWidgetItem
+                                id="2-read"
+                                key=".$0"
+                                label="read"
+                                mode="read"
+                                selected="selected"
+                              >
+                                <li
+                                  className="permissions-widget--item selected"
+                                  onClick={[Function]}
+                                >
+                                  <div
+                                    className="permissions-widget--icon"
+                                  >
+                                    <span
+                                      className="icon checkmark"
+                                    />
+                                  </div>
+                                  <label
+                                    className="permissions-widget--item-label"
+                                  >
+                                    read
+                                  </label>
+                                </li>
+                              </PermissionsWidgetItem>
+                              <PermissionsWidgetItem
+                                id="2-write"
+                                key=".$1"
+                                label="write"
+                                mode="read"
+                                selected="unselected"
+                              >
+                                <li
+                                  className="permissions-widget--item unselected"
+                                  onClick={[Function]}
+                                >
+                                  <div
+                                    className="permissions-widget--icon"
+                                  >
+                                    <span
+                                      className="icon remove"
+                                    />
+                                  </div>
+                                  <label
+                                    className="permissions-widget--item-label"
+                                  >
+                                    write
+                                  </label>
+                                </li>
+                              </PermissionsWidgetItem>
+                            </ul>
+                          </section>
+                        </PermissionsWidgetSection>
+                      </div>
+                      <div
+                        className="fancy-scroll--track-h"
+                        key="trackHorizontal"
+                        style={
+                          Object {
+                            "display": "none",
+                            "height": 6,
+                            "position": "absolute",
+                          }
+                        }
+                      >
+                        <div
+                          className="fancy-scroll--thumb-h"
+                          style={
+                            Object {
+                              "display": "block",
+                              "height": "100%",
+                              "position": "relative",
+                            }
+                          }
+                        />
+                      </div>
+                      <div
+                        className="fancy-scroll--track-v"
+                        key="trackVertical"
+                        style={
+                          Object {
+                            "display": "none",
+                            "position": "absolute",
+                            "width": 6,
+                          }
+                        }
+                      >
+                        <div
+                          className="fancy-scroll--thumb-v"
+                          style={
+                            Object {
+                              "display": "block",
+                              "position": "relative",
+                              "width": "100%",
+                            }
+                          }
+                        />
+                      </div>
+                    </div>
+                  </Scrollbars>
+                </FancyScrollbar>
+              </div>
+            </div>
+          </PermissionsWidget>
+        </div>
+      </OverlayBody>
+    </div>
+  </OverlayContainer>
+</ViewTokenOverlay>
+`;

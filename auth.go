@@ -4,15 +4,23 @@ import (
 	"context"
 )
 
-// Authorization is a authorization. 🎉
+var (
+	// ErrUnableToCreateToken sanitized error message for all errors when a user cannot create a token
+	ErrUnableToCreateToken = &Error{
+		Msg:  "unable to create token",
+		Code: EInvalid,
+	}
+)
+
+// Authorization is an authorization. 🎉
 type Authorization struct {
-	ID          ID           `json:"id,omitempty"`
+	ID          ID           `json:"id"`
 	Token       string       `json:"token"`
 	Status      Status       `json:"status"`
 	Description string       `json:"description"`
-	User        string       `json:"user,omitempty"`
-	UserID      ID           `json:"userID,omitempty"`
-	Permissions []Permission `json:"permissions,omitempty"`
+	OrgID       ID           `json:"orgID"`
+	UserID      ID           `json:"userID"`
+	Permissions []Permission `json:"permissions"`
 }
 
 // Allowed returns true if the authorization is active and request permission

@@ -126,7 +126,6 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 			Name:           &req.Bucket,
 		})
 		if err != nil {
-			logger.Info("Failed to find bucket", zap.Stringer("org_id", org.ID), zap.Error(err))
 			EncodeError(ctx, &platform.Error{
 				Code: platform.ENotFound,
 				Op:   "http/handleWrite",
@@ -139,7 +138,13 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		bucket = b
 	}
 
-	if !a.Allowed(platform.WriteBucketPermission(bucket.ID)) {
+	p, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResource)
+	if err != nil {
+		EncodeError(ctx, fmt.Errorf("could not create permission for bucket: %v", err), w)
+		return
+	}
+
+	if !a.Allowed(*p) {
 		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for write"), w)
 		return
 	}
