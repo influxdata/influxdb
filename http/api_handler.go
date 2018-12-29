@@ -70,10 +70,8 @@ type APIBackend struct {
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
 func NewAPIHandler(b *APIBackend) *APIHandler {
 	h := &APIHandler{}
-	h.SessionHandler = NewSessionHandler()
-	h.SessionHandler.BasicAuthService = b.BasicAuthService
-	h.SessionHandler.SessionService = b.SessionService
-	h.SessionHandler.Logger = b.Logger.With(zap.String("handler", "basicAuth"))
+	sessionBackend := NewSessionBackend(b)
+	h.SessionHandler = NewSessionHandler(sessionBackend)
 
 	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.BucketHandler.BucketService = b.BucketService

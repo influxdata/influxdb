@@ -9,6 +9,24 @@ import (
 	"go.uber.org/zap"
 )
 
+// SessionBackend is all services and associated parameters required to construct
+// the SessionHandler.
+type SessionBackend struct {
+	Logger *zap.Logger
+
+	BasicAuthService platform.BasicAuthService
+	SessionService   platform.SessionService
+}
+
+func NewSessionBackend(b *APIBackend) *SessionBackend {
+	return &SessionBackend{
+		Logger: b.Logger.With(zap.String("handler", "session")),
+
+		BasicAuthService: b.BasicAuthService,
+		SessionService:   b.SessionService,
+	}
+}
+
 // SessionHandler represents an HTTP API handler for authorizations.
 type SessionHandler struct {
 	*httprouter.Router
@@ -19,9 +37,13 @@ type SessionHandler struct {
 }
 
 // NewSessionHandler returns a new instance of SessionHandler.
-func NewSessionHandler() *SessionHandler {
+func NewSessionHandler(b *SessionBackend) *SessionHandler {
 	h := &SessionHandler{
 		Router: NewRouter(),
+		Logger: b.Logger,
+
+		BasicAuthService: b.BasicAuthService,
+		SessionService:   b.SessionService,
 	}
 
 	h.HandlerFunc("POST", "/api/v2/signin", h.handleSignin)
