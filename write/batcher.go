@@ -39,35 +39,31 @@ func (b *Batcher) Write(ctx context.Context, org, bucket platform.ID, r io.Reade
 
 	lines := make(chan []byte)
 
-	writeErrC := make(chan error)
-	go b.write(ctx, org, bucket, lines, writeErrC)
+	errC := make(chan error, 2)
+	go b.write(ctx, org, bucket, lines, errC)
+	go b.read(ctx, r, lines, errC)
 
-	readErrC := make(chan error)
-	go b.read(ctx, r, lines, readErrC)
-
-	// loop is needed in the case that the read finishes without an
-	// error, but, the write has yet to complete.
-	for {
+	// we loop twice to check if both read and write have an error. if read exits
+	// cleanly, then we still want to wait for write.
+	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err := <-readErrC:
-			// only exit if the read has an error
-			// read will have closed the lines channel signaling write to exit
+		case err := <-errC:
+			// onky if there is any error, exit immediately.
 			if err != nil {
 				return err
 			}
-		case err := <-writeErrC:
-			// if write finishes, exit immediately. reads may block forever
-			return err
 		}
 	}
+	return nil
 }
 
 // read will close the line channel when there is no more data, or an error occurs.
 // it is possible for an io.Reader to block forever; Write's context can be
 // used to cancel, but, it's possible there will be dangling read go routines.
 func (b *Batcher) read(ctx context.Context, r io.Reader, lines chan<- []byte, errC chan<- error) {
+	defer close(lines)
 	scanner := bufio.NewScanner(r)
 	scanner.Split(ScanLines)
 	for scanner.Scan() {
@@ -75,12 +71,10 @@ func (b *Batcher) read(ctx context.Context, r io.Reader, lines chan<- []byte, er
 		select {
 		case lines <- scanner.Bytes():
 		case <-ctx.Done():
-			close(lines)
 			errC <- ctx.Err()
 			return
 		}
 	}
-	close(lines)
 	errC <- scanner.Err()
 }
 
