@@ -1930,6 +1930,11 @@ func getIndex(tb testing.TB, name string) (*indirectIndex, *indexCacheInfo) {
 	keys, blocks := sizes[0], sizes[1]
 
 	writer := NewIndexWriter()
+
+	// add a ballast key that starts at -1 so that we don't trigger optimizations
+	// when deleting [0, MaxInt]
+	writer.Add([]byte("ballast"), BlockFloat64, -1, 1, 0, 100)
+
 	for i := 0; i < keys; i++ {
 		key := []byte(fmt.Sprintf("cpu-%08d", i))
 		info.allKeys = append(info.allKeys, key)
@@ -1977,8 +1982,10 @@ func BenchmarkIndirectIndex_Entries(b *testing.B) {
 		indirect.ReadEntries([]byte("cpu-00000001"), nil)
 	}
 
-	b.SetBytes(getFaults(indirect) * 4096)
-	b.Log("recorded faults:", getFaults(indirect))
+	if faultBufferEnabled {
+		b.SetBytes(getFaults(indirect) * 4096)
+		b.Log("recorded faults:", getFaults(indirect))
+	}
 }
 
 func BenchmarkIndirectIndex_ReadEntries(b *testing.B) {
@@ -1992,8 +1999,10 @@ func BenchmarkIndirectIndex_ReadEntries(b *testing.B) {
 		entries, _ = indirect.ReadEntries([]byte("cpu-00000001"), entries)
 	}
 
-	b.SetBytes(getFaults(indirect) * 4096)
-	b.Log("recorded faults:", getFaults(indirect))
+	if faultBufferEnabled {
+		b.SetBytes(getFaults(indirect) * 4096)
+		b.Log("recorded faults:", getFaults(indirect))
+	}
 }
 
 func BenchmarkBlockIterator_Next(b *testing.B) {
@@ -2008,8 +2017,10 @@ func BenchmarkBlockIterator_Next(b *testing.B) {
 		}
 	}
 
-	b.SetBytes(getFaults(indirect) * 4096)
-	b.Log("recorded faults:", getFaults(indirect))
+	if faultBufferEnabled {
+		b.SetBytes(getFaults(indirect) * 4096)
+		b.Log("recorded faults:", getFaults(indirect))
+	}
 }
 
 func BenchmarkIndirectIndex_DeleteRangeLast(b *testing.B) {
@@ -2024,18 +2035,21 @@ func BenchmarkIndirectIndex_DeleteRangeLast(b *testing.B) {
 		indirect.DeleteRange(keys, 10, 50)
 	}
 
-	b.SetBytes(getFaults(indirect) * 4096)
-	b.Log("recorded faults:", getFaults(indirect))
+	if faultBufferEnabled {
+		b.SetBytes(getFaults(indirect) * 4096)
+		b.Log("recorded faults:", getFaults(indirect))
+	}
 }
 
 func BenchmarkIndirectIndex_DeleteRangeFull(b *testing.B) {
 	run := func(b *testing.B, name string) {
-		indirect, info := getIndex(b, name)
+		indirect, _ := getIndex(b, name)
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
+			var info *indexCacheInfo
 			indirect, info = getIndex(b, name)
 			b.StartTimer()
 
@@ -2048,8 +2062,10 @@ func BenchmarkIndirectIndex_DeleteRangeFull(b *testing.B) {
 			}
 		}
 
-		b.SetBytes(getFaults(indirect) * 4096)
-		b.Log("recorded faults:", getFaults(indirect))
+		if faultBufferEnabled {
+			b.SetBytes(getFaults(indirect) * 4096)
+			b.Log("recorded faults:", getFaults(indirect))
+		}
 	}
 
 	b.Run("Large", func(b *testing.B) { run(b, "large") })
@@ -2058,12 +2074,13 @@ func BenchmarkIndirectIndex_DeleteRangeFull(b *testing.B) {
 
 func BenchmarkIndirectIndex_DeleteRangeFull_Covered(b *testing.B) {
 	run := func(b *testing.B, name string) {
-		indirect, info := getIndex(b, name)
+		indirect, _ := getIndex(b, name)
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
+			var info *indexCacheInfo
 			indirect, info = getIndex(b, name)
 			b.StartTimer()
 
@@ -2076,8 +2093,10 @@ func BenchmarkIndirectIndex_DeleteRangeFull_Covered(b *testing.B) {
 			}
 		}
 
-		b.SetBytes(getFaults(indirect) * 4096)
-		b.Log("recorded faults:", getFaults(indirect))
+		if faultBufferEnabled {
+			b.SetBytes(getFaults(indirect) * 4096)
+			b.Log("recorded faults:", getFaults(indirect))
+		}
 	}
 
 	b.Run("Large", func(b *testing.B) { run(b, "large") })
@@ -2086,12 +2105,13 @@ func BenchmarkIndirectIndex_DeleteRangeFull_Covered(b *testing.B) {
 
 func BenchmarkIndirectIndex_Delete(b *testing.B) {
 	run := func(b *testing.B, name string) {
-		indirect, info := getIndex(b, name)
+		indirect, _ := getIndex(b, name)
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
+			var info *indexCacheInfo
 			indirect, info = getIndex(b, name)
 			b.StartTimer()
 
@@ -2104,8 +2124,10 @@ func BenchmarkIndirectIndex_Delete(b *testing.B) {
 			}
 		}
 
-		b.SetBytes(getFaults(indirect) * 4096)
-		b.Log("recorded faults:", getFaults(indirect))
+		if faultBufferEnabled {
+			b.SetBytes(getFaults(indirect) * 4096)
+			b.Log("recorded faults:", getFaults(indirect))
+		}
 	}
 
 	b.Run("Large", func(b *testing.B) { run(b, "large") })
