@@ -512,6 +512,10 @@ func FindBuckets(
 		name           string
 		organization   string
 		organizationID platform.ID
+
+		offset     int
+		limit      int
+		descending bool
 	}
 
 	type wants struct {
@@ -564,6 +568,96 @@ func FindBuckets(
 						OrganizationID: MustIDBase16(orgTwoID),
 						Organization:   "otherorg",
 						Name:           "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find all buckets by offset and limit",
+			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Name:           "abc",
+					},
+					{
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Name:           "def",
+					},
+					{
+						ID:             MustIDBase16(bucketThreeID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Name:           "xyz",
+					},
+				},
+			},
+			args: args{
+				offset: 1,
+				limit:  1,
+			},
+			wants: wants{
+				buckets: []*platform.Bucket{
+					{
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Organization:   "theorg",
+						Name:           "def",
+					},
+				},
+			},
+		},
+		{
+			name: "find all buckets by descending",
+			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Name:           "abc",
+					},
+					{
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Name:           "def",
+					},
+					{
+						ID:             MustIDBase16(bucketThreeID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Name:           "xyz",
+					},
+				},
+			},
+			args: args{
+				offset:     1,
+				descending: true,
+			},
+			wants: wants{
+				buckets: []*platform.Bucket{
+					{
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Organization:   "theorg",
+						Name:           "def",
+					},
+					{
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Organization:   "theorg",
+						Name:           "abc",
 					},
 				},
 			},
@@ -744,7 +838,18 @@ func FindBuckets(
 				filter.Name = &tt.args.name
 			}
 
-			buckets, _, err := s.FindBuckets(ctx, filter)
+			opt := platform.FindOptions{}
+			if tt.args.offset > 0 {
+				opt.Offset = tt.args.offset
+			}
+			if tt.args.limit > 0 {
+				opt.Limit = tt.args.limit
+			}
+			if tt.args.descending {
+				opt.Descending = tt.args.descending
+			}
+
+			buckets, _, err := s.FindBuckets(ctx, filter, opt)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(buckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
