@@ -140,7 +140,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
           <OnboardingButtons
             onClickBack={this.props.onDecrementCurrentStepIndex}
             nextButtonText={this.nextButtonText}
-            backButtonText={'Back to Start'}
+            backButtonText="Back to Start"
             nextButtonStatus={this.nextButtonStatus}
             autoFocusNext={false}
           />
