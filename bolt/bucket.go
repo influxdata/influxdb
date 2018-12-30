@@ -179,7 +179,7 @@ func (c *Client) FindBucket(ctx context.Context, filter platform.BucketFilter) (
 		}
 
 		filterFn := filterBucketsFn(filter)
-		return c.forEachBucket(ctx, tx, func(bkt *platform.Bucket) bool {
+		return c.forEachBucket(ctx, tx, false, func(bkt *platform.Bucket) bool {
 			if filterFn(bkt) {
 				b = bkt
 				return false
@@ -236,7 +236,7 @@ func filterBucketsFn(filter platform.BucketFilter) func(b *platform.Bucket) bool
 // FindBuckets retrives all buckets that match an arbitrary bucket filter.
 // Filters using ID, or OrganizationID and bucket Name should be efficient.
 // Other filters will do a linear scan across all buckets searching for a match.
-func (c *Client) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+func (c *Client) FindBuckets(ctx context.Context, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, int, error) {
 	if filter.ID != nil {
 		b, err := c.FindBucketByID(ctx, *filter.ID)
 		if err != nil {
@@ -257,7 +257,7 @@ func (c *Client) FindBuckets(ctx context.Context, filter platform.BucketFilter, 
 
 	bs := []*platform.Bucket{}
 	err := c.db.View(func(tx *bolt.Tx) error {
-		bkts, err := c.findBuckets(ctx, tx, filter)
+		bkts, err := c.findBuckets(ctx, tx, filter, opts...)
 		if err != nil {
 			return err
 		}
@@ -272,7 +272,7 @@ func (c *Client) FindBuckets(ctx context.Context, filter platform.BucketFilter, 
 	return bs, len(bs), nil
 }
 
-func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.BucketFilter) ([]*platform.Bucket, *platform.Error) {
+func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, *platform.Error) {
 	bs := []*platform.Bucket{}
 	if filter.Organization != nil {
 		o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
@@ -284,11 +284,27 @@ func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.B
 		filter.OrganizationID = &o.ID
 	}
 
+	var offset, limit, count int
+	var descending bool
+	if len(opts) > 0 {
+		offset = opts[0].Offset
+		limit = opts[0].Limit
+		descending = opts[0].Descending
+	}
+
 	filterFn := filterBucketsFn(filter)
-	err := c.forEachBucket(ctx, tx, func(b *platform.Bucket) bool {
+	err := c.forEachBucket(ctx, tx, descending, func(b *platform.Bucket) bool {
 		if filterFn(b) {
-			bs = append(bs, b)
+			if count >= offset {
+				bs = append(bs, b)
+			}
+			count += 1
 		}
+
+		if limit > 0 && len(bs) >= limit {
+			return false
+		}
+
 		return true
 	})
 
@@ -445,9 +461,17 @@ func bucketIndexKey(b *platform.Bucket) ([]byte, *platform.Error) {
 }
 
 // forEachBucket will iterate through all buckets while fn returns true.
-func (c *Client) forEachBucket(ctx context.Context, tx *bolt.Tx, fn func(*platform.Bucket) bool) error {
+func (c *Client) forEachBucket(ctx context.Context, tx *bolt.Tx, descending bool, fn func(*platform.Bucket) bool) error {
 	cur := tx.Bucket(bucketBucket).Cursor()
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+
+	var k, v []byte
+	if descending {
+		k, v = cur.Last()
+	} else {
+		k, v = cur.First()
+	}
+
+	for k != nil {
 		b := &platform.Bucket{}
 		if err := json.Unmarshal(v, b); err != nil {
 			return err
@@ -457,6 +481,12 @@ func (c *Client) forEachBucket(ctx context.Context, tx *bolt.Tx, fn func(*platfo
 		}
 		if !fn(b) {
 			break
+		}
+
+		if descending {
+			k, v = cur.Prev()
+		} else {
+			k, v = cur.Next()
 		}
 	}
 

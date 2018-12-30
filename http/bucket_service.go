@@ -572,6 +572,14 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 		query.Add("name", *filter.Name)
 	}
 
+	if len(opt) > 0 {
+		for k, vs := range opt[0].QueryParams() {
+			for _, v := range vs {
+				query.Add(k, v)
+			}
+		}
+	}
+
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return nil, 0, err

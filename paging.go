@@ -33,10 +33,16 @@ type FindOptions struct {
 // QueryParams returns a map containing url query params.
 func (f FindOptions) QueryParams() map[string][]string {
 	qp := map[string][]string{
-		"limit":      {strconv.Itoa(f.Limit)},
 		"offset":     {strconv.Itoa(f.Offset)},
-		"sortBy":     {f.SortBy},
 		"descending": {strconv.FormatBool(f.Descending)},
+	}
+
+	if f.Limit > 0 {
+		qp["limit"] = []string{strconv.Itoa(f.Limit)}
+	}
+
+	if f.SortBy != "" {
+		qp["sortBy"] = []string{f.SortBy}
 	}
 
 	return qp
