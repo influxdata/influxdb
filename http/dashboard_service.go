@@ -90,8 +90,9 @@ type dashboardLinks struct {
 
 type dashboardResponse struct {
 	platform.Dashboard
-	Cells []dashboardCellResponse `json:"cells"`
-	Links dashboardLinks          `json:"links"`
+	Cells  []dashboardCellResponse `json:"cells"`
+	Labels []platform.Label        `json:"labels"`
+	Links  dashboardLinks          `json:"links"`
 }
 
 func (d dashboardResponse) toPlatform() *platform.Dashboard {
@@ -110,7 +111,7 @@ func (d dashboardResponse) toPlatform() *platform.Dashboard {
 	}
 }
 
-func newDashboardResponse(d *platform.Dashboard) dashboardResponse {
+func newDashboardResponse(d *platform.Dashboard, labels []*platform.Label) dashboardResponse {
 	res := dashboardResponse{
 		Links: dashboardLinks{
 			Self:   fmt.Sprintf("/api/v2/dashboards/%s", d.ID),
@@ -119,7 +120,12 @@ func newDashboardResponse(d *platform.Dashboard) dashboardResponse {
 			Labels: fmt.Sprintf("/api/v2/dashboards/%s/labels", d.ID),
 		},
 		Dashboard: *d,
+		Labels:    []platform.Label{},
 		Cells:     []dashboardCellResponse{},
+	}
+
+	for _, l := range labels {
+		res.Labels = append(res.Labels, *l)
 	}
 
 	for _, cell := range d.Cells {
@@ -235,7 +241,7 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newGetDashboardsResponse(dashboards)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newGetDashboardsResponse(ctx, dashboards, h.LabelService)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -293,7 +299,7 @@ func (d getDashboardsResponse) toPlatform() []*platform.Dashboard {
 	return res
 }
 
-func newGetDashboardsResponse(dashboards []*platform.Dashboard) getDashboardsResponse {
+func newGetDashboardsResponse(ctx context.Context, dashboards []*platform.Dashboard, labelService platform.LabelService) getDashboardsResponse {
 	res := getDashboardsResponse{
 		Links: getDashboardsLinks{
 			Self: "/api/v2/dashboards",
@@ -303,7 +309,8 @@ func newGetDashboardsResponse(dashboards []*platform.Dashboard) getDashboardsRes
 
 	for _, dashboard := range dashboards {
 		if dashboard != nil {
-			res.Dashboards = append(res.Dashboards, newDashboardResponse(dashboard))
+			labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: dashboard.ID})
+			res.Dashboards = append(res.Dashboards, newDashboardResponse(dashboard, labels))
 		}
 	}
 
@@ -324,7 +331,7 @@ func (h *DashboardHandler) handlePostDashboard(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardResponse(req.Dashboard)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardResponse(req.Dashboard, []*platform.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -360,7 +367,13 @@ func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardResponse(dashboard)); err != nil {
+	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: dashboard.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardResponse(dashboard, labels)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -506,7 +519,13 @@ func (h *DashboardHandler) handlePatchDashboard(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardResponse(dashboard)); err != nil {
+	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: dashboard.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newDashboardResponse(dashboard, labels)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}

@@ -94,21 +94,30 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, labelSer
 }
 
 type taskResponse struct {
-	Links map[string]string `json:"links"`
+	Links  map[string]string `json:"links"`
+	Labels []platform.Label  `json:"labels"`
 	platform.Task
 }
 
-func newTaskResponse(t platform.Task) taskResponse {
-	return taskResponse{
+func newTaskResponse(t platform.Task, labels []*platform.Label) taskResponse {
+	response := taskResponse{
 		Links: map[string]string{
 			"self":    fmt.Sprintf("/api/v2/tasks/%s", t.ID),
 			"members": fmt.Sprintf("/api/v2/tasks/%s/members", t.ID),
 			"owners":  fmt.Sprintf("/api/v2/tasks/%s/owners", t.ID),
+			"labels":  fmt.Sprintf("/api/v2/tasks/%s/labels", t.ID),
 			"runs":    fmt.Sprintf("/api/v2/tasks/%s/runs", t.ID),
 			"logs":    fmt.Sprintf("/api/v2/tasks/%s/logs", t.ID),
 		},
-		Task: t,
+		Task:   t,
+		Labels: []platform.Label{},
 	}
+
+	for _, l := range labels {
+		response.Labels = append(response.Labels, *l)
+	}
+
+	return response
 }
 
 type tasksResponse struct {
@@ -116,7 +125,7 @@ type tasksResponse struct {
 	Tasks []taskResponse    `json:"tasks"`
 }
 
-func newTasksResponse(ts []*platform.Task) tasksResponse {
+func newTasksResponse(ctx context.Context, ts []*platform.Task, labelService platform.LabelService) tasksResponse {
 	// TODO: impl paging links
 	/*
 	   In swagger, paging links are embedded in a map, like this:
@@ -148,7 +157,8 @@ func newTasksResponse(ts []*platform.Task) tasksResponse {
 	}
 
 	for i := range ts {
-		rs.Tasks[i] = newTaskResponse(*ts[i])
+		labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: ts[i].ID})
+		rs.Tasks[i] = newTaskResponse(*ts[i], labels)
 	}
 	return rs
 }
@@ -206,7 +216,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(tasks)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(ctx, tasks, h.LabelService)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
 	}
@@ -296,7 +306,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*req.Task)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*req.Task, []*platform.Label{})); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
 	}
@@ -332,7 +342,13 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task)); err != nil {
+	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: task.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task, labels)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
 	}
@@ -376,7 +392,13 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task)); err != nil {
+	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: task.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task, labels)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
 	}
