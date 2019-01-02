@@ -9,7 +9,15 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Components
 import {Button, ComponentSize, ComponentColor} from 'src/clockface'
 
+// Types
+import {NotificationAction} from 'src/types'
+import {
+  copyToClipboardSuccess,
+  copyToClipboardFailed,
+} from 'src/shared/copy/notifications'
+
 export interface Props {
+  notify: NotificationAction
   authToken: string
   configID: string
 }
@@ -41,7 +49,7 @@ class TelegrafInstructions extends PureComponent<Props> {
           </p>
           <p className="wizard-step--body-snippet">
             {exportToken}
-            <CopyToClipboard text={exportToken}>
+            <CopyToClipboard text={exportToken} onCopy={this.handleCopyAttempt}>
               <Button
                 customClass="wizard-step--body-copybutton"
                 size={ComponentSize.Small}
@@ -55,7 +63,10 @@ class TelegrafInstructions extends PureComponent<Props> {
           <p>Run the following command.</p>
           <p className="wizard-step--body-snippet">
             {configScript}
-            <CopyToClipboard text={configScript}>
+            <CopyToClipboard
+              text={configScript}
+              onCopy={this.handleCopyAttempt}
+            >
               <Button
                 customClass="wizard-step--body-copybutton"
                 size={ComponentSize.Small}
@@ -70,9 +81,26 @@ class TelegrafInstructions extends PureComponent<Props> {
       </>
     )
   }
-  private handleClickCopy(e: MouseEvent<HTMLButtonElement>) {
+
+  private handleClickCopy = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
     e.preventDefault()
+  }
+
+  private handleCopyAttempt = (
+    copiedText: string,
+    isSuccessful: boolean
+  ): void => {
+    const {notify} = this.props
+    const text = copiedText.slice(0, 30).trimRight()
+    const truncatedText = `${text}...`
+    const title = 'Script '
+
+    if (isSuccessful) {
+      notify(copyToClipboardSuccess(truncatedText, title))
+    } else {
+      notify(copyToClipboardFailed(truncatedText, title))
+    }
   }
 }
 

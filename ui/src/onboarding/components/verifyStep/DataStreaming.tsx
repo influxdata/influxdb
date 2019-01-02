@@ -16,7 +16,11 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+// Types
+import {NotificationAction} from 'src/types'
+
 interface Props {
+  notify: NotificationAction
   bucket: string
   org: string
   configID: string
@@ -37,6 +41,7 @@ class DataStreaming extends PureComponent<Props> {
       onSetStepStatus,
       bucket,
       stepIndex,
+      notify,
     } = this.props
 
     return (
@@ -47,7 +52,11 @@ class DataStreaming extends PureComponent<Props> {
           onSaveTelegrafConfig={onSaveTelegrafConfig}
         >
           {() => (
-            <TelegrafInstructions authToken={authToken} configID={configID} />
+            <TelegrafInstructions
+              notify={notify}
+              authToken={authToken}
+              configID={configID}
+            />
           )}
         </CreateOrUpdateConfig>
 

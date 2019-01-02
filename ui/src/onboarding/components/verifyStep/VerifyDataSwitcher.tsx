@@ -13,8 +13,10 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {NotificationAction} from 'src/types'
 
 export interface Props {
+  notify: NotificationAction
   type: DataLoaderType
   org: string
   bucket: string
@@ -37,12 +39,14 @@ class VerifyDataSwitcher extends PureComponent<Props> {
       authToken,
       telegrafConfigID,
       onSaveTelegrafConfig,
+      notify,
     } = this.props
 
     switch (type) {
       case DataLoaderType.Streaming:
         return (
           <DataStreaming
+            notify={notify}
             org={org}
             configID={telegrafConfigID}
             authToken={authToken}

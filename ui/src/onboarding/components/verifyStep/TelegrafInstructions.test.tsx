@@ -7,6 +7,7 @@ let wrapper
 
 const setup = (override = {}) => {
   const props = {
+    notify: jest.fn(),
     authToken: '',
     configID: '',
     ...override,

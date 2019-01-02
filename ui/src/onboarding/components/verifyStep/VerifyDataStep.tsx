@@ -18,8 +18,10 @@ import {
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {DataLoaderType, TelegrafPlugin} from 'src/types/v2/dataLoaders'
 import {Form} from 'src/clockface'
+import {NotificationAction} from 'src/types'
 
 export interface Props extends OnboardingStepProps {
+  notify: NotificationAction
   type: DataLoaderType
   authToken: string
   telegrafConfigID: string
@@ -52,12 +54,14 @@ class VerifyDataStep extends PureComponent<Props> {
       onIncrementCurrentStepIndex,
       onSetStepStatus,
       stepIndex,
+      notify,
     } = this.props
 
     return (
       <Form onSubmit={onIncrementCurrentStepIndex}>
         <div className="onboarding-step">
           <VerifyDataSwitcher
+            notify={notify}
             type={type}
             telegrafConfigID={telegrafConfigID}
             authToken={authToken}

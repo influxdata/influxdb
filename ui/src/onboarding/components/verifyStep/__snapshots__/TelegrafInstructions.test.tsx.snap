@@ -33,6 +33,7 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
     >
       export INFLUX_TOKEN=
       <CopyToClipboard
+        onCopy={[Function]}
         text="export INFLUX_TOKEN="
       >
         <Button
@@ -57,6 +58,7 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
     >
       telegraf -config http://localhost:9999/api/v2/telegrafs/
       <CopyToClipboard
+        onCopy={[Function]}
         text="telegraf -config http://localhost:9999/api/v2/telegrafs/"
       >
         <Button
