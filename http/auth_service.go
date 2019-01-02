@@ -104,7 +104,6 @@ func newPermissionsResponse(ctx context.Context, ps []platform.Permission, svc p
 		}
 
 		if p.ID != nil {
-			fmt.Printf("IDIDIIDIDIDIDIDIDIDIDIDID %s\n", *p.ID)
 			name, err := svc.Name(ctx, p.Resource, *p.ID)
 			if err != nil {
 				return nil, err
