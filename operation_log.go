@@ -26,13 +26,13 @@ type BucketOperationLogService interface {
 
 // UserOperationLogService is an interface for retrieving the operation log for a user.
 type UserOperationLogService interface {
-	// GeUserOperationLog retrieves the operation log for the user with the provided id.
+	// GetUserOperationLog retrieves the operation log for the user with the provided id.
 	GetUserOperationLog(ctx context.Context, id ID, opts FindOptions) ([]*OperationLogEntry, int, error)
 }
 
 // OrganizationOperationLogService is an interface for retrieving the operation log for an org.
 type OrganizationOperationLogService interface {
-	// GeOrganizationOperationLog retrieves the operation log for the org with the provided id.
+	// GetOrganizationOperationLog retrieves the operation log for the org with the provided id.
 	GetOrganizationOperationLog(ctx context.Context, id ID, opts FindOptions) ([]*OperationLogEntry, int, error)
 }
 
