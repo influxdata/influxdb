@@ -326,14 +326,14 @@ exports[`Account rendering renders! 1`] = `
                                             size="xs"
                                             status="default"
                                             text="Delete"
-                                            type="submit"
+                                            type="button"
                                           >
                                             <button
                                               className="button button-xs button-danger"
                                               disabled={false}
                                               tabIndex={0}
                                               title="Delete"
-                                              type="submit"
+                                              type="button"
                                             >
                                               Delete
                                             </button>
@@ -438,14 +438,14 @@ exports[`Account rendering renders! 1`] = `
                                             size="xs"
                                             status="default"
                                             text="Delete"
-                                            type="submit"
+                                            type="button"
                                           >
                                             <button
                                               className="button button-xs button-danger"
                                               disabled={false}
                                               tabIndex={0}
                                               title="Delete"
-                                              type="submit"
+                                              type="button"
                                             >
                                               Delete
                                             </button>

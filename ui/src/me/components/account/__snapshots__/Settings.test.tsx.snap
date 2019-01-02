@@ -44,14 +44,14 @@ exports[`Account rendering renders! 1`] = `
                   size="sm"
                   status="default"
                   text="Edit About Me"
-                  type="submit"
+                  type="button"
                 >
                   <button
                     className="button button-sm button-default"
                     disabled={false}
                     tabIndex={0}
                     title="Edit About Me"
-                    type="submit"
+                    type="button"
                   >
                     Edit About Me
                   </button>

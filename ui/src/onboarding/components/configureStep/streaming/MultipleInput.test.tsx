@@ -4,7 +4,7 @@ import {shallow} from 'enzyme'
 
 // Components
 import MultipleInput from './MultipleInput'
-import MultipleRow from './MultipleRow'
+import MultipleRows from './MultipleRows'
 
 import {TelegrafPluginInputCpu} from 'src/api'
 
@@ -30,9 +30,9 @@ describe('Onboarding.Components.ConfigureStep.Streaming.ArrayFormElement', () =>
   it('renders', () => {
     const fieldName = 'yo'
     const {wrapper} = setup({fieldName})
-    const multipleRow = wrapper.find(MultipleRow)
+    const multipleRows = wrapper.find(MultipleRows)
 
     expect(wrapper.exists()).toBe(true)
-    expect(multipleRow.exists()).toBe(true)
+    expect(multipleRows.exists()).toBe(true)
   })
 })
