@@ -436,7 +436,7 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "valid query request",
+			name: "valid post query request",
 			args: args{
 				r: httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"query": "from()"}`)),
 				svc: &mock.OrganizationService{
@@ -452,6 +452,33 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 					Compiler: lang.FluxCompiler{
 						Query: "from()",
+					},
+				},
+				Dialect: &csv.Dialect{
+					ResultEncoderConfig: csv.ResultEncoderConfig{
+						NoHeader:  false,
+						Delimiter: ',',
+					},
+				},
+			},
+		},
+		{
+			name: "valid get query request",
+			args: args{
+				r: httptest.NewRequest("GET", "/api/v2/query?query=from(bucket%3A%20%22mybucket%22)&org=myorg", nil),
+				svc: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+						}, nil
+					},
+				},
+			},
+			want: &query.ProxyRequest{
+				Request: query.Request{
+					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+					Compiler: lang.FluxCompiler{
+						Query: "from(bucket: \"mybucket\")",
 					},
 				},
 				Dialect: &csv.Dialect{

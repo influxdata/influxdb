@@ -337,8 +337,18 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 
 func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.OrganizationService) (*QueryRequest, error) {
 	var req QueryRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+	// TODO(desa): I'm not sure I like this kind of conditional logic, but it feels better than
+	// introducing another method that does this exact thing.
+	if r.Method == http.MethodGet {
+		qp := r.URL.Query()
+		req.Query = qp.Get("query")
+		if req.Query == "" {
+			return nil, errors.New("query param \"query\" is required")
+		}
+	} else {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			return nil, err
+		}
 	}
 
 	req = req.WithDefaults()
