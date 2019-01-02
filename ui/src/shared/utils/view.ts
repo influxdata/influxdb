@@ -150,7 +150,7 @@ const NEW_VIEW_CREATORS = {
       queries: [defaultViewQuery()],
       colors: DEFAULT_THRESHOLDS_LIST_COLORS,
       tableOptions: {
-        verticalTimeAxis: false,
+        verticalTimeAxis: true,
         sortBy: DEFAULT_TIME_FIELD,
         fixFirstColumn: false,
       },
