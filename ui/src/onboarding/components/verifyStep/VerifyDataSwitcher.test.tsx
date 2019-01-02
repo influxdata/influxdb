@@ -11,6 +11,7 @@ import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 const setup = (override = {}) => {
   const props = {
+    notify: jest.fn(),
     type: DataLoaderType.Empty,
     org: '',
     username: '',
