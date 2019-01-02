@@ -120,13 +120,15 @@ bench:
 
 build: all
 
-nightly: build
+nightly:
 	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
 	rm -rf bin
 
+generate-typescript-client:
+	make -C http
 
 define CHRONOGIRAFFE
              ._ o o

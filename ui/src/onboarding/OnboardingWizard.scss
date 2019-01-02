@@ -69,9 +69,9 @@
   background-size: 100% 100%;
   background-position: center center;
   background-repeat: no-repeat;
-  width: 812px;
+  width: 100%;
   height: 170px;
-  margin: 0 auto;
+  margin: auto auto;
 
   &.primary {
     background-image: url('../../assets/images/cubo_doodle.svg');
@@ -105,9 +105,7 @@
   background-color: $g5-pepper;
   color: $g20-white;
   padding: 25px;
-  margin-left: 60px;
-  margin-right: 60px;
-  margin-top: 30px;
+  width: 100%;
   text-align: left;
   border-radius: $radius;
 
@@ -123,6 +121,7 @@
 
 .wizard-step--body-streaming {
   text-align: center;
+  margin-top: 30px;
 }
 
 .wizard-step--text-state {
@@ -144,6 +143,7 @@
   border-radius: $radius;
   margin: $ix-marg-a 0;
   padding: $ix-marg-b;
+  overflow-x: auto;
   font-family: 'RobotoMono', monospace;
 }
 
@@ -203,7 +203,16 @@
 
 .onboarding-step {
   width: 100%;
+  max-width: 60vw;
+  max-height: calc(100% - 68px);
   text-align: center;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  margin: 0 auto 60px auto;
+  overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 .wizard-step--grid-container {

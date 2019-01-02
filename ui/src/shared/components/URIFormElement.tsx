@@ -3,7 +3,14 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Input, ComponentStatus, FormElement} from 'src/clockface'
+import {
+  Input,
+  ComponentStatus,
+  ComponentSize,
+  FormElement,
+  Grid,
+  Columns,
+} from 'src/clockface'
 
 // Utils
 import {validateURI} from 'src/shared/utils/validateURI'
@@ -41,20 +48,27 @@ class URIFormElement extends PureComponent<Props, State> {
     const {name, value, autoFocus, helpText} = this.props
 
     return (
-      <FormElement
-        label={name}
-        key={name}
-        errorMessage={this.errorMessage}
-        helpText={helpText}
-      >
-        <Input
-          name={name}
-          autoFocus={autoFocus}
-          status={this.state.status}
-          onChange={this.handleChange}
-          value={value}
-        />
-      </FormElement>
+      <Grid>
+        <Grid.Row>
+          <Grid.Column widthXS={Columns.Eight} offsetXS={Columns.Two}>
+            <FormElement
+              label={name}
+              key={name}
+              errorMessage={this.errorMessage}
+              helpText={helpText}
+            >
+              <Input
+                name={name}
+                autoFocus={autoFocus}
+                status={this.state.status}
+                onChange={this.handleChange}
+                size={ComponentSize.Medium}
+                value={value}
+              />
+            </FormElement>
+          </Grid.Column>
+        </Grid.Row>
+      </Grid>
     )
   }
 

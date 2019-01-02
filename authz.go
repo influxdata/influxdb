@@ -8,6 +8,10 @@ import (
 var (
 	// ErrAuthorizerNotSupported notes that the provided authorizer is not supported for the action you are trying to perform.
 	ErrAuthorizerNotSupported = errors.New("your authorizer is not supported, please use *platform.Authorization as authorizer")
+	// ErrInvalidResource notes that the provided resource is invalid
+	ErrInvalidResource = errors.New("unknown resource for permission")
+	// ErrInvalidAction notes that the provided action is invalid
+	ErrInvalidAction = errors.New("unknown action for permission")
 )
 
 // Authorizer will authorize a permission.
@@ -34,73 +38,159 @@ func allowed(p Permission, ps []Permission) bool {
 	return false
 }
 
-type action string
+// Action is an enum defining all possible resource operations
+type Action string
 
 const (
 	// ReadAction is the action for reading.
-	ReadAction action = "read"
+	ReadAction Action = "read" // 1
 	// WriteAction is the action for writing.
-	WriteAction action = "write"
-	// CreateAction is the action for creating new resources.
-	CreateAction action = "create"
-	// DeleteAction is the action for deleting an existing resource.
-	DeleteAction action = "delete"
+	WriteAction Action = "write" // 2
 )
 
-type resource string
-
-const (
-	// UserResource represents the user resource actions can apply to.
-	UserResource = resource("user")
-	// OrganizationResource represents the org resource actions can apply to.
-	OrganizationResource = resource("org")
-)
-
-// TaskResource represents the task resource scoped to an organization.
-func TaskResource(orgID ID) resource {
-	return resource(fmt.Sprintf("org/%s/task", orgID))
+var actions = []Action{
+	ReadAction,  // 1
+	WriteAction, // 2
 }
 
-// BucketResource constructs a bucket resource.
-func BucketResource(id ID) resource {
-	return resource(fmt.Sprintf("bucket/%s", id))
+// Valid checks if the action is a member of the Action enum
+func (a Action) Valid() (err error) {
+	switch a {
+	case ReadAction: // 1
+	case WriteAction: // 2
+	default:
+		err = ErrInvalidAction
+	}
+
+	return err
+}
+
+// Resource is an enum defining all resources that have a permission model in platform
+type Resource string
+
+const (
+	// AuthorizationsResource gives permissions to one or more authorizations.
+	AuthorizationsResource = Resource("authorizations") // 0
+	// BucketsResource gives permissions to one or more buckets.
+	BucketsResource = Resource("buckets") // 1
+	// DashboardsResource gives permissions to one or more dashboards.
+	DashboardsResource = Resource("dashboards") // 2
+	// OrgsResource gives permissions to one or more orgs.
+	OrgsResource = Resource("orgs") // 3
+	// SourcesResource gives permissions to one or more sources.
+	SourcesResource = Resource("sources") // 4
+	// TasksResource gives permissions to one or more tasks.
+	TasksResource = Resource("tasks") // 5
+	// TelegrafsResource type gives permissions to a one or more telegrafs.
+	TelegrafsResource = Resource("telegrafs") // 6
+	// UsersResource gives permissions to one or more users.
+	UsersResource = Resource("users") // 7
+)
+
+// AllResources is the list of all known resource types.
+var AllResources = []Resource{
+	AuthorizationsResource, // 0
+	BucketsResource,        // 1
+	DashboardsResource,     // 2
+	OrgsResource,           // 3
+	SourcesResource,        // 4
+	TasksResource,          // 5
+	TelegrafsResource,      // 6
+	UsersResource,          // 7
+}
+
+// Valid checks if the resource is a member of the Resource enum
+func (r Resource) Valid() (err error) {
+	switch r {
+	case AuthorizationsResource: // 0
+	case BucketsResource: // 1
+	case DashboardsResource: // 2
+	case OrgsResource: // 3
+	case TasksResource: // 4
+	case TelegrafsResource: // 5
+	case SourcesResource: // 6
+	case UsersResource: //7
+	default:
+		err = ErrInvalidResource
+	}
+
+	return err
 }
 
 // Permission defines an action and a resource.
 type Permission struct {
-	Action   action   `json:"action"`
-	Resource resource `json:"resource"`
+	Action   Action   `json:"action"`
+	Resource Resource `json:"resource"`
+	ID       *ID      `json:"id,omitempty"`
 }
 
 func (p Permission) String() string {
-	return fmt.Sprintf("%s:%s", p.Action, p.Resource)
+	str := fmt.Sprintf("%s:%s", p.Action, p.Resource)
+	if p.ID != nil {
+		str += fmt.Sprintf(":%s", (*p.ID).String())
+	}
+
+	return str
 }
 
-var (
-	// CreateUserPermission is a permission for creating users.
-	CreateUserPermission = Permission{
-		Action:   CreateAction,
-		Resource: UserResource,
+// Valid checks if there the resource and action provided is known
+func (p *Permission) Valid() error {
+	if err := p.Resource.Valid(); err != nil {
+		return &Error{
+			Code: EInvalid,
+			Err:  err,
+			Msg:  "invalid resource type for permission",
+		}
 	}
-	// DeleteUserPermission is a permission for deleting users.
-	DeleteUserPermission = Permission{
-		Action:   DeleteAction,
-		Resource: UserResource,
-	}
-)
 
-// ReadBucketPermission constructs a permission for reading a bucket.
-func ReadBucketPermission(id ID) Permission {
-	return Permission{
-		Action:   ReadAction,
-		Resource: BucketResource(id),
+	if err := p.Action.Valid(); err != nil {
+		return &Error{
+			Code: EInvalid,
+			Err:  err,
+			Msg:  "invalid action type for permission",
+		}
 	}
+
+	if p.ID != nil && !(*p.ID).Valid() {
+		return &Error{
+			Code: EInvalid,
+			Err:  ErrInvalidID,
+			Msg:  "invalid id for permission",
+		}
+	}
+
+	return nil
 }
 
-// WriteBucketPermission constructs a permission for writing to a bucket.
-func WriteBucketPermission(id ID) Permission {
-	return Permission{
-		Action:   WriteAction,
-		Resource: BucketResource(id),
+// NewPermission returns a permission with provided arguments
+func NewPermission(a Action, r Resource) (*Permission, error) {
+	p := &Permission{
+		Action:   a,
+		Resource: r,
 	}
+
+	return p, p.Valid()
+}
+
+// NewPermissionAtID creates a permission with the provided arguments
+func NewPermissionAtID(id ID, a Action, r Resource) (*Permission, error) {
+	p := &Permission{
+		Action:   a,
+		Resource: r,
+		ID:       &id,
+	}
+
+	return p, p.Valid()
+}
+
+// OperPermissions are the default permissions for those who setup the application
+func OperPermissions() []Permission {
+	ps := []Permission{}
+	for _, r := range AllResources {
+		for _, a := range actions {
+			ps = append(ps, Permission{Action: a, Resource: r})
+		}
+	}
+
+	return ps
 }

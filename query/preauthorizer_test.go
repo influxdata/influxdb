@@ -65,10 +65,14 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 		t.Errorf("Authorize message mismatch: -want/+got:\n%v", diagnostic)
 	}
 
+	p, err := platform.NewPermissionAtID(*id, platform.ReadAction, platform.BucketsResource)
+	if err != nil {
+		t.Fatalf("Error creating read bucket permission query: %v", err)
+	}
 	// Try to authorize with read permission on bucket
 	auth = &platform.Authorization{
 		Status:      platform.Active,
-		Permissions: []platform.Permission{platform.ReadBucketPermission(*id)},
+		Permissions: []platform.Permission{*p},
 	}
 
 	err = preAuthorizer.PreAuthorize(ctx, spec, auth)

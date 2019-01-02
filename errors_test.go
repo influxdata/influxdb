@@ -196,7 +196,7 @@ func TestJSON(t *testing.T) {
 				Op:   "bolt/FindAuthorizationByID",
 				Msg:  fmt.Sprintf("with ID %d", 323),
 			},
-			encoded: `{"code":"not found","msg":"with ID 323","op":"bolt/FindAuthorizationByID"}`,
+			encoded: `{"code":"not found","message":"with ID 323","op":"bolt/FindAuthorizationByID"}`,
 		},
 		{
 			name: "with a third party error",
@@ -205,7 +205,7 @@ func TestJSON(t *testing.T) {
 				Op:   "cmd/fluxd.injectDeps",
 				Err:  errors.New("empty value"),
 			},
-			encoded: `{"code":"failed to get the storage host","op":"cmd/fluxd.injectDeps","err":"empty value"}`,
+			encoded: `{"code":"failed to get the storage host","op":"cmd/fluxd.injectDeps","error":"empty value"}`,
 		},
 		{
 			name: "with a internal error",
@@ -214,7 +214,7 @@ func TestJSON(t *testing.T) {
 				Op:   "cmd/fluxd.injectDeps",
 				Err:  &platform.Error{Code: platform.EEmptyValue, Op: "cmd/fluxd.getStrList"},
 			},
-			encoded: `{"code":"failed to get the storage host","op":"cmd/fluxd.injectDeps","err":{"code":"empty value","op":"cmd/fluxd.getStrList"}}`,
+			encoded: `{"code":"failed to get the storage host","op":"cmd/fluxd.injectDeps","error":{"code":"empty value","op":"cmd/fluxd.getStrList"}}`,
 		},
 		{
 			name: "with a deep internal error",
@@ -230,7 +230,7 @@ func TestJSON(t *testing.T) {
 					},
 				},
 			},
-			encoded: `{"code":"failed to get the storage host","op":"cmd/fluxd.injectDeps","err":{"code":"invalid","op":"cmd/fluxd.getStrList","err":{"code":"empty value","err":"an err"}}}`,
+			encoded: `{"code":"failed to get the storage host","op":"cmd/fluxd.injectDeps","error":{"code":"invalid","op":"cmd/fluxd.getStrList","error":{"code":"empty value","error":"an err"}}}`,
 		},
 	}
 	for _, c := range cases {

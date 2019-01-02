@@ -10,11 +10,6 @@ import (
 	"github.com/influxdata/platform"
 )
 
-var (
-	validColor   = "fff000"
-	invalidColor = "xyz123"
-)
-
 var labelCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
@@ -105,6 +100,9 @@ func CreateLabel(
 				label: &platform.Label{
 					ResourceID: MustIDBase16(bucketOneID),
 					Name:       "Tag2",
+					Properties: map[string]string{
+						"color": "fff000",
+					},
 				},
 			},
 			wants: wants{
@@ -116,6 +114,9 @@ func CreateLabel(
 					{
 						ResourceID: MustIDBase16(bucketOneID),
 						Name:       "Tag2",
+						Properties: map[string]string{
+							"color": "fff000",
+						},
 					},
 				},
 			},
@@ -260,7 +261,7 @@ func FindLabels(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			labels, err := s.FindLabels(ctx, tt.args.filter)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -291,7 +292,7 @@ func UpdateLabel(
 		wants  wants
 	}{
 		{
-			name: "update label color",
+			name: "update label properties",
 			fields: LabelFields{
 				Labels: []*platform.Label{
 					{
@@ -306,7 +307,9 @@ func UpdateLabel(
 					Name:       "Tag1",
 				},
 				update: platform.LabelUpdate{
-					Color: &validColor,
+					Properties: map[string]string{
+						"color": "fff000",
+					},
 				},
 			},
 			wants: wants{
@@ -314,7 +317,84 @@ func UpdateLabel(
 					{
 						ResourceID: MustIDBase16(bucketOneID),
 						Name:       "Tag1",
-						Color:      "fff000",
+						Properties: map[string]string{
+							"color": "fff000",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "replacing a label property",
+			fields: LabelFields{
+				Labels: []*platform.Label{
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag1",
+						Properties: map[string]string{
+							"color":       "fff000",
+							"description": "description",
+						},
+					},
+				},
+			},
+			args: args{
+				label: platform.Label{
+					ResourceID: MustIDBase16(bucketOneID),
+					Name:       "Tag1",
+				},
+				update: platform.LabelUpdate{
+					Properties: map[string]string{
+						"color": "abc123",
+					},
+				},
+			},
+			wants: wants{
+				labels: []*platform.Label{
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag1",
+						Properties: map[string]string{
+							"color":       "abc123",
+							"description": "description",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "deleting a label property",
+			fields: LabelFields{
+				Labels: []*platform.Label{
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag1",
+						Properties: map[string]string{
+							"color":       "fff000",
+							"description": "description",
+						},
+					},
+				},
+			},
+			args: args{
+				label: platform.Label{
+					ResourceID: MustIDBase16(bucketOneID),
+					Name:       "Tag1",
+				},
+				update: platform.LabelUpdate{
+					Properties: map[string]string{
+						"description": "",
+					},
+				},
+			},
+			wants: wants{
+				labels: []*platform.Label{
+					{
+						ResourceID: MustIDBase16(bucketOneID),
+						Name:       "Tag1",
+						Properties: map[string]string{
+							"color": "fff000",
+						},
 					},
 				},
 			},
@@ -358,39 +438,6 @@ func UpdateLabel(
 		// 	},
 		// },
 		{
-			name: "invalid label color update",
-			fields: LabelFields{
-				Labels: []*platform.Label{
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
-					},
-				},
-			},
-			args: args{
-				label: platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
-				},
-				update: platform.LabelUpdate{
-					Color: &invalidColor,
-				},
-			},
-			wants: wants{
-				labels: []*platform.Label{
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
-					},
-				},
-				err: &platform.Error{
-					Code: platform.EInvalid,
-					Op:   platform.OpUpdateLabel,
-					Msg:  "label color must be valid hex string",
-				},
-			},
-		},
-		{
 			name: "updating a non-existent label",
 			fields: LabelFields{
 				Labels: []*platform.Label{},
@@ -401,7 +448,9 @@ func UpdateLabel(
 					Name:       "Tag1",
 				},
 				update: platform.LabelUpdate{
-					Color: &validColor,
+					Properties: map[string]string{
+						"color": "fff000",
+					},
 				},
 			},
 			wants: wants{
@@ -418,7 +467,7 @@ func UpdateLabel(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			_, err := s.UpdateLabel(ctx, &tt.args.label, tt.args.update)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -515,7 +564,7 @@ func DeleteLabel(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.DeleteLabel(ctx, tt.args.label)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 

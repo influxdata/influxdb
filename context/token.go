@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/errors"
 )
 
 type contextKey string
@@ -22,7 +21,10 @@ func SetAuthorizer(ctx context.Context, a platform.Authorizer) context.Context {
 func GetAuthorizer(ctx context.Context) (platform.Authorizer, error) {
 	a, ok := ctx.Value(authorizerCtxKey).(platform.Authorizer)
 	if !ok {
-		return nil, errors.InternalErrorf("authorizer not found on context")
+		return nil, &platform.Error{
+			Msg:  "authorizer not found on context",
+			Code: platform.EInternal,
+		}
 	}
 
 	return a, nil

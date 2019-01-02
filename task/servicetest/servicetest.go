@@ -488,11 +488,52 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatalf("didn't find matching manual run after successful RetryRun call; got: %v", meta.ManualRuns)
 		}
 
-		exp := backend.RetryAlreadyQueuedError{Start: rc.Created.Now, End: rc.Created.Now}
+		exp := backend.RequestStillQueuedError{Start: rc.Created.Now, End: rc.Created.Now}
 
 		// Retrying a run which has been queued but not started, should be rejected.
 		if _, err = sys.ts.RetryRun(sys.Ctx, task.ID, rlb.RunID); err != exp {
 			t.Fatalf("subsequent retry should have been rejected with %v; got %v", exp, err)
+		}
+	})
+
+	t.Run("ForceRun", func(t *testing.T) {
+		t.Parallel()
+
+		task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+		if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
+			t.Fatal(err)
+		}
+
+		beforeForce := time.Now().Unix()
+		const scheduledFor = 77
+		forcedRun, err := sys.ts.ForceRun(sys.Ctx, task.ID, scheduledFor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		afterForce := time.Now().Unix()
+
+		m, err := sys.S.FindTaskMetaByID(sys.Ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(m.ManualRuns) != 1 {
+			t.Fatalf("expected 1 manual run created, got: %#v", m.ManualRuns)
+		}
+
+		if rid := platform.ID(m.ManualRuns[0].RunID); rid != forcedRun.ID {
+			t.Fatalf("expected run ID %s, got %s", forcedRun.ID, rid)
+		}
+
+		if requestedAt := m.ManualRuns[0].RequestedAt; requestedAt < beforeForce || requestedAt > afterForce {
+			t.Fatalf("expected run RequestedAt to be in [%d, %d]; got %d", beforeForce, afterForce, requestedAt)
+		}
+
+		exp := backend.RequestStillQueuedError{Start: scheduledFor, End: scheduledFor}
+
+		// Forcing the same run before it's executed should be rejected.
+		if _, err = sys.ts.ForceRun(sys.Ctx, task.ID, scheduledFor); err != exp {
+			t.Fatalf("subsequent force should have been rejected with %v; got %v", exp, err)
 		}
 	})
 

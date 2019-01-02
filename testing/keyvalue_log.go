@@ -137,7 +137,7 @@ func AddLogEntry(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.AddLogEntry(ctx, tt.args.key, tt.args.value, tt.args.time)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -631,7 +631,7 @@ func ForEachLogEntry(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			logEntries := []LogEntry{}
 			err := s.ForEachLogEntry(ctx, tt.args.key, tt.args.opts, func(v []byte, t time.Time) error {
 				logEntries = append(logEntries, LogEntry{
@@ -725,7 +725,7 @@ func FirstLogEntry(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			var err error
 			logEntry := LogEntry{Key: tt.args.key}
 			logEntry.Value, logEntry.Time, err = s.FirstLogEntry(ctx, tt.args.key)
@@ -813,7 +813,7 @@ func LastLogEntry(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			var err error
 			logEntry := LogEntry{Key: tt.args.key}
 			logEntry.Value, logEntry.Time, err = s.LastLogEntry(ctx, tt.args.key)

@@ -7,6 +7,8 @@ import _ from 'lodash'
 // Components
 import LineProtocolTabs from 'src/onboarding/components/configureStep/lineProtocol/LineProtocolTabs'
 import LoadingStatusIndicator from 'src/onboarding/components/configureStep/lineProtocol/LoadingStatusIndicator'
+import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
+import {Form} from 'src/clockface'
 
 // Actions
 import {setLPStatus as setLPStatusAction} from 'src/onboarding/actions/dataLoaders'
@@ -22,6 +24,9 @@ import {RemoteDataState} from 'src/types'
 interface OwnProps {
   bucket: string
   org: string
+  onClickNext: () => void
+  onClickBack: () => void
+  onClickSkip: () => void
 }
 
 interface StateProps {
@@ -38,14 +43,31 @@ type Props = OwnProps & StateProps & DispatchProps
 export class LineProtocol extends PureComponent<Props> {
   public render() {
     return (
-      <>
+      <Form onSubmit={this.props.onClickNext}>
         <h3 className="wizard-step--title">Add Data via Line Protocol</h3>
         <h5 className="wizard-step--sub-title">
           Need help writing InfluxDB Line Protocol? See Documentation
         </h5>
         {this.Content}
-      </>
+        <OnboardingButtons
+          nextButtonText={this.nextButtonText}
+          backButtonText={this.backButtonText}
+          onClickBack={this.props.onClickBack}
+          onClickSkip={this.props.onClickSkip}
+          showSkip={true}
+          autoFocusNext={true}
+          skipButtonText={'Skip Config'}
+        />
+      </Form>
     )
+  }
+
+  private get nextButtonText(): string {
+    return 'Continue to Verify'
+  }
+
+  private get backButtonText(): string {
+    return 'Back to Select Data Source Type'
   }
 
   private get LineProtocolTabs(): LineProtocolTab[] {

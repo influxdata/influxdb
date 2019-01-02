@@ -312,8 +312,26 @@ func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) 
 
 // handleGetSourceHealth is the HTTP handler for the GET /v1/sources/:id/health route.
 func (h *SourceHandler) handleGetSourceHealth(w http.ResponseWriter, r *http.Request) {
-	// TODO(watts): actually check source health
+	ctx := r.Context()
+
+	msg := `{"name":"sources",message:"source is %shealthy","status":"%s","checks":[]}`
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	req, err := decodeGetSourceRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+	if _, err := h.SourceService.FindSourceByID(ctx, req.SourceID); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+	// todo(leodido) > check source is actually healthy and reply with 503 if not
+	// w.WriteHeader(http.StatusServiceUnavailable)
+	// fmt.Fprintln(w, fmt.Sprintf(msg, "not ", "fail"))
+
 	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, fmt.Sprintf(msg, "", "pass"))
 }
 
 type getSourceRequest struct {

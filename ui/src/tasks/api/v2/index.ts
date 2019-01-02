@@ -2,10 +2,10 @@ import {Task} from 'src/api'
 import {taskAPI} from 'src/utils/api'
 
 export const submitNewTask = async (
-  organizationId: string,
+  organizationID: string,
   flux: string
 ): Promise<Task> => {
-  const {data} = await taskAPI.tasksPost({organizationId, flux})
+  const {data} = await taskAPI.tasksPost({organizationID, flux})
 
   return data
 }

@@ -14,10 +14,10 @@ export const authorization: Authorization = {
   status: StatusEnum.Active,
   user: 'watts',
   userID: '030444b10a710000',
+  orgID: '030444b10a713000',
+  description: 'im a token',
   permissions: [
-    {action: ActionEnum.Create, resource: ResourceEnum.User},
-    {action: ActionEnum.Delete, resource: ResourceEnum.User},
-    {action: ActionEnum.Write, resource: ResourceEnum.Org},
-    {action: ActionEnum.Write, resource: ResourceEnum.Bucketid},
+    {action: ActionEnum.Write, resource: ResourceEnum.Orgs},
+    {action: ActionEnum.Write, resource: ResourceEnum.Buckets},
   ],
 }

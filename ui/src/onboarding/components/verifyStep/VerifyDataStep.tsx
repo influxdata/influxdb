@@ -4,13 +4,8 @@ import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  ComponentStatus,
-} from 'src/clockface'
 import VerifyDataSwitcher from 'src/onboarding/components/verifyStep/VerifyDataSwitcher'
+import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 // Actions
 import {
@@ -22,6 +17,7 @@ import {
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {DataLoaderType, TelegrafPlugin} from 'src/types/v2/dataLoaders'
+import {Form} from 'src/clockface'
 
 export interface Props extends OnboardingStepProps {
   type: DataLoaderType
@@ -59,53 +55,28 @@ class VerifyDataStep extends PureComponent<Props> {
     } = this.props
 
     return (
-      <div className="onboarding-step">
-        <VerifyDataSwitcher
-          type={type}
-          telegrafConfigID={telegrafConfigID}
-          authToken={authToken}
-          onSaveTelegrafConfig={onSaveTelegrafConfig}
-          org={_.get(setupParams, 'org', '')}
-          bucket={_.get(setupParams, 'bucket', '')}
-          onSetStepStatus={onSetStepStatus}
-          stepIndex={stepIndex}
-        />
-        <div className="wizard--button-container">
-          <div className="wizard--button-bar">
-            <Button
-              color={ComponentColor.Default}
-              text={this.backButtonText}
-              size={ComponentSize.Medium}
-              onClick={this.handleDecrementStep}
-              data-test="back"
-            />
-            <Button
-              color={ComponentColor.Primary}
-              text="Continue to Completion"
-              size={ComponentSize.Medium}
-              onClick={onIncrementCurrentStepIndex}
-              status={ComponentStatus.Default}
-              titleText={'Next'}
-              data-test="next"
-            />
-          </div>
-          {this.skipLink}
+      <Form onSubmit={onIncrementCurrentStepIndex}>
+        <div className="onboarding-step">
+          <VerifyDataSwitcher
+            type={type}
+            telegrafConfigID={telegrafConfigID}
+            authToken={authToken}
+            onSaveTelegrafConfig={onSaveTelegrafConfig}
+            org={_.get(setupParams, 'org', '')}
+            bucket={_.get(setupParams, 'bucket', '')}
+            onSetStepStatus={onSetStepStatus}
+            stepIndex={stepIndex}
+          />
+          <OnboardingButtons
+            onClickBack={this.handleDecrementStep}
+            onClickSkip={this.jumpToCompletionStep}
+            nextButtonText={'Continue to Completion'}
+            backButtonText={this.backButtonText}
+            skipButtonText={'Skip'}
+            showSkip={true}
+          />
         </div>
-      </div>
-    )
-  }
-
-  private get skipLink() {
-    return (
-      <Button
-        color={ComponentColor.Default}
-        text="Skip"
-        customClass="wizard--skip-button"
-        size={ComponentSize.Medium}
-        onClick={this.jumpToCompletionStep}
-      >
-        skip
-      </Button>
+      </Form>
     )
   }
 

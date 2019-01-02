@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/coreos/bbolt"
+	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
 )
 
@@ -25,7 +25,7 @@ func filterMappingsFn(filter platform.UserResourceMappingFilter) func(m *platfor
 		return (!filter.UserID.Valid() || (filter.UserID == mapping.UserID)) &&
 			(!filter.ResourceID.Valid() || (filter.ResourceID == mapping.ResourceID)) &&
 			(filter.UserType == "" || (filter.UserType == mapping.UserType)) &&
-			(filter.ResourceType == "" || (filter.ResourceType == mapping.ResourceType))
+			(filter.Resource == "" || (filter.Resource == mapping.Resource))
 	}
 }
 
@@ -84,7 +84,7 @@ func (c *Client) CreateUserResourceMapping(ctx context.Context, m *platform.User
 			return err
 		}
 
-		if m.ResourceType == platform.OrgResourceType {
+		if m.Resource == platform.OrgsResource {
 			return c.createOrgDependentMappings(ctx, tx, m)
 		}
 
@@ -125,10 +125,10 @@ func (c *Client) createOrgDependentMappings(ctx context.Context, tx *bolt.Tx, m 
 	}
 	for _, b := range bs {
 		m := &platform.UserResourceMapping{
-			ResourceType: platform.BucketResourceType,
-			ResourceID:   b.ID,
-			UserType:     m.UserType,
-			UserID:       m.UserID,
+			Resource:   platform.BucketsResource,
+			ResourceID: b.ID,
+			UserType:   m.UserType,
+			UserID:     m.UserID,
 		}
 		if err := c.createUserResourceMapping(ctx, tx, m); err != nil {
 			return err
@@ -200,7 +200,7 @@ func (c *Client) DeleteUserResourceMapping(ctx context.Context, resourceID platf
 			return err
 		}
 
-		if m.ResourceType == platform.OrgResourceType {
+		if m.Resource == platform.OrgsResource {
 			return c.deleteOrgDependentMappings(ctx, tx, m)
 		}
 
@@ -235,6 +235,7 @@ func (c *Client) deleteUserResourceMappings(ctx context.Context, tx *bolt.Tx, fi
 		if err != nil {
 			return err
 		}
+
 		if err = tx.Bucket(userResourceMappingBucket).Delete(key); err != nil {
 			return err
 		}
@@ -251,9 +252,9 @@ func (c *Client) deleteOrgDependentMappings(ctx context.Context, tx *bolt.Tx, m 
 	}
 	for _, b := range bs {
 		if err := c.deleteUserResourceMapping(ctx, tx, platform.UserResourceMappingFilter{
-			ResourceType: platform.BucketResourceType,
-			ResourceID:   b.ID,
-			UserID:       m.UserID,
+			Resource:   platform.BucketsResource,
+			ResourceID: b.ID,
+			UserID:     m.UserID,
 		}); err != nil {
 			return err
 		}

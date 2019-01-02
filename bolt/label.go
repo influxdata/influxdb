@@ -185,8 +185,16 @@ func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label
 
 	label := ls[0]
 
-	if upd.Color != nil {
-		label.Color = *upd.Color
+	if label.Properties == nil {
+		label.Properties = make(map[string]string)
+	}
+
+	for k, v := range upd.Properties {
+		if v == "" {
+			delete(label.Properties, k)
+		} else {
+			label.Properties[k] = v
+		}
 	}
 
 	if err := label.Validate(); err != nil {

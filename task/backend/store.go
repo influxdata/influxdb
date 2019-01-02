@@ -93,26 +93,26 @@ func (e RunNotYetDueError) Error() string {
 	return "run not due until " + time.Unix(e.DueAt, 0).UTC().Format(time.RFC3339)
 }
 
-// RetryAlreadyQueuedError is returned when attempting to retry a run which has not yet completed.
-type RetryAlreadyQueuedError struct {
+// RequestStillQueuedError is returned when attempting to retry a run which has not yet completed.
+type RequestStillQueuedError struct {
 	// Unix timestamps matching existing request's start and end.
 	Start, End int64
 }
 
-const fmtRetryAlreadyQueued = "previous retry for start=%s end=%s has not yet finished"
+const fmtRequestStillQueued = "previous retry for start=%s end=%s has not yet finished"
 
-func (e RetryAlreadyQueuedError) Error() string {
-	return fmt.Sprintf(fmtRetryAlreadyQueued,
+func (e RequestStillQueuedError) Error() string {
+	return fmt.Sprintf(fmtRequestStillQueued,
 		time.Unix(e.Start, 0).UTC().Format(time.RFC3339),
 		time.Unix(e.End, 0).UTC().Format(time.RFC3339),
 	)
 }
 
-// ParseRetryAlreadyQueuedError attempts to parse a RetryAlreadyQueuedError from msg.
+// ParseRequestStillQueuedError attempts to parse a RequestStillQueuedError from msg.
 // If msg is formatted correctly, the resultant error is returned; otherwise it returns nil.
-func ParseRetryAlreadyQueuedError(msg string) *RetryAlreadyQueuedError {
+func ParseRequestStillQueuedError(msg string) *RequestStillQueuedError {
 	var s, e string
-	n, err := fmt.Sscanf(msg, fmtRetryAlreadyQueued, &s, &e)
+	n, err := fmt.Sscanf(msg, fmtRequestStillQueued, &s, &e)
 	if err != nil || n != 2 {
 		return nil
 	}
@@ -127,7 +127,7 @@ func ParseRetryAlreadyQueuedError(msg string) *RetryAlreadyQueuedError {
 		return nil
 	}
 
-	return &RetryAlreadyQueuedError{Start: start.Unix(), End: end.Unix()}
+	return &RequestStillQueuedError{Start: start.Unix(), End: end.Unix()}
 }
 
 // RunCreation is returned by CreateNextRun.

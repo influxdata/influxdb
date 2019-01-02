@@ -57,7 +57,7 @@ func (c *ExampleService) FindUserByID(ctx context.Context, id platform.ID) (*pla
 
 	if err != nil {
 		return nil, &platform.Error{
-			Op:  platform.OpFindUserByID,
+			Op:  "kv/" + platform.OpFindUserByID,
 			Err: err,
 		}
 	}
@@ -121,7 +121,7 @@ func (c *ExampleService) findUserByName(ctx context.Context, tx Tx, n string) (*
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
 			Msg:  "user not found",
-			Op:   platform.OpFindUser,
+			Op:   "kv/" + platform.OpFindUser,
 		}
 	}
 	if err != nil {
@@ -140,7 +140,14 @@ func (c *ExampleService) findUserByName(ctx context.Context, tx Tx, n string) (*
 // Other filters will do a linear scan across examples until it finds a match.
 func (c *ExampleService) FindUser(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
 	if filter.ID != nil {
-		return c.FindUserByID(ctx, *filter.ID)
+		u, err := c.FindUserByID(ctx, *filter.ID)
+		if err != nil {
+			return nil, &platform.Error{
+				Op:  "kv/" + platform.OpFindUser,
+				Err: err,
+			}
+		}
+		return u, nil
 	}
 
 	if filter.Name != nil {
@@ -200,7 +207,7 @@ func (c *ExampleService) FindUsers(ctx context.Context, filter platform.UserFilt
 		if err != nil {
 			return nil, 0, &platform.Error{
 				Err: err,
-				Op:  op,
+				Op:  "kv/" + op,
 			}
 		}
 
@@ -212,7 +219,7 @@ func (c *ExampleService) FindUsers(ctx context.Context, filter platform.UserFilt
 		if err != nil {
 			return nil, 0, &platform.Error{
 				Err: err,
-				Op:  op,
+				Op:  "kv/" + op,
 			}
 		}
 
@@ -258,7 +265,7 @@ func (c *ExampleService) CreateUser(ctx context.Context, u *platform.User) error
 	if err != nil {
 		return &platform.Error{
 			Err: err,
-			Op:  platform.OpCreateUser,
+			Op:  "kv/" + platform.OpCreateUser,
 		}
 	}
 
@@ -355,7 +362,7 @@ func (c *ExampleService) UpdateUser(ctx context.Context, id platform.ID, upd pla
 	if err != nil {
 		return nil, &platform.Error{
 			Err: err,
-			Op:  platform.OpUpdateUser,
+			Op:  "kv/" + platform.OpUpdateUser,
 		}
 	}
 
@@ -397,7 +404,7 @@ func (c *ExampleService) DeleteUser(ctx context.Context, id platform.ID) error {
 
 	if err != nil {
 		return &platform.Error{
-			Op:  platform.OpDeleteUser,
+			Op:  "kv/" + platform.OpDeleteUser,
 			Err: err,
 		}
 	}

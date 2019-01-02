@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	bolt "github.com/coreos/bbolt"
@@ -10,8 +11,6 @@ import (
 
 var onboardingBucket = []byte("onboardingv1")
 var onboardingKey = []byte("onboarding_key")
-
-const onboardingTokenDesc = "Deftok"
 
 var _ platform.OnboardingService = (*Client)(nil)
 
@@ -108,10 +107,10 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 		RetentionPeriod: time.Duration(req.RetentionPeriod) * time.Hour,
 	}
 	if err := c.CreateUserResourceMapping(ctx, &platform.UserResourceMapping{
-		ResourceType: platform.OrgResourceType,
-		ResourceID:   o.ID,
-		UserID:       u.ID,
-		UserType:     platform.Owner,
+		Resource:   platform.OrgsResource,
+		ResourceID: o.ID,
+		UserID:     u.ID,
+		UserType:   platform.Owner,
 	}); err != nil {
 		return nil, err
 	}
@@ -119,18 +118,10 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 		return nil, err
 	}
 	auth := &platform.Authorization{
-		User:        u.Name,
 		UserID:      u.ID,
-		Description: onboardingTokenDesc,
-		Permissions: []platform.Permission{
-			platform.CreateUserPermission,
-			platform.DeleteUserPermission,
-			{
-				Resource: platform.OrganizationResource,
-				Action:   platform.WriteAction,
-			},
-			platform.WriteBucketPermission(bucket.ID),
-		},
+		Description: fmt.Sprintf("%s's Token", u.Name),
+		OrgID:       o.ID,
+		Permissions: platform.OperPermissions(),
 	}
 	if err = c.CreateAuthorization(ctx, auth); err != nil {
 		return nil, err

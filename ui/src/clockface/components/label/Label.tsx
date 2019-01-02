@@ -16,7 +16,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export interface LabelType {
   id: string
-  text: string
+  name: string
   description: string
   colorHex: string
   onClick?: (id: string) => void
@@ -50,7 +50,7 @@ class Label extends Component<Props, State> {
   }
 
   public render() {
-    const {text} = this.props
+    const {name} = this.props
 
     this.validateColorHex()
 
@@ -63,7 +63,7 @@ class Label extends Component<Props, State> {
         style={this.style}
         title={this.title}
       >
-        <label>{text}</label>
+        <label>{name}</label>
         {this.deleteButton}
       </div>
     )
@@ -113,17 +113,17 @@ class Label extends Component<Props, State> {
   }
 
   private get title(): string {
-    const {onClick, text, description} = this.props
+    const {onClick, name, description} = this.props
 
     if (onClick) {
-      return `Click to see all resources with the "${text}" label`
+      return `Click to see all resources with the "${name}" label`
     }
 
     return `${description}`
   }
 
   private get deleteButton(): JSX.Element {
-    const {onDelete, text} = this.props
+    const {onDelete, name} = this.props
 
     if (onDelete) {
       return (
@@ -131,7 +131,7 @@ class Label extends Component<Props, State> {
           className="label--delete"
           onClick={this.handleDelete}
           type="button"
-          title={`Click × to remove "${text}"`}
+          title={`Click × to remove "${name}"`}
         >
           <div
             className="label--delete-x"
@@ -184,7 +184,7 @@ class Label extends Component<Props, State> {
 
     if (!isValidLength || !containsValidCharacters) {
       throw new Error(
-        '<Label /> component has been passed a invalid hexColor prop'
+        '<Label /> component has been passed a invalid colorHex prop'
       )
     }
   }

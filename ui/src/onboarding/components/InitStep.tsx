@@ -10,12 +10,6 @@ import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 @ErrorHandling
 class InitStep extends PureComponent<OnboardingStepProps> {
-  public componentDidMount() {
-    window.addEventListener('keydown', this.handleKeydown)
-  }
-  public componentWillUnmount() {
-    window.removeEventListener('keydown', this.handleKeydown)
-  }
   public render() {
     return (
       <div className="onboarding-step">
@@ -24,7 +18,7 @@ class InitStep extends PureComponent<OnboardingStepProps> {
         <h5 className="wizard-step--sub-title">
           Get started in just a few easy steps
         </h5>
-        <div className="wizard-button-bar">
+        <div className="wizard--button-bar">
           <Button
             color={ComponentColor.Primary}
             text="Get Started"
@@ -44,12 +38,6 @@ class InitStep extends PureComponent<OnboardingStepProps> {
     } = this.props
     onSetStepStatus(currentStepIndex, StepStatus.Complete)
     onIncrementCurrentStepIndex()
-  }
-
-  private handleKeydown = (e: KeyboardEvent): void => {
-    if (e.key === 'Enter') {
-      this.handleNext()
-    }
   }
 }
 

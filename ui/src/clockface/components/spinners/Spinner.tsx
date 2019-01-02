@@ -15,7 +15,7 @@ interface Props {
 @ErrorHandling
 export default class Spinner extends Component<Props> {
   public render() {
-    return <div className="spinner-container">{this.children}</div>
+    return <>{this.children}</>
   }
 
   private get children(): JSX.Element | JSX.Element[] {
@@ -25,7 +25,11 @@ export default class Spinner extends Component<Props> {
       loading === RemoteDataState.Loading ||
       loading === RemoteDataState.NotStarted
     ) {
-      return <div className="spinner" />
+      return (
+        <div className="spinner-container">
+          <div className="spinner" />
+        </div>
+      )
     }
 
     return children

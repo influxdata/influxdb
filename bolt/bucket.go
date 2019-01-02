@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coreos/bbolt"
+	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
 	platformcontext "github.com/influxdata/platform/context"
 )
@@ -361,8 +361,8 @@ func (c *Client) PutBucket(ctx context.Context, b *platform.Bucket) error {
 
 func (c *Client) createBucketUserResourceMappings(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) *platform.Error {
 	ms, err := c.findUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
-		ResourceType: platform.OrgResourceType,
-		ResourceID:   b.OrganizationID,
+		Resource:   platform.OrgsResource,
+		ResourceID: b.OrganizationID,
 	})
 	if err != nil {
 		return &platform.Error{
@@ -372,10 +372,10 @@ func (c *Client) createBucketUserResourceMappings(ctx context.Context, tx *bolt.
 
 	for _, m := range ms {
 		if err := c.createUserResourceMapping(ctx, tx, &platform.UserResourceMapping{
-			ResourceType: platform.BucketResourceType,
-			ResourceID:   b.ID,
-			UserID:       m.UserID,
-			UserType:     m.UserType,
+			Resource:   platform.BucketsResource,
+			ResourceID: b.ID,
+			UserID:     m.UserID,
+			UserType:   m.UserType,
 		}); err != nil {
 			return &platform.Error{
 				Err: err,
@@ -553,8 +553,8 @@ func (c *Client) deleteBucket(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 		}
 	}
 	if err := c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
-		ResourceID:   id,
-		ResourceType: platform.BucketResourceType,
+		ResourceID: id,
+		Resource:   platform.BucketsResource,
 	}); err != nil {
 		return &platform.Error{
 			Err: err,

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -102,7 +101,6 @@ func CreateTelegrafConfig(
 ) {
 	type args struct {
 		telegrafConfig *platform.TelegrafConfig
-		now            time.Time
 		userID         platform.ID
 	}
 	type wants struct {
@@ -110,8 +108,6 @@ func CreateTelegrafConfig(
 		telegrafs           []*platform.TelegrafConfig
 		userResourceMapping []*platform.UserResourceMapping
 	}
-
-	now := time.Now().Round(0)
 
 	tests := []struct {
 		name   string
@@ -127,7 +123,6 @@ func CreateTelegrafConfig(
 				UserResourceMappings: []*platform.UserResourceMapping{},
 			},
 			args: args{
-				now:    now,
 				userID: MustIDBase16(threeID),
 				telegrafConfig: &platform.TelegrafConfig{
 					Name: "name1",
@@ -154,10 +149,10 @@ func CreateTelegrafConfig(
 			wants: wants{
 				userResourceMapping: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 				},
 				telegrafs: []*platform.TelegrafConfig{
@@ -167,9 +162,6 @@ func CreateTelegrafConfig(
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 1000,
 						},
-						Created:   now,
-						LastModBy: MustIDBase16(threeID),
-						LastMod:   now,
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -200,7 +192,6 @@ func CreateTelegrafConfig(
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 4000,
 						},
-						LastModBy: MustIDBase16(threeID),
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -211,15 +202,14 @@ func CreateTelegrafConfig(
 				},
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 			},
 			args: args{
-				now:    now,
 				userID: MustIDBase16(threeID),
 				telegrafConfig: &platform.TelegrafConfig{
 					Name: "name2",
@@ -251,7 +241,6 @@ func CreateTelegrafConfig(
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 4000,
 						},
-						LastModBy: MustIDBase16(threeID),
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -265,9 +254,6 @@ func CreateTelegrafConfig(
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 1001,
 						},
-						Created:   now,
-						LastMod:   now,
-						LastModBy: MustIDBase16(threeID),
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment2",
@@ -287,16 +273,16 @@ func CreateTelegrafConfig(
 				},
 				userResourceMapping: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 				},
 			},
@@ -308,7 +294,7 @@ func CreateTelegrafConfig(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			err := s.CreateTelegrafConfig(ctx, tt.args.telegrafConfig, tt.args.userID, tt.args.now)
+			err := s.CreateTelegrafConfig(ctx, tt.args.telegrafConfig, tt.args.userID)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -323,8 +309,8 @@ func CreateTelegrafConfig(
 			}
 
 			tcs, _, err := s.FindTelegrafConfigs(ctx, platform.UserResourceMappingFilter{
-				UserID:       MustIDBase16(threeID),
-				ResourceType: platform.TelegrafResourceType,
+				UserID:   MustIDBase16(threeID),
+				Resource: platform.TelegrafsResource,
 			})
 			if err != nil {
 				t.Fatalf("failed to retrieve telegraf configs: %v", err)
@@ -334,8 +320,8 @@ func CreateTelegrafConfig(
 			}
 
 			urms, _, err := s.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
-				UserID:       tt.args.userID,
-				ResourceType: platform.TelegrafResourceType,
+				UserID:   tt.args.userID,
+				Resource: platform.TelegrafsResource,
 			})
 			if err != nil {
 				t.Fatalf("failed to retrieve user resource mappings: %v", err)
@@ -371,9 +357,8 @@ func FindTelegrafConfigByID(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -381,9 +366,8 @@ func FindTelegrafConfigByID(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -414,9 +398,8 @@ func FindTelegrafConfigByID(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -424,9 +407,8 @@ func FindTelegrafConfigByID(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -457,9 +439,8 @@ func FindTelegrafConfigByID(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -467,9 +448,8 @@ func FindTelegrafConfigByID(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -490,9 +470,8 @@ func FindTelegrafConfigByID(
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
-					ID:        MustIDBase16(twoID),
-					Name:      "tc2",
-					LastModBy: MustIDBase16(threeID),
+					ID:   MustIDBase16(twoID),
+					Name: "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment1",
@@ -556,23 +535,22 @@ func FindTelegrafConfig(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -580,9 +558,8 @@ func FindTelegrafConfig(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -600,17 +577,16 @@ func FindTelegrafConfig(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID:       MustIDBase16(threeID),
-					ResourceType: platform.TelegrafResourceType,
-					UserType:     platform.Member,
+					UserID:   MustIDBase16(threeID),
+					Resource: platform.TelegrafsResource,
+					UserType: platform.Member,
 				},
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
 
-					ID:        MustIDBase16(twoID),
-					Name:      "tc2",
-					LastModBy: MustIDBase16(threeID),
+					ID:   MustIDBase16(twoID),
+					Name: "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment1",
@@ -631,23 +607,22 @@ func FindTelegrafConfig(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -655,9 +630,8 @@ func FindTelegrafConfig(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -675,8 +649,8 @@ func FindTelegrafConfig(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID:       MustIDBase16(fourID),
-					ResourceType: platform.TelegrafResourceType,
+					UserID:   MustIDBase16(fourID),
+					Resource: platform.TelegrafsResource,
 				},
 			},
 			wants: wants{
@@ -737,7 +711,7 @@ func FindTelegrafConfigs(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					ResourceType: platform.TelegrafResourceType,
+					Resource: platform.TelegrafsResource,
 				},
 			},
 			wants: wants{
@@ -749,23 +723,22 @@ func FindTelegrafConfigs(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -773,9 +746,8 @@ func FindTelegrafConfigs(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -793,16 +765,15 @@ func FindTelegrafConfigs(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID:       MustIDBase16(threeID),
-					ResourceType: platform.TelegrafResourceType,
+					UserID:   MustIDBase16(threeID),
+					Resource: platform.TelegrafsResource,
 				},
 			},
 			wants: wants{
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -810,9 +781,8 @@ func FindTelegrafConfigs(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -834,23 +804,22 @@ func FindTelegrafConfigs(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -858,9 +827,8 @@ func FindTelegrafConfigs(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -878,17 +846,16 @@ func FindTelegrafConfigs(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID:       MustIDBase16(threeID),
-					ResourceType: platform.TelegrafResourceType,
-					UserType:     platform.Owner,
+					UserID:   MustIDBase16(threeID),
+					Resource: platform.TelegrafsResource,
+					UserType: platform.Owner,
 				},
 			},
 			wants: wants{
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -903,23 +870,22 @@ func FindTelegrafConfigs(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -927,9 +893,8 @@ func FindTelegrafConfigs(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -947,8 +912,8 @@ func FindTelegrafConfigs(
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID:       MustIDBase16(fourID),
-					ResourceType: platform.TelegrafResourceType,
+					UserID:   MustIDBase16(fourID),
+					Resource: platform.TelegrafsResource,
 				},
 			},
 			wants: wants{
@@ -991,10 +956,8 @@ func UpdateTelegrafConfig(
 	init func(TelegrafConfigFields, *testing.T) (platform.TelegrafConfigStore, func()),
 	t *testing.T,
 ) {
-	now := time.Now().Round(0)
 	type args struct {
 		userID         platform.ID
-		now            time.Time
 		id             platform.ID
 		telegrafConfig *platform.TelegrafConfig
 	}
@@ -1014,9 +977,8 @@ func UpdateTelegrafConfig(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1024,9 +986,8 @@ func UpdateTelegrafConfig(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1044,11 +1005,9 @@ func UpdateTelegrafConfig(
 			},
 			args: args{
 				userID: MustIDBase16(threeID),
-				now:    now,
 				id:     MustIDBase16(fourID),
 				telegrafConfig: &platform.TelegrafConfig{
-					Name:      "tc2",
-					LastModBy: MustIDBase16(threeID),
+					Name: "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment1",
@@ -1075,9 +1034,8 @@ func UpdateTelegrafConfig(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1085,9 +1043,8 @@ func UpdateTelegrafConfig(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1105,11 +1062,9 @@ func UpdateTelegrafConfig(
 			},
 			args: args{
 				userID: MustIDBase16(fourID),
-				now:    now,
 				id:     MustIDBase16(twoID),
 				telegrafConfig: &platform.TelegrafConfig{
-					Name:      "tc2",
-					LastModBy: MustIDBase16(threeID),
+					Name: "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment3",
@@ -1124,10 +1079,8 @@ func UpdateTelegrafConfig(
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
-					ID:        MustIDBase16(twoID),
-					Name:      "tc2",
-					LastModBy: MustIDBase16(fourID),
-					LastMod:   now,
+					ID:   MustIDBase16(twoID),
+					Name: "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment3",
@@ -1146,9 +1099,8 @@ func UpdateTelegrafConfig(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1156,9 +1108,8 @@ func UpdateTelegrafConfig(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1183,11 +1134,9 @@ func UpdateTelegrafConfig(
 			},
 			args: args{
 				userID: MustIDBase16(fourID),
-				now:    now,
 				id:     MustIDBase16(twoID),
 				telegrafConfig: &platform.TelegrafConfig{
-					Name:      "tc2",
-					LastModBy: MustIDBase16(threeID),
+					Name: "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment1",
@@ -1211,10 +1160,8 @@ func UpdateTelegrafConfig(
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
-					ID:        MustIDBase16(twoID),
-					Name:      "tc2",
-					LastModBy: MustIDBase16(fourID),
-					LastMod:   now,
+					ID:   MustIDBase16(twoID),
+					Name: "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment1",
@@ -1245,7 +1192,7 @@ func UpdateTelegrafConfig(
 			ctx := context.Background()
 
 			tc, err := s.UpdateTelegrafConfig(ctx, tt.args.id,
-				tt.args.telegrafConfig, tt.args.userID, tt.args.now)
+				tt.args.telegrafConfig, tt.args.userID)
 			if err != nil && tt.wants.err == nil {
 				t.Fatalf("expected errors to be nil got '%v'", err)
 			}
@@ -1287,23 +1234,22 @@ func DeleteTelegrafConfig(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(twoID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1311,9 +1257,8 @@ func DeleteTelegrafConfig(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1340,23 +1285,22 @@ func DeleteTelegrafConfig(
 				},
 				userResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(twoID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1364,9 +1308,8 @@ func DeleteTelegrafConfig(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1388,23 +1331,22 @@ func DeleteTelegrafConfig(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(twoID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1412,9 +1354,8 @@ func DeleteTelegrafConfig(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1440,23 +1381,22 @@ func DeleteTelegrafConfig(
 				},
 				userResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(twoID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1464,9 +1404,8 @@ func DeleteTelegrafConfig(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1488,23 +1427,22 @@ func DeleteTelegrafConfig(
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 					{
-						ResourceID:   MustIDBase16(twoID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(twoID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1512,9 +1450,8 @@ func DeleteTelegrafConfig(
 						},
 					},
 					{
-						ID:        MustIDBase16(twoID),
-						Name:      "tc2",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(twoID),
+						Name: "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1537,17 +1474,16 @@ func DeleteTelegrafConfig(
 			wants: wants{
 				userResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID:   MustIDBase16(oneID),
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.TelegrafResourceType,
+						ResourceID: MustIDBase16(oneID),
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+						Resource:   platform.TelegrafsResource,
 					},
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:        MustIDBase16(oneID),
-						Name:      "tc1",
-						LastModBy: MustIDBase16(threeID),
+						ID:   MustIDBase16(oneID),
+						Name: "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1574,8 +1510,8 @@ func DeleteTelegrafConfig(
 				}
 			}
 			tcs, n, err := s.FindTelegrafConfigs(ctx, platform.UserResourceMappingFilter{
-				UserID:       tt.args.userID,
-				ResourceType: platform.TelegrafResourceType,
+				UserID:   tt.args.userID,
+				Resource: platform.TelegrafsResource,
 			})
 			if err != nil && tt.wants.err == nil {
 				t.Fatalf("expected errors to be nil got '%v'", err)
@@ -1594,8 +1530,8 @@ func DeleteTelegrafConfig(
 			}
 
 			urms, _, err := s.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
-				UserID:       tt.args.userID,
-				ResourceType: platform.TelegrafResourceType,
+				UserID:   tt.args.userID,
+				Resource: platform.TelegrafsResource,
 			})
 			if err != nil {
 				t.Fatalf("failed to retrieve user resource mappings: %v", err)

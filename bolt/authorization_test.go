@@ -16,17 +16,26 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 	c.IDGenerator = f.IDGenerator
 	c.TokenGenerator = f.TokenGenerator
-	ctx := context.TODO()
+	ctx := context.Background()
+
 	for _, u := range f.Users {
 		if err := c.PutUser(ctx, u); err != nil {
 			t.Fatalf("failed to populate users")
 		}
 	}
+
+	for _, o := range f.Orgs {
+		if err := c.PutOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to populate orgs")
+		}
+	}
+
 	for _, a := range f.Authorizations {
 		if err := c.PutAuthorization(ctx, a); err != nil {
 			t.Fatalf("failed to populate authorizations %s", err)
 		}
 	}
+
 	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, u := range f.Users {
@@ -34,6 +43,13 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 				t.Logf("failed to remove user: %v", err)
 			}
 		}
+
+		for _, o := range f.Orgs {
+			if err := c.DeleteOrganization(ctx, o.ID); err != nil {
+				t.Logf("failed to remove org: %v", err)
+			}
+		}
+
 		for _, a := range f.Authorizations {
 			if err := c.DeleteAuthorization(ctx, a.ID); err != nil {
 				t.Logf("failed to remove authorizations: %v", err)

@@ -6,6 +6,7 @@ import uuid from 'uuid'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import {GridSizer} from 'src/clockface'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Constants
 import {
@@ -15,7 +16,6 @@ import {
 
 // Types
 import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 export interface Props {
   pluginBundles: BundleName[]
@@ -31,7 +31,7 @@ const ANIMATION_LENGTH = 400
 
 @ErrorHandling
 class StreamingSelector extends PureComponent<Props, State> {
-  private scrollMaxHeight = window.innerHeight * 0.45
+  private scrollMaxHeight = window.innerHeight * 0.6
   constructor(props: Props) {
     super(props)
     this.state = {

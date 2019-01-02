@@ -26,7 +26,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
       size="lg"
       status="default"
       text="Back to Verify"
-      type="submit"
+      type="button"
     />
     <Button
       active={false}
@@ -36,7 +36,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
       size="lg"
       status="default"
       text="Go to InfluxDB 2.0"
-      type="submit"
+      type="button"
     />
   </div>
 </div>

@@ -5,12 +5,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  ComponentStatus,
-} from 'src/clockface'
 import ConfigureDataSourceSwitcher from 'src/onboarding/components/configureStep/ConfigureDataSourceSwitcher'
 
 // Actions
@@ -97,88 +91,11 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
           dataLoaderType={type}
           currentIndex={+substepID}
           onSetConfigArrayValue={onSetConfigArrayValue}
+          onClickNext={this.handleNext}
+          onClickPrevious={this.handlePrevious}
+          onClickSkip={this.jumpToCompletionStep}
         />
-        <div className="wizard--button-container">
-          <div className="wizard--button-bar">
-            <Button
-              color={ComponentColor.Default}
-              text={this.backButtonText}
-              size={ComponentSize.Medium}
-              onClick={this.handlePrevious}
-              data-test="back"
-            />
-            <Button
-              color={ComponentColor.Primary}
-              text={this.nextButtonText}
-              size={ComponentSize.Medium}
-              onClick={this.handleNext}
-              status={ComponentStatus.Default}
-              titleText={'Next'}
-              data-test="next"
-            />
-          </div>
-          {this.skipLink}
-        </div>
       </div>
-    )
-  }
-
-  private get nextButtonText(): string {
-    const {
-      telegrafPlugins,
-      params: {substepID},
-      type,
-    } = this.props
-
-    const index = +substepID
-
-    if (type === DataLoaderType.Streaming) {
-      if (index + 1 > telegrafPlugins.length - 1) {
-        return 'Continue to Verify'
-      }
-      return `Continue to ${_.startCase(
-        _.get(telegrafPlugins, `${index + 1}.name`)
-      )}`
-    }
-
-    return 'Continue to Verify'
-  }
-
-  private get backButtonText(): string {
-    const {
-      telegrafPlugins,
-      params: {substepID},
-      type,
-    } = this.props
-
-    const index = +substepID
-
-    if (type === DataLoaderType.Streaming) {
-      if (index < 1) {
-        return 'Back to Select Streaming Sources'
-      }
-      return `Back to ${_.startCase(
-        _.get(telegrafPlugins, `${index - 1}.name`)
-      )}`
-    }
-
-    return 'Back to Select Data Source Type'
-  }
-
-  private get skipLink() {
-    const {type} = this.props
-    const skipText =
-      type === DataLoaderType.Streaming ? 'Skip to Verify' : 'Skip Config'
-
-    return (
-      <Button
-        customClass="wizard--skip-button"
-        size={ComponentSize.Medium}
-        color={ComponentColor.Default}
-        text={skipText}
-        onClick={this.jumpToCompletionStep}
-        data-test="skip"
-      />
     )
   }
 

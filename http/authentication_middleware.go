@@ -117,9 +117,9 @@ func (h *AuthenticationHandler) extractSession(ctx context.Context, r *http.Requ
 		return ctx, err
 	}
 
-	s, err := h.SessionService.FindSession(ctx, k)
-	if err != nil {
-		return ctx, err
+	s, e := h.SessionService.FindSession(ctx, k)
+	if e != nil {
+		return ctx, e
 	}
 
 	return platcontext.SetAuthorizer(ctx, s), nil

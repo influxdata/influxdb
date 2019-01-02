@@ -111,7 +111,7 @@ func CreateView(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.CreateView(ctx, tt.args.view)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 			defer s.DeleteView(ctx, tt.args.view.ID)
@@ -225,7 +225,7 @@ func FindViewByID(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			view, err := s.FindViewByID(ctx, tt.args.id)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -379,7 +379,7 @@ func FindViews(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			filter := platform.ViewFilter{}
 			if tt.args.ID.Valid() {
@@ -515,7 +515,7 @@ func DeleteView(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.DeleteView(ctx, tt.args.ID)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -673,7 +673,7 @@ func UpdateView(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			upd := platform.ViewUpdate{}
 			if tt.args.name != "" {

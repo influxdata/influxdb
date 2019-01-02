@@ -5,36 +5,41 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
+	nethttp "net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	control2 "github.com/influxdata/flux/control"
+	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/chronograf/server"
 	"github.com/influxdata/platform/gather"
-	http2 "github.com/influxdata/platform/http"
+	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/internal/fs"
 	"github.com/influxdata/platform/kit/cli"
 	"github.com/influxdata/platform/kit/prom"
-	"github.com/influxdata/platform/logger"
+	influxlogger "github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/nats"
 	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/control"
+	_ "github.com/influxdata/platform/query/builtin"
+	pcontrol "github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/snowflake"
 	"github.com/influxdata/platform/source"
 	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/storage/readservice"
 	"github.com/influxdata/platform/task"
-	"github.com/influxdata/platform/task/backend"
-	bolt2 "github.com/influxdata/platform/task/backend/bolt"
+	taskbackend "github.com/influxdata/platform/task/backend"
+	taskbolt "github.com/influxdata/platform/task/backend/bolt"
 	"github.com/influxdata/platform/task/backend/coordinator"
-	executor2 "github.com/influxdata/platform/task/backend/executor"
-	zap2 "github.com/influxdata/platform/zap"
+	taskexecutor "github.com/influxdata/platform/task/backend/executor"
+	_ "github.com/influxdata/platform/tsdb/tsi1"
+	_ "github.com/influxdata/platform/tsdb/tsm1"
+	"github.com/influxdata/platform/vault"
+	pzap "github.com/influxdata/platform/zap"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -54,17 +59,19 @@ type Launcher struct {
 	developerMode   bool
 	enginePath      string
 
+	secretStore string
+
 	boltClient *bolt.Client
 	engine     *storage.Engine
 
-	queryController *control.Controller
+	queryController *pcontrol.Controller
 
 	httpPort   int
-	httpServer *http.Server
+	httpServer *nethttp.Server
 
 	natsServer *nats.Server
 
-	scheduler *backend.TickScheduler
+	scheduler *taskbackend.TickScheduler
 
 	logger *zap.Logger
 
@@ -171,6 +178,12 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				Default: filepath.Join(dir, "engine"),
 				Desc:    "path to persistent engine files",
 			},
+			{
+				DestP:   &m.secretStore,
+				Flag:    "secret-store",
+				Default: "bolt",
+				Desc:    "data store for secrets (bolt or vault)",
+			},
 		},
 	}
 
@@ -189,7 +202,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	// Create top level logger
-	logconf := &logger.Config{
+	logconf := &influxlogger.Config{
 		Format: "auto",
 		Level:  lvl,
 	}
@@ -199,7 +212,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	// set tracing
-	tracer := new(zap2.Tracer)
+	tracer := new(pzap.Tracer)
 	tracer.Logger = m.logger
 	tracer.IDGenerator = snowflake.NewIDGenerator()
 	opentracing.SetGlobalTracer(tracer)
@@ -237,7 +250,27 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		telegrafSvc      platform.TelegrafConfigStore             = m.boltClient
 		userResourceSvc  platform.UserResourceMappingService      = m.boltClient
 		labelSvc         platform.LabelService                    = m.boltClient
+		secretSvc        platform.SecretService                   = m.boltClient
+		lookupSvc        platform.LookupService                   = m.boltClient
 	)
+
+	switch m.secretStore {
+	case "bolt":
+		// If it is bolt, then we already set it above.
+	case "vault":
+		// The vault secret service is configured using the standard vault environment variables.
+		// https://www.vaultproject.io/docs/commands/index.html#environment-variables
+		svc, err := vault.NewSecretService()
+		if err != nil {
+			m.logger.Error("failed initalizing vault secret service", zap.Error(err))
+			return err
+		}
+		secretSvc = svc
+	default:
+		err := fmt.Errorf("unknown secret service %q, expected \"bolt\" or \"vault\"", m.secretStore)
+		m.logger.Error("failed setting secret service", zap.Error(err))
+		return err
+	}
 
 	chronografSvc, err := server.NewServiceV2(ctx, m.boltClient.DB())
 	if err != nil {
@@ -264,7 +297,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			memoryBytesQuota = 1e6
 		)
 
-		cc := control2.Config{
+		cc := control.Config{
 			ExecutorDependencies: make(execute.Dependencies),
 			ConcurrencyQuota:     concurrencyQuota,
 			MemoryBytesQuota:     int64(memoryBytesQuota),
@@ -278,28 +311,28 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			return err
 		}
 
-		m.queryController = control.New(cc)
+		m.queryController = pcontrol.New(cc)
 		reg.MustRegister(m.queryController.PrometheusCollectors()...)
 	}
 
 	var storageQueryService query.ProxyQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
-		boltStore, err := bolt2.New(m.boltClient.DB(), "tasks")
+		boltStore, err := taskbolt.New(m.boltClient.DB(), "tasks")
 		if err != nil {
 			m.logger.Error("failed opening task bolt", zap.Error(err))
 			return err
 		}
 
-		executor := executor2.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, boltStore)
+		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, boltStore)
 
-		lw := backend.NewPointLogWriter(pointsWriter)
-		m.scheduler = backend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), backend.WithTicker(ctx, 100*time.Millisecond), backend.WithLogger(m.logger))
+		lw := taskbackend.NewPointLogWriter(pointsWriter)
+		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
 		m.scheduler.Start(ctx)
 		reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
 		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
-		lr := backend.NewQueryLogReader(queryService)
+		lr := taskbackend.NewQueryLogReader(queryService)
 		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler)
 		taskSvc = task.NewValidator(taskSvc, bucketSvc)
 	}
@@ -340,11 +373,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		logger.Info("Stopping")
 	}(m.logger)
 
-	m.httpServer = &http.Server{
+	m.httpServer = &nethttp.Server{
 		Addr: m.httpBindAddress,
 	}
 
-	handlerConfig := &http2.APIBackend{
+	handlerConfig := &http.APIBackend{
+		DeveloperMode:                   m.developerMode,
 		Logger:                          m.logger,
 		NewBucketService:                source.NewBucketService,
 		NewQueryService:                 source.NewQueryService,
@@ -371,14 +405,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		TelegrafService:                 telegrafSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,
 		ChronografService:               chronografSvc,
+		SecretService:                   secretSvc,
+		LookupService:                   lookupSvc,
 	}
 
 	// HTTP server
 	httpLogger := m.logger.With(zap.String("service", "http"))
-	platformHandler := http2.NewPlatformHandler(handlerConfig)
+	platformHandler := http.NewPlatformHandler(handlerConfig)
 	reg.MustRegister(platformHandler.PrometheusCollectors()...)
 
-	h := http2.NewHandlerFromRegistry("platform", reg)
+	h := http.NewHandlerFromRegistry("platform", reg)
 	h.Handler = platformHandler
 	h.Logger = httpLogger
 	h.Tracer = opentracing.GlobalTracer()
@@ -401,7 +437,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		defer m.wg.Done()
 		logger.Info("Listening", zap.String("transport", "http"), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
 
-		if err := m.httpServer.Serve(ln); err != http.ErrServerClosed {
+		if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
 			logger.Error("failed http service", zap.Error(err))
 		}
 		logger.Info("Stopping")

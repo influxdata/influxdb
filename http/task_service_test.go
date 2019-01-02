@@ -20,7 +20,8 @@ import (
 
 func TestTaskHandler_handleGetTasks(t *testing.T) {
 	type fields struct {
-		taskService platform.TaskService
+		taskService  platform.TaskService
+		labelService platform.LabelService
 	}
 	type wants struct {
 		statusCode  int
@@ -55,6 +56,20 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 						return tasks, len(tasks), nil
 					},
 				},
+				labelService: &mock.LabelService{
+					FindLabelsFn: func(ctx context.Context, f platform.LabelFilter) ([]*platform.Label, error) {
+						labels := []*platform.Label{
+							{
+								ResourceID: f.ResourceID,
+								Name:       "label",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+						}
+						return labels, nil
+					},
+				},
 			},
 			wants: wants{
 				statusCode:  http.StatusOK,
@@ -70,12 +85,22 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
         "self": "/api/v2/tasks/0000000000000001",
         "owners": "/api/v2/tasks/0000000000000001/owners",
         "members": "/api/v2/tasks/0000000000000001/members",
+        "labels": "/api/v2/tasks/0000000000000001/labels",
         "runs": "/api/v2/tasks/0000000000000001/runs",
         "logs": "/api/v2/tasks/0000000000000001/logs"
       },
       "id": "0000000000000001",
       "name": "task1",
-      "organizationId": "0000000000000001",
+			"labels": [
+        {
+          "resourceID": "0000000000000001",
+          "name": "label",
+          "properties": {
+            "color": "fff000"
+          }
+        }
+      ],
+      "organizationID": "0000000000000001",
       "status": "",
       "flux": "",
       "owner": {
@@ -88,12 +113,22 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
         "self": "/api/v2/tasks/0000000000000002",
         "owners": "/api/v2/tasks/0000000000000002/owners",
         "members": "/api/v2/tasks/0000000000000002/members",
+        "labels": "/api/v2/tasks/0000000000000002/labels",
         "runs": "/api/v2/tasks/0000000000000002/runs",
         "logs": "/api/v2/tasks/0000000000000002/logs"
       },
       "id": "0000000000000002",
       "name": "task2",
-      "organizationId": "0000000000000002",
+			"labels": [
+        {
+          "resourceID": "0000000000000002",
+          "name": "label",
+          "properties": {
+            "color": "fff000"
+          }
+        }
+      ],
+      "organizationID": "0000000000000002",
       "status": "",
       "flux": "",
       "owner": {
@@ -112,8 +147,9 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 			w := httptest.NewRecorder()
 
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout))
+			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
 			h.TaskService = tt.fields.taskService
+			h.LabelService = tt.fields.labelService
 			h.handleGetTasks(w, r)
 
 			res := w.Result()
@@ -181,12 +217,14 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
     "self": "/api/v2/tasks/0000000000000001",
     "owners": "/api/v2/tasks/0000000000000001/owners",
     "members": "/api/v2/tasks/0000000000000001/members",
+    "labels": "/api/v2/tasks/0000000000000001/labels",
     "runs": "/api/v2/tasks/0000000000000001/runs",
     "logs": "/api/v2/tasks/0000000000000001/logs"
   },
   "id": "0000000000000001",
   "name": "task1",
-  "organizationId": "0000000000000001",
+  "labels": [],
+  "organizationID": "0000000000000001",
   "status": "",
   "flux": "",
   "owner": {
@@ -212,7 +250,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout))
+			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
 			h.TaskService = tt.fields.taskService
 			h.handlePostTask(w, r)
 
@@ -307,7 +345,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
-						Key:   "tid",
+						Key:   "id",
 						Value: tt.args.taskID.String(),
 					},
 					{
@@ -316,7 +354,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout))
+			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
 			h.TaskService = tt.fields.taskService
 			h.handleGetRun(w, r)
 
@@ -419,12 +457,12 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 				httprouter.ParamsKey,
 				httprouter.Params{
 					{
-						Key:   "tid",
+						Key:   "id",
 						Value: tt.args.taskID.String(),
 					},
 				}))
 			w := httptest.NewRecorder()
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout))
+			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
 			h.TaskService = tt.fields.taskService
 			h.handleGetRuns(w, r)
 

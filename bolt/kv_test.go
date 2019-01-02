@@ -57,7 +57,7 @@ func initExampleService(f platformtesting.UserFields, t *testing.T) (platform.Us
 			t.Fatalf("failed to populate users")
 		}
 	}
-	return svc, "", func() {
+	return svc, "kv/", func() {
 		defer closeFn()
 		for _, u := range f.Users {
 			if err := svc.DeleteUser(ctx, u.ID); err != nil {

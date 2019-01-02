@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/coreos/bbolt"
+	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
 )
 
@@ -23,18 +23,6 @@ func (c *Client) initializeAuthorizations(ctx context.Context, tx *bolt.Tx) erro
 	if _, err := tx.CreateBucketIfNotExists([]byte(authorizationIndex)); err != nil {
 		return err
 	}
-	return nil
-}
-
-func (c *Client) setUserOnAuthorization(ctx context.Context, tx *bolt.Tx, a *platform.Authorization) *platform.Error {
-	u, err := c.findUserByID(ctx, tx, a.UserID)
-	if err != nil {
-		return &platform.Error{
-			Code: platform.ENotFound,
-			Err:  err,
-		}
-	}
-	a.User = u.Name
 	return nil
 }
 
@@ -79,10 +67,6 @@ func (c *Client) findAuthorizationByID(ctx context.Context, tx *bolt.Tx, id plat
 			Code: platform.EInvalid,
 			Err:  err,
 		}
-	}
-
-	if err := c.setUserOnAuthorization(ctx, tx, &a); err != nil {
-		return nil, err
 	}
 
 	return &a, nil
@@ -213,25 +197,18 @@ func (c *Client) findAuthorizations(ctx context.Context, tx *bolt.Tx, f platform
 func (c *Client) CreateAuthorization(ctx context.Context, a *platform.Authorization) error {
 	op := getOp(platform.OpCreateAuthorization)
 	return c.db.Update(func(tx *bolt.Tx) error {
-		if !a.UserID.Valid() {
-			u, err := c.findUserByName(ctx, tx, a.User)
-			if err != nil && platform.ErrorCode(err) != platform.ENotFound {
-				return &platform.Error{
-					Err: err,
-					Op:  op,
-				}
-			}
-			a.UserID = u.ID
+		_, pErr := c.findUserByID(ctx, tx, a.UserID)
+		if pErr != nil {
+			return platform.ErrUnableToCreateToken
 		}
 
-		unique := c.uniqueAuthorizationToken(ctx, tx, a)
+		_, pErr = c.findOrganizationByID(ctx, tx, a.OrgID)
+		if pErr != nil {
+			return platform.ErrUnableToCreateToken
+		}
 
-		if !unique {
-			return &platform.Error{
-				Code: platform.EConflict,
-				Msg:  "token already exists",
-				Op:   op,
-			}
+		if unique := c.uniqueAuthorizationToken(ctx, tx, a); !unique {
+			return platform.ErrUnableToCreateToken
 		}
 
 		token, err := c.TokenGenerator.Token()
@@ -266,7 +243,6 @@ func (c *Client) PutAuthorization(ctx context.Context, a *platform.Authorization
 }
 
 func encodeAuthorization(a *platform.Authorization) ([]byte, error) {
-	a.User = ""
 	switch a.Status {
 	case platform.Active, platform.Inactive:
 	case "":
@@ -274,6 +250,7 @@ func encodeAuthorization(a *platform.Authorization) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("unknown authorization status")
 	}
+
 	return json.Marshal(a)
 }
 
@@ -300,12 +277,14 @@ func (c *Client) putAuthorization(ctx context.Context, tx *bolt.Tx, a *platform.
 			Err:  err,
 		}
 	}
+
 	if err := tx.Bucket(authorizationBucket).Put(encodedID, v); err != nil {
 		return &platform.Error{
 			Err: err,
 		}
 	}
-	return c.setUserOnAuthorization(ctx, tx, a)
+
+	return nil
 }
 
 func authorizationIndexKey(n string) []byte {
@@ -329,9 +308,6 @@ func (c *Client) forEachAuthorization(ctx context.Context, tx *bolt.Tx, fn func(
 		a := &platform.Authorization{}
 
 		if err := decodeAuthorization(v, a); err != nil {
-			return err
-		}
-		if err := c.setUserOnAuthorization(ctx, tx, a); err != nil {
 			return err
 		}
 		if !fn(a) {

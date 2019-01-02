@@ -5,13 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/mock"
-	"github.com/julienschmidt/httprouter"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/mock"
+	"github.com/julienschmidt/httprouter"
 )
 
 func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
@@ -47,16 +48,16 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 					FindMappingsFn: func(ctx context.Context, filter platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error) {
 						ms := []*platform.UserResourceMapping{
 							{
-								ResourceID:   filter.ResourceID,
-								ResourceType: filter.ResourceType,
-								UserType:     filter.UserType,
-								UserID:       1,
+								ResourceID: filter.ResourceID,
+								Resource:   filter.Resource,
+								UserType:   filter.UserType,
+								UserID:     1,
 							},
 							{
-								ResourceID:   filter.ResourceID,
-								ResourceType: filter.ResourceType,
-								UserType:     filter.UserType,
-								UserID:       2,
+								ResourceID: filter.ResourceID,
+								Resource:   filter.Resource,
+								UserType:   filter.UserType,
+								UserID:     2,
 							},
 						}
 						return ms, len(ms), nil
@@ -111,16 +112,16 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 					FindMappingsFn: func(ctx context.Context, filter platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error) {
 						ms := []*platform.UserResourceMapping{
 							{
-								ResourceID:   filter.ResourceID,
-								ResourceType: filter.ResourceType,
-								UserType:     filter.UserType,
-								UserID:       1,
+								ResourceID: filter.ResourceID,
+								Resource:   filter.Resource,
+								UserType:   filter.UserType,
+								UserID:     1,
 							},
 							{
-								ResourceID:   filter.ResourceID,
-								ResourceType: filter.ResourceType,
-								UserType:     filter.UserType,
-								UserID:       2,
+								ResourceID: filter.ResourceID,
+								Resource:   filter.Resource,
+								UserType:   filter.UserType,
+								UserID:     2,
 							},
 						}
 						return ms, len(ms), nil
@@ -165,13 +166,14 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		resourceTypes := []platform.ResourceType{
-			platform.BucketResourceType,
-			platform.DashboardResourceType,
-			platform.OrgResourceType,
-			platform.TaskResourceType,
-			platform.TelegrafResourceType,
-			platform.ViewResourceType,
+		resourceTypes := []platform.Resource{
+			platform.BucketsResource,
+			platform.DashboardsResource,
+			platform.OrgsResource,
+			platform.SourcesResource,
+			platform.TasksResource,
+			platform.TelegrafsResource,
+			platform.UsersResource,
 		}
 
 		for _, resourceType := range resourceTypes {
@@ -309,13 +311,14 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		resourceTypes := []platform.ResourceType{
-			platform.BucketResourceType,
-			platform.DashboardResourceType,
-			platform.OrgResourceType,
-			platform.TaskResourceType,
-			platform.TelegrafResourceType,
-			platform.ViewResourceType,
+		resourceTypes := []platform.Resource{
+			platform.BucketsResource,
+			platform.DashboardsResource,
+			platform.OrgsResource,
+			platform.SourcesResource,
+			platform.TasksResource,
+			platform.TelegrafsResource,
+			platform.UsersResource,
 		}
 
 		for _, resourceType := range resourceTypes {

@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	orgOneID = "020f755c3c082000"
-	orgTwoID = "020f755c3c082001"
+	orgOneID = "020f755c3c083000"
+	orgTwoID = "020f755c3c083001"
 )
 
 var organizationCmpOptions = cmp.Options{
@@ -212,7 +212,7 @@ func CreateOrganization(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.CreateOrganization(ctx, tt.args.organization)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -305,7 +305,7 @@ func FindOrganizationByID(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			organization, err := s.FindOrganizationByID(ctx, tt.args.id)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -475,7 +475,7 @@ func FindOrganizations(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			filter := platform.OrganizationFilter{}
 			if tt.args.ID.Valid() {
@@ -581,7 +581,7 @@ func DeleteOrganization(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.DeleteOrganization(ctx, MustIDBase16(tt.args.ID))
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -662,7 +662,7 @@ func FindOrganization(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			filter := platform.OrganizationFilter{}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
@@ -755,7 +755,7 @@ func UpdateOrganization(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			upd := platform.OrganizationUpdate{}
 			if tt.args.name != "" {

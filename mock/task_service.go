@@ -19,6 +19,7 @@ type TaskService struct {
 	FindRunByIDFn  func(context.Context, platform.ID, platform.ID) (*platform.Run, error)
 	CancelRunFn    func(context.Context, platform.ID, platform.ID) error
 	RetryRunFn     func(context.Context, platform.ID, platform.ID) (*platform.Run, error)
+	ForceRunFn     func(context.Context, platform.ID, int64) (*platform.Run, error)
 }
 
 func (s *TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
@@ -60,4 +61,8 @@ func (s *TaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) 
 
 func (s *TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
 	return s.RetryRunFn(ctx, taskID, runID)
+}
+
+func (s *TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
+	return s.ForceRunFn(ctx, taskID, scheduledFor)
 }

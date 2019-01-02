@@ -157,7 +157,7 @@ func decodePostUserRequest(ctx context.Context, r *http.Request) (*postUserReque
 	}, nil
 }
 
-// handleGetUser is the HTTP handler for the GET /api/v2/me.
+// handleGetMe is the HTTP handler for the GET /api/v2/me.
 func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

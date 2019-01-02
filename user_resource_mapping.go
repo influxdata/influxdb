@@ -3,99 +3,127 @@ package platform
 import (
 	"context"
 	"errors"
-	"fmt"
 )
 
+var (
+	// ErrInvalidUserType notes that the provided UserType is invalid
+	ErrInvalidUserType = errors.New("unknown user type")
+	// ErrUserIDRequired notes that the ID was not provided
+	ErrUserIDRequired = errors.New("user id is required")
+	// ErrResourceIDRequired notes that the provided ID was not provided
+	ErrResourceIDRequired = errors.New("resource id is required")
+)
+
+// UserType can either be owner or member.
 type UserType string
-type ResourceType string
 
-// available user resource types.
 const (
-	Owner                 UserType     = "owner"
-	Member                UserType     = "member"
-	DashboardResourceType ResourceType = "dashboard"
-	BucketResourceType    ResourceType = "bucket"
-	TaskResourceType      ResourceType = "task"
-	OrgResourceType       ResourceType = "org"
-	ViewResourceType      ResourceType = "view"
-	TelegrafResourceType  ResourceType = "telegraf"
-	TokenResourceType     ResourceType = "token"
-	UserResourceType      ResourceType = "user"
+	// Owner can read and write to a resource
+	Owner UserType = "owner" // 1
+	// Member can read from a resource.
+	Member UserType = "member" // 2
 )
 
-// UserResourceMappingService maps the relationships between users and resources
+// Valid checks if the UserType is a member of the UserType enum
+func (ut UserType) Valid() (err error) {
+	switch ut {
+	case Owner: // 1
+	case Member: // 2
+	default:
+		err = ErrInvalidUserType
+	}
+
+	return err
+}
+
+// UserResourceMappingService maps the relationships between users and resources.
 type UserResourceMappingService interface {
 	// FindUserResourceMappings returns a list of UserResourceMappings that match filter and the total count of matching mappings.
 	FindUserResourceMappings(ctx context.Context, filter UserResourceMappingFilter, opt ...FindOptions) ([]*UserResourceMapping, int, error)
 
-	// CreateUserResourceMapping creates a user resource mapping
+	// CreateUserResourceMapping creates a user resource mapping.
 	CreateUserResourceMapping(ctx context.Context, m *UserResourceMapping) error
 
-	// DeleteUserResourceMapping deletes a user resource mapping
+	// DeleteUserResourceMapping deletes a user resource mapping.
 	DeleteUserResourceMapping(ctx context.Context, resourceID ID, userID ID) error
 }
 
-// UserResourceMapping represents a mapping of a resource to its user
+// UserResourceMapping represents a mapping of a resource to its user.
 type UserResourceMapping struct {
-	ResourceID   ID           `json:"resource_id"`
-	ResourceType ResourceType `json:"resource_type"`
-	UserID       ID           `json:"user_id"`
-	UserType     UserType     `json:"user_type"`
+	UserID     ID       `json:"userID"`
+	UserType   UserType `json:"userType"`
+	Resource   Resource `json:"resource"`
+	ResourceID ID       `json:"resourceID"`
 }
 
 // Validate reports any validation errors for the mapping.
 func (m UserResourceMapping) Validate() error {
 	if !m.ResourceID.Valid() {
-		return errors.New("resourceID is required")
+		return ErrResourceIDRequired
 	}
+
 	if !m.UserID.Valid() {
-		return errors.New("userID is required")
+		return ErrUserIDRequired
 	}
-	if m.UserType != Owner && m.UserType != Member {
-		return errors.New("a valid user type is required")
+
+	if err := m.UserType.Valid(); err != nil {
+		return err
 	}
-	switch m.ResourceType {
-	case DashboardResourceType, BucketResourceType, TaskResourceType, OrgResourceType, ViewResourceType, TelegrafResourceType:
-	default:
-		return errors.New("a valid resource type is required")
+
+	if err := m.Resource.Valid(); err != nil {
+		return err
 	}
+
 	return nil
 }
 
-// UserResourceMapping represents a set of filters that restrict the returned results.
+// UserResourceMappingFilter represents a set of filters that restrict the returned results.
 type UserResourceMappingFilter struct {
-	ResourceID   ID
-	ResourceType ResourceType
-	UserID       ID
-	UserType     UserType
+	ResourceID ID
+	Resource   Resource
+	UserID     ID
+	UserType   UserType
 }
 
-var ownerActions = []action{WriteAction, CreateAction, DeleteAction}
-var memberActions = []action{ReadAction}
+var ownerActions = []Action{WriteAction, ReadAction}
+var memberActions = []Action{ReadAction}
 
-// ToPermission converts a user resource mapping into a set of permissions.
-func (m *UserResourceMapping) ToPermissions() []Permission {
-	// TODO(desa): we'll have to do something more fine-grained eventually
-	// but this should be good enough for now.
-	ps := []Permission{}
-	r := resource(fmt.Sprintf("%s/%s", m.ResourceType, m.ResourceID))
-	if m.UserType == Owner {
-		for _, a := range ownerActions {
-			p := Permission{
-				Resource: r,
-				Action:   a,
-			}
-			ps = append(ps, p)
+func (m *UserResourceMapping) ownerPerms() ([]Permission, error) {
+	ps := make([]Permission, 0, len(ownerActions))
+	for _, a := range ownerActions {
+		p, err := NewPermissionAtID(m.ResourceID, a, m.Resource)
+		if err != nil {
+			return nil, err
 		}
+
+		ps = append(ps, *p)
 	}
 
+	return ps, nil
+}
+
+func (m *UserResourceMapping) memberPerms() ([]Permission, error) {
+	ps := make([]Permission, 0, len(memberActions))
 	for _, a := range memberActions {
-		p := Permission{
-			Resource: r,
-			Action:   a,
+		p, err := NewPermissionAtID(m.ResourceID, a, m.Resource)
+		if err != nil {
+			return nil, err
 		}
-		ps = append(ps, p)
+
+		ps = append(ps, *p)
 	}
 
-	return ps
+	return ps, nil
+}
+
+// ToPermissions converts a user resource mapping into a set of permissions.
+func (m *UserResourceMapping) ToPermissions() ([]Permission, error) {
+	switch m.UserType {
+	case Owner:
+		return m.ownerPerms()
+	case Member:
+		return m.memberPerms()
+	default:
+		return nil, ErrInvalidUserType
+	}
 }

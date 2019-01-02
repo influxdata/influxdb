@@ -2,13 +2,13 @@ package inmem
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/influxdata/platform"
 )
 
 const onboardingKey = "onboarding_key"
-const onboardingTokenDesc = "Deftok"
 
 var _ platform.OnboardingService = (*Service)(nil)
 
@@ -93,18 +93,10 @@ func (s *Service) Generate(ctx context.Context, req *platform.OnboardingRequest)
 		return nil, err
 	}
 	auth := &platform.Authorization{
-		User:        u.Name,
 		UserID:      u.ID,
-		Description: onboardingTokenDesc,
-		Permissions: []platform.Permission{
-			platform.CreateUserPermission,
-			platform.DeleteUserPermission,
-			{
-				Resource: platform.OrganizationResource,
-				Action:   platform.WriteAction,
-			},
-			platform.WriteBucketPermission(bucket.ID),
-		},
+		Description: fmt.Sprintf("%s's Token", u.Name),
+		OrgID:       o.ID,
+		Permissions: platform.OperPermissions(),
 	}
 	if err = s.CreateAuthorization(ctx, auth); err != nil {
 		return nil, err

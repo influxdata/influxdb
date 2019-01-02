@@ -11,7 +11,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   highlighted: boolean
   id: string
-  text: string
+  name: string
   colorHex: string
   description: string
   onClick: (labelID: string) => void
@@ -21,7 +21,7 @@ interface Props {
 @ErrorHandling
 class LabelSelectorMenuItem extends Component<Props> {
   public render() {
-    const {text, colorHex, description, id} = this.props
+    const {name, colorHex, description, id} = this.props
 
     return (
       <div
@@ -31,7 +31,7 @@ class LabelSelectorMenuItem extends Component<Props> {
       >
         <div className="label-selector--label">
           <Label
-            text={text}
+            name={name}
             description={description}
             id={id}
             colorHex={colorHex}

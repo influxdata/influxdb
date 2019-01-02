@@ -236,7 +236,7 @@ func CreateDBRPMapping(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.Create(ctx, tt.args.dbrpMapping)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -412,7 +412,7 @@ func FindDBRPMappings(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			dbrpMappings, _, err := s.FindMany(ctx, tt.args.filter)
 			if (err != nil) != (tt.wants.err != nil) {
@@ -521,7 +521,7 @@ func FindDBRPMappingByKey(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			dbrpMapping, err := s.FindBy(ctx, tt.args.Cluster, tt.args.Database, tt.args.RetentionPolicy)
 			if (err != nil) != (tt.wants.err != nil) {
@@ -647,7 +647,7 @@ func FindDBRPMapping(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			dbrpMapping, err := s.Find(ctx, tt.args.filter)
 			if (err != nil) != (tt.wants.err != nil) {
@@ -778,7 +778,7 @@ func DeleteDBRPMapping(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.Delete(ctx, tt.args.Cluster, tt.args.Database, tt.args.RetentionPolicy)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)

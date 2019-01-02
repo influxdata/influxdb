@@ -1,33 +1,46 @@
-import calculateSize from 'calculate-size'
 import _ from 'lodash'
 import {fastMap, fastReduce, fastFilter} from 'src/utils/fast'
 
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
-import {DEFAULT_TIME_FIELD, TimeField} from 'src/dashboards/constants'
+import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
+
 import {
-  Sort,
+  SortOptions,
   FieldOption,
   TableOptions,
   DecimalPlaces,
 } from 'src/types/v2/dashboards'
-import {TimeSeriesValue} from 'src/types/series'
 
-interface ColumnWidths {
+const calculateSize = (message: string): number => {
+  return message.length * 7
+}
+
+export interface ColumnWidths {
   totalWidths: number
   widths: {[x: string]: number}
 }
 
-interface SortedLabel {
-  label: string
-  responseIndex: number
-  seriesIndex: number
+export interface TransformTableDataReturnType {
+  transformedData: string[][]
+  sortedTimeVals: string[]
+  columnWidths: ColumnWidths
+  resolvedFieldOptions: FieldOption[]
+  sortOptions: SortOptions
 }
 
-interface TransformTableDataReturnType {
-  transformedData: TimeSeriesValue[][]
-  sortedTimeVals: TimeSeriesValue[]
-  columnWidths: ColumnWidths
+export enum ErrorTypes {
+  MetaQueryCombo = 'MetaQueryCombo',
+  GeneralError = 'Error',
+}
+
+export const getInvalidDataMessage = (errorType: ErrorTypes): string => {
+  switch (errorType) {
+    case ErrorTypes.MetaQueryCombo:
+      return 'Cannot display data for meta queries mixed with data queries'
+    default:
+      return null
+  }
 }
 
 const calculateTimeColumnWidth = (timeFormat: string): number => {
@@ -37,29 +50,26 @@ const calculateTimeColumnWidth = (timeFormat: string): number => {
   timeFormat = _.replace(timeFormat, 'A', 'AM')
   timeFormat = _.replace(timeFormat, 'h', '00')
   timeFormat = _.replace(timeFormat, 'X', '1522286058')
+  timeFormat = _.replace(timeFormat, 'x', '1536106867461')
 
-  const {width} = calculateSize(timeFormat, {
-    font: '"RobotoMono", monospace',
-    fontSize: '13px',
-    fontWeight: 'bold',
-  })
+  const width = calculateSize(timeFormat)
 
   return width + CELL_HORIZONTAL_PADDING
 }
 
 const updateMaxWidths = (
-  row: TimeSeriesValue[],
+  row: string[],
   maxColumnWidths: ColumnWidths,
-  topRow: TimeSeriesValue[],
+  topRow: string[],
   isTopRow: boolean,
   fieldOptions: FieldOption[],
   timeFormatWidth: number,
   verticalTimeAxis: boolean,
   decimalPlaces: DecimalPlaces
 ): ColumnWidths => {
-  const maxWidths = fastReduce<TimeSeriesValue>(
+  const maxWidths = fastReduce<string>(
     row,
-    (acc: ColumnWidths, col: TimeSeriesValue, c: number) => {
+    (acc: ColumnWidths, col: string, c: number) => {
       const isLabel =
         (verticalTimeAxis && isTopRow) || (!verticalTimeAxis && c === 0)
 
@@ -76,23 +86,17 @@ const updateMaxWidths = (
       }
 
       const columnLabel = topRow[c]
+      const isTimeColumn = columnLabel === DEFAULT_TIME_FIELD.internalName
+
+      const isTimeRow = topRow[0] === DEFAULT_TIME_FIELD.internalName
 
       const useTimeWidth =
-        (columnLabel === DEFAULT_TIME_FIELD.internalName &&
-          verticalTimeAxis &&
-          !isTopRow) ||
-        (!verticalTimeAxis &&
-          isTopRow &&
-          topRow[0] === DEFAULT_TIME_FIELD.internalName &&
-          c !== 0)
+        (isTimeColumn && verticalTimeAxis && !isTopRow) ||
+        (!verticalTimeAxis && isTopRow && isTimeRow && c !== 0)
 
       const currentWidth = useTimeWidth
         ? timeFormatWidth
-        : calculateSize(colValue, {
-            font: isLabel ? '"Roboto"' : '"RobotoMono", monospace',
-            fontSize: '13px',
-            fontWeight: 'bold',
-          }).width + CELL_HORIZONTAL_PADDING
+        : calculateSize(colValue.toString().trim()) + CELL_HORIZONTAL_PADDING
 
       const {widths: Widths} = maxColumnWidths
       const maxWidth = _.get(Widths, `${columnLabel}`, 0)
@@ -110,16 +114,14 @@ const updateMaxWidths = (
   return maxWidths
 }
 
-export const computeFieldOptions = (
+export const resolveFieldOptions = (
   existingFieldOptions: FieldOption[],
-  sortedLabels: SortedLabel[]
+  labels: string[]
 ): FieldOption[] => {
-  const timeField =
-    existingFieldOptions.find(f => f.internalName === 'time') ||
-    DEFAULT_TIME_FIELD
-  let astNames = [timeField]
-  sortedLabels.forEach(({label}) => {
-    const field: TimeField = {
+  let astNames = []
+
+  labels.forEach(label => {
+    const field: FieldOption = {
       internalName: label,
       displayName: '',
       visible: true,
@@ -139,7 +141,7 @@ export const computeFieldOptions = (
 }
 
 export const calculateColumnWidths = (
-  data: TimeSeriesValue[][],
+  data: string[][],
   fieldOptions: FieldOption[],
   timeFormat: string,
   verticalTimeAxis: boolean,
@@ -148,9 +150,10 @@ export const calculateColumnWidths = (
   const timeFormatWidth = calculateTimeColumnWidth(
     timeFormat === '' ? DEFAULT_TIME_FORMAT : timeFormat
   )
-  return fastReduce<TimeSeriesValue[], ColumnWidths>(
+
+  return fastReduce<string[], ColumnWidths>(
     data,
-    (acc: ColumnWidths, row: TimeSeriesValue[], r: number) => {
+    (acc: ColumnWidths, row: string[], r: number) => {
       return updateMaxWidths(
         row,
         acc,
@@ -167,31 +170,28 @@ export const calculateColumnWidths = (
 }
 
 export const filterTableColumns = (
-  data: TimeSeriesValue[][],
+  data: string[][],
   fieldOptions: FieldOption[]
-): TimeSeriesValue[][] => {
+): string[][] => {
   const visibility = {}
-  const filteredData = fastMap<TimeSeriesValue[], TimeSeriesValue[]>(
-    data,
-    (row, i) => {
-      return fastFilter<TimeSeriesValue>(row, (col, j) => {
-        if (i === 0) {
-          const foundField = fieldOptions.find(
-            field => field.internalName === col
-          )
-          visibility[j] = foundField ? foundField.visible : true
-        }
-        return visibility[j]
-      })
-    }
-  )
+  const filteredData = fastMap<string[], string[]>(data, (row, i) => {
+    return fastFilter<string>(row, (col, j) => {
+      if (i === 0) {
+        const foundField = fieldOptions.find(
+          field => field.internalName === col
+        )
+        visibility[j] = foundField ? foundField.visible : true
+      }
+      return visibility[j]
+    })
+  })
   return filteredData[0].length ? filteredData : [[]]
 }
 
 export const orderTableColumns = (
-  data: TimeSeriesValue[][],
+  data: string[][],
   fieldOptions: FieldOption[]
-): TimeSeriesValue[][] => {
+): string[][] => {
   const fieldsSortOrder = fieldOptions.map(fieldOption => {
     return _.findIndex(data[0], dataLabel => {
       return dataLabel === fieldOption.internalName
@@ -200,9 +200,9 @@ export const orderTableColumns = (
 
   const filteredFieldSortOrder = fieldsSortOrder.filter(f => f !== -1)
 
-  const orderedData = fastMap<TimeSeriesValue[], TimeSeriesValue[]>(
+  const orderedData = fastMap<string[], string[]>(
     data,
-    (row: TimeSeriesValue[]): TimeSeriesValue[] => {
+    (row: string[]): string[] => {
       return row.map((__, j, arr) => arr[filteredFieldSortOrder[j]])
     }
   )
@@ -210,25 +210,48 @@ export const orderTableColumns = (
 }
 
 export const sortTableData = (
-  data: TimeSeriesValue[][],
-  sort: Sort
-): {sortedData: TimeSeriesValue[][]; sortedTimeVals: TimeSeriesValue[]} => {
-  const sortIndex = _.indexOf(data[0], sort.field)
+  data: string[][],
+  sort: SortOptions
+): {sortedData: string[][]; sortedTimeVals: string[]} => {
+  const headerSet = new Set(data[0])
+
+  let sortIndex
+  if (headerSet.has(sort.field)) {
+    sortIndex = _.indexOf(data[0], sort.field)
+  } else if (headerSet.has(DEFAULT_TIME_FIELD.internalName)) {
+    sortIndex = _.indexOf(data[0], DEFAULT_TIME_FIELD.internalName)
+  } else {
+    throw new Error('Sort cannot be performed')
+  }
+
   const dataValues = _.drop(data, 1)
   const sortedData = [
     data[0],
-    ..._.orderBy<TimeSeriesValue[]>(dataValues, sortIndex, [sort.direction]),
-  ]
-  const sortedTimeVals = fastMap<TimeSeriesValue[], TimeSeriesValue>(
+    ..._.orderBy<string[][]>(dataValues, sortIndex, [sort.direction]),
+  ] as string[][]
+  const sortedTimeVals = fastMap<string[], string>(
     sortedData,
-    (r: TimeSeriesValue[]): TimeSeriesValue => r[0]
+    (r: string[]): string => r[0]
   )
   return {sortedData, sortedTimeVals}
 }
 
+const excludeNoisyColumns = (data: string[][]): string[][] => {
+  const IGNORED_COLUMNS = ['', 'result', 'table']
+
+  const header = data[0]
+  const ignoredIndices = IGNORED_COLUMNS.map(name => header.indexOf(name))
+
+  const excludedData = data.map(row => {
+    return row.filter((__, i) => !ignoredIndices.includes(i))
+  })
+
+  return excludedData
+}
+
 export const transformTableData = (
-  data: TimeSeriesValue[][],
-  sort: Sort,
+  data: string[][],
+  sortOptions: SortOptions,
   fieldOptions: FieldOption[],
   tableOptions: TableOptions,
   timeFormat: string,
@@ -236,17 +259,44 @@ export const transformTableData = (
 ): TransformTableDataReturnType => {
   const {verticalTimeAxis} = tableOptions
 
-  const {sortedData, sortedTimeVals} = sortTableData(data, sort)
-  const filteredData = filterTableColumns(sortedData, fieldOptions)
-  const orderedData = orderTableColumns(filteredData, fieldOptions)
+  const resolvedFieldOptions = resolveFieldOptions(fieldOptions, data[0])
+
+  const excludedData = excludeNoisyColumns(data)
+
+  const {sortedData, sortedTimeVals} = sortTableData(excludedData, sortOptions)
+
+  const filteredData = filterTableColumns(sortedData, resolvedFieldOptions)
+
+  const orderedData = orderTableColumns(filteredData, resolvedFieldOptions)
+
   const transformedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
+
   const columnWidths = calculateColumnWidths(
     transformedData,
-    fieldOptions,
+    resolvedFieldOptions,
     timeFormat,
     verticalTimeAxis,
     decimalPlaces
   )
 
-  return {transformedData, sortedTimeVals, columnWidths}
+  return {
+    transformedData,
+    sortedTimeVals,
+    columnWidths,
+    resolvedFieldOptions,
+    sortOptions,
+  }
 }
+
+/*
+  Checks whether an input value of arbitrary type can be parsed into a
+  number. Note that there are two different `isNaN` checks, since
+
+  - `Number('')` is 0
+  - `Number('02abc')` is NaN
+  - `parseFloat('')` is NaN
+  - `parseFloat('02abc')` is 2
+
+*/
+export const isNumerical = (x: any): boolean =>
+  !isNaN(Number(x)) && !isNaN(parseFloat(x))

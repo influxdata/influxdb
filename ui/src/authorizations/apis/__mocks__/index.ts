@@ -1,4 +1,4 @@
-import {authorization} from './mockData'
+import {authorization} from './data'
 
 // Types
 import {Authorization} from 'src/api'

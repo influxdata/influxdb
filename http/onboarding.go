@@ -81,11 +81,20 @@ type onboardingResponse struct {
 }
 
 func newOnboardingResponse(results *platform.OnboardingResults) *onboardingResponse {
+	// when onboarding the permissions are for all resources and no
+	// specifically named resources.  Therefore, there is no need to
+	// lookup the name.
+	ps := make([]permissionResponse, len(results.Auth.Permissions))
+	for i, p := range results.Auth.Permissions {
+		ps[i] = permissionResponse{
+			Permission: p,
+		}
+	}
 	return &onboardingResponse{
 		User:         newUserResponse(results.User),
 		Bucket:       newBucketResponse(results.Bucket),
 		Organization: newOrgResponse(results.Org),
-		Auth:         newAuthResponse(results.Auth),
+		Auth:         newAuthResponse(results.Auth, results.Org, results.User, ps),
 	}
 }
 
@@ -168,9 +177,9 @@ func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequ
 		return nil, err
 	}
 	return &platform.OnboardingResults{
-		User:   &oResp.User.User,
-		Auth:   &oResp.Auth.Authorization,
 		Org:    &oResp.Organization.Organization,
+		User:   &oResp.User.User,
+		Auth:   oResp.Auth.toPlatform(),
 		Bucket: bkt,
 	}, nil
 }

@@ -34,8 +34,11 @@ func NewPlatformHandler(b *APIBackend) *PlatformHandler {
 	h.RegisterNoAuthRoute("POST", "/api/v2/setup")
 	h.RegisterNoAuthRoute("GET", "/api/v2/setup")
 
+	assetHandler := NewAssetHandler()
+	assetHandler.DeveloperMode = b.DeveloperMode
+
 	return &PlatformHandler{
-		AssetHandler: NewAssetHandler(),
+		AssetHandler: assetHandler,
 		APIHandler:   h,
 	}
 }

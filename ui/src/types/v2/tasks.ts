@@ -7,7 +7,7 @@ export interface Task {
   id: string
   name: string
   status: TaskStatus
-  organizationId: string
+  organizationID: string
   organization: Organization
   owner: {
     id: string
