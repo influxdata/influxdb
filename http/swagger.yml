@@ -10,6 +10,8 @@ paths:
       summary: Exchange basic auth credentials for session
       security:
         - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '204':
           description: succesfully authenticated
@@ -22,6 +24,8 @@ paths:
   /signout:
     post:
       summary: Expire the current session
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '204':
           description: session successfully expired
@@ -34,6 +38,8 @@ paths:
   /:
     get:
       summary: Map of all top level routes available
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         default:
           description: All routes
@@ -46,6 +52,8 @@ paths:
       tags:
         - Setup
       summary: check if database has default user, org, bucket created, returns true if not.
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '200':
           description:
@@ -58,6 +66,8 @@ paths:
       tags:
         - Setup
       summary: post onboarding request, to setup initial user, org and bucket
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       requestBody:
         description: source to create
         required: true
@@ -77,6 +87,7 @@ paths:
       tags:
         - Telegrafs
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: query
             name: org
             description: specifies the organization of the resource
@@ -101,6 +112,7 @@ paths:
         - Telegrafs
       summary: Create a telegraf config
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: query
             name: org
             description: specifies the organization of the resource
@@ -133,6 +145,7 @@ paths:
         - Telegrafs
       summary: Retrieve a telegraf config
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: telegrafID
           schema:
@@ -165,6 +178,7 @@ paths:
         - Telegrafs
       summary: Update a telegraf config
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: telegrafID
           schema:
@@ -197,6 +211,7 @@ paths:
         - Telegrafs
       summary: list all labels for a telegraf config
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: telegrafID
           schema:
@@ -226,6 +241,7 @@ paths:
         - Telegrafs
       summary: add a label to a telegraf config
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: telegrafID
           schema:
@@ -238,10 +254,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for a telegraf config
@@ -266,6 +279,7 @@ paths:
         - Telegrafs
       summary: delete a label from a telegraf config
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: telegrafID
           schema:
@@ -298,6 +312,7 @@ paths:
         - Telegrafs
       summary: update a label from a telegraf config
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: telegrafID
           schema:
@@ -339,6 +354,7 @@ paths:
         - Telegrafs
       summary: List all users with member privileges for a telegraf config
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: telegrafID
           schema:
@@ -364,6 +380,7 @@ paths:
         - Telegrafs
       summary: Add telegraf config member
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: telegrafID
           schema:
@@ -397,6 +414,7 @@ paths:
         - Telegrafs
       summary: removes a member from a telegraf config
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -425,6 +443,7 @@ paths:
         - Telegrafs
       summary: List all owners of a telegraf config
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: telegrafID
           schema:
@@ -450,6 +469,7 @@ paths:
         - Telegrafs
       summary: Add telegraf config owner
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: telegrafID
           schema:
@@ -483,6 +503,7 @@ paths:
         - Telegrafs
       summary: removes an owner from a telegraf config
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -510,6 +531,7 @@ paths:
         - Macros
       summary: get all macros
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: query
           name: org
           required: true
@@ -539,6 +561,8 @@ paths:
       summary: create a macro
       tags:
         - Macros
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       requestBody:
         description: macro to create
         required: true
@@ -565,6 +589,7 @@ paths:
         - Macros
       summary: delete a macro
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: macroID
           required: true
@@ -585,6 +610,7 @@ paths:
       tags:
         - Macros
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: macroID
           required: true
@@ -616,6 +642,7 @@ paths:
       tags:
         - Macros
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: macroID
           required: true
@@ -648,6 +675,7 @@ paths:
         - Write
       summary: write time-series data into influxdb
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: header
           name: Content-Encoding
           description: when present, its value indicates to the database that compression is applied to the line-protocol body.
@@ -708,7 +736,6 @@ paths:
             enum:
               - ns
               - us
-              - u
               - ms
               - s
       responses:
@@ -765,6 +792,8 @@ paths:
       tags:
         - Ready
       summary: Get the readiness of a instance at startup. Allow us to confirm the instance is prepared to accept requests.
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '200':
           description: the instance is ready
@@ -789,6 +818,8 @@ paths:
       tags:
         - Health
       summary: Get the health of an instance anytime during execution. Allow us to check if the instance is still healthy.
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '200':
           description: the instance is healthy
@@ -814,6 +845,7 @@ paths:
         - Sources
       summary: Creates a Source
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: query
             name: org
             description: specifies the organization of the resource
@@ -845,6 +877,7 @@ paths:
         - Sources
       summary: Get all sources
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: query
             name: org
             description: specifies the organization of the resource
@@ -870,6 +903,7 @@ paths:
         - Sources
       summary: Updates a Source
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: path
             name: sourceID
             schema:
@@ -907,6 +941,7 @@ paths:
         - Sources
       summary: Get a source
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: path
             name: sourceID
             schema:
@@ -938,6 +973,7 @@ paths:
         - Sources
       summary: Get a sources health
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: path
             name: sourceID
             schema:
@@ -946,17 +982,17 @@ paths:
             description: ID of the source
       responses:
         '200':
-          description: a source
+          description: the source is healthy
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Source"
-        '404':
-          description: source not found
+                $ref: "#/components/schemas/Check"
+        '503':
+          description: the source is not healthy
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/Check"
         default:
           description: unexpected error
           content:
@@ -970,6 +1006,7 @@ paths:
         - Buckets
       summary: Get a sources buckets (will return dbrps in the form of buckets if it is a v1 source)
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: path
             name: sourceID
             schema:
@@ -1007,6 +1044,7 @@ paths:
         - Views
       summary: A view contains information about the visual representation of data
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: query
             name: org
             description: specifies the organization of the resource
@@ -1038,6 +1076,7 @@ paths:
         - Views
       summary: Get all views
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: query
             name: org
             description: specifies the organization of the resource
@@ -1076,6 +1115,7 @@ paths:
       - Views
     summary: Get a single View
     parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: viewID
           schema:
@@ -1113,6 +1153,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/View"
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: viewID
           schema:
@@ -1143,6 +1184,7 @@ paths:
         - Views
       summary: Delete a view
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: viewID
           schema:
@@ -1170,6 +1212,7 @@ paths:
         - Views
       summary: list all labels for a view
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: viewID
           schema:
@@ -1199,6 +1242,7 @@ paths:
         - Views
       summary: add a label to a view
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: viewID
           schema:
@@ -1211,10 +1255,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for a view
@@ -1239,6 +1280,7 @@ paths:
         - Views
       summary: delete a label from a view
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: viewID
           schema:
@@ -1271,6 +1313,7 @@ paths:
         - Views
       summary: update a label from a view
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: viewID
           schema:
@@ -1312,6 +1355,7 @@ paths:
         - Views
       summary: List all view members
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: viewID
           schema:
@@ -1337,6 +1381,7 @@ paths:
         - Views
       summary: Add view member
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: viewID
           schema:
@@ -1370,6 +1415,7 @@ paths:
         - Views
       summary: removes a member from an view
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -1398,6 +1444,7 @@ paths:
           - Views
         summary: List all view owners
         parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: path
             name: viewID
             schema:
@@ -1423,6 +1470,7 @@ paths:
           - Views
         summary: Add view owner
         parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: path
             name: viewID
             schema:
@@ -1456,6 +1504,7 @@ paths:
         - Views
       summary: removes an owner from a view
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -1483,6 +1532,7 @@ paths:
         - Dashboards
       summary: Create a dashboard
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: query
             name: org
             description: specifies the organization of the resource
@@ -1514,6 +1564,7 @@ paths:
         - Dashboards
       summary: Get all dashboards
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: query
             name: owner
             description: specifies the owner id to return resources for
@@ -1554,6 +1605,7 @@ paths:
       - Dashboards
     summary: Get a single Dashboard
     parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1591,6 +1643,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Dashboard"
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1621,6 +1674,7 @@ paths:
         - Dashboards
       summary: Delete a dashboard
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1656,6 +1710,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Cells"
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1694,6 +1749,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CreateCell"
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1733,6 +1789,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CellUpdate"
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1770,6 +1827,7 @@ paths:
         - Dashboards
       summary: Delete a dashboard cell
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1803,6 +1861,7 @@ paths:
         - Dashboards
       summary: list all labels for a dashboard
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1832,6 +1891,7 @@ paths:
         - Dashboards
       summary: add a label to a dashboard
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1839,15 +1899,12 @@ paths:
           required: true
           description: ID of the dashboard
       requestBody:
-        description: tag to add
+        description: label to add
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for a dashboard
@@ -1873,6 +1930,7 @@ paths:
         - Dashboards
       summary: List all dashboard members
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1898,6 +1956,7 @@ paths:
         - Dashboards
       summary: Add dashboard member
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: dashboardID
           schema:
@@ -1931,6 +1990,7 @@ paths:
         - Dashboards
       summary: removes a member from an dashboard
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -1959,6 +2019,7 @@ paths:
           - Dashboards
         summary: List all dashboard owners
         parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: path
             name: dashboardID
             schema:
@@ -1984,6 +2045,7 @@ paths:
           - Dashboards
         summary: Add dashboard owner
         parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: path
             name: dashboardID
             schema:
@@ -2017,6 +2079,7 @@ paths:
         - Dashboards
       summary: removes an owner from an dashboard
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -2044,6 +2107,7 @@ paths:
       tags:
         - Query
       parameters:
+      - $ref: '#/components/parameters/TraceSpan'
       - in: header
         name: Content-Type
         schema:
@@ -2077,6 +2141,7 @@ paths:
       tags:
         - Query
       parameters:
+      - $ref: '#/components/parameters/TraceSpan'
       - in: header
         name: Content-Type
         schema:
@@ -2106,6 +2171,8 @@ paths:
     get:
       tags:
         - Query
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '200':
           description: Suggestions for next functions in call chain
@@ -2121,6 +2188,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /query/suggestions/{name}:
     parameters:
+      - $ref: '#/components/parameters/TraceSpan'
       - in: path
         name: name
         schema:
@@ -2149,6 +2217,7 @@ paths:
         - Authorizations
       summary: List all authorizations
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: query
           name: userID
           schema:
@@ -2176,6 +2245,8 @@ paths:
       tags:
         - Authorizations
       summary: Create an authorization
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       requestBody:
         description: authorization to create
         required: true
@@ -2190,6 +2261,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Authorization"
+        '400':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -2202,6 +2279,7 @@ paths:
         - Authorizations
       summary: Retrieve an authorization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: authID
           schema:
@@ -2233,6 +2311,7 @@ paths:
             schema:
               $ref: "#/components/schemas/Authorization"
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: authID
           schema:
@@ -2257,6 +2336,7 @@ paths:
         - Authorizations
       summary: Delete a authorization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: authID
           schema:
@@ -2278,6 +2358,7 @@ paths:
       - Query
     summary: analyze an influxql or flux query
     parameters:
+      - $ref: '#/components/parameters/TraceSpan'
       - in: header
         name: Content-Type
         schema:
@@ -2318,6 +2399,7 @@ paths:
       - Query
     summary: query influx with specified return formatting. The spec and query fields are mutually exclusive.
     parameters:
+      - $ref: '#/components/parameters/TraceSpan'
       - in: query
         name: org
         description: specifies the organization of the resource
@@ -2383,6 +2465,7 @@ paths:
       - Query
     summary: query an influx
     parameters:
+      - $ref: '#/components/parameters/TraceSpan'
       - in: header
         name: Accept
         description: specifies the return content format. Each response content type will have its own dialect options.
@@ -2402,6 +2485,11 @@ paths:
       - in: query
         name: org
         description: specifies the name of the organization executing the query.
+        schema:
+          type: string
+      - in: query
+        name: orgID
+        description: specifies the ID of the organization executing the query.
         schema:
           type: string
     requestBody:
@@ -2476,6 +2564,7 @@ paths:
         - Buckets
       summary: List all buckets
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - $ref: "#/components/parameters/Offset"
           - $ref: "#/components/parameters/Limit"
           - in: query
@@ -2511,6 +2600,7 @@ paths:
         - Buckets
       summary: Create a bucket
       parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: query
             name: org
             description: specifies the organization of the resource
@@ -2543,6 +2633,7 @@ paths:
         - Buckets
       summary: Retrieve a bucket
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2574,6 +2665,7 @@ paths:
             schema:
               $ref: "#/components/schemas/Bucket"
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2598,6 +2690,7 @@ paths:
         - Buckets
       summary: Delete a bucket
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2625,6 +2718,7 @@ paths:
         - Buckets
       summary: list all labels for a bucket
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2654,6 +2748,7 @@ paths:
         - Buckets
       summary: add a label to a bucket
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2666,10 +2761,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for a bucket
@@ -2694,6 +2786,7 @@ paths:
         - Buckets
       summary: delete a label from a bucket
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2726,6 +2819,7 @@ paths:
         - Buckets
       summary: update a label from a bucket
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2767,6 +2861,7 @@ paths:
         - Buckets
       summary: List all users with member privileges for a bucket
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2792,6 +2887,7 @@ paths:
         - Buckets
       summary: Add bucket member
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2825,6 +2921,7 @@ paths:
         - Buckets
       summary: removes a member from an bucket
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -2853,6 +2950,7 @@ paths:
         - Buckets
       summary: List all owners of a bucket
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2878,6 +2976,7 @@ paths:
         - Buckets
       summary: Add bucket owner
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: bucketID
           schema:
@@ -2911,6 +3010,7 @@ paths:
         - Buckets
       summary: removes an owner from a bucket
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -2954,6 +3054,8 @@ paths:
       tags:
         - Organizations
       summary: Create an organization
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       requestBody:
         description: organization to create
         required: true
@@ -2980,6 +3082,7 @@ paths:
         - Organizations
       summary: Retrieve an organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3011,6 +3114,7 @@ paths:
             schema:
               $ref: "#/components/schemas/Organization"
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3035,6 +3139,7 @@ paths:
         - Organizations
       summary: Delete an organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3062,6 +3167,7 @@ paths:
         - Organizations
       summary: list all labels for a organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3091,6 +3197,7 @@ paths:
         - Organizations
       summary: add a label to an organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3103,10 +3210,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for an organization
@@ -3131,6 +3235,7 @@ paths:
         - Organizations
       summary: delete a label from an organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3163,6 +3268,7 @@ paths:
         - Organizations
       summary: update a label from an organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3204,6 +3310,7 @@ paths:
         - Organizations
       summary: List all secret keys for an organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3229,6 +3336,7 @@ paths:
         - Organizations
       summary: Apply patch to the provided secrets
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3258,6 +3366,7 @@ paths:
         - Organizations
       summary: delete provided secrets
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3287,6 +3396,7 @@ paths:
         - Organizations
       summary: List all members of an organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3312,6 +3422,7 @@ paths:
         - Organizations
       summary: Add organization member
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3345,6 +3456,7 @@ paths:
         - Organizations
       summary: removes a member from an organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -3373,6 +3485,7 @@ paths:
         - Organizations
       summary: List all owners of an organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3398,6 +3511,7 @@ paths:
         - Organizations
       summary: Add organization owner
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: orgID
           schema:
@@ -3431,6 +3545,7 @@ paths:
         - Organizations
       summary: removes an owner from an organization
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -3458,6 +3573,7 @@ paths:
         - Tasks
       summary: List tasks.
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: query
           name: after
           schema:
@@ -3498,6 +3614,8 @@ paths:
       tags:
         - Tasks
       summary: Create a new task
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       requestBody:
         description: task to create
         required: true
@@ -3524,6 +3642,7 @@ paths:
         - Tasks
       summary: Retrieve an task
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3556,6 +3675,7 @@ paths:
             schema:
               $ref: "#/components/schemas/Task"
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3581,6 +3701,7 @@ paths:
       summary: Delete a task
       description: Deletes a task and all associated records
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3602,6 +3723,7 @@ paths:
         - Tasks
       summary: Retrieve list of run records for a task
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3653,12 +3775,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Tasks
+      summary: manually start a run of the task now overriding the current schedule.
+      parameters:
+        - in: path
+          name: taskID
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunManually"
+      responses:
+        '201':
+          description: Run scheduled to start
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/runs/{runID}':
     get:
       tags:
         - Tasks
       summary: Retrieve a single run record for a task
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3690,6 +3841,7 @@ paths:
         - Tasks
       summary: Retry a task run
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3721,6 +3873,7 @@ paths:
         - Tasks
       summary: Retrieve all logs for a task
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3746,6 +3899,7 @@ paths:
         - Tasks
       summary: Retrieve all logs for a run
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3777,6 +3931,7 @@ paths:
         - Tasks
       summary: list all labels for a task
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3808,6 +3963,7 @@ paths:
         - Tasks
       summary: add a label to a task
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3820,10 +3976,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for a task
@@ -3850,6 +4003,7 @@ paths:
         - Tasks
       summary: delete a label from a task
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3882,6 +4036,7 @@ paths:
         - Tasks
       summary: update a label from a task
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3921,6 +4076,8 @@ paths:
       tags:
         - Users
       summary: Returns currently authenticated user
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '200':
           description: currently authenticated user
@@ -3941,6 +4098,8 @@ paths:
       summary: Update password
       security:
         - basicAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       requestBody:
         description: new password
         required: true
@@ -3964,6 +4123,7 @@ paths:
         - Tasks
       summary: List all task members
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -3989,6 +4149,7 @@ paths:
         - Tasks
       summary: Add task member
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -4022,6 +4183,7 @@ paths:
         - Tasks
       summary: removes a member from an task
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -4050,6 +4212,7 @@ paths:
           - Tasks
         summary: List all task owners
         parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: path
             name: taskID
             schema:
@@ -4075,6 +4238,7 @@ paths:
           - Tasks
         summary: Add task owner
         parameters:
+          - $ref: '#/components/parameters/TraceSpan'
           - in: path
             name: taskID
             schema:
@@ -4108,6 +4272,7 @@ paths:
         - Tasks
       summary: removes an owner from an task
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -4134,6 +4299,8 @@ paths:
       tags:
         - Users
       summary: List all users
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '200':
           description: a list of users
@@ -4177,6 +4344,7 @@ paths:
         - Users
       summary: Retrieve a user
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -4208,6 +4376,7 @@ paths:
             schema:
               $ref: "#/components/schemas/User"
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -4232,6 +4401,7 @@ paths:
         - Users
       summary: deletes a user
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -4255,6 +4425,7 @@ paths:
       security:
         - basicAuth: []
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: userID
           schema:
@@ -4309,6 +4480,18 @@ components:
     SortBy:
       in: query
       name: sortBy
+      required: false
+      schema:
+        type: string
+    TraceSpan:
+      in: header
+      name: Zap-Trace-Span
+      description: OpenTracing span context
+      example:
+        trace_id: '1'
+        span_id: '1'
+        baggage:
+          key: value
       required: false
       schema:
         type: string
@@ -4445,29 +4628,73 @@ components:
                 - RFC3339
                 - RFC3339Nano
     Permission:
+      required: [action, resource]
       properties:
+        id:
+          type: string
+          nullable: true
+          description: if id is set that is a permission for a specific resource. if it is not set it is a permission for all resources of that resource type.
+        name:
+          type: string
+          nullable: true
+          description: optional name of the resource if the resource has a name field.
         action:
           type: string
           enum:
             - read
             - write
-            - create
-            - delete
         resource:
           type: string
           enum:
-            - user
-            - org
-            - task/:id
-            - bucket/:id
-            - dashboard/:id
-            - org/:id
-            - org/:id/task
-            - org/:id/bucket
-            - org/:id/source
-            - org/:id/dashboard
+            - authorizations
+            - buckets
+            - dashboards
+            - orgs
+            - sources
+            - tasks
+            - telegrafs
+            - users
     Authorization:
+      required: [orgID, permissions]
       properties:
+        orgID:
+          type: string
+          description: ID of org that authorization is scoped to.
+        status:
+          description: if inactive the token is inactive and requests using the token will be rejected.
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
+        description:
+          type: string
+          description: A description of the token.
+        permissions:
+          type: array
+          minLength: 1
+          description: List of permissions for an auth.  An auth must have at least one Permission.
+          items:
+            $ref: "#/components/schemas/Permission"
+        id:
+          readOnly: true
+          type: string
+        token:
+          readOnly: true
+          type: string
+          description: Passed via the Authorization Header and Token Authentication type.
+        userID:
+          readOnly: true
+          type: string
+          description: ID of user that created and owns the token.
+        user:
+          readOnly: true
+          type: string
+          description: Name of user that created and owns the token.
+        org:
+          readOnly: true
+          type: string
+          description: Name of the org token is scoped to.
         links:
           type: object
           readOnly: true
@@ -4483,29 +4710,6 @@ components:
               readOnly: true
               type: string
               format: uri
-        id:
-          readOnly: true
-          type: string
-        status:
-          description: if inactive the token is inactive and requests using the token will be rejected.
-          default: active
-          type: string
-          enum:
-            - active
-            - inactive
-        token:
-          readOnly: true
-          type: string
-        userID:
-          type: string
-          description: ID of user.
-        user:
-          type: string
-          description: name of user.
-        permissions:
-          type: array
-          items:
-            $ref: "#/components/schemas/Permission"
     Authorizations:
       type: object
       properties:
@@ -4620,7 +4824,9 @@ components:
           readOnly: true
           example:
             self: "/api/v2/orgs/1"
-            users: "/api/v2/orgs/1/users"
+            members: "/api/v2/orgs/1/members"
+            labels: "/api/v2/orgs/1/labels"
+            secrets: "/api/v2/orgs/1/secrets"
             buckets: "/api/v2/buckets?org=myorg"
             tasks: "/api/v2/tasks?org=myorg"
             dashboards: "/api/v2/dashboards?org=myorg"
@@ -4629,7 +4835,15 @@ components:
               readOnly: true
               type: string
               format: uri
-            users:
+            members:
+              readOnly: true
+              type: string
+              format: uri
+            labels:
+              readOnly: true
+              type: string
+              format: uri
+            secrets:
               readOnly: true
               type: string
               format: uri
@@ -4733,13 +4947,20 @@ components:
             retry:
               type: string
               format: uri
+    RunManually:
+      properties:
+        scheduledFor:
+          nullable: true
+          description: Time used for run's "now" option, RFC3339.  Default is the server's now time.
+          type: string
+          format: date-time
     Task:
       type: object
       properties:
         id:
           readOnly: true
           type: string
-        organizationId:
+        organizationID:
           description: The ID of the organization that owns this Task.
           type: string
         name:
@@ -4752,6 +4973,8 @@ components:
           enum:
             - active
             - inactive
+        labels:
+          $ref: "#/components/schemas/Labels"
         flux:
           description: The Flux script to run for this task.
           type: string
@@ -4910,31 +5133,58 @@ components:
           format: uri
     Routes:
       properties:
-        sources:
-          type: string
-          format: uri
-        dashboards:
-          type: string
-          format: uri
-        query:
-          type: string
-          format: uri
-        write:
-          type: string
-          format: uri
-        orgs:
-          type: string
-          format: uri
         authorizations:
           type: string
           format: uri
         buckets:
           type: string
           format: uri
-        users:
+        dashboards:
           type: string
           format: uri
-        tasks:
+        external:
+          type: object
+          properties:
+            statusFeed:
+              type: string
+              format: uri
+        macros:
+          type: string
+          format: uri
+        me:
+          type: string
+          format: uri
+        orgs:
+          type: string
+          format: uri
+        query:
+          type: object
+          properties:
+            self:
+              type: string
+              format: uri
+            ast:
+              type: string
+              format: uri
+            analyze:
+              type: string
+              format: uri
+            spec:
+              type: string
+              format: uri
+            suggestions:
+              type: string
+              format: uri
+        setup:
+          type: string
+          format: uri
+        signin:
+          type: string
+          format: uri
+        signout:
+          type: string
+          format: uri
+        sources:
           type: string
           format: uri
         system:
@@ -4949,14 +5199,21 @@ components:
             health:
               type: string
               format: uri
-        external:
-          type: object
-          properties:
-            statusFeed:
-              type: string
-              format: uri
-        flux:
-          $ref: "#/components/schemas/FluxLinks"
+        tasks:
+          type: string
+          format: uri
+        telegrafs:
+          type: string
+          format: uri
+        users:
+          type: string
+          format: uri
+        write:
+          type: string
+          format: uri
+        views:
+          type: string
+          format: uri
     Error:
       properties:
         code:
@@ -5718,6 +5975,8 @@ components:
               format: date
         cells:
             $ref: "#/components/schemas/Cells"
+        labels:
+            $ref: "#/components/schemas/Labels"
     Dashboards:
       type: object
       properties:
@@ -6517,8 +6776,7 @@ components:
       properties:
         name:
           type: string
-        color:
-          type: string
-          description: A six-character hex color.
-          pattern: '^([A-Fa-f0-9]{6})$'
-          example: 'ffb3b3'
+        properties:
+          type: object
+          description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
+          example: {"color": "ffb3b3", "description": "this is a description"}

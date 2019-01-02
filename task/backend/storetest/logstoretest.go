@@ -71,7 +71,7 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 		RunScheduledFor: scheduledFor.Unix(),
 	}
 
-	ctx := pcontext.SetAuthorizer(context.Background(), new(platform.Authorization))
+	ctx := pcontext.SetAuthorizer(context.Background(), makeNewAuthorization())
 
 	startAt := now.Add(-2 * time.Second)
 	if err := writer.UpdateRunState(ctx, rlb, startAt, backend.RunStarted); err != nil {
@@ -130,7 +130,7 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 		RunScheduledFor: sf.Unix(),
 	}
 
-	ctx := pcontext.SetAuthorizer(context.Background(), new(platform.Authorization))
+	ctx := pcontext.SetAuthorizer(context.Background(), makeNewAuthorization())
 
 	if err := writer.UpdateRunState(ctx, rlb, sa, backend.RunStarted); err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
 
-	ctx := pcontext.SetAuthorizer(context.Background(), new(platform.Authorization))
+	ctx := pcontext.SetAuthorizer(context.Background(), makeNewAuthorization())
 
 	if _, err := reader.ListRuns(ctx, platform.RunFilter{Task: &task.ID}); err == nil {
 		t.Fatal("failed to error on bad id")
@@ -306,7 +306,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 		RunScheduledFor: sf.Unix(),
 	}
 
-	ctx := pcontext.SetAuthorizer(context.Background(), new(platform.Authorization))
+	ctx := pcontext.SetAuthorizer(context.Background(), makeNewAuthorization())
 	if err := writer.UpdateRunState(ctx, rlb, sa, backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +341,7 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		Org: platformtesting.MustIDBase16("ab01ab01ab01ab05"),
 	}
 
-	ctx := pcontext.SetAuthorizer(context.Background(), new(platform.Authorization))
+	ctx := pcontext.SetAuthorizer(context.Background(), makeNewAuthorization())
 
 	if _, err := reader.ListLogs(ctx, platform.LogFilter{}); err == nil {
 		t.Fatal("failed to error with no filter")
@@ -396,5 +396,14 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 
 	if len(logs) != len(runs) {
 		t.Fatal("not all logs retrieved")
+	}
+}
+
+func makeNewAuthorization() *platform.Authorization {
+	return &platform.Authorization{
+		ID:          platformtesting.MustIDBase16("ab01ab01ab01ab01"),
+		UserID:      platformtesting.MustIDBase16("ab01ab01ab01ab01"),
+		OrgID:       platformtesting.MustIDBase16("ab01ab01ab01ab05"),
+		Permissions: platform.OperPermissions(),
 	}
 }

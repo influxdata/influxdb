@@ -41,7 +41,7 @@ type resourceUsersResponse struct {
 func newResourceUsersResponse(opts platform.FindOptions, f platform.UserResourceMappingFilter, users []*platform.User) *resourceUsersResponse {
 	rs := resourceUsersResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/%ss/%s/%ss", f.ResourceType, f.ResourceID, f.UserType),
+			"self": fmt.Sprintf("/api/v2/%ss/%s/%ss", f.Resource, f.ResourceID, f.UserType),
 		},
 		Users: make([]*resourceUserResponse, 0, len(users)),
 	}
@@ -53,7 +53,7 @@ func newResourceUsersResponse(opts platform.FindOptions, f platform.UserResource
 }
 
 // newPostMemberHandler returns a handler func for a POST to /members or /owners endpoints
-func newPostMemberHandler(s platform.UserResourceMappingService, userService platform.UserService, resourceType platform.ResourceType, userType platform.UserType) http.HandlerFunc {
+func newPostMemberHandler(s platform.UserResourceMappingService, userService platform.UserService, resourceType platform.Resource, userType platform.UserType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -70,10 +70,10 @@ func newPostMemberHandler(s platform.UserResourceMappingService, userService pla
 		}
 
 		mapping := &platform.UserResourceMapping{
-			ResourceID:   req.ResourceID,
-			ResourceType: resourceType,
-			UserID:       req.MemberID,
-			UserType:     userType,
+			ResourceID: req.ResourceID,
+			Resource:   resourceType,
+			UserID:     req.MemberID,
+			UserType:   userType,
 		}
 
 		if err := s.CreateUserResourceMapping(ctx, mapping); err != nil {
@@ -121,7 +121,7 @@ func decodePostMemberRequest(ctx context.Context, r *http.Request) (*postMemberR
 }
 
 // newGetMembersHandler returns a handler func for a GET to /members or /owners endpoints
-func newGetMembersHandler(s platform.UserResourceMappingService, userService platform.UserService, resourceType platform.ResourceType, userType platform.UserType) http.HandlerFunc {
+func newGetMembersHandler(s platform.UserResourceMappingService, userService platform.UserService, resourceType platform.Resource, userType platform.UserType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -132,9 +132,9 @@ func newGetMembersHandler(s platform.UserResourceMappingService, userService pla
 		}
 
 		filter := platform.UserResourceMappingFilter{
-			ResourceID:   req.ResourceID,
-			ResourceType: resourceType,
-			UserType:     userType,
+			ResourceID: req.ResourceID,
+			Resource:   resourceType,
+			UserType:   userType,
 		}
 
 		opts := platform.FindOptions{}

@@ -31,7 +31,7 @@ func TestToStatus(t *testing.T) {
 				Msg:  "howdy",
 			},
 			wantCode:    codes.Internal,
-			wantMessage: `{"code":"internal error","msg":"howdy","op":"kit/grpc","err":"error"}`,
+			wantMessage: `{"code":"internal error","message":"howdy","op":"kit/grpc","error":"error"}`,
 		},
 		{
 			name: "encode not found error",
@@ -42,7 +42,7 @@ func TestToStatus(t *testing.T) {
 				Msg:  "howdy",
 			},
 			wantCode:    codes.NotFound,
-			wantMessage: `{"code":"not found","msg":"howdy","op":"kit/grpc","err":"error"}`,
+			wantMessage: `{"code":"not found","message":"howdy","op":"kit/grpc","error":"error"}`,
 		},
 		{
 			name: "encode invalid error",
@@ -53,7 +53,7 @@ func TestToStatus(t *testing.T) {
 				Msg:  "howdy",
 			},
 			wantCode:    codes.InvalidArgument,
-			wantMessage: `{"code":"invalid","msg":"howdy","op":"kit/grpc","err":"error"}`,
+			wantMessage: `{"code":"invalid","message":"howdy","op":"kit/grpc","error":"error"}`,
 		},
 		{
 			name: "encode unavailable error",
@@ -64,7 +64,7 @@ func TestToStatus(t *testing.T) {
 				Msg:  "howdy",
 			},
 			wantCode:    codes.Unavailable,
-			wantMessage: `{"code":"unavailable","msg":"howdy","op":"kit/grpc","err":"error"}`,
+			wantMessage: `{"code":"unavailable","message":"howdy","op":"kit/grpc","error":"error"}`,
 		},
 	}
 	for _, tt := range tests {
@@ -107,7 +107,7 @@ func TestFromStatus(t *testing.T) {
 		},
 		{
 			name: "status message with embedded platform error",
-			s:    status.New(codes.Internal, `{"code":"unavailable","msg":"howdy","op":"kit/grpc","err":"error"}`),
+			s:    status.New(codes.Internal, `{"code":"unavailable","message":"howdy","op":"kit/grpc","error":"error"}`),
 			want: &platform.Error{
 				Err:  fmt.Errorf("error"),
 				Code: platform.EUnavailable,

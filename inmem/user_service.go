@@ -7,6 +7,8 @@ import (
 	"github.com/influxdata/platform"
 )
 
+var _ platform.UserService = (*Service)(nil)
+
 func (s *Service) loadUser(id platform.ID) (*platform.User, *platform.Error) {
 	i, ok := s.userKV.Load(id.String())
 	if !ok {
@@ -61,12 +63,23 @@ func (s *Service) findUserByName(ctx context.Context, n string) (*platform.User,
 // FindUser returns the first user that matches a filter.
 func (s *Service) FindUser(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
 	op := OpPrefix + platform.OpFindUser
-	if filter.Name != nil {
-		var o *platform.User
+	if filter.ID != nil {
+		u, err := s.FindUserByID(ctx, *filter.ID)
+		if err != nil {
+			return nil, &platform.Error{
+				Op:  op,
+				Err: err,
+			}
+		}
+		return u, nil
+	}
 
-		err := s.forEachUser(ctx, func(org *platform.User) bool {
-			if org.Name == *filter.Name {
-				o = org
+	if filter.Name != nil {
+		var u *platform.User
+
+		err := s.forEachUser(ctx, func(user *platform.User) bool {
+			if user.Name == *filter.Name {
+				u = user
 				return false
 			}
 			return true
@@ -76,7 +89,7 @@ func (s *Service) FindUser(ctx context.Context, filter platform.UserFilter) (*pl
 			return nil, err
 		}
 
-		if o == nil {
+		if u == nil {
 			return nil, &platform.Error{
 				Code: platform.ENotFound,
 				Op:   op,
@@ -84,7 +97,7 @@ func (s *Service) FindUser(ctx context.Context, filter platform.UserFilter) (*pl
 			}
 		}
 
-		return o, nil
+		return u, nil
 	}
 
 	return nil, &platform.Error{
@@ -98,7 +111,7 @@ func (s *Service) FindUser(ctx context.Context, filter platform.UserFilter) (*pl
 func (s *Service) FindUsers(ctx context.Context, filter platform.UserFilter, opt ...platform.FindOptions) ([]*platform.User, int, error) {
 	op := OpPrefix + platform.OpFindUsers
 	if filter.ID != nil {
-		o, err := s.FindUserByID(ctx, *filter.ID)
+		u, err := s.FindUserByID(ctx, *filter.ID)
 		if err != nil {
 			return nil, 0, &platform.Error{
 				Err: err,
@@ -106,10 +119,10 @@ func (s *Service) FindUsers(ctx context.Context, filter platform.UserFilter, opt
 			}
 		}
 
-		return []*platform.User{o}, 1, nil
+		return []*platform.User{u}, 1, nil
 	}
 	if filter.Name != nil {
-		o, err := s.FindUser(ctx, filter)
+		u, err := s.FindUser(ctx, filter)
 		if err != nil {
 			return nil, 0, &platform.Error{
 				Err: err,
@@ -117,13 +130,13 @@ func (s *Service) FindUsers(ctx context.Context, filter platform.UserFilter, opt
 			}
 		}
 
-		return []*platform.User{o}, 1, nil
+		return []*platform.User{u}, 1, nil
 	}
 
-	orgs := []*platform.User{}
+	users := []*platform.User{}
 
-	err := s.forEachUser(ctx, func(org *platform.User) bool {
-		orgs = append(orgs, org)
+	err := s.forEachUser(ctx, func(user *platform.User) bool {
+		users = append(users, user)
 		return true
 	})
 
@@ -131,7 +144,7 @@ func (s *Service) FindUsers(ctx context.Context, filter platform.UserFilter, opt
 		return nil, 0, err
 	}
 
-	return orgs, len(orgs), nil
+	return users, len(users), nil
 }
 
 // CreateUser will create an user into storage.

@@ -92,7 +92,7 @@ func CreateSource(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.CreateSource(ctx, tt.args.source)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -183,7 +183,7 @@ func FindSourceByID(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			source, err := s.FindSourceByID(ctx, tt.args.id)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -267,7 +267,7 @@ func FindSources(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			sources, _, err := s.FindSources(ctx, tt.args.opts)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -360,7 +360,7 @@ func DeleteSource(
 		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.DeleteSource(ctx, tt.args.id)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)

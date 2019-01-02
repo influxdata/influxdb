@@ -28,7 +28,7 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 		}
 	}
 
-	handler := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService())
+	handler := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
 	handler.OrganizationService = svc
 	handler.BucketService = svc
 	server := httptest.NewServer(handler)
@@ -123,7 +123,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService())
+			h := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
 			h.SecretService = tt.fields.SecretService
 
 			u := fmt.Sprintf("http://any.url/api/v2/orgs/%s/secrets", tt.args.orgID)
@@ -193,7 +193,7 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService())
+			h := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
 			h.SecretService = tt.fields.SecretService
 
 			b, err := json.Marshal(tt.args.secrets)
@@ -269,7 +269,7 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService())
+			h := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
 			h.SecretService = tt.fields.SecretService
 
 			b, err := json.Marshal(tt.args.secrets)

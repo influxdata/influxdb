@@ -187,11 +187,12 @@ func statusCode(e kerrors.Error) int {
 
 // statusCodePlatformError is the map convert platform.Error to error
 var statusCodePlatformError = map[string]int{
-	platform.EInternal:    http.StatusInternalServerError,
-	platform.EInvalid:     http.StatusBadRequest,
-	platform.EEmptyValue:  http.StatusBadRequest,
-	platform.EConflict:    http.StatusUnprocessableEntity,
-	platform.ENotFound:    http.StatusNotFound,
-	platform.EUnavailable: http.StatusServiceUnavailable,
-	platform.EForbidden:   http.StatusForbidden,
+	platform.EInternal:         http.StatusInternalServerError,
+	platform.EInvalid:          http.StatusBadRequest,
+	platform.EEmptyValue:       http.StatusBadRequest,
+	platform.EConflict:         http.StatusUnprocessableEntity,
+	platform.ENotFound:         http.StatusNotFound,
+	platform.EUnavailable:      http.StatusServiceUnavailable,
+	platform.EForbidden:        http.StatusForbidden,
+	platform.EMethodNotAllowed: http.StatusMethodNotAllowed,
 }

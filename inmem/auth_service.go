@@ -27,23 +27,7 @@ func (s *Service) loadAuthorization(ctx context.Context, id platform.ID) (*platf
 		a.Status = platform.Active
 	}
 
-	if err := s.setUserOnAuthorization(ctx, &a); err != nil {
-		return nil, err
-	}
-
 	return &a, nil
-}
-
-func (s *Service) setUserOnAuthorization(ctx context.Context, a *platform.Authorization) *platform.Error {
-	u, err := s.loadUser(a.UserID)
-	if err != nil {
-		return &platform.Error{
-			Err: err,
-		}
-	}
-
-	a.User = u.Name
-	return nil
 }
 
 // PutAuthorization overwrites the authorization with the contents of a.
@@ -150,12 +134,6 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 			return false
 		}
 
-		if pe := s.setUserOnAuthorization(ctx, &a); pe != nil {
-			pe.Op = op
-			err = pe
-			return false
-		}
-
 		if filterF(&a) {
 			as = append(as, &a)
 		}
@@ -173,16 +151,17 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 // CreateAuthorization sets a.Token and a.ID and creates an platform.Authorization
 func (s *Service) CreateAuthorization(ctx context.Context, a *platform.Authorization) error {
 	op := OpPrefix + platform.OpCreateAuthorization
-	if !a.UserID.Valid() {
-		u, err := s.findUserByName(ctx, a.User)
-		if err != nil {
-			return &platform.Error{
-				Err: err,
-				Op:  op,
-			}
-		}
-		a.UserID = u.ID
+
+	_, pErr := s.FindUserByID(ctx, a.UserID)
+	if pErr != nil {
+		return platform.ErrUnableToCreateToken
 	}
+
+	_, pErr = s.FindOrganizationByID(ctx, a.OrgID)
+	if pErr != nil {
+		return platform.ErrUnableToCreateToken
+	}
+
 	var err error
 	a.Token, err = s.TokenGenerator.Token()
 	if err != nil {
@@ -191,8 +170,10 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *platform.Authoriza
 			Op:  op,
 		}
 	}
+
 	a.ID = s.IDGenerator.ID()
 	a.Status = platform.Active
+
 	return s.PutAuthorization(ctx, a)
 }
 

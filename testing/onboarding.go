@@ -128,7 +128,7 @@ func Generate(
 			},
 		},
 		{
-			name: "regular",
+			name: "valid onboarding json should create a user, org, bucket, and authorization",
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{
 					s: []string{oneID, twoID, threeID, fourID},
@@ -167,18 +167,10 @@ func Generate(
 						ID:          MustIDBase16(fourID),
 						Token:       oneToken,
 						Status:      platform.Active,
-						User:        "admin",
 						UserID:      MustIDBase16(oneID),
-						Description: "Deftok",
-						Permissions: []platform.Permission{
-							platform.CreateUserPermission,
-							platform.DeleteUserPermission,
-							{
-								Resource: platform.OrganizationResource,
-								Action:   platform.WriteAction,
-							},
-							platform.WriteBucketPermission(MustIDBase16(threeID)),
-						},
+						Description: "admin's Token",
+						OrgID:       MustIDBase16(twoID),
+						Permissions: platform.OperPermissions(),
 					},
 				},
 			},

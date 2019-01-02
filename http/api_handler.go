@@ -34,7 +34,8 @@ type APIHandler struct {
 // APIBackend is all services and associated parameters required to construct
 // an APIHandler.
 type APIBackend struct {
-	Logger *zap.Logger
+	DeveloperMode bool
+	Logger        *zap.Logger
 
 	NewBucketService func(*platform.Source) (platform.BucketService, error)
 	NewQueryService  func(*platform.Source) (query.ProxyQueryService, error)
@@ -61,6 +62,8 @@ type APIBackend struct {
 	TaskService                     platform.TaskService
 	TelegrafService                 platform.TelegrafConfigStore
 	ScraperTargetStoreService       platform.ScraperTargetStoreService
+	SecretService                   platform.SecretService
+	LookupService                   platform.LookupService
 	ChronografService               *server.Service
 }
 
@@ -72,36 +75,35 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.SessionHandler.SessionService = b.SessionService
 	h.SessionHandler.Logger = b.Logger.With(zap.String("handler", "basicAuth"))
 
-	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService)
+	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.BucketHandler.BucketService = b.BucketService
 	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
-	h.BucketHandler.UserService = b.UserService
 
-	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService)
+	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.OrgHandler.OrganizationService = b.OrganizationService
 	h.OrgHandler.BucketService = b.BucketService
 	h.OrgHandler.OrganizationOperationLogService = b.OrganizationOperationLogService
-	h.OrgHandler.UserService = b.UserService
+	h.OrgHandler.SecretService = b.SecretService
 
 	h.UserHandler = NewUserHandler()
 	h.UserHandler.UserService = b.UserService
 	h.UserHandler.BasicAuthService = b.BasicAuthService
 	h.UserHandler.UserOperationLogService = b.UserOperationLogService
 
-	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService)
+	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.DashboardHandler.DashboardService = b.DashboardService
 	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
-	h.DashboardHandler.UserService = b.UserService
 
-	h.ViewHandler = NewViewHandler(b.UserResourceMappingService, b.LabelService)
+	h.ViewHandler = NewViewHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.ViewHandler.ViewService = b.ViewService
-	h.ViewHandler.UserService = b.UserService
 
 	h.MacroHandler = NewMacroHandler()
 	h.MacroHandler.MacroService = b.MacroService
 
-	h.AuthorizationHandler = NewAuthorizationHandler()
+	h.AuthorizationHandler = NewAuthorizationHandler(b.UserService)
+	h.AuthorizationHandler.OrganizationService = b.OrganizationService
 	h.AuthorizationHandler.AuthorizationService = b.AuthorizationService
+	h.AuthorizationHandler.LookupService = b.LookupService
 	h.AuthorizationHandler.Logger = b.Logger.With(zap.String("handler", "auth"))
 
 	h.SourceHandler = NewSourceHandler()
@@ -112,19 +114,18 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.SetupHandler = NewSetupHandler()
 	h.SetupHandler.OnboardingService = b.OnboardingService
 
-	h.TaskHandler = NewTaskHandler(b.UserResourceMappingService, b.LabelService, b.Logger)
+	h.TaskHandler = NewTaskHandler(b.UserResourceMappingService, b.LabelService, b.Logger, b.UserService)
 	h.TaskHandler.TaskService = b.TaskService
 	h.TaskHandler.AuthorizationService = b.AuthorizationService
 	h.TaskHandler.UserResourceMappingService = b.UserResourceMappingService
-	h.TaskHandler.UserService = b.UserService
 
 	h.TelegrafHandler = NewTelegrafHandler(
 		b.Logger.With(zap.String("handler", "telegraf")),
 		b.UserResourceMappingService,
 		b.LabelService,
 		b.TelegrafService,
+		b.UserService,
 	)
-	h.TelegrafHandler.UserService = b.UserService
 
 	h.WriteHandler = NewWriteHandler(b.PointsWriter)
 	h.WriteHandler.OrganizationService = b.OrganizationService
@@ -142,21 +143,17 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 }
 
 var apiLinks = map[string]interface{}{
-	"signin":         "/api/v2/signin",
-	"signout":        "/api/v2/signout",
-	"setup":          "/api/v2/setup",
-	"sources":        "/api/v2/sources",
-	"dashboards":     "/api/v2/dashboards",
-	"views":          "/api/v2/views",
-	"write":          "/api/v2/write",
-	"orgs":           "/api/v2/orgs",
+	// when adding new links, please take care to keep this list alphabetical
+	// as this makes it easier to verify values against the swagger document.
 	"authorizations": "/api/v2/authorizations",
 	"buckets":        "/api/v2/buckets",
-	"users":          "/api/v2/users",
-	"me":             "/api/v2/me",
-	"tasks":          "/api/v2/tasks",
-	"macros":         "/api/v2/macros",
-	"telegrafs":      "/api/v2/telegrafs",
+	"dashboards":     "/api/v2/dashboards",
+	"external": map[string]string{
+		"statusFeed": "https://www.influxdata.com/feed/json",
+	},
+	"macros": "/api/v2/macros",
+	"me":     "/api/v2/me",
+	"orgs":   "/api/v2/orgs",
 	"query": map[string]string{
 		"self":        "/api/v2/query",
 		"ast":         "/api/v2/query/ast",
@@ -164,14 +161,20 @@ var apiLinks = map[string]interface{}{
 		"spec":        "/api/v2/query/spec",
 		"suggestions": "/api/v2/query/suggestions",
 	},
-	"external": map[string]string{
-		"statusFeed": "https://www.influxdata.com/feed/json",
-	},
+	"setup":   "/api/v2/setup",
+	"signin":  "/api/v2/signin",
+	"signout": "/api/v2/signout",
+	"sources": "/api/v2/sources",
 	"system": map[string]string{
 		"metrics": "/metrics",
 		"debug":   "/debug/pprof",
 		"health":  "/health",
 	},
+	"tasks":     "/api/v2/tasks",
+	"telegrafs": "/api/v2/telegrafs",
+	"users":     "/api/v2/users",
+	"views":     "/api/v2/views",
+	"write":     "/api/v2/write",
 }
 
 func (h *APIHandler) serveLinks(w http.ResponseWriter, r *http.Request) {
@@ -275,5 +278,5 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.NotFound(w, r)
+	notFoundHandler(w, r)
 }

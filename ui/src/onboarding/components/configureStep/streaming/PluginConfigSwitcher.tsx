@@ -27,6 +27,9 @@ interface Props {
   onRemoveConfigValue: typeof removeConfigValue
   currentIndex: number
   onSetConfigArrayValue: typeof setConfigArrayValue
+  onClickNext: () => void
+  onClickPrevious: () => void
+  onClickSkip: () => void
 }
 
 class PluginConfigSwitcher extends PureComponent<Props> {
@@ -36,6 +39,11 @@ class PluginConfigSwitcher extends PureComponent<Props> {
       onAddConfigValue,
       onRemoveConfigValue,
       onSetConfigArrayValue,
+      onClickNext,
+      telegrafPlugins,
+      currentIndex,
+      onClickPrevious,
+      onClickSkip,
     } = this.props
 
     if (this.currentTelegrafPlugin) {
@@ -47,6 +55,11 @@ class PluginConfigSwitcher extends PureComponent<Props> {
           onAddConfigValue={onAddConfigValue}
           onRemoveConfigValue={onRemoveConfigValue}
           onSetConfigArrayValue={onSetConfigArrayValue}
+          onClickNext={onClickNext}
+          telegrafPlugins={telegrafPlugins}
+          currentIndex={currentIndex}
+          onClickPrevious={onClickPrevious}
+          onClickSkip={onClickSkip}
         />
       )
     }

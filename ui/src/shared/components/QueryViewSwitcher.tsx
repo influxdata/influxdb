@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import GaugeChart from 'src/shared/components/GaugeChart'
 import SingleStat from 'src/shared/components/SingleStat'
 import SingleStatTransform from 'src/shared/components/SingleStatTransform'
-import TimeMachineTables from 'src/shared/components/tables/TimeMachineTables'
+import TableGraphs from 'src/shared/components/tables/TableGraphs'
 import DygraphContainer from 'src/shared/components/DygraphContainer'
 
 // Types
@@ -39,7 +39,7 @@ export default class QueryViewSwitcher extends PureComponent<Props> {
           </SingleStatTransform>
         )
       case ViewType.Table:
-        return <TimeMachineTables tables={tables} properties={properties} />
+        return <TableGraphs tables={tables} properties={properties} />
       case ViewType.Gauge:
         return <GaugeChart tables={tables} properties={properties} />
       case ViewType.XY:
@@ -82,7 +82,7 @@ export default class QueryViewSwitcher extends PureComponent<Props> {
           </DygraphContainer>
         )
       default:
-        return <div>YO!</div>
+        return <div />
     }
   }
 }

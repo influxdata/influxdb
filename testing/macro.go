@@ -144,7 +144,7 @@ func CreateMacro(init func(MacroFields, *testing.T) (platform.MacroService, stri
 	for _, tt := range tests {
 		s, opPrefix, done := init(tt.fields, t)
 		defer done()
-		ctx := context.TODO()
+		ctx := context.Background()
 
 		err := s.CreateMacro(ctx, tt.args.macro)
 		diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -234,7 +234,7 @@ func FindMacroByID(init func(MacroFields, *testing.T) (platform.MacroService, st
 	for _, tt := range tests {
 		s, opPrefix, done := init(tt.fields, t)
 		defer done()
-		ctx := context.TODO()
+		ctx := context.Background()
 
 		macro, err := s.FindMacroByID(ctx, tt.args.id)
 		diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -338,7 +338,7 @@ func UpdateMacro(init func(MacroFields, *testing.T) (platform.MacroService, stri
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			macro, err := s.UpdateMacro(ctx, tt.args.id, tt.args.update)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -438,7 +438,7 @@ func DeleteMacro(init func(MacroFields, *testing.T) (platform.MacroService, stri
 	for _, tt := range tests {
 		s, opPrefix, done := init(tt.fields, t)
 		defer done()
-		ctx := context.TODO()
+		ctx := context.Background()
 
 		err := s.DeleteMacro(ctx, tt.args.id)
 		defer s.ReplaceMacro(ctx, &platform.Macro{

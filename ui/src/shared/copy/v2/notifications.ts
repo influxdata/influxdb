@@ -73,3 +73,18 @@ export const writeLineProtocolFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to write line protocol ${error}`,
 })
+
+export const labelCreateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create label',
+})
+
+export const labelDeleteFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to delete label',
+})
+
+export const labelUpdateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to update label',
+})

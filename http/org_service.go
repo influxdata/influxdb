@@ -47,12 +47,13 @@ const (
 
 // NewOrgHandler returns a new instance of OrgHandler.
 func NewOrgHandler(mappingService platform.UserResourceMappingService,
-	labelService platform.LabelService) *OrgHandler {
+	labelService platform.LabelService, userService platform.UserService) *OrgHandler {
 	h := &OrgHandler{
 		Router:                     NewRouter(),
 		Logger:                     zap.NewNop(),
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
+		UserService:                userService,
 	}
 
 	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
@@ -62,12 +63,12 @@ func NewOrgHandler(mappingService platform.UserResourceMappingService,
 	h.HandlerFunc("PATCH", organizationsIDPath, h.handlePatchOrg)
 	h.HandlerFunc("DELETE", organizationsIDPath, h.handleDeleteOrg)
 
-	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.OrgResourceType, platform.Member))
-	h.HandlerFunc("GET", organizationsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.OrgResourceType, platform.Member))
+	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.OrgsResource, platform.Member))
+	h.HandlerFunc("GET", organizationsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.OrgsResource, platform.Member))
 	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
-	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.OrgResourceType, platform.Owner))
-	h.HandlerFunc("GET", organizationsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.OrgResourceType, platform.Owner))
+	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.OrgsResource, platform.Owner))
+	h.HandlerFunc("GET", organizationsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.OrgsResource, platform.Owner))
 	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", organizationsIDSecretsPath, h.handleGetSecrets)
@@ -120,6 +121,8 @@ func newOrgResponse(o *platform.Organization) *orgResponse {
 			"self":       fmt.Sprintf("/api/v2/orgs/%s", o.ID),
 			"log":        fmt.Sprintf("/api/v2/orgs/%s/log", o.ID),
 			"members":    fmt.Sprintf("/api/v2/orgs/%s/members", o.ID),
+			"secrets":    fmt.Sprintf("/api/v2/orgs/%s/secrets", o.ID),
+			"labels":     fmt.Sprintf("/api/v2/orgs/%s/labels", o.ID),
 			"buckets":    fmt.Sprintf("/api/v2/buckets?org=%s", o.Name),
 			"tasks":      fmt.Sprintf("/api/v2/tasks?org=%s", o.Name),
 			"dashboards": fmt.Sprintf("/api/v2/dashboards?org=%s", o.Name),

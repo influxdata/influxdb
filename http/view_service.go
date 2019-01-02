@@ -35,12 +35,13 @@ const (
 )
 
 // NewViewHandler returns a new instance of ViewHandler.
-func NewViewHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService) *ViewHandler {
+func NewViewHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, userService platform.UserService) *ViewHandler {
 	h := &ViewHandler{
 		Router:                     NewRouter(),
 		Logger:                     zap.NewNop(),
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
+		UserService:                userService,
 	}
 
 	h.HandlerFunc("POST", viewsPath, h.handlePostViews)
@@ -50,12 +51,12 @@ func NewViewHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("DELETE", viewsIDPath, h.handleDeleteView)
 	h.HandlerFunc("PATCH", viewsIDPath, h.handlePatchView)
 
-	h.HandlerFunc("POST", viewsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.ViewResourceType, platform.Member))
-	h.HandlerFunc("GET", viewsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.ViewResourceType, platform.Member))
+	h.HandlerFunc("POST", viewsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResource, platform.Member))
+	h.HandlerFunc("GET", viewsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResource, platform.Member))
 	h.HandlerFunc("DELETE", viewsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
-	h.HandlerFunc("POST", viewsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.ViewResourceType, platform.Owner))
-	h.HandlerFunc("GET", viewsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.ViewResourceType, platform.Owner))
+	h.HandlerFunc("POST", viewsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResource, platform.Owner))
+	h.HandlerFunc("GET", viewsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResource, platform.Owner))
 	h.HandlerFunc("DELETE", viewsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", viewsIDLabelsPath, newGetLabelsHandler(h.LabelService))
@@ -310,7 +311,8 @@ func decodePatchViewRequest(ctx context.Context, r *http.Request) (*patchViewReq
 	upd := platform.ViewUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, &platform.Error{
-			Err: err,
+			Code: platform.EInvalid,
+			Err:  err,
 		}
 	}
 

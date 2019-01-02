@@ -16,12 +16,13 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
   </h5>
   <Form
     className="onboarding--admin-user-form"
+    onSubmit={[Function]}
   >
     <Grid>
       <GridRow>
         <GridColumn
-          offsetXS={3}
-          widthXS={6}
+          offsetXS={1}
+          widthXS={10}
         >
           <FormElement
             label="Admin Username"
@@ -43,8 +44,8 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           </FormElement>
         </GridColumn>
         <GridColumn
-          offsetXS={3}
-          widthXS={3}
+          offsetXS={1}
+          widthXS={5}
         >
           <FormElement
             label="Admin Password"
@@ -67,7 +68,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           </FormElement>
         </GridColumn>
         <GridColumn
-          widthXS={3}
+          widthXS={5}
         >
           <FormElement
             label="Confirm Admin Password"
@@ -90,8 +91,8 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           </FormElement>
         </GridColumn>
         <GridColumn
-          offsetXS={3}
-          widthXS={6}
+          offsetXS={1}
+          widthXS={10}
         >
           <FormElement
             label="Default Organization Name"
@@ -113,8 +114,8 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           </FormElement>
         </GridColumn>
         <GridColumn
-          offsetXS={3}
-          widthXS={6}
+          offsetXS={1}
+          widthXS={10}
         >
           <FormElement
             label="Default Bucket Name"
@@ -137,35 +138,15 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
         </GridColumn>
       </GridRow>
     </Grid>
-    <div
-      className="wizard--button-container"
-    >
-      <div
-        className="wizard--button-bar"
-      >
-        <Button
-          active={false}
-          color="default"
-          onClick={[MockFunction]}
-          shape="none"
-          size="md"
-          status="default"
-          text="Back to Start"
-          type="submit"
-        />
-        <Button
-          active={false}
-          color="primary"
-          onClick={[Function]}
-          shape="none"
-          size="md"
-          status="disabled"
-          text="Continue to Data Loading"
-          titleText="All fields are required to continue"
-          type="submit"
-        />
-      </div>
-    </div>
+    <OnboardingButtons
+      autoFocusNext={false}
+      backButtonText="Back to Start"
+      nextButtonStatus="disabled"
+      nextButtonText="Continue to Data Source Selection"
+      onClickBack={[MockFunction]}
+      showSkip={false}
+      skipButtonText="Skip"
+    />
   </Form>
 </div>
 `;

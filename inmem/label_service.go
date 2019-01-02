@@ -106,8 +106,16 @@ func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platfo
 		}
 	}
 
-	if upd.Color != nil {
-		label.Color = *upd.Color
+	if label.Properties == nil {
+		label.Properties = make(map[string]string)
+	}
+
+	for k, v := range upd.Properties {
+		if v == "" {
+			delete(label.Properties, k)
+		} else {
+			label.Properties[k] = v
+		}
 	}
 
 	if err := label.Validate(); err != nil {

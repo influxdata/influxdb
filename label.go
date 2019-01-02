@@ -2,7 +2,6 @@ package platform
 
 import (
 	"context"
-	"regexp"
 )
 
 // ErrLabelNotFound is the error for a missing Label.
@@ -14,8 +13,6 @@ const (
 	OpUpdateLabel = "UpdateLabel"
 	OpDeleteLabel = "DeleteLabel"
 )
-
-var colorPattern = regexp.MustCompile(`^([A-Fa-f0-9]{6})$`)
 
 type LabelService interface {
 	// FindLabels returns a list of labels that match a filter
@@ -32,9 +29,9 @@ type LabelService interface {
 }
 
 type Label struct {
-	ResourceID ID     `json:"resource_id"`
-	Name       string `json:"name"`
-	Color      string `json:"color"`
+	ResourceID ID                `json:"resourceID"`
+	Name       string            `json:"name"`
+	Properties map[string]string `json:"properties"`
 }
 
 // Validate returns an error if the label is invalid.
@@ -53,31 +50,13 @@ func (l *Label) Validate() error {
 		}
 	}
 
-	if l.Color != "" && !colorPattern.MatchString(l.Color) {
-		return &Error{
-			Code: EInvalid,
-			Msg:  "label color must be valid hex string",
-		}
-	}
-
 	return nil
 }
 
 // LabelUpdate represents a changeset for a label.
 // Only fields which are set are updated.
 type LabelUpdate struct {
-	Color *string `json:"color,omitempty"`
-}
-
-func (l *LabelUpdate) Validate() error {
-	if *l.Color != "" && !colorPattern.MatchString(*l.Color) {
-		return &Error{
-			Code: EInvalid,
-			Msg:  "label color must be valid hex string",
-		}
-	}
-
-	return nil
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 type LabelFilter struct {

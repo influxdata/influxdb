@@ -1667,6 +1667,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Authorization"
+        '400':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -3536,29 +3542,69 @@ components:
                 - RFC3339
                 - RFC3339Nano
     Permission:
+      required: [action, resource]
       properties:
+        id:
+          type: string
+          nullable: true
+          description: if id is set that is a permission for a specific resource. if it is not set it is a permission for all resources of that resource type.
         action:
           type: string
           enum:
             - read
             - write
-            - create
-            - delete
         resource:
           type: string
           enum:
-            - user
-            - org
-            - task/:id
-            - bucket/:id
-            - dashboard/:id
-            - org/:id
-            - org/:id/task
-            - org/:id/bucket
-            - org/:id/source
-            - org/:id/dashboard
+            - authorizations
+            - buckets
+            - dashboards
+            - orgs
+            - sources
+            - tasks
+            - telegrafs
+            - users
     Authorization:
+      required: [orgID, permissions]
       properties:
+        orgID:
+          type: string
+          description: ID of org that authorization is scoped to.
+        status:
+          description: if inactive the token is inactive and requests using the token will be rejected.
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
+        description:
+          type: string
+          description: A description of the token.
+        permissions:
+          type: array
+          minLength: 1
+          description: List of permissions for an auth.  An auth must have at least one Permission.
+          items:
+            $ref: "#/components/schemas/Permission"
+        id:
+          readOnly: true
+          type: string
+        token:
+          readOnly: true
+          type: string
+          description: Passed via the Authorization Header and Token Authentication type.
+        userID:
+          readOnly: true
+          type: string
+          description: ID of user that created and owns the token.
+        user:
+          readOnly: true
+          type: string
+          description: Name of user that created and owns the token.
+        org:
+          readOnly: true
+          type: string
+          description: Name of the org token is scoped to.
         links:
           type: object
           readOnly: true
@@ -3574,30 +3620,6 @@ components:
               readOnly: true
               type: string
               format: uri
-        id:
-          readOnly: true
-          type: string
-        user:
-          type: string
-        userID:
-          type: string
-        status:
-          description: if inactive the token is inactive and requests using the token will be rejected.
-          default: active
-          type: string
-          enum:
-            - active
-            - inactive
-        token:
-          readOnly: true
-          type: string
-        description:
-          description: user defined description of the authorization
-          type: string
-        permissions:
-          type: array
-          items:
-            $ref: "#/components/schemas/Permission"
     Authorizations:
       type: object
       properties:
@@ -3784,12 +3806,11 @@ components:
         status:
           readOnly: true
           type: string
-          enum: [
-            "scheduled",
-            "executing",
-            "failed",
-            "success"
-          ]
+          enum:
+            - scheduled
+            - executing
+            - failed
+            - success
         scheduledFor:
           description: Time used for run's "now" option, RFC3339.
           type: string
@@ -3817,7 +3838,7 @@ components:
           type: string
     TaskCreateRequest:
       properties:
-        organizationId:
+        organizationID:
           description: The ID of the organization that owns this Task.
           type: string
         status:
@@ -3830,7 +3851,7 @@ components:
         flux:
           description: The Flux script to run for this task.
           type: string
-      required: [organizationId, flux]
+      required: [organizationID, flux]
     TaskUpdateRequest:
       properties:
         status:
@@ -3848,7 +3869,7 @@ components:
         id:
           readOnly: true
           type: string
-        organizationId:
+        organizationID:
           description: The ID of the organization that owns this Task.
           type: string
         name:
@@ -5473,3 +5494,28 @@ components:
           enum:
             - unhealthy
             - healthy
+    Labels:
+      type: array
+      items:
+        $ref: "#/components/schemas/Label"
+    Label:
+      type: object
+      properties:
+        name:
+          type: string
+        properties:
+          $ref: "#/components/schemas/LabelProperties"
+      required:
+        - properties
+        - name
+    LabelProperties:
+      type: object
+      properties:
+        color:
+          type: string
+        description:
+          type: string
+      required:
+        - color
+        - description
+      

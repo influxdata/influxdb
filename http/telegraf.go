@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
+	"github.com/golang/gddo/httputil"
 	"github.com/influxdata/platform"
 	pctx "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/kit/errors"
@@ -43,6 +43,7 @@ func NewTelegrafHandler(
 	mappingService platform.UserResourceMappingService,
 	labelService platform.LabelService,
 	telegrafSvc platform.TelegrafConfigStore,
+	userService platform.UserService,
 ) *TelegrafHandler {
 	h := &TelegrafHandler{
 		Router: NewRouter(),
@@ -51,6 +52,7 @@ func NewTelegrafHandler(
 		LabelService:               labelService,
 		TelegrafService:            telegrafSvc,
 		Logger:                     logger,
+		UserService:                userService,
 	}
 	h.HandlerFunc("POST", telegrafsPath, h.handlePostTelegraf)
 	h.HandlerFunc("GET", telegrafsPath, h.handleGetTelegrafs)
@@ -58,12 +60,12 @@ func NewTelegrafHandler(
 	h.HandlerFunc("DELETE", telegrafsIDPath, h.handleDeleteTelegraf)
 	h.HandlerFunc("PUT", telegrafsIDPath, h.handlePutTelegraf)
 
-	h.HandlerFunc("POST", telegrafsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Member))
-	h.HandlerFunc("GET", telegrafsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Member))
+	h.HandlerFunc("POST", telegrafsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResource, platform.Member))
+	h.HandlerFunc("GET", telegrafsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResource, platform.Member))
 	h.HandlerFunc("DELETE", telegrafsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
-	h.HandlerFunc("POST", telegrafsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Owner))
-	h.HandlerFunc("GET", telegrafsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafResourceType, platform.Owner))
+	h.HandlerFunc("POST", telegrafsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResource, platform.Owner))
+	h.HandlerFunc("GET", telegrafsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResource, platform.Owner))
 	h.HandlerFunc("DELETE", telegrafsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", telegrafsIDLabelsPath, newGetLabelsHandler(h.LabelService))
@@ -151,7 +153,9 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	mimeType := r.Header.Get("Accept")
+	offers := []string{"application/toml", "application/json", "application/octet-stream"}
+	defaultOffer := "application/toml"
+	mimeType := httputil.NegotiateContentType(r, offers, defaultOffer)
 	switch mimeType {
 	case "application/octet-stream":
 		w.Header().Set("Content-Type", "application/octet-stream")
@@ -163,7 +167,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 			logEncodingError(h.Logger, r, err)
 			return
 		}
-	default:
+	case "application/toml":
 		w.Header().Set("Content-Type", "application/toml; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(tc.TOML()))
@@ -173,7 +177,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 func decodeUserResourceMappingFilter(ctx context.Context, r *http.Request) (*platform.UserResourceMappingFilter, error) {
 	q := r.URL.Query()
 	f := &platform.UserResourceMappingFilter{
-		ResourceType: platform.TelegrafResourceType,
+		Resource: platform.TelegrafsResource,
 	}
 	if idStr := q.Get("resourceId"); idStr != "" {
 		id, err := platform.IDFromString(idStr)
@@ -226,14 +230,13 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 		EncodeError(ctx, err, w)
 		return
 	}
-	now := time.Now()
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := h.TelegrafService.CreateTelegrafConfig(ctx, tc, auth.GetUserID(), now); err != nil {
+	if err := h.TelegrafService.CreateTelegrafConfig(ctx, tc, auth.GetUserID()); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -253,14 +256,13 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 		EncodeError(ctx, err, w)
 		return
 	}
-	now := time.Now()
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	tc, err = h.TelegrafService.UpdateTelegrafConfig(ctx, tc.ID, tc, auth.GetUserID(), now)
+	tc, err = h.TelegrafService.UpdateTelegrafConfig(ctx, tc.ID, tc, auth.GetUserID())
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return

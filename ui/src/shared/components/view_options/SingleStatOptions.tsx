@@ -27,7 +27,7 @@ import {THRESHOLD_TYPE_BASE} from 'src/shared/constants/thresholds'
 import {AppState, NewView} from 'src/types/v2'
 import {SingleStatView} from 'src/types/v2/dashboards'
 import {DecimalPlaces} from 'src/types/v2/dashboards'
-import {Color, ColorConfig} from 'src/types/colors'
+import {Color, ThresholdConfig} from 'src/types/colors'
 
 interface StateProps {
   colors: Color[]
@@ -60,7 +60,7 @@ const SingleStatOptions: SFC<Props> = props => {
   const colorConfigs = colors.map(color => {
     const isBase = color.id === THRESHOLD_TYPE_BASE
 
-    const config: ColorConfig = {
+    const config: ThresholdConfig = {
       color,
       isBase,
     }

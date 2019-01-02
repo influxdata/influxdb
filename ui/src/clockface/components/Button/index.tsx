@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, MouseEvent} from 'react'
+import React, {Component, MouseEvent, RefObject} from 'react'
 import classnames from 'classnames'
 
 // Types
@@ -37,8 +37,10 @@ class Button extends Component<Props> {
     shape: ButtonShape.Default,
     status: ComponentStatus.Default,
     active: false,
-    type: ButtonType.Submit,
+    type: ButtonType.Button,
   }
+
+  public ref: RefObject<HTMLButtonElement> = React.createRef()
 
   public render() {
     const {onClick, text, titleText, tabIndex, type} = this.props
@@ -51,6 +53,7 @@ class Button extends Component<Props> {
         title={titleText || text}
         tabIndex={!!tabIndex ? tabIndex : 0}
         type={type}
+        ref={this.ref}
       >
         {this.icon}
         {this.text}

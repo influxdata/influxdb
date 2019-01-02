@@ -1,11 +1,7 @@
 .multiple-input-index{
-    align-content: center;
     padding: 10px;
+    width: 83.33333%;
     background-color: $g4-onyx;
-    width: 600px;
-    height: 300px;
-    margin-left: 100px auto;
-}
-.input-row--remove{
-    align-content: left
+    margin: 0 auto 20px auto;
+    border-radius: $radius;
 }

@@ -17,7 +17,7 @@ type RunController interface {
 
 // PlatformAdapter wraps a task.Store into the platform.TaskService interface.
 func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController) platform.TaskService {
-	return pAdapter{s: s, r: r}
+	return pAdapter{s: s, r: r, rc: rc}
 }
 
 type pAdapter struct {
@@ -202,6 +202,21 @@ func (p pAdapter) RetryRun(ctx context.Context, taskID, id platform.ID) (*platfo
 		RequestedAt:  time.Unix(requestedAt, 0).Format(time.RFC3339),
 		Status:       backend.RunScheduled.String(),
 		ScheduledFor: run.ScheduledFor,
+	}, nil
+}
+
+func (p pAdapter) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
+	requestedAt := time.Now()
+	m, err := p.s.ManuallyRunTimeRange(ctx, taskID, scheduledFor, scheduledFor, requestedAt.Unix())
+	if err != nil {
+		return nil, err
+	}
+	return &platform.Run{
+		ID:           platform.ID(m.RunID),
+		TaskID:       taskID,
+		RequestedAt:  requestedAt.UTC().Format(time.RFC3339),
+		Status:       backend.RunScheduled.String(),
+		ScheduledFor: time.Unix(scheduledFor, 0).UTC().Format(time.RFC3339),
 	}, nil
 }
 

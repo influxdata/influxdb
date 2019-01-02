@@ -54,12 +54,22 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
-	if resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`)); err != nil {
+	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`))
+	if err != nil {
 		t.Fatal(err)
-	} else if err := resp.Body.Close(); err != nil {
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
 		t.Fatal(err)
-	} else if resp.StatusCode != nethttp.StatusNoContent {
-		t.Fatalf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	if err := resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.StatusCode != nethttp.StatusNoContent {
+		t.Fatalf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
 	}
 
 	// Query server to ensure write persists.

@@ -170,7 +170,7 @@ func AddTarget(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.AddTarget(ctx, tt.args.target)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 			defer s.RemoveTarget(ctx, tt.args.target.ID)
@@ -251,7 +251,7 @@ func ListTargets(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			targets, err := s.ListTargets(ctx)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
@@ -336,7 +336,7 @@ func GetTargetByID(
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 
 			target, err := s.GetTargetByID(ctx, tt.args.id)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -423,7 +423,7 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 		t.Run(tt.name, func(t *testing.T) {
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
-			ctx := context.TODO()
+			ctx := context.Background()
 			err := s.RemoveTarget(ctx, tt.args.ID)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 

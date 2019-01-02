@@ -6,6 +6,21 @@ import (
 	"time"
 )
 
+// ErrSessionNotFound is the error messages for a missing sessions.
+const ErrSessionNotFound = "session not found"
+
+// ErrSessionExpired is the error message for expired sessions.
+const ErrSessionExpired = "session has expired"
+
+var (
+	// OpFindSession represents the operation that looks for sessions.
+	OpFindSession = "FindSession"
+	// OpExpireSession represents the operation that expires sessions.
+	OpExpireSession = "ExpireSession"
+	// OpCreateSession represents the operation that creates a session for a given user.
+	OpCreateSession = "CreateSession"
+)
+
 // Session is a user session.
 type Session struct {
 	// ID is only required for auditing purposes.
@@ -20,7 +35,7 @@ type Session struct {
 // Expired returns an error if the session is expired.
 func (s *Session) Expired() error {
 	if time.Now().After(s.ExpiresAt) {
-		return fmt.Errorf("session has expired")
+		return fmt.Errorf(ErrSessionExpired)
 	}
 
 	return nil

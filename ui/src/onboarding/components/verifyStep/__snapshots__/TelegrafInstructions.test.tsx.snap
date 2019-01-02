@@ -45,7 +45,7 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
           status="default"
           text="Copy"
           titleText="copy to clipboard"
-          type="submit"
+          type="button"
         />
       </CopyToClipboard>
     </p>
@@ -69,7 +69,7 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
           status="default"
           text="Copy"
           titleText="copy to clipboard"
-          type="submit"
+          type="button"
         />
       </CopyToClipboard>
     </p>

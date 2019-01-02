@@ -326,13 +326,15 @@ func (c *Client) deleteView(ctx context.Context, tx *bolt.Tx, id platform.ID) *p
 			Err: err,
 		}
 	}
+
 	if err := c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
-		ResourceID:   id,
-		ResourceType: platform.ViewResourceType,
+		ResourceID: id,
+		Resource:   platform.DashboardsResource,
 	}); err != nil {
 		return &platform.Error{
 			Err: err,
 		}
 	}
+
 	return nil
 }

@@ -116,22 +116,17 @@ func newPostLabelHandler(s plat.LabelService) http.HandlerFunc {
 			return
 		}
 
-		label := &plat.Label{
-			ResourceID: req.ResourceID,
-			Name:       req.Name,
-		}
-
-		if err := label.Validate(); err != nil {
+		if err := req.Label.Validate(); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
-		if err := s.CreateLabel(ctx, label); err != nil {
+		if err := s.CreateLabel(ctx, &req.Label); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
-		if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(label)); err != nil {
+		if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(&req.Label)); err != nil {
 			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
 			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
 			// is called is distinct from the time that a potential logger is set.
@@ -142,8 +137,7 @@ func newPostLabelHandler(s plat.LabelService) http.HandlerFunc {
 }
 
 type postLabelRequest struct {
-	ResourceID plat.ID
-	Name       string
+	Label plat.Label
 }
 
 func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelRequest, error) {
@@ -153,22 +147,27 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
-	name := params.ByName("name")
-	if name == "" {
-		return nil, kerrors.InvalidDataf("url missing label name")
-	}
-
 	var rid plat.ID
 	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
-	label := &postLabelRequest{
-		ResourceID: rid,
-		Name:       name,
+	label := &plat.Label{}
+	if err := json.NewDecoder(r.Body).Decode(label); err != nil {
+		return nil, err
 	}
 
-	return label, nil
+	label.ResourceID = rid
+
+	if err := label.Validate(); err != nil {
+		return nil, err
+	}
+
+	req := &postLabelRequest{
+		Label: *label,
+	}
+
+	return req, nil
 }
 
 type patchLabelRequest struct {
