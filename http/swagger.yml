@@ -4770,6 +4770,8 @@ components:
                 example: 86400
                 minimum: 1
             required: [type, everySeconds]
+        labels:
+          $ref: "#/components/schemas/Labels"
       required: [name, retentionRules]
     Buckets:
       type: object
@@ -6600,8 +6602,10 @@ components:
               properties:
                 self:
                   type: string
-            owners:
-              $ref: "#/components/schemas/Owners"
+                labels:
+                  type: string
+            labels:
+              $ref: "#/components/schemas/Labels"
     Telegrafs:
       type: object
       properties:

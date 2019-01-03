@@ -98,6 +98,7 @@ func newTelegrafResponse(tc *platform.TelegrafConfig, labels []*platform.Label) 
 			Self:   fmt.Sprintf("/api/v2/telegrafs/%s", tc.ID),
 			Labels: fmt.Sprintf("/api/v2/telegrafs/%s/labels", tc.ID),
 		},
+		Labels: []platform.Label{},
 	}
 
 	for _, l := range labels {

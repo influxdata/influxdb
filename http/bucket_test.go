@@ -78,23 +78,27 @@ func TestService_handleGetBuckets(t *testing.T) {
       "links": {
         "org": "/api/v2/orgs/50f7ba1150f7ba11",
         "self": "/api/v2/buckets/0b501e7e557ab1ed",
-        "log": "/api/v2/buckets/0b501e7e557ab1ed/log"
+        "log": "/api/v2/buckets/0b501e7e557ab1ed/log",
+        "labels": "/api/v2/buckets/0b501e7e557ab1ed/labels"
       },
       "id": "0b501e7e557ab1ed",
       "organizationID": "50f7ba1150f7ba11",
       "name": "hello",
-	  "retentionRules": [{"type": "expire", "everySeconds": 2}]
+      "retentionRules": [{"type": "expire", "everySeconds": 2}],
+      "labels": []
     },
     {
       "links": {
         "org": "/api/v2/orgs/7e55e118dbabb1ed",
         "self": "/api/v2/buckets/c0175f0077a77005",
-        "log": "/api/v2/buckets/c0175f0077a77005/log"
+        "log": "/api/v2/buckets/c0175f0077a77005/log",
+        "labels": "/api/v2/buckets/c0175f0077a77005/labels"
       },
       "id": "c0175f0077a77005",
       "organizationID": "7e55e118dbabb1ed",
       "name": "example",
-	  "retentionRules": [{"type": "expire", "everySeconds": 86400}]
+      "retentionRules": [{"type": "expire", "everySeconds": 86400}],
+      "labels": []
     }
   ]
 }
@@ -216,12 +220,14 @@ func TestService_handleGetBucket(t *testing.T) {
 		  "links": {
 		    "org": "/api/v2/orgs/020f755c3c082000",
 		    "self": "/api/v2/buckets/020f755c3c082000",
-		    "log": "/api/v2/buckets/020f755c3c082000/log"
+		    "log": "/api/v2/buckets/020f755c3c082000/log",
+		    "labels": "/api/v2/buckets/020f755c3c082000/labels"
 		  },
 		  "id": "020f755c3c082000",
 		  "organizationID": "020f755c3c082000",
 		  "name": "hello",
-		  "retentionRules": [{"type": "expire", "everySeconds": 30}]
+		  "retentionRules": [{"type": "expire", "everySeconds": 30}],
+      "labels": []
 		}
 		`,
 			},
@@ -332,12 +338,14 @@ func TestService_handlePostBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/6f626f7274697320",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log"
+    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "labels": "/api/v2/buckets/020f755c3c082000/labels"
   },
   "id": "020f755c3c082000",
   "organizationID": "6f626f7274697320",
   "name": "hello",
-  "retentionRules": []
+  "retentionRules": [],
+  "labels": []
 }
 `,
 			},
@@ -542,12 +550,14 @@ func TestService_handlePatchBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/020f755c3c082000",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log"
+    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "labels": "/api/v2/buckets/020f755c3c082000/labels"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "example",
-  "retentionRules": [{"type": "expire", "everySeconds": 2}]
+  "retentionRules": [{"type": "expire", "everySeconds": 2}],
+  "labels": []
 }
 `,
 			},
@@ -613,12 +623,14 @@ func TestService_handlePatchBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/020f755c3c082000",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log"
+    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "labels": "/api/v2/buckets/020f755c3c082000/labels"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "bucket with no retention",
-  "retentionRules": []
+  "retentionRules": [],
+  "labels": []
 }
 `,
 			},
@@ -665,12 +677,14 @@ func TestService_handlePatchBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/020f755c3c082000",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log"
+    "log": "/api/v2/buckets/020f755c3c082000/log",
+		"labels": "/api/v2/buckets/020f755c3c082000/labels"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "b1",
-  "retentionRules": []
+  "retentionRules": [],
+  "labels": []
 }
 `,
 			},
