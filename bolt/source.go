@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/coreos/bbolt"
+	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
 )
 
@@ -42,12 +42,12 @@ func (c *Client) initializeSources(ctx context.Context, tx *bolt.Tx) error {
 		return err
 	}
 
-	_, err := c.findSourceByID(ctx, tx, DefaultSource.ID)
-	if err != nil && err != platform.ErrSourceNotFound {
-		return err
+	_, pe := c.findSourceByID(ctx, tx, DefaultSource.ID)
+	if pe != nil && platform.ErrorCode(pe) != platform.ENotFound {
+		return pe
 	}
 
-	if err == platform.ErrSourceNotFound {
+	if platform.ErrorCode(pe) == platform.ENotFound {
 		if err := c.putSource(ctx, tx, &DefaultSource); err != nil {
 			return err
 		}
@@ -72,11 +72,17 @@ func (c *Client) DefaultSource(ctx context.Context) (*platform.Source, error) {
 				return nil
 			}
 		}
-		return fmt.Errorf("no default source found")
+		return &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "no default source found",
+		}
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Op:  getOp(platform.OpDefaultSource),
+			Err: err,
+		}
 	}
 
 	return s, nil
@@ -87,35 +93,40 @@ func (c *Client) FindSourceByID(ctx context.Context, id platform.ID) (*platform.
 	var s *platform.Source
 
 	err := c.db.View(func(tx *bolt.Tx) error {
-		src, err := c.findSourceByID(ctx, tx, id)
-		if err != nil {
-			return err
+		src, pe := c.findSourceByID(ctx, tx, id)
+		if pe != nil {
+			return &platform.Error{
+				Err: pe,
+				Op:  getOp(platform.OpFindSourceByID),
+			}
 		}
 		s = src
 		return nil
 	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return s, nil
+	return s, err
 }
 
-func (c *Client) findSourceByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Source, error) {
+func (c *Client) findSourceByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Source, *platform.Error) {
 	encodedID, err := id.Encode()
 	if err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	v := tx.Bucket(sourceBucket).Get(encodedID)
 	if len(v) == 0 {
-		return nil, platform.ErrSourceNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  platform.ErrSourceNotFound,
+		}
 	}
 
 	var s platform.Source
 	if err := json.Unmarshal(v, &s); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Err: err,
+		}
 	}
 
 	return &s, nil
@@ -136,7 +147,10 @@ func (c *Client) FindSources(ctx context.Context, opt platform.FindOptions) ([]*
 	})
 
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, &platform.Error{
+			Op:  platform.OpFindSources,
+			Err: err,
+		}
 	}
 
 	return ss, len(ss), nil
@@ -159,7 +173,7 @@ func (c *Client) findSources(ctx context.Context, tx *bolt.Tx, opt platform.Find
 
 // CreateSource creates a platform source and sets s.ID.
 func (c *Client) CreateSource(ctx context.Context, s *platform.Source) error {
-	return c.db.Update(func(tx *bolt.Tx) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
 		s.ID = c.IDGenerator.ID()
 
 		// Generating an organization id if it missing or invalid
@@ -169,6 +183,13 @@ func (c *Client) CreateSource(ctx context.Context, s *platform.Source) error {
 
 		return c.putSource(ctx, tx, s)
 	})
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpCreateSource),
+		}
+	}
+	return nil
 }
 
 // PutSource will put a source without setting an ID.
@@ -218,7 +239,10 @@ func (c *Client) UpdateSource(ctx context.Context, id platform.ID, upd platform.
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		src, err := c.updateSource(ctx, tx, id, upd)
 		if err != nil {
-			return err
+			return &platform.Error{
+				Err: err,
+				Op:  getOp(platform.OpUpdateSource),
+			}
 		}
 		s = src
 		return nil
@@ -228,9 +252,9 @@ func (c *Client) UpdateSource(ctx context.Context, id platform.ID, upd platform.
 }
 
 func (c *Client) updateSource(ctx context.Context, tx *bolt.Tx, id platform.ID, upd platform.SourceUpdate) (*platform.Source, error) {
-	s, err := c.findSourceByID(ctx, tx, id)
-	if err != nil {
-		return nil, err
+	s, pe := c.findSourceByID(ctx, tx, id)
+	if pe != nil {
+		return nil, pe
 	}
 
 	if err := upd.Apply(s); err != nil {
@@ -247,23 +271,40 @@ func (c *Client) updateSource(ctx context.Context, tx *bolt.Tx, id platform.ID, 
 // DeleteSource deletes a source and prunes it from the index.
 func (c *Client) DeleteSource(ctx context.Context, id platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.deleteSource(ctx, tx, id)
+		pe := c.deleteSource(ctx, tx, id)
+		if pe != nil {
+			return &platform.Error{
+				Err: pe,
+				Op:  getOp(platform.OpDeleteSource),
+			}
+		}
+		return nil
 	})
 }
 
-func (c *Client) deleteSource(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
+func (c *Client) deleteSource(ctx context.Context, tx *bolt.Tx, id platform.ID) *platform.Error {
 	if id == DefaultSource.ID {
-		return fmt.Errorf("cannot delete autogen source")
+		return &platform.Error{
+			Code: platform.EForbidden,
+			Msg:  "cannot delete autogen source",
+		}
 	}
-	_, err := c.findSourceByID(ctx, tx, id)
-	if err != nil {
-		return err
+	_, pe := c.findSourceByID(ctx, tx, id)
+	if pe != nil {
+		return pe
 	}
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+		}
 	}
 
-	return tx.Bucket(sourceBucket).Delete(encodedID)
+	if err = tx.Bucket(sourceBucket).Delete(encodedID); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+	return nil
 }
