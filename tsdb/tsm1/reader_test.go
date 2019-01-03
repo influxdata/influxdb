@@ -966,7 +966,7 @@ func TestTSMReader_MMAP_TombstoneOutsideRange(t *testing.T) {
 		t.Fatalf("key count mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(r.TombstoneRange([]byte("cpu"))), 0; got != exp {
+	if got, exp := len(r.TombstoneRange([]byte("cpu"), nil)), 0; got != exp {
 		t.Fatalf("tombstone range mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -979,7 +979,7 @@ func TestTSMReader_MMAP_TombstoneOutsideRange(t *testing.T) {
 		t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(r.TombstoneRange([]byte("mem"))), 1; got != exp {
+	if got, exp := len(r.TombstoneRange([]byte("mem"), nil)), 1; got != exp {
 		t.Fatalf("tombstone range mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -1893,6 +1893,7 @@ func (i *indexCacheInfo) reset() {
 	i.index.ro.offsets = append([]uint32(nil), i.offsets...)
 	i.index.ro.prefixes = append([]prefixEntry(nil), i.prefixes...)
 	i.index.tombstones = make(map[uint32][]TimeRange)
+	i.index.prefixTombstones = newPrefixTree()
 	resetFaults(i.index)
 }
 
@@ -1939,7 +1940,7 @@ func getIndex(tb testing.TB, name string) (*indirectIndex, *indexCacheInfo) {
 		key := []byte(fmt.Sprintf("cpu-%08d", i))
 		info.allKeys = append(info.allKeys, key)
 		for j := 0; j < blocks; j++ {
-			writer.Add(key, BlockFloat64, int64(i*j*2), int64(i*j*2+1), 10, 100)
+			writer.Add(key, BlockFloat64, 0, 100, 10, 100)
 		}
 	}
 
@@ -2122,6 +2123,56 @@ func BenchmarkIndirectIndex_Delete(b *testing.B) {
 				}
 				indirect.Delete(info.allKeys[i:n])
 			}
+		}
+
+		if faultBufferEnabled {
+			b.SetBytes(getFaults(indirect) * 4096)
+			b.Log("recorded faults:", getFaults(indirect))
+		}
+	}
+
+	b.Run("Large", func(b *testing.B) { run(b, "large") })
+	b.Run("Small", func(b *testing.B) { run(b, "small") })
+}
+
+func BenchmarkIndirectIndex_DeletePrefixFull(b *testing.B) {
+	prefix := []byte("cpu-")
+	run := func(b *testing.B, name string) {
+		indirect, _ := getIndex(b, name)
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			indirect, _ = getIndex(b, name)
+			b.StartTimer()
+
+			indirect.DeletePrefix(prefix, 10, 50)
+		}
+
+		if faultBufferEnabled {
+			b.SetBytes(getFaults(indirect) * 4096)
+			b.Log("recorded faults:", getFaults(indirect))
+		}
+	}
+
+	b.Run("Large", func(b *testing.B) { run(b, "large") })
+	b.Run("Small", func(b *testing.B) { run(b, "small") })
+}
+
+func BenchmarkIndirectIndex_DeletePrefixFull_Covered(b *testing.B) {
+	prefix := []byte("cpu-")
+	run := func(b *testing.B, name string) {
+		indirect, _ := getIndex(b, name)
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			indirect, _ = getIndex(b, name)
+			b.StartTimer()
+
+			indirect.DeletePrefix(prefix, 0, math.MaxInt64)
 		}
 
 		if faultBufferEnabled {

@@ -21,12 +21,14 @@ type prefixEntry struct {
 	total int // partial sums
 }
 
-// prefix is an 8 byte prefix of a key that sorts the same way the key does.
+// prefix is a byte prefix of a key that sorts the same way the key does.
 type prefix [8]byte
+
+const prefixSize = len(prefix{})
 
 // comparePrefix is like bytes.Compare but for a prefix.
 func comparePrefix(a, b prefix) int {
-	au, bu := binary.BigEndian.Uint64(a[:]), binary.BigEndian.Uint64(b[:])
+	au, bu := binary.BigEndian.Uint64(a[:8]), binary.BigEndian.Uint64(b[:8])
 	if au == bu {
 		return 0
 	} else if au < bu {
@@ -38,8 +40,8 @@ func comparePrefix(a, b prefix) int {
 // keyPrefix returns a prefix that can be used with compare
 // to sort the same way the bytes would.
 func keyPrefix(key []byte) (pre prefix) {
-	if len(key) >= 8 {
-		return *(*[8]byte)(unsafe.Pointer(&key[0]))
+	if len(key) >= prefixSize {
+		return *(*prefix)(unsafe.Pointer(&key[0]))
 	}
 	copy(pre[:], key)
 	return pre

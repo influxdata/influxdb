@@ -51,11 +51,11 @@ LOOP:
 {{end}}
 
 	// Remove any tombstones
-	tombstones := first.r.TombstoneRange(c.key)
+	c.trbuf = first.r.TombstoneRange(c.key, c.trbuf[:0])
 {{if $isArray -}}
-	excludeTombstones{{.Name}}Array(tombstones, values)
+	excludeTombstones{{.Name}}Array(c.trbuf, values)
 {{else -}}
-	values = excludeTombstones{{.Name}}Values(tombstones, values)
+	values = excludeTombstones{{.Name}}Values(c.trbuf, values)
 {{end -}}
 
 	// If there are no values in this first block (all tombstoned or previously read) and
@@ -134,10 +134,10 @@ LOOP:
 				c.col.GetCounter({{.name}}BlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
 
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 {{if $isArray -}}
 			// Remove any tombstoned values
-			excludeTombstones{{.Name}}Array(tombstones, v)
+			excludeTombstones{{.Name}}Array(c.trbuf, v)
 
 			// Remove values we already read
 			v.Exclude(cur.readMin, cur.readMax)
@@ -150,7 +150,7 @@ LOOP:
 			}
 {{else -}}
 			// Remove any tombstoned values
-			v = excludeTombstones{{.Name}}Values(tombstones, v)
+			v = excludeTombstones{{.Name}}Values(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)
@@ -220,10 +220,10 @@ LOOP:
 				c.col.GetCounter({{.name}}BlocksDecodedCounter).Add(1)
 				c.col.GetCounter({{.name}}BlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 {{if $isArray -}}
 			// Remove any tombstoned values
-			excludeTombstones{{.Name}}Array(tombstones, v)
+			excludeTombstones{{.Name}}Array(c.trbuf, v)
 
 			// Remove values we already read
 			v.Exclude(cur.readMin, cur.readMax)
@@ -238,7 +238,7 @@ LOOP:
 			}
 {{else -}}
 			// Remove any tombstoned values
-			v = excludeTombstones{{.Name}}Values(tombstones, v)
+			v = excludeTombstones{{.Name}}Values(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)

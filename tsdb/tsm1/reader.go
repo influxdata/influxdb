@@ -60,6 +60,10 @@ type TSMIndex interface {
 	// DeleteRange removes the given keys with data between minTime and maxTime from the index.
 	DeleteRange(keys [][]byte, minTime, maxTime int64)
 
+	// DeletePrefix removes keys that begin with the given prefix with data between minTime and
+	// maxTime from the index.
+	DeletePrefix(prefix []byte, minTime, maxTime int64)
+
 	// ContainsKey returns true if the given key may exist in the index.  This func is faster than
 	// Contains but, may return false positives.
 	ContainsKey(key []byte) bool
@@ -99,7 +103,7 @@ type TSMIndex interface {
 	TimeRange() (int64, int64)
 
 	// TombstoneRange returns ranges of time that are deleted for the given key.
-	TombstoneRange(key []byte) []TimeRange
+	TombstoneRange(key []byte, buf []TimeRange) []TimeRange
 
 	// KeyRange returns the min and max keys in the file.
 	KeyRange() ([]byte, []byte)
@@ -475,9 +479,9 @@ func (t *TSMReader) TombstoneFiles() []FileStat {
 }
 
 // TombstoneRange returns ranges of time that are deleted for the given key.
-func (t *TSMReader) TombstoneRange(key []byte) []TimeRange {
+func (t *TSMReader) TombstoneRange(key []byte, buf []TimeRange) []TimeRange {
 	t.mu.RLock()
-	tr := t.index.TombstoneRange(key)
+	tr := t.index.TombstoneRange(key, buf)
 	t.mu.RUnlock()
 	return tr
 }
@@ -672,21 +676,17 @@ type indirectIndex struct {
 	// entry would exist here if a subset of the points for a key were deleted and the file
 	// had not be re-compacted to remove the points on disk.
 	tombstones map[uint32][]TimeRange
-}
 
-// TimeRange holds a min and max timestamp.
-type TimeRange struct {
-	Min, Max int64
-}
-
-func (t TimeRange) Overlaps(min, max int64) bool {
-	return t.Min <= max && t.Max >= min
+	// prefixTombstones contains the tombestoned keys with a subset of the values deleted that
+	// all share the same prefix.
+	prefixTombstones *prefixTree
 }
 
 // NewIndirectIndex returns a new indirect index.
 func NewIndirectIndex() *indirectIndex {
 	return &indirectIndex{
-		tombstones: make(map[uint32][]TimeRange),
+		tombstones:       make(map[uint32][]TimeRange),
+		prefixTombstones: newPrefixTree(),
 	}
 }
 
@@ -786,9 +786,8 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 	d.mu.Unlock()
 }
 
-// insertTimeRange adds a time range described by the minTime and maxTime into the
-// ts, copying the values into the buffer, reallocating the buffer if necessary.
-func insertTimeRange(ts, buf []TimeRange, minTime, maxTime int64) []TimeRange {
+// insertTimeRange adds a time range described by the minTime and maxTime into ts.
+func insertTimeRange(ts []TimeRange, minTime, maxTime int64) []TimeRange {
 	n := sort.Search(len(ts), func(i int) bool {
 		if ts[i].Min == minTime {
 			return ts[i].Max >= maxTime
@@ -796,23 +795,44 @@ func insertTimeRange(ts, buf []TimeRange, minTime, maxTime int64) []TimeRange {
 		return ts[i].Min > minTime
 	})
 
-	buf = buf[:0]
-	if cap(buf) < len(ts)+1 {
-		buf = make([]TimeRange, 0, len(ts)+1)
-	}
-
-	buf = append(buf, ts[:n]...)
-	buf = append(buf, TimeRange{minTime, maxTime})
-	buf = append(buf, ts[n:]...)
-	return buf
+	ts = append(ts, TimeRange{})
+	copy(ts[n+1:], ts[n:])
+	ts[n] = TimeRange{Min: minTime, Max: maxTime}
+	return ts
 }
 
-// tombstoneEntry is a type that describes a pending insertion of a tombstone.
-type tombstoneEntry struct {
+// pendingTombstone is a type that describes a pending insertion of a tombstone.
+type pendingTombstone struct {
+	Key         int
 	Index       int
-	KeyOffset   uint32
+	Offset      uint32
 	EntryOffset uint32
-	Ranges      []TimeRange
+	Tombstones  int
+}
+
+// coversEntries checks if all of the stored tombstones including one for minTime and maxTime cover
+// all of the index entries. It mutates the entries slice to do the work, so be sure to make a copy
+// if you must.
+func (d *indirectIndex) coversEntries(offset uint32, key []byte, buf []TimeRange,
+	entries []IndexEntry, minTime, maxTime int64) ([]TimeRange, bool) {
+
+	// grab the tombstones from the prefixes. these come out unsorted, so we sort
+	// them and place them in the merger section named unsorted.
+	buf = d.prefixTombstones.Search(key, buf[:0])
+	if len(buf) > 1 {
+		sort.Slice(buf, func(i, j int) bool { return buf[i].Less(buf[j]) })
+	}
+
+	// create the merger with the other tombstone entries: the ones for the specific
+	// key and the one we have proposed to add.
+	merger := timeRangeMerger{
+		sorted:   d.tombstones[offset],
+		unsorted: buf,
+		single:   TimeRange{Min: minTime, Max: maxTime},
+		used:     false,
+	}
+
+	return buf, timeRangesCoverEntries(merger, entries)
 }
 
 // DeleteRange removes the given keys with data between minTime and maxTime from the index.
@@ -824,8 +844,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	}
 
 	// Is the range passed in outside of the time range for the file?
-	min, max := d.TimeRange()
-	if minTime > max || maxTime < min {
+	if minTime > d.maxTime || maxTime < d.minTime {
 		return
 	}
 
@@ -838,12 +857,15 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 
 	d.mu.RLock()
 	iter := d.ro.Iterator()
-	var trBuf []TimeRange
-	var entries []IndexEntry
-	var tombstones []tombstoneEntry
-	var err error
+	var (
+		ok      bool
+		trbuf   []TimeRange
+		entries []IndexEntry
+		pending []pendingTombstone
+		err     error
+	)
 
-	for _, key := range keys {
+	for i, key := range keys {
 		if !iter.Next() || !bytes.Equal(iter.Key(&d.b), key) {
 			if exact, _ := iter.Seek(key, &d.b); !exact {
 				continue
@@ -872,41 +894,40 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 			continue
 		}
 
-		// Get the sorted list of tombstones with our new range and check
-		// to see if they fully cover the key's entries.
-		trBuf = insertTimeRange(d.tombstones[iter.Offset()], trBuf, minTime, maxTime)
-		if timeRangesCoverEntries(trBuf, entries) {
+		// Does adding the minTime and maxTime cover the entries?
+		offset := iter.Offset()
+		trbuf, ok = d.coversEntries(offset, key, trbuf, entries, minTime, maxTime)
+		if ok {
 			iter.Delete()
 			continue
 		}
 
-		// We're adding a tombstone. Store a copy because `insertTimeRange` reuses
-		// the same buffer across calls to avoid allocations.
-		tombstones = append(tombstones, tombstoneEntry{
+		// Save that we should add a tombstone for this key, and how many tombstones
+		// already existed to avoid double checks.
+		pending = append(pending, pendingTombstone{
+			Key:         i,
 			Index:       iter.Index(),
-			KeyOffset:   iter.Offset(),
+			Offset:      offset,
 			EntryOffset: entryOffset,
-			Ranges:      append([]TimeRange(nil), trBuf...),
+			Tombstones:  len(d.tombstones[offset]),
 		})
 	}
 
 	d.mu.RUnlock()
 
-	if len(tombstones) == 0 && !iter.HasDeletes() {
+	if len(pending) == 0 && !iter.HasDeletes() {
 		return
 	}
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	for _, tsEntry := range tombstones {
-		// Check the existing tombstones. If the length did not
-		// change, then we know that we don't need to double
-		// check coverage, since we only ever increase the
+	for _, p := range pending {
+		// Check the existing tombstones. If the length did not/ change, then we know
+		// that we don't need to double check coverage, since we only ever increase the
 		// number of tombstones for a key.
-		trs := d.tombstones[tsEntry.KeyOffset]
-		if len(trs)+1 == len(tsEntry.Ranges) {
-			d.tombstones[tsEntry.KeyOffset] = tsEntry.Ranges
+		if trs := d.tombstones[p.Offset]; p.Tombstones == len(trs) {
+			d.tombstones[p.Offset] = insertTimeRange(trs, minTime, maxTime)
 			continue
 		}
 
@@ -915,47 +936,135 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 		// rare and only during concurrent deletes to the same key. We could make
 		// a copy of the entries before getting here, but that penalizes the common
 		// no-concurrent case.
-		entries, err = readEntriesTimes(d.b.access(tsEntry.EntryOffset, 0), entries)
+		entries, err = readEntriesTimes(d.b.access(p.EntryOffset, 0), entries)
 		if err != nil {
 			// If we have an error reading the entries for a key, we should just pretend
 			// the whole key is deleted. Maybe a better idea is to report this up somehow
 			// but that's for another time.
-			delete(d.tombstones, tsEntry.KeyOffset)
-			iter.SetIndex(tsEntry.Index)
-			if iter.Offset() == tsEntry.KeyOffset {
+			delete(d.tombstones, p.Offset)
+			iter.SetIndex(p.Index)
+			if iter.Offset() == p.Offset {
 				iter.Delete()
 			}
 			continue
 		}
 
-		trBuf = insertTimeRange(trs, trBuf, minTime, maxTime)
-		if timeRangesCoverEntries(trBuf, entries) {
-			delete(d.tombstones, tsEntry.KeyOffset)
-			iter.SetIndex(tsEntry.Index)
-			if iter.Offset() == tsEntry.KeyOffset {
+		trbuf, ok = d.coversEntries(p.Offset, keys[p.Key], trbuf, entries, minTime, maxTime)
+		if ok {
+			delete(d.tombstones, p.Offset)
+			iter.SetIndex(p.Index)
+			if iter.Offset() == p.Offset {
 				iter.Delete()
 			}
 			continue
 		}
 
-		// Store a copy because `insertTombstone` reuses the same slice
-		// across calls.
-		d.tombstones[tsEntry.KeyOffset] = append([]TimeRange(nil), trBuf...)
+		// Append the TimeRange into the tombstones.
+		trs := d.tombstones[p.Offset]
+		d.tombstones[p.Offset] = insertTimeRange(trs, minTime, maxTime)
 	}
 
 	iter.Done()
 }
 
-// TombstoneRange returns ranges of time that are deleted for the given key.
-func (d *indirectIndex) TombstoneRange(key []byte) (r []TimeRange) {
+func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) {
+	// If we're deleting everything, we won't need to worry about partial deletes.
+	partial := !(minTime <= d.minTime && maxTime >= d.maxTime)
+
+	// Is the range passed in outside of the time range for the file?
+	if minTime > d.maxTime || maxTime < d.minTime {
+		return
+	}
+
 	d.mu.RLock()
+	var (
+		ok        bool
+		trbuf     []TimeRange
+		entries   []IndexEntry
+		err       error
+		mustTrack bool
+	)
+
+	// seek to the earliest key with the prefix, and start iterating. we can't call
+	// next until after we've checked the key, so keep a "first" flag.
+	first := true
+	iter := d.ro.Iterator()
+	iter.Seek(prefix, &d.b)
+	for {
+		if (!first && !iter.Next()) || !bytes.HasPrefix(iter.Key(&d.b), prefix) {
+			break
+		}
+		first = false
+
+		// if we're not doing a partial delete, we don't need to read the entries and
+		// can just delete the key and move on.
+		if !partial {
+			iter.Delete()
+			continue
+		}
+
+		entryOffset := iter.EntryOffset(&d.b)
+		entries, err = readEntriesTimes(d.b.access(entryOffset, 0), entries)
+		if err != nil {
+			// If we have an error reading the entries for a key, we should just pretend
+			// the whole key is deleted. Maybe a better idea is to report this up somehow
+			// but that's for another time.
+			iter.Delete()
+			continue
+		}
+
+		// Is the time range passed outside the range we have stored for the key?
+		min, max := entries[0].MinTime, entries[len(entries)-1].MaxTime
+		if minTime > max || maxTime < min {
+			continue
+		}
+
+		// Does the range passed cover every value for the key?
+		if minTime <= min && maxTime >= max {
+			iter.Delete()
+			continue
+		}
+
+		// Does adding the minTime and maxTime cover the entries?
+		trbuf, ok = d.coversEntries(iter.Offset(), iter.Key(&d.b), trbuf, entries, minTime, maxTime)
+		if ok {
+			iter.Delete()
+			continue
+		}
+
+		// Otherwise, we have to track it in the prefix tombstones list.
+		mustTrack = true
+	}
+	d.mu.RUnlock()
+
+	// Check and abort if nothing needs to be done.
+	if !mustTrack && !iter.HasDeletes() {
+		return
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if mustTrack {
+		d.prefixTombstones.Append(prefix, TimeRange{Min: minTime, Max: maxTime})
+	}
+
+	if iter.HasDeletes() {
+		iter.Done()
+	}
+}
+
+// TombstoneRange returns ranges of time that are deleted for the given key.
+func (d *indirectIndex) TombstoneRange(key []byte, buf []TimeRange) []TimeRange {
+	d.mu.RLock()
+	rs := d.prefixTombstones.Search(key, buf[:0])
 	iter := d.ro.Iterator()
 	exact, _ := iter.Seek(key, &d.b)
 	if exact {
-		r = d.tombstones[iter.Offset()]
+		rs = append(rs, d.tombstones[iter.Offset()]...)
 	}
 	d.mu.RUnlock()
-	return r
+	return rs
 }
 
 // Contains return true if the given key exists in the index.
@@ -982,6 +1091,10 @@ func (d *indirectIndex) ContainsValue(key []byte, timestamp int64) bool {
 		if t.Min <= timestamp && timestamp <= t.Max {
 			return false
 		}
+	}
+
+	if d.prefixTombstones.checkOverlap(key, timestamp) {
+		return false
 	}
 
 	entries, err := d.ReadEntries(key, nil)
@@ -1351,7 +1464,7 @@ func (m *mmapAccessor) readAll(key []byte) ([]Value, error) {
 		return nil, err
 	}
 
-	tombstones := m.index.TombstoneRange(key)
+	tombstones := m.index.TombstoneRange(key, nil)
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -1504,38 +1617,6 @@ func readEntriesTimes(b []byte, entries []IndexEntry) ([]IndexEntry, error) {
 	}
 
 	return entries, nil
-}
-
-// timeRangesCoverEntries returns true if the time ranges fully cover the entries.
-func timeRangesCoverEntries(ts []TimeRange, entries []IndexEntry) (covers bool) {
-	mustCover := entries[0].MinTime
-	for len(entries) > 0 && len(ts) > 0 {
-		switch {
-		// If the tombstone does not include mustCover, we
-		// know we do not fully cover every entry.
-		case ts[0].Min > mustCover:
-			return false
-
-		// Otherwise, if the tombstone covers the rest of
-		// the entry, consume it and bump mustCover to the
-		// start of the next entry.
-		case ts[0].Max >= entries[0].MaxTime:
-			entries = entries[1:]
-			if len(entries) > 0 {
-				mustCover = entries[0].MinTime
-			}
-
-		// Otherwise, we're still inside of an entry, and
-		// so the tombstone must adjoin the current tombstone.
-		default:
-			if ts[0].Max >= mustCover {
-				mustCover = ts[0].Max + 1
-			}
-			ts = ts[1:]
-		}
-	}
-
-	return len(entries) == 0
 }
 
 const (
