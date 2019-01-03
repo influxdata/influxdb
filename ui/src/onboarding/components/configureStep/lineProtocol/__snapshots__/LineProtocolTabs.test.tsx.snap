@@ -2,54 +2,28 @@
 
 exports[`LineProtocolTabs rendering renders! 1`] = `
 <Fragment>
-  <Radio
-    color="primary"
-    shape="none"
-    size="sm"
+  <default_1
+    onClick={[Function]}
+    tabs={
+      Array [
+        "uploadFile",
+        "enterManually",
+        "enterURL",
+      ]
+    }
+  />
+  <div
+    className="onboarding--admin-user-form"
   >
-    <RadioButton
-      active={false}
-      disabled={false}
-      disabledTitleText="This option is disabled"
-      id="uploadFile"
-      key="uploadFile"
-      onClick={[Function]}
-      titleText="uploadFile"
-      value="uploadFile"
+    <div
+      className="wizard-step--lp-body"
     >
-      uploadFile
-    </RadioButton>
-    <RadioButton
-      active={false}
-      disabled={false}
-      disabledTitleText="This option is disabled"
-      id="enterManually"
-      key="enterManually"
-      onClick={[Function]}
-      titleText="enterManually"
-      value="enterManually"
-    >
-      enterManually
-    </RadioButton>
-    <RadioButton
-      active={false}
-      disabled={false}
-      disabledTitleText="This option is disabled"
-      id="enterURL"
-      key="enterURL"
-      onClick={[Function]}
-      titleText="enterURL"
-      value="enterURL"
-    >
-      enterURL
-    </RadioButton>
-  </Radio>
-  <div
-    className="wizard-step--lp-body"
-  />
-  <PrecisionDropdown />
-  <div
-    className="wizard--button-bar"
-  />
+      <default_1
+        onURLChange={[Function]}
+        urlInput=""
+      />
+    </div>
+    <PrecisionDropdown />
+  </div>
 </Fragment>
 `;

@@ -136,6 +136,7 @@ class DragAndDrop extends PureComponent<Props, State> {
           <button
             className="btn btn-sm btn-default"
             onClick={this.handleCancelFile}
+            type="button"
           >
             Cancel
           </button>
@@ -151,6 +152,7 @@ class DragAndDrop extends PureComponent<Props, State> {
         <button
           className="btn btn-sm btn-default"
           onClick={this.handleCancelFile}
+          type="button"
         >
           Cancel
         </button>

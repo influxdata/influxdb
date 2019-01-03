@@ -3,11 +3,12 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import VerifyDataSwitcher from 'src/onboarding/components/verifyStep/VerifyDataSwitcher'
+import {VerifyDataSwitcher} from 'src/onboarding/components/verifyStep/VerifyDataSwitcher'
 import DataStreaming from 'src/onboarding/components/verifyStep/DataStreaming'
 
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {RemoteDataState} from 'src/types'
 
 const setup = (override = {}) => {
   const props = {
@@ -21,6 +22,8 @@ const setup = (override = {}) => {
     onSaveTelegrafConfig: jest.fn(),
     stepIndex: 4,
     onSetStepStatus: jest.fn(),
+    onDecrementCurrentStep: jest.fn(),
+    lpStatus: RemoteDataState.NotStarted,
     ...override,
   }
 

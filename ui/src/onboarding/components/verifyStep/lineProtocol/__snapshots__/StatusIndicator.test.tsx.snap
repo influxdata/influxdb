@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`LoadingStatusIndicator rendering renders! 1`] = `
+exports[`StatusIndicator rendering renders! 1`] = `
 <Fragment>
   <div
     className="wizard-step--top-container"

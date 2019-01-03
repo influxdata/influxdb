@@ -1,7 +1,9 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`LineProtocol rendering renders! 1`] = `
-<Form>
+<Form
+  onSubmit={[Function]}
+>
   <h3
     className="wizard-step--title"
   >
@@ -12,8 +14,16 @@ exports[`LineProtocol rendering renders! 1`] = `
   >
     Need help writing InfluxDB Line Protocol? See Documentation
   </h5>
-  <LoadingStatusIndicator
-    onClickRetry={[Function]}
+  <Connect(LineProtocolTabs)
+    bucket="a"
+    org="a"
+    tabs={
+      Array [
+        "uploadFile",
+        "enterManually",
+        "enterURL",
+      ]
+    }
   />
   <OnboardingButtons
     autoFocusNext={true}

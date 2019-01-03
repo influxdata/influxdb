@@ -52,8 +52,7 @@ interface Props {
   size?: ComponentSize
   status?: ComponentStatus
   customClass?: string
-  handleSubmitText?: (s: string) => void
-  onChange?: (e: ChangeEvent<HTMLTextAreaElement>) => void
+  onChange?: (s: string) => void
   onBlur?: (e?: ChangeEvent<HTMLTextAreaElement>) => void
   onFocus?: (e?: ChangeEvent<HTMLTextAreaElement>) => void
   onKeyPress?: (e: KeyboardEvent<HTMLTextAreaElement>) => void
@@ -79,7 +78,6 @@ class TextArea extends Component<Props> {
     rows: 20,
     spellCheck: false,
     wrap: Wrap.Off,
-    onChange: () => {},
     value: '',
   }
 
@@ -138,8 +136,11 @@ class TextArea extends Component<Props> {
   }
 
   private handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    const {handleSubmitText} = this.props
-    handleSubmitText(e.target.value)
+    const {onChange} = this.props
+
+    if (onChange) {
+      onChange(e.target.value)
+    }
   }
 
   private get className(): string {

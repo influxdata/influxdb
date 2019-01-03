@@ -37,19 +37,7 @@ class Radio extends Component<Props> {
 
     this.validateChildCount()
 
-    return (
-      <div className={this.containerClassName}>
-        {React.Children.map(children, (child: JSX.Element) => {
-          if (this.childTypeIsValid(child)) {
-            return <RadioButton {...child.props} key={child.props.id} />
-          } else {
-            throw new Error(
-              '<Radio> expected children of type <Radio.Button />'
-            )
-          }
-        })}
-      </div>
-    )
+    return <div className={this.containerClassName}>{children}</div>
   }
 
   private get containerClassName(): string {
@@ -74,9 +62,6 @@ class Radio extends Component<Props> {
       )
     }
   }
-
-  private childTypeIsValid = (child: JSX.Element): boolean =>
-    child.type === RadioButton
 }
 
 export default Radio

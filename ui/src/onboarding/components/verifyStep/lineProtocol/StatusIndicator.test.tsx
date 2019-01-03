@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import LoadingStatusIndicator from 'src/onboarding/components/configureStep/lineProtocol/LoadingStatusIndicator'
+import StatusIndicator from 'src/onboarding/components/verifyStep/lineProtocol/StatusIndicator'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -14,12 +14,12 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = shallow(<LoadingStatusIndicator {...props} />)
+  const wrapper = shallow(<StatusIndicator {...props} />)
 
   return {wrapper}
 }
 
-describe('LoadingStatusIndicator', () => {
+describe('StatusIndicator', () => {
   describe('rendering', () => {
     it('renders!', () => {
       const {wrapper} = setup()
