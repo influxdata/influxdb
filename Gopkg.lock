@@ -66,7 +66,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:c5468d421036b21f84381e48adcbe4c2239c4c937aae6be8f3b552ec1bc2dd24"
+  digest = "1:2db61829af54102979eca26f14f65e6076b5cbe7c400e806cd3b730f89aeea27"
   name = "github.com/apache/arrow"
   packages = [
     "go/arrow",
@@ -74,6 +74,7 @@
     "go/arrow/internal/bitutil",
     "go/arrow/internal/cpu",
     "go/arrow/internal/debug",
+    "go/arrow/math",
     "go/arrow/memory",
   ]
   pruneopts = "UT"
@@ -411,7 +412,7 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:4205df2c670d8ae7926fc57ff65ce5d4b259713be15c64b548c80f25485313b9"
+  digest = "1:9608dc2c0716b655b535fc0f20f42472e43b6cead49f4c9ad20eded341c5df3b"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -442,8 +443,8 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "8baaec7baa7357d117db204eaeb47f0d82cd5dcc"
-  version = "v0.11.0"
+  revision = "8c9d0ad49204d3bbb171e96d872cf663ee7f1b4d"
+  version = "v0.12.0"
 
 [[projects]]
   branch = "master"
@@ -1045,12 +1046,13 @@
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
 
 [[projects]]
-  digest = "1:6eaf68fa53735d0b557c7a4d5411d3ad97d98d0afdb0969252d6506e67600285"
+  digest = "1:ec626c5a8d1abbb2e052d195da2d089ff6a3afb60fa7cd45638d648da96d41dd"
   name = "honnef.co/go/tools"
   packages = [
     "callgraph",
     "callgraph/static",
     "cmd/megacheck",
+    "cmd/staticcheck",
     "deprecated",
     "functions",
     "internal/sharedcheck",
