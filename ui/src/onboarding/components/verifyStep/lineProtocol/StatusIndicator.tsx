@@ -2,12 +2,7 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
 
-import {
-  SparkleSpinner,
-  Button,
-  ComponentColor,
-  ComponentSize,
-} from 'src/clockface'
+import {SparkleSpinner} from 'src/clockface'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -17,7 +12,7 @@ interface Props {
   onClickRetry: () => void
 }
 
-class LoadingStatusIndicator extends PureComponent<Props> {
+class StatusIndicator extends PureComponent<Props> {
   public render() {
     const {status} = this.props
     return (
@@ -26,7 +21,6 @@ class LoadingStatusIndicator extends PureComponent<Props> {
           <div className={'wizard-step--sparkle-container'}>
             <SparkleSpinner loading={status} />
           </div>
-          {this.retryButton}
         </div>
         <div className={'wizard-step--footer'}>
           <div className={this.footerClass}>{this.footerText}</div>
@@ -34,23 +28,6 @@ class LoadingStatusIndicator extends PureComponent<Props> {
         <br />
       </>
     )
-  }
-
-  private get retryButton(): JSX.Element {
-    const {status, onClickRetry} = this.props
-    if (status === RemoteDataState.Error) {
-      return (
-        <Button
-          text={'Try Again'}
-          color={ComponentColor.Primary}
-          size={ComponentSize.Small}
-          customClass={'wizard-step--retry-button'}
-          onClick={onClickRetry}
-        />
-      )
-    } else {
-      return null
-    }
   }
 
   private get footerClass(): string {
@@ -75,4 +52,4 @@ class LoadingStatusIndicator extends PureComponent<Props> {
   }
 }
 
-export default LoadingStatusIndicator
+export default StatusIndicator

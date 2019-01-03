@@ -1,5 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -18,9 +20,11 @@ import {
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {DataLoaderType, TelegrafPlugin} from 'src/types/v2/dataLoaders'
 import {Form} from 'src/clockface'
-import {NotificationAction} from 'src/types'
+import {NotificationAction, RemoteDataState} from 'src/types'
+import {StepStatus} from 'src/clockface/constants/wizard'
+import {AppState} from 'src/types/v2'
 
-export interface Props extends OnboardingStepProps {
+export interface OwnProps extends OnboardingStepProps {
   notify: NotificationAction
   type: DataLoaderType
   authToken: string
@@ -32,8 +36,21 @@ export interface Props extends OnboardingStepProps {
   stepIndex: number
 }
 
+interface StateProps {
+  lpStatus: RemoteDataState
+}
+
+interface RouterProps {
+  params: {
+    stepID: string
+    substepID: string
+  }
+}
+
+export type Props = RouterProps & OwnProps & WithRouterProps & StateProps
+
 @ErrorHandling
-class VerifyDataStep extends PureComponent<Props> {
+export class VerifyDataStep extends PureComponent<Props> {
   public componentDidMount() {
     const {type, onSetPluginConfiguration, telegrafPlugins} = this.props
 
@@ -51,14 +68,14 @@ class VerifyDataStep extends PureComponent<Props> {
       authToken,
       type,
       onSaveTelegrafConfig,
-      onIncrementCurrentStepIndex,
+      onDecrementCurrentStepIndex,
       onSetStepStatus,
       stepIndex,
       notify,
     } = this.props
 
     return (
-      <Form onSubmit={onIncrementCurrentStepIndex}>
+      <Form onSubmit={this.handleIncrementStep}>
         <div className="onboarding-step">
           <VerifyDataSwitcher
             notify={notify}
@@ -70,6 +87,7 @@ class VerifyDataStep extends PureComponent<Props> {
             bucket={_.get(setupParams, 'bucket', '')}
             onSetStepStatus={onSetStepStatus}
             stepIndex={stepIndex}
+            onDecrementCurrentStep={onDecrementCurrentStepIndex}
           />
           <OnboardingButtons
             onClickBack={this.handleDecrementStep}
@@ -98,6 +116,29 @@ class VerifyDataStep extends PureComponent<Props> {
     return type
   }
 
+  private handleIncrementStep = () => {
+    const {
+      onIncrementCurrentStepIndex,
+      onSetStepStatus,
+      type,
+      lpStatus,
+    } = this.props
+    const {
+      params: {stepID},
+    } = this.props
+
+    if (
+      type === DataLoaderType.LineProtocol &&
+      lpStatus === RemoteDataState.Error
+    ) {
+      onSetStepStatus(parseInt(stepID, 10), StepStatus.Error)
+    } else {
+      onSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
+    }
+
+    onIncrementCurrentStepIndex()
+  }
+
   private handleDecrementStep = () => {
     const {
       telegrafPlugins,
@@ -124,4 +165,14 @@ class VerifyDataStep extends PureComponent<Props> {
   }
 }
 
-export default VerifyDataStep
+const mstp = ({
+  onboarding: {
+    dataLoaders: {lpStatus},
+  },
+}: AppState): StateProps => ({
+  lpStatus,
+})
+
+export default withRouter<OwnProps>(
+  connect<StateProps, {}, OwnProps>(mstp)(VerifyDataStep)
+)

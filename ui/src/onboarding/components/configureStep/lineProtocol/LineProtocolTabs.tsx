@@ -1,21 +1,11 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
-// Components
-import {
-  Input,
-  InputType,
-  Radio,
-  ButtonShape,
-  Form,
-  Button,
-  ComponentSize,
-  ComponentColor,
-} from 'src/clockface'
-import DragAndDrop from 'src/shared/components/DragAndDrop'
-import TextArea from 'src/clockface/components/inputs/TextArea'
 import PrecisionDropdown from 'src/onboarding/components/configureStep/lineProtocol/PrecisionDropdown'
+import TabSelector from 'src/onboarding/components/configureStep/lineProtocol/TabSelector'
+import TabBody from 'src/onboarding/components/configureStep/lineProtocol/TabBody'
 
 // Types
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'
@@ -69,113 +59,55 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {setPrecision, precision} = this.props
+    const {
+      setPrecision,
+      precision,
+      activeLPTab,
+      tabs,
+      setLineProtocolBody,
+      lineProtocolBody,
+    } = this.props
+
+    const {urlInput} = this.state
+
     return (
       <>
-        {this.tabSelector}
-        <div className={'wizard-step--lp-body'}>{this.tabBody}</div>
-        <PrecisionDropdown setPrecision={setPrecision} precision={precision} />
-        <div className="wizard--button-bar">{this.submitButton}</div>
+        <TabSelector
+          activeLPTab={activeLPTab}
+          tabs={tabs}
+          onClick={this.handleTabClick}
+        />
+
+        <div className="onboarding--admin-user-form">
+          <div className={'wizard-step--lp-body'}>
+            <TabBody
+              onURLChange={this.handleURLChange}
+              activeLPTab={activeLPTab}
+              precision={precision}
+              urlInput={urlInput}
+              lineProtocolBody={lineProtocolBody}
+              setLineProtocolBody={setLineProtocolBody}
+            />
+          </div>
+
+          <PrecisionDropdown
+            setPrecision={setPrecision}
+            precision={precision}
+          />
+        </div>
       </>
     )
   }
 
-  private get tabSelector(): JSX.Element {
-    const {tabs, activeLPTab} = this.props
-    return (
-      <Radio shape={ButtonShape.Default}>
-        {tabs.map(t => (
-          <Radio.Button
-            key={t}
-            id={t}
-            titleText={t}
-            value={t}
-            active={activeLPTab === t}
-            onClick={this.handleTabClick(t)}
-          >
-            {t}
-          </Radio.Button>
-        ))}
-      </Radio>
-    )
+  private handleTabClick = (tab: LineProtocolTab) => {
+    const {setActiveLPTab, setLineProtocolBody} = this.props
+
+    setLineProtocolBody('')
+    setActiveLPTab(tab)
   }
 
-  private get submitButton(): JSX.Element {
-    const {lineProtocolBody} = this.props
-    if (lineProtocolBody) {
-      return (
-        <Button
-          size={ComponentSize.Medium}
-          color={ComponentColor.Primary}
-          text={'submit line protocol'}
-          onClick={this.handleSubmitLineProtocol}
-        />
-      )
-    }
-    return null
-  }
-
-  private handleTabClick = (tab: LineProtocolTab) => () => {
-    const {setActiveLPTab, setLineProtocolBody, activeLPTab} = this.props
-    if (tab !== activeLPTab) {
-      setLineProtocolBody('')
-      setActiveLPTab(tab)
-    }
-  }
-
-  private get tabBody(): JSX.Element {
-    const {setLineProtocolBody, lineProtocolBody, activeLPTab} = this.props
-    const {urlInput} = this.state
-    switch (activeLPTab) {
-      case LineProtocolTab.UploadFile:
-        return (
-          <DragAndDrop
-            submitText="Upload File"
-            handleSubmit={setLineProtocolBody}
-            submitOnDrop={true}
-            submitOnUpload={true}
-          />
-        )
-      case LineProtocolTab.EnterManually:
-        return (
-          <TextArea
-            value={lineProtocolBody}
-            placeholder="Write text here"
-            handleSubmitText={setLineProtocolBody}
-          />
-        )
-      case LineProtocolTab.EnterURL:
-        return (
-          <Form className="onboarding--admin-user-form">
-            <Form.Element label="File URL:">
-              <Input
-                titleText="File URL:"
-                type={InputType.Text}
-                placeholder="http://..."
-                widthPixels={700}
-                value={urlInput}
-                onChange={this.handleURLChange}
-                autoFocus={true}
-              />
-            </Form.Element>
-          </Form>
-        )
-    }
-  }
-
-  private handleURLChange = (e: ChangeEvent<HTMLInputElement>) => {
-    this.setState({urlInput: e.target.value})
-  }
-
-  private handleSubmitLineProtocol = async (): Promise<void> => {
-    const {
-      bucket,
-      org,
-      writeLineProtocolAction,
-      lineProtocolBody,
-      precision,
-    } = this.props
-    writeLineProtocolAction(org, bucket, lineProtocolBody, precision)
+  private handleURLChange = (urlInput: string) => {
+    this.setState({urlInput})
   }
 }
 

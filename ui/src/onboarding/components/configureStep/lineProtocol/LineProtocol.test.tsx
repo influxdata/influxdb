@@ -10,6 +10,7 @@ const setup = (override?) => {
   const props = {
     bucket: 'a',
     org: 'a',
+    setLPStatus: jest.fn(),
     ...override,
   }
   const wrapper = shallow(<LineProtocol {...props} />)

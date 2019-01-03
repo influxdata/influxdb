@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import VerifyDataStep from 'src/onboarding/components/verifyStep/VerifyDataStep'
+import {VerifyDataStep} from 'src/onboarding/components/verifyStep/VerifyDataStep'
 import VerifyDataSwitcher from 'src/onboarding/components/verifyStep/VerifyDataSwitcher'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
@@ -11,11 +11,17 @@ import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 // Constants
-import {defaultOnboardingStepProps, cpuTelegrafPlugin} from 'mocks/dummyData'
+import {
+  defaultOnboardingStepProps,
+  cpuTelegrafPlugin,
+  withRouterProps,
+} from 'mocks/dummyData'
+import {RemoteDataState} from 'src/types'
 
 const setup = (override = {}) => {
   const props = {
     ...defaultOnboardingStepProps,
+    ...withRouterProps,
     type: DataLoaderType.Empty,
     telegrafPlugins: [],
     stepIndex: 4,
@@ -24,6 +30,8 @@ const setup = (override = {}) => {
     onSaveTelegrafConfig: jest.fn(),
     onSetActiveTelegrafPlugin: jest.fn(),
     onSetPluginConfiguration: jest.fn(),
+    lpStatus: RemoteDataState.NotStarted,
+    params: {stepID: '', substepID: ''},
     ...override,
   }
 

@@ -11,6 +11,7 @@ import {
 import {Links} from 'src/types/v2/links'
 import {Task, TaskStatus} from 'src/types/v2/tasks'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
+import {WithRouterProps} from 'react-router'
 import {ConfigurationState} from 'src/types/v2/dataLoaders'
 import {
   TelegrafPluginInputCpu,
@@ -283,6 +284,13 @@ export const defaultOnboardingStepProps: OnboardingStepProps = {
   onCompleteSetup: jest.fn(),
   onExit: jest.fn(),
   onSetSubstepIndex: jest.fn(),
+}
+
+export const withRouterProps: WithRouterProps = {
+  params: {},
+  location: null,
+  routes: null,
+  router: null,
 }
 
 export const token =

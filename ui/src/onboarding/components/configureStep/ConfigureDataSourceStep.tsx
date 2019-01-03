@@ -188,6 +188,8 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       } else {
         onSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
       }
+    } else {
+      onSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
     }
   }
 }
