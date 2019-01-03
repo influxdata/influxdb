@@ -47,7 +47,8 @@ func NewFluxHandler() *FluxHandler {
 		Logger: zap.NewNop(),
 	}
 
-	h.HandlerFunc("POST", fluxPath, h.handlePostQuery)
+	h.HandlerFunc("POST", fluxPath, h.handleQuery)
+	h.HandlerFunc("GET", fluxPath, h.handleQuery)
 	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
 	h.HandlerFunc("POST", "/api/v2/query/analyze", h.postQueryAnalyze)
 	h.HandlerFunc("POST", "/api/v2/query/spec", h.postFluxSpec)
@@ -56,7 +57,7 @@ func NewFluxHandler() *FluxHandler {
 	return h
 }
 
-func (h *FluxHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
+func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	a, err := pcontext.GetAuthorizer(ctx)
