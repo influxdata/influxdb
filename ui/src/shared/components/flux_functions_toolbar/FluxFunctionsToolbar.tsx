@@ -74,7 +74,7 @@ class FluxFunctionsToolbar extends PureComponent<Props, State> {
   private handleUpdateScript = (funcName: string, funcExample: string) => {
     const {activeQueryText, onSetActiveQueryText} = this.props
 
-    if (funcName.startsWith('from')) {
+    if (funcName === 'from') {
       onSetActiveQueryText(`${activeQueryText}\n${funcExample}`)
     } else {
       onSetActiveQueryText(`${activeQueryText}\n  |> ${funcExample}`)
