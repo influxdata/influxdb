@@ -5,10 +5,10 @@ import React, {PureComponent} from 'react'
 import {IndexList} from 'src/clockface'
 
 // Types
-import {User} from 'src/api'
+import {ResourceOwner} from 'src/api'
 
 interface Props {
-  members: User[]
+  members: ResourceOwner[]
   emptyState: JSX.Element
 }
 
@@ -17,10 +17,11 @@ export default class MemberList extends PureComponent<Props> {
     return (
       <IndexList>
         <IndexList.Header>
-          <IndexList.HeaderCell columnName="Name" width="75%" />
-          <IndexList.HeaderCell width="25%" />
+          <IndexList.HeaderCell columnName="Username" width="25%" />
+          <IndexList.HeaderCell columnName="Role" width="25%" />
+          <IndexList.HeaderCell width="50%" />
         </IndexList.Header>
-        <IndexList.Body columnCount={2} emptyState={this.props.emptyState}>
+        <IndexList.Body columnCount={3} emptyState={this.props.emptyState}>
           {this.rows}
         </IndexList.Body>
       </IndexList>
@@ -31,6 +32,7 @@ export default class MemberList extends PureComponent<Props> {
     return this.props.members.map(member => (
       <IndexList.Row key={member.id}>
         <IndexList.Cell>{member.name}</IndexList.Cell>
+        <IndexList.Cell>{member.role}</IndexList.Cell>
         <IndexList.Cell revealOnHover={true}>DELETE</IndexList.Cell>
       </IndexList.Row>
     ))

@@ -31,7 +31,7 @@ import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
 // Types
 import {AppState, Dashboard} from 'src/types/v2'
-import {User, Bucket, Organization, Task, Label} from 'src/api'
+import {ResourceOwner, Bucket, Organization, Task, Label} from 'src/api'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -71,7 +71,7 @@ class OrganizationView extends PureComponent<Props> {
                 url="members_tab"
                 title="Members"
               >
-                <GetOrgResources<User[]>
+                <GetOrgResources<ResourceOwner[]>
                   organization={org}
                   fetcher={getMembers}
                 >
