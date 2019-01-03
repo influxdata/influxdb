@@ -319,7 +319,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     desc:
       'Used to retrieve data from an InfluxDB data source. It returns a stream of tables from the specified bucket. Each unique series is contained within its own table. Each record in the table represents a single point in the series.',
-    example: 'from(bucket: "telegraf/autogen")',
+    example: 'from(bucket: "bucket_name")',
     category: 'Inputs',
     link: 'https://docs.influxdata.com/flux/latest/functions/inputs/from',
   },
