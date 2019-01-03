@@ -161,8 +161,8 @@ func TestService_handleGetBuckets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetBuckets() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetBuckets() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetBuckets() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -282,8 +282,8 @@ func TestService_handleGetBucket(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetBucket() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetBucket() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetBucket() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -373,8 +373,8 @@ func TestService_handlePostBucket(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostBucket() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostBucket() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePostBucket() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -474,8 +474,8 @@ func TestService_handleDeleteBucket(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleDeleteBucket() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleDeleteBucket() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleDeleteBucket() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -764,8 +764,8 @@ func TestService_handlePatchBucket(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePatchBucket() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePatchBucket() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePatchBucket() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -852,8 +852,8 @@ func TestService_handlePostBucketMember(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostBucketMember() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostBucketMember() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePostBucketMember() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -940,8 +940,8 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostBucketOwner() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostBucketOwner() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePostBucketOwner() = ***%s***", tt.name, diff)
 			}
 		})
 	}

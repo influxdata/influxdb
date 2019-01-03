@@ -158,8 +158,8 @@ func TestService_handleGetViews(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetViews() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetViews() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetViews() = ***%s***", tt.name, diff)
 			}
 
 		})
@@ -271,8 +271,8 @@ func TestService_handleGetView(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetView() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetView() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetView() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -370,8 +370,8 @@ func TestService_handlePostViews(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostViews() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostViews() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePostViews() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -468,8 +468,8 @@ func TestService_handleDeleteView(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleDeleteView() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleDeleteView() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleDeleteView() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -640,27 +640,14 @@ func TestService_handlePatchView(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePatchView() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePatchView() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePatchView() = ***%s***", tt.name, diff)
 			}
 		})
 	}
 }
 
-func jsonEqual(s1, s2 string) (eq bool, err error) {
-	var o1, o2 interface{}
-
-	if err = json.Unmarshal([]byte(s1), &o1); err != nil {
-		return
-	}
-	if err = json.Unmarshal([]byte(s2), &o2); err != nil {
-		return
-	}
-
-	return cmp.Equal(o1, o2), nil
-}
-
-func jsonEqual2(s1, s2 string) (eq bool, diff string, err error) {
+func jsonEqual(s1, s2 string) (eq bool, diff string, err error) {
 	var o1, o2 interface{}
 	if s1 == s2 {
 		return true, "", nil
