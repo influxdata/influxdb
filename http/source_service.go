@@ -14,7 +14,6 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/platform"
-	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/julienschmidt/httprouter"
@@ -342,7 +341,10 @@ func decodeGetSourceRequest(ctx context.Context, r *http.Request) (*getSourceReq
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -382,7 +384,10 @@ func decodeDeleteSourceRequest(ctx context.Context, r *http.Request) (*deleteSou
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -460,7 +465,10 @@ func decodePatchSourceRequest(ctx context.Context, r *http.Request) (*patchSourc
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID

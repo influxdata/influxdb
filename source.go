@@ -3,8 +3,8 @@ package platform
 import "context"
 
 const (
-	// ErrSourceNotFound is a chronograf error when a source does not exist.
-	ErrSourceNotFound = ChronografError("source not found")
+	// ErrSourceNotFound is an error message when a source does not exist.
+	ErrSourceNotFound = "source not found"
 )
 
 // SourceType is a string for types of sources.
@@ -48,6 +48,16 @@ type V1SourceFields struct {
 type SourceFields struct {
 	Token string `json:"token"` // Token is the 2.0 authorization token associated with a source
 }
+
+// ops for sources.
+const (
+	OpDefaultSource  = "DefaultSource"
+	OpFindSourceByID = "FindSourceByID"
+	OpFindSources    = "FindSources"
+	OpCreateSource   = "CreateSource"
+	OpUpdateSource   = "UpdateSource"
+	OpDeleteSource   = "DeleteSource"
+)
 
 // SourceService is a service for managing sources.
 type SourceService interface {
