@@ -887,13 +887,13 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'stop',
         desc:
-          'Specifies the exclusive newest time to be included in the results. Defaults to `now`.',
+          'Specifies the exclusive newest time to be included in the results. Defaults to `now()`.',
         type: 'Duration',
       },
     ],
     desc:
       "Filters records based on time bounds. Each input table's records are filtered to contain only records that exist within the time bounds. Each input table's group key value is modified to fit within the time bounds. Tables where all records exists outside the time bounds are filtered entirely.",
-    example: 'range(start: -15m, stop: now)',
+    example: 'range(start: -15m, stop: now())',
     category: 'Transformations',
     link:
       'https://docs.influxdata.com/flux/latest/functions/transformations/range',
