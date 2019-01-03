@@ -306,10 +306,21 @@ func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 	var err error
 	op := getOp(platform.OpCreateBucket)
 	return c.db.Update(func(tx *bolt.Tx) error {
-		if !b.OrganizationID.Valid() {
-			o, err := c.findOrganizationByName(ctx, tx, b.Organization)
-			if err != nil {
-				return err
+		if b.OrganizationID.Valid() {
+			_, pe := c.findOrganizationByID(ctx, tx, b.OrganizationID)
+			if pe != nil {
+				return &platform.Error{
+					Err: pe,
+					Op:  op,
+				}
+			}
+		} else {
+			o, pe := c.findOrganizationByName(ctx, tx, b.Organization)
+			if pe != nil {
+				return &platform.Error{
+					Err: pe,
+					Op:  op,
+				}
 			}
 			b.OrganizationID = o.ID
 		}

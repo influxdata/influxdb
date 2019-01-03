@@ -202,10 +202,21 @@ func (s *Service) FindBuckets(ctx context.Context, filter platform.BucketFilter,
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
 func (s *Service) CreateBucket(ctx context.Context, b *platform.Bucket) error {
-	if !b.OrganizationID.Valid() {
-		o, err := s.findOrganizationByName(ctx, b.Organization)
-		if err != nil {
-			return err
+	if b.OrganizationID.Valid() {
+		_, pe := s.FindOrganizationByID(ctx, b.OrganizationID)
+		if pe != nil {
+			return &platform.Error{
+				Err: pe,
+				Op:  OpPrefix + platform.OpCreateBucket,
+			}
+		}
+	} else {
+		o, pe := s.findOrganizationByName(ctx, b.Organization)
+		if pe != nil {
+			return &platform.Error{
+				Err: pe,
+				Op:  OpPrefix + platform.OpCreateBucket,
+			}
 		}
 		b.OrganizationID = o.ID
 	}
