@@ -300,7 +300,7 @@ export const saveNewScript = () => async (
     dispatch(populateTasks())
   } catch (e) {
     console.error(e)
-    dispatch(notify(taskNotCreated(e.headers['x-influx-error'])))
+    dispatch(notify(taskNotCreated(e.message)))
   }
 }
 
@@ -333,11 +333,7 @@ export const importScript = (script: string, fileName: string) => async (
     dispatch(notify(taskImportSuccess(fileName)))
   } catch (error) {
     console.error(error)
-    const explanation = getDeep<string>(
-      error,
-      'response.headers.x-influx-error',
-      ''
-    )
-    dispatch(notify(taskImportFailed(fileName, explanation)))
+    const message = getDeep<string>(error, 'message', '')
+    dispatch(notify(taskImportFailed(fileName, message)))
   }
 }
