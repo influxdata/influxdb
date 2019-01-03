@@ -40,7 +40,6 @@ UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_
 # All precanned dashboards
 PRECANNED := $(shell find chronograf/canned -name '*.json')
 
-
 # List of binary cmds to build
 CMDS := \
 	bin/$(GOOS)/influx \
