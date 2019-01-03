@@ -9,7 +9,7 @@ import {FluxToolbarFunction} from 'src/types/shared'
 
 interface Props {
   func: FluxToolbarFunction
-  onClickFunction: (s: string) => void
+  onClickFunction: (name: string, example: string) => void
 }
 
 interface State {
@@ -77,7 +77,7 @@ class ToolbarFunction extends PureComponent<Props, State> {
   private handleClickFunction = () => {
     const {func, onClickFunction} = this.props
 
-    onClickFunction(func.example)
+    onClickFunction(func.name, func.example)
   }
 }
 
