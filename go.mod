@@ -79,7 +79,7 @@ require (
 	github.com/hashicorp/vault-plugin-secrets-kv v0.0.0-20181106190520-2236f141171e // indirect
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
-	github.com/influxdata/flux v0.11.0
+	github.com/influxdata/flux v0.12.0
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jefferai/jsonx v0.0.0-20160721235117-9cc31c3135ee // indirect
@@ -146,7 +146,7 @@ require (
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
 	golang.org/x/sys v0.0.0-20181205085412-a5c9d58dba9a
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
-	golang.org/x/tools v0.0.0-20181121193951-91f80e683c10
+	golang.org/x/tools v0.0.0-20181221154417-3ad2d988d5e2
 	google.golang.org/api v0.0.0-20181021000519-a2651947f503
 	google.golang.org/appengine v1.2.0 // indirect
 	google.golang.org/genproto v0.0.0-20181016170114-94acd270e44e // indirect
