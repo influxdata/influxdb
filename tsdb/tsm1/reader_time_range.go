@@ -15,6 +15,10 @@ func (t TimeRange) Less(o TimeRange) bool {
 
 // timeRangesCoverEntries returns true if the time ranges fully cover the entries.
 func timeRangesCoverEntries(merger timeRangeMerger, entries []IndexEntry) (covers bool) {
+	if len(entries) == 0 {
+		return true
+	}
+
 	mustCover := entries[0].MinTime
 	ts, ok := merger.Pop()
 
