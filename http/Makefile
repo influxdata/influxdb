@@ -19,7 +19,9 @@ clean: $(SUBDIRS)
 
 GO_RUN := env GO111MODULE=on go run
 
+ifndef SKIP_CLIENT
 ../ui/src/api/api.ts: $(SOURCES)
 	openapi-generator generate -g typescript-axios -o ../ui/src/api -i cur_swagger.yml
+endif
 
 .PHONY: all clean $(SUBDIRS)
