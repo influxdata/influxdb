@@ -99,7 +99,7 @@
     "jest-runner-tslint": "^1.0.4",
     "jsdom": "^9.0.0",
     "node-sass": "^4.9.3",
-    "parcel": "^1.10.2",
+    "parcel": "^1.11.0",
     "prettier": "^1.14.3",
     "ts-jest": "^23.10.3",
     "tslib": "^1.9.0",
