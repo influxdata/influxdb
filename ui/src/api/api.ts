@@ -1447,10 +1447,10 @@ export interface Logs {
 export interface Macro {
     /**
      * 
-     * @type {UserLinks}
+     * @type {ResourceOwnersLinks}
      * @memberof Macro
      */
-    links?: UserLinks;
+    links?: ResourceOwnersLinks;
     /**
      * 
      * @type {string}
@@ -2191,6 +2191,68 @@ export interface RenamableField {
 /**
  * 
  * @export
+ * @interface ResourceOwner
+ */
+export interface ResourceOwner extends User {
+    /**
+     * 
+     * @type {string}
+     * @memberof ResourceOwner
+     */
+    role?: ResourceOwner.RoleEnum;
+}
+
+/**
+ * @export
+ * @namespace ResourceOwner
+ */
+export namespace ResourceOwner {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum RoleEnum {
+        Owner = 'owner'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface ResourceOwners
+ */
+export interface ResourceOwners {
+    /**
+     * 
+     * @type {ResourceOwnersLinks}
+     * @memberof ResourceOwners
+     */
+    links?: ResourceOwnersLinks;
+    /**
+     * 
+     * @type {Array<ResourceOwner>}
+     * @memberof ResourceOwners
+     */
+    users?: Array<ResourceOwner>;
+}
+
+/**
+ * 
+ * @export
+ * @interface ResourceOwnersLinks
+ */
+export interface ResourceOwnersLinks {
+    /**
+     * 
+     * @type {string}
+     * @memberof ResourceOwnersLinks
+     */
+    self?: string;
+}
+
+/**
+ * 
+ * @export
  * @interface Routes
  */
 export interface Routes {
@@ -2550,10 +2612,10 @@ export interface SourceLinks {
 export interface Sources {
     /**
      * 
-     * @type {UserLinks}
+     * @type {ResourceOwnersLinks}
      * @memberof Sources
      */
-    links?: UserLinks;
+    links?: ResourceOwnersLinks;
     /**
      * 
      * @type {Array<Source>}
@@ -4590,10 +4652,10 @@ export interface User {
     status?: User.StatusEnum;
     /**
      * 
-     * @type {UserLinks}
+     * @type {ResourceOwnersLinks}
      * @memberof User
      */
-    links?: UserLinks;
+    links?: ResourceOwnersLinks;
 }
 
 /**
@@ -4614,29 +4676,15 @@ export namespace User {
 /**
  * 
  * @export
- * @interface UserLinks
- */
-export interface UserLinks {
-    /**
-     * 
-     * @type {string}
-     * @memberof UserLinks
-     */
-    self?: string;
-}
-
-/**
- * 
- * @export
  * @interface Users
  */
 export interface Users {
     /**
      * 
-     * @type {UserLinks}
+     * @type {ResourceOwnersLinks}
      * @memberof Users
      */
-    links?: UserLinks;
+    links?: ResourceOwnersLinks;
     /**
      * 
      * @type {Array<User>}
@@ -8932,7 +8980,7 @@ export const OrganizationsApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        orgsOrgIDMembersGet(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Users> {
+        orgsOrgIDMembersGet(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ResourceOwners> {
             const localVarAxiosArgs = OrganizationsApiAxiosParamCreator(configuration).orgsOrgIDMembersGet(orgID, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -14569,7 +14617,7 @@ export const UsersApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        orgsOrgIDMembersGet(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Users> {
+        orgsOrgIDMembersGet(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ResourceOwners> {
             const localVarAxiosArgs = UsersApiAxiosParamCreator(configuration).orgsOrgIDMembersGet(orgID, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})

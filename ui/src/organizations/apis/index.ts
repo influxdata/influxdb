@@ -1,7 +1,14 @@
 import {orgsAPI, bucketsAPI, dashboardsAPI, taskAPI} from 'src/utils/api'
 
 // Types
-import {Bucket, Dashboard, Task, Organization, User, Label} from 'src/api'
+import {
+  Bucket,
+  Dashboard,
+  Task,
+  Organization,
+  ResourceOwner,
+  Label,
+} from 'src/api'
 
 // CRUD APIs for Organizations and Organization resources
 // i.e. Organization Members, Buckets, Dashboards etc
@@ -44,7 +51,9 @@ export const updateOrg = async (org: Organization): Promise<Organization> => {
 }
 
 // Members
-export const getMembers = async (org: Organization): Promise<User[]> => {
+export const getMembers = async (
+  org: Organization
+): Promise<ResourceOwner[]> => {
   try {
     const {data} = await orgsAPI.orgsOrgIDMembersGet(org.id)
 
