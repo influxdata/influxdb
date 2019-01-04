@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -8,14 +9,27 @@ import TableGraph from 'src/shared/components/tables/TableGraph'
 import TableSidebar from 'src/shared/components/tables/TableSidebar'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
+// Actions
+import {setFieldOptions as setFieldOptionsAction} from 'src/shared/actions/v2/timeMachines'
+
+// Utils
+import {getDeep} from 'src/utils/wrappers'
+import {filterTables} from 'src/shared/utils/filterTables'
+
 // Types
-import {TableView} from 'src/types/v2/dashboards'
+import {TableView, FieldOption} from 'src/types/v2/dashboards'
 import {FluxTable} from 'src/types'
 
-interface Props {
+interface PassedProps {
   tables: FluxTable[]
   properties: TableView
 }
+
+interface DispatchProps {
+  setFieldOptions: typeof setFieldOptionsAction
+}
+
+type Props = PassedProps & DispatchProps
 
 interface State {
   selectedTableName: string
@@ -27,8 +41,19 @@ class TableGraphs extends PureComponent<Props, State> {
     selectedTableName: this.defaultTableName,
   }
 
+  public componentDidMount() {
+    this.updateFieldOptions()
+  }
+
+  public componentDidUpdate(prevProps: Props) {
+    if (!_.isEqual(this.fieldOptions, prevProps.properties.fieldOptions)) {
+      this.updateFieldOptions()
+    }
+  }
+
   public render() {
     const {tables, properties} = this.props
+
     return (
       <div className="time-machine-tables">
         {this.showSidebar && (
@@ -62,6 +87,7 @@ class TableGraphs extends PureComponent<Props, State> {
 
   private handleSelectTable = (selectedTableName: string): void => {
     this.setState({selectedTableName})
+    this.updateFieldOptions()
   }
 
   private get showSidebar(): boolean {
@@ -78,11 +104,55 @@ class TableGraphs extends PureComponent<Props, State> {
 
   private get selectedTable(): FluxTable {
     const {tables} = this.props
-    const selectedTable = tables.find(
+    const selectedTable = filterTables(tables).find(
       t => t.name === this.state.selectedTableName
     )
+
     return selectedTable
+  }
+
+  private updateFieldOptions() {
+    this.props.setFieldOptions(this.fieldOptions)
+  }
+
+  private get fieldOptions(): FieldOption[] {
+    const {fieldOptions} = this.props.properties
+
+    if (fieldOptions.length === 0 || this.isDefaultFieldOptions) {
+      return this.extractFieldOptions()
+    }
+
+    return fieldOptions
+  }
+
+  private extractFieldOptions(): FieldOption[] {
+    return this.headers.map(h => ({
+      internalName: h,
+      displayName: h,
+      visible: true,
+    }))
+  }
+
+  private get headers(): string[] {
+    return getDeep(this.selectedTable, 'data.0', [])
+  }
+
+  private get isDefaultFieldOptions(): boolean {
+    const {fieldOptions} = this.props.properties
+    const internalName = getDeep<string>(fieldOptions, '0.internalName', '')
+
+    return (
+      fieldOptions.length === 1 &&
+      (internalName === 'time' || internalName === '_time')
+    )
   }
 }
 
-export default TableGraphs
+const mdtp: DispatchProps = {
+  setFieldOptions: setFieldOptionsAction,
+}
+
+export default connect<null, DispatchProps, PassedProps>(
+  null,
+  mdtp
+)(TableGraphs)
