@@ -98,7 +98,7 @@ type langRequest struct {
 }
 
 type postFluxASTResponse struct {
-	AST *ast.Program `json:"ast"`
+	AST *ast.Package `json:"ast"`
 }
 
 // postFluxAST returns a flux AST for provided flux string
@@ -112,14 +112,15 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ast, err := parser.NewAST(request.Query)
-	if err != nil {
+	pkg := parser.ParseSource(request.Query)
+	if ast.Check(pkg) > 0 {
+		err := ast.GetError(pkg)
 		EncodeError(ctx, errors.InvalidDataf("invalid AST: %v", err), w)
 		return
 	}
 
 	res := postFluxASTResponse{
-		AST: ast,
+		AST: pkg,
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {

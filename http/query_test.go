@@ -24,7 +24,7 @@ import (
 func TestQueryRequest_WithDefaults(t *testing.T) {
 	type fields struct {
 		Spec    *flux.Spec
-		AST     *ast.Program
+		AST     *ast.Package
 		Query   string
 		Type    string
 		Dialect QueryDialect
@@ -67,7 +67,7 @@ func TestQueryRequest_WithDefaults(t *testing.T) {
 func TestQueryRequest_Validate(t *testing.T) {
 	type fields struct {
 		Spec    *flux.Spec
-		AST     *ast.Program
+		AST     *ast.Package
 		Query   string
 		Type    string
 		Dialect QueryDialect
@@ -181,7 +181,7 @@ func TestQueryRequest_Validate(t *testing.T) {
 
 func Test_toSpec(t *testing.T) {
 	type args struct {
-		p   *ast.Program
+		p   *ast.Package
 		now func() time.Time
 	}
 	tests := []struct {
@@ -193,7 +193,7 @@ func Test_toSpec(t *testing.T) {
 		{
 			name: "ast converts to spec",
 			args: args{
-				p:   &ast.Program{},
+				p:   &ast.Package{},
 				now: func() time.Time { return time.Unix(0, 0) },
 			},
 			want: &flux.Spec{
@@ -203,10 +203,12 @@ func Test_toSpec(t *testing.T) {
 		{
 			name: "bad semantics error",
 			args: args{
-				p: &ast.Program{
-					Body: []ast.Statement{
-						&ast.ReturnStatement{},
-					},
+				p: &ast.Package{
+					Files: []*ast.File{{
+						Body: []ast.Statement{
+							&ast.ReturnStatement{},
+						},
+					}},
 				},
 				now: func() time.Time { return time.Unix(0, 0) },
 			},
@@ -231,7 +233,7 @@ func Test_toSpec(t *testing.T) {
 func TestQueryRequest_proxyRequest(t *testing.T) {
 	type fields struct {
 		Spec    *flux.Spec
-		AST     *ast.Program
+		AST     *ast.Package
 		Query   string
 		Type    string
 		Dialect QueryDialect
@@ -279,7 +281,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 		{
 			name: "valid AST",
 			fields: fields{
-				AST:  &ast.Program{},
+				AST:  &ast.Package{},
 				Type: "flux",
 				Dialect: QueryDialect{
 					Delimiter:      ",",
