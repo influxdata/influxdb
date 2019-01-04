@@ -8,6 +8,7 @@ import CellHeader from 'src/shared/components/cells/CellHeader'
 import CellContext from 'src/shared/components/cells/CellContext'
 import ViewComponent from 'src/shared/components/cells/View'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import Conditional from 'src/shared/components/Conditional'
 
 // Actions
 import {readView} from 'src/dashboards/actions/v2/views'
@@ -111,19 +112,17 @@ class CellComponent extends Component<Props> {
       onEditCell,
     } = this.props
 
-    if (viewStatus !== RemoteDataState.Done) {
-      return null
-    }
-
     return (
-      <ViewComponent
-        view={view}
-        onZoom={onZoom}
-        timeRange={timeRange}
-        autoRefresh={autoRefresh}
-        manualRefresh={manualRefresh}
-        onEditCell={onEditCell}
-      />
+      <Conditional isRendered={viewStatus !== RemoteDataState.Done}>
+        <ViewComponent
+          view={view}
+          onZoom={onZoom}
+          timeRange={timeRange}
+          autoRefresh={autoRefresh}
+          manualRefresh={manualRefresh}
+          onEditCell={onEditCell}
+        />
+      </Conditional>
     )
   }
 
