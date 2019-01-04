@@ -112,3 +112,5 @@ export const DYNAMIC_SOURCE_INFO = {
   id: DYNAMIC_SOURCE,
   link: '',
 }
+
+export const UPDATED_AT_TIME_FORMAT = 'YYYY-MM-DD HH:MM:ss'

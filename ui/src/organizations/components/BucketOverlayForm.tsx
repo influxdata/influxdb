@@ -1,4 +1,4 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 // Components
 import {
   Form,
@@ -7,11 +7,11 @@ import {
   ComponentColor,
   ComponentStatus,
   ButtonType,
+  Grid,
 } from 'src/clockface'
 import Retention from 'src/organizations/components/Retention'
 
 // Types
-import {RetentionRuleTypes} from 'src/types/v2'
 import {BucketRetentionRules} from 'src/api'
 
 interface Props {
@@ -19,10 +19,10 @@ interface Props {
   errorMessage: string
   retentionSeconds: number
   ruleType: BucketRetentionRules.TypeEnum
-  onSubmit: () => void
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void
   onCloseModal: () => void
   onChangeRetentionRule: (seconds: number) => void
-  onChangeRuleType: (t: RetentionRuleTypes) => void
+  onChangeRuleType: (t: BucketRetentionRules.TypeEnum) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
   nameInputStatus: ComponentStatus
   buttonText: string
@@ -46,31 +46,45 @@ export default class BucketOverlayForm extends PureComponent<Props> {
 
     return (
       <Form onSubmit={onSubmit}>
-        <Form.Element label="Name" errorMessage={errorMessage}>
-          <Input
-            placeholder="Give your bucket a name"
-            name="name"
-            autoFocus={true}
-            value={name}
-            onChange={onChangeInput}
-            status={nameInputStatus}
-          />
-        </Form.Element>
-        <Retention
-          type={ruleType}
-          retentionSeconds={retentionSeconds}
-          onChangeRuleType={onChangeRuleType}
-          onChangeRetentionRule={onChangeRetentionRule}
-        />
-        <Form.Footer>
-          <Button
-            text="Cancel"
-            color={ComponentColor.Danger}
-            onClick={onCloseModal}
-            type={ButtonType.Button}
-          />
-          <Button text={buttonText} color={ComponentColor.Primary} />
-        </Form.Footer>
+        <Grid>
+          <Grid.Row>
+            <Grid.Column>
+              <Form.Element label="Name" errorMessage={errorMessage}>
+                <Input
+                  placeholder="Give your bucket a name"
+                  name="name"
+                  autoFocus={true}
+                  value={name}
+                  onChange={onChangeInput}
+                  status={nameInputStatus}
+                />
+              </Form.Element>
+            </Grid.Column>
+            <Grid.Column>
+              <Retention
+                type={ruleType}
+                retentionSeconds={retentionSeconds}
+                onChangeRuleType={onChangeRuleType}
+                onChangeRetentionRule={onChangeRetentionRule}
+              />
+            </Grid.Column>
+            <Grid.Column>
+              <Form.Footer>
+                <Button
+                  text="Cancel"
+                  color={ComponentColor.Danger}
+                  onClick={onCloseModal}
+                  type={ButtonType.Button}
+                />
+                <Button
+                  text={buttonText}
+                  color={ComponentColor.Primary}
+                  type={ButtonType.Submit}
+                />
+              </Form.Footer>
+            </Grid.Column>
+          </Grid.Row>
+        </Grid>
       </Form>
     )
   }

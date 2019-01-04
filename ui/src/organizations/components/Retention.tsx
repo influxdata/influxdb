@@ -12,14 +12,13 @@ import {
   secondsToDuration,
 } from 'src/utils/formatting'
 
-import {RetentionRuleTypes} from 'src/types/v2'
 import {BucketRetentionRules} from 'src/api'
 
 interface Props {
   retentionSeconds: number
   type: BucketRetentionRules.TypeEnum
   onChangeRetentionRule: (seconds: number) => void
-  onChangeRuleType: (type: RetentionRuleTypes) => void
+  onChangeRuleType: (type: BucketRetentionRules.TypeEnum) => void
 }
 
 export default class Retention extends PureComponent<Props> {
@@ -33,14 +32,14 @@ export default class Retention extends PureComponent<Props> {
             <Radio.Button
               active={type === BucketRetentionRules.TypeEnum.Expire}
               onClick={this.handleRadioClick}
-              value={RetentionRuleTypes.Expire}
+              value={BucketRetentionRules.TypeEnum.Expire}
             >
               Periodically
             </Radio.Button>
             <Radio.Button
               active={type === null}
               onClick={this.handleRadioClick}
-              value={RetentionRuleTypes.Forever}
+              value={null}
             >
               Never
             </Radio.Button>
@@ -55,7 +54,7 @@ export default class Retention extends PureComponent<Props> {
     )
   }
 
-  private handleRadioClick = (type: RetentionRuleTypes) => {
+  private handleRadioClick = (type: BucketRetentionRules.TypeEnum) => {
     this.props.onChangeRuleType(type)
   }
 

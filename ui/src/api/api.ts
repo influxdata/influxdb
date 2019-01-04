@@ -7123,13 +7123,14 @@ export const DashboardsApiAxiosParamCreator = function (configuration?: Configur
         /**
          * 
          * @summary Get all dashboards
+         * @param {string} [org] specifies the organization name of the resource
          * @param {string} [owner] specifies the owner id to return resources for
          * @param {'ID' | 'CreatedAt' | 'UpdatedAt'} [sortBy] specifies the owner id to return resources for
          * @param {Array<string>} [id] ID list of dashboards to return. If both this and owner are specified, only ids is used.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        dashboardsGet(owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options: any = {}): RequestArgs {
+        dashboardsGet(org?: string, owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options: any = {}): RequestArgs {
             const localVarPath = `/dashboards`;
             const localVarUrlObj = url.parse(localVarPath, true);
             let baseOptions;
@@ -7139,6 +7140,10 @@ export const DashboardsApiAxiosParamCreator = function (configuration?: Configur
             const localVarRequestOptions = Object.assign({ method: 'GET' }, baseOptions, options);
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+
+            if (org !== undefined) {
+                localVarQueryParameter['org'] = org;
+            }
 
             if (owner !== undefined) {
                 localVarQueryParameter['owner'] = owner;
@@ -7411,14 +7416,15 @@ export const DashboardsApiFp = function(configuration?: Configuration) {
         /**
          * 
          * @summary Get all dashboards
+         * @param {string} [org] specifies the organization name of the resource
          * @param {string} [owner] specifies the owner id to return resources for
          * @param {'ID' | 'CreatedAt' | 'UpdatedAt'} [sortBy] specifies the owner id to return resources for
          * @param {Array<string>} [id] ID list of dashboards to return. If both this and owner are specified, only ids is used.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        dashboardsGet(owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Dashboards> {
-            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsGet(owner, sortBy, id, options);
+        dashboardsGet(org?: string, owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Dashboards> {
+            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsGet(org, owner, sortBy, id, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -7591,14 +7597,15 @@ export const DashboardsApiFactory = function (configuration?: Configuration, bas
         /**
          * 
          * @summary Get all dashboards
+         * @param {string} [org] specifies the organization name of the resource
          * @param {string} [owner] specifies the owner id to return resources for
          * @param {'ID' | 'CreatedAt' | 'UpdatedAt'} [sortBy] specifies the owner id to return resources for
          * @param {Array<string>} [id] ID list of dashboards to return. If both this and owner are specified, only ids is used.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        dashboardsGet(owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any) {
-            return DashboardsApiFp(configuration).dashboardsGet(owner, sortBy, id, options)(axios, basePath);
+        dashboardsGet(org?: string, owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any) {
+            return DashboardsApiFp(configuration).dashboardsGet(org, owner, sortBy, id, options)(axios, basePath);
         },
         /**
          * 
@@ -7790,6 +7797,7 @@ export class DashboardsApi extends BaseAPI {
     /**
      * 
      * @summary Get all dashboards
+     * @param {string} [org] specifies the organization name of the resource
      * @param {string} [owner] specifies the owner id to return resources for
      * @param {'ID' | 'CreatedAt' | 'UpdatedAt'} [sortBy] specifies the owner id to return resources for
      * @param {Array<string>} [id] ID list of dashboards to return. If both this and owner are specified, only ids is used.
@@ -7797,8 +7805,8 @@ export class DashboardsApi extends BaseAPI {
      * @throws {RequiredError}
      * @memberof DashboardsApi
      */
-    public dashboardsGet(owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any) {
-        return DashboardsApiFp(this.configuration).dashboardsGet(owner, sortBy, id, options)(this.axios, this.basePath);
+    public dashboardsGet(org?: string, owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any) {
+        return DashboardsApiFp(this.configuration).dashboardsGet(org, owner, sortBy, id, options)(this.axios, this.basePath);
     }
 
     /**

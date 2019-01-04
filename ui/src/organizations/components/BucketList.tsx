@@ -31,6 +31,8 @@ export default class BucketList extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {buckets} = this.props
+
     return (
       <>
         <IndexList>
@@ -39,7 +41,13 @@ export default class BucketList extends PureComponent<Props, State> {
             <IndexList.HeaderCell columnName="Retention Rule" width="50%" />
           </IndexList.Header>
           <IndexList.Body columnCount={2} emptyState={this.props.emptyState}>
-            {this.rows}
+            {buckets.map(bucket => (
+              <BucketRow
+                key={bucket.id}
+                bucket={bucket}
+                onEditBucket={this.handleStartEdit}
+              />
+            ))}
           </IndexList.Body>
         </IndexList>
         <OverlayTechnology visible={this.isOverlayVisible}>
@@ -51,16 +59,6 @@ export default class BucketList extends PureComponent<Props, State> {
         </OverlayTechnology>
       </>
     )
-  }
-
-  private get rows(): JSX.Element[] {
-    return this.props.buckets.map(bucket => (
-      <BucketRow
-        key={bucket.id}
-        bucket={bucket}
-        onEditBucket={this.handleStartEdit}
-      />
-    ))
   }
 
   private get bucket(): PrettyBucket {

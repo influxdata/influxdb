@@ -11,25 +11,26 @@ import {
   ComponentSpacer,
   IndexList,
 } from 'src/clockface'
-import DefaultToggle from 'src/dashboards/components/DashboardDefaultToggle'
 
 // Types
 import {Dashboard} from 'src/types/v2'
 import {Alignment} from 'src/clockface'
+import moment from 'moment'
+
+// Constants
+import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
 
 interface Props {
   dashboard: Dashboard
-  defaultDashboardLink: string
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
-  onSetDefaultDashboard: (dashboardLink: string) => void
 }
 
 export default class DashboardsIndexTableRow extends PureComponent<Props> {
   public render() {
-    const {dashboard, onSetDefaultDashboard, defaultDashboardLink} = this.props
-    const {id, name, links} = dashboard
+    const {dashboard} = this.props
+    const {id, name} = dashboard
 
     return (
       <IndexList.Row key={`dashboard-id--${id}`} disabled={false}>
@@ -37,13 +38,8 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
           <Link to={`/dashboards/${id}`}>{name}</Link>
         </IndexList.Cell>
         <IndexList.Cell>You</IndexList.Cell>
-        <IndexList.Cell>12h Ago</IndexList.Cell>
-        <IndexList.Cell alignment={Alignment.Center}>
-          <DefaultToggle
-            dashboardLink={links.self}
-            defaultDashboardLink={defaultDashboardLink}
-            onChangeDefault={onSetDefaultDashboard}
-          />
+        <IndexList.Cell>
+          {moment(dashboard.meta.updatedAt).format(UPDATED_AT_TIME_FORMAT)}
         </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Right}>

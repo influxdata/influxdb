@@ -1,12 +1,16 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
+import moment from 'moment'
 
 // Components
 import {IndexList} from 'src/clockface'
 
 // Types
 import {Dashboard} from 'src/types/v2'
+
+// Constants
+import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
 
 interface Props {
   dashboards: Dashboard[]
@@ -18,8 +22,8 @@ export default class DashboardList extends PureComponent<Props> {
     return (
       <IndexList>
         <IndexList.Header>
-          <IndexList.HeaderCell columnName="Name" width="75%" />
-          <IndexList.HeaderCell width="25%" />
+          <IndexList.HeaderCell columnName="name" width="50%" />
+          <IndexList.HeaderCell columnName="modified" width="50%" />
         </IndexList.Header>
         <IndexList.Body columnCount={2} emptyState={this.props.emptyState}>
           {this.rows}
@@ -29,12 +33,14 @@ export default class DashboardList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    return this.props.dashboards.map(dashboard => (
-      <IndexList.Row key={dashboard.id}>
+    return this.props.dashboards.map(d => (
+      <IndexList.Row key={d.id}>
         <IndexList.Cell>
-          <Link to={`/dashboards/${dashboard.id}`}>{dashboard.name}</Link>
+          <Link to={`/dashboards/${d.id}`}>{d.name}</Link>
         </IndexList.Cell>
-        <IndexList.Cell revealOnHover={true}>DELETE</IndexList.Cell>
+        <IndexList.Cell revealOnHover={true}>
+          {moment(d.meta.updatedAt).format(UPDATED_AT_TIME_FORMAT)}
+        </IndexList.Cell>
       </IndexList.Row>
     ))
   }

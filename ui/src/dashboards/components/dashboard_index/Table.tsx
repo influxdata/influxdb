@@ -31,6 +31,10 @@ interface Props {
   onSetDefaultDashboard: (dashboardLink: string) => void
 }
 
+interface DatedDashboard extends Dashboard {
+  modified: Date
+}
+
 interface State {
   sortKey: SortKey
   sortDirection: Sort
@@ -72,14 +76,8 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
             columnName={headerKeys[2]}
             sortKey={headerKeys[2]}
             sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
-            width="10%"
+            width="30%"
             onClick={this.handleClickColumn}
-          />
-          <IndexList.HeaderCell
-            columnName={headerKeys[3]}
-            sortKey={headerKeys[3]}
-            width="10%"
-            alignment={Alignment.Center}
           />
           <IndexList.HeaderCell
             columnName=""
@@ -101,18 +99,17 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   private get sortedRows(): JSX.Element {
     const {
       dashboards,
-      onSetDefaultDashboard,
-      defaultDashboardLink,
       onExportDashboard,
       onCloneDashboard,
       onDeleteDashboard,
     } = this.props
+
     const {sortKey, sortDirection} = this.state
 
     if (dashboards.length) {
       return (
-        <SortingHat<Dashboard>
-          list={dashboards}
+        <SortingHat<DatedDashboard>
+          list={this.datedDashboards}
           sortKey={sortKey}
           direction={sortDirection}
         >
@@ -122,8 +119,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onCloneDashboard={onCloneDashboard}
               onExportDashboard={onExportDashboard}
               onDeleteDashboard={onDeleteDashboard}
-              defaultDashboardLink={defaultDashboardLink}
-              onSetDefaultDashboard={onSetDefaultDashboard}
             />
           )}
         </SortingHat>
@@ -131,6 +126,13 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
     }
 
     return null
+  }
+
+  private get datedDashboards(): DatedDashboard[] {
+    return this.props.dashboards.map(d => ({
+      ...d,
+      modified: new Date(d.meta.updatedAt),
+    }))
   }
 
   private get emptyState(): JSX.Element {

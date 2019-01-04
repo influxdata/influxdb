@@ -1050,6 +1050,11 @@ paths:
       summary: Get all dashboards
       parameters:
           - in: query
+            name: org
+            description: specifies the organization name of the resource
+            schema:
+              type: string
+          - in: query
             name: owner
             description: specifies the owner id to return resources for
             schema:
