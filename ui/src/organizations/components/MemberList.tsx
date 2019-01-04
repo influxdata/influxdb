@@ -33,7 +33,7 @@ export default class MemberList extends PureComponent<Props> {
       <IndexList.Row key={member.id}>
         <IndexList.Cell>{member.name}</IndexList.Cell>
         <IndexList.Cell>{member.role}</IndexList.Cell>
-        <IndexList.Cell revealOnHover={true}>DELETE</IndexList.Cell>
+        <IndexList.Cell />
       </IndexList.Row>
     ))
   }
