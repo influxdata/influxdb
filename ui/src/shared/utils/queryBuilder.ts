@@ -1,4 +1,4 @@
-import {BuilderConfig} from 'src/types/v2'
+import {BuilderConfig, TimeRange} from 'src/types/v2'
 import {FUNCTIONS} from 'src/shared/constants/queryBuilder'
 
 const DEFAULT_WINDOW_INTERVAL = '10s'
@@ -13,6 +13,18 @@ const WINDOW_INTERVALS = {
   '2d': '1h',
   '7d': '1h',
   '30d': '6h',
+}
+
+export const timeRangeVariables = (
+  timeRange: TimeRange
+): {[key: string]: string} => {
+  const result: {[key: string]: string} = {}
+
+  result.timeRangeStart = timeRange.lower
+    .replace('now()', '')
+    .replace(/\s/g, '')
+
+  return result
 }
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
