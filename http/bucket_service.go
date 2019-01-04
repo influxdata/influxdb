@@ -188,17 +188,26 @@ func newBucketUpdate(pb *platform.BucketUpdate) *bucketUpdate {
 type bucketResponse struct {
 	Links map[string]string `json:"links"`
 	bucket
+	Labels []platform.Label `json:"labels"`
 }
 
-func newBucketResponse(b *platform.Bucket) *bucketResponse {
-	return &bucketResponse{
+func newBucketResponse(b *platform.Bucket, labels []*platform.Label) *bucketResponse {
+	res := &bucketResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/buckets/%s", b.ID),
-			"log":  fmt.Sprintf("/api/v2/buckets/%s/log", b.ID),
-			"org":  fmt.Sprintf("/api/v2/orgs/%s", b.OrganizationID),
+			"self":   fmt.Sprintf("/api/v2/buckets/%s", b.ID),
+			"log":    fmt.Sprintf("/api/v2/buckets/%s/log", b.ID),
+			"labels": fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
+			"org":    fmt.Sprintf("/api/v2/orgs/%s", b.OrganizationID),
 		},
 		bucket: *newBucket(b),
+		Labels: []platform.Label{},
 	}
+
+	for _, l := range labels {
+		res.Labels = append(res.Labels, *l)
+	}
+
+	return res
 }
 
 type bucketsResponse struct {
@@ -206,10 +215,11 @@ type bucketsResponse struct {
 	Buckets []*bucketResponse     `json:"buckets"`
 }
 
-func newBucketsResponse(opts platform.FindOptions, f platform.BucketFilter, bs []*platform.Bucket) *bucketsResponse {
+func newBucketsResponse(ctx context.Context, opts platform.FindOptions, f platform.BucketFilter, bs []*platform.Bucket, labelService platform.LabelService) *bucketsResponse {
 	rs := make([]*bucketResponse, 0, len(bs))
 	for _, b := range bs {
-		rs = append(rs, newBucketResponse(b))
+		labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: b.ID})
+		rs = append(rs, newBucketResponse(b, labels))
 	}
 	return &bucketsResponse{
 		Links:   newPagingLinks(bucketsPath, opts, f, len(bs)),
@@ -232,7 +242,7 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newBucketResponse(req.Bucket)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newBucketResponse(req.Bucket, []*platform.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -283,7 +293,13 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newBucketResponse(b)); err != nil {
+	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: b.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newBucketResponse(b, labels)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -367,7 +383,7 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(req.opts, req.filter, bs)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(ctx, req.opts, req.filter, bs, h.LabelService)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -424,7 +440,13 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newBucketResponse(b)); err != nil {
+	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: b.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newBucketResponse(b, labels)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}

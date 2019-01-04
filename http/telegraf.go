@@ -76,34 +76,45 @@ func NewTelegrafHandler(
 	return h
 }
 
-type link struct {
-	Self string `json:"self"`
+type telegrafLinks struct {
+	Self   string `json:"self"`
+	Labels string `json:"labels"`
 }
 
 type telegrafResponse struct {
 	*platform.TelegrafConfig
-	Links link `json:"links"`
+	Labels []platform.Label `json:"labels"`
+	Links  telegrafLinks    `json:"links"`
 }
 
 type telegrafResponses struct {
 	TelegrafConfigs []telegrafResponse `json:"configurations"`
 }
 
-func newTelegrafResponse(tc *platform.TelegrafConfig) telegrafResponse {
-	return telegrafResponse{
+func newTelegrafResponse(tc *platform.TelegrafConfig, labels []*platform.Label) telegrafResponse {
+	res := telegrafResponse{
 		TelegrafConfig: tc,
-		Links: link{
-			Self: fmt.Sprintf("/api/v2/telegrafs/%s", tc.ID.String()),
+		Links: telegrafLinks{
+			Self:   fmt.Sprintf("/api/v2/telegrafs/%s", tc.ID),
+			Labels: fmt.Sprintf("/api/v2/telegrafs/%s/labels", tc.ID),
 		},
+		Labels: []platform.Label{},
 	}
+
+	for _, l := range labels {
+		res.Labels = append(res.Labels, *l)
+	}
+
+	return res
 }
 
-func newTelegrafResponses(tcs []*platform.TelegrafConfig) telegrafResponses {
+func newTelegrafResponses(ctx context.Context, tcs []*platform.TelegrafConfig, labelService platform.LabelService) telegrafResponses {
 	resp := telegrafResponses{
 		TelegrafConfigs: make([]telegrafResponse, len(tcs)),
 	}
 	for i, c := range tcs {
-		resp.TelegrafConfigs[i] = newTelegrafResponse(c)
+		labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: c.ID})
+		resp.TelegrafConfigs[i] = newTelegrafResponse(c, labels)
 	}
 	return resp
 }
@@ -134,7 +145,7 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 		EncodeError(ctx, err, w)
 		return
 	}
-	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponses(tcs)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponses(ctx, tcs, h.LabelService)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -163,7 +174,13 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(tc.TOML()))
 	case "application/json":
-		if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc)); err != nil {
+		labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: tc.ID})
+		if err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc, labels)); err != nil {
 			logEncodingError(h.Logger, r, err)
 			return
 		}
@@ -241,7 +258,7 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newTelegrafResponse(tc)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newTelegrafResponse(tc, []*platform.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -268,7 +285,13 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc)); err != nil {
+	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: tc.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc, labels)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
