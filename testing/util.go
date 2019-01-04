@@ -13,19 +13,19 @@ func diffPlatformErrors(name string, actual, expected error, opPrefix string, t 
 	}
 
 	if expected == nil && actual != nil {
-		t.Errorf("%s failed, unexpected error %s", name, actual.Error())
+		t.Errorf("unexpected error %s", actual.Error())
 	}
 
 	if expected != nil && actual == nil {
-		t.Errorf("%s failed, expected error %s but received nil", name, expected.Error())
+		t.Errorf("expected error %s but received nil", expected.Error())
 	}
 
 	if platform.ErrorCode(expected) != platform.ErrorCode(actual) {
-		t.Errorf("%s failed, expected error code %q but received %q", name, platform.ErrorCode(expected), platform.ErrorCode(actual))
+		t.Errorf("expected error code %q but received %q", platform.ErrorCode(expected), platform.ErrorCode(actual))
 	}
 
 	if platform.ErrorMessage(expected) != platform.ErrorMessage(actual) {
-		t.Errorf("%s failed, expected error message %q but received %q", name, platform.ErrorMessage(expected), platform.ErrorMessage(actual))
+		t.Errorf("expected error message %q but received %q", platform.ErrorMessage(expected), platform.ErrorMessage(actual))
 	}
 }
 

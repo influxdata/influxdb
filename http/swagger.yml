@@ -1855,6 +1855,92 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}/cells/{cellID}/view':
+    get:
+      tags:
+        - Cells
+        - Dashboards
+        - Views
+      summary: Retrieve the view for a cell in a dashboard
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard
+        - in: path
+          name: cellID
+          schema:
+            type: string
+          required: true
+          description: ID of cell
+      responses:
+        '200':
+          description: A dashboard cells view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/View"
+        '404':
+          description: cell or dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Cells
+        - Dashboards
+        - Views
+      summary: Update the view for a cell
+      requestBody:
+          description: updates the view for a cell
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/View"
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+        - in: path
+          name: cellID
+          schema:
+            type: string
+          required: true
+          description: ID of cell to update
+      responses:
+        '200':
+          description: Updated cell view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/View"
+        '404':
+          description: cell or dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/labels':
     get:
       tags:

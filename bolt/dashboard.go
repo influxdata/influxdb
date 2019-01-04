@@ -1,6 +1,7 @@
 package bolt
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"sync"
@@ -12,7 +13,8 @@ import (
 )
 
 var (
-	dashboardBucket = []byte("dashboardsv2")
+	dashboardBucket         = []byte("dashboardsv2")
+	dashboardCellViewBucket = []byte("dashboardcellviewsv1")
 )
 
 // TODO(desa): what do we want these to be?
@@ -31,6 +33,9 @@ var _ platform.DashboardOperationLogService = (*Client)(nil)
 
 func (c *Client) initializeDashboards(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(dashboardBucket)); err != nil {
+		return err
+	}
+	if _, err := tx.CreateBucketIfNotExists([]byte(dashboardCellViewBucket)); err != nil {
 		return err
 	}
 	return nil
@@ -196,7 +201,7 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 		for _, cell := range d.Cells {
 			cell.ID = c.IDGenerator.ID()
 
-			if err := c.createViewIfNotExists(ctx, tx, cell, platform.AddDashboardCellOptions{}); err != nil {
+			if err := c.createCellView(ctx, tx, d.ID, cell.ID); err != nil {
 				return err
 			}
 		}
@@ -219,36 +224,12 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 	return nil
 }
 
-func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *platform.Cell, opts platform.AddDashboardCellOptions) *platform.Error {
-	if opts.UsingView.Valid() {
-		// Creates a hard copy of a view
-		v, pe := c.findViewByID(ctx, tx, opts.UsingView)
-		if pe != nil {
-			return pe
-		}
-		view, err := c.copyView(ctx, tx, v.ID)
-		if err != nil {
-			return err
-		}
-		cell.ViewID = view.ID
-		return nil
-	} else if cell.ViewID.Valid() {
-		// Creates a soft copy of a view
-		_, err := c.findViewByID(ctx, tx, cell.ViewID)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
+func (c *Client) createCellView(ctx context.Context, tx *bolt.Tx, dashID, cellID platform.ID) error {
 	// If not view exists create the view
 	view := &platform.View{}
-	if err := c.createView(ctx, tx, view); err != nil {
-		return err
-	}
-	cell.ViewID = view.ID
-
-	return nil
+	// TODO: this is temporary until we can fully remove the view service.
+	view.ID = cellID
+	return c.putDashboardCellView(ctx, tx, dashID, cellID, view)
 }
 
 // ReplaceDashboardCells updates the positions of each cell in a dashboard concurrently.
@@ -272,18 +253,10 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 				}
 			}
 
-			cl, ok := ids[cell.ID.String()]
-			if !ok {
+			if _, ok := ids[cell.ID.String()]; !ok {
 				return &platform.Error{
 					Code: platform.EConflict,
 					Msg:  "cannot replace cells that were not already present",
-				}
-			}
-
-			if cl.ViewID != cell.ViewID {
-				return &platform.Error{
-					Code: platform.EInvalid,
-					Msg:  "cannot update view id in replace",
 				}
 			}
 		}
@@ -312,7 +285,7 @@ func (c *Client) AddDashboardCell(ctx context.Context, id platform.ID, cell *pla
 			return err
 		}
 		cell.ID = c.IDGenerator.ID()
-		if err := c.createViewIfNotExists(ctx, tx, cell, opts); err != nil {
+		if err := c.createCellView(ctx, tx, id, cell.ID); err != nil {
 			return err
 		}
 
@@ -360,7 +333,7 @@ func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID, cellID pl
 			}
 		}
 
-		if err := c.deleteView(ctx, tx, d.Cells[idx].ViewID); err != nil {
+		if err := c.deleteDashboardCellView(ctx, tx, d.ID, d.Cells[idx].ID); err != nil {
 			return &platform.Error{
 				Err: err,
 				Op:  op,
@@ -384,6 +357,133 @@ func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID, cellID pl
 		}
 		return nil
 	})
+}
+
+// GetDashboardCellView retrieves the view for a dashboard cell.
+func (c *Client) GetDashboardCellView(ctx context.Context, dashboardID, cellID platform.ID) (*platform.View, error) {
+	var v *platform.View
+	err := c.db.View(func(tx *bolt.Tx) error {
+		view, err := c.findDashboardCellView(ctx, tx, dashboardID, cellID)
+		if err != nil {
+			return err
+		}
+
+		v = view
+		return nil
+	})
+
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpGetDashboardCellView),
+		}
+	}
+
+	return v, nil
+}
+
+func (c *Client) findDashboardCellView(ctx context.Context, tx *bolt.Tx, dashboardID, cellID platform.ID) (*platform.View, error) {
+	k, err := encodeDashboardCellViewID(dashboardID, cellID)
+	if err != nil {
+		return nil, platform.NewError(platform.WithErrorErr(err))
+	}
+	v := tx.Bucket(dashboardCellViewBucket).Get(k)
+	if len(v) == 0 {
+		return nil, platform.NewError(platform.WithErrorCode(platform.ENotFound), platform.WithErrorMsg(platform.ErrViewNotFound))
+	}
+
+	view := &platform.View{}
+	if err := json.Unmarshal(v, view); err != nil {
+		return nil, platform.NewError(platform.WithErrorErr(err))
+	}
+
+	return view, nil
+}
+
+func (c *Client) deleteDashboardCellView(ctx context.Context, tx *bolt.Tx, dashboardID, cellID platform.ID) error {
+	k, err := encodeDashboardCellViewID(dashboardID, cellID)
+	if err != nil {
+		return platform.NewError(platform.WithErrorErr(err))
+	}
+
+	if err := tx.Bucket(dashboardCellViewBucket).Delete(k); err != nil {
+		return platform.NewError(platform.WithErrorErr(err))
+	}
+
+	return nil
+}
+
+func (c *Client) putDashboardCellView(ctx context.Context, tx *bolt.Tx, dashboardID, cellID platform.ID, view *platform.View) error {
+	k, err := encodeDashboardCellViewID(dashboardID, cellID)
+	if err != nil {
+		return platform.NewError(platform.WithErrorErr(err))
+	}
+
+	v, err := json.Marshal(view)
+	if err != nil {
+		return platform.NewError(platform.WithErrorErr(err))
+	}
+
+	if err := tx.Bucket(dashboardCellViewBucket).Put(k, v); err != nil {
+		return platform.NewError(platform.WithErrorErr(err))
+	}
+
+	return nil
+}
+
+func encodeDashboardCellViewID(dashID, cellID platform.ID) ([]byte, error) {
+	did, err := dashID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	cid, err := cellID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	buf := bytes.NewBuffer(nil)
+	if _, err := buf.Write(did); err != nil {
+		return nil, err
+	}
+
+	if _, err := buf.Write(cid); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+// UpdateDashboardCellView updates the view for a dashboard cell.
+func (c *Client) UpdateDashboardCellView(ctx context.Context, dashboardID, cellID platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
+	var v *platform.View
+
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		view, err := c.findDashboardCellView(ctx, tx, dashboardID, cellID)
+		if err != nil {
+			return err
+		}
+
+		if err := upd.Apply(view); err != nil {
+			return err
+		}
+
+		if err := c.putDashboardCellView(ctx, tx, dashboardID, cellID, view); err != nil {
+			return err
+		}
+
+		v = view
+		return nil
+	})
+
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpUpdateDashboardCellView),
+		}
+	}
+
+	return v, nil
 }
 
 // UpdateDashboardCell udpates a cell on a dashboard.
@@ -444,6 +544,12 @@ func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID pl
 // PutDashboard will put a dashboard without setting an ID.
 func (c *Client) PutDashboard(ctx context.Context, d *platform.Dashboard) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
+		for _, cell := range d.Cells {
+			if err := c.createCellView(ctx, tx, d.ID, cell.ID); err != nil {
+				return err
+			}
+		}
+
 		return c.putDashboard(ctx, tx, d)
 	})
 }
@@ -551,7 +657,7 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 		return pe
 	}
 	for _, cell := range d.Cells {
-		if err := c.deleteView(ctx, tx, cell.ViewID); err != nil {
+		if err := c.deleteDashboardCellView(ctx, tx, d.ID, cell.ID); err != nil {
 			return &platform.Error{
 				Err: err,
 			}

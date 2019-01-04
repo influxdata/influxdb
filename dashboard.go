@@ -14,15 +14,17 @@ const ErrCellNotFound = "cell not found"
 
 // ops for dashboard service.
 const (
-	OpFindDashboardByID     = "FindDashboardByID"
-	OpFindDashboards        = "FindDashboards"
-	OpCreateDashboard       = "CreateDashboard"
-	OpUpdateDashboard       = "UpdateDashboard"
-	OpAddDashboardCell      = "AddDashboardCell"
-	OpRemoveDashboardCell   = "RemoveDashboardCell"
-	OpUpdateDashboardCell   = "UpdateDashboardCell"
-	OpDeleteDashboard       = "DeleteDashboard"
-	OpReplaceDashboardCells = "ReplaceDashboardCells"
+	OpFindDashboardByID       = "FindDashboardByID"
+	OpFindDashboards          = "FindDashboards"
+	OpCreateDashboard         = "CreateDashboard"
+	OpUpdateDashboard         = "UpdateDashboard"
+	OpAddDashboardCell        = "AddDashboardCell"
+	OpRemoveDashboardCell     = "RemoveDashboardCell"
+	OpUpdateDashboardCell     = "UpdateDashboardCell"
+	OpGetDashboardCellView    = "GetDashboardCellView"
+	OpUpdateDashboardCellView = "UpdateDashboardCellView"
+	OpDeleteDashboard         = "DeleteDashboard"
+	OpReplaceDashboardCells   = "ReplaceDashboardCells"
 )
 
 // DashboardService represents a service for managing dashboard data.
@@ -49,6 +51,12 @@ type DashboardService interface {
 
 	// UpdateDashboardCell replaces the dashboard cell with the provided ID.
 	UpdateDashboardCell(ctx context.Context, dashboardID, cellID ID, upd CellUpdate) (*Cell, error)
+
+	// GetDashboardCellView retrieves a dashboard cells view.
+	GetDashboardCellView(ctx context.Context, dashboardID, cellID ID) (*View, error)
+
+	// UpdateDashboardCellView retrieves a dashboard cells view.
+	UpdateDashboardCellView(ctx context.Context, dashboardID, cellID ID, upd ViewUpdate) (*View, error)
 
 	// DeleteDashboard removes a dashboard by ID.
 	DeleteDashboard(ctx context.Context, id ID) error
@@ -104,12 +112,11 @@ func SortDashboards(by string, ds []*Dashboard) {
 
 // Cell holds positional information about a cell on dashboard and a reference to a cell.
 type Cell struct {
-	ID     ID    `json:"id,omitempty"`
-	X      int32 `json:"x"`
-	Y      int32 `json:"y"`
-	W      int32 `json:"w"`
-	H      int32 `json:"h"`
-	ViewID ID    `json:"viewID"`
+	ID ID    `json:"id,omitempty"`
+	X  int32 `json:"x"`
+	Y  int32 `json:"y"`
+	W  int32 `json:"w"`
+	H  int32 `json:"h"`
 }
 
 // DashboardFilter is a filter for dashboards.
@@ -157,11 +164,10 @@ type AddDashboardCellOptions struct {
 
 // CellUpdate is the patch structure for a cell.
 type CellUpdate struct {
-	X      *int32 `json:"x"`
-	Y      *int32 `json:"y"`
-	W      *int32 `json:"w"`
-	H      *int32 `json:"h"`
-	ViewID ID     `json:"viewID"`
+	X *int32 `json:"x"`
+	Y *int32 `json:"y"`
+	W *int32 `json:"w"`
+	H *int32 `json:"h"`
 }
 
 // Apply applies an update to a Cell.
@@ -182,16 +188,12 @@ func (u CellUpdate) Apply(c *Cell) error {
 		c.H = *u.H
 	}
 
-	if u.ViewID.Valid() {
-		c.ViewID = u.ViewID
-	}
-
 	return nil
 }
 
 // Valid returns an error if the cell update is invalid.
 func (u CellUpdate) Valid() *Error {
-	if u.H == nil && u.W == nil && u.Y == nil && u.X == nil && !u.ViewID.Valid() {
+	if u.H == nil && u.W == nil && u.Y == nil && u.X == nil {
 		return &Error{
 			Code: EInvalid,
 			Msg:  "must update at least one attribute",

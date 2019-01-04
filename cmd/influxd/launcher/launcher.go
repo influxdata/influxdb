@@ -233,7 +233,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		orgSvc           platform.OrganizationService             = m.boltClient
 		authSvc          platform.AuthorizationService            = m.boltClient
 		userSvc          platform.UserService                     = m.boltClient
-		viewSvc          platform.ViewService                     = m.boltClient
 		macroSvc         platform.MacroService                    = m.boltClient
 		bucketSvc        platform.BucketService                   = m.boltClient
 		sourceSvc        platform.SourceService                   = m.boltClient
@@ -394,7 +393,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		BucketOperationLogService:       bucketLogSvc,
 		UserOperationLogService:         userLogSvc,
 		OrganizationOperationLogService: orgLogSvc,
-		ViewService:                     viewSvc,
 		SourceService:                   sourceSvc,
 		MacroService:                    macroSvc,
 		BasicAuthService:                basicAuthSvc,
