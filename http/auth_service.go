@@ -13,7 +13,6 @@ import (
 
 	"github.com/influxdata/platform"
 	platcontext "github.com/influxdata/platform/context"
-	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -389,7 +388,10 @@ func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAu
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -460,7 +462,10 @@ func decodeSetAuthorizationStatusRequest(ctx context.Context, r *http.Request) (
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -471,12 +476,6 @@ func decodeSetAuthorizationStatusRequest(ctx context.Context, r *http.Request) (
 	a := &setAuthorizationStatusRequest{}
 	if err := json.NewDecoder(r.Body).Decode(a); err != nil {
 		return nil, err
-	}
-
-	switch a.Status {
-	case platform.Active, platform.Inactive:
-	default:
-		return nil, kerrors.InvalidDataf("unknown status option")
 	}
 
 	return &updateAuthorizationRequest{
@@ -513,7 +512,10 @@ func decodeDeleteAuthorizationRequest(ctx context.Context, r *http.Request) (*de
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
