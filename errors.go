@@ -85,21 +85,51 @@ func (e *Error) Error() string {
 func ErrorCode(err error) string {
 	if err == nil {
 		return ""
-	} else if e, ok := err.(*Error); ok && e.Code != "" {
+	}
+
+	e, ok := err.(*Error)
+	if !ok {
+		return EInternal
+	}
+
+	if e == nil {
+		return ""
+	}
+
+	if e.Code != "" {
 		return e.Code
-	} else if ok && e.Err != nil {
+	}
+
+	if e.Err != nil {
 		return ErrorCode(e.Err)
 	}
+
 	return EInternal
 }
 
 // ErrorOp returns the op of the error, if available; otherwise return empty string.
 func ErrorOp(err error) string {
-	if e, ok := err.(*Error); ok && e.Op != "" {
+	if err == nil {
+		return ""
+	}
+
+	e, ok := err.(*Error)
+	if !ok {
+		return ""
+	}
+
+	if e == nil {
+		return ""
+	}
+
+	if e.Op != "" {
 		return e.Op
-	} else if ok && e.Err != nil {
+	}
+
+	if e.Err != nil {
 		return ErrorOp(e.Err)
 	}
+
 	return ""
 }
 
@@ -108,11 +138,25 @@ func ErrorOp(err error) string {
 func ErrorMessage(err error) string {
 	if err == nil {
 		return ""
-	} else if e, ok := err.(*Error); ok && e.Msg != "" {
+	}
+
+	e, ok := err.(*Error)
+	if !ok {
+		return "An internal error has occurred."
+	}
+
+	if e == nil {
+		return ""
+	}
+
+	if e.Msg != "" {
 		return e.Msg
-	} else if ok && e.Err != nil {
+	}
+
+	if e.Err != nil {
 		return ErrorMessage(e.Err)
 	}
+
 	return "An internal error has occurred."
 }
 

@@ -60,7 +60,7 @@ func TestErrorMsg(t *testing.T) {
 	}
 	for _, c := range cases {
 		if c.msg != c.err.Error() {
-			t.Fatalf("%s failed, want %s, got %s", c.name, c.msg, c.err.Error())
+			t.Errorf("%s failed, want %s, got %s", c.name, c.msg, c.err.Error())
 		}
 	}
 }
@@ -73,6 +73,10 @@ func TestErrorMessage(t *testing.T) {
 	}{
 		{
 			name: "nil error",
+		},
+		{
+			name: "nil error of type *platform.Error",
+			err:  (*platform.Error)(nil),
 		},
 		{
 			name: "simple error",
@@ -92,7 +96,7 @@ func TestErrorMessage(t *testing.T) {
 	}
 	for _, c := range cases {
 		if result := platform.ErrorMessage(c.err); c.want != result {
-			t.Fatalf("%s failed, want %s, got %s", c.name, c.want, result)
+			t.Errorf("%s failed, want %s, got %s", c.name, c.want, result)
 		}
 	}
 }
@@ -105,6 +109,10 @@ func TestErrorOp(t *testing.T) {
 	}{
 		{
 			name: "nil error",
+		},
+		{
+			name: "nil error of type *platform.Error",
+			err:  (*platform.Error)(nil),
 		},
 		{
 			name: "simple error",
@@ -129,7 +137,7 @@ func TestErrorOp(t *testing.T) {
 	}
 	for _, c := range cases {
 		if result := platform.ErrorOp(c.err); c.want != result {
-			t.Fatalf("%s failed, want %s, got %s", c.name, c.want, result)
+			t.Errorf("%s failed, want %s, got %s", c.name, c.want, result)
 		}
 	}
 }
@@ -141,6 +149,10 @@ func TestErrorCode(t *testing.T) {
 	}{
 		{
 			name: "nil error",
+		},
+		{
+			name: "nil error of type *platform.Error",
+			err:  (*platform.Error)(nil),
 		},
 		{
 			name: "simple error",
@@ -165,7 +177,7 @@ func TestErrorCode(t *testing.T) {
 	}
 	for _, c := range cases {
 		if result := platform.ErrorCode(c.err); c.want != result {
-			t.Fatalf("%s failed, want %s, got %s", c.name, c.want, result)
+			t.Errorf("%s failed, want %s, got %s", c.name, c.want, result)
 		}
 	}
 }
@@ -237,17 +249,17 @@ func TestJSON(t *testing.T) {
 		result, err := json.Marshal(c.err)
 		// encode testing
 		if err != nil {
-			t.Fatalf("%s encode failed, want err: %v, should be nil", c.name, err)
+			t.Errorf("%s encode failed, want err: %v, should be nil", c.name, err)
 		}
 
 		if string(result) != c.encoded {
-			t.Fatalf("%s encode failed, want result: %s, got %s", c.name, c.encoded, string(result))
+			t.Errorf("%s encode failed, want result: %s, got %s", c.name, c.encoded, string(result))
 		}
 		// decode testing
 		got := new(platform.Error)
 		err = json.Unmarshal(result, got)
 		if err != nil {
-			t.Fatalf("%s decode failed, want err: %v, should be nil", c.name, err)
+			t.Errorf("%s decode failed, want err: %v, should be nil", c.name, err)
 		}
 		decodeEqual(t, c.err, got, "decode: "+c.name)
 	}
@@ -255,20 +267,20 @@ func TestJSON(t *testing.T) {
 
 func decodeEqual(t *testing.T, want, result *platform.Error, caseName string) {
 	if want.Code != result.Code {
-		t.Fatalf("%s code failed, want %s, got %s", caseName, want.Code, result.Code)
+		t.Errorf("%s code failed, want %s, got %s", caseName, want.Code, result.Code)
 	}
 	if want.Op != result.Op {
-		t.Fatalf("%s op failed, want %s, got %s", caseName, want.Op, result.Op)
+		t.Errorf("%s op failed, want %s, got %s", caseName, want.Op, result.Op)
 	}
 	if want.Msg != result.Msg {
-		t.Fatalf("%s msg failed, want %s, got %s", caseName, want.Msg, result.Msg)
+		t.Errorf("%s msg failed, want %s, got %s", caseName, want.Msg, result.Msg)
 	}
 	if want.Err != nil {
 		if _, ok := want.Err.(*platform.Error); ok {
 			decodeEqual(t, want.Err.(*platform.Error), result.Err.(*platform.Error), caseName)
 		} else {
 			if want.Err.Error() != result.Err.Error() {
-				t.Fatalf("%s Err failed, want %s, got %s", caseName, want.Err.Error(), result.Err.Error())
+				t.Errorf("%s Err failed, want %s, got %s", caseName, want.Err.Error(), result.Err.Error())
 			}
 		}
 	}
