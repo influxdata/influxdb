@@ -121,7 +121,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "organizationID": "7e55e118dbabb1ed",
       "name": "example",
       "retentionRules": [{"type": "expire", "everySeconds": 86400}],
-			"labels": [
+      "labels": [
         {
           "resourceID": "c0175f0077a77005",
           "name": "label",
@@ -710,7 +710,7 @@ func TestService_handlePatchBucket(t *testing.T) {
     "org": "/api/v2/orgs/020f755c3c082000",
     "self": "/api/v2/buckets/020f755c3c082000",
     "log": "/api/v2/buckets/020f755c3c082000/log",
-		"labels": "/api/v2/buckets/020f755c3c082000/labels"
+    "labels": "/api/v2/buckets/020f755c3c082000/labels"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
