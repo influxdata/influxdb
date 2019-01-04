@@ -5,11 +5,11 @@ import {Link} from 'react-router'
 // Components
 import {
   Button,
-  ComponentColor,
   IconFont,
   ComponentSize,
   ComponentSpacer,
   IndexList,
+  ConfirmationButton,
 } from 'src/clockface'
 
 // Types
@@ -29,7 +29,7 @@ interface Props {
 
 export default class DashboardsIndexTableRow extends PureComponent<Props> {
   public render() {
-    const {dashboard} = this.props
+    const {dashboard, onDeleteDashboard} = this.props
     const {id, name} = dashboard
 
     return (
@@ -55,11 +55,12 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
               icon={IconFont.Duplicate}
               onClick={this.handleClone}
             />
-            <Button
-              size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Danger}
+            <ConfirmationButton
               text="Delete"
-              onClick={this.handleDelete}
+              size={ComponentSize.ExtraSmall}
+              onConfirm={onDeleteDashboard}
+              returnValue={dashboard}
+              confirmText="Click to Confirm"
             />
           </ComponentSpacer>
         </IndexList.Cell>
@@ -75,10 +76,5 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
   private handleClone = () => {
     const {onCloneDashboard, dashboard} = this.props
     onCloneDashboard(dashboard)
-  }
-
-  private handleDelete = () => {
-    const {onDeleteDashboard, dashboard} = this.props
-    onDeleteDashboard(dashboard)
   }
 }
