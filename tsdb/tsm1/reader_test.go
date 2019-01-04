@@ -1182,7 +1182,6 @@ func TestTSMReader_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
 	defer r.Close()
 }
 
-
 func TestCompacted_NotFull(t *testing.T) {
 	dir := mustTempDir()
 	defer os.RemoveAll(dir)
@@ -1549,5 +1548,73 @@ func TestTSMReader_References(t *testing.T) {
 
 	if err := r.Remove(); err != nil {
 		t.Fatalf("unexpected error removing reader: %v", err)
+	}
+}
+
+func TestTSMReader_DeletePrefix(t *testing.T) {
+	dir := mustTempDir()
+	defer os.RemoveAll(dir)
+	f := mustTempFile(dir)
+
+	// create data in a tsm file
+	w, err := NewTSMWriter(f)
+	fatalIfErr(t, "creating writer", err)
+
+	err = w.Write([]byte("cpu"), []Value{
+		NewValue(0, int64(1)),
+		NewValue(5, int64(2)),
+		NewValue(10, int64(3)),
+		NewValue(15, int64(4)),
+	})
+	fatalIfErr(t, "writing", err)
+
+	err = w.WriteIndex()
+	fatalIfErr(t, "writing index", err)
+
+	err = w.Close()
+	fatalIfErr(t, "closing", err)
+
+	// open the tsm file and delete the prefix
+	f, err = os.Open(f.Name())
+	fatalIfErr(t, "opening", err)
+
+	r, err := NewTSMReader(f)
+	fatalIfErr(t, "creating reader", err)
+
+	err = r.DeletePrefix([]byte("c"), 0, 5)
+	fatalIfErr(t, "deleting prefix", err)
+
+	values, err := r.ReadAll([]byte("cpu"))
+	fatalIfErr(t, "reading values", err)
+	if got, exp := len(values), 2; got != exp {
+		t.Fatalf("wrong number of values: %d but wanted: %d", got, exp)
+	}
+	if got, exp := values[0], NewValue(10, int64(3)); got != exp {
+		t.Fatalf("wrong value: %q but wanted %q", got, exp)
+	}
+	if got, exp := values[1], NewValue(15, int64(4)); got != exp {
+		t.Fatalf("wrong value: %q but wanted %q", got, exp)
+	}
+
+	err = r.Close()
+	fatalIfErr(t, "closing reader", err)
+
+	// open the tsm file and check that the deletes still happened
+	f, err = os.Open(f.Name())
+	fatalIfErr(t, "opening", err)
+
+	r, err = NewTSMReader(f)
+	fatalIfErr(t, "creating reader", err)
+
+	values, err = r.ReadAll([]byte("cpu"))
+	fatalIfErr(t, "reading values", err)
+	if got, exp := len(values), 2; got != exp {
+		t.Fatalf("wrong number of values: %d but wanted: %d", got, exp)
+	}
+	if got, exp := values[0], NewValue(10, int64(3)); got != exp {
+		t.Fatalf("wrong value: %q but wanted %q", got, exp)
+	}
+	if got, exp := values[1], NewValue(15, int64(4)); got != exp {
+		t.Fatalf("wrong value: %q but wanted %q", got, exp)
 	}
 }

@@ -143,10 +143,6 @@ func (t *Tombstoner) AddPrefix(key []byte) error {
 
 // AddPrefixRange adds a prefix-based tombstone key with an explicit range.
 func (t *Tombstoner) AddPrefixRange(key []byte, min, max int64) error {
-	if t.FilterFn != nil && !t.FilterFn(key) {
-		return nil
-	}
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

@@ -109,6 +109,9 @@ type TSMFile interface {
 	// DeleteRange removes the values for keys between timestamps min and max.
 	DeleteRange(keys [][]byte, min, max int64) error
 
+	// DeletePrefix removes the values for keys beginning with prefix.
+	DeletePrefix(prefix []byte, min, max int64) error
+
 	// HasTombstones returns true if file contains values that have been deleted.
 	HasTombstones() bool
 

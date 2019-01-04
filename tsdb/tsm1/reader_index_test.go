@@ -218,6 +218,25 @@ func TestIndirectIndex_DeletePrefix(t *testing.T) {
 	check(t, ind.ContainsValue([]byte("cpu2"), 16), false)
 }
 
+func TestIndirectIndex_DeletePrefix_NoMatch(t *testing.T) {
+	check := func(t *testing.T, got, exp bool) {
+		t.Helper()
+		if exp != got {
+			t.Fatalf("expected: %v but got: %v", exp, got)
+		}
+	}
+
+	index := NewIndexWriter()
+	index.Add([]byte("cpu"), BlockInteger, 0, 10, 10, 20)
+	ind := loadIndex(t, index)
+
+	ind.DeletePrefix([]byte("b"), 5, 5)
+	ind.DeletePrefix([]byte("d"), 5, 5)
+
+	check(t, ind.Contains([]byte("cpu")), true)
+	check(t, ind.ContainsValue([]byte("cpu"), 5), true)
+}
+
 //
 // indirectIndex benchmarks
 //

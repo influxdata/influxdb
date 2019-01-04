@@ -453,9 +453,15 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) {
 	// next until after we've checked the key, so keep a "first" flag.
 	first := true
 	iter := d.ro.Iterator()
-	iter.Seek(prefix, &d.b)
 	for {
-		if (!first && !iter.Next()) || !bytes.HasPrefix(iter.Key(&d.b), prefix) {
+		if first {
+			if _, ok := iter.Seek(prefix, &d.b); !ok {
+				break
+			}
+		} else if !iter.Next() {
+			break
+		}
+		if !bytes.HasPrefix(iter.Key(&d.b), prefix) {
 			break
 		}
 		first = false
