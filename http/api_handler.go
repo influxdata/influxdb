@@ -25,6 +25,7 @@ type APIHandler struct {
 	TaskHandler          *TaskHandler
 	TelegrafHandler      *TelegrafHandler
 	QueryHandler         *FluxHandler
+	ProtoHandler         *ProtoHandler
 	WriteHandler         *WriteHandler
 	SetupHandler         *SetupHandler
 	SessionHandler       *SessionHandler
@@ -63,6 +64,7 @@ type APIBackend struct {
 	SecretService                   platform.SecretService
 	LookupService                   platform.LookupService
 	ChronografService               *server.Service
+	ProtoService                    platform.ProtoService
 }
 
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
@@ -132,6 +134,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.QueryHandler.Logger = b.Logger.With(zap.String("handler", "query"))
 	h.QueryHandler.ProxyQueryService = b.ProxyQueryService
 
+	h.ProtoHandler = NewProtoHandler(NewProtoBackend(b))
+
 	h.ChronografHandler = NewChronografHandler(b.ChronografService)
 
 	return h
@@ -149,6 +153,7 @@ var apiLinks = map[string]interface{}{
 	"macros": "/api/v2/macros",
 	"me":     "/api/v2/me",
 	"orgs":   "/api/v2/orgs",
+	"protos": "/api/v2/protos",
 	"query": map[string]string{
 		"self":        "/api/v2/query",
 		"ast":         "/api/v2/query/ast",
@@ -259,6 +264,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/macros") {
 		h.MacroHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v2/protos") {
+		h.ProtoHandler.ServeHTTP(w, r)
 		return
 	}
 
