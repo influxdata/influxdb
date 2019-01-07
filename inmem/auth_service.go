@@ -195,15 +195,19 @@ func (s *Service) SetAuthorizationStatus(ctx context.Context, id platform.ID, st
 	op := OpPrefix + platform.OpSetAuthorizationStatus
 	a, err := s.FindAuthorizationByID(ctx, id)
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+			Op:  op,
+		}
 	}
 
 	switch status {
 	case platform.Active, platform.Inactive:
 	default:
 		return &platform.Error{
-			Msg: "unknown authorization status",
-			Op:  op,
+			Code: platform.EInvalid,
+			Msg:  "unknown authorization status",
+			Op:   op,
 		}
 	}
 

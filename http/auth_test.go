@@ -686,6 +686,10 @@ func TestAuthorizationService_DeleteAuthorization(t *testing.T) {
 	platformtesting.DeleteAuthorization(initAuthorizationService, t)
 }
 
+func TestAuthorizationService_UpdateAuthorizationStatus(t *testing.T) {
+	platformtesting.UpdateAuthorizationStatus(initAuthorizationService, t)
+}
+
 func MustMarshal(o interface{}) []byte {
 	b, _ := json.Marshal(o)
 	return b
