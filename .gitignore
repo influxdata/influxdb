@@ -1,3 +1,6 @@
+# Keep editor-specific, non-project specific ignore rules in global .gitignore:
+# https://help.github.com/articles/ignoring-files/#create-a-global-gitignore
+
 vendor
 .netrc
 .vscode
@@ -29,3 +32,87 @@ ui/src/api/.openapi-generator-ignore
 ui/src/api/.openapi-generator/VERSION
 ui/src/api/git_push.sh
 
+# The rest of the file is the .gitignore from the original influxdb repository,
+# copied here to prevent mistakenly checking in any binary files
+# that may be present but previously ignored if you cloned/developed before v2.
+
+*~
+src/
+
+config.json
+/bin/
+
+/query/a.out*
+
+# ignore generated files.
+cmd/influxd/version.go
+
+# executables
+
+*.test
+
+influx_tsm
+**/influx_tsm
+!**/influx_tsm/
+
+influx_stress
+**/influx_stress
+!**/influx_stress/
+
+influxd
+**/influxd
+!**/influxd/
+
+influx
+**/influx
+!**/influx/
+
+influxdb
+**/influxdb
+!**/influxdb/
+
+influx_inspect
+**/influx_inspect
+!**/influx_inspect/
+
+/benchmark-tool
+/main
+/benchmark-storage
+godef
+gosym
+gocode
+inspect-raft
+
+# dependencies
+out_rpm/
+packages/
+
+# autconf
+autom4te.cache/
+config.log
+config.status
+
+# log file
+influxdb.log
+benchmark.log
+
+# config file
+config.toml
+
+# test data files
+integration/migration_data/
+test-logs/
+
+# man outputs
+man/*.xml
+man/*.1
+man/*.1.gz
+
+# test outputs
+/test-results.xml
+
+# profile data
+/prof
+
+# vendored files
+/vendor
