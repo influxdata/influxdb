@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import VEOHeaderName from 'src/dashboards/components/VEOHeaderName'
+import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import {
   ButtonShape,
   Button,
@@ -27,7 +27,7 @@ class VEOHeader extends PureComponent<Props> {
       <div className="veo-header">
         <Page.Header fullWidth={true}>
           <Page.Header.Left>
-            <VEOHeaderName name={name} onRename={onSetName} />
+            <RenamablePageTitle name={name} onRename={onSetName} />
           </Page.Header.Left>
           <Page.Header.Right>
             <Button

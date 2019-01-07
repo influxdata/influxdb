@@ -86,7 +86,7 @@ type NewDefaultDashboard = Pick<
     cells: NewDefaultCell[]
   }
 >
-export const DEFAULT_DASHBOARD_NAME = 'Name This Dashboard'
+export const DEFAULT_DASHBOARD_NAME = 'Name this Dashboard'
 export const NEW_DASHBOARD: NewDefaultDashboard = {
   name: DEFAULT_DASHBOARD_NAME,
   cells: [NEW_DEFAULT_DASHBOARD_CELL],

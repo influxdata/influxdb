@@ -7,7 +7,7 @@ import {Page} from 'src/pageLayout'
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
-import RenameDashboard from 'src/dashboards/components/rename_dashboard/RenameDashboard'
+import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import {Button, ButtonShape, ComponentColor, IconFont} from 'src/clockface'
 
 // Actions
@@ -121,7 +121,10 @@ class DashboardHeader extends Component<Props> {
 
     if (dashboard) {
       return (
-        <RenameDashboard onRename={onRenameDashboard} name={activeDashboard} />
+        <RenamablePageTitle
+          onRename={onRenameDashboard}
+          name={activeDashboard}
+        />
       )
     }
 
