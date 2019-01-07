@@ -1,6 +1,6 @@
-# InfluxData Platform [![CircleCI](https://circleci.com/gh/influxdata/platform.svg?style=svg)](https://circleci.com/gh/influxdata/platform)
+# InfluxDB [![CircleCI](https://circleci.com/gh/influxdata/influxdb.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb)
 
-This is the [monorepo](https://danluu.com/monorepo/) for InfluxData Platform, a.k.a. Influx 2.0 OSS.
+This is the [monorepo](https://danluu.com/monorepo/) for InfluxDB 2.0 OSS.
 
 ## Installation
 
@@ -14,7 +14,7 @@ For information about modules, please refer to the [wiki](https://github.com/gol
 
 ## Introducing Flux
 
-We recently announced Flux, the MIT-licensed data scripting language (and rename for IFQL). The source for Flux is [in this repository under `query`](query#flux---influx-data-language). Learn more about Flux from [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
+We recently announced Flux, the MIT-licensed data scripting language (and rename for IFQL). The source for Flux is [available on GitHub](https://github.com/influxdata/flux). Learn more about Flux from [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
 
 ## CI and Static Analysis
 
@@ -24,7 +24,7 @@ All pull requests will run through CI, which is currently hosted by Circle.
 Community contributors should be able to see the outcome of this process by looking at the checks on their PR.
 Please fix any issues to ensure a prompt review from members of the team.
 
-The Platform project is used internally in a number of proprietary InfluxData products, and as such, PRs and changes need to be tested internally.
+The InfluxDB project is used internally in a number of proprietary InfluxData products, and as such, PRs and changes need to be tested internally.
 This can take some time, and is not really visible to community contributors.
 
 ### Static Analysis
