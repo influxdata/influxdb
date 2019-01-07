@@ -23,10 +23,10 @@ describe('fluxTablesToDygraph', () => {
     const fluxTables = parseResponse(MISMATCHED)
     const actual = fluxTablesToDygraph(fluxTables)
     const expected = [
-      [new Date('2018-06-04T17:12:25Z'), 1, undefined],
-      [new Date('2018-06-04T17:12:35Z'), 2, undefined],
-      [new Date('2018-06-05T17:12:25Z'), undefined, 10],
-      [new Date('2018-06-05T17:12:35Z'), undefined, 11],
+      [new Date('2018-06-04T17:12:25Z'), 1, null],
+      [new Date('2018-06-04T17:12:35Z'), 2, null],
+      [new Date('2018-06-05T17:12:25Z'), null, 10],
+      [new Date('2018-06-05T17:12:35Z'), null, 11],
     ]
 
     expect(actual.dygraphsData).toEqual(expected)
@@ -88,12 +88,11 @@ describe('fluxTablesToDygraph', () => {
     const actual = fluxTablesToDygraph(fluxTables)
 
     expect(actual.dygraphsData).toEqual([
-      [new Date('2018-12-10T18:29:48.000Z'), undefined, 4589981696],
-      [new Date('2018-12-10T18:29:58.000Z'), 4906213376, undefined],
-      [new Date('2018-12-10T18:40:18.000Z'), undefined, 4318040064],
-      [new Date('2018-12-10T18:54:08.000Z'), 5860683776, undefined],
+      [new Date('2018-12-10T18:29:48.000Z'), null, 4589981696],
+      [new Date('2018-12-10T18:29:58.000Z'), 4906213376, null],
+      [new Date('2018-12-10T18:40:18.000Z'), null, 4318040064],
+      [new Date('2018-12-10T18:54:08.000Z'), 5860683776, null],
     ])
-
     expect(actual.labels).toEqual([
       'time',
       '_value[result=0][_field=active][_measurement=mem][host=oox4k.local]',
