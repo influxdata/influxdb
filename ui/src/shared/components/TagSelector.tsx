@@ -13,6 +13,7 @@ import {
   selectTagValue,
   searchTagValues,
   removeTagSelector,
+  setSearchTerm,
 } from 'src/shared/actions/v2/queryBuilder'
 
 // Utils
@@ -40,13 +41,15 @@ interface StateProps {
   values: string[]
   valuesStatus: RemoteDataState
   selectedValues: string[]
+  searchTerm: string
 }
 
 interface DispatchProps {
-  onSelectValue: (index: number, value: string) => void
-  onSelectTag: (index: number, tag: string) => void
-  onSearchValues: (index: number, searchTerm: string) => void
-  onRemoveTagSelector: (index: number) => void
+  onSelectValue: typeof selectTagValue
+  onSelectTag: typeof selectTagKey
+  onSearchValues: typeof searchTagValues
+  onRemoveTagSelector: typeof removeTagSelector
+  onSetSearchTerm: typeof setSearchTerm
 }
 
 interface OwnProps {
@@ -55,13 +58,7 @@ interface OwnProps {
 
 type Props = StateProps & DispatchProps & OwnProps
 
-interface State {
-  searchTerm: string
-}
-
-class TagSelector extends PureComponent<Props, State> {
-  public state: State = {searchTerm: ''}
-
+class TagSelector extends PureComponent<Props> {
   private debouncer = new DefaultDebouncer()
 
   public render() {
@@ -69,8 +66,14 @@ class TagSelector extends PureComponent<Props, State> {
   }
 
   private get body() {
-    const {index, keys, keysStatus, selectedKey, emptyText} = this.props
-    const {searchTerm} = this.state
+    const {
+      index,
+      keys,
+      keysStatus,
+      selectedKey,
+      emptyText,
+      searchTerm,
+    } = this.props
 
     if (keysStatus === RemoteDataState.NotStarted) {
       return <div className="tag-selector--empty">{emptyText}</div>
@@ -178,25 +181,28 @@ class TagSelector extends PureComponent<Props, State> {
   }
 
   private handleSearch = (e: ChangeEvent<HTMLInputElement>) => {
+    const {onSetSearchTerm, index} = this.props
     const {value} = e.target
 
-    this.setState({searchTerm: value}, () => {
-      this.debouncer.call(this.emitSearch, SEARCH_DEBOUNCE_MS)
-    })
+    onSetSearchTerm(index, value)
+    this.debouncer.call(this.emitSearch, SEARCH_DEBOUNCE_MS)
   }
 
   private emitSearch = () => {
     const {index, onSearchValues} = this.props
-    const {searchTerm} = this.state
 
-    onSearchValues(index, searchTerm)
+    onSearchValues(index)
   }
 }
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
-  const {keys, keysStatus, values, valuesStatus} = getActiveTimeMachine(
-    state
-  ).queryBuilder.tags[ownProps.index]
+  const {
+    keys,
+    keysStatus,
+    values,
+    valuesStatus,
+    searchTerm,
+  } = getActiveTimeMachine(state).queryBuilder.tags[ownProps.index]
 
   const tags = getActiveQuery(state).builderConfig.tags
   const {key: selectedKey, values: selectedValues} = tags[ownProps.index]
@@ -217,6 +223,7 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     values,
     valuesStatus,
     selectedValues,
+    searchTerm,
   }
 }
 
@@ -225,6 +232,7 @@ const mdtp = {
   onSelectTag: selectTagKey,
   onSearchValues: searchTagValues,
   onRemoveTagSelector: removeTagSelector,
+  onSetSearchTerm: setSearchTerm,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

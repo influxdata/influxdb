@@ -8,6 +8,7 @@ import {
 import {
   getActiveQuerySource,
   getActiveQuery,
+  getActiveTimeMachine,
 } from 'src/shared/selectors/timeMachines'
 
 // Types
@@ -30,6 +31,7 @@ export type Action =
   | AddTagSelectorAction
   | RemoveTagSelectorAction
   | SelectFunctionAction
+  | SetSearchTermAction
 
 interface SetBuilderBucketsStatusAction {
   type: 'SET_BUILDER_BUCKETS_STATUS'
@@ -169,6 +171,19 @@ export const selectFunction = (name: string): SelectFunctionAction => ({
   payload: {name},
 })
 
+interface SetSearchTermAction {
+  type: 'SET_BUILDER_SEARCH_TERM'
+  payload: {index: number; searchTerm: string}
+}
+
+export const setSearchTerm = (
+  index: number,
+  searchTerm: string
+): SetSearchTermAction => ({
+  type: 'SET_BUILDER_SEARCH_TERM',
+  payload: {index, searchTerm},
+})
+
 export const loadBuckets = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -262,12 +277,15 @@ const loadTagSelectorValues = (index: number) => async (
 
   try {
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
+    const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
+      .searchTerm
     const values = await fetcher.findValues(
       index,
       queryURL,
       buckets[0],
       tagPredicates,
-      key
+      key,
+      searchTerm
     )
 
     const {values: selectedValues} = tags[index]
@@ -323,8 +341,11 @@ export const selectTagKey = (index: number, key: string) => async (
   dispatch(loadTagSelectorValues(index))
 }
 
-// TODO
-export const searchTagValues = (/* index: number, searchTerm: string */) => async () => {}
+export const searchTagValues = (index: number) => async (
+  dispatch: Dispatch<Action>
+) => {
+  dispatch(loadTagSelectorValues(index))
+}
 
 export const addTagSelector = () => async (
   dispatch: Dispatch<Action>,
