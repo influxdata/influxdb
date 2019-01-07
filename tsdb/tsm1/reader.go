@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 
 	"github.com/influxdata/platform/pkg/file"
+	"go.uber.org/zap"
 )
 
 // ErrFileInUse is returned when attempting to remove or close a TSM file that is still being used.
@@ -27,6 +28,7 @@ type TSMReader struct {
 	refs   int64
 	refsWG sync.WaitGroup
 
+	logger          *zap.Logger
 	madviseWillNeed bool // Hint to the kernel with MADV_WILLNEED.
 	mu              sync.RWMutex
 
@@ -124,9 +126,17 @@ var WithMadviseWillNeed = func(willNeed bool) tsmReaderOption {
 	}
 }
 
+var WithTSMReaderLogger = func(logger *zap.Logger) tsmReaderOption {
+	return func(r *TSMReader) {
+		r.logger = logger
+	}
+}
+
 // NewTSMReader returns a new TSMReader from the given file.
 func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
-	t := &TSMReader{}
+	t := &TSMReader{
+		logger: zap.NewNop(),
+	}
 	for _, option := range options {
 		option(t)
 	}
@@ -138,6 +148,7 @@ func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 	t.size = stat.Size()
 	t.lastModified = stat.ModTime().UnixNano()
 	t.accessor = &mmapAccessor{
+		logger:       t.logger,
 		f:            f,
 		mmapWillNeed: t.madviseWillNeed,
 	}
@@ -606,7 +617,8 @@ func (a BatchDeleters) Rollback() error {
 // indirectIndex is a TSMIndex that uses a raw byte slice representation of an index.  This
 // implementation can be used for indexes that may be MMAPed into memory.
 type indirectIndex struct {
-	mu sync.RWMutex
+	mu     sync.RWMutex
+	logger *zap.Logger
 
 	// indirectIndex works a follows.  Assuming we have an index structure in memory as
 	// the diagram below:
@@ -707,7 +719,7 @@ func (d *indirectIndex) ReadEntries(key []byte, entries []IndexEntry) ([]IndexEn
 func (d *indirectIndex) Entry(key []byte, timestamp int64) *IndexEntry {
 	entries, err := d.ReadEntries(key, nil)
 	if err != nil {
-		// TODO(jeff): log this somehow? we have an invalid entry in the tsm index
+		d.logger.Error("error reading tsm index key", zap.String("key", fmt.Sprintf("%q", key)))
 		return nil
 	}
 	for _, entry := range entries {
@@ -974,7 +986,7 @@ func (d *indirectIndex) ContainsValue(key []byte, timestamp int64) bool {
 
 	entries, err := d.ReadEntries(key, nil)
 	if err != nil {
-		// TODO(jeff): log this somehow? we have an invalid entry in the tsm index
+		d.logger.Error("error reading tsm index key", zap.String("key", fmt.Sprintf("%q", key)))
 		return false
 	}
 
@@ -1146,6 +1158,7 @@ type mmapAccessor struct {
 	accessCount uint64 // Counter incremented everytime the mmapAccessor is accessed
 	freeCount   uint64 // Counter to determine whether the accessor can free its resources
 
+	logger       *zap.Logger
 	mmapWillNeed bool // If true then mmap advise value MADV_WILLNEED will be provided the kernel for b.
 
 	mu sync.RWMutex
@@ -1201,6 +1214,7 @@ func (m *mmapAccessor) init() (*indirectIndex, error) {
 	if err := m.index.UnmarshalBinary(m.b[indexStart:indexOfsPos]); err != nil {
 		return nil, err
 	}
+	m.index.logger = m.logger
 
 	// Allow resources to be freed immediately if requested
 	m.incAccess()

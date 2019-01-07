@@ -586,7 +586,9 @@ func (f *FileStore) Open() error {
 			defer f.openLimiter.Release()
 
 			start := time.Now()
-			df, err := NewTSMReader(file, WithMadviseWillNeed(f.tsmMMAPWillNeed))
+			df, err := NewTSMReader(file,
+				WithMadviseWillNeed(f.tsmMMAPWillNeed),
+				WithTSMReaderLogger(f.logger))
 			f.logger.Info("Opened file",
 				zap.String("path", file.Name()),
 				zap.Int("id", idx),
@@ -812,7 +814,9 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			}
 		}
 
-		tsm, err := NewTSMReader(fd, WithMadviseWillNeed(f.tsmMMAPWillNeed))
+		tsm, err := NewTSMReader(fd,
+			WithMadviseWillNeed(f.tsmMMAPWillNeed),
+			WithTSMReaderLogger(f.logger))
 		if err != nil {
 			return err
 		}
