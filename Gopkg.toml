@@ -72,7 +72,7 @@
 
 [[constraint]]
   name = "github.com/influxdata/flux"
-  version = "0.11.0"
+  version = "0.12.0"
 
 [[constraint]]
   name = "github.com/influxdata/platform"
