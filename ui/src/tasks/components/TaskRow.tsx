@@ -7,10 +7,10 @@ import {
   ComponentSpacer,
   Alignment,
   Button,
-  ComponentColor,
   ComponentSize,
   SlideToggle,
   IndexList,
+  ConfirmationButton,
 } from 'src/clockface'
 
 // Utils
@@ -35,7 +35,8 @@ interface Props {
 
 class TaskRow extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {task} = this.props
+    const {task, onDelete} = this.props
+
     return (
       <IndexList.Row disabled={!this.isTaskActive}>
         <IndexList.Cell>
@@ -64,11 +65,12 @@ class TaskRow extends PureComponent<Props & WithRouterProps> {
               icon={IconFont.Export}
               onClick={this.handleExport}
             />
-            <Button
+            <ConfirmationButton
               size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Danger}
               text="Delete"
-              onClick={this.handleDelete}
+              confirmText="Click to Confirm"
+              onConfirm={onDelete}
+              returnValue={task}
             />
           </ComponentSpacer>
         </IndexList.Cell>
@@ -80,10 +82,6 @@ class TaskRow extends PureComponent<Props & WithRouterProps> {
     e.preventDefault()
 
     this.props.onSelect(this.props.task)
-  }
-
-  private handleDelete = () => {
-    this.props.onDelete(this.props.task)
   }
 
   private handleExport = () => {

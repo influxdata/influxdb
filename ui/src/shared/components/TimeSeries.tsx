@@ -33,6 +33,7 @@ interface StateProps {
 
 interface OwnProps {
   queries: DashboardQuery[]
+  variables?: {[key: string]: string}
   submitToken: number
   implicitSubmit?: boolean
   inView?: boolean
@@ -121,7 +122,7 @@ class TimeSeries extends Component<Props, State> {
     })
 
     try {
-      const results = await this.executeQueries(queries)
+      const results = await this.executeQueries(queries, this.props.variables)
       const tables = flatten(results.map(r => parseResponse(r.csv)))
       const files = results.map(r => r.csv)
 

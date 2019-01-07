@@ -1,5 +1,5 @@
 // Libraries
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Utils
 import {
@@ -27,7 +27,7 @@ export const fluxTablesToDygraph = (
 
   const dygraphsData = Object.keys(table).map(time => [
     new Date(time),
-    ...labels.map(label => table[time][label]),
+    ...labels.map(label => get(table, [time, label], null)),
   ])
 
   dygraphsData.sort((a, b) => (a[0] as any) - (b[0] as any))

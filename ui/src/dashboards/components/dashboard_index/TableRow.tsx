@@ -5,11 +5,11 @@ import {Link} from 'react-router'
 // Components
 import {
   Button,
-  ComponentColor,
   IconFont,
   ComponentSize,
   ComponentSpacer,
   IndexList,
+  ConfirmationButton,
 } from 'src/clockface'
 
 // Types
@@ -18,7 +18,10 @@ import {Alignment} from 'src/clockface'
 import moment from 'moment'
 
 // Constants
-import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
+import {
+  UPDATED_AT_TIME_FORMAT,
+  DEFAULT_DASHBOARD_NAME,
+} from 'src/dashboards/constants'
 
 interface Props {
   dashboard: Dashboard
@@ -29,13 +32,15 @@ interface Props {
 
 export default class DashboardsIndexTableRow extends PureComponent<Props> {
   public render() {
-    const {dashboard} = this.props
-    const {id, name} = dashboard
+    const {dashboard, onDeleteDashboard} = this.props
+    const {id} = dashboard
 
     return (
       <IndexList.Row key={`dashboard-id--${id}`} disabled={false}>
         <IndexList.Cell>
-          <Link to={`/dashboards/${id}`}>{name}</Link>
+          <Link className={this.nameClassName} to={`/dashboards/${id}`}>
+            {this.name}
+          </Link>
         </IndexList.Cell>
         <IndexList.Cell>You</IndexList.Cell>
         <IndexList.Cell>
@@ -55,16 +60,31 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
               icon={IconFont.Duplicate}
               onClick={this.handleClone}
             />
-            <Button
-              size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Danger}
+            <ConfirmationButton
               text="Delete"
-              onClick={this.handleDelete}
+              size={ComponentSize.ExtraSmall}
+              onConfirm={onDeleteDashboard}
+              returnValue={dashboard}
+              confirmText="Click to Confirm"
             />
           </ComponentSpacer>
         </IndexList.Cell>
       </IndexList.Row>
     )
+  }
+
+  private get name(): string {
+    const {dashboard} = this.props
+
+    return dashboard.name || DEFAULT_DASHBOARD_NAME
+  }
+
+  private get nameClassName(): string {
+    const {dashboard} = this.props
+
+    if (dashboard.name === '' || dashboard.name === DEFAULT_DASHBOARD_NAME) {
+      return 'untitled-name'
+    }
   }
 
   private handleExport = () => {
@@ -75,10 +95,5 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
   private handleClone = () => {
     const {onCloneDashboard, dashboard} = this.props
     onCloneDashboard(dashboard)
-  }
-
-  private handleDelete = () => {
-    const {onDeleteDashboard, dashboard} = this.props
-    onDeleteDashboard(dashboard)
   }
 }

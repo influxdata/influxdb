@@ -1,6 +1,9 @@
 import {PureComponent} from 'react'
-import {FluxTable} from 'src/types'
+import memoizeOne from 'memoize-one'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+import {FluxTable} from 'src/types'
 
 import {
   fluxTablesToDygraph,
@@ -13,27 +16,14 @@ interface Props {
 }
 
 @ErrorHandling
-class DygraphTransformation extends PureComponent<
-  Props,
-  FluxTablesToDygraphResult
-> {
-  public static getDerivedStateFromProps(props) {
-    return {...fluxTablesToDygraph(props.tables)}
-  }
-
-  constructor(props) {
-    super(props)
-
-    this.state = {
-      labels: [],
-      dygraphsData: [],
-      seriesDescriptions: [],
-    }
-  }
+class DygraphTransformation extends PureComponent<Props> {
+  private fluxTablesToDygraph = memoizeOne(fluxTablesToDygraph)
 
   public render() {
-    const {children} = this.props
-    return children(this.state)
+    const {tables, children} = this.props
+    const data = this.fluxTablesToDygraph(tables)
+
+    return children(data)
   }
 }
 

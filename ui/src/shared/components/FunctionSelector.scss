@@ -1,0 +1,26 @@
+@import "src/style/modules";
+
+.function-selector {
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  background: $g4-onyx;
+
+  h3 {
+    margin: 10px 5px 10px 10px;
+    padding: 5px 0 0 0;
+    text-transform: uppercase;
+    color: $g10-wolf;
+    font-weight: 500;
+    font-size: 16px;
+  }
+}
+
+.function-selector--search {
+  margin: 0 10px 10px 10px;
+  width: initial !important;
+}
+
+.function-selector .selector-list {
+  flex: 1 1 0;
+}

@@ -1,0 +1,63 @@
+/*
+  Confirmation Button Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.confirmation-button {
+  position: relative;
+}
+
+.confirmation-button--stretch {
+  width: 100%;
+}
+
+.confirmation-button--tooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%,0);
+  transition: all;
+  visibility: hidden;
+  z-index: 9999;
+
+  &.visible {
+    visibility: visible;
+  }
+}
+
+.confirmation-button--tooltip-body {
+  font-size: 13px;
+  position: relative;
+  padding: $ix-marg-b;
+  background-color: $c-curacao;
+  border-radius: $radius;
+  white-space: nowrap;
+  color: $g20-white;
+  font-weight: 600;
+  user-select: none;
+  transition: background-color 0.25s ease;
+  box-shadow: 0 0 6px 2px rgba($g0-obsidian, 0.75);
+  margin-top: $ix-marg-b;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    border: $ix-marg-b solid transparent;
+    border-bottom-color: $c-curacao;
+    transform: translate(-50%,-100%);
+    transition: border-color 0.25s ease;
+  }
+
+  &:hover {
+    cursor: pointer;
+    background-color: $c-dreamsicle;
+
+    &:after {
+      border-bottom-color: $c-dreamsicle;
+    }
+  }
+}

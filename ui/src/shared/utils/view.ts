@@ -33,8 +33,7 @@ export function defaultViewQuery(): DashboardQuery {
     editMode: QueryEditMode.Builder,
     builderConfig: {
       buckets: [],
-      measurements: [],
-      fields: [],
+      tags: [{key: '_measurement', values: []}],
       functions: [],
     },
   }

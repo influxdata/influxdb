@@ -724,7 +724,8 @@ func Test_newTelegrafResponses(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := newTelegrafResponses(tt.args.tcs)
+			ctx := context.Background()
+			res := newTelegrafResponses(ctx, tt.args.tcs, mock.NewLabelService())
 			got, err := json.Marshal(res)
 			if err != nil {
 				t.Fatalf("newTelegrafResponses() JSON marshal %v", err)
@@ -802,7 +803,7 @@ func Test_newTelegrafResponse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := newTelegrafResponse(tt.args.tc)
+			res := newTelegrafResponse(tt.args.tc, []*platform.Label{})
 			got, err := json.Marshal(res)
 			if err != nil {
 				t.Fatalf("newTelegrafResponse() JSON marshal %v", err)

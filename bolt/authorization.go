@@ -3,7 +3,6 @@ package bolt
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
@@ -136,7 +135,10 @@ func (c *Client) FindAuthorizations(ctx context.Context, filter platform.Authori
 	if filter.ID != nil {
 		a, err := c.FindAuthorizationByID(ctx, *filter.ID)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, &platform.Error{
+				Err: err,
+				Op:  getOp(platform.OpFindAuthorizations),
+			}
 		}
 
 		return []*platform.Authorization{a}, 1, nil
@@ -145,7 +147,10 @@ func (c *Client) FindAuthorizations(ctx context.Context, filter platform.Authori
 	if filter.Token != nil {
 		a, err := c.FindAuthorizationByToken(ctx, *filter.Token)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, &platform.Error{
+				Err: err,
+				Op:  getOp(platform.OpFindAuthorizations),
+			}
 		}
 
 		return []*platform.Authorization{a}, 1, nil
@@ -162,7 +167,10 @@ func (c *Client) FindAuthorizations(ctx context.Context, filter platform.Authori
 	})
 
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpFindAuthorizations),
+		}
 	}
 
 	return as, len(as), nil
@@ -248,7 +256,10 @@ func encodeAuthorization(a *platform.Authorization) ([]byte, error) {
 	case "":
 		a.Status = platform.Active
 	default:
-		return nil, fmt.Errorf("unknown authorization status")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "unknown authorization status",
+		}
 	}
 
 	return json.Marshal(a)
@@ -365,7 +376,13 @@ func (c *Client) deleteAuthorization(ctx context.Context, tx *bolt.Tx, id platfo
 // for setting an authorization to inactive or active.
 func (c *Client) SetAuthorizationStatus(ctx context.Context, id platform.ID, status platform.Status) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.updateAuthorization(ctx, tx, id, status)
+		if pe := c.updateAuthorization(ctx, tx, id, status); pe != nil {
+			return &platform.Error{
+				Err: pe,
+				Op:  platform.OpSetAuthorizationStatus,
+			}
+		}
+		return nil
 	})
 }
 
@@ -379,8 +396,7 @@ func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platfo
 	b, err := encodeAuthorization(a)
 	if err != nil {
 		return &platform.Error{
-			Code: platform.EInvalid,
-			Err:  err,
+			Err: err,
 		}
 	}
 

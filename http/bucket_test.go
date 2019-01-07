@@ -21,6 +21,7 @@ import (
 func TestService_handleGetBuckets(t *testing.T) {
 	type fields struct {
 		BucketService platform.BucketService
+		LabelService  platform.LabelService
 	}
 	type args struct {
 		queryParams map[string][]string
@@ -58,6 +59,20 @@ func TestService_handleGetBuckets(t *testing.T) {
 						}, 2, nil
 					},
 				},
+				&mock.LabelService{
+					FindLabelsFn: func(ctx context.Context, f platform.LabelFilter) ([]*platform.Label, error) {
+						labels := []*platform.Label{
+							{
+								ResourceID: f.ResourceID,
+								Name:       "label",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+						}
+						return labels, nil
+					},
+				},
 			},
 			args: args{
 				map[string][]string{
@@ -78,23 +93,43 @@ func TestService_handleGetBuckets(t *testing.T) {
       "links": {
         "org": "/api/v2/orgs/50f7ba1150f7ba11",
         "self": "/api/v2/buckets/0b501e7e557ab1ed",
-        "log": "/api/v2/buckets/0b501e7e557ab1ed/log"
+        "log": "/api/v2/buckets/0b501e7e557ab1ed/log",
+        "labels": "/api/v2/buckets/0b501e7e557ab1ed/labels"
       },
       "id": "0b501e7e557ab1ed",
       "organizationID": "50f7ba1150f7ba11",
       "name": "hello",
-	  "retentionRules": [{"type": "expire", "everySeconds": 2}]
+      "retentionRules": [{"type": "expire", "everySeconds": 2}],
+			"labels": [
+        {
+          "resourceID": "0b501e7e557ab1ed",
+          "name": "label",
+          "properties": {
+            "color": "fff000"
+          }
+        }
+      ]
     },
     {
       "links": {
         "org": "/api/v2/orgs/7e55e118dbabb1ed",
         "self": "/api/v2/buckets/c0175f0077a77005",
-        "log": "/api/v2/buckets/c0175f0077a77005/log"
+        "log": "/api/v2/buckets/c0175f0077a77005/log",
+        "labels": "/api/v2/buckets/c0175f0077a77005/labels"
       },
       "id": "c0175f0077a77005",
       "organizationID": "7e55e118dbabb1ed",
       "name": "example",
-	  "retentionRules": [{"type": "expire", "everySeconds": 86400}]
+      "retentionRules": [{"type": "expire", "everySeconds": 86400}],
+      "labels": [
+        {
+          "resourceID": "c0175f0077a77005",
+          "name": "label",
+          "properties": {
+            "color": "fff000"
+          }
+        }
+      ]
     }
   ]
 }
@@ -109,6 +144,7 @@ func TestService_handleGetBuckets(t *testing.T) {
 						return []*platform.Bucket{}, 0, nil
 					},
 				},
+				&mock.LabelService{},
 			},
 			args: args{
 				map[string][]string{
@@ -132,7 +168,7 @@ func TestService_handleGetBuckets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
+			labelService := tt.fields.LabelService
 			userService := mock.NewUserService()
 			h := NewBucketHandler(mappingService, labelService, userService)
 			h.BucketService = tt.fields.BucketService
@@ -161,8 +197,8 @@ func TestService_handleGetBuckets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetBuckets() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetBuckets() = ***%s***", tt.name, diff)
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil || tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetBuckets() = ***%v***", tt.name, diff)
 			}
 		})
 	}
@@ -216,12 +252,14 @@ func TestService_handleGetBucket(t *testing.T) {
 		  "links": {
 		    "org": "/api/v2/orgs/020f755c3c082000",
 		    "self": "/api/v2/buckets/020f755c3c082000",
-		    "log": "/api/v2/buckets/020f755c3c082000/log"
+		    "log": "/api/v2/buckets/020f755c3c082000/log",
+		    "labels": "/api/v2/buckets/020f755c3c082000/labels"
 		  },
 		  "id": "020f755c3c082000",
 		  "organizationID": "020f755c3c082000",
 		  "name": "hello",
-		  "retentionRules": [{"type": "expire", "everySeconds": 30}]
+		  "retentionRules": [{"type": "expire", "everySeconds": 30}],
+      "labels": []
 		}
 		`,
 			},
@@ -332,12 +370,14 @@ func TestService_handlePostBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/6f626f7274697320",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log"
+    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "labels": "/api/v2/buckets/020f755c3c082000/labels"
   },
   "id": "020f755c3c082000",
   "organizationID": "6f626f7274697320",
   "name": "hello",
-  "retentionRules": []
+  "retentionRules": [],
+  "labels": []
 }
 `,
 			},
@@ -542,12 +582,14 @@ func TestService_handlePatchBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/020f755c3c082000",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log"
+    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "labels": "/api/v2/buckets/020f755c3c082000/labels"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "example",
-  "retentionRules": [{"type": "expire", "everySeconds": 2}]
+  "retentionRules": [{"type": "expire", "everySeconds": 2}],
+  "labels": []
 }
 `,
 			},
@@ -613,12 +655,14 @@ func TestService_handlePatchBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/020f755c3c082000",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log"
+    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "labels": "/api/v2/buckets/020f755c3c082000/labels"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "bucket with no retention",
-  "retentionRules": []
+  "retentionRules": [],
+  "labels": []
 }
 `,
 			},
@@ -665,12 +709,14 @@ func TestService_handlePatchBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/020f755c3c082000",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log"
+    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "labels": "/api/v2/buckets/020f755c3c082000/labels"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "b1",
-  "retentionRules": []
+  "retentionRules": [],
+  "labels": []
 }
 `,
 			},

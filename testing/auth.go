@@ -62,6 +62,10 @@ func AuthorizationService(
 			fn:   FindAuthorizationByToken,
 		},
 		{
+			name: "UpdateAuthorizationStatus",
+			fn:   UpdateAuthorizationStatus,
+		},
+		{
 			name: "FindAuthorizations",
 			fn:   FindAuthorizations,
 		},
@@ -438,6 +442,245 @@ func FindAuthorizationByID(
 
 			if diff := cmp.Diff(authorization, tt.wants.authorization, authorizationCmpOptions...); diff != "" {
 				t.Errorf("authorization is different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+// UpdateAuthorizationStatus testing
+func UpdateAuthorizationStatus(
+	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		id     platform.ID
+		status platform.Status
+	}
+	type wants struct {
+		err           error
+		authorization *platform.Authorization
+	}
+	tests := []struct {
+		name   string
+		fields AuthorizationFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "regular update",
+			fields: AuthorizationFields{
+				Users: []*platform.User{
+					{
+						Name: "cooluser",
+						ID:   MustIDBase16(userOneID),
+					},
+					{
+						Name: "regularuser",
+						ID:   MustIDBase16(userTwoID),
+					},
+				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+					{
+						Name: "o2",
+						ID:   MustIDBase16(orgTwoID),
+					},
+				},
+				Authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						Token:       "rand1",
+						Status:      platform.Inactive,
+						OrgID:       MustIDBase16(orgTwoID),
+						Permissions: allUsersPermission(),
+					},
+					{
+						ID:          MustIDBase16(authZeroID),
+						UserID:      MustIDBase16(userOneID),
+						Token:       "rand0",
+						OrgID:       MustIDBase16(orgOneID),
+						Permissions: allUsersPermission(),
+					},
+					{
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
+					},
+					{
+						ID:          MustIDBase16(authThreeID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand3",
+						Permissions: allUsersPermission(),
+					},
+				},
+			},
+			args: args{
+				id:     MustIDBase16(authTwoID),
+				status: platform.Inactive,
+			},
+			wants: wants{
+				authorization: &platform.Authorization{
+					ID:          MustIDBase16(authTwoID),
+					UserID:      MustIDBase16(userTwoID),
+					OrgID:       MustIDBase16(orgOneID),
+					Token:       "rand2",
+					Permissions: createUsersPermission(),
+					Status:      platform.Inactive,
+				},
+			},
+		},
+		{
+			name: "update with id not found",
+			fields: AuthorizationFields{
+				Users: []*platform.User{
+					{
+						Name: "cooluser",
+						ID:   MustIDBase16(userOneID),
+					},
+					{
+						Name: "regularuser",
+						ID:   MustIDBase16(userTwoID),
+					},
+				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+					{
+						Name: "o2",
+						ID:   MustIDBase16(orgTwoID),
+					},
+				},
+				Authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						Token:       "rand1",
+						Status:      platform.Inactive,
+						OrgID:       MustIDBase16(orgTwoID),
+						Permissions: allUsersPermission(),
+					},
+					{
+						ID:          MustIDBase16(authZeroID),
+						UserID:      MustIDBase16(userOneID),
+						Token:       "rand0",
+						OrgID:       MustIDBase16(orgOneID),
+						Permissions: allUsersPermission(),
+					},
+					{
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
+					},
+				},
+			},
+			args: args{
+				id:     MustIDBase16(authThreeID),
+				status: platform.Inactive,
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpSetAuthorizationStatus,
+					Msg:  "authorization not found",
+				},
+			},
+		},
+		{
+			name: "update with unknown status",
+			fields: AuthorizationFields{
+				Users: []*platform.User{
+					{
+						Name: "cooluser",
+						ID:   MustIDBase16(userOneID),
+					},
+					{
+						Name: "regularuser",
+						ID:   MustIDBase16(userTwoID),
+					},
+				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+					{
+						Name: "o2",
+						ID:   MustIDBase16(orgTwoID),
+					},
+				},
+				Authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						Token:       "rand1",
+						Status:      platform.Inactive,
+						OrgID:       MustIDBase16(orgTwoID),
+						Permissions: allUsersPermission(),
+					},
+					{
+						ID:          MustIDBase16(authZeroID),
+						UserID:      MustIDBase16(userOneID),
+						Token:       "rand0",
+						OrgID:       MustIDBase16(orgOneID),
+						Permissions: allUsersPermission(),
+					},
+					{
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(),
+					},
+					{
+						ID:          MustIDBase16(authThreeID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand3",
+						Permissions: allUsersPermission(),
+					},
+				},
+			},
+			args: args{
+				id:     MustIDBase16(authTwoID),
+				status: platform.Status("unknown"),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.EInvalid,
+					Op:   platform.OpSetAuthorizationStatus,
+					Msg:  "unknown authorization status",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+
+			err := s.SetAuthorizationStatus(ctx, tt.args.id, tt.args.status)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			if tt.wants.err == nil {
+				authorization, err := s.FindAuthorizationByID(ctx, tt.args.id)
+				if err != nil {
+					t.Errorf("%s failed, got error %s", tt.name, err.Error())
+				}
+				if diff := cmp.Diff(authorization, tt.wants.authorization, authorizationCmpOptions...); diff != "" {
+					t.Errorf("authorization is different -got/+want\ndiff %s", diff)
+				}
 			}
 		})
 	}

@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, Dropdown} from 'src/clockface'
+import {Button} from 'src/clockface'
 
 // Actions
 import {
@@ -13,14 +13,18 @@ import {
 } from 'src/shared/actions/v2/timeMachines'
 
 // Utils
-import {getActiveQuery} from 'src/shared/selectors/timeMachines'
+import {
+  getActiveQuery,
+  getActiveQuerySource,
+} from 'src/shared/selectors/timeMachines'
 import {CONFIRM_LEAVE_ADVANCED_MODE} from 'src/shared/copy/v2'
 
 // Types
-import {AppState, QueryEditMode} from 'src/types/v2'
+import {AppState, QueryEditMode, Source} from 'src/types/v2'
 
 interface StateProps {
   editMode: QueryEditMode
+  sourceType: Source.TypeEnum
 }
 
 interface DispatchProps {
@@ -33,7 +37,7 @@ type Props = StateProps & DispatchProps
 
 class TimeMachineQueriesSwitcher extends PureComponent<Props> {
   public render() {
-    const {editMode, onEditAsFlux, onEditAsInfluxQL} = this.props
+    const {editMode, sourceType, onEditAsFlux, onEditAsInfluxQL} = this.props
 
     if (editMode !== QueryEditMode.Builder) {
       return (
@@ -44,21 +48,11 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
       )
     }
 
-    return (
-      <Dropdown
-        selectedID=""
-        titleText="Edit Query As..."
-        widthPixels={130}
-        onChange={this.handleChooseLanguage}
-      >
-        <Dropdown.Item id={'influxQL'} value={onEditAsFlux}>
-          Flux
-        </Dropdown.Item>
-        <Dropdown.Item id={'flux'} value={onEditAsInfluxQL}>
-          InfluxQL
-        </Dropdown.Item>
-      </Dropdown>
-    )
+    if (sourceType === Source.TypeEnum.V1) {
+      return <Button text="Edit Query As InfluxQL" onClick={onEditAsInfluxQL} />
+    }
+
+    return <Button text="Edit Query As Flux" onClick={onEditAsFlux} />
   }
 
   private handleEditWithBuilder = (): void => {
@@ -68,16 +62,13 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
       onEditWithBuilder()
     }
   }
-
-  private handleChooseLanguage = (actionCreator): void => {
-    actionCreator()
-  }
 }
 
 const mstp = (state: AppState) => {
   const editMode = getActiveQuery(state).editMode
+  const sourceType = getActiveQuerySource(state).type
 
-  return {editMode}
+  return {editMode, sourceType}
 }
 
 const mdtp = {

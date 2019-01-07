@@ -1,133 +1,79 @@
 // Libraries
 import {get} from 'lodash'
+import uuid from 'uuid'
 
 // APIs
 import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/v2/query'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
-// Types
-import {InfluxLanguage} from 'src/types/v2'
-import {Source} from 'src/api'
+// Utils
+import {formatTagFilterCall} from 'src/shared/utils/queryBuilder'
 
-export const SEARCH_DURATION = '30d'
+// Types
+import {InfluxLanguage, BuilderConfig} from 'src/types/v2'
+
+export const SEARCH_DURATION = '5m'
 export const LIMIT = 200
 
-export async function findBuckets(
-  url: string,
-  sourceType: Source.TypeEnum,
-  searchTerm?: string
-) {
-  if (sourceType === Source.TypeEnum.V1) {
-    throw new Error('metaqueries not yet implemented for SourceType.V1')
-  }
+async function findBuckets(url: string): Promise<string[]> {
+  const query = `buckets()
+  |> sort(columns: ["name"])
+  |> limit(n: ${LIMIT})`
 
-  const resp = await findBucketsFlux(url, searchTerm)
+  const resp = await executeQuery(url, query, InfluxLanguage.Flux)
   const parsed = extractCol(resp, 'name')
 
   return parsed
 }
 
-export async function findMeasurements(
+async function findKeys(
   url: string,
-  sourceType: Source.TypeEnum,
   bucket: string,
+  tagsSelections: BuilderConfig['tags'],
   searchTerm: string = ''
 ): Promise<string[]> {
-  if (sourceType === Source.TypeEnum.V1) {
-    throw new Error('metaqueries not yet implemented for SourceType.V1')
-  }
+  const tagFilters = formatTagFilterCall(tagsSelections)
+  const searchFilter = formatSearchFilterCall(searchTerm)
+  const previousKeyFilter = formatTagKeyFilterCall(tagsSelections)
 
-  const resp = await findMeasurementsFlux(url, bucket, searchTerm)
-  const parsed = extractCol(resp, '_measurement')
+  const query = `from(bucket: "${bucket}")
+  |> range(start: -${SEARCH_DURATION})${tagFilters}
+  |> keys(except: ["_time", "_start", "_stop", "_value"])
+  |> group()
+  |> distinct()
+  |> keep(columns: ["_value"])${searchFilter}${previousKeyFilter}
+  |> sort()
+  |> limit(n: ${LIMIT})`
+
+  const resp = await executeQuery(url, query, InfluxLanguage.Flux)
+  const parsed = extractCol(resp, '_value')
 
   return parsed
 }
 
-export async function findFields(
+async function findValues(
   url: string,
-  sourceType: Source.TypeEnum,
   bucket: string,
-  measurements: string[],
+  tagsSelections: BuilderConfig['tags'],
+  key: string,
   searchTerm: string = ''
 ): Promise<string[]> {
-  if (sourceType === Source.TypeEnum.V1) {
-    throw new Error('metaqueries not yet implemented for SourceType.V1')
-  }
+  const tagFilters = formatTagFilterCall(tagsSelections)
+  const searchFilter = formatSearchFilterCall(searchTerm)
 
-  const resp = await findFieldsFlux(url, bucket, measurements, searchTerm)
-  const parsed = extractCol(resp, '_field')
+  const query = `from(bucket: "${bucket}")
+    |> range(start: -${SEARCH_DURATION})${tagFilters}
+    |> group(columns: ["${key}"])
+    |> distinct(column: "${key}")
+    |> group()
+    |> keep(columns: ["_value"])${searchFilter}
+    |> sort()
+    |> limit(n: ${LIMIT})`
+
+  const resp = await executeQuery(url, query, InfluxLanguage.Flux)
+  const parsed = extractCol(resp, '_value')
 
   return parsed
-}
-
-function findBucketsFlux(
-  url: string,
-  searchTerm: string
-): Promise<ExecuteFluxQueryResult> {
-  let query = 'buckets()'
-
-  if (searchTerm) {
-    query += `
-  |> filter(fn: (r) => r.name =~ /(?i:${searchTerm})/)`
-  }
-
-  query += `
-  |> sort(columns: ["name"])
-  |> limit(n: ${LIMIT})`
-
-  return executeQuery(url, query, InfluxLanguage.Flux)
-}
-
-function findMeasurementsFlux(
-  url: string,
-  bucket: string,
-  searchTerm: string
-): Promise<ExecuteFluxQueryResult> {
-  let query = `from(bucket: "${bucket}")
-  |> range(start: -${SEARCH_DURATION})`
-
-  if (searchTerm) {
-    query += `
-  |> filter(fn: (r) => r._measurement =~ /(?i:${searchTerm})/)`
-  }
-
-  query += `
-  |> group(columns: ["_measurement"])
-  |> distinct(column: "_measurement")
-  |> group()
-  |> sort(columns: ["_measurement"])
-  |> limit(n: ${LIMIT})`
-
-  return executeQuery(url, query, InfluxLanguage.Flux)
-}
-
-function findFieldsFlux(
-  url: string,
-  bucket: string,
-  measurements: string[],
-  searchTerm: string
-): Promise<ExecuteFluxQueryResult> {
-  const measurementPredicate = measurements
-    .map(m => `r._measurement == "${m}"`)
-    .join(' or ')
-
-  let query = `from(bucket: "${bucket}")
-  |> range(start: -${SEARCH_DURATION})
-  |> filter(fn: (r) => ${measurementPredicate})`
-
-  if (searchTerm) {
-    query += `
-  |> filter(fn: (r) => r._field =~ /(?i:${searchTerm})/)`
-  }
-
-  query += `
-  |> group(columns: ["_field"])
-  |> distinct(column: "_field")
-  |> group()
-  |> sort(columns: ["_field"])
-  |> limit(n: ${LIMIT})`
-
-  return executeQuery(url, query, InfluxLanguage.Flux)
 }
 
 function extractCol(resp: ExecuteFluxQueryResult, colName: string): string[] {
@@ -151,4 +97,101 @@ function extractCol(resp: ExecuteFluxQueryResult, colName: string): string[] {
   }
 
   return colValues
+}
+
+function formatTagKeyFilterCall(tagsSelections: BuilderConfig['tags']) {
+  const keys = tagsSelections.map(({key}) => key)
+
+  if (!keys.length) {
+    return ''
+  }
+
+  const fnBody = keys.map(key => `r._value != "${key}"`).join(' and ')
+
+  return `\n  |> filter(fn: (r) => ${fnBody})`
+}
+
+function formatSearchFilterCall(searchTerm: string) {
+  if (!searchTerm) {
+    return ''
+  }
+
+  return `\n  |> filter(fn: (r) => r._value =~ /(?i:${searchTerm})/)`
+}
+
+export class CancellationError extends Error {}
+
+export class QueryBuilderFetcher {
+  private findBucketsToken: string = ''
+  private findKeysTokens = []
+  private findValuesTokens = []
+
+  public async findBuckets(url: string): Promise<string[]> {
+    const token = uuid.v4()
+
+    this.findBucketsToken = token
+
+    const result = await findBuckets(url)
+
+    if (token !== this.findBucketsToken) {
+      throw new CancellationError()
+    }
+
+    return result
+  }
+
+  public async findKeys(
+    index: number,
+    url: string,
+    bucket: string,
+    tagsSelections: BuilderConfig['tags'],
+    searchTerm: string = ''
+  ): Promise<string[]> {
+    const token = uuid.v4()
+
+    this.findKeysTokens[index] = token
+
+    const result = await findKeys(url, bucket, tagsSelections, searchTerm)
+
+    if (token !== this.findKeysTokens[index]) {
+      throw new CancellationError()
+    }
+
+    return result
+  }
+
+  public cancelFindKeys(index) {
+    this.findKeysTokens[index] = uuid.v4()
+  }
+
+  public async findValues(
+    index: number,
+    url: string,
+    bucket: string,
+    tagsSelections: BuilderConfig['tags'],
+    key: string,
+    searchTerm: string = ''
+  ): Promise<string[]> {
+    const token = uuid.v4()
+
+    this.findValuesTokens[index] = token
+
+    const result = await findValues(
+      url,
+      bucket,
+      tagsSelections,
+      key,
+      searchTerm
+    )
+
+    if (token !== this.findValuesTokens[index]) {
+      throw new CancellationError()
+    }
+
+    return result
+  }
+
+  public cancelFindValues(index) {
+    this.findValuesTokens[index] = uuid.v4()
+  }
 }
