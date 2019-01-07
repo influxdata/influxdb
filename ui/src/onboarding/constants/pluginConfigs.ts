@@ -37,30 +37,16 @@ export const pluginsByBundle: PluginBundles = {
     TelegrafPluginInputCpu.NameEnum.Cpu,
     TelegrafPluginInputDisk.NameEnum.Disk,
     TelegrafPluginInputDiskio.NameEnum.Diskio,
-    TelegrafPluginInputKernel.NameEnum.Kernel,
-    TelegrafPluginInputMem.NameEnum.Mem,
-    TelegrafPluginInputProcesses.NameEnum.Processes,
-    TelegrafPluginInputSwap.NameEnum.Swap,
     TelegrafPluginInputSystem.NameEnum.System,
-  ],
-  [BundleName.Disk]: [
-    TelegrafPluginInputDisk.NameEnum.Disk,
-    TelegrafPluginInputDiskio.NameEnum.Diskio,
+    TelegrafPluginInputMem.NameEnum.Mem,
+    TelegrafPluginInputNet.NameEnum.Net,
+    TelegrafPluginInputProcesses.NameEnum.Processes,
+    TelegrafPluginInputProcstat.NameEnum.Procstat,
   ],
   [BundleName.Docker]: [TelegrafPluginInputDocker.NameEnum.Docker],
-  [BundleName.File]: [TelegrafPluginInputFile.NameEnum.File],
   [BundleName.Kubernetes]: [TelegrafPluginInputKubernetes.NameEnum.Kubernetes],
-  [BundleName.Logparser]: [TelegrafPluginInputLogParser.NameEnum.Logparser],
-  [BundleName.Net]: [TelegrafPluginInputNet.NameEnum.Net],
-  [BundleName.NetResponse]: [
-    TelegrafPluginInputNetResponse.NameEnum.NetResponse,
-  ],
   [BundleName.Ngnix]: [TelegrafPluginInputNgnix.NameEnum.Ngnix],
-  [BundleName.Procstat]: [TelegrafPluginInputProcstat.NameEnum.Procstat],
-  [BundleName.Prometheus]: [TelegrafPluginInputPrometheus.NameEnum.Prometheus],
   [BundleName.Redis]: [TelegrafPluginInputRedis.NameEnum.Redis],
-  [BundleName.Syslog]: [TelegrafPluginInputSyslog.NameEnum.Syslog],
-  [BundleName.Tail]: [TelegrafPluginInputTail.NameEnum.Tail],
 }
 
 export const telegrafPluginsInfo: TelegrafPluginInfo = {
@@ -272,7 +258,6 @@ import {
   LogoDocker,
   LogoKubernetes,
   LogoNginx,
-  LogoPrometheus,
   LogoRedis,
 } from 'src/onboarding/graphics'
 
@@ -281,23 +266,13 @@ export const BUNDLE_LOGOS = {
   [BundleName.Docker]: LogoDocker,
   [BundleName.Kubernetes]: LogoKubernetes,
   [BundleName.Ngnix]: LogoNginx,
-  [BundleName.Prometheus]: LogoPrometheus,
   [BundleName.Redis]: LogoRedis,
 }
 
 export const PLUGIN_BUNDLE_OPTIONS: BundleName[] = [
   BundleName.System,
-  BundleName.Disk,
   BundleName.Docker,
-  BundleName.File,
   BundleName.Kubernetes,
-  BundleName.Logparser,
-  BundleName.Net,
-  BundleName.NetResponse,
   BundleName.Ngnix,
-  BundleName.Procstat,
-  BundleName.Prometheus,
   BundleName.Redis,
-  BundleName.Syslog,
-  BundleName.Tail,
 ]
