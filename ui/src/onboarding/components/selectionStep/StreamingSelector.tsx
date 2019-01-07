@@ -1,11 +1,11 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import uuid from 'uuid'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
-import {GridSizer} from 'src/clockface'
+import {GridSizer, Input, IconFont} from 'src/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Constants
@@ -25,6 +25,7 @@ export interface Props {
 
 interface State {
   gridSizerUpdateFlag: string
+  searchTerm: string
 }
 
 const ANIMATION_LENGTH = 400
@@ -36,6 +37,7 @@ class StreamingSelector extends PureComponent<Props, State> {
     super(props)
     this.state = {
       gridSizerUpdateFlag: uuid.v4(),
+      searchTerm: '',
     }
   }
 
@@ -55,7 +57,7 @@ class StreamingSelector extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {gridSizerUpdateFlag} = this.state
+    const {gridSizerUpdateFlag, searchTerm} = this.state
 
     return (
       <FancyScrollbar
@@ -64,11 +66,21 @@ class StreamingSelector extends PureComponent<Props, State> {
         maxHeight={this.scrollMaxHeight}
       >
         <div className="wizard-step--grid-container">
+          <div className="wizard-step--filter">
+            <Input
+              icon={IconFont.Search}
+              widthPixels={290}
+              value={searchTerm}
+              onBlur={this.handleFilterBlur}
+              onChange={this.handleFilterChange}
+              placeholder="Filter Plugins..."
+            />
+          </div>
           <GridSizer
             wait={ANIMATION_LENGTH}
             recalculateFlag={gridSizerUpdateFlag}
           >
-            {PLUGIN_BUNDLE_OPTIONS.map(b => {
+            {this.filteredBundles.map(b => {
               return (
                 <CardSelectCard
                   key={b}
@@ -87,7 +99,15 @@ class StreamingSelector extends PureComponent<Props, State> {
     )
   }
 
-  private isCardChecked(bundle: BundleName) {
+  private get filteredBundles(): BundleName[] {
+    const {searchTerm} = this.state
+
+    return PLUGIN_BUNDLE_OPTIONS.filter(b =>
+      b.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }
+
+  private isCardChecked(bundle: BundleName): boolean {
     const {pluginBundles} = this.props
 
     if (pluginBundles.find(b => b === bundle)) {
@@ -96,8 +116,16 @@ class StreamingSelector extends PureComponent<Props, State> {
     return false
   }
 
-  private handleToggle = (bundle: BundleName) => () => {
+  private handleToggle = (bundle: BundleName) => (): void => {
     this.props.onTogglePluginBundle(bundle, this.isCardChecked(bundle))
+  }
+
+  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({searchTerm: e.target.value})
+  }
+
+  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({searchTerm: e.target.value})
   }
 }
 
