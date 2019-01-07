@@ -61,6 +61,12 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
     this.state = {showStreamingSources: false}
   }
 
+  public componentDidMount() {
+    if (this.isStreaming && this.props.type !== DataLoaderType.Streaming) {
+      this.props.onSetDataLoadersType(DataLoaderType.Streaming)
+    }
+  }
+
   public render() {
     return (
       <Form onSubmit={this.handleClickNext}>
