@@ -2017,6 +2017,40 @@ func TestEngine_WritePoints_Reload(t *testing.T) {
 	}
 }
 
+func TestEngine_Invalid_UTF8(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			name := []byte{255, 112, 114, 111, 99} // A known invalid UTF-8 string
+			field := []byte{255, 110, 101, 116}    // A known invalid UTF-8 string
+			p := MustParsePointString(fmt.Sprintf("%s,host=A %s=1.1 6000000000", name, field))
+
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
+
+			if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+				t.Fatalf("create series index error: %v", err)
+			}
+
+			if err := e.WritePoints([]models.Point{p}); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+
+			// Re-open the engine
+			if err := e.Reopen(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
 func BenchmarkEngine_WritePoints(b *testing.B) {
 	batchSizes := []int{10, 100, 1000, 5000, 10000}
 	for _, sz := range batchSizes {
