@@ -40,11 +40,14 @@ export default class EmptyQueryView extends PureComponent<Props> {
       return <EmptyGraphMessage message={`Error: ${error.message}`} />
     }
 
-    if (isInitialFetch && loading === RemoteDataState.Loading) {
+    const hasNoResults = tables.every(d => !d.data.length)
+
+    if (
+      (isInitialFetch || hasNoResults) &&
+      loading === RemoteDataState.Loading
+    ) {
       return <EmptyGraphMessage message="Loading..." />
     }
-
-    const hasNoResults = !tables.some(d => !!d.data.length)
 
     if (hasNoResults && fallbackNote) {
       return <Markdown text={fallbackNote} />
