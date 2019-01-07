@@ -1,3 +1,10 @@
+v1.7.3 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#10584](https://github.com/influxdata/influxdb/pull/10584): Fix invalid UTF-8 bytes preventing shard opening.
+
 v1.7.2 [2018-12-11]
 -------------------
 
