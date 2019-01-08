@@ -35,10 +35,15 @@ import {
 
 // Types
 import {LabelType} from 'src/clockface'
-import {Label, Organization, LabelProperties} from 'src/api'
+import {Label, Organization} from 'src/api'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+interface LabelProperties {
+  color: string
+  description: string
+}
 
 interface PassedProps {
   labels: Label[]

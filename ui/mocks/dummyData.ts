@@ -208,6 +208,43 @@ export const dashboard: Dashboard = {
     self: 'self/link',
     cells: 'cells/link',
   },
+  meta: {
+    createdAt: '2019-01-08T11:57:31.562044-08:00',
+    updatedAt: '2019-01-08T12:57:31.562048-08:00',
+  },
+  labels: [],
+}
+
+export const dashboardWithLabels: Dashboard = {
+  id: '1',
+  cells: [],
+  name: 'd1',
+  links: {
+    self: 'self/link',
+    cells: 'cells/link',
+  },
+  meta: {
+    createdAt: '2019-01-08T11:57:31.562044-08:00',
+    updatedAt: '2019-01-08T12:57:31.562048-08:00',
+  },
+  labels: [
+    {
+      resourceID: 'dashboard-mock-label-a',
+      name: 'Trogdor',
+      properties: {
+        color: '#44ffcc',
+        description: 'Burninating the countryside',
+      },
+    },
+    {
+      resourceID: 'dashboard-mock-label-b',
+      name: 'Strawberry',
+      properties: {
+        color: '#ff0054',
+        description: 'It is a great fruit',
+      },
+    },
+  ],
 }
 
 export const cell: Cell = {

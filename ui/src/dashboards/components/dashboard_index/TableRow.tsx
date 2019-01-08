@@ -11,6 +11,7 @@ import {
   IndexList,
   ConfirmationButton,
   Stack,
+  Label,
 } from 'src/clockface'
 
 // Types
@@ -39,11 +40,20 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     return (
       <IndexList.Row key={`dashboard-id--${id}`} disabled={false}>
         <IndexList.Cell>
-          <Link className={this.nameClassName} to={`/dashboards/${id}`}>
-            {this.name}
-          </Link>
+          <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
+            <ComponentSpacer
+              stackChildren={Stack.Columns}
+              align={Alignment.Left}
+            >
+              <Link className={this.nameClassName} to={`/dashboards/${id}`}>
+                {this.name}
+              </Link>
+              {this.labels}
+            </ComponentSpacer>
+            {this.description}
+          </ComponentSpacer>
         </IndexList.Cell>
-        <IndexList.Cell>You</IndexList.Cell>
+        <IndexList.Cell>Owner does not come back from API</IndexList.Cell>
         <IndexList.Cell>
           {moment(dashboard.meta.updatedAt).format(UPDATED_AT_TIME_FORMAT)}
         </IndexList.Cell>
@@ -74,6 +84,28 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     )
   }
 
+  private get labels(): JSX.Element {
+    const {dashboard} = this.props
+
+    if (!dashboard.labels.length) {
+      return
+    }
+
+    return (
+      <Label.Container limitChildCount={4} className="index-list--labels">
+        {dashboard.labels.map(label => (
+          <Label
+            key={label.resourceID}
+            id={label.resourceID}
+            colorHex={label.properties.color}
+            name={label.name}
+            description={label.properties.description}
+          />
+        ))}
+      </Label.Container>
+    )
+  }
+
   private get name(): string {
     const {dashboard} = this.props
 
@@ -86,6 +118,20 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     if (dashboard.name === '' || dashboard.name === DEFAULT_DASHBOARD_NAME) {
       return 'untitled-name'
     }
+  }
+
+  private get description(): JSX.Element {
+    const {dashboard} = this.props
+
+    if (dashboard.description) {
+      return (
+        <div className="index-list--description">{dashboard.description}</div>
+      )
+    }
+
+    return (
+      <div className="index-list--description untitled">No description</div>
+    )
   }
 
   private handleExport = () => {

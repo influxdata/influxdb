@@ -1344,6 +1344,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}/labels':
+    get:
+      tags:
+        - Dashboards
+      summary: list all labels for a dashboard
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of the dashboard
+      responses:
+        '200':
+          description: a list of all labels for a dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Dashboards
+      summary: add a label to a dashboard
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of the dashboard
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Label"
+      responses:
+        '200':
+          description: a list of all labels for a dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/members':
     get:
       tags:
@@ -3415,6 +3483,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 components:
+  parameters:
+    TraceSpan:
+      in: header
+      name: Zap-Trace-Span
+      description: OpenTracing span context
+      example:
+        trace_id: '1'
+        span_id: '1'
+        baggage:
+          key: value
+      required: false
+      schema:
+        type: string
   schemas:
     LanguageRequest:
       description: flux query to be analyzed.
@@ -4740,6 +4821,8 @@ components:
               format: date
         cells:
             $ref: "#/components/schemas/Cells"
+        labels:
+            $ref: "#/components/schemas/Labels"
     Dashboards:
       type: object
       properties:
@@ -5529,21 +5612,12 @@ components:
     Label:
       type: object
       properties:
+        resourceID:
+          type: string
         name:
           type: string
         properties:
-          $ref: "#/components/schemas/LabelProperties"
-      required:
-        - properties
-        - name
-    LabelProperties:
-      type: object
-      properties:
-        color:
-          type: string
-        description:
-          type: string
-      required:
-        - color
-        - description
+          type: object
+          description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
+          example: {"color": "#ffb3b3", "description": "this is a description"}
       
