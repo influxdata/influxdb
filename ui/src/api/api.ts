@@ -480,12 +480,6 @@ export interface Cell {
      * @memberof Cell
      */
     h?: number;
-    /**
-     * The reference to a view from the views API
-     * @type {string}
-     * @memberof Cell
-     */
-    viewID?: string;
 }
 
 /**
@@ -592,12 +586,6 @@ export interface CreateCell {
      * @memberof CreateCell
      */
     h?: number;
-    /**
-     * uses the view provided in the request
-     * @type {string}
-     * @memberof CreateCell
-     */
-    viewID?: string;
     /**
      * makes a copy of the provided view
      * @type {string}
@@ -6491,6 +6479,93 @@ export const CellsApiAxiosParamCreator = function (configuration?: Configuration
         },
         /**
          * 
+         * @summary Retrieve the view for a cell in a dashboard
+         * @param {string} dashboardID ID of dashboard
+         * @param {string} cellID ID of cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options: any = {}): RequestArgs {
+            // verify required parameter 'dashboardID' is not null or undefined
+            if (dashboardID === null || dashboardID === undefined) {
+                throw new RequiredError('dashboardID','Required parameter dashboardID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewGet.');
+            }
+            // verify required parameter 'cellID' is not null or undefined
+            if (cellID === null || cellID === undefined) {
+                throw new RequiredError('cellID','Required parameter cellID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewGet.');
+            }
+            const localVarPath = `/dashboards/{dashboardID}/cells/{cellID}/view`
+                .replace(`{${"dashboardID"}}`, encodeURIComponent(String(dashboardID)))
+                .replace(`{${"cellID"}}`, encodeURIComponent(String(cellID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary Update the view for a cell
+         * @param {string} dashboardID ID of dashboard to update
+         * @param {string} cellID ID of cell to update
+         * @param {View} view updates the view for a cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options: any = {}): RequestArgs {
+            // verify required parameter 'dashboardID' is not null or undefined
+            if (dashboardID === null || dashboardID === undefined) {
+                throw new RequiredError('dashboardID','Required parameter dashboardID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewPatch.');
+            }
+            // verify required parameter 'cellID' is not null or undefined
+            if (cellID === null || cellID === undefined) {
+                throw new RequiredError('cellID','Required parameter cellID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewPatch.');
+            }
+            // verify required parameter 'view' is not null or undefined
+            if (view === null || view === undefined) {
+                throw new RequiredError('view','Required parameter view was null or undefined when calling dashboardsDashboardIDCellsCellIDViewPatch.');
+            }
+            const localVarPath = `/dashboards/{dashboardID}/cells/{cellID}/view`
+                .replace(`{${"dashboardID"}}`, encodeURIComponent(String(dashboardID)))
+                .replace(`{${"cellID"}}`, encodeURIComponent(String(cellID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'PATCH' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"View" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(view || {}) : (view || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary Create a dashboard cell
          * @param {string} dashboardID ID of dashboard to update
          * @param {CreateCell} createCell cell that will be added
@@ -6615,6 +6690,37 @@ export const CellsApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary Retrieve the view for a cell in a dashboard
+         * @param {string} dashboardID ID of dashboard
+         * @param {string} cellID ID of cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<View> {
+            const localVarAxiosArgs = CellsApiAxiosParamCreator(configuration).dashboardsDashboardIDCellsCellIDViewGet(dashboardID, cellID, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary Update the view for a cell
+         * @param {string} dashboardID ID of dashboard to update
+         * @param {string} cellID ID of cell to update
+         * @param {View} view updates the view for a cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<View> {
+            const localVarAxiosArgs = CellsApiAxiosParamCreator(configuration).dashboardsDashboardIDCellsCellIDViewPatch(dashboardID, cellID, view, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary Create a dashboard cell
          * @param {string} dashboardID ID of dashboard to update
          * @param {CreateCell} createCell cell that will be added
@@ -6677,6 +6783,29 @@ export const CellsApiFactory = function (configuration?: Configuration, basePath
         },
         /**
          * 
+         * @summary Retrieve the view for a cell in a dashboard
+         * @param {string} dashboardID ID of dashboard
+         * @param {string} cellID ID of cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options?: any) {
+            return CellsApiFp(configuration).dashboardsDashboardIDCellsCellIDViewGet(dashboardID, cellID, options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary Update the view for a cell
+         * @param {string} dashboardID ID of dashboard to update
+         * @param {string} cellID ID of cell to update
+         * @param {View} view updates the view for a cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options?: any) {
+            return CellsApiFp(configuration).dashboardsDashboardIDCellsCellIDViewPatch(dashboardID, cellID, view, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary Create a dashboard cell
          * @param {string} dashboardID ID of dashboard to update
          * @param {CreateCell} createCell cell that will be added
@@ -6732,6 +6861,33 @@ export class CellsApi extends BaseAPI {
      */
     public dashboardsDashboardIDCellsCellIDPatch(dashboardID: string, cellID: string, cellUpdate: CellUpdate, options?: any) {
         return CellsApiFp(this.configuration).dashboardsDashboardIDCellsCellIDPatch(dashboardID, cellID, cellUpdate, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary Retrieve the view for a cell in a dashboard
+     * @param {string} dashboardID ID of dashboard
+     * @param {string} cellID ID of cell
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof CellsApi
+     */
+    public dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options?: any) {
+        return CellsApiFp(this.configuration).dashboardsDashboardIDCellsCellIDViewGet(dashboardID, cellID, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary Update the view for a cell
+     * @param {string} dashboardID ID of dashboard to update
+     * @param {string} cellID ID of cell to update
+     * @param {View} view updates the view for a cell
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof CellsApi
+     */
+    public dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options?: any) {
+        return CellsApiFp(this.configuration).dashboardsDashboardIDCellsCellIDViewPatch(dashboardID, cellID, view, options)(this.axios, this.basePath);
     }
 
     /**
@@ -6849,6 +7005,93 @@ export const DashboardsApiAxiosParamCreator = function (configuration?: Configur
             localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
             const needsSerialization = (<any>"CellUpdate" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
             localVarRequestOptions.data =  needsSerialization ? JSON.stringify(cellUpdate || {}) : (cellUpdate || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary Retrieve the view for a cell in a dashboard
+         * @param {string} dashboardID ID of dashboard
+         * @param {string} cellID ID of cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options: any = {}): RequestArgs {
+            // verify required parameter 'dashboardID' is not null or undefined
+            if (dashboardID === null || dashboardID === undefined) {
+                throw new RequiredError('dashboardID','Required parameter dashboardID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewGet.');
+            }
+            // verify required parameter 'cellID' is not null or undefined
+            if (cellID === null || cellID === undefined) {
+                throw new RequiredError('cellID','Required parameter cellID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewGet.');
+            }
+            const localVarPath = `/dashboards/{dashboardID}/cells/{cellID}/view`
+                .replace(`{${"dashboardID"}}`, encodeURIComponent(String(dashboardID)))
+                .replace(`{${"cellID"}}`, encodeURIComponent(String(cellID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary Update the view for a cell
+         * @param {string} dashboardID ID of dashboard to update
+         * @param {string} cellID ID of cell to update
+         * @param {View} view updates the view for a cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options: any = {}): RequestArgs {
+            // verify required parameter 'dashboardID' is not null or undefined
+            if (dashboardID === null || dashboardID === undefined) {
+                throw new RequiredError('dashboardID','Required parameter dashboardID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewPatch.');
+            }
+            // verify required parameter 'cellID' is not null or undefined
+            if (cellID === null || cellID === undefined) {
+                throw new RequiredError('cellID','Required parameter cellID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewPatch.');
+            }
+            // verify required parameter 'view' is not null or undefined
+            if (view === null || view === undefined) {
+                throw new RequiredError('view','Required parameter view was null or undefined when calling dashboardsDashboardIDCellsCellIDViewPatch.');
+            }
+            const localVarPath = `/dashboards/{dashboardID}/cells/{cellID}/view`
+                .replace(`{${"dashboardID"}}`, encodeURIComponent(String(dashboardID)))
+                .replace(`{${"cellID"}}`, encodeURIComponent(String(cellID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'PATCH' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"View" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(view || {}) : (view || "");
 
             return {
                 url: url.format(localVarUrlObj),
@@ -7537,6 +7780,37 @@ export const DashboardsApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary Retrieve the view for a cell in a dashboard
+         * @param {string} dashboardID ID of dashboard
+         * @param {string} cellID ID of cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<View> {
+            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsDashboardIDCellsCellIDViewGet(dashboardID, cellID, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary Update the view for a cell
+         * @param {string} dashboardID ID of dashboard to update
+         * @param {string} cellID ID of cell to update
+         * @param {View} view updates the view for a cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<View> {
+            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsDashboardIDCellsCellIDViewPatch(dashboardID, cellID, view, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary Create a dashboard cell
          * @param {string} dashboardID ID of dashboard to update
          * @param {CreateCell} createCell cell that will be added
@@ -7808,6 +8082,29 @@ export const DashboardsApiFactory = function (configuration?: Configuration, bas
         },
         /**
          * 
+         * @summary Retrieve the view for a cell in a dashboard
+         * @param {string} dashboardID ID of dashboard
+         * @param {string} cellID ID of cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options?: any) {
+            return DashboardsApiFp(configuration).dashboardsDashboardIDCellsCellIDViewGet(dashboardID, cellID, options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary Update the view for a cell
+         * @param {string} dashboardID ID of dashboard to update
+         * @param {string} cellID ID of cell to update
+         * @param {View} view updates the view for a cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options?: any) {
+            return DashboardsApiFp(configuration).dashboardsDashboardIDCellsCellIDViewPatch(dashboardID, cellID, view, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary Create a dashboard cell
          * @param {string} dashboardID ID of dashboard to update
          * @param {CreateCell} createCell cell that will be added
@@ -8016,6 +8313,33 @@ export class DashboardsApi extends BaseAPI {
      */
     public dashboardsDashboardIDCellsCellIDPatch(dashboardID: string, cellID: string, cellUpdate: CellUpdate, options?: any) {
         return DashboardsApiFp(this.configuration).dashboardsDashboardIDCellsCellIDPatch(dashboardID, cellID, cellUpdate, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary Retrieve the view for a cell in a dashboard
+     * @param {string} dashboardID ID of dashboard
+     * @param {string} cellID ID of cell
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DashboardsApi
+     */
+    public dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options?: any) {
+        return DashboardsApiFp(this.configuration).dashboardsDashboardIDCellsCellIDViewGet(dashboardID, cellID, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary Update the view for a cell
+     * @param {string} dashboardID ID of dashboard to update
+     * @param {string} cellID ID of cell to update
+     * @param {View} view updates the view for a cell
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DashboardsApi
+     */
+    public dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options?: any) {
+        return DashboardsApiFp(this.configuration).dashboardsDashboardIDCellsCellIDViewPatch(dashboardID, cellID, view, options)(this.axios, this.basePath);
     }
 
     /**
@@ -16503,6 +16827,93 @@ export const ViewsApiAxiosParamCreator = function (configuration?: Configuration
     return {
         /**
          * 
+         * @summary Retrieve the view for a cell in a dashboard
+         * @param {string} dashboardID ID of dashboard
+         * @param {string} cellID ID of cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options: any = {}): RequestArgs {
+            // verify required parameter 'dashboardID' is not null or undefined
+            if (dashboardID === null || dashboardID === undefined) {
+                throw new RequiredError('dashboardID','Required parameter dashboardID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewGet.');
+            }
+            // verify required parameter 'cellID' is not null or undefined
+            if (cellID === null || cellID === undefined) {
+                throw new RequiredError('cellID','Required parameter cellID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewGet.');
+            }
+            const localVarPath = `/dashboards/{dashboardID}/cells/{cellID}/view`
+                .replace(`{${"dashboardID"}}`, encodeURIComponent(String(dashboardID)))
+                .replace(`{${"cellID"}}`, encodeURIComponent(String(cellID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary Update the view for a cell
+         * @param {string} dashboardID ID of dashboard to update
+         * @param {string} cellID ID of cell to update
+         * @param {View} view updates the view for a cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options: any = {}): RequestArgs {
+            // verify required parameter 'dashboardID' is not null or undefined
+            if (dashboardID === null || dashboardID === undefined) {
+                throw new RequiredError('dashboardID','Required parameter dashboardID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewPatch.');
+            }
+            // verify required parameter 'cellID' is not null or undefined
+            if (cellID === null || cellID === undefined) {
+                throw new RequiredError('cellID','Required parameter cellID was null or undefined when calling dashboardsDashboardIDCellsCellIDViewPatch.');
+            }
+            // verify required parameter 'view' is not null or undefined
+            if (view === null || view === undefined) {
+                throw new RequiredError('view','Required parameter view was null or undefined when calling dashboardsDashboardIDCellsCellIDViewPatch.');
+            }
+            const localVarPath = `/dashboards/{dashboardID}/cells/{cellID}/view`
+                .replace(`{${"dashboardID"}}`, encodeURIComponent(String(dashboardID)))
+                .replace(`{${"cellID"}}`, encodeURIComponent(String(cellID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'PATCH' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"View" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(view || {}) : (view || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary Get all views
          * @param {string} org specifies the organization of the resource
          * @param {*} [options] Override http request option.
@@ -16929,6 +17340,37 @@ export const ViewsApiFp = function(configuration?: Configuration) {
     return {
         /**
          * 
+         * @summary Retrieve the view for a cell in a dashboard
+         * @param {string} dashboardID ID of dashboard
+         * @param {string} cellID ID of cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<View> {
+            const localVarAxiosArgs = ViewsApiAxiosParamCreator(configuration).dashboardsDashboardIDCellsCellIDViewGet(dashboardID, cellID, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary Update the view for a cell
+         * @param {string} dashboardID ID of dashboard to update
+         * @param {string} cellID ID of cell to update
+         * @param {View} view updates the view for a cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<View> {
+            const localVarAxiosArgs = ViewsApiAxiosParamCreator(configuration).dashboardsDashboardIDCellsCellIDViewPatch(dashboardID, cellID, view, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary Get all views
          * @param {string} org specifies the organization of the resource
          * @param {*} [options] Override http request option.
@@ -17098,6 +17540,29 @@ export const ViewsApiFactory = function (configuration?: Configuration, basePath
     return {
         /**
          * 
+         * @summary Retrieve the view for a cell in a dashboard
+         * @param {string} dashboardID ID of dashboard
+         * @param {string} cellID ID of cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options?: any) {
+            return ViewsApiFp(configuration).dashboardsDashboardIDCellsCellIDViewGet(dashboardID, cellID, options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary Update the view for a cell
+         * @param {string} dashboardID ID of dashboard to update
+         * @param {string} cellID ID of cell to update
+         * @param {View} view updates the view for a cell
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options?: any) {
+            return ViewsApiFp(configuration).dashboardsDashboardIDCellsCellIDViewPatch(dashboardID, cellID, view, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary Get all views
          * @param {string} org specifies the organization of the resource
          * @param {*} [options] Override http request option.
@@ -17222,6 +17687,33 @@ export const ViewsApiFactory = function (configuration?: Configuration, basePath
  * @extends {BaseAPI}
  */
 export class ViewsApi extends BaseAPI {
+    /**
+     * 
+     * @summary Retrieve the view for a cell in a dashboard
+     * @param {string} dashboardID ID of dashboard
+     * @param {string} cellID ID of cell
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ViewsApi
+     */
+    public dashboardsDashboardIDCellsCellIDViewGet(dashboardID: string, cellID: string, options?: any) {
+        return ViewsApiFp(this.configuration).dashboardsDashboardIDCellsCellIDViewGet(dashboardID, cellID, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary Update the view for a cell
+     * @param {string} dashboardID ID of dashboard to update
+     * @param {string} cellID ID of cell to update
+     * @param {View} view updates the view for a cell
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ViewsApi
+     */
+    public dashboardsDashboardIDCellsCellIDViewPatch(dashboardID: string, cellID: string, view: View, options?: any) {
+        return ViewsApiFp(this.configuration).dashboardsDashboardIDCellsCellIDViewPatch(dashboardID, cellID, view, options)(this.axios, this.basePath);
+    }
+
     /**
      * 
      * @summary Get all views
