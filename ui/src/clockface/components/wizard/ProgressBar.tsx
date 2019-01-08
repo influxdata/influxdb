@@ -13,6 +13,7 @@ interface Props {
   handleSetCurrentStep: (stepNumber: number) => void
   stepStatuses: StepStatus[]
   stepTitles: string[]
+  stepSkippable: boolean[]
 }
 
 @ErrorHandling
@@ -21,9 +22,49 @@ class ProgressBar extends PureComponent<Props, null> {
     return <div className="wizard--progress-bar">{this.WizardProgress}</div>
   }
 
-  private handleSetCurrentStep = i => () => {
-    const {handleSetCurrentStep} = this.props
+  private handleSetCurrentStep = (i: number) => () => {
+    const {handleSetCurrentStep, currentStepIndex} = this.props
+
+    const isAfterCurrentUnskippableStep =
+      !this.isStepSkippable && i > currentStepIndex
+    const isAfterNextUnskippableStep =
+      this.nextNonSkippableStep !== -1 && i > this.nextNonSkippableStep
+
+    const preventSkip =
+      isAfterCurrentUnskippableStep || isAfterNextUnskippableStep
+
+    if (preventSkip) {
+      return
+    }
+
     handleSetCurrentStep(i)
+  }
+
+  private get nextNonSkippableStep(): number {
+    const {currentStepIndex, stepSkippable, stepStatuses} = this.props
+    return _.findIndex(stepSkippable, (isSkippable, i) => {
+      return (
+        !isSkippable &&
+        i > currentStepIndex &&
+        stepStatuses[i] !== StepStatus.Complete
+      )
+    })
+  }
+
+  private get isStepSkippable(): boolean {
+    const {stepSkippable, stepStatuses, currentStepIndex} = this.props
+
+    return (
+      stepSkippable[currentStepIndex] ||
+      stepStatuses[currentStepIndex] === StepStatus.Complete
+    )
+  }
+
+  private getStepClass(i: number): string {
+    if (!this.isStepSkippable && i > this.props.currentStepIndex) {
+      return 'wizard--progress-button unclickable'
+    }
+    return 'wizard--progress-button'
   }
 
   private get WizardProgress(): JSX.Element[] {
@@ -47,7 +88,7 @@ class ProgressBar extends PureComponent<Props, null> {
         const stepEle = (
           <div
             key={`stepEle${i}`}
-            className="wizard--progress-button"
+            className={this.getStepClass(i)}
             onClick={this.handleSetCurrentStep(i)}
           >
             <span
