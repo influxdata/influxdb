@@ -17,15 +17,162 @@ import (
 
 const (
 	targetOneIDString = "0000000000000111"
-	// targetTwoIDString = "0000000000000222"
+	targetTwoIDString = "0000000000000222"
 )
 
 var (
 	targetOneID = platformtesting.MustIDBase16(targetOneIDString)
-	// targetTwoID = platformtesting.MustIDBase16(targetTwoIDString)
+	targetTwoID = platformtesting.MustIDBase16(targetTwoIDString)
 )
 
-func TestService_handleGetScraperTargets(t *testing.T) {}
+func TestService_handleGetScraperTargets(t *testing.T) {
+	type fields struct {
+		Service platform.ScraperTargetStoreService
+	}
+
+	type args struct {
+		queryParams map[string][]string
+	}
+
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "get all scraper targets",
+			fields: fields{
+				Service: &mock.ScraperTargetStoreService{
+					ListTargetsF: func(ctx context.Context) ([]platform.ScraperTarget, error) {
+						return []platform.ScraperTarget{
+							{
+								ID:         targetOneID,
+								Name:       "target-1",
+								Type:       platform.PrometheusScraperType,
+								URL:        "www.one.url",
+								OrgName:    "org-name",
+								BucketName: "bkt-one",
+							},
+							{
+								ID:         targetTwoID,
+								Name:       "target-2",
+								Type:       platform.PrometheusScraperType,
+								URL:        "www.two.url",
+								OrgName:    "org-name",
+								BucketName: "bkt-two",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(
+					`
+					{
+					  "links": {
+					    "self": "/api/v2/scrapertargets"
+					  },
+					  "scraper_targets": [
+					    {
+					      "id": "%s",
+						  "name": "target-1",
+						  "bucket": "bkt-one",
+						  "org": "org-name",
+						  "type": "prometheus",
+						  "url": "www.one.url",
+						  "links": {
+						    "self": "/api/v2/scrapertargets/0000000000000111"
+						  }
+						},
+						{
+						  "id": "%s",
+						  "name": "target-2",
+						  "bucket": "bkt-two",
+						  "org": "org-name",
+						  "type": "prometheus",
+						  "url": "www.two.url",
+						  "links": {
+						    "self": "/api/v2/scrapertargets/0000000000000222"
+						  }
+                        }
+					  ]
+					}
+					`,
+					targetOneIDString,
+					targetTwoIDString,
+				),
+			},
+		},
+		{
+			name: "get all scraper targets when there are none",
+			fields: fields{
+				Service: &mock.ScraperTargetStoreService{
+					ListTargetsF: func(ctx context.Context) ([]platform.ScraperTarget, error) {
+						return []platform.ScraperTarget{}, nil
+					},
+				},
+			},
+			args: args{},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+                {
+                  "links": {
+                    "self": "/api/v2/scrapertargets"
+                  },
+                  "scraper_targets": []
+                }
+                `,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewScraperHandler()
+			h.ScraperStorageService = tt.fields.Service
+
+			r := httptest.NewRequest("GET", "http://any.tld", nil)
+
+			qp := r.URL.Query()
+			for k, vs := range tt.args.queryParams {
+				for _, v := range vs {
+					qp.Add(k, v)
+				}
+			}
+			r.URL.RawQuery = qp.Encode()
+
+			w := httptest.NewRecorder()
+
+			h.handleGetScraperTargets(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handleGetScraperTargets() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. handleGetScraperTargets() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetScraperTargets() = ***%s***", tt.name, diff)
+			}
+		})
+	}
+}
 
 func TestService_handleGetScraperTarget(t *testing.T) {
 	type fields struct {
@@ -73,7 +220,22 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body:        fmt.Sprintf(`{"id": "%[1]s", "name": "target-1", "type": "prometheus", "url": "www.some.url", "bucket": "bkt-name", "org": "org-name", "links": {"self": "/api/v2/scrapertargets/%[1]s"}}`, targetOneIDString),
+				body: fmt.Sprintf(
+					`
+                    {
+                      "id": "%[1]s",
+                      "name": "target-1",
+                      "type": "prometheus",
+                      "url": "www.some.url",
+                      "bucket": "bkt-name",
+                      "org": "org-name",
+                      "links": {
+                        "self": "/api/v2/scrapertargets/%[1]s"
+                      }
+                    }
+                    `,
+					targetOneIDString,
+				),
 			},
 		},
 	}
