@@ -76,7 +76,7 @@ export class VerifyDataStep extends PureComponent<Props> {
 
     return (
       <Form onSubmit={this.handleIncrementStep}>
-        <div className="onboarding-step">
+        <div className="onboarding-step wizard--skippable">
           <VerifyDataSwitcher
             notify={notify}
             type={type}

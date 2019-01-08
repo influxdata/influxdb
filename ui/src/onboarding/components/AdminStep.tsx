@@ -65,7 +65,11 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
         >
           <Grid>
             <Grid.Row>
-              <Grid.Column widthXS={Columns.Ten} offsetXS={Columns.One}>
+              <Grid.Column
+                widthXS={Columns.Twelve}
+                widthMD={Columns.Ten}
+                offsetMD={Columns.One}
+              >
                 <Form.Element label="Admin Username">
                   <Input
                     value={username}
@@ -79,7 +83,11 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
                   />
                 </Form.Element>
               </Grid.Column>
-              <Grid.Column widthXS={Columns.Five} offsetXS={Columns.One}>
+              <Grid.Column
+                widthXS={Columns.Six}
+                widthMD={Columns.Five}
+                offsetMD={Columns.One}
+              >
                 <Form.Element label="Admin Password">
                   <Input
                     type={InputType.Password}
@@ -93,7 +101,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
                   />
                 </Form.Element>
               </Grid.Column>
-              <Grid.Column widthXS={Columns.Five}>
+              <Grid.Column widthXS={Columns.Six} widthMD={Columns.Five}>
                 <Form.Element label="Confirm Admin Password">
                   <Input
                     type={InputType.Password}
@@ -107,7 +115,11 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
                   />
                 </Form.Element>
               </Grid.Column>
-              <Grid.Column widthXS={Columns.Ten} offsetXS={Columns.One}>
+              <Grid.Column
+                widthXS={Columns.Twelve}
+                widthMD={Columns.Ten}
+                offsetMD={Columns.One}
+              >
                 <Form.Element label="Default Organization Name">
                   <Input
                     value={org}
@@ -121,7 +133,11 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
                   />
                 </Form.Element>
               </Grid.Column>
-              <Grid.Column widthXS={Columns.Ten} offsetXS={Columns.One}>
+              <Grid.Column
+                widthXS={Columns.Twelve}
+                widthMD={Columns.Ten}
+                offsetMD={Columns.One}
+              >
                 <Form.Element label="Default Bucket Name">
                   <Input
                     value={bucket}

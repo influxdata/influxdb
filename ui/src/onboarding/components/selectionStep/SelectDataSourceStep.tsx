@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
+import classnames from 'classnames'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -69,7 +70,7 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <Form onSubmit={this.handleClickNext}>
+      <Form onSubmit={this.handleClickNext} className={this.skippableClassName}>
         <div className="onboarding-step">
           <h3 className="wizard-step--title">{this.title}</h3>
           <h5 className="wizard-step--sub-title">
@@ -256,6 +257,18 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
 
   private get isStreaming(): boolean {
     return this.props.params.substepID === 'streaming'
+  }
+
+  private get skippableClassName(): string {
+    const {telegrafPlugins} = this.props
+    const pluginsSelected = telegrafPlugins.length > 0
+    const allConfigured = telegrafPlugins.every(
+      plugin => plugin.configured === 'configured'
+    )
+
+    return classnames('onboarding-step', {
+      'wizard--skippable': pluginsSelected && allConfigured,
+    })
   }
 }
 

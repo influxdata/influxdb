@@ -10,6 +10,9 @@ import TabBody from 'src/onboarding/components/configureStep/lineProtocol/TabBod
 // Types
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 
+// Components
+import {Grid, Columns} from 'src/clockface'
+
 // Actions
 import {
   setLineProtocolBody,
@@ -78,23 +81,29 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
           onClick={this.handleTabClick}
         />
 
-        <div className="onboarding--admin-user-form">
-          <div className={'wizard-step--lp-body'}>
-            <TabBody
-              onURLChange={this.handleURLChange}
-              activeLPTab={activeLPTab}
-              precision={precision}
-              urlInput={urlInput}
-              lineProtocolBody={lineProtocolBody}
-              setLineProtocolBody={setLineProtocolBody}
-            />
-          </div>
+        <Grid>
+          <Grid.Row>
+            <Grid.Column widthXS={Columns.Twelve}>
+              <div className="onboarding--admin-user-form">
+                <div className={'wizard-step--lp-body'}>
+                  <TabBody
+                    onURLChange={this.handleURLChange}
+                    activeLPTab={activeLPTab}
+                    precision={precision}
+                    urlInput={urlInput}
+                    lineProtocolBody={lineProtocolBody}
+                    setLineProtocolBody={setLineProtocolBody}
+                  />
+                </div>
 
-          <PrecisionDropdown
-            setPrecision={setPrecision}
-            precision={precision}
-          />
-        </div>
+                <PrecisionDropdown
+                  setPrecision={setPrecision}
+                  precision={precision}
+                />
+              </div>
+            </Grid.Column>
+          </Grid.Row>
+        </Grid>
       </>
     )
   }

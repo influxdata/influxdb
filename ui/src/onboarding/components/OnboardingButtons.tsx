@@ -91,14 +91,16 @@ class OnboardingButtons extends PureComponent<Props> {
     }
 
     return (
-      <Button
-        customClass="wizard--skip-button"
-        size={ComponentSize.Medium}
-        color={ComponentColor.Default}
-        text={skipButtonText}
-        onClick={onClickSkip}
-        data-test="skip"
-      />
+      <div className="wizard--skip-container">
+        <Button
+          customClass="wizard--skip-button"
+          size={ComponentSize.Medium}
+          color={ComponentColor.Default}
+          text={skipButtonText}
+          onClick={onClickSkip}
+          data-test="skip"
+        />
+      </div>
     )
   }
 }

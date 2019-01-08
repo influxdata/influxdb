@@ -79,7 +79,7 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
     } = this.props
 
     return (
-      <div className="onboarding-step">
+      <div className="onboarding-step wizard--skippable">
         <ConfigureDataSourceSwitcher
           bucket={_.get(setupParams, 'bucket', '')}
           org={_.get(setupParams, 'org', '')}
