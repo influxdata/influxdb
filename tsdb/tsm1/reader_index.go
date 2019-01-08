@@ -15,27 +15,28 @@ import (
 // TSMIndex represent the index section of a TSM file.  The index records all
 // blocks, their locations, sizes, min and max times.
 type TSMIndex interface {
-	// Delete removes the given keys from the index.
-	Delete(keys [][]byte)
+	// Delete removes the given keys from the index. Returns true if there were any changes.
+	Delete(keys [][]byte) bool
 
 	// DeleteRange removes the given keys with data between minTime and maxTime from the index.
-	DeleteRange(keys [][]byte, minTime, maxTime int64)
+	// Returns true if there were any changes.
+	DeleteRange(keys [][]byte, minTime, maxTime int64) bool
 
 	// DeletePrefix removes keys that begin with the given prefix with data between minTime and
-	// maxTime from the index.
-	DeletePrefix(prefix []byte, minTime, maxTime int64)
+	// maxTime from the index. Returns true if there were any changes.
+	DeletePrefix(prefix []byte, minTime, maxTime int64) bool
 
-	// ContainsKey returns true if the given key may exist in the index.  This func is faster than
+	// MaybeContainsKey returns true if the given key may exist in the index. This is faster than
 	// Contains but, may return false positives.
-	ContainsKey(key []byte) bool
+	MaybeContainsKey(key []byte) bool
 
 	// Contains return true if the given key exists in the index.
 	Contains(key []byte) bool
 
-	// ContainsValue returns true if key and time might exist in this file.  This function could
-	// return true even though the actual point does not exists.  For example, the key may
+	// MaybeContainsValue returns true if key and time might exist in this file. This function
+	// could return true even though the actual point does not exists. For example, the key may
 	// exist in this file, but not have a point exactly at time t.
-	ContainsValue(key []byte, timestamp int64) bool
+	MaybeContainsValue(key []byte, timestamp int64) bool
 
 	// ReadEntries reads the index entries for key into entries.
 	ReadEntries(key []byte, entries []IndexEntry) ([]IndexEntry, error)
@@ -154,8 +155,8 @@ func NewIndirectIndex() *indirectIndex {
 	}
 }
 
-// ContainsKey returns true of key may exist in this index.
-func (d *indirectIndex) ContainsKey(key []byte) bool {
+// MaybeContainsKey returns true of key may exist in this index.
+func (d *indirectIndex) MaybeContainsKey(key []byte) bool {
 	return bytes.Compare(key, d.minKey) >= 0 && bytes.Compare(key, d.maxKey) <= 0
 }
 
@@ -222,9 +223,9 @@ func (d *indirectIndex) Iterator(key []byte) *TSMIndexIterator {
 }
 
 // Delete removes the given keys from the index.
-func (d *indirectIndex) Delete(keys [][]byte) {
+func (d *indirectIndex) Delete(keys [][]byte) bool {
 	if len(keys) == 0 {
-		return
+		return false
 	}
 
 	d.mu.RLock()
@@ -242,12 +243,14 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 	d.mu.RUnlock()
 
 	if !iter.HasDeletes() {
-		return
+		return false
 	}
 
 	d.mu.Lock()
 	iter.Done()
 	d.mu.Unlock()
+
+	return true
 }
 
 // insertTimeRange adds a time range described by the minTime and maxTime into ts.
@@ -300,16 +303,15 @@ func (d *indirectIndex) coversEntries(offset uint32, key []byte, buf []TimeRange
 }
 
 // DeleteRange removes the given keys with data between minTime and maxTime from the index.
-func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
+func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) bool {
 	// If we're deleting everything, we won't need to worry about partial deletes.
 	if minTime <= d.minTime && maxTime >= d.maxTime {
-		d.Delete(keys)
-		return
+		return d.Delete(keys)
 	}
 
 	// Is the range passed in outside of the time range for the file?
 	if minTime > d.maxTime || maxTime < d.minTime {
-		return
+		return false
 	}
 
 	// General outline:
@@ -380,7 +382,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	d.mu.RUnlock()
 
 	if len(pending) == 0 && !iter.HasDeletes() {
-		return
+		return false
 	}
 
 	d.mu.Lock()
@@ -429,15 +431,18 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) {
 	}
 
 	iter.Done()
+	return true
 }
 
-func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) {
+// DeletePrefix removes keys that begin with the given prefix with data between minTime and
+// maxTime from the index.
+func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) bool {
 	// If we're deleting everything, we won't need to worry about partial deletes.
 	partial := !(minTime <= d.minTime && maxTime >= d.maxTime)
 
 	// Is the range passed in outside of the time range for the file?
 	if minTime > d.maxTime || maxTime < d.minTime {
-		return
+		return false
 	}
 
 	d.mu.RLock()
@@ -461,10 +466,12 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) {
 		} else if !iter.Next() {
 			break
 		}
-		if !bytes.HasPrefix(iter.Key(&d.b), prefix) {
+
+		first = false
+		key := iter.Key(&d.b)
+		if !bytes.HasPrefix(key, prefix) {
 			break
 		}
-		first = false
 
 		// if we're not doing a partial delete, we don't need to read the entries and
 		// can just delete the key and move on.
@@ -509,7 +516,7 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) {
 
 	// Check and abort if nothing needs to be done.
 	if !mustTrack && !iter.HasDeletes() {
-		return
+		return false
 	}
 
 	d.mu.Lock()
@@ -522,6 +529,8 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) {
 	if iter.HasDeletes() {
 		iter.Done()
 	}
+
+	return true
 }
 
 // TombstoneRange returns ranges of time that are deleted for the given key.
@@ -546,8 +555,8 @@ func (d *indirectIndex) Contains(key []byte) bool {
 	return exact
 }
 
-// ContainsValue returns true if key and time might exist in this file.
-func (d *indirectIndex) ContainsValue(key []byte, timestamp int64) bool {
+// MaybeContainsValue returns true if key and time might exist in this file.
+func (d *indirectIndex) MaybeContainsValue(key []byte, timestamp int64) bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 

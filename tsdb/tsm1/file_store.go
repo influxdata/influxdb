@@ -228,7 +228,7 @@ func (f FileStat) OverlapsKeyRange(min, max []byte) bool {
 }
 
 // ContainsKey returns true if the min and max keys of the file overlap the arguments min and max.
-func (f FileStat) ContainsKey(key []byte) bool {
+func (f FileStat) MaybeContainsKey(key []byte) bool {
 	return bytes.Compare(f.MinKey, key) >= 0 || bytes.Compare(key, f.MaxKey) <= 0
 }
 

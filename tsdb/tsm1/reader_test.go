@@ -402,12 +402,12 @@ func TestTSMReader_MMAP_TombstoneRange(t *testing.T) {
 	}
 	defer r.Close()
 
-	if got, exp := r.ContainsValue([]byte("cpu"), 1), true; got != exp {
-		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	if got, exp := r.MaybeContainsValue([]byte("cpu"), 1), true; got != exp {
+		t.Fatalf("MaybeContainsValue mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := r.ContainsValue([]byte("cpu"), 3), false; got != exp {
-		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	if got, exp := r.MaybeContainsValue([]byte("cpu"), 3), false; got != exp {
+		t.Fatalf("MaybeContainsValue mismatch: got %v, exp %v", got, exp)
 	}
 
 	values, err := r.ReadAll([]byte("cpu"))
@@ -467,16 +467,16 @@ func TestTSMReader_MMAP_TombstoneOutsideTimeRange(t *testing.T) {
 	}
 	defer r.Close()
 
-	if got, exp := r.ContainsValue([]byte("cpu"), 1), true; got != exp {
-		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	if got, exp := r.MaybeContainsValue([]byte("cpu"), 1), true; got != exp {
+		t.Fatalf("MaybeContainsValue mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := r.ContainsValue([]byte("cpu"), 2), true; got != exp {
-		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	if got, exp := r.MaybeContainsValue([]byte("cpu"), 2), true; got != exp {
+		t.Fatalf("MaybeContainsValue mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := r.ContainsValue([]byte("cpu"), 3), true; got != exp {
-		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	if got, exp := r.MaybeContainsValue([]byte("cpu"), 3), true; got != exp {
+		t.Fatalf("MaybeContainsValue mismatch: got %v, exp %v", got, exp)
 	}
 
 	if got, exp := r.HasTombstones(), false; got != exp {
@@ -531,16 +531,16 @@ func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
 	}
 	defer r.Close()
 
-	if got, exp := r.ContainsValue([]byte("cpu"), 1), true; got != exp {
-		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	if got, exp := r.MaybeContainsValue([]byte("cpu"), 1), true; got != exp {
+		t.Fatalf("MaybeContainsValue mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := r.ContainsValue([]byte("cpu"), 2), true; got != exp {
-		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	if got, exp := r.MaybeContainsValue([]byte("cpu"), 2), true; got != exp {
+		t.Fatalf("MaybeContainsValue mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := r.ContainsValue([]byte("cpu"), 3), true; got != exp {
-		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	if got, exp := r.MaybeContainsValue([]byte("cpu"), 3), true; got != exp {
+		t.Fatalf("MaybeContainsValue mismatch: got %v, exp %v", got, exp)
 	}
 
 	if got, exp := r.HasTombstones(), false; got != exp {
@@ -605,11 +605,11 @@ func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
 	defer r.Close()
 
 	if got, exp := r.Contains([]byte("cpu,app=foo,host=server-0#!~#value")), false; got != exp {
-		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+		t.Fatalf("MaybeContainsValue mismatch: got %v, exp %v", got, exp)
 	}
 
 	if got, exp := r.Contains([]byte("cpu,app=foo,host=server-73379#!~#value")), false; got != exp {
-		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+		t.Fatalf("MaybeContainsValue mismatch: got %v, exp %v", got, exp)
 	}
 
 	if got, exp := r.HasTombstones(), true; got != exp {
