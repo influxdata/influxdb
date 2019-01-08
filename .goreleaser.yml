@@ -5,17 +5,7 @@ builds:
     - darwin
     goarch:
     - amd64
-    - 386
-    - arm
     - arm64
-    goarm:
-    - 6
-    - 7
-    ignore:
-      - goos: darwin
-        goarch: 386
-      - goos: windows
-        goarch: 386
     main: ./cmd/influx/
     env:
       - GO111MODULE=on
@@ -26,17 +16,7 @@ builds:
     - darwin
     goarch:
     - amd64
-    - 386
-    - arm
     - arm64
-    goarm:
-    - 6
-    - 7
-    ignore:
-      - goos: darwin
-        goarch: 386
-      - goos: windows
-        goarch: 386
     main: ./cmd/influxd/
     flags:
       - -tags=assets
