@@ -108,7 +108,7 @@ func (t *TSMReader) applyTombstones() error {
 	if err := t.tombstoner.Walk(func(ts Tombstone) error {
 		// TODO(jeff): maybe we need to do batches of prefixes
 		if ts.Prefix {
-			t.index.DeletePrefix(ts.Key, ts.Min, ts.Max)
+			t.index.DeletePrefix(ts.Key, ts.Min, ts.Max, nil)
 			return nil
 		}
 
@@ -313,9 +313,10 @@ func (t *TSMReader) DeleteRange(keys [][]byte, minTime, maxTime int64) error {
 	return nil
 }
 
-// DeletePrefix removes the given points for keys beginning with prefix.
-func (t *TSMReader) DeletePrefix(prefix []byte, minTime, maxTime int64) error {
-	if !t.index.DeletePrefix(prefix, minTime, maxTime) {
+// DeletePrefix removes the given points for keys beginning with prefix. It calls dead with
+// any keys that became dead as a result of this call.
+func (t *TSMReader) DeletePrefix(prefix []byte, minTime, maxTime int64, dead func([]byte)) error {
+	if !t.index.DeletePrefix(prefix, minTime, maxTime, dead) {
 		return nil
 	}
 	if err := t.tombstoner.AddPrefixRange(prefix, minTime, maxTime); err != nil {

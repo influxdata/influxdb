@@ -23,8 +23,9 @@ type TSMIndex interface {
 	DeleteRange(keys [][]byte, minTime, maxTime int64) bool
 
 	// DeletePrefix removes keys that begin with the given prefix with data between minTime and
-	// maxTime from the index. Returns true if there were any changes.
-	DeletePrefix(prefix []byte, minTime, maxTime int64) bool
+	// maxTime from the index. Returns true if there were any changes. It calls dead with any
+	// keys that became dead as a result of this call.
+	DeletePrefix(prefix []byte, minTime, maxTime int64, dead func([]byte)) bool
 
 	// MaybeContainsKey returns true if the given key may exist in the index. This is faster than
 	// Contains but, may return false positives.
@@ -435,8 +436,13 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) bool 
 }
 
 // DeletePrefix removes keys that begin with the given prefix with data between minTime and
-// maxTime from the index.
-func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) bool {
+// maxTime from the index. Returns true if there were any changes. It calls dead with any
+// keys that became dead as a result of this call.
+func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64, dead func([]byte)) bool {
+	if dead == nil {
+		dead = func([]byte) {}
+	}
+
 	// If we're deleting everything, we won't need to worry about partial deletes.
 	partial := !(minTime <= d.minTime && maxTime >= d.maxTime)
 
@@ -476,6 +482,7 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) bool
 		// if we're not doing a partial delete, we don't need to read the entries and
 		// can just delete the key and move on.
 		if !partial {
+			dead(key)
 			iter.Delete()
 			continue
 		}
@@ -486,6 +493,7 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) bool
 			// If we have an error reading the entries for a key, we should just pretend
 			// the whole key is deleted. Maybe a better idea is to report this up somehow
 			// but that's for another time.
+			dead(key)
 			iter.Delete()
 			continue
 		}
@@ -498,6 +506,7 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) bool
 
 		// Does the range passed cover every value for the key?
 		if minTime <= min && maxTime >= max {
+			dead(key)
 			iter.Delete()
 			continue
 		}
@@ -505,6 +514,7 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64) bool
 		// Does adding the minTime and maxTime cover the entries?
 		trbuf, ok = d.coversEntries(iter.Offset(), iter.Key(&d.b), trbuf, entries, minTime, maxTime)
 		if ok {
+			dead(key)
 			iter.Delete()
 			continue
 		}

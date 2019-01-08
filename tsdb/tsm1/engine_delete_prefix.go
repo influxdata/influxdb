@@ -3,8 +3,10 @@ package tsm1
 import (
 	"bytes"
 	"math"
+	"sync"
 
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/bytesutil"
 )
 
@@ -35,15 +37,28 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 		max = math.MaxInt64
 	}
 
-	// Run the delete on each TSM file in parallel
+	// Run the delete on each TSM file in parallel and keep track of possibly dead keys.
+
+	// TODO(jeff): keep a set of keys for each file to avoid contention.
+	// TODO(jeff): come up with a better way to figure out what keys we need to delete
+	// from the index.
+
+	var possiblyDead struct {
+		sync.RWMutex
+		keys map[string]struct{}
+	}
+	possiblyDead.keys = make(map[string]struct{})
+
 	if err := e.FileStore.Apply(func(r TSMFile) error {
-		return r.DeletePrefix(prefix, min, max)
+		return r.DeletePrefix(prefix, min, max, func(key []byte) {
+			possiblyDead.Lock()
+			possiblyDead.keys[string(key)] = struct{}{}
+			possiblyDead.Unlock()
+		})
 	}); err != nil {
 		return err
 	}
 
-	// TODO(jeff): block writes matching the prefix while this function is in progress to
-	// avoid races with the cache/wal.
 	// TODO(jeff): add a DeletePrefix to the Cache and WAL.
 	// TODO(jeff): add a Tombstone entry into the WAL for deletes.
 
@@ -63,24 +78,81 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 	// Sort the series keys because ApplyEntryFn iterates over the keys randomly.
 	bytesutil.Sort(deleteKeys)
 
-	// delete from the cache and wal
+	// Delete from the cache and WAL.
 	e.Cache.DeleteRange(deleteKeys, min, max)
 	if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
 		return err
 	}
 
-	// TODO(jeff): have to clean up the index. it's hard to know which keys are fully
-	// deleted now due to a couple of complications:
-	// 1. the reader/index don't keep track of which keys have been deleted, which means
-	//    that they will have a hard time responding to the query "which keys are deleted
-	//    with this prefix?"
-	// 2. even if they did, deletion is a global property. in the presense of concurrent
-	//    deletes, some deletes may observe a TSM file with some key deleted, but some other
-	//    TSM file still has it, while another delete observes the opposite. These orderings
-	//    make it hard to check or know which keys to fully delete out of the index.
-	// 3. it's important to atomically update the index with the deletions that happened in
-	//    the TSM file. note: this is already botched because DeletePrefix on the TSMFile saves
-	//    the tombstone each time.
+	// Now that all of the data is purged, we need to find if some keys are fully deleted
+	// and if so, remove them from the index.
+	if err := e.FileStore.Apply(func(r TSMFile) error {
+		possiblyDead.RLock()
+		defer possiblyDead.RUnlock()
+
+		iter := r.Iterator(prefix)
+		for i := 0; iter.Next(); i++ {
+			key := iter.Key()
+			if !bytes.HasPrefix(key, prefix) {
+				break
+			}
+
+			// TODO(jeff): benchmark the locking here.
+			if i%1024 == 0 { // allow writes to proceed.
+				possiblyDead.RUnlock()
+				possiblyDead.RLock()
+			}
+
+			if _, ok := possiblyDead.keys[string(key)]; ok {
+				possiblyDead.RUnlock()
+				possiblyDead.Lock()
+				delete(possiblyDead.keys, string(key))
+				possiblyDead.Unlock()
+				possiblyDead.RLock()
+			}
+		}
+
+		return iter.Err()
+	}); err != nil {
+		return err
+	}
+
+	if len(possiblyDead.keys) > 0 {
+		buf := make([]byte, 1024)
+		measurements := make(map[string]struct{}, 1)
+
+		// TODO(jeff): all of these methods have possible errors which opens us to partial
+		// failure scenarios. we need to either ensure that partial errors here are ok or
+		// do something to fix it.
+		// TODO(jeff): it's also important that all of the deletes happen atomically with
+		// the deletes of the data in the tsm files.
+
+		for key := range possiblyDead.keys {
+			// TODO(jeff): ugh reduce copies here
+			keyb := []byte(key)
+
+			name, tags := models.ParseKeyBytes(keyb)
+			sid := e.sfile.SeriesID(name, tags, buf)
+			if sid.IsZero() {
+				continue
+			}
+
+			measurements[string(name)] = struct{}{}
+
+			if err := e.index.DropSeries(sid, keyb, false); err != nil {
+				return err
+			}
+			if err := e.sfile.DeleteSeriesID(sid); err != nil {
+				return err
+			}
+		}
+
+		for name := range measurements {
+			if err := e.index.DropMeasurementIfSeriesNotExist([]byte(name)); err != nil {
+				return err
+			}
+		}
+	}
 
 	return nil
 }

@@ -1581,7 +1581,7 @@ func TestTSMReader_DeletePrefix(t *testing.T) {
 	r, err := NewTSMReader(f)
 	fatalIfErr(t, "creating reader", err)
 
-	err = r.DeletePrefix([]byte("c"), 0, 5)
+	err = r.DeletePrefix([]byte("c"), 0, 5, nil)
 	fatalIfErr(t, "deleting prefix", err)
 
 	values, err := r.ReadAll([]byte("cpu"))

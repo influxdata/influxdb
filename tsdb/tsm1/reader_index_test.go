@@ -3,6 +3,7 @@ package tsm1
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"sync/atomic"
 	"testing"
 )
@@ -169,7 +170,7 @@ func TestIndirectIndex_DeletePrefix(t *testing.T) {
 	index.Add([]byte("mem"), BlockInteger, 0, 10, 10, 20)
 	ind := loadIndex(t, index)
 
-	ind.DeletePrefix([]byte("c"), 5, 15)
+	ind.DeletePrefix([]byte("c"), 5, 15, nil)
 
 	check(t, ind.Contains([]byte("mem")), true)
 	check(t, ind.Contains([]byte("cpu1")), true)
@@ -185,7 +186,7 @@ func TestIndirectIndex_DeletePrefix(t *testing.T) {
 	check(t, ind.MaybeContainsValue([]byte("cpu2"), 15), false)
 	check(t, ind.MaybeContainsValue([]byte("cpu2"), 16), true)
 
-	ind.DeletePrefix([]byte("cp"), 0, 5)
+	ind.DeletePrefix([]byte("cp"), 0, 5, nil)
 
 	check(t, ind.Contains([]byte("mem")), true)
 	check(t, ind.Contains([]byte("cpu1")), true)
@@ -201,7 +202,7 @@ func TestIndirectIndex_DeletePrefix(t *testing.T) {
 	check(t, ind.MaybeContainsValue([]byte("cpu2"), 15), false)
 	check(t, ind.MaybeContainsValue([]byte("cpu2"), 16), true)
 
-	ind.DeletePrefix([]byte("cpu"), 15, 20)
+	ind.DeletePrefix([]byte("cpu"), 15, 20, nil)
 
 	check(t, ind.Contains([]byte("mem")), true)
 	check(t, ind.Contains([]byte("cpu1")), false)
@@ -230,11 +231,47 @@ func TestIndirectIndex_DeletePrefix_NoMatch(t *testing.T) {
 	index.Add([]byte("cpu"), BlockInteger, 0, 10, 10, 20)
 	ind := loadIndex(t, index)
 
-	ind.DeletePrefix([]byte("b"), 5, 5)
-	ind.DeletePrefix([]byte("d"), 5, 5)
+	ind.DeletePrefix([]byte("b"), 5, 5, nil)
+	ind.DeletePrefix([]byte("d"), 5, 5, nil)
 
 	check(t, ind.Contains([]byte("cpu")), true)
 	check(t, ind.MaybeContainsValue([]byte("cpu"), 5), true)
+}
+
+func TestIndirectIndex_DeletePrefix_Dead(t *testing.T) {
+	check := func(t *testing.T, got, exp interface{}) {
+		t.Helper()
+		if !reflect.DeepEqual(exp, got) {
+			t.Fatalf("expected: %q but got: %q", exp, got)
+		}
+	}
+
+	var keys [][]byte
+	dead := func(key []byte) { keys = append(keys, append([]byte(nil), key...)) }
+
+	b := func(keys ...string) (out [][]byte) {
+		for _, key := range keys {
+			out = append(out, []byte(key))
+		}
+		return out
+	}
+
+	index := NewIndexWriter()
+	index.Add([]byte("cpu"), BlockInteger, 0, 10, 10, 20)
+	index.Add([]byte("dpu"), BlockInteger, 0, 10, 10, 20)
+	ind := loadIndex(t, index)
+
+	ind.DeletePrefix([]byte("b"), 5, 5, dead)
+	check(t, keys, b())
+
+	ind.DeletePrefix([]byte("c"), 0, 9, dead)
+	check(t, keys, b())
+
+	ind.DeletePrefix([]byte("c"), 9, 10, dead)
+	check(t, keys, b("cpu"))
+
+	ind.DeletePrefix([]byte("d"), -50, 50, dead)
+	check(t, keys, b("cpu", "dpu"))
 }
 
 //
@@ -512,7 +549,7 @@ func BenchmarkIndirectIndex_DeletePrefixFull(b *testing.B) {
 			indirect, _ = getIndex(b, name)
 			b.StartTimer()
 
-			indirect.DeletePrefix(prefix, 10, 50)
+			indirect.DeletePrefix(prefix, 10, 50, nil)
 		}
 
 		if faultBufferEnabled {
@@ -537,7 +574,7 @@ func BenchmarkIndirectIndex_DeletePrefixFull_Covered(b *testing.B) {
 			indirect, _ = getIndex(b, name)
 			b.StartTimer()
 
-			indirect.DeletePrefix(prefix, 0, math.MaxInt64)
+			indirect.DeletePrefix(prefix, 0, math.MaxInt64, nil)
 		}
 
 		if faultBufferEnabled {
