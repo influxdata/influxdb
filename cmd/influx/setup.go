@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/platform/cmd/influx/internal"
 	"github.com/influxdata/platform/http"
 	"github.com/spf13/cobra"
-	"github.com/tcnksm/go-input"
+	input "github.com/tcnksm/go-input"
 )
 
 // setup Command
@@ -55,19 +55,17 @@ func setupF(cmd *cobra.Command, args []string) {
 		"Username",
 		"Organization",
 		"Bucket",
-		"Token",
 	)
 	w.Write(map[string]interface{}{
 		"UserID":       result.User.ID.String(),
 		"Username":     result.User.Name,
 		"Organization": result.Org.Name,
 		"Bucket":       result.Bucket.Name,
-		"Token":        result.Auth.Token,
 	})
 
 	writeTokenToPath(result.Auth.Token, defaultTokenPath())
-
 	w.Flush()
+	fmt.Println(promptWithColor("Your token has been stored in "+defaultTokenPath(), colorCyan))
 }
 
 func getOnboardingRequest() (req *platform.OnboardingRequest) {
