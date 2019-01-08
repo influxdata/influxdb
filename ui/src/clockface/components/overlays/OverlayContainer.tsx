@@ -7,7 +7,7 @@ interface Props {
 
 class OverlayContainer extends Component<Props> {
   public static defaultProps: Partial<Props> = {
-    maxWidth: 600,
+    maxWidth: 800,
   }
 
   public render() {

@@ -10,16 +10,16 @@ import {
 } from 'src/clockface'
 import TokenRow from 'src/me/components/account/TokenRow'
 
-// Actions
-import {notify} from 'src/shared/actions/notifications'
-
 // Types
 import {Authorization} from 'src/api'
 import ViewTokenOverlay from './ViewTokenOverlay'
 
+// Actions
+import {NotificationAction} from 'src/types'
+
 interface Props {
   auths: Authorization[]
-  onNotify: typeof notify
+  onNotify: NotificationAction
   searchTerm: string
 }
 
@@ -38,7 +38,7 @@ export default class TokenList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {auths} = this.props
+    const {auths, onNotify} = this.props
     const {isTokenOverlayVisible, authInView} = this.state
 
     return (
@@ -62,6 +62,7 @@ export default class TokenList extends PureComponent<Props, State> {
         </IndexList>
         <OverlayTechnology visible={isTokenOverlayVisible}>
           <ViewTokenOverlay
+            onNotify={onNotify}
             auth={authInView}
             onDismissOverlay={this.handleDismissOverlay}
           />
