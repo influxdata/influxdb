@@ -134,8 +134,7 @@ func (h *ScraperHandler) handleGetScraperTargets(w http.ResponseWriter, r *http.
 	}
 }
 
-func decodeScraperTargetUpdateRequest(ctx context.Context, r *http.Request) (
-	*platform.ScraperTarget, error) {
+func decodeScraperTargetUpdateRequest(ctx context.Context, r *http.Request) (*platform.ScraperTarget, error) {
 	update := &platform.ScraperTarget{}
 	if err := json.NewDecoder(r.Body).Decode(update); err != nil {
 		return nil, err

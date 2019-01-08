@@ -476,7 +476,166 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 }
 
 func TestService_handlePatchScraperTarget(t *testing.T) {
+	type fields struct {
+		Service platform.ScraperTargetStoreService
+	}
 
+	type args struct {
+		id     string
+		update *platform.ScraperTarget
+	}
+
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "update a scraper target",
+			fields: fields{
+				Service: &mock.ScraperTargetStoreService{
+					UpdateTargetF: func(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+						if t.ID == targetOneID {
+							return t, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id: targetOneIDString,
+				update: &platform.ScraperTarget{
+					ID:         targetOneID,
+					Name:       "name",
+					BucketName: "buck",
+					Type:       platform.PrometheusScraperType,
+					URL:        "www.example.url",
+					OrgName:    "orgg",
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(
+					`
+		            {
+		              "id":"%[1]s",
+		              "name":"name",
+		              "type":"prometheus",
+		              "url":"www.example.url",
+		              "org":"orgg",
+		              "bucket":"buck",
+		              "links":{
+		                "self":"/api/v2/scrapertargets/%[1]s"
+		              }
+		            }
+		            `,
+					targetOneIDString,
+				),
+			},
+		},
+		// fixme > scraper update needs to be done through an intermediate struct (eg., patchScraperRequest) to check almost 1 field is updated
+		// todo > introduce a platform.ScraperTargetUpdate struct
+		// {
+		// 	name: "update a scraper target with empty request body",
+		// 	fields: fields{
+		// 		Service: &mock.ScraperTargetStoreService{
+		// 			UpdateTargetF: func(ctx context.Context, upd *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+		// 				return nil, fmt.Errorf("not found")
+		// 			},
+		// 		},
+		// 	},
+		// 	args: args{
+		// 		id: targetTwoIDString,
+		// 	},
+		// 	wants: wants{
+		// 		statusCode: http.StatusBadRequest,
+		// 	},
+		// },
+		{
+			name: "scraper target not found",
+			fields: fields{
+				Service: &mock.ScraperTargetStoreService{
+					UpdateTargetF: func(ctx context.Context, upd *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  platform.ErrScraperTargetNotFound,
+						}
+					},
+				},
+			},
+			args: args{
+				id: targetOneIDString,
+				update: &platform.ScraperTarget{
+					ID:         targetOneID,
+					Name:       "name",
+					BucketName: "buck",
+					Type:       platform.PrometheusScraperType,
+					URL:        "www.example.url",
+					OrgName:    "orgg",
+				},
+			},
+			wants: wants{
+				statusCode: http.StatusNotFound,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewScraperHandler()
+			h.ScraperStorageService = tt.fields.Service
+
+			var err error
+			st := make([]byte, 0)
+			if tt.args.update != nil {
+				st, err = json.Marshal(*tt.args.update)
+				if err != nil {
+					t.Fatalf("failed to unmarshal scraper target: %v", err)
+				}
+			}
+
+			fmt.Println(string(st))
+
+			r := httptest.NewRequest("GET", "http://any.tld", bytes.NewReader(st))
+
+			r = r.WithContext(context.WithValue(
+				context.Background(),
+				httprouter.ParamsKey,
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.args.id,
+					},
+				}))
+
+			w := httptest.NewRecorder()
+
+			h.handlePatchScraperTarget(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handlePatchScraperTarget() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. handlePatchScraperTarget() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePatchScraperTarget() = ***%s***", tt.name, diff)
+			}
+		})
+	}
 }
 
 func initScraperService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, string, func()) {
