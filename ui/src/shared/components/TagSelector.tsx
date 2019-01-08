@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import {Dropdown, Input, Button, ButtonShape, IconFont} from 'src/clockface'
+import SearchableDropdown from 'src/shared/components/SearchableDropdown'
 import WaitingText from 'src/shared/components/WaitingText'
 import SelectorList from 'src/shared/components/SelectorList'
 
@@ -12,8 +13,10 @@ import {
   selectTagKey,
   selectTagValue,
   searchTagValues,
+  searchTagKeys,
   removeTagSelector,
-  setSearchTerm,
+  setKeysSearchTerm,
+  setValuesSearchTerm,
 } from 'src/shared/actions/v2/queryBuilder'
 
 // Utils
@@ -41,15 +44,18 @@ interface StateProps {
   values: string[]
   valuesStatus: RemoteDataState
   selectedValues: string[]
-  searchTerm: string
+  valuesSearchTerm: string
+  keysSearchTerm: string
 }
 
 interface DispatchProps {
   onSelectValue: typeof selectTagValue
   onSelectTag: typeof selectTagKey
   onSearchValues: typeof searchTagValues
+  onSearchKeys: typeof searchTagKeys
   onRemoveTagSelector: typeof removeTagSelector
-  onSetSearchTerm: typeof setSearchTerm
+  onSetValuesSearchTerm: typeof setValuesSearchTerm
+  onSetKeysSearchTerm: typeof setKeysSearchTerm
 }
 
 interface OwnProps {
@@ -72,19 +78,12 @@ class TagSelector extends PureComponent<Props> {
       keysStatus,
       selectedKey,
       emptyText,
-      searchTerm,
+      valuesSearchTerm,
+      keysSearchTerm,
     } = this.props
 
     if (keysStatus === RemoteDataState.NotStarted) {
       return <div className="tag-selector--empty">{emptyText}</div>
-    }
-
-    if (keysStatus === RemoteDataState.Loading) {
-      return (
-        <div className="tag-selector--empty">
-          <WaitingText text="Loading tag keys" />
-        </div>
-      )
     }
 
     if (keysStatus === RemoteDataState.Error) {
@@ -98,7 +97,10 @@ class TagSelector extends PureComponent<Props> {
     return (
       <>
         <div className="tag-selector--top">
-          <Dropdown
+          <SearchableDropdown
+            searchTerm={keysSearchTerm}
+            searchPlaceholder="Search keys..."
+            onChangeSearchTerm={this.handleKeysSearch}
             selectedID={selectedKey}
             onChange={this.handleSelectTag}
             status={toComponentStatus(keysStatus)}
@@ -109,7 +111,7 @@ class TagSelector extends PureComponent<Props> {
                 {key}
               </Dropdown.Item>
             ))}
-          </Dropdown>
+          </SearchableDropdown>
           {index !== 0 && (
             <Button
               shape={ButtonShape.Square}
@@ -120,10 +122,10 @@ class TagSelector extends PureComponent<Props> {
           )}
         </div>
         <Input
-          value={searchTerm}
+          value={valuesSearchTerm}
           placeholder={`Search ${selectedKey} tag values`}
           customClass="tag-selector--search"
-          onChange={this.handleSearch}
+          onChange={this.handleValuesSearch}
         />
         {this.values}
       </>
@@ -180,15 +182,28 @@ class TagSelector extends PureComponent<Props> {
     onRemoveTagSelector(index)
   }
 
-  private handleSearch = (e: ChangeEvent<HTMLInputElement>) => {
-    const {onSetSearchTerm, index} = this.props
-    const {value} = e.target
+  private handleKeysSearch = (value: string) => {
+    const {onSetKeysSearchTerm, index} = this.props
 
-    onSetSearchTerm(index, value)
-    this.debouncer.call(this.emitSearch, SEARCH_DEBOUNCE_MS)
+    onSetKeysSearchTerm(index, value)
+    this.debouncer.call(this.emitKeysSearch, SEARCH_DEBOUNCE_MS)
   }
 
-  private emitSearch = () => {
+  private emitKeysSearch = () => {
+    const {index, onSearchKeys} = this.props
+
+    onSearchKeys(index)
+  }
+
+  private handleValuesSearch = (e: ChangeEvent<HTMLInputElement>) => {
+    const {onSetValuesSearchTerm, index} = this.props
+    const {value} = e.target
+
+    onSetValuesSearchTerm(index, value)
+    this.debouncer.call(this.emitValuesSearch, SEARCH_DEBOUNCE_MS)
+  }
+
+  private emitValuesSearch = () => {
     const {index, onSearchValues} = this.props
 
     onSearchValues(index)
@@ -201,7 +216,8 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     keysStatus,
     values,
     valuesStatus,
-    searchTerm,
+    valuesSearchTerm,
+    keysSearchTerm,
   } = getActiveTimeMachine(state).queryBuilder.tags[ownProps.index]
 
   const tags = getActiveQuery(state).builderConfig.tags
@@ -223,7 +239,8 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     values,
     valuesStatus,
     selectedValues,
-    searchTerm,
+    valuesSearchTerm,
+    keysSearchTerm,
   }
 }
 
@@ -231,8 +248,10 @@ const mdtp = {
   onSelectValue: selectTagValue,
   onSelectTag: selectTagKey,
   onSearchValues: searchTagValues,
+  onSearchKeys: searchTagKeys,
   onRemoveTagSelector: removeTagSelector,
-  onSetSearchTerm: setSearchTerm,
+  onSetKeysSearchTerm: setKeysSearchTerm,
+  onSetValuesSearchTerm: setValuesSearchTerm,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

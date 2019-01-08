@@ -31,7 +31,8 @@ export type Action =
   | AddTagSelectorAction
   | RemoveTagSelectorAction
   | SelectFunctionAction
-  | SetSearchTermAction
+  | SetValuesSearchTermAction
+  | SetKeysSearchTermAction
 
 interface SetBuilderBucketsStatusAction {
   type: 'SET_BUILDER_BUCKETS_STATUS'
@@ -171,16 +172,29 @@ export const selectFunction = (name: string): SelectFunctionAction => ({
   payload: {name},
 })
 
-interface SetSearchTermAction {
-  type: 'SET_BUILDER_SEARCH_TERM'
+interface SetValuesSearchTermAction {
+  type: 'SET_BUILDER_VALUES_SEARCH_TERM'
   payload: {index: number; searchTerm: string}
 }
 
-export const setSearchTerm = (
+interface SetKeysSearchTermAction {
+  type: 'SET_BUILDER_KEYS_SEARCH_TERM'
+  payload: {index: number; searchTerm: string}
+}
+
+export const setValuesSearchTerm = (
   index: number,
   searchTerm: string
-): SetSearchTermAction => ({
-  type: 'SET_BUILDER_SEARCH_TERM',
+): SetValuesSearchTermAction => ({
+  type: 'SET_BUILDER_VALUES_SEARCH_TERM',
+  payload: {index, searchTerm},
+})
+
+export const setKeysSearchTerm = (
+  index: number,
+  searchTerm: string
+): SetKeysSearchTermAction => ({
+  type: 'SET_BUILDER_KEYS_SEARCH_TERM',
   payload: {index, searchTerm},
 })
 
@@ -236,11 +250,15 @@ export const loadTagSelector = (index: number) => async (
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
   try {
+    const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
+      .keysSearchTerm
+
     const keys = await fetcher.findKeys(
       index,
       queryURL,
       buckets[0],
-      tagPredicates
+      tagPredicates,
+      searchTerm
     )
 
     const {key} = tags[index]
@@ -278,7 +296,7 @@ const loadTagSelectorValues = (index: number) => async (
   try {
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
-      .searchTerm
+      .valuesSearchTerm
     const values = await fetcher.findValues(
       index,
       queryURL,
@@ -345,6 +363,12 @@ export const searchTagValues = (index: number) => async (
   dispatch: Dispatch<Action>
 ) => {
   dispatch(loadTagSelectorValues(index))
+}
+
+export const searchTagKeys = (index: number) => async (
+  dispatch: Dispatch<Action>
+) => {
+  dispatch(loadTagSelector(index))
 }
 
 export const addTagSelector = () => async (

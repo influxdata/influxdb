@@ -27,7 +27,7 @@ export enum DropdownMode {
   Radio = 'radio',
 }
 
-interface Props {
+export interface Props {
   children: JSX.Element[]
   onChange: (value: any) => void
   selectedID?: string
@@ -42,6 +42,7 @@ interface Props {
   maxMenuHeight?: number
   mode?: DropdownMode
   titleText?: string
+  menuHeader?: JSX.Element
 }
 
 interface State {
@@ -153,7 +154,13 @@ class Dropdown extends Component<Props, State> {
   }
 
   private get menuItems(): JSX.Element {
-    const {selectedID, maxMenuHeight, menuColor, children} = this.props
+    const {
+      selectedID,
+      maxMenuHeight,
+      menuHeader,
+      menuColor,
+      children,
+    } = this.props
     const {expanded} = this.state
 
     if (expanded) {
@@ -168,6 +175,7 @@ class Dropdown extends Component<Props, State> {
             maxHeight={maxMenuHeight}
           >
             <div className="dropdown--menu">
+              {menuHeader && menuHeader}
               {React.Children.map(children, (child: JSX.Element) => {
                 if (this.childTypeIsValid(child)) {
                   if (child.type === DropdownItem) {

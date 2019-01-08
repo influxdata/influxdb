@@ -33,7 +33,8 @@ interface QueryBuilderState {
   buckets: string[]
   bucketsStatus: RemoteDataState
   tags: Array<{
-    searchTerm: string
+    valuesSearchTerm: string
+    keysSearchTerm: string
     keys: string[]
     keysStatus: RemoteDataState
     values: string[]
@@ -513,11 +514,19 @@ export const timeMachineReducer = (
       })
     }
 
-    case 'SET_BUILDER_SEARCH_TERM': {
+    case 'SET_BUILDER_VALUES_SEARCH_TERM': {
       return produce(state, draftState => {
         const {index, searchTerm} = action.payload
 
-        draftState.queryBuilder.tags[index].searchTerm = searchTerm
+        draftState.queryBuilder.tags[index].valuesSearchTerm = searchTerm
+      })
+    }
+
+    case 'SET_BUILDER_KEYS_SEARCH_TERM': {
+      return produce(state, draftState => {
+        const {index, searchTerm} = action.payload
+
+        draftState.queryBuilder.tags[index].keysSearchTerm = searchTerm
       })
     }
 
@@ -527,7 +536,8 @@ export const timeMachineReducer = (
 
         draftQuery.builderConfig.tags.push({key: '', values: []})
         draftState.queryBuilder.tags.push({
-          searchTerm: '',
+          valuesSearchTerm: '',
+          keysSearchTerm: '',
           keys: [],
           keysStatus: RemoteDataState.NotStarted,
           values: [],
@@ -672,7 +682,8 @@ const initialQueryBuilderState = (
     buckets: builderConfig.buckets,
     bucketsStatus: RemoteDataState.NotStarted,
     tags: builderConfig.tags.map(_ => ({
-      searchTerm: '',
+      valuesSearchTerm: '',
+      keysSearchTerm: '',
       keys: [],
       keysStatus: RemoteDataState.NotStarted,
       values: [],
