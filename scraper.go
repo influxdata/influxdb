@@ -4,6 +4,9 @@ import (
 	"context"
 )
 
+// ErrScraperTargetNotFound is the error msg for a missing scraper target.
+const ErrScraperTargetNotFound = "scraper target not found"
+
 // ops for ScraperTarget Store
 const (
 	OpListTargets   = "ListTargets"

@@ -1,7 +1,9 @@
 package http
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -278,15 +280,202 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 	}
 }
 
-func TestService_handlePatchScraperTarget(t *testing.T) {
-
-}
-
 func TestService_handleDeleteScraperTarget(t *testing.T) {
+	type fields struct {
+		Service platform.ScraperTargetStoreService
+	}
 
+	type args struct {
+		id string
+	}
+
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "delete a scraper target by id",
+			fields: fields{
+				Service: &mock.ScraperTargetStoreService{
+					RemoveTargetF: func(ctx context.Context, id platform.ID) error {
+						if id == targetOneID {
+							return nil
+						}
+
+						return fmt.Errorf("wrong id")
+					},
+				},
+			},
+			args: args{
+				id: targetOneIDString,
+			},
+			wants: wants{
+				statusCode: http.StatusNoContent,
+			},
+		},
+		{
+			name: "scraper target not found",
+			fields: fields{
+				Service: &mock.ScraperTargetStoreService{
+					RemoveTargetF: func(ctx context.Context, id platform.ID) error {
+						return &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  platform.ErrScraperTargetNotFound,
+						}
+					},
+				},
+			},
+			args: args{
+				id: targetTwoIDString,
+			},
+			wants: wants{
+				statusCode: http.StatusNotFound,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewScraperHandler()
+			h.ScraperStorageService = tt.fields.Service
+
+			r := httptest.NewRequest("GET", "http://any.tld", nil)
+
+			r = r.WithContext(context.WithValue(
+				context.Background(),
+				httprouter.ParamsKey,
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.args.id,
+					},
+				}))
+
+			w := httptest.NewRecorder()
+
+			h.handleDeleteScraperTarget(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handleDeleteScraperTarget() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. handleDeleteScraperTarget() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleDeleteScraperTarget() = ***%s***", tt.name, diff)
+			}
+		})
+	}
 }
 
 func TestService_handlePostScraperTarget(t *testing.T) {
+	type fields struct {
+		Service platform.ScraperTargetStoreService
+	}
+
+	type args struct {
+		target *platform.ScraperTarget
+	}
+
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "create a new scraper target",
+			fields: fields{
+				Service: &mock.ScraperTargetStoreService{
+					AddTargetF: func(ctx context.Context, st *platform.ScraperTarget) error {
+						st.ID = targetOneID
+						return nil
+					},
+				},
+			},
+			args: args{
+				target: &platform.ScraperTarget{
+					Name:       "hello",
+					Type:       platform.PrometheusScraperType,
+					BucketName: "bkt-name",
+					OrgName:    "org-name",
+					URL:        "www.some.url",
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(
+					`
+                    {
+                      "id": "%[1]s",
+                      "name": "hello",
+                      "type": "prometheus",
+                      "url": "www.some.url",
+                      "org": "org-name",
+                      "bucket": "bkt-name",
+                      "links": {
+                        "self": "/api/v2/scrapertargets/%[1]s"
+                      }
+                    }
+                    `,
+					targetOneIDString,
+				),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewScraperHandler()
+			h.ScraperStorageService = tt.fields.Service
+
+			st, err := json.Marshal(tt.args.target)
+			if err != nil {
+				t.Fatalf("failed to unmarshal scraper target: %v", err)
+			}
+
+			r := httptest.NewRequest("GET", "http://any.tld", bytes.NewReader(st))
+			w := httptest.NewRecorder()
+
+			h.handlePostScraperTarget(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handlePostScraperTarget() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. handlePostScraperTarget() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePostScraperTarget() = ***%s***", tt.name, diff)
+			}
+		})
+	}
+}
+
+func TestService_handlePatchScraperTarget(t *testing.T) {
 
 }
 
