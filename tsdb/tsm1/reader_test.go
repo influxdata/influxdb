@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync/atomic"
 	"testing"
 )
 
@@ -1089,7 +1090,10 @@ func TestIndirectIndex_Entries(t *testing.T) {
 		t.Fatalf("unexpected error unmarshaling index: %v", err)
 	}
 
-	entries := indirect.Entries([]byte("cpu"))
+	entries, err := indirect.ReadEntries([]byte("cpu"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if got, exp := len(entries), len(exp); got != exp {
 		t.Fatalf("entries length mismatch: got %v, exp %v", got, exp)
@@ -1132,7 +1136,10 @@ func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 	// mem has not been added to the index so we should get no entries back
 	// for both
 	exp := index.Entries([]byte("mem"))
-	entries := indirect.Entries([]byte("mem"))
+	entries, err := indirect.ReadEntries([]byte("mem"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if got, exp := len(entries), len(exp); got != exp && exp != 0 {
 		t.Fatalf("entries length mismatch: got %v, exp %v", got, exp)
@@ -1874,136 +1881,255 @@ const (
 	indexBlockCount = 100
 )
 
-func mustMakeIndex(tb testing.TB, keys, blocks int) (*indirectIndex, []byte) {
-	index := NewIndexWriter()
+type indexCacheInfo struct {
+	index    *indirectIndex
+	offsets  []uint32
+	prefixes []prefixEntry
+	allKeys  [][]byte
+	bytes    []byte
+}
+
+func (i *indexCacheInfo) reset() {
+	i.index.ro.offsets = append([]uint32(nil), i.offsets...)
+	i.index.ro.prefixes = append([]prefixEntry(nil), i.prefixes...)
+	i.index.tombstones = make(map[uint32][]TimeRange)
+	resetFaults(i.index)
+}
+
+var (
+	indexCache = map[string]*indexCacheInfo{}
+	indexSizes = map[string][2]int{
+		"large": {500000, 100},
+		"med":   {1000, 1000},
+		"small": {5000, 2},
+	}
+)
+
+func getFaults(indirect *indirectIndex) int64 {
+	return int64(atomic.LoadUint64(&indirect.b.faults))
+}
+
+func resetFaults(indirect *indirectIndex) {
+	if indirect != nil {
+		indirect.b = faultBuffer{b: indirect.b.b}
+	}
+}
+
+func getIndex(tb testing.TB, name string) (*indirectIndex, *indexCacheInfo) {
+	info, ok := indexCache[name]
+	if ok {
+		info.reset()
+		return info.index, info
+	}
+	info = new(indexCacheInfo)
+
+	sizes, ok := indexSizes[name]
+	if !ok {
+		sizes = [2]int{indexKeyCount, indexBlockCount}
+	}
+	keys, blocks := sizes[0], sizes[1]
+
+	writer := NewIndexWriter()
+
+	// add a ballast key that starts at -1 so that we don't trigger optimizations
+	// when deleting [0, MaxInt]
+	writer.Add([]byte("ballast"), BlockFloat64, -1, 1, 0, 100)
+
 	for i := 0; i < keys; i++ {
+		key := []byte(fmt.Sprintf("cpu-%08d", i))
+		info.allKeys = append(info.allKeys, key)
 		for j := 0; j < blocks; j++ {
-			index.Add([]byte(fmt.Sprintf("cpu-%08d", i)), BlockFloat64, int64(i*j*2), int64(i*j*2+1), 10, 100)
+			writer.Add(key, BlockFloat64, int64(i*j*2), int64(i*j*2+1), 10, 100)
 		}
 	}
 
-	bytes, err := index.MarshalBinary()
+	var err error
+	info.bytes, err = writer.MarshalBinary()
 	if err != nil {
 		tb.Fatalf("unexpected error marshaling index: %v", err)
 	}
 
-	indirect := NewIndirectIndex()
-	if err = indirect.UnmarshalBinary(bytes); err != nil {
+	info.index = NewIndirectIndex()
+	if err = info.index.UnmarshalBinary(info.bytes); err != nil {
 		tb.Fatalf("unexpected error unmarshaling index: %v", err)
 	}
+	info.offsets = append([]uint32(nil), info.index.ro.offsets...)
+	info.prefixes = append([]prefixEntry(nil), info.index.ro.prefixes...)
 
-	return indirect, bytes
+	indexCache[name] = info
+	return info.index, info
 }
 
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
-	indirect, bytes := mustMakeIndex(b, indexKeyCount, indexBlockCount)
+	indirect, info := getIndex(b, "large")
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		if err := indirect.UnmarshalBinary(bytes); err != nil {
+		if err := indirect.UnmarshalBinary(info.bytes); err != nil {
 			b.Fatalf("unexpected error unmarshaling index: %v", err)
 		}
 	}
 }
 
 func BenchmarkIndirectIndex_Entries(b *testing.B) {
-	indirect, _ := mustMakeIndex(b, 1000, 1000)
+	indirect, _ := getIndex(b, "med")
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		indirect.Entries([]byte("cpu-00000001"))
+		resetFaults(indirect)
+		indirect.ReadEntries([]byte("cpu-00000001"), nil)
+	}
+
+	if faultBufferEnabled {
+		b.SetBytes(getFaults(indirect) * 4096)
+		b.Log("recorded faults:", getFaults(indirect))
 	}
 }
 
 func BenchmarkIndirectIndex_ReadEntries(b *testing.B) {
-	var cache []IndexEntry
-	indirect, _ := mustMakeIndex(b, 1000, 1000)
+	var entries []IndexEntry
+	indirect, _ := getIndex(b, "med")
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		indirect.ReadEntries([]byte("cpu-00000001"), &cache)
+		resetFaults(indirect)
+		entries, _ = indirect.ReadEntries([]byte("cpu-00000001"), entries)
+	}
+
+	if faultBufferEnabled {
+		b.SetBytes(getFaults(indirect) * 4096)
+		b.Log("recorded faults:", getFaults(indirect))
 	}
 }
 
 func BenchmarkBlockIterator_Next(b *testing.B) {
-	indirect, _ := mustMakeIndex(b, 1000, 1000)
+	indirect, _ := getIndex(b, "med")
 	r := TSMReader{index: indirect}
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		resetFaults(indirect)
 		bi := r.BlockIterator()
 		for bi.Next() {
 		}
 	}
+
+	if faultBufferEnabled {
+		b.SetBytes(getFaults(indirect) * 4096)
+		b.Log("recorded faults:", getFaults(indirect))
+	}
 }
 
 func BenchmarkIndirectIndex_DeleteRangeLast(b *testing.B) {
-	indirect, _ := mustMakeIndex(b, indexKeyCount, indexBlockCount)
+	indirect, _ := getIndex(b, "large")
 	keys := [][]byte{[]byte("cpu-00999999")}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
+		resetFaults(indirect)
 		indirect.DeleteRange(keys, 10, 50)
-		// do a cheap reset of the state.
-		for key := range indirect.tombstones {
-			delete(indirect.tombstones, key)
-		}
+	}
+
+	if faultBufferEnabled {
+		b.SetBytes(getFaults(indirect) * 4096)
+		b.Log("recorded faults:", getFaults(indirect))
 	}
 }
 
 func BenchmarkIndirectIndex_DeleteRangeFull(b *testing.B) {
-	indirect, _ := mustMakeIndex(b, indexKeyCount, indexBlockCount)
+	run := func(b *testing.B, name string) {
+		indirect, _ := getIndex(b, name)
+		b.ReportAllocs()
+		b.ResetTimer()
 
-	var keys [][]byte
-	for i := 0; i < indexKeyCount; i++ {
-		keys = append(keys, []byte(fmt.Sprintf("cpu-%08d", i)))
-	}
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			var info *indexCacheInfo
+			indirect, info = getIndex(b, name)
+			b.StartTimer()
 
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		for i := 0; i < len(keys); i += 4096 {
-			n := i + 4096
-			if n > len(keys) {
-				n = len(keys)
+			for i := 0; i < len(info.allKeys); i += 4096 {
+				n := i + 4096
+				if n > len(info.allKeys) {
+					n = len(info.allKeys)
+				}
+				indirect.DeleteRange(info.allKeys[i:n], 10, 50)
 			}
-			indirect.DeleteRange(keys[i:n], 10, 50)
 		}
-		// do a cheap reset of the state.
-		for key := range indirect.tombstones {
-			delete(indirect.tombstones, key)
+
+		if faultBufferEnabled {
+			b.SetBytes(getFaults(indirect) * 4096)
+			b.Log("recorded faults:", getFaults(indirect))
 		}
 	}
+
+	b.Run("Large", func(b *testing.B) { run(b, "large") })
+	b.Run("Small", func(b *testing.B) { run(b, "small") })
+}
+
+func BenchmarkIndirectIndex_DeleteRangeFull_Covered(b *testing.B) {
+	run := func(b *testing.B, name string) {
+		indirect, _ := getIndex(b, name)
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			var info *indexCacheInfo
+			indirect, info = getIndex(b, name)
+			b.StartTimer()
+
+			for i := 0; i < len(info.allKeys); i += 4096 {
+				n := i + 4096
+				if n > len(info.allKeys) {
+					n = len(info.allKeys)
+				}
+				indirect.DeleteRange(info.allKeys[i:n], 0, math.MaxInt64)
+			}
+		}
+
+		if faultBufferEnabled {
+			b.SetBytes(getFaults(indirect) * 4096)
+			b.Log("recorded faults:", getFaults(indirect))
+		}
+	}
+
+	b.Run("Large", func(b *testing.B) { run(b, "large") })
+	b.Run("Small", func(b *testing.B) { run(b, "small") })
 }
 
 func BenchmarkIndirectIndex_Delete(b *testing.B) {
-	indirect, bytes := mustMakeIndex(b, indexKeyCount, indexBlockCount)
+	run := func(b *testing.B, name string) {
+		indirect, _ := getIndex(b, name)
+		b.ReportAllocs()
+		b.ResetTimer()
 
-	var keys [][]byte
-	for i := 0; i < indexKeyCount; i++ {
-		keys = append(keys, []byte(fmt.Sprintf("cpu-%08d", i)))
-	}
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			var info *indexCacheInfo
+			indirect, info = getIndex(b, name)
+			b.StartTimer()
 
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		indirect.UnmarshalBinary(bytes)
-		b.StartTimer()
-
-		for i := 0; i < len(keys); i += 4096 {
-			n := i + 4096
-			if n > len(keys) {
-				n = len(keys)
+			for i := 0; i < len(info.allKeys); i += 4096 {
+				n := i + 4096
+				if n > len(info.allKeys) {
+					n = len(info.allKeys)
+				}
+				indirect.Delete(info.allKeys[i:n])
 			}
-			indirect.Delete(keys[i:n])
+		}
+
+		if faultBufferEnabled {
+			b.SetBytes(getFaults(indirect) * 4096)
+			b.Log("recorded faults:", getFaults(indirect))
 		}
 	}
+
+	b.Run("Large", func(b *testing.B) { run(b, "large") })
+	b.Run("Small", func(b *testing.B) { run(b, "small") })
 }

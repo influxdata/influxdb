@@ -6,42 +6,32 @@ import (
 )
 
 type keyIterator struct {
-	f   TSMFile
-	c   int // current key index
-	n   int // key count
-	key []byte
-	typ byte
+	iter TSMIterator
+	key  []byte
+	typ  byte
 }
 
 func newKeyIterator(f TSMFile, seek []byte) *keyIterator {
-	c, n := 0, f.KeyCount()
-	if len(seek) > 0 {
-		c = f.Seek(seek)
-	}
-
-	if c >= n {
-		return nil
-	}
-
-	k := &keyIterator{f: f, c: c, n: n}
+	k := &keyIterator{iter: f.Iterator(seek)}
 	k.next()
-
 	return k
 }
 
 func (k *keyIterator) next() bool {
-	if k.c < k.n {
-		k.key, k.typ = k.f.KeyAt(k.c)
-		k.c++
+	if k.iter.Next() {
+		k.key, k.typ = k.iter.Key(), k.iter.Type()
 		return true
 	}
 	return false
 }
 
+func (k *keyIterator) Err() error { return k.iter.Err() }
+
 type mergeKeyIterator struct {
 	itrs keyIterators
 	key  []byte
 	typ  byte
+	err  error
 }
 
 func newMergeKeyIterator(files []TSMFile, seek []byte) *mergeKeyIterator {
@@ -59,6 +49,10 @@ func newMergeKeyIterator(files []TSMFile, seek []byte) *mergeKeyIterator {
 }
 
 func (m *mergeKeyIterator) Next() bool {
+	if m.err != nil {
+		return false
+	}
+
 	merging := len(m.itrs) > 1
 
 RETRY:
@@ -68,6 +62,13 @@ RETRY:
 
 	key, typ := m.itrs[0].key, m.itrs[0].typ
 	more := m.itrs[0].next()
+
+	if !more {
+		if err := m.itrs[0].Err(); err != nil {
+			m.err = err
+			return false
+		}
+	}
 
 	switch {
 	case len(m.itrs) > 1:
@@ -90,17 +91,19 @@ RETRY:
 	}
 
 	m.key, m.typ = key, typ
-
 	return true
 }
+
+func (m *mergeKeyIterator) Err() error { return m.err }
 
 func (m *mergeKeyIterator) Read() ([]byte, byte) { return m.key, m.typ }
 
 type keyIterators []*keyIterator
 
-func (k keyIterators) Len() int            { return len(k) }
-func (k keyIterators) Less(i, j int) bool  { return bytes.Compare(k[i].key, k[j].key) == -1 }
-func (k keyIterators) Swap(i, j int)       { k[i], k[j] = k[j], k[i] }
+func (k keyIterators) Len() int           { return len(k) }
+func (k keyIterators) Less(i, j int) bool { return bytes.Compare(k[i].key, k[j].key) == -1 }
+func (k keyIterators) Swap(i, j int)      { k[i], k[j] = k[j], k[i] }
+
 func (k *keyIterators) Push(x interface{}) { *k = append(*k, x.(*keyIterator)) }
 
 func (k *keyIterators) Pop() interface{} {
