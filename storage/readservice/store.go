@@ -7,11 +7,11 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/influxdata/platform/models"
-	fstorage "github.com/influxdata/platform/query/functions/inputs/storage"
-	"github.com/influxdata/platform/storage"
-	"github.com/influxdata/platform/storage/reads"
-	"github.com/influxdata/platform/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/models"
+	fstorage "github.com/influxdata/influxdb/query/functions/inputs/storage"
+	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
 type store struct {

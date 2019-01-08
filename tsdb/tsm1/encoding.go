@@ -6,9 +6,9 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/influxdata/influxdb/pkg/pool"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/pkg/pool"
-	"github.com/influxdata/platform/tsdb"
 )
 
 const (

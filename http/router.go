@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
 )
 

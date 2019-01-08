@@ -17,10 +17,10 @@ import (
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/errors"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/errors"
-	"github.com/influxdata/platform/query"
 )
 
 // QueryRequest is a flux query request.

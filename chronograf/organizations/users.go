@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 )
 
 // Ensure UsersStore implements chronograf.UsersStore.
@@ -145,7 +145,7 @@ func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.U
 	// u.SuperAdmin == true is logically equivalent to u.SuperAdmin, however
 	// it is more clear on a conceptual level to check equality
 	//
-	// TODO(desa): this should go away with https://github.com/influxdata/platform/chronograf/issues/2207
+	// TODO(desa): this should go away with https://github.com/influxdata/influxdb/chronograf/issues/2207
 	// I do not like checking super admin here. The organization users store should only be
 	// concerned about organizations.
 	//

@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/mocks"
-	"github.com/influxdata/platform/chronograf/roles"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/mocks"
+	"github.com/influxdata/influxdb/chronograf/roles"
 )
 
 func TestService_UserID(t *testing.T) {
@@ -353,7 +353,7 @@ func TestService_NewUser(t *testing.T) {
 			},
 			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":401,"message":"user does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/platform/chronograf/issues/2601 for more information"}`,
+			wantBody:        `{"code":401,"message":"user does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/influxdb/chronograf/issues/2601 for more information"}`,
 		},
 		{
 			name: "Create a new SuperAdmin User - as superadmin",
@@ -1263,7 +1263,7 @@ func TestService_UpdateUser(t *testing.T) {
 			id:              "1336",
 			wantStatus:      http.StatusUnauthorized,
 			wantContentType: "application/json",
-			wantBody:        `{"code":401,"message":"user does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/platform/chronograf/issues/2601 for more information"}`,
+			wantBody:        `{"code":401,"message":"user does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/influxdb/chronograf/issues/2601 for more information"}`,
 		},
 		{
 			name: "Update a Chronograf user to super admin - with super admin context",

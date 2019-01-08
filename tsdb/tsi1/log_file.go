@@ -14,10 +14,10 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/bloom"
-	"github.com/influxdata/platform/pkg/mmap"
-	"github.com/influxdata/platform/tsdb"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bloom"
+	"github.com/influxdata/influxdb/pkg/mmap"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Log errors.

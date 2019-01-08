@@ -16,11 +16,11 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/slices"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/slices"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

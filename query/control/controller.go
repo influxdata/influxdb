@@ -6,8 +6,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/control"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

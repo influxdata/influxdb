@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 // BucketDeleter defines the behaviour of deleting a bucket.

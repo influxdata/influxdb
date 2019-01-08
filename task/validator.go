@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/platform"
-	platcontext "github.com/influxdata/platform/context"
-	"github.com/influxdata/platform/query"
+	platform "github.com/influxdata/influxdb"
+	platcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/query"
 )
 
 type authError struct {

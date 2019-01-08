@@ -3,7 +3,7 @@ package multistore
 import (
 	"context"
 
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 )
 
 // Ensure SourcesStore implements chronograf.SourcesStore.

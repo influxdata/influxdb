@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/mocks"
-	"github.com/influxdata/platform/chronograf/organizations"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/mocks"
+	"github.com/influxdata/influxdb/chronograf/organizations"
 )
 
 func TestStore_SourcesGet(t *testing.T) {

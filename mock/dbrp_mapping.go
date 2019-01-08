@@ -3,7 +3,7 @@ package mock
 import (
 	"context"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 type DBRPMappingService struct {

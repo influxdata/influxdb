@@ -1,12 +1,12 @@
-package platform_test
+package influxdb_test
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func TestView_MarshalJSON(t *testing.T) {

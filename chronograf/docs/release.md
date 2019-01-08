@@ -1,5 +1,5 @@
 ## Creating a release
-The release process is handled via our [circle.yml](https://github.com/influxdata/platform/chronograf/blob/master/circle.yml).
+The release process is handled via our [circle.yml](https://github.com/influxdata/influxdb/chronograf/blob/master/circle.yml).
 
 A release tag of the format `1.3.0.0` needs to be added.  Afterwhich, circle
 will build our packages for all of our platforms.
@@ -30,7 +30,7 @@ bumpversion --allow-dirty   --new-version=1.4.0.0 minor
 The behavior of `bumpversion` is controlled by .bumpversion.cfg
 
 ### Creating Release tag
-You can create a release tag from [Github](https://github.com/influxdata/platform/chronograf/releases)
+You can create a release tag from [Github](https://github.com/influxdata/influxdb/chronograf/releases)
 or create an annotated tag:
 
 ```sh

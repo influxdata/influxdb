@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/influxdata/platform/models"
+	"github.com/influxdata/influxdb/models"
 )
 
 // PointsWriter describes the ability to write points into a storage engine.

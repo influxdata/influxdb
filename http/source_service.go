@@ -8,15 +8,14 @@ import (
 	"net/http"
 	"path"
 
-	"go.uber.org/zap"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/influxql"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/query/influxql"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 const (

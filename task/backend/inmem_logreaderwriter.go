@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 type runReaderWriter struct {

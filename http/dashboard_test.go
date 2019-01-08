@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/inmem"
-	"github.com/influxdata/platform/mock"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/mock"
+	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 )
 

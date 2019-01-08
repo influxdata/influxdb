@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 )
 
 const (

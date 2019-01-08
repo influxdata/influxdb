@@ -10,12 +10,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	pcontext "github.com/influxdata/platform/context"
-	"github.com/influxdata/platform/inmem"
-	platformtesting "github.com/influxdata/platform/testing"
-
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/mock"
+	platform "github.com/influxdata/influxdb"
+	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/mock"
+	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 )
 

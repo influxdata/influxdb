@@ -3,9 +3,9 @@ package backend_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/task/backend"
-	"github.com/influxdata/platform/task/backend/storetest"
-	"github.com/influxdata/platform/task/options"
+	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/task/backend/storetest"
+	"github.com/influxdata/influxdb/task/options"
 )
 
 func init() {

@@ -1,6 +1,6 @@
 package readservice
 
-import "github.com/influxdata/platform/models"
+import "github.com/influxdata/influxdb/models"
 
 const (
 	fieldKey       = "_field"

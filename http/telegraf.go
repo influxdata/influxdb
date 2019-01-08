@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/golang/gddo/httputil"
-	"github.com/influxdata/platform"
-	pctx "github.com/influxdata/platform/context"
-	"github.com/influxdata/platform/kit/errors"
+	platform "github.com/influxdata/influxdb"
+	pctx "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )

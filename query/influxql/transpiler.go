@@ -14,9 +14,9 @@ import (
 	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
+	platform "github.com/influxdata/influxdb"
+	pinputs "github.com/influxdata/influxdb/query/functions/inputs"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform"
-	pinputs "github.com/influxdata/platform/query/functions/inputs"
 )
 
 // Transpiler converts InfluxQL queries into a query spec.

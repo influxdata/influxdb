@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/influxdata/influxdb/chronograf"
 	"github.com/influxdata/kapacitor/pipeline"
 	totick "github.com/influxdata/kapacitor/pipeline/tick"
-	"github.com/influxdata/platform/chronograf"
 )
 
 // MarshalTICK converts tickscript to JSON representation

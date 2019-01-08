@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/platform"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, string, func()) {

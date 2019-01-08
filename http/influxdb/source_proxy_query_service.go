@@ -11,10 +11,10 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/platform"
-	platformhttp "github.com/influxdata/platform/http"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/influxql"
+	platform "github.com/influxdata/influxdb"
+	platformhttp "github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/query/influxql"
 )
 
 type SourceProxyQueryService struct {

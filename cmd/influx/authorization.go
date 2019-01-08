@@ -4,11 +4,11 @@ import (
 	"context"
 	"os"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/bolt"
-	"github.com/influxdata/platform/cmd/influx/internal"
-	"github.com/influxdata/platform/http"
-	"github.com/influxdata/platform/internal/fs"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/bolt"
+	"github.com/influxdata/influxdb/cmd/influx/internal"
+	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/spf13/cobra"
 )
 

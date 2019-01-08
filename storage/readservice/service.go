@@ -2,14 +2,14 @@ package readservice
 
 import (
 	"github.com/influxdata/flux/control"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
-	pcontrol "github.com/influxdata/platform/query/control"
-	"github.com/influxdata/platform/query/functions/inputs"
-	fstorage "github.com/influxdata/platform/query/functions/inputs/storage"
-	"github.com/influxdata/platform/query/functions/outputs"
-	"github.com/influxdata/platform/storage"
-	"github.com/influxdata/platform/storage/reads"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query"
+	pcontrol "github.com/influxdata/influxdb/query/control"
+	"github.com/influxdata/influxdb/query/functions/inputs"
+	fstorage "github.com/influxdata/influxdb/query/functions/inputs/storage"
+	"github.com/influxdata/influxdb/query/functions/outputs"
+	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/storage/reads"
 )
 
 // NewProxyQueryService returns a proxy query service based on the given queryController

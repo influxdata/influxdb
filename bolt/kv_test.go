@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kv"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kv"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func initKVStore(f platformtesting.KVStoreFields, t *testing.T) (kv.Store, func()) {

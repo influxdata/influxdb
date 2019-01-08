@@ -1,10 +1,10 @@
 package mock
 
 import (
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/storage/reads"
-	"github.com/influxdata/platform/storage/reads/datatypes"
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"google.golang.org/grpc/metadata"
 )
 

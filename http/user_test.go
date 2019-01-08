@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/inmem"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/inmem"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, string, func()) {

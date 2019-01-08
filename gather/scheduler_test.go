@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform"
-	influxlogger "github.com/influxdata/platform/logger"
-	"github.com/influxdata/platform/mock"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	influxlogger "github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/mock"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func TestScheduler(t *testing.T) {

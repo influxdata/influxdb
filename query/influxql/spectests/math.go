@@ -8,9 +8,10 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-
+	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/platform/query/influxql"
+	"github.com/influxdata/influxdb/query/influxql"
 )
 
 func init() {

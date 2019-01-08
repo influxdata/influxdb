@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/platform/http"
+	"github.com/influxdata/influxdb/http"
 )
 
 func TestEncodeError(t *testing.T) {

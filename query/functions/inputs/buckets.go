@@ -2,6 +2,7 @@ package inputs
 
 import (
 	"fmt"
+
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
 
@@ -9,8 +10,8 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
 )
 

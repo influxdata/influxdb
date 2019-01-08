@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type FloatRandomValuesSequence struct {

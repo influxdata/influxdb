@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/oauth2"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/oauth2"
 )
 
 func TestGooglePrincipalID(t *testing.T) {

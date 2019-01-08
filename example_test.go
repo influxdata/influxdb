@@ -1,12 +1,12 @@
-package platform_test
+package influxdb_test
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/bolt"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/bolt"
 )
 
 func ExampleKeyValueLog() {

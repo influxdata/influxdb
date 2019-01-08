@@ -3,14 +3,14 @@ package readservice
 import (
 	"context"
 
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/storage"
-	"github.com/influxdata/platform/storage/reads"
-	"github.com/influxdata/platform/storage/reads/datatypes"
-	"github.com/influxdata/platform/tsdb"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 

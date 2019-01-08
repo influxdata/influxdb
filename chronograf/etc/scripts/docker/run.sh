@@ -21,6 +21,6 @@ docker run \
        -e AWS_SECRET_ACCESS_KEY \
        -v $SSH_KEY_PATH:/root/.ssh/id_rsa \
        -v ~/.ssh/known_hosts:/root/.ssh/known_hosts \
-       -v $(pwd):/root/go/src/github.com/influxdata/platform/chronograf \
+       -v $(pwd):/root/go/src/github.com/influxdata/influxdb/chronograf \
        quay.io/influxdb/builder:$DOCKER_TAG \
        "$@"

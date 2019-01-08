@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 var keyValueLogCmpOptions = cmp.Options{

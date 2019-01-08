@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 func encodeLabelKey(resourceID platform.ID, name string) string {

@@ -1,12 +1,12 @@
-package platform_test
+package influxdb_test
 
 import (
 	"encoding/json"
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/platform"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 var macroTestID = "debac1e0deadbeef"

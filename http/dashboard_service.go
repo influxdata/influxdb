@@ -10,8 +10,8 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/errors"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -47,8 +47,9 @@ const (
 // NewDashboardHandler returns a new instance of DashboardHandler.
 func NewDashboardHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, userService platform.UserService) *DashboardHandler {
 	h := &DashboardHandler{
-		Router:                     NewRouter(),
-		Logger:                     zap.NewNop(),
+		Router: NewRouter(),
+		Logger: zap.NewNop(),
+
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
 		UserService:                userService,

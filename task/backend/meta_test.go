@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/snowflake"
-	"github.com/influxdata/platform/task/backend"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/task/backend"
 )
 
 var idGen = snowflake.NewIDGenerator()

@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 // WriteService writes data read from the reader.

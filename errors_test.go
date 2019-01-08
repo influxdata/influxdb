@@ -1,4 +1,4 @@
-package platform_test
+package influxdb_test
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 const EFailedToGetStorageHost = "failed to get the storage host"

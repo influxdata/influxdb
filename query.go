@@ -1,4 +1,4 @@
-package platform
+package influxdb
 
 // TODO(desa): These files are possibly a temporary. This is needed
 // as a part of the source work that is being done.

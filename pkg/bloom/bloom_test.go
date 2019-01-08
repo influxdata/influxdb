@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/platform/pkg/bloom"
+	"github.com/influxdata/influxdb/pkg/bloom"
 )
 
 // Ensure filter can insert values and verify they exist.

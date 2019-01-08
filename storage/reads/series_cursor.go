@@ -3,9 +3,9 @@ package reads
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/tsdb/cursors"
 )
 
 type SeriesCursor interface {

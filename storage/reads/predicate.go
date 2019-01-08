@@ -8,9 +8,9 @@ import (
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/storage/reads/datatypes"
-	"github.com/influxdata/platform/tsdb"
 	"github.com/pkg/errors"
 )
 

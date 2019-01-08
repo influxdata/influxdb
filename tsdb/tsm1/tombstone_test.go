@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/tsdb/tsm1"
+	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
 func TestTombstoner_Add(t *testing.T) {

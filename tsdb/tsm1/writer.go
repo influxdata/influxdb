@@ -74,7 +74,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/platform/models"
+	"github.com/influxdata/influxdb/models"
 )
 
 const (

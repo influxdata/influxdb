@@ -3,7 +3,7 @@
 package tsm1
 
 import (
-	"github.com/influxdata/platform/tsdb"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // ReadFloatArrayBlock reads the next block as a set of float values.

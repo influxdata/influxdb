@@ -8,11 +8,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/logger"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

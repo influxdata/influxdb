@@ -3,7 +3,7 @@ package spectests
 import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/functions/transformations"
-	"github.com/influxdata/platform/query/functions/inputs"
+	"github.com/influxdata/influxdb/query/functions/inputs"
 )
 
 func init() {

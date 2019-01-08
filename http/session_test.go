@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform"
-	platformhttp "github.com/influxdata/platform/http"
-	"github.com/influxdata/platform/mock"
+	platform "github.com/influxdata/influxdb"
+	platformhttp "github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/mock"
 )
 
 // NewMockSessionBackend returns a SessionBackend with mock services.

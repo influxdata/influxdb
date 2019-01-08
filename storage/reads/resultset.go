@@ -3,9 +3,9 @@ package reads
 import (
 	"context"
 
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/storage/reads/datatypes"
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type multiShardCursors interface {

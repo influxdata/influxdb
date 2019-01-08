@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/influxdata/platform/chronograf"
-	idgen "github.com/influxdata/platform/chronograf/id"
+	"github.com/influxdata/influxdb/chronograf"
+	idgen "github.com/influxdata/influxdb/chronograf/id"
 	"github.com/julienschmidt/httprouter"
 )
 

@@ -3,7 +3,7 @@ package tsm1
 import (
 	"context"
 
-	"github.com/influxdata/platform/tsdb"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error) {

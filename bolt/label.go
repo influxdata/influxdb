@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 var (

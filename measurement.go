@@ -1,4 +1,4 @@
-package platform
+package influxdb
 
 import "fmt"
 

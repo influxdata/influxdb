@@ -3,7 +3,7 @@ package testing
 import (
 	"testing"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 // TODO(goller): remove opPrefix argument

@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/metrics"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/tsdb"
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/metrics"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type arrayCursorIterator struct {

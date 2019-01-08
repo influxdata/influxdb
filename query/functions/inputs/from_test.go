@@ -10,8 +10,8 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/querytest"
-	"github.com/influxdata/platform"
-	pquerytest "github.com/influxdata/platform/query/querytest"
+	platform "github.com/influxdata/influxdb"
+	pquerytest "github.com/influxdata/influxdb/query/querytest"
 )
 
 func TestFrom_NewQuery(t *testing.T) {

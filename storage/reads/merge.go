@@ -3,8 +3,8 @@ package reads
 import (
 	"container/heap"
 
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type mergedResultSet struct {

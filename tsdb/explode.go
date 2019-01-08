@@ -3,8 +3,8 @@ package tsdb
 import (
 	"encoding/binary"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/models"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
 )
 
 // Values used to store the field key and measurement name as tags.

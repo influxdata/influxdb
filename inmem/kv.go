@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/google/btree"
-	"github.com/influxdata/platform/kv"
+	"github.com/influxdata/influxdb/kv"
 )
 
 // KVStore is an in memory btree backed kv.Store.

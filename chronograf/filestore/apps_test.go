@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/filestore"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/filestore"
 )
 
 func TestAll(t *testing.T) {

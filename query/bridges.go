@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 // QueryServiceBridge implements the QueryService interface while consuming the AsyncQueryService interface.

@@ -4,13 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/bolt"
-	"github.com/influxdata/platform/cmd/influxd/launcher"
-	"github.com/influxdata/platform/http"
-	"github.com/influxdata/platform/query"
 	"io"
 	"io/ioutil"
 	nethttp "net/http"
@@ -19,16 +12,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/lang"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/bolt"
+	"github.com/influxdata/influxdb/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/query"
+
 	_ "github.com/influxdata/flux/functions" // Import the built-in functions
 	_ "github.com/influxdata/flux/functions/inputs"
 	_ "github.com/influxdata/flux/functions/outputs"
 	_ "github.com/influxdata/flux/functions/tests"
 	_ "github.com/influxdata/flux/functions/transformations"
 	_ "github.com/influxdata/flux/options"             // Import the built-in options
-	_ "github.com/influxdata/platform/query/functions" // Import the built-in functions
-	_ "github.com/influxdata/platform/query/functions/inputs"
-	_ "github.com/influxdata/platform/query/functions/outputs"
-	_ "github.com/influxdata/platform/query/options" // Import the built-in options
+	_ "github.com/influxdata/influxdb/query/functions" // Import the built-in functions
+	_ "github.com/influxdata/influxdb/query/functions/inputs"
+	_ "github.com/influxdata/influxdb/query/functions/outputs"
+	_ "github.com/influxdata/influxdb/query/options" // Import the built-in options
 )
 
 // Default context.
@@ -77,24 +78,24 @@ var skipTests = map[string]string{
 	"meta_query_fields":        "Reason TBD",
 	"meta_query_keys":          "Reason TBD",
 	"meta_query_measurements":  "Reason TBD",
-	"min":                      "Reason TBD",
-	"multiple_range":           "Reason TBD",
-	"sample":                   "Reason TBD",
-	"selector_preserve_time":   "Reason TBD",
-	"shift":                    "Reason TBD",
-	"shift_negative_duration":  "Reason TBD",
-	"show_all_tag_keys":        "Reason TBD",
-	"sort":                     "Reason TBD",
-	"task_per_line":            "Reason TBD",
-	"top":                      "Reason TBD",
-	"union":                    "Reason TBD",
-	"union_heterogeneous":      "Reason TBD",
-	"unique":                   "Reason TBD",
+	"min":                     "Reason TBD",
+	"multiple_range":          "Reason TBD",
+	"sample":                  "Reason TBD",
+	"selector_preserve_time":  "Reason TBD",
+	"shift":                   "Reason TBD",
+	"shift_negative_duration": "Reason TBD",
+	"show_all_tag_keys":       "Reason TBD",
+	"sort":                    "Reason TBD",
+	"task_per_line":           "Reason TBD",
+	"top":                     "Reason TBD",
+	"union":                   "Reason TBD",
+	"union_heterogeneous":     "Reason TBD",
+	"unique":                  "Reason TBD",
 
-	"string_max":                  "error: invalid use of function: *functions.MaxSelector has no implementation for type string (https://github.com/influxdata/platform/issues/224)",
-	"null_as_value":               "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
-	"string_interp":               "string interpolation not working as expected in flux (https://github.com/influxdata/platform/issues/404)",
-	"to":                          "to functions are not supported in the testing framework (https://github.com/influxdata/flux/issues/77)",
+	"string_max":    "error: invalid use of function: *functions.MaxSelector has no implementation for type string (https://github.com/influxdata/platform/issues/224)",
+	"null_as_value": "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
+	"string_interp": "string interpolation not working as expected in flux (https://github.com/influxdata/platform/issues/404)",
+	"to":            "to functions are not supported in the testing framework (https://github.com/influxdata/flux/issues/77)",
 	"covariance_missing_column_1": "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",
 	"covariance_missing_column_2": "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",
 	"drop_before_rename":          "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",

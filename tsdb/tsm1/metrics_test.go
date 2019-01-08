@@ -3,7 +3,7 @@ package tsm1
 import (
 	"testing"
 
-	"github.com/influxdata/platform/kit/prom/promtest"
+	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

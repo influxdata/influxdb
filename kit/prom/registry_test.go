@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/platform/kit/prom"
+	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"

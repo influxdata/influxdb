@@ -12,11 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/platform/cmd/influxd/launcher"
-
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/http"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/http"
 )
 
 // Default context.

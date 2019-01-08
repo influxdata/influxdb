@@ -1,7 +1,7 @@
 package id
 
 import (
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 	uuid "github.com/satori/go.uuid"
 )
 

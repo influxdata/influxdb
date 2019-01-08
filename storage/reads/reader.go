@@ -10,10 +10,10 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/platform/models"
-	fstorage "github.com/influxdata/platform/query/functions/inputs/storage"
-	"github.com/influxdata/platform/storage/reads/datatypes"
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/models"
+	fstorage "github.com/influxdata/influxdb/query/functions/inputs/storage"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type storageTable interface {

@@ -3,7 +3,7 @@ package backend_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/task/backend"
+	"github.com/influxdata/influxdb/task/backend"
 )
 
 func TestParseRequestStillQueuedError(t *testing.T) {

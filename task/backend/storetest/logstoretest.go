@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform"
-	pcontext "github.com/influxdata/platform/context"
-	"github.com/influxdata/platform/task/backend"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/task/backend"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 type CreateRunStoreFunc func(*testing.T) (backend.LogWriter, backend.LogReader)

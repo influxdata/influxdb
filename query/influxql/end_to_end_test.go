@@ -16,12 +16,12 @@ import (
 	ifql "github.com/influxdata/flux/influxql"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/querytest"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/mock"
-	"github.com/influxdata/platform/query"
-	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/query/influxql"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/query"
+	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/query/influxql"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 const generatedInfluxQLDataDir = "testdata"

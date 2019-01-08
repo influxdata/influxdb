@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

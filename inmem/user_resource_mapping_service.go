@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 func encodeUserResourceMappingKey(resourceID, userID platform.ID) string {

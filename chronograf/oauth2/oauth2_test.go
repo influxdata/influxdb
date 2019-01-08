@@ -11,7 +11,7 @@ import (
 	goauth "golang.org/x/oauth2"
 
 	gojwt "github.com/dgrijalva/jwt-go"
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 )
 
 var _ Provider = &MockProvider{}

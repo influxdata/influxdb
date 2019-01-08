@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	itoml "github.com/influxdata/platform/toml"
+	itoml "github.com/influxdata/influxdb/toml"
 )
 
 func TestSize_UnmarshalText(t *testing.T) {

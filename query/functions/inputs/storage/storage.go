@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions"
 	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 	"github.com/pkg/errors"
 )
 

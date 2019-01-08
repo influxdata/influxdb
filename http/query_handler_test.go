@@ -13,8 +13,8 @@ import (
 
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query"
 )
 
 func TestFluxService_Query(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/models"
 )
 
 var (

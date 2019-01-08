@@ -1,7 +1,7 @@
 package gen
 
 import (
-	"github.com/influxdata/platform/models"
+	"github.com/influxdata/influxdb/models"
 )
 
 type SeriesGenerator interface {

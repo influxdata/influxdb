@@ -11,9 +11,9 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/platform"
-	pctx "github.com/influxdata/platform/context"
-	"github.com/influxdata/platform/query"
+	platform "github.com/influxdata/influxdb"
+	pctx "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/query"
 )
 
 type QueryLogReader struct {

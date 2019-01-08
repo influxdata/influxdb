@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/tsdb/tsi1"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb/tsi1"
 )
 
 // Ensure multiple index files can be compacted together.

@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 )
 
 // Shared transports for all clients to prevent leaking connections.

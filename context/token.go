@@ -3,7 +3,7 @@ package context
 import (
 	"context"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 type contextKey string

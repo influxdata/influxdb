@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/mocks"
 )
 
 func Test_toPoint(t *testing.T) {

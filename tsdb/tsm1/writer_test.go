@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/tsdb/tsm1"
+	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
 func TestTSMWriter_Write_Empty(t *testing.T) {

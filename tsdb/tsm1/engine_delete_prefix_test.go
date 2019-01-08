@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/platform/models"
+	"github.com/influxdata/influxdb/models"
 )
 
 func TestEngine_DeletePrefix(t *testing.T) {

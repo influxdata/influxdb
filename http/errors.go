@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/influxdata/platform"
-	kerrors "github.com/influxdata/platform/kit/errors"
+	platform "github.com/influxdata/influxdb"
+	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/pkg/errors"
 )
 

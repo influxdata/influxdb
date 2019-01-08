@@ -3,7 +3,7 @@ package bolt
 import (
 	"context"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 var _ platform.LookupService = (*Client)(nil)

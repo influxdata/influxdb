@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 )
 
 func TestClient_userPermissions(t *testing.T) {

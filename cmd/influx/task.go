@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/influxdata/flux/repl"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/cmd/influx/internal"
-	"github.com/influxdata/platform/http"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/cmd/influx/internal"
+	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
 )
 

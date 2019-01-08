@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 const CompilerType = "influxql"

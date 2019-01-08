@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/errors"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -44,8 +44,9 @@ const (
 // NewBucketHandler returns a new instance of BucketHandler.
 func NewBucketHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, userService platform.UserService) *BucketHandler {
 	h := &BucketHandler{
-		Router:                     NewRouter(),
-		Logger:                     zap.NewNop(),
+		Router: NewRouter(),
+		Logger: zap.NewNop(),
+
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
 		UserService:                userService,

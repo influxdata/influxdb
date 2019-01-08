@@ -3,7 +3,7 @@ package server
 import (
 	"net/http"
 
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 )
 
 type envResponse struct {

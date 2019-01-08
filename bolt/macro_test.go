@@ -2,11 +2,11 @@ package bolt_test
 
 import (
 	"context"
-	"github.com/influxdata/platform/bolt"
 	"testing"
 
-	"github.com/influxdata/platform"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/bolt"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.MacroService, string, func()) {

@@ -9,7 +9,7 @@ package reads_test
 import (
 	"sort"
 
-	"github.com/influxdata/platform/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
 type FloatPoints datatypes.ReadResponse_FloatPointsFrame

@@ -3,9 +3,8 @@ package zap
 import (
 	"context"
 
+	platform "github.com/influxdata/influxdb"
 	"go.uber.org/zap"
-
-	"github.com/influxdata/platform"
 )
 
 var _ platform.AuthorizationService = (*AuthorizationService)(nil)

@@ -14,13 +14,13 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/influxdata/platform/logger"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/storage"
-	"github.com/influxdata/platform/toml"
-	"github.com/influxdata/platform/tsdb"
-	"github.com/influxdata/platform/tsdb/tsi1"
-	"github.com/influxdata/platform/tsdb/tsm1"
+	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"go.uber.org/zap"
 )
 

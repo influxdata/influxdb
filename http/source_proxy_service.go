@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/influxql"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/query/influxql"
 )
 
 type SourceProxyQueryService struct {

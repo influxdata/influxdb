@@ -9,7 +9,7 @@ package gen
 import (
 	"time"
 
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type FloatConstantValuesSequence struct {

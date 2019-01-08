@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/chronograf"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/chronograf"
 )
 
 // TimeRangeAsEpochNano extracs the min and max epoch times from the expression

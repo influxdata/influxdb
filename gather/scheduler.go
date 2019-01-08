@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/nats"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/nats"
 	"go.uber.org/zap"
 )
 

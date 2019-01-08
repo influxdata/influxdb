@@ -5,9 +5,9 @@ import (
 	"math"
 	"sync"
 
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/bytesutil"
 )
 
 func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {

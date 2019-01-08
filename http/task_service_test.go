@@ -10,11 +10,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/platform"
-	pcontext "github.com/influxdata/platform/context"
-	"github.com/influxdata/platform/logger"
-	"github.com/influxdata/platform/mock"
-	_ "github.com/influxdata/platform/query/builtin"
+	platform "github.com/influxdata/influxdb"
+	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/mock"
+	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/julienschmidt/httprouter"
 )
 

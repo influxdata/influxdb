@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/prom"
-	"github.com/influxdata/platform/kit/prom/promtest"
-	"github.com/influxdata/platform/prometheus"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/kit/prom/promtest"
+	"github.com/influxdata/influxdb/prometheus"
 )
 
 // authzSvc is a test helper that returns its Err from every method on the AuthorizationService interface.

@@ -7,14 +7,15 @@
 package reads
 
 import (
+	"sync"
+
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/memory"
-	"sync"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/pkg/errors"
 )
 

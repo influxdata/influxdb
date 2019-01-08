@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 // Logger persists metadata about executed queries.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 // ProtoService is a mock implementation of a retention.ProtoService, which

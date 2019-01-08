@@ -77,7 +77,7 @@ Setup the project structure and fetch the repo like so:
 ```bash
   mkdir $HOME/go
   export GOPATH=$HOME/go
-  go get github.com/influxdata/platform/chronograf
+  go get github.com/influxdata/influxdb/chronograf
 ```
 
 You can add the line `export GOPATH=$HOME/go` to your bash/zsh file to be set for every shell instead of having to manually run it everytime.
@@ -100,7 +100,7 @@ Retaining the directory structure `$GOPATH/src/github.com/influxdata` is necessa
 Make sure you have `go` and `yarn` installed and the project structure as shown above. We provide a `Makefile` to get up and running quickly, so all you'll need to do is run the following:
 
 ```bash
-  cd $GOPATH/src/github.com/influxdata/platform/chronograf
+  cd $GOPATH/src/github.com/influxdata/influxdb/chronograf
   make
 ```
 
@@ -109,10 +109,10 @@ The binaries will be located in `$GOPATH/bin`.
 To run the tests, execute the following command:
 
 ```bash
-  cd $GOPATH/src/github.com/influxdata/platform/chronograf
+  cd $GOPATH/src/github.com/influxdata/influxdb/chronograf
   make test
 ```
 
 ## Continuous Integration testing
 
-Chronograf uses CircleCI for continuous integration testing. To see how the code is built and tested, check out [this file](https://github.com/influxdata/platform/chronograf/blob/master/Makefile). It closely follows the build and test process outlined above. You can see the exact version of Go Chronograf uses for testing by consulting that file.
+Chronograf uses CircleCI for continuous integration testing. To see how the code is built and tested, check out [this file](https://github.com/influxdata/influxdb/chronograf/blob/master/Makefile). It closely follows the build and test process outlined above. You can see the exact version of Go Chronograf uses for testing by consulting that file.

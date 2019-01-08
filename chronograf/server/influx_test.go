@@ -8,11 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/mocks"
 	"github.com/julienschmidt/httprouter"
-
-	"github.com/influxdata/platform/chronograf/mocks"
-
-	"github.com/influxdata/platform/chronograf"
 )
 
 func TestService_Influx(t *testing.T) {

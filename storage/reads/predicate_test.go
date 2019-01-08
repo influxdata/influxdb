@@ -3,8 +3,8 @@ package reads_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/storage/reads"
-	"github.com/influxdata/platform/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
 func TestPredicateToExprString(t *testing.T) {

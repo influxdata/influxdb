@@ -1,6 +1,6 @@
 //+build tools
 
-package platform
+package influxdb
 
 import (
 	_ "github.com/benbjohnson/tmpl"

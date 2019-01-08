@@ -5,7 +5,7 @@ provides the tools to visualize your monitoring data and easily create alerting
 and automation rules.
 
 <p align="left">
-  <img src="https://github.com/influxdata/platform/chronograf/blob/master/docs/images/overview-readme.png"/>
+  <img src="https://github.com/influxdata/influxdb/chronograf/blob/master/docs/images/overview-readme.png"/>
 </p>
 
 ## Features
@@ -19,7 +19,7 @@ and automation rules.
 ### Dashboard Templates
 
 Chronograf's
-[pre-canned dashboards](https://github.com/influxdata/platform/chronograf/tree/master/canned)
+[pre-canned dashboards](https://github.com/influxdata/influxdb/chronograf/tree/master/canned)
 for the supported [Telegraf](https://github.com/influxdata/telegraf) input
 plugins. Currently, Chronograf offers dashboard templates for the following
 Telegraf input plugins:
@@ -119,13 +119,13 @@ page.
 ### TLS/HTTPS Support
 
 See
-[Chronograf with TLS](https://github.com/influxdata/platform/chronograf/blob/master/docs/tls.md)
+[Chronograf with TLS](https://github.com/influxdata/influxdb/chronograf/blob/master/docs/tls.md)
 for more information.
 
 ### OAuth Login
 
 See
-[Chronograf with OAuth 2.0](https://github.com/influxdata/platform/chronograf/blob/master/docs/auth.md)
+[Chronograf with OAuth 2.0](https://github.com/influxdata/influxdb/chronograf/blob/master/docs/auth.md)
 for more information.
 
 ### Advanced Routing
@@ -139,7 +139,7 @@ The most recent version of Chronograf is
 [v1.5.0.0](https://www.influxdata.com/downloads/).
 
 Spotted a bug or have a feature request? Please open
-[an issue](https://github.com/influxdata/platform/chronograf/issues/new)!
+[an issue](https://github.com/influxdata/influxdb/chronograf/issues/new)!
 
 ### Known Issues
 
@@ -150,7 +150,7 @@ The Chronograf team has identified and is working on the following issues:
   and
   [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md)
   plugins to ensure that all Apps appear on the
-  [HOST LIST](https://github.com/influxdata/platform/chronograf/blob/master/docs/GETTING_STARTED.md#host-list)
+  [HOST LIST](https://github.com/influxdata/influxdb/chronograf/blob/master/docs/GETTING_STARTED.md#host-list)
   page.
 
 ## Installation
@@ -192,13 +192,13 @@ docker pull chronograf:1.5.0.0
 1. [Setup your GOPATH](https://golang.org/doc/code.html#GOPATH)
 1. Build the Chronograf package:
     ```bash
-    go get github.com/influxdata/platform/chronograf
-    cd $GOPATH/src/github.com/influxdata/platform/chronograf
+    go get github.com/influxdata/influxdb/chronograf
+    cd $GOPATH/src/github.com/influxdata/influxdb/chronograf
     make
     ```
 1. Install the newly built Chronograf package:
     ```bash
-    go install github.com/influxdata/platform/chronograf/cmd/chronograf
+    go install github.com/influxdata/influxdb/chronograf/cmd/chronograf
     ```
 
 ## Documentation

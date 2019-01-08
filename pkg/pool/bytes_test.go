@@ -3,7 +3,7 @@ package pool_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/pkg/pool"
+	"github.com/influxdata/influxdb/pkg/pool"
 )
 
 func TestLimitedBytePool_Put_MaxSize(t *testing.T) {

@@ -3,8 +3,8 @@ package kapacitor_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/chronograf/kapacitor"
-	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/influxdata/influxdb/chronograf/kapacitor"
+	"github.com/influxdata/influxdb/chronograf/mocks"
 	client "github.com/influxdata/kapacitor/client/v1"
 )
 

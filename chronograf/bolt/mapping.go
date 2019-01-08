@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/bolt/internal"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/bolt/internal"
 )
 
 // Ensure MappingsStore implements chronograf.MappingsStore.

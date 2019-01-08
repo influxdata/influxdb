@@ -23,7 +23,7 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash"
-	"github.com/influxdata/platform/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/estimator"
 )
 
 // Current version of HLL implementation.

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/platform/kv"
+	"github.com/influxdata/influxdb/kv"
 	"go.uber.org/zap"
 )
 

@@ -5,7 +5,7 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/platform/query/functions/inputs"
+	"github.com/influxdata/influxdb/query/functions/inputs"
 )
 
 func init() {

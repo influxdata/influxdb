@@ -3,10 +3,10 @@ package server
 import (
 	"context"
 
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/noop"
-	"github.com/influxdata/platform/chronograf/organizations"
-	"github.com/influxdata/platform/chronograf/roles"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/noop"
+	"github.com/influxdata/influxdb/chronograf/organizations"
+	"github.com/influxdata/influxdb/chronograf/roles"
 )
 
 // hasOrganizationContext retrieves organization specified on context

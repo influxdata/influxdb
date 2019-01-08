@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/tsdb"
 )
 
 func TestService_expireData(t *testing.T) {

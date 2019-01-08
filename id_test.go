@@ -1,4 +1,4 @@
-package platform_test
+package influxdb_test
 
 import (
 	"bytes"
@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/platform"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func TestIDFromString(t *testing.T) {
@@ -206,7 +206,7 @@ func TestID_GoString(t *testing.T) {
 	}
 
 	sharpV := fmt.Sprintf("%#v", x)
-	want := `platform_test.idGoStringTester{ID:"` + idString + `"}`
+	want := `influxdb_test.idGoStringTester{ID:"` + idString + `"}`
 	if sharpV != want {
 		t.Fatalf("bad GoString: got %q, want %q", sharpV, want)
 	}

@@ -6,11 +6,10 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/oauth2"
+	"github.com/influxdata/influxdb/chronograf/organizations"
 	"golang.org/x/net/context"
-
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/oauth2"
-	"github.com/influxdata/platform/chronograf/organizations"
 )
 
 type meLinks struct {

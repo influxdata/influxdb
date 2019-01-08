@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/influxdata/platform/query"
+	"github.com/influxdata/influxdb/query"
 	"go.uber.org/zap"
 )
 

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/bolt"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/bolt"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func initSessionService(f platformtesting.SessionFields, t *testing.T) (platform.SessionService, string, func()) {

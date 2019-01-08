@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/influxdata/platform/internal/fs"
+	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

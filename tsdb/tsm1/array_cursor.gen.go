@@ -9,8 +9,8 @@ package tsm1
 import (
 	"sort"
 
-	"github.com/influxdata/platform/tsdb"
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 // Array Cursors

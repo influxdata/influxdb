@@ -41,7 +41,7 @@ CONFIGURATION_FILES = [
 ]
 
 PACKAGE_LICENSE = "AGPLv3"
-PACKAGE_URL = "https://github.com/influxdata/platform/chronograf"
+PACKAGE_URL = "https://github.com/influxdata/influxdb/chronograf"
 MAINTAINER = "contact@influxdb.com"
 VENDOR = "InfluxData"
 DESCRIPTION = "Open source monitoring and visualization UI for the entire TICK stack."

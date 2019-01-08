@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 var (

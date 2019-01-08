@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -40,8 +40,9 @@ const (
 // NewViewHandler returns a new instance of ViewHandler.
 func NewViewHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, userService platform.UserService) *ViewHandler {
 	h := &ViewHandler{
-		Router:                     NewRouter(),
-		Logger:                     zap.NewNop(),
+		Router: NewRouter(),
+		Logger: zap.NewNop(),
+
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
 		UserService:                userService,

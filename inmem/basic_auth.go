@@ -3,7 +3,7 @@ package inmem
 import (
 	"context"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 	"golang.org/x/crypto/bcrypt"
 )
 

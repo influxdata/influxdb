@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 )
 
 var _ chronograf.TimeSeries = &Client{}

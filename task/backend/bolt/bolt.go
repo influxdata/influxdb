@@ -22,10 +22,10 @@ import (
 	"fmt"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/snowflake"
-	"github.com/influxdata/platform/task/backend"
-	"github.com/influxdata/platform/task/options"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/task/options"
 )
 
 // ErrDBReadOnly is an error for when the database is set to read only.

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/task/options"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/task/options"
 )
 
 var (

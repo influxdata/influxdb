@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

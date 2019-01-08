@@ -56,7 +56,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/influxdata/platform/pkg/file"
+	"github.com/influxdata/influxdb/pkg/file"
 )
 
 const (

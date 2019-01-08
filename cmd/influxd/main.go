@@ -7,11 +7,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/influxdata/platform/cmd/influxd/launcher"
-	"github.com/influxdata/platform/kit/signals"
-	_ "github.com/influxdata/platform/query/builtin"
-	_ "github.com/influxdata/platform/tsdb/tsi1"
-	_ "github.com/influxdata/platform/tsdb/tsm1"
+	"github.com/influxdata/influxdb/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/kit/signals"
+	_ "github.com/influxdata/influxdb/query/builtin"
+	_ "github.com/influxdata/influxdb/tsdb/tsi1"
+	_ "github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
 func main() {

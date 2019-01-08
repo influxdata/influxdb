@@ -15,10 +15,10 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/logger"
-	"github.com/influxdata/platform/pkg/bytesutil"
-	"github.com/influxdata/platform/tsdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

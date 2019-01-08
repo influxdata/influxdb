@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/task/backend"
-	"github.com/influxdata/platform/task/options"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/task/options"
 )
 
 type RunController interface {
@@ -75,7 +75,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 		return err
 	}
 
-	// TODO(mr): decide whether we allow user to configure scheduleAfter. https://github.com/influxdata/platform/issues/595
+	// TODO(mr): decide whether we allow user to configure scheduleAfter. https://github.com/influxdata/influxdb/issues/595
 	scheduleAfter := time.Now().Unix()
 
 	if t.Status == "" {

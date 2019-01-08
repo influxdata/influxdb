@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 const (

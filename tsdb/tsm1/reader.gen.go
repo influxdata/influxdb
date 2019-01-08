@@ -7,7 +7,7 @@
 package tsm1
 
 import (
-	"github.com/influxdata/platform/tsdb"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // ReadFloatBlockAt returns the float values corresponding to the given index entry.

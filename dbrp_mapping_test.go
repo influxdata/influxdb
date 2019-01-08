@@ -1,10 +1,10 @@
-package platform_test
+package influxdb_test
 
 import (
 	"testing"
 
-	"github.com/influxdata/platform"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func TestDBRPMapping_Validate(t *testing.T) {

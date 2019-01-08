@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 // Request respresents the query to run.

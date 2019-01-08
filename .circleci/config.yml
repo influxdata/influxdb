@@ -3,7 +3,7 @@ jobs:
   jstest:
     docker:
       - image: circleci/golang:1.11-node-browsers
-    working_directory: /go/src/github.com/influxdata/platform
+    working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
 
@@ -29,7 +29,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
-    working_directory: /go/src/github.com/influxdata/platform
+    working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
 
@@ -81,7 +81,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
-    working_directory: /go/src/github.com/influxdata/platform
+    working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
 
@@ -107,7 +107,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
-    working_directory: /go/src/github.com/influxdata/platform
+    working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
 

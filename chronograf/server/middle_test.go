@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/mocks"
-	"github.com/influxdata/platform/chronograf/oauth2"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/mocks"
+	"github.com/influxdata/influxdb/chronograf/oauth2"
 )
 
 func TestRouteMatchesPrincipal(t *testing.T) {

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"path"
 
-	plat "github.com/influxdata/platform"
-	kerrors "github.com/influxdata/platform/kit/errors"
+	plat "github.com/influxdata/influxdb"
+	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 

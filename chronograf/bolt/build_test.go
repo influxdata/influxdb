@@ -4,7 +4,7 @@ package bolt_test
 // 	"testing"
 
 // 	"github.com/google/go-cmp/cmp"
-// 	"github.com/influxdata/platform/chronograf"
+// 	"github.com/influxdata/influxdb/chronograf"
 // )
 
 // func

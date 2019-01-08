@@ -2,11 +2,12 @@ package reads
 
 import (
 	"fmt"
+
 	"google.golang.org/grpc/metadata"
 
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/storage/reads/datatypes"
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type ResponseStream interface {

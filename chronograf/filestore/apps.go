@@ -8,7 +8,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 )
 
 // AppExt is the the file extension searched for in the directory for layout files

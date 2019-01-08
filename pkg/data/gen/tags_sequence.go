@@ -5,7 +5,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/influxdata/platform/models"
+	"github.com/influxdata/influxdb/models"
 )
 
 type TagsSequence interface {

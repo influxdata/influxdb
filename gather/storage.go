@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/influxdata/platform/nats"
+	"github.com/influxdata/influxdb/nats"
 	"go.uber.org/zap"
 )
 

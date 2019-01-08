@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/influxdata/platform/pkg/limiter"
-	"github.com/influxdata/platform/pkg/pool"
+	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/influxdb/pkg/pool"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

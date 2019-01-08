@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/influxdata/platform/kv"
+	"github.com/influxdata/influxdb/kv"
 )
 
 func TestStaticCursor_First(t *testing.T) {

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/storage"
-	"github.com/influxdata/platform/tsdb"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func TestEngine_WriteAndIndex(t *testing.T) {

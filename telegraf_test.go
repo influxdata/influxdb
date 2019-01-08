@@ -1,4 +1,4 @@
-package platform
+package influxdb
 
 import (
 	"encoding/json"
@@ -8,13 +8,11 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-
-	"github.com/influxdata/platform/telegraf/plugins"
-	"github.com/influxdata/platform/telegraf/plugins/outputs"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/platform/telegraf/plugins/inputs"
+	"github.com/influxdata/influxdb/telegraf/plugins"
+	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
+	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
 )
 
 var telegrafCmpOptions = cmp.Options{

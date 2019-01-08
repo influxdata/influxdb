@@ -2,10 +2,11 @@ package http
 
 import (
 	"context"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/mock"
 	"net/http/httptest"
 	"testing"
+
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/mock"
 )
 
 func TestPaging_decodeFindOptions(t *testing.T) {

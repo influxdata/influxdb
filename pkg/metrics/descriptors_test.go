@@ -3,7 +3,7 @@ package metrics
 import (
 	"testing"
 
-	"github.com/influxdata/platform/pkg/testing/assert"
+	"github.com/influxdata/influxdb/pkg/testing/assert"
 )
 
 func TestID_newID(t *testing.T) {

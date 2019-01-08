@@ -5,10 +5,10 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/tsdb"
-	"github.com/influxdata/platform/tsdb/tsi1"
 )
 
 type SeriesCursor interface {

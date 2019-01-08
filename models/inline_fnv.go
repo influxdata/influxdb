@@ -1,4 +1,4 @@
-package models // import "github.com/influxdata/platform/models"
+package models // import "github.com/influxdata/influxdb/models"
 
 // from stdlib hash/fnv/fnv.go
 const (

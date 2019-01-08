@@ -15,12 +15,12 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
-	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/task/backend"
-	"github.com/influxdata/platform/task/backend/executor"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query"
+	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/task/backend/executor"
+	platformtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap"
 )
 

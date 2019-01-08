@@ -9,9 +9,9 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/platform/logger"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/task/backend"
+	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/task/backend"
 	"go.uber.org/zap"
 )
 

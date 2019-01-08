@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/influxdata/platform/logger"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/storage/reads/datatypes"
-	"github.com/influxdata/platform/tsdb/cursors"
+	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 )

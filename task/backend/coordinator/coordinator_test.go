@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform"
-	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/task/backend"
-	"github.com/influxdata/platform/task/backend/coordinator"
-	"github.com/influxdata/platform/task/mock"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/task/backend/coordinator"
+	"github.com/influxdata/influxdb/task/mock"
+	platformtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap/zaptest"
 )
 

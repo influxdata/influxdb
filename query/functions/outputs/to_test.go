@@ -2,6 +2,8 @@ package outputs_test
 
 import (
 	"context"
+	"testing"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -9,14 +11,13 @@ import (
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/mock"
-	"github.com/influxdata/platform/models"
-	_ "github.com/influxdata/platform/query/builtin"
-	"github.com/influxdata/platform/query/functions/outputs"
-	"github.com/influxdata/platform/query/querytest"
-	"github.com/influxdata/platform/tsdb"
-	"testing"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/models"
+	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/query/functions/outputs"
+	"github.com/influxdata/influxdb/query/querytest"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func TestTo_Query(t *testing.T) {

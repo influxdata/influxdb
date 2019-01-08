@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/pkg/bytesutil"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 )
 
 func TestSearchBytesFixed(t *testing.T) {

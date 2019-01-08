@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/mock"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/mock"
 )
 
 const (

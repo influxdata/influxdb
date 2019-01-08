@@ -3,7 +3,7 @@ package mock
 import (
 	"sync"
 
-	"github.com/influxdata/platform/models"
+	"github.com/influxdata/influxdb/models"
 )
 
 // PointsWriter is a mock structure for writing points.

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/bolt"
-	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/bolt"
+	"github.com/influxdata/influxdb/chronograf/mocks"
 )
 
 func NewBoltClient(path string) (*bolt.Client, error) {

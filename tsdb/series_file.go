@@ -10,12 +10,11 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/influxdata/platform/logger"
-	"github.com/influxdata/platform/pkg/rhh"
-
 	"github.com/cespare/xxhash"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/binaryutil"
+	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/binaryutil"
+	"github.com/influxdata/influxdb/pkg/rhh"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"

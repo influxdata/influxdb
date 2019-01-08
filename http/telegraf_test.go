@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/mock"
-	"github.com/influxdata/platform/telegraf/plugins/inputs"
-	"github.com/influxdata/platform/telegraf/plugins/outputs"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
+	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
 	"go.uber.org/zap/zaptest"
 )
 

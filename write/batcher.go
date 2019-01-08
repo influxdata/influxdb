@@ -8,7 +8,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/influxdata/platform"
+	platform "github.com/influxdata/influxdb"
 )
 
 const (

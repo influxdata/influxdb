@@ -2,12 +2,13 @@ package reads_test
 
 import (
 	"fmt"
-	"github.com/influxdata/platform/mock"
-	"github.com/influxdata/platform/storage/reads"
-	"github.com/influxdata/platform/tsdb/cursors"
-	"google.golang.org/grpc/metadata"
 	"reflect"
 	"testing"
+
+	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/tsdb/cursors"
+	"google.golang.org/grpc/metadata"
 )
 
 func TestResponseWriter_WriteResultSet_Stats(t *testing.T) {

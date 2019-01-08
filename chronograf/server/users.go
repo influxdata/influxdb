@@ -9,8 +9,8 @@ import (
 	"strconv"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/roles"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/roles"
 )
 
 type userRequest struct {
@@ -350,13 +350,13 @@ func setSuperAdmin(ctx context.Context, req userRequest, user *chronograf.User) 
 	//      changes were requested.
 
 	// Only allow users to set SuperAdmin if they have the superadmin context
-	// TODO(desa): Refactor this https://github.com/influxdata/platform/chronograf/issues/2207
+	// TODO(desa): Refactor this https://github.com/influxdata/influxdb/chronograf/issues/2207
 	if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
 		user.SuperAdmin = req.SuperAdmin
 	} else if !isSuperAdmin && (user.SuperAdmin != req.SuperAdmin) {
 		// If req.SuperAdmin has been set, and the request was not made with the SuperAdmin
 		// context, return error
-		return fmt.Errorf("user does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/platform/chronograf/issues/2601 for more information")
+		return fmt.Errorf("user does not have authorization required to set SuperAdmin status. See https://github.com/influxdata/influxdb/chronograf/issues/2601 for more information")
 	}
 
 	return nil

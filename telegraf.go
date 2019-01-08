@@ -1,4 +1,4 @@
-package platform
+package influxdb
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/platform/telegraf/plugins"
-	"github.com/influxdata/platform/telegraf/plugins/inputs"
-	"github.com/influxdata/platform/telegraf/plugins/outputs"
+	"github.com/influxdata/influxdb/telegraf/plugins"
+	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
+	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
 )
 
 // ErrTelegrafConfigInvalidOrganizationID is the error message for a missing or invalid organization ID.

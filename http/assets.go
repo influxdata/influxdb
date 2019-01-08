@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	// TODO: use platform version of the code
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/dist"
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/dist"
 )
 
 const (

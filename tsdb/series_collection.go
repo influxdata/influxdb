@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/pkg/bytesutil"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 )
 
 // SeriesCollection is a struct of arrays representation of a collection of series that allows

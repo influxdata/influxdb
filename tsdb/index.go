@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/models"
-	"github.com/influxdata/platform/query"
 )
 
 // SeriesElem represents a generic series element.

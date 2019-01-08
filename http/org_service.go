@@ -9,8 +9,8 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/influxdata/platform"
-	kerrors "github.com/influxdata/platform/kit/errors"
+	platform "github.com/influxdata/influxdb"
+	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -49,8 +49,9 @@ const (
 func NewOrgHandler(mappingService platform.UserResourceMappingService,
 	labelService platform.LabelService, userService platform.UserService) *OrgHandler {
 	h := &OrgHandler{
-		Router:                     NewRouter(),
-		Logger:                     zap.NewNop(),
+		Router: NewRouter(),
+		Logger: zap.NewNop(),
+
 		UserResourceMappingService: mappingService,
 		LabelService:               labelService,
 		UserService:                userService,

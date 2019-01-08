@@ -6,10 +6,10 @@ import (
 	"os"
 
 	"github.com/influxdata/flux/repl"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/http"
-	"github.com/influxdata/platform/query"
-	_ "github.com/influxdata/platform/query/builtin"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/query"
+	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

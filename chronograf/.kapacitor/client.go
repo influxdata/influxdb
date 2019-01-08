@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/chronograf/id"
 	client "github.com/influxdata/kapacitor/client/v1"
-	"github.com/influxdata/platform/chronograf"
-	"github.com/influxdata/platform/chronograf/id"
 )
 
 const (

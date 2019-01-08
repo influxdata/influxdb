@@ -8,7 +8,7 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/influxdb/chronograf"
 )
 
 // KapExt is the the file extension searched for in the directory for kapacitor files

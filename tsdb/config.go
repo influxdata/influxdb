@@ -1,7 +1,7 @@
 package tsdb
 
 import (
-	"github.com/influxdata/platform/query"
+	"github.com/influxdata/influxdb/query"
 )
 
 // EOF represents a "not found" key returned by a Cursor.

@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/mock"
-	"github.com/influxdata/platform/query/influxql"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/query/influxql"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 var dbrpMappingSvc = mock.NewDBRPMappingService()

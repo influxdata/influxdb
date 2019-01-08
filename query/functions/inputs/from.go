@@ -6,9 +6,9 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/functions/inputs/storage"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/query/functions/inputs/storage"
 	"github.com/pkg/errors"
 )
 

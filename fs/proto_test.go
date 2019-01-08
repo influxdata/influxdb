@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/fs"
-	platformtesting "github.com/influxdata/platform/testing"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/fs"
+	platformtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap"
 )
 

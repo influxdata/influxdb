@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/snowflake"
-	"github.com/influxdata/platform/task/options"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/task/options"
 )
 
 var _ Store = (*inmem)(nil)

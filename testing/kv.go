@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform/kv"
+	"github.com/influxdata/influxdb/kv"
 )
 
 // KVStoreFields are background data that has to be set before
