@@ -14,7 +14,10 @@ import {setFieldOptions as setFieldOptionsAction} from 'src/shared/actions/v2/ti
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
-import {filterTables} from 'src/shared/utils/filterTables'
+import {
+  excludeNoisyColumns,
+  findTableNameHeaders,
+} from 'src/dashboards/utils/tableGraph'
 
 // Types
 import {TableView, FieldOption} from 'src/types/v2/dashboards'
@@ -45,8 +48,17 @@ class TableGraphs extends PureComponent<Props, State> {
     this.updateFieldOptions()
   }
 
-  public componentDidUpdate(prevProps: Props) {
-    if (!_.isEqual(this.fieldOptions, prevProps.properties.fieldOptions)) {
+  public componentDidUpdate(prevProps: Props, prevState: State) {
+    const prevHeaders = findTableNameHeaders(
+      prevProps.tables,
+      prevState.selectedTableName
+    )
+    const rawHeaders = findTableNameHeaders(
+      this.props.tables,
+      this.state.selectedTableName
+    )
+
+    if (!_.isEqual(rawHeaders, prevHeaders)) {
       this.updateFieldOptions()
     }
   }
@@ -78,7 +90,17 @@ class TableGraphs extends PureComponent<Props, State> {
   }
 
   private get selectedTableName(): string {
-    return this.state.selectedTableName || this.defaultTableName
+    const {tables} = this.props
+
+    const isNameInTables = tables.find(
+      t => (t.name = this.state.selectedTableName)
+    )
+
+    if (!isNameInTables) {
+      return this.defaultTableName
+    }
+
+    return this.state.selectedTableName
   }
 
   private get defaultTableName() {
@@ -95,7 +117,8 @@ class TableGraphs extends PureComponent<Props, State> {
   }
 
   private get hasData(): boolean {
-    return !!this.selectedTable.data.length
+    const {data} = this.selectedTable
+    return !!data && !!data.length
   }
 
   private get shouldShowTable(): boolean {
@@ -104,25 +127,18 @@ class TableGraphs extends PureComponent<Props, State> {
 
   private get selectedTable(): FluxTable {
     const {tables} = this.props
-    const selectedTable = filterTables(tables).find(
-      t => t.name === this.state.selectedTableName
-    )
+    const {selectedTableName} = this
+    const selectedTable = tables.find(t => t.name === selectedTableName)
+    const data = excludeNoisyColumns(selectedTable.data)
 
-    return selectedTable
+    return {
+      ...selectedTable,
+      data,
+    }
   }
 
   private updateFieldOptions() {
-    this.props.setFieldOptions(this.fieldOptions)
-  }
-
-  private get fieldOptions(): FieldOption[] {
-    const {fieldOptions} = this.props.properties
-
-    if (fieldOptions.length === 0 || this.isDefaultFieldOptions) {
-      return this.extractFieldOptions()
-    }
-
-    return fieldOptions
+    this.props.setFieldOptions(this.extractFieldOptions())
   }
 
   private extractFieldOptions(): FieldOption[] {
@@ -135,16 +151,6 @@ class TableGraphs extends PureComponent<Props, State> {
 
   private get headers(): string[] {
     return getDeep(this.selectedTable, 'data.0', [])
-  }
-
-  private get isDefaultFieldOptions(): boolean {
-    const {fieldOptions} = this.props.properties
-    const internalName = getDeep<string>(fieldOptions, '0.internalName', '')
-
-    return (
-      fieldOptions.length === 1 &&
-      (internalName === 'time' || internalName === '_time')
-    )
   }
 }
 

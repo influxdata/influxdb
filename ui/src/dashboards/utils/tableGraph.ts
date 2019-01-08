@@ -12,6 +12,8 @@ import {
   DecimalPlaces,
 } from 'src/types/v2/dashboards'
 
+import {FluxTable} from 'src/types'
+
 const calculateSize = (message: string): number => {
   return message.length * 7
 }
@@ -215,13 +217,10 @@ export const sortTableData = (
 ): {sortedData: string[][]; sortedTimeVals: string[]} => {
   const headerSet = new Set(data[0])
 
-  let sortIndex
+  let sortIndex = 0
+
   if (headerSet.has(sort.field)) {
     sortIndex = _.indexOf(data[0], sort.field)
-  } else if (headerSet.has(DEFAULT_TIME_FIELD.internalName)) {
-    sortIndex = _.indexOf(data[0], DEFAULT_TIME_FIELD.internalName)
-  } else {
-    throw new Error('Sort cannot be performed')
   }
 
   const dataValues = _.drop(data, 1)
@@ -229,14 +228,15 @@ export const sortTableData = (
     data[0],
     ..._.orderBy<string[][]>(dataValues, sortIndex, [sort.direction]),
   ] as string[][]
+
   const sortedTimeVals = fastMap<string[], string>(
     sortedData,
-    (r: string[]): string => r[0]
+    (r: string[]): string => r[sortIndex]
   )
   return {sortedData, sortedTimeVals}
 }
 
-const excludeNoisyColumns = (data: string[][]): string[][] => {
+export const excludeNoisyColumns = (data: string[][]): string[][] => {
   const IGNORED_COLUMNS = ['', 'result', 'table']
 
   const header = data[0]
@@ -300,3 +300,44 @@ export const transformTableData = (
 */
 export const isNumerical = (x: any): boolean =>
   !isNaN(Number(x)) && !isNaN(parseFloat(x))
+
+export const findHoverTimeIndex = (
+  sortedTimeVals: string[],
+  hoverTime: number
+) => {
+  if (sortedTimeVals.length < 2) {
+    // first value is "_time" header
+    return -1
+  }
+
+  const firstDiff = getUnixISODiff(hoverTime, sortedTimeVals[1]) // sortedTimeVals[0] is "_time"
+  const hoverTimeFound = fastReduce<string, {index: number; diff: number}>(
+    sortedTimeVals,
+    (acc, currentTime, index) => {
+      const thisDiff = getUnixISODiff(hoverTime, currentTime)
+      if (thisDiff < acc.diff) {
+        return {index, diff: thisDiff}
+      }
+      return acc
+    },
+    {index: 1, diff: firstDiff}
+  )
+
+  return hoverTimeFound.index
+}
+
+/**
+ * Get absolute mili seconds between a unix ms time number and iso utc string
+ *
+ * @param unixMs
+ * @param isoTime
+ */
+export const getUnixISODiff = (unixMs: number, isoTime: string | number) => {
+  return Math.abs(unixMs - new Date(isoTime).valueOf())
+}
+
+export const findTableNameHeaders = (tables: FluxTable[], name: string) => {
+  const foundTable = tables.find(t => t.name === name)
+
+  return _.get(foundTable, 'data.0', [])
+}

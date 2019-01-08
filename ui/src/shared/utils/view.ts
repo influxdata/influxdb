@@ -17,7 +17,6 @@ import {
   DEFAULT_GAUGE_COLORS,
   DEFAULT_THRESHOLDS_LIST_COLORS,
 } from 'src/shared/constants/thresholds'
-import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 
 function defaultView() {
   return {
@@ -150,10 +149,10 @@ const NEW_VIEW_CREATORS = {
       colors: DEFAULT_THRESHOLDS_LIST_COLORS,
       tableOptions: {
         verticalTimeAxis: true,
-        sortBy: DEFAULT_TIME_FIELD,
+        sortBy: null,
         fixFirstColumn: false,
       },
-      fieldOptions: [DEFAULT_TIME_FIELD],
+      fieldOptions: [],
       decimalPlaces: {
         isEnforced: false,
         digits: 2,
