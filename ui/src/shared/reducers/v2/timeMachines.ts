@@ -509,7 +509,7 @@ export const timeMachineReducer = (
 
         draftQuery.builderConfig.tags[index].values = values
 
-        buildAndSubmitActiveQuery(draftState)
+        buildActiveQuery(draftState)
       })
     }
 
@@ -547,7 +547,7 @@ export const timeMachineReducer = (
         draftState.queryBuilder.tags.splice(index, 1)
 
         if (selectedValues.length) {
-          buildAndSubmitActiveQuery(draftState)
+          buildActiveQuery(draftState)
         }
       })
     }
@@ -571,7 +571,7 @@ export const timeMachineReducer = (
           draftState.activeQueryIndex
         ].builderConfig.functions = newFunctions
 
-        buildAndSubmitActiveQuery(draftState)
+        buildActiveQuery(draftState)
       })
     }
 
@@ -681,7 +681,7 @@ const initialQueryBuilderState = (
   }
 }
 
-const buildAndSubmitActiveQuery = (draftState: TimeMachineState) => {
+const buildActiveQuery = (draftState: TimeMachineState) => {
   const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
 
   if (isConfigValid(draftQuery.builderConfig)) {
@@ -692,8 +692,6 @@ const buildAndSubmitActiveQuery = (draftState: TimeMachineState) => {
   } else {
     draftQuery.text = ''
   }
-
-  submitQueries(draftState)
 }
 
 const buildAndSubmitAllQueries = (draftState: TimeMachineState) => {

@@ -93,9 +93,7 @@ const TimeMachineQueries: SFC<Props> = props => {
             duration={queriesState.duration}
           />
           <TimeMachineQueriesSwitcher />
-          {activeQuery.editMode !== QueryEditMode.Builder && (
-            <SubmitQueryButton queryStatus={queriesState.loading} />
-          )}
+          <SubmitQueryButton queryStatus={queriesState.loading} />
         </div>
       </div>
       <div className="time-machine-queries--body">{queryEditor}</div>
