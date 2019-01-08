@@ -84,6 +84,10 @@
   }
 }
 
+.unclickable {
+  cursor: default;
+}
+
 .wizard--progress-connector {
   min-width: 20px;
   width: 100%;
