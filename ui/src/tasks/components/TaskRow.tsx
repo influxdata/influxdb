@@ -68,7 +68,7 @@ class TaskRow extends PureComponent<Props & WithRouterProps> {
             <ConfirmationButton
               size={ComponentSize.ExtraSmall}
               text="Delete"
-              confirmText="Click to Confirm"
+              confirmText="Confirm"
               onConfirm={onDelete}
               returnValue={task}
             />

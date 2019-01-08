@@ -88,7 +88,7 @@ class TasksPage extends PureComponent<Props, State> {
 
     return (
       <>
-        <Page>
+        <Page titleTag="Tasks">
           <TasksHeader
             onCreateTask={this.handleCreateTask}
             setSearchTerm={setSearchTerm}

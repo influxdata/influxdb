@@ -29,7 +29,7 @@ export class MePage extends PureComponent<StateProps> {
     const {me} = this.props
 
     return (
-      <Page className="user-page">
+      <Page className="user-page" titleTag="My Account">
         <Header title={`Howdy, ${me.name}!`} />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-8">

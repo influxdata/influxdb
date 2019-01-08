@@ -58,28 +58,28 @@ export default class TasksList extends PureComponent<Props, State> {
       <IndexList>
         <IndexList.Header>
           <IndexList.HeaderCell
-            columnName="name"
+            columnName="Name"
             width="20%"
             sortKey={headerKeys[0]}
             sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
           <IndexList.HeaderCell
-            columnName="active"
+            columnName="Active"
             width="10%"
             sortKey={headerKeys[1]}
             sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
           <IndexList.HeaderCell
-            columnName="schedule"
+            columnName="Schedule"
             width="20%"
             sortKey={headerKeys[2]}
             sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
           <IndexList.HeaderCell
-            columnName="organization"
+            columnName="Owner"
             width="15%"
             sortKey={headerKeys[3]}
             sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}

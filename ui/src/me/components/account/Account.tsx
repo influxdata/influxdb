@@ -18,7 +18,7 @@ export default class Account extends PureComponent<WithRouterProps> {
   public render() {
     const {params} = this.props
     return (
-      <Page>
+      <Page titleTag="My Account">
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
             <Page.Title title="My Account" />

@@ -25,7 +25,7 @@ class SourcesPage extends PureComponent<Props, State> {
     const {isAddingSource} = this.state
 
     return (
-      <Page>
+      <Page titleTag="Manage Sources">
         <Page.Header>
           <Page.Header.Left>
             <Page.Title title="Manage Sources" />

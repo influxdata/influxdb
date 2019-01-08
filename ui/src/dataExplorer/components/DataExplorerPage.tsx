@@ -8,7 +8,7 @@ import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
 
 const DataExplorerPage: SFC<{}> = () => {
   return (
-    <Page>
+    <Page titleTag="Data Explorer">
       <Page.Header fullWidth={true}>
         <Page.Header.Left>
           <Page.Title title="Data Explorer" />

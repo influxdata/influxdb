@@ -1,7 +1,9 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`Account rendering renders! 1`] = `
-<Page>
+<Page
+  titleTag="My Account"
+>
   <PageHeader
     fullWidth={false}
     inPresentationMode={false}

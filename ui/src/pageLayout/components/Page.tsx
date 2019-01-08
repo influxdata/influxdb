@@ -13,6 +13,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   children: JSX.Element | JSX.Element[]
   className?: string
+  titleTag: string
 }
 
 @ErrorHandling
@@ -20,6 +21,16 @@ class Page extends Component<Props> {
   public static Header = PageHeader
   public static Title = PageTitle
   public static Contents = PageContents
+
+  public componentDidMount() {
+    document.title = `${this.props.titleTag || 'Loading...'} | InfluxDB 2.0`
+  }
+
+  public componentDidUpdate(prevProps) {
+    if (prevProps.titleTag !== this.props.titleTag) {
+      document.title = `${this.props.titleTag} | InfluxDB 2.0`
+    }
+  }
 
   public render() {
     const {children} = this.props

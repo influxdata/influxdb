@@ -60,7 +60,7 @@ class OrganizationsIndex extends PureComponent<Props, State> {
 
     return (
       <>
-        <Page>
+        <Page titleTag="Organizations">
           <Page.Header fullWidth={false}>
             <Page.Header.Left>
               <Page.Title title="Organizations" />

@@ -52,7 +52,7 @@ class OrganizationView extends PureComponent<Props> {
     const {org, params, onUpdateOrg} = this.props
 
     return (
-      <Page>
+      <Page titleTag={org.name}>
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
             <Page.Title title={org.name ? org.name : 'Organization'} />

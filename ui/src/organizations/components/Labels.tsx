@@ -86,7 +86,7 @@ class Labels extends PureComponent<Props, State> {
             placeholder="Filter Labels..."
           />
           <Button
-            text="Create Labels"
+            text="Create Label"
             color={ComponentColor.Primary}
             icon={IconFont.Plus}
             onClick={this.handleShowOverlay}

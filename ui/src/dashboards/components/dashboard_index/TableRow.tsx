@@ -10,6 +10,7 @@ import {
   ComponentSpacer,
   IndexList,
   ConfirmationButton,
+  Stack,
 } from 'src/clockface'
 
 // Types
@@ -47,7 +48,7 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
           {moment(dashboard.meta.updatedAt).format(UPDATED_AT_TIME_FORMAT)}
         </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
-          <ComponentSpacer align={Alignment.Right}>
+          <ComponentSpacer align={Alignment.Left} stackChildren={Stack.Columns}>
             <Button
               size={ComponentSize.ExtraSmall}
               text="Export"
@@ -65,7 +66,7 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
               size={ComponentSize.ExtraSmall}
               onConfirm={onDeleteDashboard}
               returnValue={dashboard}
-              confirmText="Click to Confirm"
+              confirmText="Confirm"
             />
           </ComponentSpacer>
         </IndexList.Cell>

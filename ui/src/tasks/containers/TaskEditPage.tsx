@@ -85,7 +85,7 @@ class TaskPage extends PureComponent<
     const {currentScript, taskOptions, orgs} = this.props
 
     return (
-      <Page>
+      <Page titleTag={`Edit ${taskOptions.name}`}>
         <TaskHeader
           title="Update Task"
           onCancel={this.handleCancel}
