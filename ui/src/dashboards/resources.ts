@@ -3,7 +3,6 @@ import {
   Source,
   SourceAuthenticationMethod,
   SourceLinks,
-  Cell,
   TimeRange,
   Template,
   QueryConfig,
@@ -19,12 +18,13 @@ import {
   InfluxLanguage,
   QueryEditMode,
 } from 'src/types/v2/dashboards'
+import {Cell, Dashboard} from 'src/types/v2'
+
 import {Color} from 'src/types/colors'
 
-export const dashboard = {
+export const dashboard: Dashboard = {
   id: '1',
   name: 'd1',
-  default: false,
   cells: [
     {
       x: 1,
@@ -32,18 +32,16 @@ export const dashboard = {
       w: 3,
       h: 4,
       id: '1',
-      viewID: '2',
+      dashboardID: '1',
       links: {
         self: '/v2/dashboards/1/cells/1',
         view: '/v2/dashboards/1/cells/1/views',
-        copy: '/v2/dashboards/1/cells/1/copy',
       },
     },
   ],
   links: {
     self: '/v2/dashboards/1',
     cells: '/v2/dashboards/cells',
-    copy: '/v2/dashboards/1/cells/1/copy',
   },
 }
 
@@ -214,11 +212,11 @@ export const decimalPlaces: DecimalPlaces = {
 
 export const cell: Cell = {
   id: '67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
+  dashboardID: 'DashboardID',
   x: 0,
   y: 0,
   w: 8,
   h: 4,
-  viewID: '1',
   links: {
     self: '/chronograf/v1/dashboards/9/cells/67435',
     view: '1',

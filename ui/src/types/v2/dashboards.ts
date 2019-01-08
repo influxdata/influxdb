@@ -1,5 +1,9 @@
 import {Color} from 'src/types/colors'
-import {Dashboard, View as ViewAPI} from 'src/api'
+import {
+  Dashboard as DashboardAPI,
+  View as ViewAPI,
+  Cell as CellAPI,
+} from 'src/api'
 
 export interface Axis {
   label: string
@@ -82,13 +86,23 @@ export interface MarkDownProperties {
 export interface View<T extends ViewProperties = ViewProperties>
   extends ViewAPI {
   properties?: T
+  dashboardID?: string
+  cellID?: string
+}
+
+export interface Cell extends CellAPI {
+  dashboardID: string
+}
+
+export interface Dashboard extends Omit<DashboardAPI, 'cells'> {
+  cells: Cell[]
 }
 
 type Omit<K, V> = Pick<K, Exclude<keyof K, V>>
 
 export type NewView<T extends ViewProperties = ViewProperties> = Omit<
   View<T>,
-  'id' | 'links'
+  'id' | 'links' | 'cellID' | 'dashboardID'
 >
 
 export interface ViewLinks {
@@ -250,21 +264,7 @@ interface DashboardFileMetaSection {
   chronografVersion?: string
 }
 
-export interface Cell {
-  id: string
-  viewID: string
-  x: number
-  y: number
-  w: number
-  h: number
-  links: {
-    self: string
-    view: string
-    copy: string
-  }
-}
-
-export type NewCell = Omit<Cell, 'id' | 'viewID' | 'links'>
+export type NewCell = Omit<Cell, 'id' | 'links' | 'dashboardID'>
 
 export enum ThresholdType {
   Text = 'text',

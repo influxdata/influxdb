@@ -11,11 +11,11 @@ import {
 } from 'src/logs/utils/logQuery'
 
 // APIs
-import {
-  readViews as readViewsAJAX,
-  createView as createViewAJAX,
-  updateView as updateViewAJAX,
-} from 'src/dashboards/apis/v2/view'
+// import {
+//   readViews as readViewsAJAX,
+//   createView as createViewAJAX,
+//   updateView as updateViewAJAX,
+// } from 'src/dashboards/apis/v2/view'
 import {readSource} from 'src/sources/apis'
 import {getBuckets} from 'src/shared/apis/v2/buckets'
 import {executeQueryAsync} from 'src/logs/api/v2'

@@ -1,7 +1,7 @@
 import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
 import {DashboardQuery, Legend, Axes} from './v2/dashboards'
-import {Dashboard, Cell} from 'src/api'
+import {Cell, Dashboard} from 'src/types/v2'
 import {
   GroupBy,
   Query,

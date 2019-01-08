@@ -1,4 +1,4 @@
-import {Dashboard} from 'src/api'
+import {Dashboard} from 'src/types/v2'
 import {AxiosResponse} from 'axios'
 
 export interface DashboardsResponse {
