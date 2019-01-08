@@ -9,6 +9,7 @@ import (
 	_ "github.com/influxdata/flux/functions" // Import the built-in functions
 	_ "github.com/influxdata/flux/functions/inputs"
 	_ "github.com/influxdata/flux/functions/outputs"
+	_ "github.com/influxdata/flux/functions/tests"
 	_ "github.com/influxdata/flux/functions/transformations"
 	_ "github.com/influxdata/flux/options"             // Import the built-in options
 	_ "github.com/influxdata/platform/query/functions" // Import the built-in functions
