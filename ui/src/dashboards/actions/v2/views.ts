@@ -2,12 +2,12 @@
 import {
   readView as readViewAJAX,
   updateView as updateViewAJAX,
-} from 'src/dashboards/apis/v2/view'
+} from 'src/dashboards/apis/v2/'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {View} from 'src/api'
 import {Dispatch} from 'redux'
+import {View} from 'src/types/v2'
 
 export type Action = SetViewAction
 
@@ -22,37 +22,37 @@ export interface SetViewAction {
 
 export const setView = (
   id: string,
-  view: View | null,
+  view: View,
   status: RemoteDataState
 ): SetViewAction => ({
   type: 'SET_VIEW',
   payload: {id, view, status},
 })
 
-export const readView = (id: string) => async (
+export const readView = (dashboardID: string, cellID: string) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
-  dispatch(setView(id, null, RemoteDataState.Loading))
-
+  dispatch(setView(cellID, null, RemoteDataState.Loading))
   try {
-    const view = await readViewAJAX(id)
+    const view = await readViewAJAX(dashboardID, cellID)
 
-    dispatch(setView(id, view, RemoteDataState.Done))
+    dispatch(setView(cellID, view, RemoteDataState.Done))
   } catch {
-    dispatch(setView(id, null, RemoteDataState.Error))
+    dispatch(setView(cellID, null, RemoteDataState.Error))
   }
 }
 
-export const updateView = (view: View) => async (
+export const updateView = (dashboardID: string, view: View) => async (
   dispatch: Dispatch<Action>
-): Promise<void> => {
-  dispatch(setView(view.id, null, RemoteDataState.Loading))
+): Promise<View> => {
+  dispatch(setView(view.cellID, null, RemoteDataState.Loading))
 
   try {
-    const newView = await updateViewAJAX(view.id, view)
+    const newView = await updateViewAJAX(dashboardID, view.cellID, view)
 
-    dispatch(setView(view.id, newView, RemoteDataState.Done))
+    dispatch(setView(view.cellID, newView, RemoteDataState.Done))
+    return newView
   } catch {
-    dispatch(setView(view.id, null, RemoteDataState.Error))
+    dispatch(setView(view.cellID, null, RemoteDataState.Error))
   }
 }

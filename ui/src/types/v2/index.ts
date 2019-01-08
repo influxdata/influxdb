@@ -5,6 +5,7 @@ import {ViewsState} from 'src/dashboards/reducers/v2/views'
 import {
   DashboardSwitcherLinks,
   NewCell,
+  Cell,
   View,
   NewView,
   ViewType,
@@ -15,9 +16,10 @@ import {
   BuilderConfig,
   DashboardQuery,
   InfluxLanguage,
+  Dashboard,
 } from 'src/types/v2/dashboards'
 
-import {Cell, Dashboard, Source} from 'src/api'
+import {Source} from 'src/api'
 import {Task} from 'src/types/v2/tasks'
 import {Member} from 'src/types/v2/members'
 import {Organization} from 'src/api'

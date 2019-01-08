@@ -13,8 +13,7 @@ import {setName} from 'src/shared/actions/v2/timeMachines'
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 
 // Types
-import {Source, AppState, DashboardQuery} from 'src/types/v2'
-import {NewView, View} from 'src/types/v2/dashboards'
+import {Source, AppState, DashboardQuery, View, NewView} from 'src/types/v2'
 
 // Styles
 import './VEO.scss'
