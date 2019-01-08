@@ -86,10 +86,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.OrgHandler.OrganizationOperationLogService = b.OrganizationOperationLogService
 	h.OrgHandler.SecretService = b.SecretService
 
-	h.UserHandler = NewUserHandler()
-	h.UserHandler.UserService = b.UserService
-	h.UserHandler.BasicAuthService = b.BasicAuthService
-	h.UserHandler.UserOperationLogService = b.UserOperationLogService
+	userBackend := NewUserBackend(b)
+	h.UserHandler = NewUserHandler(userBackend)
 
 	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.DashboardHandler.DashboardService = b.DashboardService

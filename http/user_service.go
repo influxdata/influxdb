@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"net/http"
 	"path"
 	"strconv"
@@ -15,9 +16,31 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// UserBackend is all services and associated parameters required to construct
+// the UserHandler.
+type UserBackend struct {
+	Logger *zap.Logger
+
+	UserService             platform.UserService
+	UserOperationLogService platform.UserOperationLogService
+	BasicAuthService        platform.BasicAuthService
+}
+
+func NewUserBackend(b *APIBackend) *UserBackend {
+	return &UserBackend{
+		Logger: b.Logger.With(zap.String("handler", "user")),
+
+		UserService:             b.UserService,
+		UserOperationLogService: b.UserOperationLogService,
+		BasicAuthService:        b.BasicAuthService,
+	}
+}
+
 // UserHandler represents an HTTP API handler for users.
 type UserHandler struct {
 	*httprouter.Router
+	Logger *zap.Logger
+
 	UserService             platform.UserService
 	UserOperationLogService platform.UserOperationLogService
 	BasicAuthService        platform.BasicAuthService
@@ -33,9 +56,14 @@ const (
 )
 
 // NewUserHandler returns a new instance of UserHandler.
-func NewUserHandler() *UserHandler {
+func NewUserHandler(b *UserBackend) *UserHandler {
 	h := &UserHandler{
 		Router: NewRouter(),
+		Logger: b.Logger,
+
+		UserService:             b.UserService,
+		UserOperationLogService: b.UserOperationLogService,
+		BasicAuthService:        b.BasicAuthService,
 	}
 
 	h.HandlerFunc("POST", usersPath, h.handlePostUser)
