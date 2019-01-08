@@ -105,7 +105,11 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
   }
 
   private handleSetActive = (): void => {
-    const {queryIndex, onSetActiveQueryIndex} = this.props
+    const {queryIndex, activeQueryIndex, onSetActiveQueryIndex} = this.props
+
+    if (queryIndex === activeQueryIndex) {
+      return
+    }
 
     onSetActiveQueryIndex(queryIndex)
   }

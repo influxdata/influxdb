@@ -102,10 +102,10 @@ const TimeMachineQueries: SFC<Props> = props => {
 }
 
 const mstp = (state: AppState) => {
-  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
+  const {draftQueries} = getActiveTimeMachine(state)
   const activeQuery = getActiveQuery(state)
 
-  return {activeQuery, activeQueryIndex, draftQueries}
+  return {activeQuery, draftQueries}
 }
 
 const mdtp = {
