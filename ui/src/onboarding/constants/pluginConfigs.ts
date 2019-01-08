@@ -170,7 +170,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
     },
   },
   [TelegrafPluginInputProcstat.NameEnum.Procstat]: {
-    fields: {exe: {type: ConfigFieldType.String, isRequired: false}},
+    fields: {exe: {type: ConfigFieldType.String, isRequired: true}},
     defaults: {
       name: TelegrafPluginInputProcstat.NameEnum.Procstat,
       type: TelegrafPluginInputProcstat.TypeEnum.Input,
