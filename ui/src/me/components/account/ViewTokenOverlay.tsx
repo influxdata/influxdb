@@ -7,9 +7,13 @@ import PermissionsWidget, {
   PermissionsWidgetMode,
   PermissionsWidgetSelection,
 } from 'src/shared/components/permissionsWidget/PermissionsWidget'
+import CopyText from 'src/shared/components/CopyText'
 
 // Types
 import {Authorization, Permission} from 'src/api'
+
+// Actions
+import {NotificationAction} from 'src/types'
 
 const {Orgs, Users, Buckets, Tasks} = Permission.ResourceEnum
 const {Write, Read} = Permission.ActionEnum
@@ -54,6 +58,7 @@ const testPerms: TestPermission[] = [
 ]
 
 interface Props {
+  onNotify: NotificationAction
   auth: Authorization
   onDismissOverlay: () => void
 }
@@ -63,10 +68,13 @@ const actions = [Read, Write]
 export default class ViewTokenOverlay extends PureComponent<Props> {
   public render() {
     const {description} = this.props.auth
+    const {onNotify} = this.props
+
     return (
       <OverlayContainer>
         <OverlayHeading title={description} onDismiss={this.handleDismiss} />
         <OverlayBody>
+          <CopyText copyText={this.props.auth.token} notify={onNotify} />
           <PermissionsWidget
             mode={PermissionsWidgetMode.Read}
             heightPixels={500}

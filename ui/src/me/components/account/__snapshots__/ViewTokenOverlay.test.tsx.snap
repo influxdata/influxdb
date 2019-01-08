@@ -29,13 +29,13 @@ exports[`Account rendering renders! 1`] = `
   }
 >
   <OverlayContainer
-    maxWidth={600}
+    maxWidth={800}
   >
     <div
       className="overlay--container"
       style={
         Object {
-          "maxWidth": "600px",
+          "maxWidth": "800px",
         }
       }
     >
@@ -61,6 +61,43 @@ exports[`Account rendering renders! 1`] = `
         <div
           className="overlay--body"
         >
+          <CopyText
+            copyText="ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA=="
+          >
+            <p
+              className="script-snippet"
+            >
+              ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==
+              <CopyToClipboard
+                onCopy={[Function]}
+                text="ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA=="
+              >
+                <Button
+                  active={false}
+                  color="default"
+                  customClass="copy-button"
+                  onClick={[Function]}
+                  shape="none"
+                  size="sm"
+                  status="default"
+                  text="Copy"
+                  titleText="copy to clipboard"
+                  type="button"
+                >
+                  <button
+                    className="button button-sm button-default copy-button"
+                    disabled={false}
+                    onClick={[Function]}
+                    tabIndex={0}
+                    title="copy to clipboard"
+                    type="button"
+                  >
+                    Copy
+                  </button>
+                </Button>
+              </CopyToClipboard>
+            </p>
+          </CopyText>
           <PermissionsWidget
             heightPixels={500}
             mode="read"

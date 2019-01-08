@@ -28,53 +28,17 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
     <p>
       After installing the telegraf client, save this environment variable. run the following command.
     </p>
-    <p
-      className="wizard-step--body-snippet"
-    >
-      export INFLUX_TOKEN=
-      <CopyToClipboard
-        onCopy={[Function]}
-        text="export INFLUX_TOKEN="
-      >
-        <Button
-          active={false}
-          color="default"
-          customClass="wizard-step--body-copybutton"
-          onClick={[Function]}
-          shape="none"
-          size="sm"
-          status="default"
-          text="Copy"
-          titleText="copy to clipboard"
-          type="button"
-        />
-      </CopyToClipboard>
-    </p>
+    <CopyText
+      copyText="export INFLUX_TOKEN="
+      notify={[MockFunction]}
+    />
     <p>
       Run the following command.
     </p>
-    <p
-      className="wizard-step--body-snippet"
-    >
-      telegraf -config http://localhost:9999/api/v2/telegrafs/
-      <CopyToClipboard
-        onCopy={[Function]}
-        text="telegraf -config http://localhost:9999/api/v2/telegrafs/"
-      >
-        <Button
-          active={false}
-          color="default"
-          customClass="wizard-step--body-copybutton"
-          onClick={[Function]}
-          shape="none"
-          size="sm"
-          status="default"
-          text="Copy"
-          titleText="copy to clipboard"
-          type="button"
-        />
-      </CopyToClipboard>
-    </p>
+    <CopyText
+      copyText="telegraf -config http://localhost:9999/api/v2/telegrafs/"
+      notify={[MockFunction]}
+    />
   </div>
 </Fragment>
 `;

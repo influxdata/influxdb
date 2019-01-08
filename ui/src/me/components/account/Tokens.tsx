@@ -13,6 +13,7 @@ import {getAuthorizations} from 'src/authorizations/apis'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
+import {NotificationAction} from 'src/types'
 
 // Types
 import {Authorization} from 'src/api'
@@ -27,7 +28,7 @@ enum AuthSearchKeys {
 }
 
 interface Props {
-  onNotify: typeof notify
+  onNotify: NotificationAction
 }
 
 export class Tokens extends PureComponent<Props, State> {

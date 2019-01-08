@@ -138,20 +138,6 @@
   }
 }
 
-.wizard-step--body-snippet {
-  background-color: $g3-castle;
-  border-radius: $radius;
-  margin: $ix-marg-a 0;
-  padding: $ix-marg-b;
-  overflow-x: auto;
-  font-family: 'RobotoMono', monospace;
-}
-
-.wizard-step--body-copybutton{
-  float: right;
-  margin-left:10px auto;
-}
-
 .wizard-step--lp-body {
   height: 280px;
   width: 750px;
