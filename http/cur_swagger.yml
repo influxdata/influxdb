@@ -3951,6 +3951,7 @@ components:
           description: The Flux script to run for this task.
           type: string
     Task:
+      type: object
       properties:
         id:
           readOnly: true
@@ -3970,6 +3971,8 @@ components:
             - inactive
         owner:
           $ref: "#/components/schemas/User"
+        labels:
+          $ref: "#/components/schemas/Labels"
         flux:
           description: The Flux script to run for this task.
           type: string
@@ -3980,8 +3983,13 @@ components:
           description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
           type: string
         offset:
-          description: How long to wait before running the task
+          description: Duration to delay after the schedule, before executing the task; parsed from flux.
           type: string
+        latest_completed:
+          description: Timestamp of latest scheduled, completed run, RFC3339.
+          type: string
+          format: date-time
+          readOnly: true
         links:
           type: object
           readOnly: true
