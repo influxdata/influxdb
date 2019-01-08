@@ -69,7 +69,7 @@ class TimeMachine extends Component<Props, State> {
                 </div>
               </DraggableResizer.Panel>
               <DraggableResizer.Panel>
-                <TimeMachineBottom queryStatus={queriesState.loading} />
+                <TimeMachineBottom queriesState={queriesState} />
               </DraggableResizer.Panel>
             </DraggableResizer>
           )}

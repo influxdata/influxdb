@@ -13,23 +13,23 @@ import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 // Types
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {AppState} from 'src/types/v2'
-import {RemoteDataState} from 'src/types'
+import {QueriesState} from 'src/shared/components/TimeSeries'
 
 interface StateProps {
   activeTab: TimeMachineTab
 }
 
 interface OwnProps {
-  queryStatus: RemoteDataState
+  queriesState: QueriesState
 }
 
 type Props = StateProps & OwnProps
 
-const TimeMachineBottom: SFC<Props> = ({activeTab, queryStatus}) => {
+const TimeMachineBottom: SFC<Props> = ({activeTab, queriesState}) => {
   let tabContents
 
   if (activeTab === TimeMachineTab.Queries) {
-    tabContents = <TimeMachineQueries queryStatus={queryStatus} />
+    tabContents = <TimeMachineQueries queriesState={queriesState} />
   }
 
   if (activeTab === TimeMachineTab.Visualization) {

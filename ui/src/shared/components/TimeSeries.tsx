@@ -24,6 +24,7 @@ export interface QueriesState {
   loading: RemoteDataState
   error: Error | null
   isInitialFetch: boolean
+  duration: number
 }
 
 interface StateProps {
@@ -48,6 +49,7 @@ interface State {
   files: string[] | null
   error: Error | null
   fetchCount: number
+  duration: number
 }
 
 const defaultState = (): State => ({
@@ -56,6 +58,7 @@ const defaultState = (): State => ({
   files: null,
   fetchCount: 0,
   error: null,
+  duration: 0,
 })
 
 class TimeSeries extends Component<Props, State> {
@@ -79,13 +82,14 @@ class TimeSeries extends Component<Props, State> {
   }
 
   public render() {
-    const {tables, files, loading, error, fetchCount} = this.state
+    const {tables, files, loading, error, fetchCount, duration} = this.state
 
     return this.props.children({
       tables,
       files,
       loading,
       error,
+      duration,
       isInitialFetch: fetchCount === 1,
     })
   }
@@ -122,13 +126,16 @@ class TimeSeries extends Component<Props, State> {
     })
 
     try {
+      const startTime = Date.now()
       const results = await this.executeQueries(queries, this.props.variables)
+      const duration = Date.now() - startTime
       const tables = flatten(results.map(r => parseResponse(r.csv)))
       const files = results.map(r => r.csv)
 
       this.setState({
         tables,
         files,
+        duration,
         loading: RemoteDataState.Done,
       })
     } catch (error) {

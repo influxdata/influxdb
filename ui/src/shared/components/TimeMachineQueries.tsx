@@ -8,6 +8,7 @@ import TimeMachineQueriesSwitcher from 'src/shared/components/TimeMachineQueries
 import TimeMachineQueryTab from 'src/shared/components/TimeMachineQueryTab'
 import TimeMachineQueryBuilder from 'src/shared/components/TimeMachineQueryBuilder'
 import TimeMachineInfluxQLEditor from 'src/shared/components/TimeMachineInfluxQLEditor'
+import TimeMachineQueriesTimer from 'src/shared/components/TimeMachineQueriesTimer'
 import SubmitQueryButton from 'src/shared/components/SubmitQueryButton'
 import {
   Button,
@@ -36,7 +37,7 @@ import {
   InfluxLanguage,
   QueryEditMode,
 } from 'src/types/v2'
-import {RemoteDataState} from 'src/types'
+import {QueriesState} from 'src/shared/components/TimeSeries'
 
 interface StateProps {
   activeQuery: DashboardQuery
@@ -48,13 +49,13 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  queryStatus: RemoteDataState
+  queriesState: QueriesState
 }
 
 type Props = StateProps & DispatchProps & OwnProps
 
 const TimeMachineQueries: SFC<Props> = props => {
-  const {activeQuery, queryStatus, draftQueries, onAddQuery} = props
+  const {activeQuery, queriesState, draftQueries, onAddQuery} = props
 
   let queryEditor
 
@@ -87,9 +88,13 @@ const TimeMachineQueries: SFC<Props> = props => {
           />
         </div>
         <div className="time-machine-queries--buttons">
+          <TimeMachineQueriesTimer
+            status={queriesState.loading}
+            duration={queriesState.duration}
+          />
           <TimeMachineQueriesSwitcher />
           {activeQuery.editMode !== QueryEditMode.Builder && (
-            <SubmitQueryButton queryStatus={queryStatus} />
+            <SubmitQueryButton queryStatus={queriesState.loading} />
           )}
         </div>
       </div>
