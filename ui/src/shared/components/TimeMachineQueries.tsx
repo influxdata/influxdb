@@ -37,11 +37,12 @@ import {
   InfluxLanguage,
   QueryEditMode,
 } from 'src/types/v2'
+import {DashboardDraftQuery} from 'src/types/v2/dashboards'
 import {QueriesState} from 'src/shared/components/TimeSeries'
 
 interface StateProps {
   activeQuery: DashboardQuery
-  draftQueries: DashboardQuery[]
+  draftQueries: DashboardDraftQuery[]
 }
 
 interface DispatchProps {

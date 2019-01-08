@@ -61,6 +61,10 @@ export interface DashboardQuery {
   name?: string
 }
 
+export interface DashboardDraftQuery extends DashboardQuery {
+  hidden: boolean
+}
+
 export interface URLQuery {
   text: string
   type: InfluxLanguage
