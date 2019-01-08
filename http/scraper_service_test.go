@@ -542,24 +542,6 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 				),
 			},
 		},
-		// fixme > scraper update needs to be done through an intermediate struct (eg., patchScraperRequest) to check almost 1 field is updated
-		// todo > introduce a platform.ScraperTargetUpdate struct
-		// {
-		// 	name: "update a scraper target with empty request body",
-		// 	fields: fields{
-		// 		Service: &mock.ScraperTargetStoreService{
-		// 			UpdateTargetF: func(ctx context.Context, upd *platform.ScraperTarget) (*platform.ScraperTarget, error) {
-		// 				return nil, fmt.Errorf("not found")
-		// 			},
-		// 		},
-		// 	},
-		// 	args: args{
-		// 		id: targetTwoIDString,
-		// 	},
-		// 	wants: wants{
-		// 		statusCode: http.StatusBadRequest,
-		// 	},
-		// },
 		{
 			name: "scraper target not found",
 			fields: fields{
