@@ -28,14 +28,15 @@ import {
   cpuTelegrafPlugin,
   diskTelegrafPlugin,
   diskioTelegrafPlugin,
-  kernelTelegrafPlugin,
+  netTelegrafPlugin,
   memTelegrafPlugin,
   processesTelegrafPlugin,
-  swapTelegrafPlugin,
+  procstatTelegrafPlugin,
   systemTelegrafPlugin,
   redisTelegrafPlugin,
   token,
   telegrafConfig,
+  dockerTelegrafPlugin,
 } from 'mocks/dummyData'
 
 // Types
@@ -374,16 +375,17 @@ describe('dataLoader reducer', () => {
     const actual = dataLoadersReducer(
       {
         ...INITIAL_STATE,
-        pluginBundles: [BundleName.Disk, BundleName.System],
+        pluginBundles: [BundleName.Docker, BundleName.System],
         telegrafPlugins: [
           cpuTelegrafPlugin,
           diskTelegrafPlugin,
           diskioTelegrafPlugin,
-          kernelTelegrafPlugin,
+          netTelegrafPlugin,
           memTelegrafPlugin,
           processesTelegrafPlugin,
-          swapTelegrafPlugin,
+          procstatTelegrafPlugin,
           systemTelegrafPlugin,
+          dockerTelegrafPlugin,
         ],
       },
       removeBundlePlugins(BundleName.System)
@@ -391,8 +393,8 @@ describe('dataLoader reducer', () => {
 
     const expected = {
       ...INITIAL_STATE,
-      pluginBundles: [BundleName.Disk, BundleName.System],
-      telegrafPlugins: [diskTelegrafPlugin, diskioTelegrafPlugin],
+      pluginBundles: [BundleName.Docker, BundleName.System],
+      telegrafPlugins: [dockerTelegrafPlugin],
     }
 
     expect(actual).toEqual(expected)
@@ -430,11 +432,11 @@ describe('dataLoader reducer', () => {
         cpuTelegrafPlugin,
         diskTelegrafPlugin,
         diskioTelegrafPlugin,
-        kernelTelegrafPlugin,
-        memTelegrafPlugin,
-        processesTelegrafPlugin,
-        swapTelegrafPlugin,
         systemTelegrafPlugin,
+        memTelegrafPlugin,
+        netTelegrafPlugin,
+        processesTelegrafPlugin,
+        procstatTelegrafPlugin,
       ])
     )
   })

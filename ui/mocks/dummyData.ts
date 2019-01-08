@@ -17,12 +17,13 @@ import {
   TelegrafPluginInputCpu,
   TelegrafPluginInputRedis,
   TelegrafPluginInputDisk,
-  TelegrafPluginInputKernel,
   TelegrafPluginInputDiskio,
   TelegrafPluginInputMem,
-  TelegrafPluginInputSwap,
   TelegrafPluginInputSystem,
   TelegrafPluginInputProcesses,
+  TelegrafPluginInputNet,
+  TelegrafPluginInputProcstat,
+  TelegrafPluginInputDocker,
 } from 'src/api'
 
 export const links: Links = {
@@ -328,9 +329,9 @@ export const diskioTelegrafPlugin = {
   configured: ConfigurationState.Configured,
 }
 
-export const kernelTelegrafPlugin = {
+export const netTelegrafPlugin = {
   ...telegrafPlugin,
-  name: TelegrafPluginInputKernel.NameEnum.Kernel,
+  name: TelegrafPluginInputNet.NameEnum.Net,
   configured: ConfigurationState.Configured,
 }
 
@@ -346,10 +347,10 @@ export const processesTelegrafPlugin = {
   configured: ConfigurationState.Configured,
 }
 
-export const swapTelegrafPlugin = {
+export const procstatTelegrafPlugin = {
   ...telegrafPlugin,
-  name: TelegrafPluginInputSwap.NameEnum.Swap,
-  configured: ConfigurationState.Configured,
+  name: TelegrafPluginInputProcstat.NameEnum.Procstat,
+  configured: ConfigurationState.Unconfigured,
 }
 
 export const systemTelegrafPlugin = {
@@ -370,6 +371,12 @@ export const redisPlugin = {
     servers: [],
     password: '',
   },
+}
+
+export const dockerTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputDocker.NameEnum.Docker,
+  configured: ConfigurationState.Configured,
 }
 
 export const influxDB2Plugin = {

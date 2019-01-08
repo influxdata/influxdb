@@ -107,19 +107,10 @@ export interface TelegrafPlugin {
 
 export enum BundleName {
   System = 'System',
-  Disk = 'Disk',
   Docker = 'Docker',
-  File = 'File',
   Kubernetes = 'Kubernetes',
-  Logparser = 'LogParser',
-  Net = 'Net',
-  NetResponse = 'NetResponse',
   Ngnix = 'NGNIX',
-  Procstat = 'Procstat',
-  Prometheus = 'Prometheus',
   Redis = 'Redis',
-  Syslog = 'Syslog',
-  Tail = 'Tail',
 }
 
 export type TelegrafPluginName =
