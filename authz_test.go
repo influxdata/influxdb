@@ -6,6 +6,135 @@ import (
 	"github.com/influxdata/platform"
 )
 
+func TestAuthorizer_PermissionAllowed(t *testing.T) {
+	tests := []struct {
+		name        string
+		permission  platform.Permission
+		permissions []platform.Permission
+		allowed     bool
+	}{
+		{
+			name: "bad resource id in permission",
+			permission: platform.Permission{
+				Action:   platform.WriteAction,
+				Resource: platform.BucketsResource,
+				ID:       IDPtr(0),
+			},
+			permissions: []platform.Permission{
+				{
+					Action:   platform.WriteAction,
+					Resource: platform.BucketsResource,
+					ID:       IDPtr(1),
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "bad resource id in permissions",
+			permission: platform.Permission{
+				Action:   platform.WriteAction,
+				Resource: platform.BucketsResource,
+				ID:       IDPtr(1),
+			},
+			permissions: []platform.Permission{
+				{
+					Action:   platform.WriteAction,
+					Resource: platform.BucketsResource,
+					ID:       IDPtr(0),
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "matching action resource and ID",
+			permission: platform.Permission{
+				Action:   platform.WriteAction,
+				Resource: platform.BucketsResource,
+				ID:       IDPtr(1),
+			},
+			permissions: []platform.Permission{
+				{
+					Action:   platform.WriteAction,
+					Resource: platform.BucketsResource,
+					ID:       IDPtr(1),
+				},
+			},
+			allowed: true,
+		},
+		{
+			name: "matching action resource no ID",
+			permission: platform.Permission{
+				Action:   platform.WriteAction,
+				Resource: platform.BucketsResource,
+			},
+			permissions: []platform.Permission{
+				{
+					Action:   platform.WriteAction,
+					Resource: platform.BucketsResource,
+				},
+			},
+			allowed: true,
+		},
+		{
+			name: "matching action resource differing ID",
+			permission: platform.Permission{
+				Action:   platform.WriteAction,
+				Resource: platform.BucketsResource,
+				ID:       IDPtr(1),
+			},
+			permissions: []platform.Permission{
+				{
+					Action:   platform.WriteAction,
+					Resource: platform.BucketsResource,
+					ID:       IDPtr(2),
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "differing action same resource",
+			permission: platform.Permission{
+				Action:   platform.WriteAction,
+				Resource: platform.BucketsResource,
+				ID:       IDPtr(1),
+			},
+			permissions: []platform.Permission{
+				{
+					Action:   platform.ReadAction,
+					Resource: platform.BucketsResource,
+					ID:       IDPtr(1),
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "same action differing resource",
+			permission: platform.Permission{
+				Action:   platform.WriteAction,
+				Resource: platform.BucketsResource,
+				ID:       IDPtr(1),
+			},
+			permissions: []platform.Permission{
+				{
+					Action:   platform.WriteAction,
+					Resource: platform.TasksResource,
+					ID:       IDPtr(1),
+				},
+			},
+			allowed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			allowed := platform.PermissionAllowed(tt.permission, tt.permissions)
+			if allowed != tt.allowed {
+				t.Errorf("got allowed = %v, expected allowed = %v", allowed, tt.allowed)
+			}
+		})
+	}
+}
+
 func TestPermission_Valid(t *testing.T) {
 	type fields struct {
 		Action   platform.Action
@@ -157,5 +286,9 @@ func TestPermission_String(t *testing.T) {
 
 func validID() *platform.ID {
 	id := platform.ID(100)
+	return &id
+}
+
+func IDPtr(id platform.ID) *platform.ID {
 	return &id
 }

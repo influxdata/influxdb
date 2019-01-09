@@ -29,9 +29,25 @@ type Authorizer interface {
 	Kind() string
 }
 
-func allowed(p Permission, ps []Permission) bool {
+// PermissionAllowed
+func PermissionAllowed(p Permission, ps []Permission) bool {
+	pID := ID(0)
+	if p.ID != nil {
+		pID = *p.ID
+		if !pID.Valid() {
+			return false
+		}
+	}
+
 	for _, perm := range ps {
-		if perm.Action == p.Action && perm.Resource == p.Resource {
+		permID := ID(0)
+		if perm.ID != nil {
+			permID = *perm.ID
+			if !permID.Valid() {
+				return false
+			}
+		}
+		if perm.Action == p.Action && perm.Resource == p.Resource && permID == pID {
 			return true
 		}
 	}
@@ -99,7 +115,17 @@ var AllResources = []Resource{
 	UsersResource,          // 7
 }
 
-// Valid checks if the resource is a member of the Resource enum
+// OrgResources is the list of all known resource types that belong to an organization.
+var OrgResources = []Resource{
+	BucketsResource,    // 1
+	DashboardsResource, // 2
+	SourcesResource,    // 4
+	TasksResource,      // 5
+	TelegrafsResource,  // 6
+	UsersResource,      // 7
+}
+
+// Valid checks if the resource is a member of the Resource enum.
 func (r Resource) Valid() (err error) {
 	switch r {
 	case AuthorizationsResource: // 0
@@ -133,7 +159,7 @@ func (p Permission) String() string {
 	return str
 }
 
-// Valid checks if there the resource and action provided is known
+// Valid checks if there the resource and action provided is known.
 func (p *Permission) Valid() error {
 	if err := p.Resource.Valid(); err != nil {
 		return &Error{
@@ -162,7 +188,7 @@ func (p *Permission) Valid() error {
 	return nil
 }
 
-// NewPermission returns a permission with provided arguments
+// NewPermission returns a permission with provided arguments.
 func NewPermission(a Action, r Resource) (*Permission, error) {
 	p := &Permission{
 		Action:   a,
@@ -172,7 +198,7 @@ func NewPermission(a Action, r Resource) (*Permission, error) {
 	return p, p.Valid()
 }
 
-// NewPermissionAtID creates a permission with the provided arguments
+// NewPermissionAtID creates a permission with the provided arguments.
 func NewPermissionAtID(id ID, a Action, r Resource) (*Permission, error) {
 	p := &Permission{
 		Action:   a,
@@ -183,13 +209,35 @@ func NewPermissionAtID(id ID, a Action, r Resource) (*Permission, error) {
 	return p, p.Valid()
 }
 
-// OperPermissions are the default permissions for those who setup the application
+// OperPermissions are the default permissions for those who setup the application.
 func OperPermissions() []Permission {
 	ps := []Permission{}
 	for _, r := range AllResources {
 		for _, a := range actions {
 			ps = append(ps, Permission{Action: a, Resource: r})
 		}
+	}
+
+	return ps
+}
+
+// OrgAdminPermissions are the default permissions for org admins.
+func OrgAdminPermissions(orgID ID) []Permission {
+	ps := []Permission{}
+	for _, r := range OrgResources {
+		for _, a := range actions {
+			ps = append(ps, Permission{ID: &orgID, Action: a, Resource: r})
+		}
+	}
+
+	return ps
+}
+
+// OrgMemberPermissions are the default permissions for org members.
+func OrgMemberPermissions(orgID ID) []Permission {
+	ps := []Permission{}
+	for _, r := range OrgResources {
+		ps = append(ps, Permission{ID: &orgID, Action: ReadAction, Resource: r})
 	}
 
 	return ps

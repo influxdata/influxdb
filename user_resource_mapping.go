@@ -97,6 +97,11 @@ func (m *UserResourceMapping) ownerPerms() ([]Permission, error) {
 		}
 
 		ps = append(ps, *p)
+
+		if m.Resource == OrgsResource {
+			ps = append(ps, OrgAdminPermissions(m.ResourceID)...)
+		}
+
 	}
 
 	return ps, nil
@@ -111,6 +116,10 @@ func (m *UserResourceMapping) memberPerms() ([]Permission, error) {
 		}
 
 		ps = append(ps, *p)
+
+		if m.Resource == OrgsResource {
+			ps = append(ps, OrgMemberPermissions(m.ResourceID)...)
+		}
 	}
 
 	return ps, nil

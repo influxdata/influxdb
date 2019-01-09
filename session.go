@@ -48,7 +48,7 @@ func (s *Session) Allowed(p Permission) bool {
 		return false
 	}
 
-	return allowed(p, s.Permissions)
+	return PermissionAllowed(p, s.Permissions)
 }
 
 // Kind returns session and is used for auditing.

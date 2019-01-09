@@ -30,7 +30,7 @@ func (a *Authorization) Allowed(p Permission) bool {
 		return false
 	}
 
-	return allowed(p, a.Permissions)
+	return PermissionAllowed(p, a.Permissions)
 }
 
 // IsActive is a stub for idpe.
