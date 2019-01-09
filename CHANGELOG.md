@@ -1,10 +1,17 @@
-v1.6.5 [unreleased]
+v1.6.6 [unreleased]
+-------------------
+
+v1.6.5 [2018-01-09]
 -------------------
 
 ### Bugfixes
 
 -	[#10425](https://github.com/influxdata/influxdb/pull/10425): Fix panic in IndexSet.
+-	[#10426](https://github.com/influxdata/influxdb/pull/10426): fix(tsdb): copy measurement names when expression is provided.
 -	[#10556](https://github.com/influxdata/influxdb/pull/10556): Drop NaN values when writing back points.
+-	[#10558](https://github.com/influxdata/influxdb/pull/10558): Pass the query authorizer to subqueries.
+-	[#10576](https://github.com/influxdata/influxdb/pull/10576): Update Go runtime to 1.10.6
+-	[#10585](https://github.com/influxdata/influxdb/pull/10585): Limit database and retention policy names to 255 characters.
 
 v1.6.4 [2018-10-23]
 -------------------
