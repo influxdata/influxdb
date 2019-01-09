@@ -1,5 +1,6 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // APIs
 import {trySources} from 'src/onboarding/apis'
@@ -18,9 +19,11 @@ interface State {
   isUserSignedIn: boolean
 }
 
-interface Props {
+interface OwnProps {
   children: ReactElement<any>
 }
+
+type Props = OwnProps & WithRouterProps
 
 const FETCH_WAIT = 60000
 
@@ -41,6 +44,9 @@ export class Signin extends PureComponent<Props, State> {
     const isUserSignedIn = isSourcesAllowed
     this.setState({loading: RemoteDataState.Done, isUserSignedIn})
     this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
+    if (!isUserSignedIn) {
+      this.props.router.push('/signin')
+    }
   }
 
   public render() {
@@ -72,6 +78,7 @@ export class Signin extends PureComponent<Props, State> {
   private handleSignInUser = () => {
     this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
     this.setState({isUserSignedIn: true})
+    this.props.router.push('/dashboards')
   }
 
   private checkForLogin = async () => {
@@ -80,8 +87,9 @@ export class Signin extends PureComponent<Props, State> {
     } catch (error) {
       clearInterval(this.intervalID)
       this.setState({isUserSignedIn: false})
+      this.props.router.push('/signin')
     }
   }
 }
 
-export default Signin
+export default withRouter(Signin)
