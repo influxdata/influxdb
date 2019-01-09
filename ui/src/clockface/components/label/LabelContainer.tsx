@@ -1,19 +1,28 @@
 // Libraries
 import React, {Component} from 'react'
 import classnames from 'classnames'
+import _ from 'lodash'
 
 // Components
 import LabelTooltip from 'src/clockface/components/label/LabelTooltip'
+import Button from 'src/clockface/components/Button/index'
+import {ButtonShape, IconFont, ComponentColor} from 'src/clockface/types'
+
+// Styles
+import 'src/clockface/components/label/LabelContainer.scss'
 
 interface Props {
-  children: JSX.Element | JSX.Element[]
+  children?: JSX.Element[]
   className?: string
   limitChildCount?: number
+  resourceName?: string
+  onEdit?: () => void
 }
 
 class LabelContainer extends Component<Props> {
   public static defaultProps: Partial<Props> = {
     limitChildCount: 999,
+    resourceName: 'this resource',
   }
 
   public render() {
@@ -28,19 +37,39 @@ class LabelContainer extends Component<Props> {
         <div className="label--container-margin">
           {this.children}
           {this.additionalChildrenIndicator}
+          {this.editButton}
         </div>
       </div>
     )
   }
 
-  private get children(): JSX.Element[] {
+  private get sortedChildren(): JSX.Element[] {
+    const {children} = this.props
+
+    if (children && React.Children.count(children) > 1) {
+      return children.sort((a: JSX.Element, b: JSX.Element) => {
+        const textA = a.props.name.toUpperCase()
+        const textB = b.props.name.toUpperCase()
+        return textA < textB ? -1 : textA > textB ? 1 : 0
+      })
+    }
+
+    return children
+  }
+
+  private get children(): JSX.Element[] | JSX.Element {
     const {children, limitChildCount} = this.props
 
-    return React.Children.map(children, (child: JSX.Element, i: number) => {
-      if (i < limitChildCount) {
-        return child
-      }
-    })
+    if (children) {
+      return React.Children.map(
+        this.sortedChildren,
+        (child: JSX.Element, i: number) => {
+          if (i < limitChildCount) {
+            return child
+          }
+        }
+      )
+    }
   }
 
   private get additionalChildrenIndicator(): JSX.Element {
@@ -53,7 +82,29 @@ class LabelContainer extends Component<Props> {
       return (
         <div className="additional-labels">
           +{additionalCount} more
-          <LabelTooltip labels={children} />
+          <LabelTooltip labels={this.sortedChildren.slice(limitChildCount)} />
+        </div>
+      )
+    }
+  }
+
+  private get editButton(): JSX.Element {
+    const {onEdit, children, resourceName} = this.props
+
+    const titleText = React.Children.count(children)
+      ? `Edit Labels for ${resourceName}`
+      : `Add Labels to ${resourceName}`
+
+    if (onEdit) {
+      return (
+        <div className="label--edit-button">
+          <Button
+            color={ComponentColor.Primary}
+            titleText={titleText}
+            onClick={onEdit}
+            shape={ButtonShape.Square}
+            icon={IconFont.Plus}
+          />
         </div>
       )
     }

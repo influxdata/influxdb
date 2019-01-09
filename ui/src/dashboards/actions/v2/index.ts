@@ -12,6 +12,8 @@ import {
   updateCells as updateCellsAJAX,
   addCell as addCellAJAX,
   deleteCell as deleteCellAJAX,
+  addDashboardLabels as addDashboardLabelsAJAX,
+  removeDashboardLabels as removeDashboardLabelsAJAX,
 } from 'src/dashboards/apis/v2'
 import {createView as createViewAJAX} from 'src/dashboards/apis/v2/view'
 
@@ -36,7 +38,7 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
-import {Dashboard, Cell} from 'src/api'
+import {Dashboard, Cell, Label} from 'src/api'
 import {NewView} from 'src/types/v2/dashboards'
 
 export enum ActionTypes {
@@ -46,6 +48,8 @@ export enum ActionTypes {
   DeleteDashboardFailed = 'DELETE_DASHBOARD_FAILED',
   UpdateDashboard = 'UPDATE_DASHBOARD',
   DeleteCell = 'DELETE_CELL',
+  AddDashboardLabels = 'ADD_DASHBOARD_LABELS',
+  RemoveDashboardLabels = 'REMOVE_DASHBOARD_LABELS',
 }
 
 export type Action =
@@ -58,6 +62,8 @@ export type Action =
   | SetViewAction
   | DeleteTimeRangeAction
   | DeleteDashboardFailedAction
+  | AddDashboardLabelsAction
+  | RemoveDashboardLabelsAction
 
 interface DeleteCellAction {
   type: ActionTypes.DeleteCell
@@ -99,6 +105,22 @@ interface LoadDashboardAction {
   type: ActionTypes.LoadDashboard
   payload: {
     dashboard: Dashboard
+  }
+}
+
+interface AddDashboardLabelsAction {
+  type: ActionTypes.AddDashboardLabels
+  payload: {
+    dashboardID: string
+    labels: Label[]
+  }
+}
+
+interface RemoveDashboardLabelsAction {
+  type: ActionTypes.RemoveDashboardLabels
+  payload: {
+    dashboardID: string
+    labels: Label[]
   }
 }
 
@@ -145,6 +167,22 @@ export const deleteCell = (
 ): DeleteCellAction => ({
   type: ActionTypes.DeleteCell,
   payload: {dashboard, cell},
+})
+
+export const addDashboardLabels = (
+  dashboardID: string,
+  labels: Label[]
+): AddDashboardLabelsAction => ({
+  type: ActionTypes.AddDashboardLabels,
+  payload: {dashboardID, labels},
+})
+
+export const removeDashboardLabels = (
+  dashboardID: string,
+  labels: Label[]
+): RemoveDashboardLabelsAction => ({
+  type: ActionTypes.RemoveDashboardLabels,
+  payload: {dashboardID, labels},
 })
 
 // Thunks
@@ -315,5 +353,32 @@ export const copyDashboardCellAsync = (
     dispatch(notify(copy.cellAdded()))
   } catch (error) {
     console.error(error)
+  }
+}
+
+export const addDashboardLabelsAsync = (
+  dashboardID: string,
+  labels: Label[]
+) => async (dispatch: Dispatch<Action>) => {
+  try {
+    const newLabels = await addDashboardLabelsAJAX(dashboardID, labels)
+
+    dispatch(addDashboardLabels(dashboardID, newLabels))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.addDashboardLabelFailed()))
+  }
+}
+
+export const removeDashboardLabelsAsync = (
+  dashboardID: string,
+  labels: Label[]
+) => async (dispatch: Dispatch<Action>) => {
+  try {
+    await removeDashboardLabelsAJAX(dashboardID, labels)
+    dispatch(removeDashboardLabels(dashboardID, labels))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.removedDashboardLabelFailed()))
   }
 }

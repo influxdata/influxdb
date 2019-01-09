@@ -21,6 +21,7 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onDeleteDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
+  onEditLabels: (dashboard: Dashboard) => void
   notify: (message: Notification) => void
   searchTerm: string
 }
@@ -36,6 +37,7 @@ export default class DashboardsIndexContents extends Component<Props> {
       defaultDashboardLink,
       onSetDefaultDashboard,
       onUpdateDashboard,
+      onEditLabels,
       searchTerm,
     } = this.props
 
@@ -51,6 +53,7 @@ export default class DashboardsIndexContents extends Component<Props> {
           defaultDashboardLink={defaultDashboardLink}
           onSetDefaultDashboard={onSetDefaultDashboard}
           onUpdateDashboard={onUpdateDashboard}
+          onEditLabels={onEditLabels}
         />
       </div>
     )

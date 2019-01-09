@@ -546,6 +546,16 @@ export const cellDeleted = (): Notification => ({
   message: `Cell deleted from dashboard.`,
 })
 
+export const addDashboardLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to add label to dashboard',
+})
+
+export const removedDashboardLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to remove label from dashboard',
+})
+
 export const builderDisabled = (): Notification => ({
   type: 'info',
   icon: 'graphline',

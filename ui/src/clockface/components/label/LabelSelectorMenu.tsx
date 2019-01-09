@@ -4,14 +4,17 @@ import _ from 'lodash'
 
 // Components
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
-import {LabelType} from 'src/clockface/components/label/Label'
 import LabelSelectorMenuItem from 'src/clockface/components/label/LabelSelectorMenuItem'
 
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Types
+import {Label} from 'src/api'
 
 interface Props {
   highlightItemID: string
-  filteredLabels: LabelType[]
+  filteredLabels: Label[]
   onItemClick: (labelID: string) => void
   onItemHighlight: (labelID: string) => void
   allLabelsUsed: boolean
@@ -40,12 +43,12 @@ class LabelSelectorMenu extends Component<Props> {
     if (filteredLabels.length) {
       return filteredLabels.map(label => (
         <LabelSelectorMenuItem
-          highlighted={highlightItemID === label.id}
-          key={label.id}
+          highlighted={highlightItemID === label.name}
+          key={label.name}
           name={label.name}
-          id={label.id}
-          description={label.description}
-          colorHex={label.colorHex}
+          id={label.name}
+          description={label.properties.description}
+          colorHex={label.properties.color}
           onClick={onItemClick}
           onHighlight={onItemHighlight}
         />

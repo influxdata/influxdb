@@ -48,6 +48,36 @@ export default (state: State = [], action: Action): State => {
 
       return [...newState]
     }
+
+    case ActionTypes.AddDashboardLabels: {
+      const {dashboardID, labels} = action.payload
+
+      const newState = state.map(d => {
+        if (d.id === dashboardID) {
+          return {...d, labels: [...d.labels, ...labels]}
+        }
+        return d
+      })
+
+      return [...newState]
+    }
+
+    case ActionTypes.RemoveDashboardLabels: {
+      const {dashboardID, labels} = action.payload
+
+      const newState = state.map(d => {
+        if (d.id === dashboardID) {
+          const updatedLabels = d.labels.filter(l => {
+            return !labels.includes(l)
+          })
+          return {...d, labels: updatedLabels}
+        }
+        return d
+      })
+
+      return [...newState]
+    }
   }
+
   return state
 }

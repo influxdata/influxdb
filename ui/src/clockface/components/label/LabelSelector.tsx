@@ -5,13 +5,14 @@ import _ from 'lodash'
 // Components
 import Input from 'src/clockface/components/inputs/Input'
 import Button from 'src/clockface/components/Button'
-import Label, {LabelType} from 'src/clockface/components/label/Label'
+import Label from 'src/clockface/components/label/Label'
 import LabelContainer from 'src/clockface/components/label/LabelContainer'
 import LabelSelectorMenu from 'src/clockface/components/label/LabelSelectorMenu'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
 import {ComponentSize} from 'src/clockface/types'
+import {Label as LabelType} from 'src/api'
 
 // Styles
 import './LabelSelector.scss'
@@ -64,7 +65,7 @@ class LabelSelector extends Component<Props, State> {
   }
 
   public render() {
-    const {resourceType} = this.props
+    const {resourceType, inputSize} = this.props
     const {filterValue} = this.state
 
     return (
@@ -77,6 +78,7 @@ class LabelSelector extends Component<Props, State> {
               onFocus={this.handleStartSuggesting}
               onKeyDown={this.handleKeyDown}
               onChange={this.handleInputChange}
+              size={inputSize}
             />
             {this.suggestionMenu}
           </div>
@@ -97,12 +99,12 @@ class LabelSelector extends Component<Props, State> {
         <LabelContainer className="label-selector--selected">
           {selectedLabels.map(label => (
             <Label
-              key={label.id}
+              key={label.name}
               name={label.name}
-              id={label.id}
-              colorHex={label.colorHex}
+              id={label.name}
+              colorHex={label.properties.color}
               onDelete={this.handleDelete}
-              description={label.description}
+              description={label.properties.description}
             />
           ))}
         </LabelContainer>
@@ -138,7 +140,7 @@ class LabelSelector extends Component<Props, State> {
   private handleAddLabel = (labelID: string): void => {
     const {onAddLabel, allLabels} = this.props
 
-    const label = allLabels.find(label => label.id === labelID)
+    const label = allLabels.find(label => label.name === labelID)
 
     onAddLabel(label)
     this.handleStopSuggesting()
@@ -159,7 +161,7 @@ class LabelSelector extends Component<Props, State> {
       })
     }
 
-    const highlightedID = this.availableLabels[0].id
+    const highlightedID = this.availableLabels[0].name
     this.setState({isSuggesting: true, highlightedID, filterValue: ''})
   }
 
@@ -198,11 +200,11 @@ class LabelSelector extends Component<Props, State> {
     })
 
     const highlightedIDAvailable = filteredLabels.find(
-      al => al.id === highlightedID
+      al => al.name === highlightedID
     )
 
     if (!highlightedIDAvailable && filteredLabels.length) {
-      highlightedID = filteredLabels[0].id
+      highlightedID = filteredLabels[0].name
     }
 
     this.setState({filterValue, filteredLabels, highlightedID})
@@ -218,7 +220,7 @@ class LabelSelector extends Component<Props, State> {
   private handleDelete = (labelID: string): void => {
     const {onRemoveLabel, selectedLabels} = this.props
 
-    const label = selectedLabels.find(l => l.id === labelID)
+    const label = selectedLabels.find(l => l.name === labelID)
 
     onRemoveLabel(label)
   }
@@ -233,7 +235,7 @@ class LabelSelector extends Component<Props, State> {
 
     const highlightedIndex = _.findIndex(
       availableLabels,
-      label => label.id === highlightedID
+      label => label.name === highlightedID
     )
 
     const adjacentIndex = Math.min(
@@ -241,7 +243,7 @@ class LabelSelector extends Component<Props, State> {
       availableLabels.length - 1
     )
 
-    const adjacentID = availableLabels[adjacentIndex].id
+    const adjacentID = availableLabels[adjacentIndex].name
 
     this.setState({highlightedID: adjacentID})
   }

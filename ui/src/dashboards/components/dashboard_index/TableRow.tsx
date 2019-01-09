@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
+import classnames from 'classnames'
 
 // Components
 import {
@@ -32,6 +33,7 @@ interface Props {
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
+  onEditLabels: (dashboard: Dashboard) => void
 }
 
 export default class DashboardsIndexTableRow extends PureComponent<Props> {
@@ -90,14 +92,24 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     const {dashboard} = this.props
 
     if (!dashboard.labels.length) {
-      return
+      return (
+        <Label.Container
+          limitChildCount={4}
+          className="index-list--labels"
+          onEdit={this.handleEditLabels}
+        />
+      )
     }
 
     return (
-      <Label.Container limitChildCount={4} className="index-list--labels">
+      <Label.Container
+        limitChildCount={4}
+        className="index-list--labels"
+        onEdit={this.handleEditLabels}
+      >
         {dashboard.labels.map(label => (
           <Label
-            key={label.resourceID}
+            key={`${label.resourceID}-${label.name}`}
             id={label.resourceID}
             colorHex={label.properties.color}
             name={label.name}
@@ -123,6 +135,11 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     )
   }
 
+  private handleEditLabels = () => {
+    const {dashboard, onEditLabels} = this.props
+    onEditLabels(dashboard)
+  }
+
   private get name(): string {
     const {dashboard} = this.props
 
@@ -132,9 +149,12 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
   private get nameClassName(): string {
     const {dashboard} = this.props
 
-    if (dashboard.name === '' || dashboard.name === DEFAULT_DASHBOARD_NAME) {
-      return 'untitled-name'
-    }
+    const dashboardIsUntitled =
+      dashboard.name === '' || dashboard.name === DEFAULT_DASHBOARD_NAME
+
+    return classnames('index-list--resource-name', {
+      'untitled-name': dashboardIsUntitled,
+    })
   }
 
   private handleUpdateDescription = (description: string): void => {

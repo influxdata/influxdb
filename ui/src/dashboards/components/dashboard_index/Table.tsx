@@ -30,6 +30,7 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onSetDefaultDashboard: (dashboardLink: string) => void
+  onEditLabels: (dashboard: Dashboard) => void
 }
 
 interface DatedDashboard extends Dashboard {
@@ -104,6 +105,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
+      onEditLabels,
     } = this.props
 
     const {sortKey, sortDirection} = this.state
@@ -122,6 +124,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onExportDashboard={onExportDashboard}
               onDeleteDashboard={onDeleteDashboard}
               onUpdateDashboard={onUpdateDashboard}
+              onEditLabels={onEditLabels}
             />
           )}
         </SortingHat>

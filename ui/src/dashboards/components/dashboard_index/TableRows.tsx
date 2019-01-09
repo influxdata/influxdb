@@ -13,6 +13,7 @@ interface Props {
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
+  onEditLabels: (dashboard: Dashboard) => void
 }
 
 export default class DashboardsIndexTableRows extends PureComponent<Props> {
@@ -23,6 +24,7 @@ export default class DashboardsIndexTableRows extends PureComponent<Props> {
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
+      onEditLabels,
     } = this.props
 
     return dashboards.map(d => (
@@ -33,6 +35,7 @@ export default class DashboardsIndexTableRows extends PureComponent<Props> {
         onCloneDashboard={onCloneDashboard}
         onDeleteDashboard={onDeleteDashboard}
         onUpdateDashboard={onUpdateDashboard}
+        onEditLabels={onEditLabels}
       />
     ))
   }

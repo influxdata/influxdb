@@ -1110,10 +1110,10 @@ export interface InlineResponse200 {
 export interface InlineResponse2001 {
     /**
      * 
-     * @type {Array<Task>}
+     * @type {Label}
      * @memberof InlineResponse2001
      */
-    tasks?: Array<Task>;
+    label?: Label;
     /**
      * 
      * @type {Links}
@@ -1130,14 +1130,54 @@ export interface InlineResponse2001 {
 export interface InlineResponse2002 {
     /**
      * 
-     * @type {Array<Run>}
+     * @type {Label}
      * @memberof InlineResponse2002
+     */
+    labels?: Label;
+    /**
+     * 
+     * @type {Links}
+     * @memberof InlineResponse2002
+     */
+    links?: Links;
+}
+
+/**
+ * 
+ * @export
+ * @interface InlineResponse2003
+ */
+export interface InlineResponse2003 {
+    /**
+     * 
+     * @type {Array<Task>}
+     * @memberof InlineResponse2003
+     */
+    tasks?: Array<Task>;
+    /**
+     * 
+     * @type {Links}
+     * @memberof InlineResponse2003
+     */
+    links?: Links;
+}
+
+/**
+ * 
+ * @export
+ * @interface InlineResponse2004
+ */
+export interface InlineResponse2004 {
+    /**
+     * 
+     * @type {Array<Run>}
+     * @memberof InlineResponse2004
      */
     runs?: Array<Run>;
     /**
      * 
      * @type {Links}
-     * @memberof InlineResponse2002
+     * @memberof InlineResponse2004
      */
     links?: Links;
 }
@@ -7005,6 +7045,49 @@ export const DashboardsApiAxiosParamCreator = function (configuration?: Configur
         },
         /**
          * 
+         * @param {string} dashboardID ID of the dashboard
+         * @param {string} name name of the label
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDLabelsNameDelete(dashboardID: string, name: string, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'dashboardID' is not null or undefined
+            if (dashboardID === null || dashboardID === undefined) {
+                throw new RequiredError('dashboardID','Required parameter dashboardID was null or undefined when calling dashboardsDashboardIDLabelsNameDelete.');
+            }
+            // verify required parameter 'name' is not null or undefined
+            if (name === null || name === undefined) {
+                throw new RequiredError('name','Required parameter name was null or undefined when calling dashboardsDashboardIDLabelsNameDelete.');
+            }
+            const localVarPath = `/dashboards/{dashboardID}/labels/{name}`
+                .replace(`{${"dashboardID"}}`, encodeURIComponent(String(dashboardID)))
+                .replace(`{${"name"}}`, encodeURIComponent(String(name)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'DELETE' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary add a label to a dashboard
          * @param {string} dashboardID ID of the dashboard
          * @param {Label} label label to add
@@ -7527,6 +7610,21 @@ export const DashboardsApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @param {string} dashboardID ID of the dashboard
+         * @param {string} name name of the label
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDLabelsNameDelete(dashboardID: string, name: string, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2002> {
+            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsDashboardIDLabelsNameDelete(dashboardID, name, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary add a label to a dashboard
          * @param {string} dashboardID ID of the dashboard
          * @param {Label} label label to add
@@ -7534,7 +7632,7 @@ export const DashboardsApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        dashboardsDashboardIDLabelsPost(dashboardID: string, label: Label, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse200> {
+        dashboardsDashboardIDLabelsPost(dashboardID: string, label: Label, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2001> {
             const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsDashboardIDLabelsPost(dashboardID, label, zapTraceSpan, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -7763,6 +7861,17 @@ export const DashboardsApiFactory = function (configuration?: Configuration, bas
         },
         /**
          * 
+         * @param {string} dashboardID ID of the dashboard
+         * @param {string} name name of the label
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDLabelsNameDelete(dashboardID: string, name: string, zapTraceSpan?: string, options?: any) {
+            return DashboardsApiFp(configuration).dashboardsDashboardIDLabelsNameDelete(dashboardID, name, zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary add a label to a dashboard
          * @param {string} dashboardID ID of the dashboard
          * @param {Label} label label to add
@@ -7970,6 +8079,19 @@ export class DashboardsApi extends BaseAPI {
      */
     public dashboardsDashboardIDLabelsGet(dashboardID: string, zapTraceSpan?: string, options?: any) {
         return DashboardsApiFp(this.configuration).dashboardsDashboardIDLabelsGet(dashboardID, zapTraceSpan, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @param {string} dashboardID ID of the dashboard
+     * @param {string} name name of the label
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DashboardsApi
+     */
+    public dashboardsDashboardIDLabelsNameDelete(dashboardID: string, name: string, zapTraceSpan?: string, options?: any) {
+        return DashboardsApiFp(this.configuration).dashboardsDashboardIDLabelsNameDelete(dashboardID, name, zapTraceSpan, options)(this.axios, this.basePath);
     }
 
     /**
@@ -11613,7 +11735,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        tasksGet(after?: string, user?: string, org?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2001> {
+        tasksGet(after?: string, user?: string, org?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2003> {
             const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksGet(after, user, org, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -11790,7 +11912,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        tasksTaskIDRunsGet(taskID: string, after?: string, limit?: number, afterTime?: Date, beforeTime?: Date, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2002> {
+        tasksTaskIDRunsGet(taskID: string, after?: string, limit?: number, afterTime?: Date, beforeTime?: Date, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2004> {
             const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksTaskIDRunsGet(taskID, after, limit, afterTime, beforeTime, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})

@@ -21,23 +21,6 @@ $label-margin: 1px;
   }
 }
 
-.label--container {
-  width: 100%;
-}
-
-.label--container-margin {
-  width: calc(100% + #{$label-margin * 2});
-  position: relative;
-  left: $label-margin * -2;
-  display: flex;
-  flex-wrap: wrap;
-  padding: $label-margin;
-  
-  > .label {
-    margin: $label-margin;
-  }
-}
-
 .label--clickable {
   &, &:hover {
     cursor: pointer;
@@ -118,68 +101,3 @@ $label-margin: 1px;
 .label--lg {
   @include labelSizeModifier($form-lg-font, $form-lg-padding, $form-lg-height);
 }
-
-/*
-  Additional Labels Indicator
-  ------------------------------------------------------------------------------
-*/
-
-.additional-labels {
-  position: relative;
-  user-select: none;
-  font-weight: 700;
-  margin: $label-margin;
-  transition: background-color 0.25s ease, color 0.25s ease;
-  background-color: rgba($g6-smoke, 0.5);
-  color: $g11-sidewalk;
-
-  &:hover {
-    cursor: pointer;
-    background-color: $g6-smoke;
-    color: $g15-platinum;
-  }
-}
-
-.label--tooltip {
-  z-index: 9999;
-  visibility: hidden;
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  transition-property: all;
-}
-
-.label--tooltip-container {
-  @extend %drop-shadow;
-  opacity: 0;
-  background-color: $g0-obsidian;
-  border-radius: $radius;
-  padding: $ix-marg-c;
-  margin-top: $ix-marg-b + $ix-border;
-  transition: opacity 0.25s ease;
-  position: relative;
-
-  &:after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 50%;
-    border: $ix-marg-b solid transparent;
-    border-bottom-color: $g0-obsidian;
-    transform: translate(-50%, -100%);
-  }
-
-  > .label {
-    margin: $label-margin;
-  }
-}
-
-.additional-labels:hover .label--tooltip {
-  visibility: visible;
-}
-
-.additional-labels:hover .label--tooltip-container {
-  opacity: 1;
-}
-

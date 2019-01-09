@@ -16,6 +16,7 @@ const setup = (override = {}) => {
     onCloneDashboard: jest.fn(),
     onExportDashboard: jest.fn(),
     onUpdateDashboard: jest.fn(),
+    onEditLabels: jest.fn(),
     ...override,
   }
 
