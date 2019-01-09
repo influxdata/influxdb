@@ -842,6 +842,7 @@ func KVConcurrentUpdate(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Skip("https://github.com/influxdata/platform/issues/2371")
 			s, closeFn := init(tt.fields, t)
 			defer closeFn()
 
