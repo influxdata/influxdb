@@ -919,6 +919,89 @@ func FindTelegrafConfigs(
 			},
 		},
 		{
+			name: "filter by organization only",
+			fields: TelegrafConfigFields{
+				UserResourceMappings: []*platform.UserResourceMapping{
+					{
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+					},
+					{
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+					},
+					{
+						ResourceID: MustIDBase16(fourID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+					},
+				},
+				TelegrafConfigs: []*platform.TelegrafConfig{
+					{
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc1",
+						Plugins: []platform.TelegrafPlugin{
+							{
+								Config: &inputs.CPUStats{},
+							},
+						},
+					},
+					{
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc2",
+						Plugins: []platform.TelegrafPlugin{
+							{
+								Comment: "comment1",
+								Config: &inputs.File{
+									Files: []string{"f1", "f2"},
+								},
+							},
+							{
+								Comment: "comment2",
+								Config:  &inputs.MemStats{},
+							},
+						},
+					},
+					{
+						ID:             MustIDBase16(fourID),
+						OrganizationID: MustIDBase16(oneID),
+						Name:           "tc3",
+						Plugins: []platform.TelegrafPlugin{
+							{
+								Config: &inputs.CPUStats{},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				filter: platform.TelegrafConfigFilter{
+					OrganizationID: idPtr(MustIDBase16(oneID)),
+				},
+			},
+			wants: wants{
+				telegrafConfigs: []*platform.TelegrafConfig{
+					{
+						ID:             MustIDBase16(fourID),
+						OrganizationID: MustIDBase16(oneID),
+						Name:           "tc3",
+						Plugins: []platform.TelegrafPlugin{
+							{
+								Config: &inputs.CPUStats{},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "find owners and restrict by organization",
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
