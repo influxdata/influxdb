@@ -35,7 +35,7 @@ import {TelegrafPluginOutputInfluxDBV2} from 'src/api'
 
 type GetState = () => AppState
 
-const DEFAULT_COLLECTION_INTERVAL = 10
+const DEFAULT_COLLECTION_INTERVAL = 10000
 
 export type Action =
   | SetDataLoadersType
