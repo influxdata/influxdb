@@ -18,10 +18,6 @@ const (
 	dashThreeID = "020f755c3c082002"
 )
 
-func idPtr(id platform.ID) *platform.ID {
-	return &id
-}
-
 func int32Ptr(i int32) *int32 {
 	return &i
 }

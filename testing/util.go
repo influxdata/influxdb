@@ -29,6 +29,10 @@ func diffPlatformErrors(name string, actual, expected error, opPrefix string, t 
 	}
 }
 
+func idPtr(id platform.ID) *platform.ID {
+	return &id
+}
+
 // MustIDBase16 is an helper to ensure a correct ID is built during testing.
 func MustIDBase16(s string) platform.ID {
 	id, err := platform.IDFromString(s)

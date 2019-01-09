@@ -116,16 +116,34 @@ func CreateTelegrafConfig(
 		wants  wants
 	}{
 		{
+			name: "create telegraf config without organization ID should error",
+			fields: TelegrafConfigFields{
+				IDGenerator:          mock.NewIDGenerator(oneID, t),
+				TelegrafConfigs:      []*platform.TelegrafConfig{},
+				UserResourceMappings: []*platform.UserResourceMapping{},
+			},
+			args: args{
+				telegrafConfig: &platform.TelegrafConfig{},
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.EEmptyValue,
+					Msg:  platform.ErrTelegrafConfigInvalidOrganizationID,
+				},
+			},
+		},
+		{
 			name: "create telegraf config with empty set",
 			fields: TelegrafConfigFields{
-				IDGenerator:          &loopIDGenerator{s: []string{oneID, twoID}},
+				IDGenerator:          mock.NewIDGenerator(oneID, t),
 				TelegrafConfigs:      []*platform.TelegrafConfig{},
 				UserResourceMappings: []*platform.UserResourceMapping{},
 			},
 			args: args{
 				userID: MustIDBase16(threeID),
 				telegrafConfig: &platform.TelegrafConfig{
-					Name: "name1",
+					OrganizationID: MustIDBase16(twoID),
+					Name:           "name1",
 					Agent: platform.TelegrafAgentConfig{
 						Interval: 1000,
 					},
@@ -157,8 +175,9 @@ func CreateTelegrafConfig(
 				},
 				telegrafs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "name1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "name1",
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 1000,
 						},
@@ -187,8 +206,9 @@ func CreateTelegrafConfig(
 				IDGenerator: mock.NewIDGenerator(twoID, t),
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "tc1",
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 4000,
 						},
@@ -212,7 +232,8 @@ func CreateTelegrafConfig(
 			args: args{
 				userID: MustIDBase16(threeID),
 				telegrafConfig: &platform.TelegrafConfig{
-					Name: "name2",
+					OrganizationID: MustIDBase16(twoID),
+					Name:           "name2",
 					Agent: platform.TelegrafAgentConfig{
 						Interval: 1001,
 					},
@@ -236,8 +257,9 @@ func CreateTelegrafConfig(
 			wants: wants{
 				telegrafs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "tc1",
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 4000,
 						},
@@ -249,8 +271,9 @@ func CreateTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "name2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "name2",
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 1001,
 						},
@@ -308,10 +331,13 @@ func CreateTelegrafConfig(
 				}
 			}
 
-			tcs, _, err := s.FindTelegrafConfigs(ctx, platform.UserResourceMappingFilter{
-				UserID:   MustIDBase16(threeID),
-				Resource: platform.TelegrafsResource,
-			})
+			filter := platform.TelegrafConfigFilter{
+				UserResourceMappingFilter: platform.UserResourceMappingFilter{
+					UserID:   MustIDBase16(threeID),
+					Resource: platform.TelegrafsResource,
+				},
+			}
+			tcs, _, err := s.FindTelegrafConfigs(ctx, filter)
 			if err != nil {
 				t.Fatalf("failed to retrieve telegraf configs: %v", err)
 			}
@@ -357,8 +383,9 @@ func FindTelegrafConfigByID(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -366,8 +393,9 @@ func FindTelegrafConfigByID(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -398,8 +426,9 @@ func FindTelegrafConfigByID(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -407,8 +436,9 @@ func FindTelegrafConfigByID(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -439,8 +469,9 @@ func FindTelegrafConfigByID(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -448,8 +479,9 @@ func FindTelegrafConfigByID(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -470,8 +502,9 @@ func FindTelegrafConfigByID(
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
-					ID:   MustIDBase16(twoID),
-					Name: "tc2",
+					ID:             MustIDBase16(twoID),
+					OrganizationID: MustIDBase16(threeID),
+					Name:           "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment1",
@@ -517,7 +550,7 @@ func FindTelegrafConfig(
 	t *testing.T,
 ) {
 	type args struct {
-		filter platform.UserResourceMappingFilter
+		filter platform.TelegrafConfigFilter
 	}
 
 	type wants struct {
@@ -549,8 +582,9 @@ func FindTelegrafConfig(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -558,8 +592,9 @@ func FindTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -576,17 +611,19 @@ func FindTelegrafConfig(
 				},
 			},
 			args: args{
-				filter: platform.UserResourceMappingFilter{
-					UserID:   MustIDBase16(threeID),
-					Resource: platform.TelegrafsResource,
-					UserType: platform.Member,
+				filter: platform.TelegrafConfigFilter{
+					UserResourceMappingFilter: platform.UserResourceMappingFilter{
+						UserID:   MustIDBase16(threeID),
+						Resource: platform.TelegrafsResource,
+						UserType: platform.Member,
+					},
 				},
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
-
-					ID:   MustIDBase16(twoID),
-					Name: "tc2",
+					ID:             MustIDBase16(twoID),
+					OrganizationID: MustIDBase16(fourID),
+					Name:           "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment1",
@@ -621,8 +658,9 @@ func FindTelegrafConfig(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -630,8 +668,9 @@ func FindTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -648,9 +687,11 @@ func FindTelegrafConfig(
 				},
 			},
 			args: args{
-				filter: platform.UserResourceMappingFilter{
-					UserID:   MustIDBase16(fourID),
-					Resource: platform.TelegrafsResource,
+				filter: platform.TelegrafConfigFilter{
+					UserResourceMappingFilter: platform.UserResourceMappingFilter{
+						UserID:   MustIDBase16(fourID),
+						Resource: platform.TelegrafsResource,
+					},
 				},
 			},
 			wants: wants{
@@ -671,7 +712,6 @@ func FindTelegrafConfig(
 			if err != nil && tt.wants.err == nil {
 				t.Fatalf("expected errors to be nil got '%v'", err)
 			}
-
 			if err != nil && tt.wants.err != nil {
 				if platform.ErrorCode(err) != platform.ErrorCode(tt.wants.err) {
 					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
@@ -690,7 +730,7 @@ func FindTelegrafConfigs(
 	t *testing.T,
 ) {
 	type args struct {
-		filter platform.UserResourceMappingFilter
+		filter platform.TelegrafConfigFilter
 	}
 
 	type wants struct {
@@ -704,14 +744,16 @@ func FindTelegrafConfigs(
 		wants  wants
 	}{
 		{
-			name: "find nothing",
+			name: "find nothing (empty set)",
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{},
 				TelegrafConfigs:      []*platform.TelegrafConfig{},
 			},
 			args: args{
-				filter: platform.UserResourceMappingFilter{
-					Resource: platform.TelegrafsResource,
+				filter: platform.TelegrafConfigFilter{
+					UserResourceMappingFilter: platform.UserResourceMappingFilter{
+						Resource: platform.TelegrafsResource,
+					},
 				},
 			},
 			wants: wants{
@@ -737,8 +779,9 @@ func FindTelegrafConfigs(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -746,8 +789,9 @@ func FindTelegrafConfigs(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -764,16 +808,19 @@ func FindTelegrafConfigs(
 				},
 			},
 			args: args{
-				filter: platform.UserResourceMappingFilter{
-					UserID:   MustIDBase16(threeID),
-					Resource: platform.TelegrafsResource,
+				filter: platform.TelegrafConfigFilter{
+					UserResourceMappingFilter: platform.UserResourceMappingFilter{
+						UserID:   MustIDBase16(threeID),
+						Resource: platform.TelegrafsResource,
+					},
 				},
 			},
 			wants: wants{
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -781,8 +828,9 @@ func FindTelegrafConfigs(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -818,8 +866,9 @@ func FindTelegrafConfigs(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -827,8 +876,9 @@ func FindTelegrafConfigs(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -845,17 +895,108 @@ func FindTelegrafConfigs(
 				},
 			},
 			args: args{
-				filter: platform.UserResourceMappingFilter{
-					UserID:   MustIDBase16(threeID),
-					Resource: platform.TelegrafsResource,
-					UserType: platform.Owner,
+				filter: platform.TelegrafConfigFilter{
+					UserResourceMappingFilter: platform.UserResourceMappingFilter{
+						UserID:   MustIDBase16(threeID),
+						Resource: platform.TelegrafsResource,
+						UserType: platform.Owner,
+					},
 				},
 			},
 			wants: wants{
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc1",
+						Plugins: []platform.TelegrafPlugin{
+							{
+								Config: &inputs.CPUStats{},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "find owners and restrict by organization",
+			fields: TelegrafConfigFields{
+				UserResourceMappings: []*platform.UserResourceMapping{
+					{
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+					},
+					{
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+					},
+					{
+						ResourceID: MustIDBase16(fourID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+					},
+				},
+				TelegrafConfigs: []*platform.TelegrafConfig{
+					{
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc1",
+						Plugins: []platform.TelegrafPlugin{
+							{
+								Config: &inputs.CPUStats{},
+							},
+						},
+					},
+					{
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc2",
+						Plugins: []platform.TelegrafPlugin{
+							{
+								Comment: "comment1",
+								Config: &inputs.File{
+									Files: []string{"f1", "f2"},
+								},
+							},
+							{
+								Comment: "comment2",
+								Config:  &inputs.MemStats{},
+							},
+						},
+					},
+					{
+						ID:             MustIDBase16(fourID),
+						OrganizationID: MustIDBase16(oneID),
+						Name:           "tc3",
+						Plugins: []platform.TelegrafPlugin{
+							{
+								Config: &inputs.CPUStats{},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				filter: platform.TelegrafConfigFilter{
+					OrganizationID: idPtr(MustIDBase16(oneID)),
+					UserResourceMappingFilter: platform.UserResourceMappingFilter{
+						UserID:   MustIDBase16(threeID),
+						Resource: platform.TelegrafsResource,
+						UserType: platform.Owner,
+					},
+				},
+			},
+			wants: wants{
+				telegrafConfigs: []*platform.TelegrafConfig{
+					{
+						ID:             MustIDBase16(fourID),
+						OrganizationID: MustIDBase16(oneID),
+						Name:           "tc3",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -884,8 +1025,9 @@ func FindTelegrafConfigs(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -893,8 +1035,9 @@ func FindTelegrafConfigs(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -911,9 +1054,11 @@ func FindTelegrafConfigs(
 				},
 			},
 			args: args{
-				filter: platform.UserResourceMappingFilter{
-					UserID:   MustIDBase16(fourID),
-					Resource: platform.TelegrafsResource,
+				filter: platform.TelegrafConfigFilter{
+					UserResourceMappingFilter: platform.UserResourceMappingFilter{
+						UserID:   MustIDBase16(fourID),
+						Resource: platform.TelegrafsResource,
+					},
 				},
 			},
 			wants: wants{
@@ -977,8 +1122,9 @@ func UpdateTelegrafConfig(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -986,8 +1132,9 @@ func UpdateTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1034,8 +1181,9 @@ func UpdateTelegrafConfig(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1043,8 +1191,9 @@ func UpdateTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1064,7 +1213,8 @@ func UpdateTelegrafConfig(
 				userID: MustIDBase16(fourID),
 				id:     MustIDBase16(twoID),
 				telegrafConfig: &platform.TelegrafConfig{
-					Name: "tc2",
+					OrganizationID: MustIDBase16(oneID), // notice this get ignored - ie., resulting TelegrafConfig will have OrganizationID equal to fourID
+					Name:           "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment3",
@@ -1079,8 +1229,9 @@ func UpdateTelegrafConfig(
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
-					ID:   MustIDBase16(twoID),
-					Name: "tc2",
+					ID:             MustIDBase16(twoID),
+					OrganizationID: MustIDBase16(fourID),
+					Name:           "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment3",
@@ -1099,8 +1250,9 @@ func UpdateTelegrafConfig(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(oneID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1108,8 +1260,9 @@ func UpdateTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(oneID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1160,8 +1313,9 @@ func UpdateTelegrafConfig(
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
-					ID:   MustIDBase16(twoID),
-					Name: "tc2",
+					ID:             MustIDBase16(twoID),
+					OrganizationID: MustIDBase16(oneID),
+					Name:           "tc2",
 					Plugins: []platform.TelegrafPlugin{
 						{
 							Comment: "comment1",
@@ -1248,8 +1402,9 @@ func DeleteTelegrafConfig(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1257,8 +1412,9 @@ func DeleteTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1299,8 +1455,9 @@ func DeleteTelegrafConfig(
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1308,8 +1465,9 @@ func DeleteTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(fourID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1345,8 +1503,9 @@ func DeleteTelegrafConfig(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1354,8 +1513,9 @@ func DeleteTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1395,8 +1555,9 @@ func DeleteTelegrafConfig(
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1404,8 +1565,9 @@ func DeleteTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1441,8 +1603,9 @@ func DeleteTelegrafConfig(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1450,8 +1613,9 @@ func DeleteTelegrafConfig(
 						},
 					},
 					{
-						ID:   MustIDBase16(twoID),
-						Name: "tc2",
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "tc2",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Comment: "comment1",
@@ -1482,8 +1646,9 @@ func DeleteTelegrafConfig(
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:   MustIDBase16(oneID),
-						Name: "tc1",
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(twoID),
+						Name:           "tc1",
 						Plugins: []platform.TelegrafPlugin{
 							{
 								Config: &inputs.CPUStats{},
@@ -1509,10 +1674,13 @@ func DeleteTelegrafConfig(
 					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 				}
 			}
-			tcs, n, err := s.FindTelegrafConfigs(ctx, platform.UserResourceMappingFilter{
-				UserID:   tt.args.userID,
-				Resource: platform.TelegrafsResource,
-			})
+			filter := platform.TelegrafConfigFilter{
+				UserResourceMappingFilter: platform.UserResourceMappingFilter{
+					UserID:   tt.args.userID,
+					Resource: platform.TelegrafsResource,
+				},
+			}
+			tcs, n, err := s.FindTelegrafConfigs(ctx, filter)
 			if err != nil && tt.wants.err == nil {
 				t.Fatalf("expected errors to be nil got '%v'", err)
 			}
