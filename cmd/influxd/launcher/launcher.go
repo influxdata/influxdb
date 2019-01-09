@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/chronograf/server"
+	protofs "github.com/influxdata/platform/fs"
 	"github.com/influxdata/platform/gather"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/internal/fs"
@@ -57,6 +58,7 @@ type Launcher struct {
 	natsPath        string
 	developerMode   bool
 	enginePath      string
+	protosPath      string
 
 	secretStore string
 
@@ -183,6 +185,12 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				Default: "bolt",
 				Desc:    "data store for secrets (bolt or vault)",
 			},
+			{
+				DestP:   &m.protosPath,
+				Flag:    "protos-path",
+				Default: filepath.Join(dir, "protos"),
+				Desc:    "path to protos on the filesystem",
+			},
 		},
 	}
 
@@ -267,6 +275,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	default:
 		err := fmt.Errorf("unknown secret service %q, expected \"bolt\" or \"vault\"", m.secretStore)
 		m.logger.Error("failed setting secret service", zap.Error(err))
+		return err
+	}
+
+	protoSvc := protofs.NewProtoService(m.protosPath, m.logger, dashboardSvc)
+	if err := protoSvc.Open(ctx); err != nil {
+		m.logger.Error("failed to read protos from the filesystem", zap.Error(err))
 		return err
 	}
 
@@ -404,6 +418,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		ChronografService:               chronografSvc,
 		SecretService:                   secretSvc,
 		LookupService:                   lookupSvc,
+		ProtoService:                    protoSvc,
 	}
 
 	// HTTP server

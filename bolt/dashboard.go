@@ -201,7 +201,7 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 		for _, cell := range d.Cells {
 			cell.ID = c.IDGenerator.ID()
 
-			if err := c.createCellView(ctx, tx, d.ID, cell.ID); err != nil {
+			if err := c.createCellView(ctx, tx, d.ID, cell.ID, nil); err != nil {
 				return err
 			}
 		}
@@ -224,9 +224,11 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 	return nil
 }
 
-func (c *Client) createCellView(ctx context.Context, tx *bolt.Tx, dashID, cellID platform.ID) error {
-	// If not view exists create the view
-	view := &platform.View{}
+func (c *Client) createCellView(ctx context.Context, tx *bolt.Tx, dashID, cellID platform.ID, view *platform.View) error {
+	if view == nil {
+		// If not view exists create the view
+		view = &platform.View{}
+	}
 	// TODO: this is temporary until we can fully remove the view service.
 	view.ID = cellID
 	return c.putDashboardCellView(ctx, tx, dashID, cellID, view)
@@ -277,25 +279,29 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 	return nil
 }
 
+func (c *Client) addDashboardCell(ctx context.Context, tx *bolt.Tx, id platform.ID, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
+	d, err := c.findDashboardByID(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	cell.ID = c.IDGenerator.ID()
+	if err := c.createCellView(ctx, tx, id, cell.ID, opts.View); err != nil {
+		return err
+	}
+
+	d.Cells = append(d.Cells, cell)
+
+	if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardCellAddedEvent); err != nil {
+		return err
+	}
+
+	return c.putDashboardWithMeta(ctx, tx, d)
+}
+
 // AddDashboardCell adds a cell to a dashboard and sets the cells ID.
 func (c *Client) AddDashboardCell(ctx context.Context, id platform.ID, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
 	err := c.db.Update(func(tx *bolt.Tx) error {
-		d, err := c.findDashboardByID(ctx, tx, id)
-		if err != nil {
-			return err
-		}
-		cell.ID = c.IDGenerator.ID()
-		if err := c.createCellView(ctx, tx, id, cell.ID); err != nil {
-			return err
-		}
-
-		d.Cells = append(d.Cells, cell)
-
-		if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardCellAddedEvent); err != nil {
-			return err
-		}
-
-		return c.putDashboardWithMeta(ctx, tx, d)
+		return c.addDashboardCell(ctx, tx, id, cell, opts)
 	})
 	if err != nil {
 		return &platform.Error{
@@ -545,7 +551,7 @@ func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID pl
 func (c *Client) PutDashboard(ctx context.Context, d *platform.Dashboard) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		for _, cell := range d.Cells {
-			if err := c.createCellView(ctx, tx, d.ID, cell.ID); err != nil {
+			if err := c.createCellView(ctx, tx, d.ID, cell.ID, nil); err != nil {
 				return err
 			}
 		}

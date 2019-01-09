@@ -139,6 +139,7 @@ func RunLauncherOrFail(tb testing.TB, ctx context.Context, args ...string) *Laun
 // Run executes the program with additional arguments to set paths and ports.
 func (l *Launcher) Run(ctx context.Context, args ...string) error {
 	args = append(args, "--bolt-path", filepath.Join(l.Path, "influxd.bolt"))
+	args = append(args, "--protos-path", filepath.Join(l.Path, "protos"))
 	args = append(args, "--engine-path", filepath.Join(l.Path, "engine"))
 	args = append(args, "--nats-path", filepath.Join(l.Path, "nats"))
 	args = append(args, "--http-bind-address", "127.0.0.1:0")

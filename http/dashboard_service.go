@@ -727,7 +727,7 @@ func decodeGetDashboardCellViewRequest(ctx context.Context, r *http.Request) (*g
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, platform.NewError(platform.WithErrorMsg("url missing id"), platform.WithErrorCode(platform.EInvalid))
 	}
 	if err := req.dashboardID.DecodeFromString(id); err != nil {
 		return nil, err
@@ -735,7 +735,7 @@ func decodeGetDashboardCellViewRequest(ctx context.Context, r *http.Request) (*g
 
 	cellID := params.ByName("cellID")
 	if cellID == "" {
-		return nil, errors.InvalidDataf("url missing cellID")
+		return nil, platform.NewError(platform.WithErrorMsg("url missing cellID"), platform.WithErrorCode(platform.EInvalid))
 	}
 	if err := req.cellID.DecodeFromString(cellID); err != nil {
 		return nil, err
@@ -777,7 +777,7 @@ func decodePatchDashboardCellViewRequest(ctx context.Context, r *http.Request) (
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, platform.NewError(platform.WithErrorMsg("url missing id"), platform.WithErrorCode(platform.EInvalid))
 	}
 	if err := req.dashboardID.DecodeFromString(id); err != nil {
 		return nil, err
@@ -785,7 +785,7 @@ func decodePatchDashboardCellViewRequest(ctx context.Context, r *http.Request) (
 
 	cellID := params.ByName("cellID")
 	if cellID == "" {
-		return nil, errors.InvalidDataf("url missing cellID")
+		return nil, platform.NewError(platform.WithErrorMsg("url missing cellID"), platform.WithErrorCode(platform.EInvalid))
 	}
 	if err := req.cellID.DecodeFromString(cellID); err != nil {
 		return nil, err

@@ -157,9 +157,7 @@ func (u DashboardUpdate) Valid() *Error {
 
 // AddDashboardCellOptions are options for adding a dashboard.
 type AddDashboardCellOptions struct {
-	// UsingView specifies the view that should be used as a template
-	// for the new cells view.
-	UsingView ID
+	View *View
 }
 
 // CellUpdate is the patch structure for a cell.
