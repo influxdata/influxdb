@@ -130,6 +130,7 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 		for key := range possiblyDead.keys {
 			// TODO(jeff): ugh reduce copies here
 			keyb := []byte(key)
+			keyb, _ = SeriesAndFieldFromCompositeKey(keyb)
 
 			name, tags := models.ParseKeyBytes(keyb)
 			sid := e.sfile.SeriesID(name, tags, buf)
