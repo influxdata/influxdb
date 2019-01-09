@@ -6,6 +6,12 @@ type prefixTreeKey [8]byte
 
 const prefixTreeKeySize = len(prefixTreeKey{})
 
+// prefixTree is a type that keeps track of a slice of time ranges for prefixes and allows
+// querying for all of the time ranges for prefixes that match a provided key. It chunks
+// added prefixes by 8 bytes and then by 1 byte because typical prefixes will be 8 or 16
+// bytes. This allows for effectively O(1) searches, but degrades to O(len(key)) in the
+// worst case when there is a matching prefix for every byte of the key. Appending a prefix
+// is similar.
 type prefixTree struct {
 	values []TimeRange
 	short  map[byte]*prefixTree

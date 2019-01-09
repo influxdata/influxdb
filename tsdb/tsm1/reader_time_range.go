@@ -51,7 +51,7 @@ func timeRangesCoverEntries(merger timeRangeMerger, entries []IndexEntry) (cover
 	return len(entries) == 0
 }
 
-// timeRangeMerger is a special purpose data structure to merge three sources off
+// timeRangeMerger is a special purpose data structure to merge three sources of
 // TimeRanges so that we can check if they cover a slice of index entries.
 type timeRangeMerger struct {
 	sorted   []TimeRange
