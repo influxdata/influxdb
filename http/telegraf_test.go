@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +29,57 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 		r     *http.Request
 		wants wants
 	}{
+		{
+			name: "get telegraf configs by organization id",
+			r:    httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs?orgID=0000000000000002", nil),
+			svc: &mock.TelegrafConfigStore{
+				FindTelegrafConfigsF: func(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
+					if filter.OrganizationID != nil && *filter.OrganizationID == platform.ID(2) {
+						return []*platform.TelegrafConfig{
+							&platform.TelegrafConfig{
+								ID:             platform.ID(1),
+								OrganizationID: platform.ID(2),
+								Name:           "tc1",
+								Plugins: []platform.TelegrafPlugin{
+									{
+										Config: &inputs.CPUStats{},
+									},
+								},
+							},
+						}, 1, nil
+					}
+
+					return []*platform.TelegrafConfig{}, 0, fmt.Errorf("not found")
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+				{
+					"configurations":[
+					  {
+						"id":"0000000000000001",
+						"organizationID":"0000000000000002",
+						"name":"tc1",
+						"agent":{
+						  "collectionInterval":0
+						},
+						"plugins":[
+						  {
+							"name":"cpu",
+							"type":"input",
+							"comment":"",
+							"config":{
+				  
+							}
+						  }
+						]
+					  }
+					]
+				}`,
+			},
+		},
 		{
 			name: "return CPU plugin for telegraf",
 			r:    httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs", nil),
@@ -102,12 +154,8 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger := zaptest.NewLogger(t)
-			mapping := mock.NewUserResourceMappingService()
-			labels := mock.NewLabelService()
-			users := mock.NewUserService()
 			w := httptest.NewRecorder()
-			h := NewTelegrafHandler(logger, mapping, labels, tt.svc, users)
+			h := NewTelegrafHandler(zaptest.NewLogger(t), mock.NewUserResourceMappingService(), mock.NewLabelService(), tt.svc, mock.NewUserService())
 			h.ServeHTTP(w, tt.r)
 
 			res := w.Result()

@@ -194,10 +194,9 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform.TelegrafConfigFilter, error) {
 	f := &platform.TelegrafConfigFilter{}
 	urm, err := decodeUserResourceMappingFilter(ctx, r)
-	if err == nil {
-		return f, err
+	if err != nil {
+		f.UserResourceMappingFilter = *urm
 	}
-	f.UserResourceMappingFilter = *urm
 
 	q := r.URL.Query()
 	if orgIDStr := q.Get("orgID"); orgIDStr != "" {
