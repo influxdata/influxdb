@@ -192,15 +192,6 @@ func (s *retentionEnforcer) PrometheusCollectors() []prometheus.Collector {
 	return s.metrics.PrometheusCollectors()
 }
 
-// A BucketService is an platform.BucketService that the retentionEnforcer can open,
-// close and log.
-type BucketService interface {
-	platform.BucketService
-	Open() error
-	Close() error
-	WithLogger(l *zap.Logger)
-}
-
 type seriesIteratorAdapter struct {
 	itr  SeriesCursor
 	ea   seriesElemAdapter

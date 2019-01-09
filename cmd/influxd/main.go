@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/influxdata/platform/cmd/influxd/launcher"
-
 	"github.com/influxdata/platform/kit/signals"
 	_ "github.com/influxdata/platform/query/builtin"
 	_ "github.com/influxdata/platform/tsdb/tsi1"

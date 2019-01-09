@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/tsdb"
@@ -362,6 +363,23 @@ func (e *Engine) WritePoints(points []models.Point) error {
 		return err
 	}
 	return collection.PartialWriteError()
+}
+
+// DeleteBucket deletes an entire bucket from the storage engine.
+func (e *Engine) DeleteBucket(orgID, bucketID platform.ID) error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closing == nil {
+		return ErrEngineClosed
+	}
+
+	// TODO(edd): we need to clean up how we're encoding the prefix so that we
+	// don't have to remember to get it right everywhere we need to touch TSM data.
+	prefix := tsdb.EncodeName(orgID, bucketID)
+	_ = prefix
+
+	// TODO(edd): Call into tsm1.Engine to delete bucket
+	return nil
 }
 
 // DeleteSeriesRangeWithPredicate deletes all series data iterated over if fn returns
