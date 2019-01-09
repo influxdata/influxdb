@@ -12,7 +12,7 @@ import {formatTagFilterCall} from 'src/shared/utils/queryBuilder'
 // Types
 import {InfluxLanguage, BuilderConfig} from 'src/types/v2'
 
-export const SEARCH_DURATION = '5m'
+export const SEARCH_DURATION = '30d'
 export const LIMIT = 200
 
 async function findBuckets(url: string): Promise<string[]> {
