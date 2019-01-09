@@ -28,6 +28,19 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 	}
 	defer fs.Release()
 
+	// Disable and abort running compactions so that tombstones added existing tsm
+	// files don't get removed. This would cause deleted measurements/series to
+	// re-appear once the compaction completed. We only disable the level compactions
+	// so that snapshotting does not stop while writing out tombstones. If it is stopped,
+	// and writing tombstones takes a long time, writes can get rejected due to the cache
+	// filling up.
+	e.disableLevelCompactions(true)
+	defer e.enableLevelCompactions(true)
+
+	e.sfile.DisableCompactions()
+	defer e.sfile.EnableCompactions()
+	e.sfile.Wait()
+
 	// TODO(jeff): are the query language values still a thing?
 	// Min and max time in the engine are slightly different from the query language values.
 	if min == influxql.MinTime {
@@ -71,6 +84,10 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 				deleteKeys = make([][]byte, 0, 10000)
 			}
 			deleteKeys = append(deleteKeys, k)
+
+			// we have to double check every key in the cache because maybe
+			// it exists in the index but not yet on disk.
+			possiblyDead.keys[string(k)] = struct{}{}
 		}
 		return nil
 	})
@@ -119,7 +136,6 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 
 	if len(possiblyDead.keys) > 0 {
 		buf := make([]byte, 1024)
-		measurements := make(map[string]struct{}, 1)
 
 		// TODO(jeff): all of these methods have possible errors which opens us to partial
 		// failure scenarios. we need to either ensure that partial errors here are ok or
@@ -138,18 +154,10 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 				continue
 			}
 
-			measurements[string(name)] = struct{}{}
-
-			if err := e.index.DropSeries(sid, keyb, false); err != nil {
+			if err := e.index.DropSeries(sid, keyb, true); err != nil {
 				return err
 			}
 			if err := e.sfile.DeleteSeriesID(sid); err != nil {
-				return err
-			}
-		}
-
-		for name := range measurements {
-			if err := e.index.DropMeasurementIfSeriesNotExist([]byte(name)); err != nil {
 				return err
 			}
 		}
