@@ -166,12 +166,6 @@ paths:
       summary: Create a telegraf config
       parameters:
           - $ref: '#/components/parameters/TraceSpan'
-          - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
-            schema:
-              type: string
       requestBody:
         description: telegraf config to create
         required: true
@@ -899,12 +893,6 @@ paths:
       summary: Creates a Source
       parameters:
           - $ref: '#/components/parameters/TraceSpan'
-          - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
-            schema:
-              type: string
       requestBody:
           description: source to create
           required: true
@@ -1098,12 +1086,6 @@ paths:
       summary: A view contains information about the visual representation of data
       parameters:
           - $ref: '#/components/parameters/TraceSpan'
-          - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
-            schema:
-              type: string
       requestBody:
           description: view to create
           required: true
@@ -1586,12 +1568,6 @@ paths:
       summary: Create a dashboard
       parameters:
           - $ref: '#/components/parameters/TraceSpan'
-          - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
-            schema:
-              type: string
       requestBody:
           description: dashboard to create
           required: true
@@ -2740,12 +2716,6 @@ paths:
       summary: Create a bucket
       parameters:
           - $ref: '#/components/parameters/TraceSpan'
-          - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
-            schema:
-              type: string
       requestBody:
         description: bucket to create
         required: true
