@@ -8,6 +8,7 @@ import {trySources} from 'src/onboarding/apis'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SigninPage from 'src/onboarding/containers/SigninPage'
 import Notifications from 'src/shared/components/notifications/Notifications'
+import {getMe} from 'src/shared/apis/v2/user'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -21,8 +22,11 @@ interface Props {
   children: ReactElement<any>
 }
 
+const FETCH_WAIT = 60000
+
 @ErrorHandling
 export class Signin extends PureComponent<Props, State> {
+  private intervalID: NodeJS.Timer
   constructor(props: Props) {
     super(props)
 
@@ -36,6 +40,7 @@ export class Signin extends PureComponent<Props, State> {
     const isSourcesAllowed = await trySources()
     const isUserSignedIn = isSourcesAllowed
     this.setState({loading: RemoteDataState.Done, isUserSignedIn})
+    this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
   }
 
   public render() {
@@ -65,7 +70,17 @@ export class Signin extends PureComponent<Props, State> {
   }
 
   private handleSignInUser = () => {
+    this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
     this.setState({isUserSignedIn: true})
+  }
+
+  private checkForLogin = async () => {
+    try {
+      await getMe()
+    } catch (error) {
+      clearInterval(this.intervalID)
+      this.setState({isUserSignedIn: false})
+    }
   }
 }
 
