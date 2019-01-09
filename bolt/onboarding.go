@@ -117,11 +117,15 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 	if err = c.CreateBucket(ctx, bucket); err != nil {
 		return nil, err
 	}
+
+	perms := platform.OperPermissions()
+	perms = append(perms, platform.OrgAdminPermissions(o.ID)...)
+
 	auth := &platform.Authorization{
 		UserID:      u.ID,
 		Description: fmt.Sprintf("%s's Token", u.Name),
 		OrgID:       o.ID,
-		Permissions: platform.OperPermissions(),
+		Permissions: perms,
 	}
 	if err = c.CreateAuthorization(ctx, auth); err != nil {
 		return nil, err
