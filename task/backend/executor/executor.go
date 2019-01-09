@@ -342,7 +342,7 @@ func (rr *runResult) IsRetryable() bool { return rr.retryable }
 // exhaustResultIterators drains all the iterators from a flux query Result.
 func exhaustResultIterators(res flux.Result) error {
 	return res.Tables().Do(func(tbl flux.Table) error {
-		return tbl.Do(func(flux.ColReader) error {
+		return tbl.DoArrow(func(flux.ArrowColReader) error {
 			return nil
 		})
 	})

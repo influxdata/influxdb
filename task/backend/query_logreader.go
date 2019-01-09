@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/flux/values"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/semantic"
@@ -251,41 +253,41 @@ func (re *runExtractor) Extract(tbl flux.Table) error {
 
 	switch mv.Str() {
 	case "records":
-		return tbl.Do(re.extractRecord)
+		return tbl.DoArrow(re.extractRecord)
 	case "logs":
-		return tbl.Do(re.extractLog)
+		return tbl.DoArrow(re.extractLog)
 	default:
 		return fmt.Errorf("unknown measurement: %q", mv.Str())
 	}
 }
 
-func (re *runExtractor) extractRecord(cr flux.ColReader) error {
+func (re *runExtractor) extractRecord(cr flux.ArrowColReader) error {
 	for i := 0; i < cr.Len(); i++ {
 		var r platform.Run
 		for j, col := range cr.Cols() {
 			switch col.Label {
 			case requestedAtField:
-				r.RequestedAt = cr.Strings(j)[i]
+				r.RequestedAt = cr.Strings(j).ValueString(i)
 			case scheduledForField:
-				r.ScheduledFor = cr.Strings(j)[i]
+				r.ScheduledFor = cr.Strings(j).ValueString(i)
 			case "status":
-				r.Status = cr.Strings(j)[i]
+				r.Status = cr.Strings(j).ValueString(i)
 			case "runID":
-				id, err := platform.IDFromString(cr.Strings(j)[i])
+				id, err := platform.IDFromString(cr.Strings(j).ValueString(i))
 				if err != nil {
 					return err
 				}
 				r.ID = *id
 			case "taskID":
-				id, err := platform.IDFromString(cr.Strings(j)[i])
+				id, err := platform.IDFromString(cr.Strings(j).ValueString(i))
 				if err != nil {
 					return err
 				}
 				r.TaskID = *id
 			case RunStarted.String():
-				r.StartedAt = cr.Times(j)[i].Time().Format(time.RFC3339Nano)
+				r.StartedAt = values.Time(cr.Times(j).Value(i)).Time().Format(time.RFC3339Nano)
 			case RunSuccess.String(), RunFail.String(), RunCanceled.String():
-				r.FinishedAt = cr.Times(j)[i].Time().Format(time.RFC3339Nano)
+				r.FinishedAt = values.Time(cr.Times(j).Value(i)).Time().Format(time.RFC3339Nano)
 			}
 		}
 
@@ -303,7 +305,7 @@ func (re *runExtractor) extractRecord(cr flux.ColReader) error {
 	return nil
 }
 
-func (re *runExtractor) extractLog(cr flux.ColReader) error {
+func (re *runExtractor) extractLog(cr flux.ArrowColReader) error {
 	entries := make(map[platform.ID][]string)
 	for i := 0; i < cr.Len(); i++ {
 		var runID platform.ID
@@ -311,15 +313,15 @@ func (re *runExtractor) extractLog(cr flux.ColReader) error {
 		for j, col := range cr.Cols() {
 			switch col.Label {
 			case "runID":
-				id, err := platform.IDFromString(cr.Strings(j)[i])
+				id, err := platform.IDFromString(cr.Strings(j).ValueString(i))
 				if err != nil {
 					return err
 				}
 				runID = *id
 			case "_time":
-				when = cr.Times(j)[i].Time().Format(time.RFC3339Nano)
+				when = values.Time(cr.Times(j).Value(i)).Time().Format(time.RFC3339Nano)
 			case "line":
-				line = cr.Strings(j)[i]
+				line = cr.Strings(j).ValueString(i)
 			}
 		}
 
