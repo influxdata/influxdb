@@ -253,15 +253,15 @@ func (re *runExtractor) Extract(tbl flux.Table) error {
 
 	switch mv.Str() {
 	case "records":
-		return tbl.DoArrow(re.extractRecord)
+		return tbl.Do(re.extractRecord)
 	case "logs":
-		return tbl.DoArrow(re.extractLog)
+		return tbl.Do(re.extractLog)
 	default:
 		return fmt.Errorf("unknown measurement: %q", mv.Str())
 	}
 }
 
-func (re *runExtractor) extractRecord(cr flux.ArrowColReader) error {
+func (re *runExtractor) extractRecord(cr flux.ColReader) error {
 	for i := 0; i < cr.Len(); i++ {
 		var r platform.Run
 		for j, col := range cr.Cols() {
@@ -305,7 +305,7 @@ func (re *runExtractor) extractRecord(cr flux.ArrowColReader) error {
 	return nil
 }
 
-func (re *runExtractor) extractLog(cr flux.ArrowColReader) error {
+func (re *runExtractor) extractLog(cr flux.ColReader) error {
 	entries := make(map[platform.ID][]string)
 	for i := 0; i < cr.Len(); i++ {
 		var runID platform.ID

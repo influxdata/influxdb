@@ -97,7 +97,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (i
 				row.Columns[v] = k
 			}
 
-			if err := tbl.DoArrow(func(cr flux.ArrowColReader) error {
+			if err := tbl.Do(func(cr flux.ColReader) error {
 				// Preallocate the number of rows for the response to make this section
 				// of code easier to read. Find a time column which should exist
 				// in the output.
