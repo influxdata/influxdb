@@ -90,12 +90,12 @@ class Root extends PureComponent {
                 component={OnboardingWizardPage}
               />
               <Route component={Signin}>
+                <Route path="/signin" component={SigninPage} />
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
                     <Route component={App}>
                       <Route component={GetSources}>
                         <Route path="/" component={SetActiveSource}>
-                          <Route path="/signin" component={SigninPage} />
                           <IndexRedirect to="/dashboards" />
                           <Route
                             path="dashboards/:dashboardID"

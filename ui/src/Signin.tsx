@@ -7,9 +7,10 @@ import {trySources} from 'src/onboarding/apis'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import SigninPage from 'src/onboarding/containers/SigninPage'
-import Notifications from 'src/shared/components/notifications/Notifications'
 import {getMe} from 'src/shared/apis/v2/user'
+
+// Utils
+import {AuthContext} from 'src/utils/auth'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -43,28 +44,21 @@ export class Signin extends PureComponent<Props, State> {
     const isSourcesAllowed = await trySources()
     const isUserSignedIn = isSourcesAllowed
     this.setState({loading: RemoteDataState.Done, isUserSignedIn})
-    this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
     if (!isUserSignedIn) {
       this.props.router.push('/signin')
     }
   }
 
   public render() {
-    const {isUserSignedIn} = this.state
-
     if (this.isLoading) {
       return <div className="page-spinner" />
     }
-    if (!isUserSignedIn) {
-      return (
-        <div className="chronograf-root">
-          <Notifications inPresentationMode={true} />
-          <SigninPage onSignInUser={this.handleSignInUser} />
-        </div>
-      )
-    } else {
-      return this.props.children && React.cloneElement(this.props.children)
-    }
+
+    return (
+      <AuthContext.Provider value={{onSignInUser: this.handleSignInUser}}>
+        {this.props.children && React.cloneElement(this.props.children)}
+      </AuthContext.Provider>
+    )
   }
 
   private get isLoading(): boolean {
