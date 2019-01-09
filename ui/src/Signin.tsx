@@ -9,9 +9,6 @@ import {trySources} from 'src/onboarding/apis'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {getMe} from 'src/shared/apis/v2/user'
 
-// Utils
-import {AuthContext} from 'src/utils/auth'
-
 // Types
 import {RemoteDataState} from 'src/types'
 
@@ -44,9 +41,15 @@ export class Signin extends PureComponent<Props, State> {
     const isSourcesAllowed = await trySources()
     const isUserSignedIn = isSourcesAllowed
     this.setState({loading: RemoteDataState.Done, isUserSignedIn})
+    this.checkForLogin()
+    this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
     if (!isUserSignedIn) {
       this.props.router.push('/signin')
     }
+  }
+
+  public componentWillUnmount() {
+    clearInterval(this.intervalID)
   }
 
   public render() {
@@ -54,11 +57,7 @@ export class Signin extends PureComponent<Props, State> {
       return <div className="page-spinner" />
     }
 
-    return (
-      <AuthContext.Provider value={{onSignInUser: this.handleSignInUser}}>
-        {this.props.children && React.cloneElement(this.props.children)}
-      </AuthContext.Provider>
-    )
+    return this.props.children && React.cloneElement(this.props.children)
   }
 
   private get isLoading(): boolean {
@@ -67,12 +66,6 @@ export class Signin extends PureComponent<Props, State> {
       loading === RemoteDataState.Loading ||
       loading === RemoteDataState.NotStarted
     )
-  }
-
-  private handleSignInUser = () => {
-    this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
-    this.setState({isUserSignedIn: true})
-    this.props.router.push('/dashboards')
   }
 
   private checkForLogin = async () => {

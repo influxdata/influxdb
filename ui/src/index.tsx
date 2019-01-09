@@ -89,8 +89,8 @@ class Root extends PureComponent {
                 path="/onboarding/:stepID/:substepID"
                 component={OnboardingWizardPage}
               />
+              <Route path="/signin" component={SigninPage} />
               <Route component={Signin}>
-                <Route path="/signin" component={SigninPage} />
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
                     <Route component={App}>

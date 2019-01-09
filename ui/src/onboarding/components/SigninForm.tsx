@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _, {get} from 'lodash'
 
@@ -31,16 +32,17 @@ import * as copy from 'src/shared/copy/notifications'
 import {Links} from 'src/types/v2/links'
 import {Notification, NotificationFunc} from 'src/types'
 
-export interface Props {
+export interface OwnProps {
   links: Links
   notify: (message: Notification | NotificationFunc) => void
-  onSignInUser: () => void
 }
 
 interface State {
   username: string
   password: string
 }
+
+type Props = OwnProps & WithRouterProps
 
 @ErrorHandling
 class SigninForm extends PureComponent<Props, State> {
@@ -101,11 +103,12 @@ class SigninForm extends PureComponent<Props, State> {
   }
 
   private handleSignIn = async (): Promise<void> => {
-    const {notify, onSignInUser} = this.props
+    const {notify, router} = this.props
     const {username, password} = this.state
+
     try {
       await signin({username, password})
-      onSignInUser()
+      router.push('/dashboards')
     } catch (error) {
       const message = get(error, 'data.msg', '')
 
@@ -129,4 +132,4 @@ const mdtp = {
 export default connect(
   mstp,
   mdtp
-)(SigninForm)
+)(withRouter(SigninForm))
