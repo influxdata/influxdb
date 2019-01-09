@@ -20,7 +20,6 @@ type APIHandler struct {
 	DashboardHandler     *DashboardHandler
 	AssetHandler         *AssetHandler
 	ChronografHandler    *ChronografHandler
-	ViewHandler          *ViewHandler
 	SourceHandler        *SourceHandler
 	MacroHandler         *MacroHandler
 	TaskHandler          *TaskHandler
@@ -53,7 +52,6 @@ type APIBackend struct {
 	BucketOperationLogService       platform.BucketOperationLogService
 	UserOperationLogService         platform.UserOperationLogService
 	OrganizationOperationLogService platform.OrganizationOperationLogService
-	ViewService                     platform.ViewService
 	SourceService                   platform.SourceService
 	MacroService                    platform.MacroService
 	BasicAuthService                platform.BasicAuthService
@@ -93,9 +91,6 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.DashboardHandler.DashboardService = b.DashboardService
 	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
-
-	h.ViewHandler = NewViewHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.ViewHandler.ViewService = b.ViewService
 
 	h.MacroHandler = NewMacroHandler()
 	h.MacroHandler.MacroService = b.MacroService
@@ -173,7 +168,6 @@ var apiLinks = map[string]interface{}{
 	"tasks":     "/api/v2/tasks",
 	"telegrafs": "/api/v2/telegrafs",
 	"users":     "/api/v2/users",
-	"views":     "/api/v2/views",
 	"write":     "/api/v2/write",
 }
 
@@ -260,11 +254,6 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/telegrafs") {
 		h.TelegrafHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/views") {
-		h.ViewHandler.ServeHTTP(w, r)
 		return
 	}
 

@@ -1,3 +1,6 @@
+// NOTE: This service has been deprecated and should not be used.
+// Views are now resources that belong to dashboards. The reason for
+// this is due to how we authorize operations against views.
 package http
 
 import (

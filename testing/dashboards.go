@@ -22,6 +22,10 @@ func idPtr(id platform.ID) *platform.ID {
 	return &id
 }
 
+func int32Ptr(i int32) *int32 {
+	return &i
+}
+
 var dashboardCmpOptions = cmp.Options{
 	cmpopts.EquateEmpty(),
 	cmp.Comparer(func(x, y []byte) bool {
@@ -81,6 +85,14 @@ func DashboardService(
 		{
 			name: "ReplaceDashboardCells",
 			fn:   ReplaceDashboardCells,
+		},
+		{
+			name: "GetDashboardCellView",
+			fn:   GetDashboardCellView,
+		},
+		{
+			name: "UpdateDashboardCellView",
+			fn:   UpdateDashboardCellView,
 		},
 	}
 	for _, tt := range tests {
@@ -255,8 +267,7 @@ func AddDashboardCell(
 			args: args{
 				dashboardID: MustIDBase16(dashOneID),
 				cell: &platform.Cell{
-					ID:     MustIDBase16(dashTwoID),
-					ViewID: MustIDBase16(dashTwoID),
+					ID: MustIDBase16(dashTwoID),
 				},
 			},
 			wants: wants{
@@ -269,8 +280,7 @@ func AddDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 						},
 					},
@@ -302,9 +312,7 @@ func AddDashboardCell(
 			},
 			args: args{
 				dashboardID: MustIDBase16(dashOneID),
-				cell: &platform.Cell{
-					ViewID: MustIDBase16(dashTwoID),
-				},
+				cell:        &platform.Cell{},
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
@@ -316,8 +324,7 @@ func AddDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 						},
 					},
@@ -349,9 +356,7 @@ func AddDashboardCell(
 			},
 			args: args{
 				dashboardID: MustIDBase16(threeID),
-				cell: &platform.Cell{
-					ViewID: MustIDBase16(dashTwoID),
-				},
+				cell:        &platform.Cell{},
 			},
 			wants: wants{
 				err: &platform.Error{
@@ -1026,12 +1031,10 @@ func RemoveDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 							{
-								ID:     MustIDBase16(dashOneID),
-								ViewID: MustIDBase16(dashOneID),
+								ID: MustIDBase16(dashOneID),
 							},
 						},
 					},
@@ -1058,8 +1061,7 @@ func RemoveDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashOneID),
-								ViewID: MustIDBase16(dashOneID),
+								ID: MustIDBase16(dashOneID),
 							},
 						},
 					},
@@ -1125,12 +1127,10 @@ func UpdateDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 							{
-								ID:     MustIDBase16(dashOneID),
-								ViewID: MustIDBase16(dashOneID),
+								ID: MustIDBase16(dashOneID),
 							},
 						},
 					},
@@ -1140,8 +1140,7 @@ func UpdateDashboardCell(
 				dashboardID: MustIDBase16(dashOneID),
 				cellID:      MustIDBase16(dashTwoID),
 				cellUpdate: platform.CellUpdate{
-					X:      func(i int32) *int32 { return &i }(int32(10)),
-					ViewID: MustIDBase16(dashTwoID),
+					X: func(i int32) *int32 { return &i }(int32(10)),
 				},
 			},
 			wants: wants{
@@ -1154,13 +1153,11 @@ func UpdateDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
-								X:      10,
+								ID: MustIDBase16(dashTwoID),
+								X:  10,
 							},
 							{
-								ID:     MustIDBase16(dashOneID),
-								ViewID: MustIDBase16(dashOneID),
+								ID: MustIDBase16(dashOneID),
 							},
 						},
 					},
@@ -1182,12 +1179,10 @@ func UpdateDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 							{
-								ID:     MustIDBase16(dashOneID),
-								ViewID: MustIDBase16(dashOneID),
+								ID: MustIDBase16(dashOneID),
 							},
 						},
 					},
@@ -1205,12 +1200,10 @@ func UpdateDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 							{
-								ID:     MustIDBase16(dashOneID),
-								ViewID: MustIDBase16(dashOneID),
+								ID: MustIDBase16(dashOneID),
 							},
 						},
 					},
@@ -1237,12 +1230,10 @@ func UpdateDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 							{
-								ID:     MustIDBase16(dashOneID),
-								ViewID: MustIDBase16(dashOneID),
+								ID: MustIDBase16(dashOneID),
 							},
 						},
 					},
@@ -1252,7 +1243,7 @@ func UpdateDashboardCell(
 				dashboardID: MustIDBase16(dashOneID),
 				cellID:      MustIDBase16(fourID),
 				cellUpdate: platform.CellUpdate{
-					ViewID: MustIDBase16(threeID),
+					X: int32Ptr(1),
 				},
 			},
 			wants: wants{
@@ -1262,12 +1253,10 @@ func UpdateDashboardCell(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 							{
-								ID:     MustIDBase16(dashOneID),
-								ViewID: MustIDBase16(dashOneID),
+								ID: MustIDBase16(dashOneID),
 							},
 						},
 					},
@@ -1349,12 +1338,10 @@ func ReplaceDashboardCells(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 							{
-								ID:     MustIDBase16(dashOneID),
-								ViewID: MustIDBase16(dashOneID),
+								ID: MustIDBase16(dashOneID),
 							},
 						},
 					},
@@ -1364,14 +1351,12 @@ func ReplaceDashboardCells(
 				dashboardID: MustIDBase16(dashOneID),
 				cells: []*platform.Cell{
 					{
-						ID:     MustIDBase16(dashTwoID),
-						ViewID: MustIDBase16(dashTwoID),
-						X:      10,
+						ID: MustIDBase16(dashTwoID),
+						X:  10,
 					},
 					{
-						ID:     MustIDBase16(dashOneID),
-						ViewID: MustIDBase16(dashOneID),
-						Y:      11,
+						ID: MustIDBase16(dashOneID),
+						Y:  11,
 					},
 				},
 			},
@@ -1385,14 +1370,12 @@ func ReplaceDashboardCells(
 						},
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
-								X:      10,
+								ID: MustIDBase16(dashTwoID),
+								X:  10,
 							},
 							{
-								ID:     MustIDBase16(dashOneID),
-								ViewID: MustIDBase16(dashOneID),
-								Y:      11,
+								ID: MustIDBase16(dashOneID),
+								Y:  11,
 							},
 						},
 					},
@@ -1421,8 +1404,7 @@ func ReplaceDashboardCells(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 						},
 					},
@@ -1432,14 +1414,12 @@ func ReplaceDashboardCells(
 				dashboardID: MustIDBase16(dashOneID),
 				cells: []*platform.Cell{
 					{
-						ID:     MustIDBase16(dashTwoID),
-						ViewID: MustIDBase16(dashTwoID),
-						X:      10,
+						ID: MustIDBase16(dashTwoID),
+						X:  10,
 					},
 					{
-						ID:     MustIDBase16(dashOneID),
-						ViewID: MustIDBase16(dashOneID),
-						Y:      11,
+						ID: MustIDBase16(dashOneID),
+						Y:  11,
 					},
 				},
 			},
@@ -1455,72 +1435,7 @@ func ReplaceDashboardCells(
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "try to update a view during a replace",
-			fields: DashboardFields{
-				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
-				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
-						return MustIDBase16(dashTwoID)
-					},
-				},
-				Views: []*platform.View{
-					{
-						ViewContents: platform.ViewContents{
-							ID: MustIDBase16(dashTwoID),
-						},
-					},
-					{
-						ViewContents: platform.ViewContents{
-							ID: MustIDBase16(dashOneID),
-						},
-					},
-				},
-				Dashboards: []*platform.Dashboard{
-					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
-						Cells: []*platform.Cell{
-							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
-							},
-						},
-					},
-				},
-			},
-			args: args{
-				dashboardID: MustIDBase16(dashOneID),
-				cells: []*platform.Cell{
-					{
-						ID:     MustIDBase16(dashTwoID),
-						ViewID: MustIDBase16(dashOneID),
-						X:      10,
-					},
-				},
-			},
-			wants: wants{
-				err: &platform.Error{
-					Code: platform.EInvalid,
-					Op:   platform.OpReplaceDashboardCells,
-					Msg:  "cannot update view id in replace",
-				},
-				dashboards: []*platform.Dashboard{
-					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
-						Cells: []*platform.Cell{
-							{
-								ID:     MustIDBase16(dashTwoID),
-								ViewID: MustIDBase16(dashTwoID),
+								ID: MustIDBase16(dashTwoID),
 							},
 						},
 					},
@@ -1545,6 +1460,277 @@ func ReplaceDashboardCells(
 			}
 			if diff := cmp.Diff(dashboards, tt.wants.dashboards, dashboardCmpOptions...); diff != "" {
 				t.Errorf("dashboards are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+// GetDashboardCellView is the conformance test for the retrieving a dashboard cell.
+func GetDashboardCellView(
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		dashboardID platform.ID
+		cellID      platform.ID
+	}
+	type wants struct {
+		err  error
+		view *platform.View
+	}
+
+	tests := []struct {
+		name   string
+		fields DashboardFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "get view for cell that exists",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   1,
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID: 100,
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				dashboardID: 1,
+				cellID:      100,
+			},
+			wants: wants{
+				view: &platform.View{
+					ViewContents: platform.ViewContents{
+						ID: 100,
+					},
+					Properties: platform.EmptyViewProperties{},
+				},
+			},
+		},
+		{
+			name: "get view for cell that does not exist",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   1,
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID: 100,
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				dashboardID: 1,
+				cellID:      5,
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpGetDashboardCellView,
+					Msg:  platform.ErrViewNotFound,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+
+			view, err := s.GetDashboardCellView(ctx, tt.args.dashboardID, tt.args.cellID)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			if diff := cmp.Diff(view, tt.wants.view); diff != "" {
+				t.Errorf("dashboard cell views are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+// UpdateDashboardCellView is the conformance test for the updating a dashboard cell.
+func UpdateDashboardCellView(
+	init func(DashboardFields, *testing.T) (platform.DashboardService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		dashboardID platform.ID
+		cellID      platform.ID
+		properties  platform.ViewProperties
+		name        string
+	}
+	type wants struct {
+		err  error
+		view *platform.View
+	}
+
+	tests := []struct {
+		name   string
+		fields DashboardFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "update view name",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   1,
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID: 100,
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				dashboardID: 1,
+				cellID:      100,
+				name:        "hello",
+			},
+			wants: wants{
+				view: &platform.View{
+					ViewContents: platform.ViewContents{
+						ID:   100,
+						Name: "hello",
+					},
+					Properties: platform.EmptyViewProperties{},
+				},
+			},
+		},
+		{
+			name: "update view type",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   1,
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID: 100,
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				dashboardID: 1,
+				cellID:      100,
+				properties: platform.TableViewProperties{
+					Type:       "table",
+					TimeFormat: "rfc3339",
+				},
+			},
+			wants: wants{
+				view: &platform.View{
+					ViewContents: platform.ViewContents{
+						ID: 100,
+					},
+					Properties: platform.TableViewProperties{
+						Type:       "table",
+						TimeFormat: "rfc3339",
+					},
+				},
+			},
+		},
+		{
+			name: "update view type and name",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   1,
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID: 100,
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				dashboardID: 1,
+				cellID:      100,
+				name:        "hello",
+				properties: platform.TableViewProperties{
+					Type:       "table",
+					TimeFormat: "rfc3339",
+				},
+			},
+			wants: wants{
+				view: &platform.View{
+					ViewContents: platform.ViewContents{
+						ID:   100,
+						Name: "hello",
+					},
+					Properties: platform.TableViewProperties{
+						Type:       "table",
+						TimeFormat: "rfc3339",
+					},
+				},
+			},
+		},
+		{
+			name: "update view for cell that does not exist",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:   1,
+						Name: "dashboard1",
+						Cells: []*platform.Cell{
+							{
+								ID: 100,
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				dashboardID: 1,
+				cellID:      5,
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpGetDashboardCellView,
+					Msg:  platform.ErrViewNotFound,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+
+			upd := platform.ViewUpdate{}
+			if tt.args.name != "" {
+				upd.Name = &tt.args.name
+			}
+
+			if tt.args.properties != nil {
+				upd.Properties = tt.args.properties
+			}
+
+			view, err := s.UpdateDashboardCellView(ctx, tt.args.dashboardID, tt.args.cellID, upd)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			if diff := cmp.Diff(view, tt.wants.view); diff != "" {
+				t.Errorf("dashboard cell views are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}

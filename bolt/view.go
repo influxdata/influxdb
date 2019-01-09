@@ -66,26 +66,6 @@ func (c *Client) findViewByID(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 	return &d, nil
 }
 
-func (c *Client) copyView(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.View, *platform.Error) {
-	v, pe := c.findViewByID(ctx, tx, id)
-	if pe != nil {
-		return nil, pe
-	}
-
-	view := &platform.View{
-		ViewContents: platform.ViewContents{
-			Name: v.Name,
-		},
-		Properties: v.Properties,
-	}
-
-	if pe := c.createView(ctx, tx, view); pe != nil {
-		return nil, pe
-	}
-
-	return view, nil
-}
-
 // FindView retrieves a view using an arbitrary view filter.
 func (c *Client) FindView(ctx context.Context, filter platform.ViewFilter) (*platform.View, error) {
 	if filter.ID != nil {

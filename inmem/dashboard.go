@@ -106,9 +106,21 @@ func (s *Service) CreateDashboard(ctx context.Context, d *platform.Dashboard) er
 }
 
 // PutDashboard implements platform.DashboardService interface.
-func (s *Service) PutDashboard(ctx context.Context, o *platform.Dashboard) error {
-	s.dashboardKV.Store(o.ID.String(), o)
+func (s *Service) PutDashboard(ctx context.Context, d *platform.Dashboard) error {
+	for _, cell := range d.Cells {
+		if err := s.PutCellView(ctx, cell); err != nil {
+			return err
+		}
+	}
+	s.dashboardKV.Store(d.ID.String(), d)
 	return nil
+}
+
+// PutCellView puts the view for a cell.
+func (s *Service) PutCellView(ctx context.Context, cell *platform.Cell) error {
+	v := &platform.View{}
+	v.ID = cell.ID
+	return s.PutView(ctx, v)
 }
 
 // PutDashboardWithMeta sets a dashboard while updating the meta field of a dashboard.
@@ -183,7 +195,7 @@ func (s *Service) AddDashboardCell(ctx context.Context, id platform.ID, cell *pl
 		}
 	}
 	cell.ID = s.IDGenerator.ID()
-	if err := s.createViewIfNotExists(ctx, cell, opts); err != nil {
+	if err := s.createCellView(ctx, cell); err != nil {
 		return &platform.Error{
 			Err: err,
 			Op:  op,
@@ -200,6 +212,19 @@ func (s *Service) AddDashboardCell(ctx context.Context, id platform.ID, cell *pl
 	return nil
 }
 
+func (s *Service) createCellView(ctx context.Context, cell *platform.Cell) *platform.Error {
+	// If not view exists create the view
+	view := &platform.View{}
+	view.ID = cell.ID
+	if err := s.PutView(ctx, view); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // PutDashboardCell replaces a dashboad cell with the cell contents.
 func (s *Service) PutDashboardCell(ctx context.Context, id platform.ID, cell *platform.Cell) error {
 	d, err := s.FindDashboardByID(ctx, id)
@@ -207,7 +232,7 @@ func (s *Service) PutDashboardCell(ctx context.Context, id platform.ID, cell *pl
 		return err
 	}
 	view := &platform.View{}
-	view.ID = cell.ViewID
+	view.ID = cell.ID
 	if err := s.PutView(ctx, view); err != nil {
 		return err
 	}
@@ -242,7 +267,7 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID platform.
 		}
 	}
 
-	if err := s.DeleteView(ctx, d.Cells[idx].ViewID); err != nil {
+	if err := s.DeleteView(ctx, d.Cells[idx].ID); err != nil {
 		return err
 	}
 
@@ -327,20 +352,11 @@ func (s *Service) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs 
 			}
 		}
 
-		cl, ok := ids[cell.ID.String()]
-		if !ok {
+		if _, ok := ids[cell.ID.String()]; !ok {
 			return &platform.Error{
 				Code: platform.EConflict,
 				Op:   op,
 				Msg:  "cannot replace cells that were not already present",
-			}
-		}
-
-		if cl.ViewID != cell.ViewID {
-			return &platform.Error{
-				Code: platform.EInvalid,
-				Op:   op,
-				Msg:  "cannot update view id in replace",
 			}
 		}
 	}
@@ -348,4 +364,46 @@ func (s *Service) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs 
 	d.Cells = cs
 
 	return s.PutDashboardWithMeta(ctx, d)
+}
+
+// GetDashboardCellView retrieves the view for a dashboard cell.
+func (s *Service) GetDashboardCellView(ctx context.Context, dashboardID, cellID platform.ID) (*platform.View, error) {
+	v, err := s.FindViewByID(ctx, cellID)
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Op:  OpPrefix + platform.OpGetDashboardCellView,
+		}
+	}
+
+	return v, nil
+}
+
+// UpdateDashboardCellView updates the view for a dashboard cell.
+func (s *Service) UpdateDashboardCellView(ctx context.Context, dashboardID, cellID platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
+	op := OpPrefix + platform.OpUpdateDashboardCellView
+
+	v, err := s.FindViewByID(ctx, cellID)
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Op:  op,
+		}
+	}
+
+	if err := upd.Apply(v); err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Op:  op,
+		}
+	}
+
+	if err := s.PutView(ctx, v); err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Op:  op,
+		}
+	}
+
+	return v, nil
 }

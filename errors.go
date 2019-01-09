@@ -56,6 +56,44 @@ type Error struct {
 	Err  error
 }
 
+// NewError returns an instance of an error.
+func NewError(options ...func(*Error)) *Error {
+	err := &Error{}
+	for _, o := range options {
+		o(err)
+	}
+
+	return err
+}
+
+// WithErrorErr sets the err on the error.
+func WithErrorErr(err error) func(*Error) {
+	return func(e *Error) {
+		e.Err = err
+	}
+}
+
+// WithErrorCode sets the code on the error.
+func WithErrorCode(code string) func(*Error) {
+	return func(e *Error) {
+		e.Code = code
+	}
+}
+
+// WithErrorMsg sets the message on the error.
+func WithErrorMsg(msg string) func(*Error) {
+	return func(e *Error) {
+		e.Msg = msg
+	}
+}
+
+// WithErrorOp sets the message on the error.
+func WithErrorOp(op string) func(*Error) {
+	return func(e *Error) {
+		e.Op = op
+	}
+}
+
 // Error implement the error interface by outputing the Code and Err.
 func (e *Error) Error() string {
 	var b strings.Builder

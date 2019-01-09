@@ -18,6 +18,9 @@ const (
 	OpDeleteView   = "DeleteView"
 )
 
+// NOTE: This service has been DEPRECATED and should be removed. Views are now
+// resources that are nested beneath dashboards.
+//
 // ViewService represents a service for managing View data.
 type ViewService interface {
 	// FindViewByID returns a single View by ID.
@@ -52,6 +55,23 @@ func (u ViewUpdate) Valid() *Error {
 			Code: EInvalid,
 			Msg:  "expected at least one attribute to be updated",
 		}
+	}
+
+	return nil
+}
+
+// Apply updates a view with the view updates properties.
+func (u ViewUpdate) Apply(v *View) error {
+	if err := u.Valid(); err != nil {
+		return err
+	}
+
+	if u.Name != nil {
+		v.Name = *u.Name
+	}
+
+	if u.Properties != nil {
+		v.Properties = u.Properties
 	}
 
 	return nil
