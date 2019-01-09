@@ -27,8 +27,8 @@ LOOP:
 	values = values.Exclude(first.readMin, first.readMax)
 
 	// Remove any tombstones
-	tombstones := first.r.TombstoneRange(c.key)
-	values = excludeTombstonesFloatValues(tombstones, values)
+	c.trbuf = first.r.TombstoneRange(c.key, c.trbuf[:0])
+	values = excludeTombstonesFloatValues(c.trbuf, values)
 	// If there are no values in this first block (all tombstoned or previously read) and
 	// we have more potential blocks too search.  Try again.
 	if values.Len() == 0 && len(c.current) > 0 {
@@ -96,9 +96,9 @@ LOOP:
 				c.col.GetCounter(floatBlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
 
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 			// Remove any tombstoned values
-			v = excludeTombstonesFloatValues(tombstones, v)
+			v = excludeTombstonesFloatValues(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)
@@ -158,9 +158,9 @@ LOOP:
 				c.col.GetCounter(floatBlocksDecodedCounter).Add(1)
 				c.col.GetCounter(floatBlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 			// Remove any tombstoned values
-			v = excludeTombstonesFloatValues(tombstones, v)
+			v = excludeTombstonesFloatValues(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)
@@ -213,8 +213,8 @@ LOOP:
 	values = values.Exclude(first.readMin, first.readMax)
 
 	// Remove any tombstones
-	tombstones := first.r.TombstoneRange(c.key)
-	values = excludeTombstonesIntegerValues(tombstones, values)
+	c.trbuf = first.r.TombstoneRange(c.key, c.trbuf[:0])
+	values = excludeTombstonesIntegerValues(c.trbuf, values)
 	// If there are no values in this first block (all tombstoned or previously read) and
 	// we have more potential blocks too search.  Try again.
 	if values.Len() == 0 && len(c.current) > 0 {
@@ -282,9 +282,9 @@ LOOP:
 				c.col.GetCounter(integerBlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
 
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 			// Remove any tombstoned values
-			v = excludeTombstonesIntegerValues(tombstones, v)
+			v = excludeTombstonesIntegerValues(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)
@@ -344,9 +344,9 @@ LOOP:
 				c.col.GetCounter(integerBlocksDecodedCounter).Add(1)
 				c.col.GetCounter(integerBlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 			// Remove any tombstoned values
-			v = excludeTombstonesIntegerValues(tombstones, v)
+			v = excludeTombstonesIntegerValues(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)
@@ -399,8 +399,8 @@ LOOP:
 	values = values.Exclude(first.readMin, first.readMax)
 
 	// Remove any tombstones
-	tombstones := first.r.TombstoneRange(c.key)
-	values = excludeTombstonesUnsignedValues(tombstones, values)
+	c.trbuf = first.r.TombstoneRange(c.key, c.trbuf[:0])
+	values = excludeTombstonesUnsignedValues(c.trbuf, values)
 	// If there are no values in this first block (all tombstoned or previously read) and
 	// we have more potential blocks too search.  Try again.
 	if values.Len() == 0 && len(c.current) > 0 {
@@ -468,9 +468,9 @@ LOOP:
 				c.col.GetCounter(unsignedBlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
 
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 			// Remove any tombstoned values
-			v = excludeTombstonesUnsignedValues(tombstones, v)
+			v = excludeTombstonesUnsignedValues(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)
@@ -530,9 +530,9 @@ LOOP:
 				c.col.GetCounter(unsignedBlocksDecodedCounter).Add(1)
 				c.col.GetCounter(unsignedBlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 			// Remove any tombstoned values
-			v = excludeTombstonesUnsignedValues(tombstones, v)
+			v = excludeTombstonesUnsignedValues(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)
@@ -585,8 +585,8 @@ LOOP:
 	values = values.Exclude(first.readMin, first.readMax)
 
 	// Remove any tombstones
-	tombstones := first.r.TombstoneRange(c.key)
-	values = excludeTombstonesStringValues(tombstones, values)
+	c.trbuf = first.r.TombstoneRange(c.key, c.trbuf[:0])
+	values = excludeTombstonesStringValues(c.trbuf, values)
 	// If there are no values in this first block (all tombstoned or previously read) and
 	// we have more potential blocks too search.  Try again.
 	if values.Len() == 0 && len(c.current) > 0 {
@@ -654,9 +654,9 @@ LOOP:
 				c.col.GetCounter(stringBlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
 
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 			// Remove any tombstoned values
-			v = excludeTombstonesStringValues(tombstones, v)
+			v = excludeTombstonesStringValues(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)
@@ -716,9 +716,9 @@ LOOP:
 				c.col.GetCounter(stringBlocksDecodedCounter).Add(1)
 				c.col.GetCounter(stringBlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 			// Remove any tombstoned values
-			v = excludeTombstonesStringValues(tombstones, v)
+			v = excludeTombstonesStringValues(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)
@@ -771,8 +771,8 @@ LOOP:
 	values = values.Exclude(first.readMin, first.readMax)
 
 	// Remove any tombstones
-	tombstones := first.r.TombstoneRange(c.key)
-	values = excludeTombstonesBooleanValues(tombstones, values)
+	c.trbuf = first.r.TombstoneRange(c.key, c.trbuf[:0])
+	values = excludeTombstonesBooleanValues(c.trbuf, values)
 	// If there are no values in this first block (all tombstoned or previously read) and
 	// we have more potential blocks too search.  Try again.
 	if values.Len() == 0 && len(c.current) > 0 {
@@ -840,9 +840,9 @@ LOOP:
 				c.col.GetCounter(booleanBlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
 
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 			// Remove any tombstoned values
-			v = excludeTombstonesBooleanValues(tombstones, v)
+			v = excludeTombstonesBooleanValues(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)
@@ -902,9 +902,9 @@ LOOP:
 				c.col.GetCounter(booleanBlocksDecodedCounter).Add(1)
 				c.col.GetCounter(booleanBlocksSizeCounter).Add(int64(cur.entry.Size))
 			}
-			tombstones := cur.r.TombstoneRange(c.key)
+			c.trbuf = cur.r.TombstoneRange(c.key, c.trbuf[:0])
 			// Remove any tombstoned values
-			v = excludeTombstonesBooleanValues(tombstones, v)
+			v = excludeTombstonesBooleanValues(c.trbuf, v)
 
 			// Remove values we already read
 			v = v.Exclude(cur.readMin, cur.readMax)

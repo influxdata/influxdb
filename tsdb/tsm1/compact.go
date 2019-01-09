@@ -1410,10 +1410,6 @@ RETRY:
 					k.err = err
 				}
 
-				// This block may have ranges of time removed from it that would
-				// reduce the block min and max time.
-				tombstones := iter.r.TombstoneRange(key)
-
 				var blk *block
 				if cap(k.buf[i]) > len(k.buf[i]) {
 					k.buf[i] = k.buf[i][:len(k.buf[i])+1]
@@ -1431,9 +1427,12 @@ RETRY:
 				blk.key = key
 				blk.typ = typ
 				blk.b = b
-				blk.tombstones = tombstones
 				blk.readMin = math.MaxInt64
 				blk.readMax = math.MinInt64
+
+				// This block may have ranges of time removed from it that would
+				// reduce the block min and max time.
+				blk.tombstones = iter.r.TombstoneRange(key, blk.tombstones[:0])
 
 				blockKey := key
 				for bytes.Equal(iter.PeekNext(), blockKey) {
@@ -1442,8 +1441,6 @@ RETRY:
 					if err != nil {
 						k.err = err
 					}
-
-					tombstones := iter.r.TombstoneRange(key)
 
 					var blk *block
 					if cap(k.buf[i]) > len(k.buf[i]) {
@@ -1463,9 +1460,9 @@ RETRY:
 					blk.key = key
 					blk.typ = typ
 					blk.b = b
-					blk.tombstones = tombstones
 					blk.readMin = math.MaxInt64
 					blk.readMax = math.MinInt64
+					blk.tombstones = iter.r.TombstoneRange(key, blk.tombstones[:0])
 				}
 			}
 
@@ -1702,10 +1699,6 @@ RETRY:
 				k.err = err
 			}
 
-			// This block may have ranges of time removed from it that would
-			// reduce the block min and max time.
-			tombstones := iter.r.TombstoneRange(key)
-
 			var blk *block
 			if cap(k.buf[i]) > len(k.buf[i]) {
 				k.buf[i] = k.buf[i][:len(k.buf[i])+1]
@@ -1723,9 +1716,12 @@ RETRY:
 			blk.key = key
 			blk.typ = typ
 			blk.b = b
-			blk.tombstones = tombstones
 			blk.readMin = math.MaxInt64
 			blk.readMax = math.MinInt64
+
+			// This block may have ranges of time removed from it that would
+			// reduce the block min and max time.
+			blk.tombstones = iter.r.TombstoneRange(key, blk.tombstones[:0])
 
 			blockKey := key
 			for bytes.Equal(iter.PeekNext(), blockKey) {
@@ -1734,8 +1730,6 @@ RETRY:
 				if err != nil {
 					k.err = err
 				}
-
-				tombstones := iter.r.TombstoneRange(key)
 
 				var blk *block
 				if cap(k.buf[i]) > len(k.buf[i]) {
@@ -1755,9 +1749,9 @@ RETRY:
 				blk.key = key
 				blk.typ = typ
 				blk.b = b
-				blk.tombstones = tombstones
 				blk.readMin = math.MaxInt64
 				blk.readMax = math.MinInt64
+				blk.tombstones = iter.r.TombstoneRange(key, blk.tombstones[:0])
 			}
 		}
 
