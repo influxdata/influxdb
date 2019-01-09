@@ -14,8 +14,8 @@ type TelegrafConfigStore struct {
 	CreateUserResourceMappingF func(ctx context.Context, m *platform.UserResourceMapping) error
 	DeleteUserResourceMappingF func(ctx context.Context, resourceID platform.ID, userID platform.ID) error
 	FindTelegrafConfigByIDF    func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error)
-	FindTelegrafConfigF        func(ctx context.Context, filter platform.UserResourceMappingFilter) (*platform.TelegrafConfig, error)
-	FindTelegrafConfigsF       func(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error)
+	FindTelegrafConfigF        func(ctx context.Context, filter platform.TelegrafConfigFilter) (*platform.TelegrafConfig, error)
+	FindTelegrafConfigsF       func(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error)
 	CreateTelegrafConfigF      func(ctx context.Context, tc *platform.TelegrafConfig, userID platform.ID) error
 	UpdateTelegrafConfigF      func(ctx context.Context, id platform.ID, tc *platform.TelegrafConfig, userID platform.ID) (*platform.TelegrafConfig, error)
 	DeleteTelegrafConfigF      func(ctx context.Context, id platform.ID) error
@@ -42,13 +42,13 @@ func (s *TelegrafConfigStore) FindTelegrafConfigByID(ctx context.Context, id pla
 }
 
 // FindTelegrafConfig returns the first telegraf config that matches filter.
-func (s *TelegrafConfigStore) FindTelegrafConfig(ctx context.Context, filter platform.UserResourceMappingFilter) (*platform.TelegrafConfig, error) {
+func (s *TelegrafConfigStore) FindTelegrafConfig(ctx context.Context, filter platform.TelegrafConfigFilter) (*platform.TelegrafConfig, error) {
 	return s.FindTelegrafConfigF(ctx, filter)
 }
 
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
-func (s *TelegrafConfigStore) FindTelegrafConfigs(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
+func (s *TelegrafConfigStore) FindTelegrafConfigs(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
 	return s.FindTelegrafConfigsF(ctx, filter, opt...)
 }
 
