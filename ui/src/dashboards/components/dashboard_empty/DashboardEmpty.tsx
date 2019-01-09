@@ -1,51 +1,45 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
 
-// Actions
-import {addCellAsync} from 'src/dashboards/actions/v2'
-
-// Types
-import {Dashboard} from 'src/api'
+// Components
+import {
+  Button,
+  IconFont,
+  ComponentColor,
+  EmptyState,
+  ComponentSize,
+} from 'src/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  dashboard: Dashboard
-}
-
-interface Actions {
-  addDashboardCell: typeof addCellAsync
+  onAddCell: () => void
 }
 
 @ErrorHandling
-class DashboardEmpty extends Component<Props & Actions> {
-  constructor(props) {
-    super(props)
-  }
-
-  public handleAddCell = __ => async () => {
-    const {dashboard, addDashboardCell} = this.props
-    await addDashboardCell(dashboard)
-  }
-
+class DashboardEmpty extends Component<Props> {
   public render() {
+    const {onAddCell} = this.props
+
     return (
       <div className="dashboard-empty">
-        <p>
-          This Dashboard doesn't have any <strong>Cells</strong>, why not add
-          one?
-        </p>
+        <EmptyState size={ComponentSize.Large}>
+          <EmptyState.Text
+            text="This Dashboard doesn't have any Cells , why not add
+          one?"
+            highlightWords={['Cells']}
+          />
+          <Button
+            text="Add Cell"
+            size={ComponentSize.Medium}
+            icon={IconFont.AddCell}
+            color={ComponentColor.Primary}
+            onClick={onAddCell}
+          />
+        </EmptyState>
       </div>
     )
   }
 }
 
-const mdtp = {
-  addDashboardCell: addCellAsync,
-}
-
-export default connect(
-  null,
-  mdtp
-)(DashboardEmpty)
+export default DashboardEmpty

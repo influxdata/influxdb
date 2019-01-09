@@ -213,6 +213,7 @@ class DashboardPage extends Component<Props, State> {
               onPositionChange={this.handlePositionChange}
               onDeleteCell={this.handleDeleteDashboardCell}
               onEditView={this.handleEditView}
+              onAddCell={this.handleAddCell}
             />
           )}
           <OverlayTechnology visible={isShowingVEO}>

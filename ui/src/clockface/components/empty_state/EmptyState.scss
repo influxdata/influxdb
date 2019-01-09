@@ -3,6 +3,8 @@
   ------------------------------------------------------------------------------
 */
 
+@import 'src/style/modules';
+
 .empty-state {
   display: flex;
   width: 100%;
@@ -12,42 +14,59 @@
 
 .empty-state--text,
 .empty-state--sub-text {
+  margin-bottom: 0;
+  text-align: center;
   color: $empty-state-text;
   @extend %no-user-select;
+
+  em {
+    font-weight: 600;
+    font-style: normal;
+    color: $empty-state-highlight;
+  }
+}
+
+/*
+  Size Modifiers
+  ------------------------------------------------------------------------------
+*/
+@mixin emptyStateSizeModifier($fontSize, $padding) {
+  padding: ceil($padding * 2.75) 0;
+
+  .empty-state--text,
+  .empty-state--sub-text {
+    margin-top: ceil($fontSize * 0.75);
+  }
+
+  .button {
+    margin-top: $padding;
+  }
+
+  > *:last-child {
+    margin-bottom: ceil($fontSize * 0.75);
+  }
+
+  .empty-state--text {
+    font-size: ceil($fontSize * 1.25);
+  }
+  
+  .empty-state--sub-text {
+    font-size: $fontSize;
+  }
 }
 
 .empty-state--xs {
-  padding: $ix-marg-a 0;
-
-  .empty-state--text,
-  .empty-state--sub-text {
-    margin: $ix-marg-a 0;
-  }
+  @include emptyStateSizeModifier($form-xs-font, $ix-marg-a);
 }
 
 .empty-state--sm {
-  padding: $ix-marg-c 0;
-
-  .empty-state--text,
-  .empty-state--sub-text {
-    margin: $ix-marg-b 0;
-  }
+  @include emptyStateSizeModifier($form-sm-font, $ix-marg-b);
 }
 
 .empty-state--md {
-  padding: $ix-marg-d 0;
-
-  .empty-state--text,
-  .empty-state--sub-text {
-    margin: $ix-marg-b 0;
-  }
+  @include emptyStateSizeModifier($form-md-font, $ix-marg-c);
 }
 
 .empty-state--lg {
-  padding: $ix-marg-f 0;
-
-  .empty-state--text,
-  .empty-state--sub-text {
-    margin: $ix-marg-c 0;
-  }
+  @include emptyStateSizeModifier($form-lg-font, $ix-marg-d);
 }

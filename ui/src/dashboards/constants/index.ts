@@ -86,6 +86,7 @@ type NewDefaultDashboard = Pick<
     cells: NewDefaultCell[]
   }
 >
+export const DEFAULT_CELL_NAME = 'Name this Cell'
 export const DEFAULT_DASHBOARD_NAME = 'Name this Dashboard'
 export const NEW_DASHBOARD: NewDefaultDashboard = {
   name: DEFAULT_DASHBOARD_NAME,
@@ -96,6 +97,7 @@ export const TYPE_QUERY_CONFIG: string = 'queryConfig'
 export const TYPE_SHIFTED: string = 'shifted queryConfig'
 export const TYPE_FLUX: string = 'flux'
 export const DASHBOARD_NAME_MAX_LENGTH: number = 50
+export const CELL_NAME_MAX_LENGTH: number = 68
 
 export enum CEOTabs {
   Queries = 'Queries',

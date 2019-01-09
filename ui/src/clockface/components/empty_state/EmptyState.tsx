@@ -8,6 +8,10 @@ import EmptyStateSubText from 'src/clockface/components/empty_state/EmptyStateSu
 // Types
 import {ComponentSize} from 'src/clockface/types'
 
+// Styles
+import 'src/clockface/components/empty_state/EmptyState.scss'
+
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {

@@ -10,6 +10,12 @@ import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import {Button, ButtonShape, ComponentColor, IconFont} from 'src/clockface'
 
+// Constants
+import {
+  DEFAULT_DASHBOARD_NAME,
+  DASHBOARD_NAME_MAX_LENGTH,
+} from 'src/dashboards/constants/index'
+
 // Actions
 import {addNote} from 'src/dashboards/actions/v2/notes'
 
@@ -122,8 +128,10 @@ class DashboardHeader extends Component<Props> {
     if (dashboard) {
       return (
         <RenamablePageTitle
+          maxLength={DASHBOARD_NAME_MAX_LENGTH}
           onRename={onRenameDashboard}
           name={activeDashboard}
+          placeholder={DEFAULT_DASHBOARD_NAME}
         />
       )
     }

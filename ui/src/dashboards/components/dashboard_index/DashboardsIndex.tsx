@@ -40,6 +40,9 @@ import {
   dashboardCreateFailed,
 } from 'src/shared/copy/notifications'
 
+// Constants
+import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
+
 // Types
 import {Notification} from 'src/types/notifications'
 import {DashboardFile} from 'src/types/v2/dashboards'
@@ -152,7 +155,7 @@ class DashboardIndex extends PureComponent<Props, State> {
     const {router, notify} = this.props
     try {
       const newDashboard = {
-        name: 'Name this dashboard',
+        name: DEFAULT_DASHBOARD_NAME,
         cells: [],
       }
       const data = await createDashboard(newDashboard)
@@ -215,7 +218,7 @@ class DashboardIndex extends PureComponent<Props, State> {
       h: 4,
     }
 
-    const name = _.get(dashboard, 'name', 'Name this dashboard')
+    const name = _.get(dashboard, 'name', DEFAULT_DASHBOARD_NAME)
     const cellsWithDefaultsApplied = getDeep<Cell[]>(
       dashboard,
       'cells',

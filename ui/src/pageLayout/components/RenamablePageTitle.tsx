@@ -6,12 +6,6 @@ import classnames from 'classnames'
 import {Input} from 'src/clockface'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
-// Constants
-import {
-  DASHBOARD_NAME_MAX_LENGTH,
-  DEFAULT_DASHBOARD_NAME,
-} from 'src/dashboards/constants/index'
-
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -21,6 +15,8 @@ import 'src/pageLayout/components/RenamablePageTitle.scss'
 interface Props {
   onRename: (name: string) => void
   name: string
+  placeholder: string
+  maxLength: number
 }
 
 interface State {
@@ -41,7 +37,7 @@ class RenamablePageTitle extends Component<Props, State> {
 
   public render() {
     const {isEditing} = this.state
-    const {name} = this.props
+    const {name, placeholder} = this.props
 
     if (isEditing) {
       return (
@@ -56,7 +52,7 @@ class RenamablePageTitle extends Component<Props, State> {
     return (
       <div className="renamable-page-title">
         <div className={this.titleClassName} onClick={this.handleStartEditing}>
-          {name || DEFAULT_DASHBOARD_NAME}
+          {name || placeholder}
           <span className="icon pencil" />
         </div>
       </div>
@@ -64,14 +60,15 @@ class RenamablePageTitle extends Component<Props, State> {
   }
 
   private get input(): JSX.Element {
+    const {placeholder, maxLength} = this.props
     const {workingName} = this.state
 
     return (
       <Input
-        maxLength={DASHBOARD_NAME_MAX_LENGTH}
+        maxLength={maxLength}
         autoFocus={true}
         spellCheck={false}
-        placeholder={DEFAULT_DASHBOARD_NAME}
+        placeholder={placeholder}
         onFocus={this.handleInputFocus}
         onChange={this.handleInputChange}
         onKeyDown={this.handleKeyDown}
@@ -119,9 +116,9 @@ class RenamablePageTitle extends Component<Props, State> {
   }
 
   private get titleClassName(): string {
-    const {name} = this.props
+    const {name, placeholder} = this.props
 
-    const nameIsUntitled = name === DEFAULT_DASHBOARD_NAME || name === ''
+    const nameIsUntitled = name === placeholder || name === ''
 
     return classnames('renamable-page-title--title', {
       untitled: nameIsUntitled,

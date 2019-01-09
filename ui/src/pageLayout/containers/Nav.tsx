@@ -46,6 +46,18 @@ class SideNav extends PureComponent<Props> {
           highlightWhen={['me', 'account']}
         >
           <NavMenu.SubItem
+            title="Settings"
+            link="/account/settings"
+            location={location.pathname}
+            highlightWhen={['settings']}
+          />
+          <NavMenu.SubItem
+            title="Tokens"
+            link="/account/tokens"
+            location={location.pathname}
+            highlightWhen={['tokens']}
+          />
+          <NavMenu.SubItem
             title="Logout"
             link="/logout"
             location={location.pathname}

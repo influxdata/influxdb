@@ -34,10 +34,11 @@ export default class EmptyTasksLists extends PureComponent<Props> {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text
-            text={"Looks like you don't have any Tasks, why not create one?"}
+            text={"Looks like you don't have any Tasks , why not create one?"}
+            highlightWords={['Tasks']}
           />
           <Button
-            size={ComponentSize.Small}
+            size={ComponentSize.Medium}
             color={ComponentColor.Primary}
             icon={IconFont.Plus}
             text="Create Task"
@@ -49,7 +50,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
 
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text={'No tasks match your search term'} />
+        <EmptyState.Text text={'No Tasks match your search term'} />
       </EmptyState>
     )
   }

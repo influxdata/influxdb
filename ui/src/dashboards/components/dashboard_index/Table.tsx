@@ -141,19 +141,23 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
     if (searchTerm) {
       return (
         <EmptyState size={ComponentSize.Large}>
-          <EmptyState.Text text="No dashboards match your search term" />
+          <EmptyState.Text text="No Dashboards match your search term" />
         </EmptyState>
       )
     }
 
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text="Looks like you don’t have any dashboards" />
+        <EmptyState.Text
+          text="Looks like you don’t have any Dashboards , why not create one?"
+          highlightWords={['Dashboards']}
+        />
         <Button
           text="Create a Dashboard"
           icon={IconFont.Plus}
           color={ComponentColor.Primary}
           onClick={onCreateDashboard}
+          size={ComponentSize.Medium}
         />
       </EmptyState>
     )

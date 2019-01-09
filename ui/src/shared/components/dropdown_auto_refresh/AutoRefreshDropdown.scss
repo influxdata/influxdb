@@ -3,15 +3,17 @@
   ------------------------------------------------------------------------------
 */
 
+@import 'src/style/modules';
+
 .autorefresh-dropdown {
   display: flex;
   flex-wrap: nowrap;
 
-  .dropdown {
-    margin-right: $ix-marg-a;
-  }
-
   &.paused .dropdown--selected {
     opacity: 0;
   }
+}
+
+.autorefresh-dropdown--pause {
+  margin-left: $ix-marg-a;
 }

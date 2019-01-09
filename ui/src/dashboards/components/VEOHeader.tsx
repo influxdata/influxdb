@@ -12,6 +12,12 @@ import {
 } from 'src/clockface'
 import {Page} from 'src/pageLayout'
 
+// Constants
+import {
+  DEFAULT_CELL_NAME,
+  CELL_NAME_MAX_LENGTH,
+} from 'src/dashboards/constants/index'
+
 interface Props {
   name: string
   onSetName: (name: string) => void
@@ -27,7 +33,12 @@ class VEOHeader extends PureComponent<Props> {
       <div className="veo-header">
         <Page.Header fullWidth={true}>
           <Page.Header.Left>
-            <RenamablePageTitle name={name} onRename={onSetName} />
+            <RenamablePageTitle
+              name={name}
+              onRename={onSetName}
+              placeholder={DEFAULT_CELL_NAME}
+              maxLength={CELL_NAME_MAX_LENGTH}
+            />
           </Page.Header.Left>
           <Page.Header.Right>
             <Button

@@ -2,6 +2,9 @@
 import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 
+// Components
+import {EmptyState, ComponentSize} from 'src/clockface'
+
 // Types
 import {Organization} from 'src/types/v2'
 
@@ -14,7 +17,11 @@ export default class UserDashboardList extends PureComponent<Props> {
     const {orgs} = this.props
 
     if (this.isEmpty) {
-      return <div>Looks like you dont belong to any organizations</div>
+      return (
+        <EmptyState size={ComponentSize.ExtraSmall}>
+          <EmptyState.Text text="You don't belong to any Organizations" />
+        </EmptyState>
+      )
     }
 
     return (

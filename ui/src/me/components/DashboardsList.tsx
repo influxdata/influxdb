@@ -2,6 +2,9 @@
 import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 
+// Components
+import {EmptyState, ComponentSize} from 'src/clockface'
+
 // Types
 import {Dashboard} from 'src/types'
 
@@ -12,8 +15,13 @@ interface Props {
 export default class UserDashboardList extends PureComponent<Props> {
   public render() {
     const {dashboards} = this.props
+
     if (this.isEmpty) {
-      return <div>Looks like you dont have any dashboards</div>
+      return (
+        <EmptyState size={ComponentSize.ExtraSmall}>
+          <EmptyState.Text text="You don't have any Dashboards" />
+        </EmptyState>
+      )
     }
 
     return (

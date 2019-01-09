@@ -23,6 +23,7 @@ interface Props {
   onPositionChange: (cells: Cell[]) => void
   setScrollTop: (e: MouseEvent<HTMLElement>) => void
   onEditView: (viewID: string) => void
+  onAddCell: () => void
 }
 
 @ErrorHandling
@@ -40,6 +41,7 @@ class DashboardComponent extends PureComponent<Props> {
       onPositionChange,
       inPresentationMode,
       setScrollTop,
+      onAddCell,
     } = this.props
 
     return (
@@ -63,7 +65,7 @@ class DashboardComponent extends PureComponent<Props> {
               onEditView={onEditView}
             />
           ) : (
-            <DashboardEmpty dashboard={dashboard} />
+            <DashboardEmpty onAddCell={onAddCell} />
           )}
           {/* This element is used as a portal container for note tooltips in cell headers */}
           <div className="cell-header-note-tooltip-container" />

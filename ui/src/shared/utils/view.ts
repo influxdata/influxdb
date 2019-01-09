@@ -17,10 +17,11 @@ import {
   DEFAULT_GAUGE_COLORS,
   DEFAULT_THRESHOLDS_LIST_COLORS,
 } from 'src/shared/constants/thresholds'
+import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
 
 function defaultView() {
   return {
-    name: 'Untitled',
+    name: DEFAULT_CELL_NAME,
   }
 }
 

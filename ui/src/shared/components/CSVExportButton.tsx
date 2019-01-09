@@ -14,16 +14,35 @@ interface Props {
 
 class CSVExportButton extends PureComponent<Props, {}> {
   public render() {
-    const {files} = this.props
-
     return (
       <Button
+        titleText={this.titleText}
         text="CSV"
         icon={IconFont.Download}
         onClick={this.handleClick}
-        status={files ? ComponentStatus.Default : ComponentStatus.Disabled}
+        status={this.buttonStatus}
       />
     )
+  }
+
+  private get buttonStatus(): ComponentStatus {
+    const {files} = this.props
+
+    if (files) {
+      return ComponentStatus.Default
+    }
+
+    return ComponentStatus.Disabled
+  }
+
+  private get titleText(): string {
+    const {files} = this.props
+
+    if (files) {
+      return 'Download query results as a .CSV file'
+    }
+
+    return 'Create a query in order to download results as .CSV'
   }
 
   private handleClick = () => {
