@@ -585,8 +585,6 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 				}
 			}
 
-			fmt.Println(string(st))
-
 			r := httptest.NewRequest("GET", "http://any.tld", bytes.NewReader(st))
 
 			r = r.WithContext(context.WithValue(
