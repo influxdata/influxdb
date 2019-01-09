@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"sync"
 	"time"
 
 	bolt "github.com/coreos/bbolt"
@@ -14,6 +13,7 @@ import (
 
 var (
 	dashboardBucket         = []byte("dashboardsv2")
+	orgDashboardIndex       = []byte("orgsdashboardsv1")
 	dashboardCellViewBucket = []byte("dashboardcellviewsv1")
 )
 
@@ -32,10 +32,13 @@ var _ platform.DashboardService = (*Client)(nil)
 var _ platform.DashboardOperationLogService = (*Client)(nil)
 
 func (c *Client) initializeDashboards(ctx context.Context, tx *bolt.Tx) error {
-	if _, err := tx.CreateBucketIfNotExists([]byte(dashboardBucket)); err != nil {
+	if _, err := tx.CreateBucketIfNotExists(dashboardBucket); err != nil {
 		return err
 	}
-	if _, err := tx.CreateBucketIfNotExists([]byte(dashboardCellViewBucket)); err != nil {
+	if _, err := tx.CreateBucketIfNotExists(orgDashboardIndex); err != nil {
+		return err
+	}
+	if _, err := tx.CreateBucketIfNotExists(dashboardCellViewBucket); err != nil {
 		return err
 	}
 	return nil
@@ -64,7 +67,7 @@ func (c *Client) FindDashboardByID(ctx context.Context, id platform.ID) (*platfo
 	return d, nil
 }
 
-func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Dashboard, *platform.Error) {
+func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Dashboard, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, &platform.Error{
@@ -125,12 +128,12 @@ func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFil
 
 func filterDashboardsFn(filter platform.DashboardFilter) func(d *platform.Dashboard) bool {
 	if len(filter.IDs) > 0 {
-		var sm sync.Map
+		m := map[string]struct{}{}
 		for _, id := range filter.IDs {
-			sm.Store(id.String(), true)
+			m[id.String()] = struct{}{}
 		}
 		return func(d *platform.Dashboard) bool {
-			_, ok := sm.Load(d.ID.String())
+			_, ok := m[d.ID.String()]
 			return ok
 		}
 	}
@@ -175,7 +178,61 @@ func (c *Client) FindDashboards(ctx context.Context, filter platform.DashboardFi
 	return ds, len(ds), nil
 }
 
+func (c *Client) findOrganizationDashboards(ctx context.Context, tx *bolt.Tx, orgID platform.ID) ([]*platform.Dashboard, error) {
+	// TODO(desa): support find options.
+	cur := tx.Bucket(orgDashboardIndex).Cursor()
+	prefix, err := orgID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	ds := []*platform.Dashboard{}
+	for k, _ := cur.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
+		_, id, err := decodeOrgDashboardIndexKey(k)
+		if err != nil {
+			return nil, err
+		}
+
+		d, err := c.findDashboardByID(ctx, tx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		ds = append(ds, d)
+	}
+
+	return ds, nil
+}
+
+func decodeOrgDashboardIndexKey(indexKey []byte) (orgID platform.ID, dashID platform.ID, err error) {
+	if len(indexKey) != 2*platform.IDLength {
+		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "malformed org dashboard index key (please report this error)"}
+	}
+
+	if err := (&orgID).Decode(indexKey[:platform.IDLength]); err != nil {
+		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "bad org id", Err: platform.ErrInvalidID}
+	}
+
+	if err := (&dashID).Decode(indexKey[platform.IDLength:]); err != nil {
+		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "bad dashboard id", Err: platform.ErrInvalidID}
+	}
+
+	return orgID, dashID, nil
+}
+
 func (c *Client) findDashboards(ctx context.Context, tx *bolt.Tx, filter platform.DashboardFilter) ([]*platform.Dashboard, error) {
+	if filter.OrganizationID != nil {
+		return c.findOrganizationDashboards(ctx, tx, *filter.OrganizationID)
+	}
+
+	if filter.Organization != nil {
+		o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
+		if err != nil {
+			return nil, err
+		}
+		return c.findOrganizationDashboards(ctx, tx, o.ID)
+	}
+
 	ds := []*platform.Dashboard{}
 
 	filterFn := filterDashboardsFn(filter)
@@ -207,6 +264,10 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 		}
 
 		if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardCreatedEvent); err != nil {
+			return err
+		}
+
+		if err := c.putOrganizationDashboardIndex(ctx, tx, d); err != nil {
 			return err
 		}
 
@@ -556,8 +617,54 @@ func (c *Client) PutDashboard(ctx context.Context, d *platform.Dashboard) error 
 			}
 		}
 
+		if err := c.putOrganizationDashboardIndex(ctx, tx, d); err != nil {
+			return err
+		}
+
 		return c.putDashboard(ctx, tx, d)
 	})
+}
+
+func encodeOrgDashboardIndex(orgID platform.ID, dashID platform.ID) ([]byte, error) {
+	oid, err := orgID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	did, err := dashID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	key := make([]byte, 0, len(oid)+len(did))
+	key = append(key, oid...)
+	key = append(key, did...)
+
+	return key, nil
+}
+
+func (c *Client) putOrganizationDashboardIndex(ctx context.Context, tx *bolt.Tx, d *platform.Dashboard) error {
+	k, err := encodeOrgDashboardIndex(d.OrganizationID, d.ID)
+	if err != nil {
+		return err
+	}
+	if err := tx.Bucket(orgDashboardIndex).Put(k, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) removeOrganizationDashboardIndex(ctx context.Context, tx *bolt.Tx, d *platform.Dashboard) error {
+	k, err := encodeOrgDashboardIndex(d.OrganizationID, d.ID)
+	if err != nil {
+		return err
+	}
+	if err := tx.Bucket(orgDashboardIndex).Delete(k); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Client) putDashboard(ctx context.Context, tx *bolt.Tx, d *platform.Dashboard) error {
@@ -657,11 +764,12 @@ func (c *Client) DeleteDashboard(ctx context.Context, id platform.ID) error {
 	})
 }
 
-func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.ID) *platform.Error {
+func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
 	d, pe := c.findDashboardByID(ctx, tx, id)
 	if pe != nil {
 		return pe
 	}
+
 	for _, cell := range d.Cells {
 		if err := c.deleteDashboardCellView(ctx, tx, d.ID, cell.ID); err != nil {
 			return &platform.Error{
@@ -669,12 +777,18 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 			}
 		}
 	}
+
 	encodedID, err := id.Encode()
 	if err != nil {
 		return &platform.Error{
 			Err: err,
 		}
 	}
+
+	if err := c.removeOrganizationDashboardIndex(ctx, tx, d); err != nil {
+		return platform.NewError(platform.WithErrorErr(err))
+	}
+
 	if err := tx.Bucket(dashboardBucket).Delete(encodedID); err != nil {
 		return &platform.Error{
 			Err: err,
