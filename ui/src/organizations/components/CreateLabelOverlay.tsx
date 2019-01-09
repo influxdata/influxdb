@@ -15,7 +15,6 @@ import {validateHexCode} from 'src/organizations/utils/labels'
 
 // Types
 import {LabelType} from 'src/clockface'
-import {Organization} from 'src/api'
 
 // Constants
 import {EMPTY_LABEL} from 'src/organizations/constants/LabelColors'
@@ -24,10 +23,9 @@ import {EMPTY_LABEL} from 'src/organizations/constants/LabelColors'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  org: Organization
   isVisible: boolean
   onDismiss: () => void
-  onCreateLabel: (org: Organization, label: LabelType) => void
+  onCreateLabel: (label: LabelType) => void
   onNameValidation: (name: string) => string | null
 }
 
@@ -83,10 +81,10 @@ class CreateLabelOverlay extends Component<Props, State> {
   }
 
   private handleSubmit = () => {
-    const {onCreateLabel, org, onDismiss} = this.props
+    const {onCreateLabel, onDismiss} = this.props
 
     try {
-      onCreateLabel(org, this.state.label)
+      onCreateLabel(this.state.label)
       // clear form on successful submit
       this.resetForm()
     } finally {

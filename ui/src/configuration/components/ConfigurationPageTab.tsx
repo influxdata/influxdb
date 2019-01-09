@@ -10,13 +10,13 @@ interface Props {
   onClick: (url: string) => () => void
 }
 
-const ProfilePageTab: SFC<Props> = ({title, active, url, onClick}) => (
+const ConfigurationPageTab: SFC<Props> = ({title, active, url, onClick}) => (
   <div
-    className={classnames('profile-nav--tab', {active})}
+    className={classnames('tabbed-page-nav--tab', {active})}
     onClick={onClick(url)}
   >
     {title}
   </div>
 )
 
-export default ProfilePageTab
+export default ConfigurationPageTab

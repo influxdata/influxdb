@@ -33,6 +33,7 @@ import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
 import SourcesPage from 'src/sources/components/SourcesPage'
+import ConfigurationPage from 'src/configuration/components/ConfigurationPage'
 
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
@@ -121,6 +122,10 @@ class Root extends PureComponent {
                           <Route path="me" component={MePage} />
                           <Route path="account/:tab" component={Account} />
                           <Route path="sources" component={SourcesPage} />
+                          <Route
+                            path="configuration/:tab"
+                            component={ConfigurationPage}
+                          />
                         </Route>
                       </Route>
                     </Route>

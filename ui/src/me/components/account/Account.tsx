@@ -4,8 +4,8 @@ import {WithRouterProps} from 'react-router'
 
 // Components
 import {Page} from 'src/pageLayout'
-import ProfilePage from 'src/shared/components/profile_page/ProfilePage'
-import ProfilePageSection from 'src/shared/components/profile_page/ProfilePageSection'
+import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
+import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Settings from 'src/me/components/account/Settings'
 import Tokens from 'src/me/components/account/Tokens'
 
@@ -26,26 +26,26 @@ export default class Account extends PureComponent<WithRouterProps> {
           <Page.Header.Right />
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={true}>
-          <ProfilePage
+          <TabbedPage
             name="Account"
             activeTabUrl={params.tab}
             parentUrl="/account"
           >
-            <ProfilePageSection
+            <TabbedPageSection
               title="Settings"
               id={Tabs.Settings}
               url={Tabs.Settings}
             >
               <Settings />
-            </ProfilePageSection>
-            <ProfilePageSection
+            </TabbedPageSection>
+            <TabbedPageSection
               title="Tokens"
               id={Tabs.Tokens}
               url={Tabs.Tokens}
             >
               <Tokens />
-            </ProfilePageSection>
-          </ProfilePage>
+            </TabbedPageSection>
+          </TabbedPage>
         </Page.Contents>
       </Page>
     )

@@ -23,26 +23,26 @@ exports[`Account rendering renders! 1`] = `
     fullWidth={false}
     scrollable={true}
   >
-    <withRouter(ProfilePage)
+    <withRouter(TabbedPage)
       activeTabUrl="settings"
       name="Account"
       parentUrl="/account"
     >
-      <ProfilePageSection
+      <TabbedPageSection
         id="settings"
         title="Settings"
         url="settings"
       >
         <Connect(Settings) />
-      </ProfilePageSection>
-      <ProfilePageSection
+      </TabbedPageSection>
+      <TabbedPageSection
         id="tokens"
         title="Tokens"
         url="tokens"
       >
         <Connect(Tokens) />
-      </ProfilePageSection>
-    </withRouter(ProfilePage)>
+      </TabbedPageSection>
+    </withRouter(TabbedPage)>
   </PageContents>
 </Page>
 `;

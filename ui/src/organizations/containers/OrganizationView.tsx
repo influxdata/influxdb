@@ -10,7 +10,6 @@ import {
   getDashboards,
   getMembers,
   getTasks,
-  getLabels,
 } from 'src/organizations/apis'
 
 // Actions
@@ -19,19 +18,18 @@ import {updateOrg} from 'src/organizations/actions'
 // Components
 import {Page} from 'src/pageLayout'
 import {Spinner} from 'src/clockface'
-import ProfilePage from 'src/shared/components/profile_page/ProfilePage'
-import ProfilePageSection from 'src/shared/components/profile_page/ProfilePageSection'
+import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
+import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Members from 'src/organizations/components/Members'
 import Buckets from 'src/organizations/components/Buckets'
 import Dashboards from 'src/organizations/components/Dashboards'
 import Tasks from 'src/organizations/components/Tasks'
-import Labels from 'src/organizations/components/Labels'
 import OrgOptions from 'src/organizations/components/OrgOptions'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
 // Types
 import {AppState, Dashboard} from 'src/types/v2'
-import {ResourceOwner, Bucket, Organization, Task, Label} from 'src/api'
+import {ResourceOwner, Bucket, Organization, Task} from 'src/api'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -61,12 +59,12 @@ class OrganizationView extends PureComponent<Props> {
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
-            <ProfilePage
+            <TabbedPage
               name={org.name}
               parentUrl={`/organizations/${org.id}`}
               activeTabUrl={params.tab}
             >
-              <ProfilePageSection
+              <TabbedPageSection
                 id="org-view-tab--members"
                 url="members_tab"
                 title="Members"
@@ -81,8 +79,8 @@ class OrganizationView extends PureComponent<Props> {
                     </Spinner>
                   )}
                 </GetOrgResources>
-              </ProfilePageSection>
-              <ProfilePageSection
+              </TabbedPageSection>
+              <TabbedPageSection
                 id="org-view-tab--buckets"
                 url="buckets_tab"
                 title="Buckets"
@@ -97,8 +95,8 @@ class OrganizationView extends PureComponent<Props> {
                     </Spinner>
                   )}
                 </GetOrgResources>
-              </ProfilePageSection>
-              <ProfilePageSection
+              </TabbedPageSection>
+              <TabbedPageSection
                 id="org-view-tab--dashboards"
                 url="dashboards_tab"
                 title="Dashboards"
@@ -113,8 +111,8 @@ class OrganizationView extends PureComponent<Props> {
                     </Spinner>
                   )}
                 </GetOrgResources>
-              </ProfilePageSection>
-              <ProfilePageSection
+              </TabbedPageSection>
+              <TabbedPageSection
                 id="org-view-tab--tasks"
                 url="tasks_tab"
                 title="Tasks"
@@ -126,31 +124,15 @@ class OrganizationView extends PureComponent<Props> {
                     </Spinner>
                   )}
                 </GetOrgResources>
-              </ProfilePageSection>
-              <ProfilePageSection
-                id="org-view-tab--labels"
-                url="labels_tab"
-                title="Labels"
-              >
-                <GetOrgResources<Label[]>
-                  organization={org}
-                  fetcher={getLabels}
-                >
-                  {(labels, loading) => (
-                    <Spinner loading={loading}>
-                      <Labels labels={labels} org={org} />
-                    </Spinner>
-                  )}
-                </GetOrgResources>
-              </ProfilePageSection>
-              <ProfilePageSection
+              </TabbedPageSection>
+              <TabbedPageSection
                 id="org-view-tab--options"
                 url="options_tab"
                 title="Options"
               >
                 <OrgOptions org={org} onUpdateOrg={onUpdateOrg} />
-              </ProfilePageSection>
-            </ProfilePage>
+              </TabbedPageSection>
+            </TabbedPage>
           </div>
         </Page.Contents>
       </Page>

@@ -12,10 +12,10 @@ interface Props {
 }
 
 @ErrorHandling
-class ProfilePageSection extends Component<Props> {
+class TabbedPageSection extends Component<Props> {
   public render() {
     return <div>{this.props.children}</div>
   }
 }
 
-export default ProfilePageSection
+export default TabbedPageSection

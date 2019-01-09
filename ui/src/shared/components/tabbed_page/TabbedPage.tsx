@@ -3,17 +3,20 @@ import React, {Component, ReactElement, ReactNode} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import ProfilePageSection from 'src/shared/components/profile_page/ProfilePageSection'
-import ProfilePageTab from 'src/shared/components/profile_page/ProfilePageTab'
+import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
+import TabbedPageTab from 'src/shared/components/tabbed_page/TabbedPageTab'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Styles
+import 'src/shared/components/tabbed_page/TabbedPage.scss'
 
 interface OwnProps {
   name: string
   avatar?: string
   description?: string
-  children: ReactNode[]
+  children: ReactNode[] | ReactNode
   activeTabUrl: string
   parentUrl: string
 }
@@ -21,7 +24,7 @@ interface OwnProps {
 type Props = OwnProps & WithRouterProps
 
 @ErrorHandling
-class ProfilePage extends Component<Props> {
+class TabbedPage extends Component<Props> {
   constructor(props) {
     super(props)
   }
@@ -30,23 +33,23 @@ class ProfilePage extends Component<Props> {
     this.validateChildTypes()
 
     return (
-      <div className="profile">
-        <div className="profile-nav">
-          {this.profileNavHeader}
-          {this.profileNavTabs}
+      <div className="tabbed-page">
+        <div className="tabbed-page-nav">
+          {this.navHeader}
+          {this.navTabs}
         </div>
-        <div className="profile-content">{this.activeSectionComponent}</div>
+        <div className="tabbed-page-content">{this.activeSectionComponent}</div>
       </div>
     )
   }
 
-  private get profileNavTabs(): JSX.Element {
+  private get navTabs(): JSX.Element {
     const {children, activeTabUrl} = this.props
 
     return (
-      <div className="profile-nav--tabs">
+      <div className="tabbed-page-nav--tabs">
         {React.Children.map(children, (child: JSX.Element) => (
-          <ProfilePageTab
+          <TabbedPageTab
             title={child.props.title}
             key={child.props.id}
             id={child.props.id}
@@ -59,13 +62,13 @@ class ProfilePage extends Component<Props> {
     )
   }
 
-  private get profileNavHeader(): JSX.Element {
+  private get navHeader(): JSX.Element {
     const {description} = this.props
 
     if (description) {
       return (
-        <div className="profile-nav--header">
-          <p className="profile-nav--description">{description}</p>
+        <div className="tabbed-page-nav--header">
+          <p className="tabbed-page-nav--description">{description}</p>
         </div>
       )
     }
@@ -91,13 +94,13 @@ class ProfilePage extends Component<Props> {
     const {children} = this.props
 
     React.Children.forEach(children, (child: JSX.Element) => {
-      if (child.type !== ProfilePageSection) {
+      if (child.type !== TabbedPageSection) {
         throw new Error(
-          '<ProfilePage> expected children of type <ProfilePageSection />'
+          '<TabbedPage> expected children of type <TabbedPageSection />'
         )
       }
     })
   }
 }
 
-export default withRouter<OwnProps>(ProfilePage)
+export default withRouter<OwnProps>(TabbedPage)

@@ -11,7 +11,7 @@ import {ResourceOwner} from 'src/api'
 
 // Constants
 import {resouceOwner} from 'src/organizations/dummyData'
-import ProfilePageHeader from 'src/shared/components/profile_page/ProfilePageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 interface Props {
   members: ResourceOwner[]
@@ -34,7 +34,7 @@ export default class Members extends PureComponent<Props, State> {
 
     return (
       <>
-        <ProfilePageHeader>
+        <TabbedPageHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter tasks..."
@@ -43,7 +43,7 @@ export default class Members extends PureComponent<Props, State> {
             onChange={this.handleFilterChange}
             onBlur={this.handleFilterChange}
           />
-        </ProfilePageHeader>
+        </TabbedPageHeader>
         <FilterList<ResourceOwner>
           list={dummyData}
           searchKeys={['name']}

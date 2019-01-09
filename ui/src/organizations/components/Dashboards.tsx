@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import ProfilePageHeader from 'src/shared/components/profile_page/ProfilePageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {ComponentSize, EmptyState, Input, IconFont} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 import DashboardList from 'src/organizations/components/DashboardList'
@@ -36,7 +36,7 @@ export default class Dashboards extends PureComponent<Props, State> {
 
     return (
       <>
-        <ProfilePageHeader>
+        <TabbedPageHeader>
           <Input
             icon={IconFont.Search}
             widthPixels={290}
@@ -45,7 +45,7 @@ export default class Dashboards extends PureComponent<Props, State> {
             onChange={this.handleFilterChange}
             placeholder="Filter Dashboards..."
           />
-        </ProfilePageHeader>
+        </TabbedPageHeader>
         <FilterList<Dashboard>
           searchTerm={searchTerm}
           searchKeys={['name']}
