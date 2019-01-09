@@ -64,13 +64,6 @@ export interface DashboardQuery {
 export interface DashboardDraftQuery extends DashboardQuery {
   hidden: boolean
 }
-
-export interface URLQuery {
-  text: string
-  type: InfluxLanguage
-  url: string
-}
-
 export interface Legend {
   type?: string
   orientation?: string

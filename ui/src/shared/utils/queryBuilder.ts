@@ -1,26 +1,13 @@
 import {BuilderConfig, TimeRange} from 'src/types/v2'
 import {FUNCTIONS} from 'src/shared/constants/queryBuilder'
-
-const DEFAULT_WINDOW_INTERVAL = '10s'
-
-const WINDOW_INTERVALS = {
-  '5m': '10s',
-  '15m': '10s',
-  '1h': '1m',
-  '6h': '5m',
-  '12h': '10m',
-  '24h': '20m',
-  '2d': '1h',
-  '7d': '1h',
-  '30d': '6h',
-}
+import {TIME_RANGE_START, WINDOW_PERIOD} from 'src/shared/constants'
 
 export const timeRangeVariables = (
   timeRange: TimeRange
 ): {[key: string]: string} => {
   const result: {[key: string]: string} = {}
 
-  result.timeRangeStart = timeRange.lower
+  result[TIME_RANGE_START] = timeRange.lower
     .replace('now()', '')
     .replace(/\s/g, '')
 
@@ -37,20 +24,15 @@ export function isConfigValid(builderConfig: BuilderConfig): boolean {
   return isConfigValid
 }
 
-export function buildQuery(
-  builderConfig: BuilderConfig,
-  duration: string = '1h'
-): string {
+export function buildQuery(builderConfig: BuilderConfig): string {
   const {functions} = builderConfig
 
   let query: string
 
   if (functions.length) {
-    query = functions
-      .map(f => buildQueryHelper(builderConfig, duration, f))
-      .join('\n\n')
+    query = functions.map(f => buildQueryHelper(builderConfig, f)).join('\n\n')
   } else {
-    query = buildQueryHelper(builderConfig, duration)
+    query = buildQueryHelper(builderConfig)
   }
 
   return query
@@ -58,30 +40,26 @@ export function buildQuery(
 
 function buildQueryHelper(
   builderConfig: BuilderConfig,
-  duration: string,
   fn?: BuilderConfig['functions'][0]
 ): string {
   const [bucket] = builderConfig.buckets
   const tagFilterCall = formatTagFilterCall(builderConfig.tags)
-  const fnCall = fn ? formatFunctionCall(fn, duration) : ''
+  const fnCall = fn ? formatFunctionCall(fn) : ''
 
   const query = `from(bucket: "${bucket}")
-  |> range(start: -${duration})${tagFilterCall}${fnCall}`
+  |> range(start: ${TIME_RANGE_START})${tagFilterCall}${fnCall}`
 
   return query
 }
 
-export function formatFunctionCall(
-  fn: BuilderConfig['functions'][0],
-  duration: string
-) {
+export function formatFunctionCall(fn: BuilderConfig['functions'][0]) {
   const fnSpec = FUNCTIONS.find(f => f.name === fn.name)
 
   let fnCall: string = ''
 
   if (fnSpec && fnSpec.aggregate) {
     fnCall = `
-  |> window(every: ${WINDOW_INTERVALS[duration] || DEFAULT_WINDOW_INTERVAL})
+  |> window(period: ${WINDOW_PERIOD})
   ${fnSpec.flux}
   |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
   |> yield(name: "${fn.name}")`

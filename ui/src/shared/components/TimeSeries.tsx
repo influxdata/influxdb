@@ -4,19 +4,34 @@ import {isEqual, flatten} from 'lodash'
 import {connect} from 'react-redux'
 
 // API
-import {executeQueries} from 'src/shared/apis/v2/query'
-
-// Types
-import {RemoteDataState, FluxTable} from 'src/types'
-import {DashboardQuery, URLQuery} from 'src/types/v2/dashboards'
-import {AppState, Source} from 'src/types/v2'
+import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/v2/query'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {restartable, CancellationError} from 'src/utils/restartable'
 import {getSources, getActiveSource} from 'src/sources/selectors'
+import {renderQuery} from 'src/shared/utils/renderQuery'
 
-export const DEFAULT_TIME_SERIES = [{response: {results: []}}]
+// Types
+import {RemoteDataState, FluxTable} from 'src/types'
+import {DashboardQuery} from 'src/types/v2/dashboards'
+import {AppState, Source} from 'src/types/v2'
+
+type URLQuery = DashboardQuery & {url: string}
+
+const executeQueries = async (
+  queries: URLQuery[],
+  variables: {[key: string]: string}
+): Promise<ExecuteFluxQueryResult[]> => {
+  const promises = queries.map(async ({url, text, type}) => {
+    const renderedQuery = await renderQuery(text, type, variables)
+    const queryResult = await executeQuery(url, renderedQuery, type)
+
+    return queryResult
+  })
+
+  return Promise.all(promises)
+}
 
 export interface QueriesState {
   tables: FluxTable[]
@@ -101,12 +116,12 @@ class TimeSeries extends Component<Props, State> {
       const source = sources.find(source => source.id === query.sourceID)
       const url: string = source ? source.links.query : dynamicSourceURL
 
-      return {url, text: query.text, type: query.type}
+      return {...query, url}
     })
   }
 
   private reload = async () => {
-    const {inView} = this.props
+    const {inView, variables} = this.props
     const queries = this.queries
 
     if (!inView) {
@@ -127,7 +142,7 @@ class TimeSeries extends Component<Props, State> {
 
     try {
       const startTime = Date.now()
-      const results = await this.executeQueries(queries, this.props.variables)
+      const results = await this.executeQueries(queries, variables)
       const duration = Date.now() - startTime
       const tables = flatten(results.map(r => parseResponse(r.csv)))
       const files = results.map(r => r.csv)

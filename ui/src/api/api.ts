@@ -70,6 +70,20 @@ export class RequiredError extends Error {
 }
 
 /**
+ * contains the AST for the supplied Flux query
+ * @export
+ * @interface ASTResponse
+ */
+export interface ASTResponse {
+    /**
+     * the AST of the supplied Flux query
+     * @type {any}
+     * @memberof ASTResponse
+     */
+    ast?: any;
+}
+
+/**
  * 
  * @export
  * @interface AnalyzeQueryResponse
@@ -9882,7 +9896,7 @@ export const QueryApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        queryAstPost(contentType?: 'application/json', authorization?: string, languageRequest?: LanguageRequest, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+        queryAstPost(contentType?: 'application/json', authorization?: string, languageRequest?: LanguageRequest, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ASTResponse> {
             const localVarAxiosArgs = QueryApiAxiosParamCreator(configuration).queryAstPost(contentType, authorization, languageRequest, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})

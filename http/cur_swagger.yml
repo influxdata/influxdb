@@ -1610,6 +1610,10 @@ paths:
       responses:
         '200':
           description: Abstract syntax tree of flux query.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ASTResponse"
         default:
           description: Any response other than 200 is an internal server error
           content:
@@ -3535,6 +3539,13 @@ components:
           type: string
         dialect:
           $ref: "#/components/schemas/Dialect"
+    ASTResponse:
+      description: contains the AST for the supplied Flux query
+      type: object
+      properties:
+        ast:
+          description: the AST of the supplied Flux query
+          type: object
     QuerySpecification:
       description: consists of a set of operations and a set of edges between those operations to instruct the query engine to operate.
       type: object

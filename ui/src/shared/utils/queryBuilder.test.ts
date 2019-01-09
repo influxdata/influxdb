@@ -11,10 +11,10 @@ describe('buildQuery', () => {
     }
 
     const expected = `from(bucket: "b0")
-  |> range(start: -1h)
+  |> range(start: timeRangeStart)
   |> filter(fn: (r) => r._measurement == "m0")`
 
-    const actual = buildQuery(config, '1h')
+    const actual = buildQuery(config)
 
     expect(actual).toEqual(expected)
   })
@@ -30,11 +30,11 @@ describe('buildQuery', () => {
     }
 
     const expected = `from(bucket: "b0")
-  |> range(start: -1h)
+  |> range(start: timeRangeStart)
   |> filter(fn: (r) => r._measurement == "m0" or r._measurement == "m1")
   |> filter(fn: (r) => r._field == "f0" or r._field == "f1")`
 
-    const actual = buildQuery(config, '1h')
+    const actual = buildQuery(config)
 
     expect(actual).toEqual(expected)
   })
@@ -47,23 +47,23 @@ describe('buildQuery', () => {
     }
 
     const expected = `from(bucket: "b0")
-  |> range(start: -1h)
+  |> range(start: timeRangeStart)
   |> filter(fn: (r) => r._measurement == "m0")
-  |> window(every: 1m)
+  |> window(period: windowPeriod)
   |> mean()
   |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
   |> yield(name: "mean")
 
 from(bucket: "b0")
-  |> range(start: -1h)
+  |> range(start: timeRangeStart)
   |> filter(fn: (r) => r._measurement == "m0")
-  |> window(every: 1m)
+  |> window(period: windowPeriod)
   |> toFloat()
   |> median()
   |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
   |> yield(name: "median")`
 
-    const actual = buildQuery(config, '1h')
+    const actual = buildQuery(config)
 
     expect(actual).toEqual(expected)
   })

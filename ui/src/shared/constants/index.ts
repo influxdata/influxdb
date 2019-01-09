@@ -1,7 +1,5 @@
 import _ from 'lodash'
 
-import {TemplateValueType, TemplateType} from 'src/types'
-
 export const DEFAULT_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
 export const DEFAULT_DURATION_MS = 1000
@@ -401,16 +399,8 @@ export const GRAPH = 'graph'
 export const TABLE = 'table'
 export const VIS_VIEWS = [GRAPH, TABLE]
 
-// InfluxQL Macros
 export const TEMP_VAR_INTERVAL = ':interval:'
 export const TEMP_VAR_DASHBOARD_TIME = ':dashboardTime:'
-export const TEMP_VAR_UPPER_DASHBOARD_TIME = ':upperDashboardTime:'
-export const PREDEFINED_TEMP_VARS = [
-  TEMP_VAR_INTERVAL,
-  TEMP_VAR_DASHBOARD_TIME,
-  TEMP_VAR_UPPER_DASHBOARD_TIME,
-]
-export const INITIAL_GROUP_BY_TIME = '10s'
 export const AUTO_GROUP_BY = 'auto'
 
 export const STATUS_PAGE_ROW_COUNT = 10 // TODO: calculate based on actual Status Page cells
@@ -419,40 +409,12 @@ export const PAGE_CONTAINER_MARGIN = 30 // TODO: get this dynamically to ensure 
 export const LAYOUT_MARGIN = 4
 export const DASHBOARD_LAYOUT_ROW_HEIGHT = 83.5
 
+export const TIME_RANGE_START = 'timeRangeStart'
+export const WINDOW_PERIOD = 'windowPeriod'
+
 export const DYGRAPH_CONTAINER_H_MARGIN = 16
 export const DYGRAPH_CONTAINER_V_MARGIN = 8
 export const DYGRAPH_CONTAINER_XLABEL_MARGIN = 20
-
-export const DEFAULT_SOURCE = {
-  url: 'http://localhost:8086',
-  name: 'Influx 1',
-  username: '',
-  password: '',
-  default: true,
-  telegraf: 'telegraf',
-  insecureSkipVerify: false,
-  metaUrl: '',
-  type: 'v1',
-}
-
-export const intervalValuesPoints = [
-  {
-    value: `${DEFAULT_PIXELS}`,
-    type: TemplateValueType.Points,
-    selected: true,
-    localSelected: true,
-  },
-]
-
-export const interval = {
-  id: 'interval',
-  type: TemplateType.AutoGroupBy,
-  tempVar: TEMP_VAR_INTERVAL,
-  label: 'automatically determine the best group by time',
-  values: intervalValuesPoints,
-}
-
-export const TEMPLATES = [interval]
 
 export const IS_STATIC_LEGEND = legend =>
   _.get(legend, 'type', false) === 'static'

@@ -1,4 +1,3 @@
-import {interval} from 'src/shared/constants'
 import {
   Service,
   Source,
@@ -361,40 +360,6 @@ export const userDefinedTemplateVariables: Template[] = [
     ],
     id: '18855209-12db-4619-9834-1d7eb643ae6e',
   },
-]
-
-const dashtimeTempVar: Template = {
-  id: 'dashtime',
-  tempVar: ':dashboardTime:',
-  type: TemplateType.Constant,
-  values: [
-    {
-      value: 'now() - 5m',
-      type: TemplateValueType.Constant,
-      selected: true,
-      localSelected: true,
-    },
-  ],
-  label: '',
-}
-const upperdashtimeTempVar: Template = {
-  id: 'upperdashtime',
-  tempVar: ':upperDashboardTime:',
-  type: TemplateType.Constant,
-  values: [
-    {
-      value: 'now()',
-      type: TemplateValueType.Constant,
-      selected: true,
-      localSelected: true,
-    },
-  ],
-  label: '',
-}
-export const predefinedTemplateVariables: Template[] = [
-  {...dashtimeTempVar},
-  {...upperdashtimeTempVar},
-  {...interval},
 ]
 
 export const thresholdsListColors: Color[] = [
