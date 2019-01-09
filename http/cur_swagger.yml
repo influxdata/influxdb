@@ -2157,6 +2157,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Buckets
+      summary: Delete a bucket
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: bucketID
+          schema:
+            type: string
+          required: true
+          description: ID of bucket to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: bucket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/members':
     get:
       tags:

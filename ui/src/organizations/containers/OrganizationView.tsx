@@ -89,9 +89,9 @@ class OrganizationView extends PureComponent<Props> {
                   organization={org}
                   fetcher={getBuckets}
                 >
-                  {(buckets, loading) => (
+                  {(buckets, loading, fetch) => (
                     <Spinner loading={loading}>
-                      <Buckets buckets={buckets} org={org} />
+                      <Buckets buckets={buckets} org={org} onChange={fetch} />
                     </Spinner>
                   )}
                 </GetOrgResources>

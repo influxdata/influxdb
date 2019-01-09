@@ -89,7 +89,16 @@ export const updateBucket = async (bucket: Bucket): Promise<Bucket> => {
 
     return data
   } catch (error) {
-    console.error('Could not get members for org', error)
+    console.error('Could not update bucket for org', error)
+    throw error
+  }
+}
+
+export const deleteBucket = async (bucket: Bucket): Promise<void> => {
+  try {
+    await bucketsAPI.bucketsBucketIDDelete(bucket.id)
+  } catch (error) {
+    console.error('Could not delete buckets from org', error)
     throw error
   }
 }

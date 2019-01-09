@@ -23,7 +23,7 @@ import {
 import {ruleToString} from 'src/utils/formatting'
 
 // APIs
-import {createBucket, updateBucket} from 'src/organizations/apis'
+import {createBucket, updateBucket, deleteBucket} from 'src/organizations/apis'
 
 // Types
 import {OverlayState} from 'src/types/v2'
@@ -33,6 +33,7 @@ import {Bucket, Organization, BucketRetentionRules} from 'src/api'
 interface Props {
   org: Organization
   buckets: Bucket[]
+  onChange: () => void
 }
 
 interface State {
@@ -57,7 +58,7 @@ export default class Buckets extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {org} = this.props
+    const {org, buckets} = this.props
     const {searchTerm, overlayState} = this.state
 
     return (
@@ -81,13 +82,14 @@ export default class Buckets extends PureComponent<Props, State> {
         <FilterList<PrettyBucket>
           searchTerm={searchTerm}
           searchKeys={['name', 'ruleString']}
-          list={this.prettyBuckets(this.state.buckets)}
+          list={this.prettyBuckets(buckets)}
         >
           {bs => (
             <BucketList
               buckets={bs}
               emptyState={this.emptyState}
               onUpdateBucket={this.handleUpdateBucket}
+              onDeleteBucket={this.handleDeleteBucket}
             />
           )}
         </FilterList>
@@ -103,25 +105,20 @@ export default class Buckets extends PureComponent<Props, State> {
   }
 
   private handleUpdateBucket = async (updatedBucket: PrettyBucket) => {
-    const bucket = await updateBucket(updatedBucket)
-    const buckets = this.state.buckets.map(b => {
-      if (b.id === bucket.id) {
-        return bucket
-      }
-
-      return b
-    })
-
-    this.setState({buckets: this.prettyBuckets(buckets)})
+    await updateBucket(updatedBucket)
+    this.props.onChange()
+  }
+  private handleDeleteBucket = async (deletedBucket: PrettyBucket) => {
+    await deleteBucket(deletedBucket)
+    this.props.onChange()
   }
 
   private handleCreateBucket = async (
     org: Organization,
     bucket: Bucket
   ): Promise<void> => {
-    const b = await createBucket(org, bucket)
-    const buckets = this.prettyBuckets([b, ...this.props.buckets])
-    this.setState({buckets})
+    await createBucket(org, bucket)
+    this.props.onChange()
     this.handleCloseModal()
   }
 

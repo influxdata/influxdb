@@ -11,7 +11,11 @@ import {Organization} from 'src/api'
 interface Props<T> {
   organization: Organization
   fetcher: (org: Organization) => Promise<T>
-  children: (resources: T, loading: RemoteDataState) => JSX.Element
+  children: (
+    resources: T,
+    loading: RemoteDataState,
+    fetch?: () => void
+  ) => JSX.Element
 }
 
 interface State<T> {
@@ -33,13 +37,17 @@ export default class GetOrgResources<T> extends PureComponent<
   }
 
   public async componentDidMount() {
-    const {fetcher, organization} = this.props
-    const resources = await fetcher(organization)
-    this.setState({resources, loading: RemoteDataState.Done})
+    this.fetchResourcesForOrg()
   }
 
   public render() {
     const {resources, loading} = this.state
-    return this.props.children(resources, loading)
+    return this.props.children(resources, loading, this.fetchResourcesForOrg)
+  }
+
+  public fetchResourcesForOrg = async () => {
+    const {fetcher, organization} = this.props
+    const resources = await fetcher(organization)
+    this.setState({resources, loading: RemoteDataState.Done})
   }
 }

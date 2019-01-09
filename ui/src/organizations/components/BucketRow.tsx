@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {IndexList} from 'src/clockface'
+import {ComponentSize, IndexList, ConfirmationButton} from 'src/clockface'
 
 // Types
 import {OverlayState} from 'src/types/v2'
@@ -15,6 +15,7 @@ export interface PrettyBucket extends Bucket {
 interface Props {
   bucket: PrettyBucket
   onEditBucket: (b: PrettyBucket) => void
+  onDeleteBucket: (b: PrettyBucket) => void
 }
 
 interface State {
@@ -23,7 +24,7 @@ interface State {
 
 export default class BucketRow extends PureComponent<Props, State> {
   public render() {
-    const {bucket} = this.props
+    const {bucket, onDeleteBucket} = this.props
     return (
       <>
         <IndexList.Row>
@@ -33,6 +34,15 @@ export default class BucketRow extends PureComponent<Props, State> {
             </a>
           </IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
+          <IndexList.Cell>
+            <ConfirmationButton
+              size={ComponentSize.ExtraSmall}
+              text="Delete"
+              confirmText="Confirm"
+              onConfirm={onDeleteBucket}
+              returnValue={bucket}
+            />
+          </IndexList.Cell>
         </IndexList.Row>
       </>
     )
