@@ -377,7 +377,9 @@ func (e *Engine) DeleteBucket(orgID, bucketID platform.ID) error {
 	// don't have to remember to get it right everywhere we need to touch TSM data.
 	prefix := tsdb.EncodeName(orgID, bucketID)
 	_ = prefix
-	panic("TODO")
+
+	// TODO(edd): Call into tsm1.Engine to delete bucket
+	return nil
 }
 
 // DeleteSeriesRangeWithPredicate deletes all series data iterated over if fn returns

@@ -88,6 +88,76 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 	}
 }
 
+func TestLauncher_BucketDelete(t *testing.T) {
+	t.Skip("Awaiting storage.Engine.DeleteBucket implementation to be completed.")
+
+	l := RunLauncherOrFail(t, ctx)
+	l.SetupOrFail(t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	// Execute single write against the server.
+	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.StatusCode != nethttp.StatusNoContent {
+		t.Fatalf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
+	}
+
+	// Query server to ensure write persists.
+	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
+	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
+		`,result,table,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v` + "\r\n\r\n"
+
+	var buf bytes.Buffer
+	req := (http.QueryRequest{Query: qs, Org: l.Org}).WithDefaults()
+	if preq, err := req.ProxyRequest(); err != nil {
+		t.Fatal(err)
+	} else if _, err := l.FluxService().Query(ctx, &buf, preq); err != nil {
+		t.Fatal(err)
+	} else if diff := cmp.Diff(buf.String(), exp); diff != "" {
+		t.Fatal(diff)
+	}
+
+	// Verify the cardinality in the engine.
+	engine := l.Launcher.Engine()
+	if got, exp := engine.SeriesCardinality(), int64(1); got != exp {
+		t.Fatalf("got %d, exp %d", got, exp)
+	}
+
+	// Delete the bucket.
+	if resp, err = nethttp.DefaultClient.Do(l.MustNewHTTPRequest("DELETE", fmt.Sprintf("/api/v2/buckets/%s", l.Bucket.ID), "")); err != nil {
+		t.Fatal(err)
+	}
+
+	if body, err = ioutil.ReadAll(resp.Body); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.StatusCode != nethttp.StatusNoContent {
+		t.Fatalf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
+	}
+
+	// Verify that the data has been removed from the storage engine.
+	if got, exp := engine.SeriesCardinality(), int64(0); got != exp {
+		t.Fatalf("after bucket delete got %d, exp %d", got, exp)
+	}
+}
+
 // Launcher is a test wrapper for launcher.Launcher.
 type Launcher struct {
 	*launcher.Launcher

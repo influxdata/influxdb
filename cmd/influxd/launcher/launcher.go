@@ -39,7 +39,7 @@ import (
 	_ "github.com/influxdata/platform/tsdb/tsm1"
 	"github.com/influxdata/platform/vault"
 	pzap "github.com/influxdata/platform/zap"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -95,6 +95,12 @@ func (m *Launcher) Running() bool {
 // URL returns the URL to connect to the HTTP server.
 func (m *Launcher) URL() string {
 	return fmt.Sprintf("http://127.0.0.1:%d", m.httpPort)
+}
+
+// Engine returns a reference to the storage engine. It should only be called
+// for end-to-end testing purposes.
+func (m *Launcher) Engine() *storage.Engine {
+	return m.engine
 }
 
 // Shutdown shuts down the HTTP server and waits for all services to clean up.
@@ -377,13 +383,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	handlerConfig := &http.APIBackend{
-		DeveloperMode:                   m.developerMode,
-		Logger:                          m.logger,
-		NewBucketService:                source.NewBucketService,
-		NewQueryService:                 source.NewQueryService,
-		PointsWriter:                    pointsWriter,
-		AuthorizationService:            authSvc,
-		BucketService:                   bucketSvc,
+		DeveloperMode:        m.developerMode,
+		Logger:               m.logger,
+		NewBucketService:     source.NewBucketService,
+		NewQueryService:      source.NewQueryService,
+		PointsWriter:         pointsWriter,
+		AuthorizationService: authSvc,
+		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
+		BucketService:                   storage.NewBucketService(bucketSvc, m.engine),
 		SessionService:                  sessionSvc,
 		UserService:                     userSvc,
 		OrganizationService:             orgSvc,
