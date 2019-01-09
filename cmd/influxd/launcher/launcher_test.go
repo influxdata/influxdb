@@ -89,8 +89,6 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_BucketDelete(t *testing.T) {
-	t.Skip("Awaiting storage.Engine.DeleteBucket implementation to be completed.")
-
 	l := RunLauncherOrFail(t, ctx)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
