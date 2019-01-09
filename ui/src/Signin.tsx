@@ -1,13 +1,13 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // APIs
 import {trySources} from 'src/onboarding/apis'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import SigninPage from 'src/onboarding/containers/SigninPage'
-import Notifications from 'src/shared/components/notifications/Notifications'
+import {getMe} from 'src/shared/apis/v2/user'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -17,12 +17,17 @@ interface State {
   isUserSignedIn: boolean
 }
 
-interface Props {
+interface OwnProps {
   children: ReactElement<any>
 }
 
+type Props = OwnProps & WithRouterProps
+
+const FETCH_WAIT = 60000
+
 @ErrorHandling
 export class Signin extends PureComponent<Props, State> {
+  private intervalID: NodeJS.Timer
   constructor(props: Props) {
     super(props)
 
@@ -36,24 +41,23 @@ export class Signin extends PureComponent<Props, State> {
     const isSourcesAllowed = await trySources()
     const isUserSignedIn = isSourcesAllowed
     this.setState({loading: RemoteDataState.Done, isUserSignedIn})
+    this.checkForLogin()
+    this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
+    if (!isUserSignedIn) {
+      this.props.router.push('/signin')
+    }
+  }
+
+  public componentWillUnmount() {
+    clearInterval(this.intervalID)
   }
 
   public render() {
-    const {isUserSignedIn} = this.state
-
     if (this.isLoading) {
       return <div className="page-spinner" />
     }
-    if (!isUserSignedIn) {
-      return (
-        <div className="chronograf-root">
-          <Notifications inPresentationMode={true} />
-          <SigninPage onSignInUser={this.handleSignInUser} />
-        </div>
-      )
-    } else {
-      return this.props.children && React.cloneElement(this.props.children)
-    }
+
+    return this.props.children && React.cloneElement(this.props.children)
   }
 
   private get isLoading(): boolean {
@@ -64,9 +68,15 @@ export class Signin extends PureComponent<Props, State> {
     )
   }
 
-  private handleSignInUser = () => {
-    this.setState({isUserSignedIn: true})
+  private checkForLogin = async () => {
+    try {
+      await getMe()
+    } catch (error) {
+      clearInterval(this.intervalID)
+      this.setState({isUserSignedIn: false})
+      this.props.router.push('/signin')
+    }
   }
 }
 
-export default Signin
+export default withRouter(Signin)

@@ -19,6 +19,7 @@ import SetActiveSource from 'src/shared/containers/SetActiveSource'
 import GetOrganizations from 'src/shared/containers/GetOrganizations'
 import Setup from 'src/Setup'
 import Signin from 'src/Signin'
+import SigninPage from 'src/onboarding/containers/SigninPage'
 import Logout from 'src/Logout'
 import TaskPage from 'src/tasks/containers/TaskPage'
 import TasksPage from 'src/tasks/containers/TasksPage'
@@ -89,6 +90,7 @@ class Root extends PureComponent {
                 path="/onboarding/:stepID/:substepID"
                 component={OnboardingWizardPage}
               />
+              <Route path="/signin" component={SigninPage} />
               <Route component={Signin}>
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
