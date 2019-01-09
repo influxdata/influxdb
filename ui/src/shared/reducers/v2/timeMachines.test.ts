@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 // Reducers
 import {
   initialState,
@@ -34,6 +36,7 @@ import {
 // Types
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {
+  DashboardDraftQuery,
   DashboardQuery,
   QueryViewProperties,
   InfluxLanguage,
@@ -102,7 +105,9 @@ describe('timeMachinesReducer', () => {
 
     expect(nextTimeMachine.activeTab).toEqual(TimeMachineTab.Queries)
     expect(nextTimeMachine.activeQueryIndex).toEqual(0)
-    expect(nextTimeMachine.draftQueries).toEqual(view.properties.queries)
+    expect(
+      _.map(nextTimeMachine.draftQueries, q => _.omit(q, ['hidden']))
+    ).toEqual(view.properties.queries)
   })
 })
 
@@ -111,12 +116,13 @@ describe('timeMachineReducer', () => {
     test('replaces each queries text', () => {
       const state = initialStateHelper()
 
-      const queryA: DashboardQuery = {
+      const queryA: DashboardDraftQuery = {
         text: 'foo',
         type: InfluxLanguage.Flux,
         sourceID: '123',
         editMode: QueryEditMode.Builder,
         builderConfig: {buckets: [], tags: [], functions: []},
+        hidden: false,
       }
 
       const queryB: DashboardQuery = {
@@ -128,7 +134,10 @@ describe('timeMachineReducer', () => {
       }
 
       state.view.properties.queries = [queryA, queryB]
-      state.draftQueries = [{...queryA, text: 'baz'}, {...queryB, text: 'buzz'}]
+      state.draftQueries = [
+        {...queryA, text: 'baz', hidden: false},
+        {...queryB, text: 'buzz', hidden: false},
+      ]
 
       const actual = timeMachineReducer(state, submitScript()).view.properties
         .queries
@@ -151,6 +160,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'bar',
@@ -158,6 +168,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ]
 
@@ -171,6 +182,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: '',
@@ -182,6 +194,7 @@ describe('timeMachineReducer', () => {
             tags: [{key: '_measurement', values: []}],
             functions: [],
           },
+          hidden: false,
         },
       ])
     })
@@ -199,6 +212,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'bar',
@@ -206,6 +220,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ]
 
@@ -219,6 +234,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'bar',
@@ -226,6 +242,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ])
     })
@@ -243,6 +260,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'bar',
@@ -250,6 +268,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ]
 
@@ -263,6 +282,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'bar',
@@ -270,6 +290,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ])
     })
@@ -369,6 +390,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ]
 
@@ -382,6 +404,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: '',
@@ -393,13 +416,14 @@ describe('timeMachineReducer', () => {
             tags: [{key: '_measurement', values: []}],
             functions: [],
           },
+          hidden: false,
         },
       ])
     })
   })
 
   describe('REMOVE_QUERY', () => {
-    let queries: DashboardQuery[]
+    let queries: DashboardDraftQuery[]
 
     beforeEach(() => {
       queries = [
@@ -409,6 +433,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'b',
@@ -416,6 +441,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'c',
@@ -423,6 +449,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ]
     })
@@ -468,6 +495,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig,
+          hidden: false,
         },
         {
           text: 'bar',
@@ -475,6 +503,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Builder,
           builderConfig,
+          hidden: false,
         },
       ]
 
@@ -490,6 +519,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig,
+          hidden: false,
         },
         {
           text: 'bar',
@@ -498,6 +528,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           name: 'test query',
           builderConfig,
+          hidden: false,
         },
       ])
     })

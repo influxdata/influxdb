@@ -46,6 +46,7 @@ export type Action =
   | SetActiveQueryIndexAction
   | AddQueryAction
   | RemoveQueryAction
+  | ToggleQueryAction
   | EditActiveQueryAsFluxAction
   | EditActiveQueryAsInfluxQLAction
   | EditActiveQueryWithBuilderAction
@@ -374,11 +375,28 @@ export const removeQuerySync = (queryIndex: number): RemoveQueryAction => ({
   payload: {queryIndex},
 })
 
+interface ToggleQueryAction {
+  type: 'TOGGLE_QUERY'
+  payload: {queryIndex: number}
+}
+
+export const toggleQuerySync = (queryIndex: number): ToggleQueryAction => ({
+  type: 'TOGGLE_QUERY',
+  payload: {queryIndex},
+})
+
 export const removeQuery = (queryIndex: number) => (
   dispatch: Dispatch<Action>
 ) => {
   dispatch(removeQuerySync(queryIndex))
   dispatch(loadBuckets())
+}
+
+export const toggleQuery = (queryIndex: number) => (
+  dispatch: Dispatch<Action>
+) => {
+  dispatch(toggleQuerySync(queryIndex))
+  dispatch(submitScript())
 }
 
 interface UpdateActiveQueryNameAction {

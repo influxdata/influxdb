@@ -1,6 +1,7 @@
 // Libraries
 import {get, cloneDeep} from 'lodash'
 import {produce} from 'immer'
+import _ from 'lodash'
 
 // Utils
 import {createView, defaultViewQuery} from 'src/shared/utils/view'
@@ -17,7 +18,7 @@ import {TimeRange} from 'src/types/v2'
 import {
   View,
   ViewType,
-  DashboardQuery,
+  DashboardDraftQuery,
   BuilderConfig,
   InfluxLanguage,
   QueryEditMode,
@@ -45,7 +46,7 @@ interface QueryBuilderState {
 export interface TimeMachineState {
   view: QueryView
   timeRange: TimeRange
-  draftQueries: DashboardQuery[]
+  draftQueries: DashboardDraftQuery[]
   isViewingRawData: boolean
   activeTab: TimeMachineTab
   activeQueryIndex: number | null
@@ -63,7 +64,7 @@ export interface TimeMachinesState {
 export const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
   view: createView(),
-  draftQueries: [defaultViewQuery()],
+  draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
   activeTab: TimeMachineTab.Queries,
   activeQueryIndex: 0,
@@ -91,7 +92,10 @@ export const timeMachinesReducer = (
     const {activeTimeMachineID, initialState} = action.payload
     const activeTimeMachine = state.timeMachines[activeTimeMachineID]
     const view = initialState.view || activeTimeMachine.view
-    const draftQueries = cloneDeep(view.properties.queries)
+    const draftQueries = _.map(cloneDeep(view.properties.queries), q => ({
+      ...q,
+      hidden: false,
+    }))
     const queryBuilder = initialQueryBuilderState(draftQueries[0].builderConfig)
     const activeQueryIndex = 0
 
@@ -346,7 +350,7 @@ export const timeMachineReducer = (
       const {activeQueryIndex} = state
       const draftQueries = [...state.draftQueries]
 
-      draftQueries[activeQueryIndex] = defaultViewQuery()
+      draftQueries[activeQueryIndex] = {...defaultViewQuery(), hidden: false}
 
       return {
         ...state,
@@ -398,7 +402,10 @@ export const timeMachineReducer = (
 
     case 'ADD_QUERY': {
       return produce(state, draftState => {
-        draftState.draftQueries = [...state.draftQueries, defaultViewQuery()]
+        draftState.draftQueries = [
+          ...state.draftQueries,
+          {...defaultViewQuery(), hidden: false},
+        ]
         draftState.activeQueryIndex = draftState.draftQueries.length - 1
 
         resetBuilderState(draftState)
@@ -427,6 +434,14 @@ export const timeMachineReducer = (
 
         resetBuilderState(draftState)
         submitQueries(draftState)
+      })
+    }
+
+    case 'TOGGLE_QUERY': {
+      return produce(state, draftState => {
+        const draftQuery = draftState.draftQueries[action.payload.queryIndex]
+
+        draftQuery.hidden = !draftQuery.hidden
       })
     }
 
@@ -731,5 +746,8 @@ const resetBuilderState = (draftState: TimeMachineState) => {
 
 const submitQueries = (draftState: TimeMachineState) => {
   draftState.submitToken = Date.now()
-  draftState.view.properties.queries = draftState.draftQueries
+  draftState.view.properties.queries = _.filter(
+    draftState.draftQueries,
+    q => !q.hidden
+  )
 }
