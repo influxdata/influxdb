@@ -12,6 +12,19 @@ import (
 	"github.com/influxdata/platform/telegraf/plugins/outputs"
 )
 
+// ErrTelegrafConfigInvalidOrganizationID is the error message for a missing or invalid organization ID.
+const ErrTelegrafConfigInvalidOrganizationID = "invalid organization ID"
+
+// ops for buckets error and buckets op logs.
+var (
+	OpFindTelegrafConfigByID = "FindTelegrafConfigByID"
+	OpFindTelegrafConfig     = "FindTelegrafConfig"
+	OpFindTelegrafConfigs    = "FindTelegrafConfigs"
+	OpCreateTelegrafConfig   = "CreateTelegrafConfig"
+	OpUpdateTelegrafConfig   = "UpdateTelegrafConfig"
+	OpDeleteTelegrafConfig   = "DeleteTelegrafConfig"
+)
+
 // TelegrafConfigStore represents a service for managing telegraf config data.
 type TelegrafConfigStore interface {
 	// UserResourceMappingService must be part of all TelegrafConfigStore service,
@@ -22,11 +35,11 @@ type TelegrafConfigStore interface {
 	FindTelegrafConfigByID(ctx context.Context, id ID) (*TelegrafConfig, error)
 
 	// FindTelegrafConfig returns the first telegraf config that matches filter.
-	FindTelegrafConfig(ctx context.Context, filter UserResourceMappingFilter) (*TelegrafConfig, error)
+	FindTelegrafConfig(ctx context.Context, filter TelegrafConfigFilter) (*TelegrafConfig, error)
 
 	// FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 	// Additional options provide pagination & sorting.
-	FindTelegrafConfigs(ctx context.Context, filter UserResourceMappingFilter, opt ...FindOptions) ([]*TelegrafConfig, int, error)
+	FindTelegrafConfigs(ctx context.Context, filter TelegrafConfigFilter, opt ...FindOptions) ([]*TelegrafConfig, int, error)
 
 	// CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
 	CreateTelegrafConfig(ctx context.Context, tc *TelegrafConfig, userID ID) error
@@ -39,10 +52,17 @@ type TelegrafConfigStore interface {
 	DeleteTelegrafConfig(ctx context.Context, id ID) error
 }
 
+// TelegrafConfigFilter represents a set of filter that restrict the returned telegraf configs.
+type TelegrafConfigFilter struct {
+	OrganizationID *ID
+	UserResourceMappingFilter
+}
+
 // TelegrafConfig stores telegraf config for one telegraf instance.
 type TelegrafConfig struct {
-	ID   ID
-	Name string
+	ID             ID
+	OrganizationID ID
+	Name           string
 
 	Agent   TelegrafAgentConfig
 	Plugins []TelegrafPlugin
@@ -114,8 +134,9 @@ func (tc TelegrafConfig) TOML() string {
 
 // telegrafConfigEncode is the helper struct for json encoding.
 type telegrafConfigEncode struct {
-	ID   ID     `json:"id"`
-	Name string `json:"name"`
+	ID             ID     `json:"id"`
+	OrganizationID ID     `json:"organizationID,omitempty"`
+	Name           string `json:"name"`
 
 	Agent TelegrafAgentConfig `json:"agent"`
 
@@ -133,8 +154,9 @@ type telegrafPluginEncode struct {
 
 // telegrafConfigDecode is the helper struct for json decoding.
 type telegrafConfigDecode struct {
-	ID   ID     `json:"id"`
-	Name string `json:"name"`
+	ID             ID     `json:"id"`
+	OrganizationID ID     `json:"organizationID,omitempty"`
+	Name           string `json:"name"`
 
 	Agent TelegrafAgentConfig `json:"agent"`
 
@@ -174,10 +196,11 @@ const (
 func (tc *TelegrafConfig) MarshalJSON() ([]byte, error) {
 	tce := new(telegrafConfigEncode)
 	*tce = telegrafConfigEncode{
-		ID:      tc.ID,
-		Name:    tc.Name,
-		Agent:   tc.Agent,
-		Plugins: make([]telegrafPluginEncode, len(tc.Plugins)),
+		ID:             tc.ID,
+		OrganizationID: tc.OrganizationID,
+		Name:           tc.Name,
+		Agent:          tc.Agent,
+		Plugins:        make([]telegrafPluginEncode, len(tc.Plugins)),
 	}
 	for k, p := range tc.Plugins {
 		tce.Plugins[k] = telegrafPluginEncode{
@@ -279,10 +302,11 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*tc = TelegrafConfig{
-		ID:      tcd.ID,
-		Name:    tcd.Name,
-		Agent:   tcd.Agent,
-		Plugins: make([]TelegrafPlugin, len(tcd.Plugins)),
+		ID:             tcd.ID,
+		OrganizationID: tcd.OrganizationID,
+		Name:           tcd.Name,
+		Agent:          tcd.Agent,
+		Plugins:        make([]TelegrafPlugin, len(tcd.Plugins)),
 	}
 	return decodePluginRaw(tcd, tc)
 }

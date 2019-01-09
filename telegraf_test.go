@@ -77,22 +77,22 @@ func (u *unsupportedPlugin) UnmarshalTOML(data interface{}) error {
 
 func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 	s := `{
-		"name":"config 2",
+		"name": "config 2",
 		"agent": {
 			"collectionInterval": 120000
 		},
 		"plugins": [
 			{
-				"name":"cpu",
-				"type":"input",
+				"name": "cpu",
+				"type": "input",
 				"comment": "cpu collect cpu metrics",
 				"config":{}
 			},
 			{
-				"name":"kubernetes",
-				"type":"input",
+				"name": "kubernetes",
+				"type": "input",
 				"config":{
-					"url":"http://1.1.1.1:12"
+					"url": "http://1.1.1.1:12"
 				}
 			},
 			{
@@ -150,6 +150,7 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 
 func TestTelegrafConfigJSON(t *testing.T) {
 	id1, _ := IDFromString("020f755c3c082000")
+	id2, _ := IDFromString("020f755c3c082222")
 	cases := []struct {
 		name string
 		cfg  *TelegrafConfig
@@ -158,8 +159,9 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "regular config",
 			cfg: &TelegrafConfig{
-				ID:   *id1,
-				Name: "n1",
+				ID:             *id1,
+				OrganizationID: *id2,
+				Name:           "n1",
 				Agent: TelegrafAgentConfig{
 					Interval: 4000,
 				},
@@ -193,8 +195,9 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "unsupported plugin type",
 			cfg: &TelegrafConfig{
-				ID:   *id1,
-				Name: "n1",
+				ID:             *id1,
+				OrganizationID: *id2,
+				Name:           "n1",
 				Plugins: []TelegrafPlugin{
 					{
 						Comment: "comment3",
@@ -213,8 +216,9 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "unsupported plugin",
 			cfg: &TelegrafConfig{
-				ID:   *id1,
-				Name: "n1",
+				ID:             *id1,
+				OrganizationID: *id2,
+				Name:           "n1",
 				Plugins: []TelegrafPlugin{
 					{
 						Config: &unsupportedPlugin{
@@ -234,7 +238,7 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		result, err := json.Marshal(c.cfg)
 		// encode testing
 		if err != nil {
-			t.Fatalf("%s encode failed, want cfg: %v, should be nil", c.name, err)
+			t.Fatalf("%s encode failed, got: %v, should be nil", c.name, err)
 		}
 		got := new(TelegrafConfig)
 		err = json.Unmarshal([]byte(result), got)
