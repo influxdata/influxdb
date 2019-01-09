@@ -63,6 +63,7 @@ exports[`TasksList rendering renders 1`] = `
 from(bucket: \\"inbucket\\") 
 |> range(start: -1h)",
             "id": "02ef9deff2141000",
+            "labels": Array [],
             "name": "pasdlak",
             "organization": Object {
               "id": "02ee9e2a29d73000",
@@ -92,6 +93,24 @@ from(bucket: \\"inbucket\\")
 from(bucket: \\"inbucket\\") 
 |> range(start: -task.every)",
             "id": "02f12c50dba72000",
+            "labels": Array [
+              Object {
+                "name": "Trogdor",
+                "properties": Object {
+                  "color": "#44ffcc",
+                  "description": "Burninating the countryside",
+                },
+                "resourceID": "dashboard-mock-label-a",
+              },
+              Object {
+                "name": "Strawberry",
+                "properties": Object {
+                  "color": "#ff0054",
+                  "description": "It is a great fruit",
+                },
+                "resourceID": "dashboard-mock-label-b",
+              },
+            ],
             "name": "somename",
             "organization": Object {
               "id": "02ee9e2a29d73000",

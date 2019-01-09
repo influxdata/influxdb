@@ -2673,6 +2673,12 @@ export interface Task {
      */
     owner?: User;
     /**
+     * 
+     * @type {Array<Label>}
+     * @memberof Task
+     */
+    labels?: Array<Label>;
+    /**
      * The Flux script to run for this task.
      * @type {string}
      * @memberof Task
@@ -2691,11 +2697,17 @@ export interface Task {
      */
     cron?: string;
     /**
-     * How long to wait before running the task
+     * Duration to delay after the schedule, before executing the task; parsed from flux.
      * @type {string}
      * @memberof Task
      */
     offset?: string;
+    /**
+     * Timestamp of latest scheduled, completed run, RFC3339.
+     * @type {Date}
+     * @memberof Task
+     */
+    latestCompleted?: Date;
     /**
      * 
      * @type {TaskLinks}

@@ -11,16 +11,16 @@ import {
   SlideToggle,
   IndexList,
   ConfirmationButton,
+  Stack,
+  Label,
 } from 'src/clockface'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
-import {Task as TaskAPI, User, Organization} from 'src/api'
+import {Task as TaskAPI, Organization} from 'src/api'
 
 interface Task extends TaskAPI {
   organization: Organization
-  owner?: User
-  offset?: string
 }
 
 // Constants
@@ -33,16 +33,19 @@ interface Props {
   onSelect: (task: Task) => void
 }
 
-class TaskRow extends PureComponent<Props & WithRouterProps> {
+export class TaskRow extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {task, onDelete} = this.props
 
     return (
       <IndexList.Row disabled={!this.isTaskActive}>
         <IndexList.Cell>
-          <a href="#" onClick={this.handleClick}>
-            {task.name}
-          </a>
+          <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
+            <a href="#" onClick={this.handleClick}>
+              {task.name}
+            </a>
+            {this.labels}
+          </ComponentSpacer>
         </IndexList.Cell>
         <IndexList.Cell>
           <SlideToggle
@@ -92,6 +95,27 @@ class TaskRow extends PureComponent<Props & WithRouterProps> {
   private handleOrgClick = () => {
     const {router, task} = this.props
     router.push(`/organizations/${task.organization.id}/members_tab`)
+  }
+
+  private get labels(): JSX.Element {
+    const {task} = this.props
+    if (!task.labels.length) {
+      return
+    }
+
+    return (
+      <Label.Container limitChildCount={4}>
+        {task.labels.map(label => (
+          <Label
+            key={label.resourceID}
+            id={label.resourceID}
+            colorHex={label.properties.color}
+            name={label.name}
+            description={label.properties.description}
+          />
+        ))}
+      </Label.Container>
+    )
   }
 
   private get isTaskActive(): boolean {
