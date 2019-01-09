@@ -1,11 +1,12 @@
 package http
 
 import (
-	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"go.uber.org/zap"
 )
 
 func TestAPIHandler_NotFound(t *testing.T) {
@@ -64,8 +65,8 @@ func TestAPIHandler_NotFound(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. get %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. get\n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. -got/+want%s", tt.name, diff)
 			}
 
 		})

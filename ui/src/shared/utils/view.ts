@@ -17,7 +17,6 @@ import {
   DEFAULT_GAUGE_COLORS,
   DEFAULT_THRESHOLDS_LIST_COLORS,
 } from 'src/shared/constants/thresholds'
-import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 
 function defaultView() {
   return {
@@ -33,8 +32,7 @@ export function defaultViewQuery(): DashboardQuery {
     editMode: QueryEditMode.Builder,
     builderConfig: {
       buckets: [],
-      measurements: [],
-      fields: [],
+      tags: [{key: '_measurement', values: []}],
       functions: [],
     },
   }
@@ -150,11 +148,11 @@ const NEW_VIEW_CREATORS = {
       queries: [defaultViewQuery()],
       colors: DEFAULT_THRESHOLDS_LIST_COLORS,
       tableOptions: {
-        verticalTimeAxis: false,
-        sortBy: DEFAULT_TIME_FIELD,
+        verticalTimeAxis: true,
+        sortBy: null,
         fixFirstColumn: false,
       },
-      fieldOptions: [DEFAULT_TIME_FIELD],
+      fieldOptions: [],
       decimalPlaces: {
         isEnforced: false,
         digits: 2,

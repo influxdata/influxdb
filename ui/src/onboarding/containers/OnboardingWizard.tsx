@@ -105,7 +105,7 @@ class OnboardingWizard extends PureComponent<Props> {
     'Complete',
   ]
 
-  public stepSkippable = [false, false, false, false, false, false]
+  public stepSkippable = [true, false, true, true, true, true]
 
   constructor(props: Props) {
     super(props)
@@ -190,6 +190,7 @@ class OnboardingWizard extends PureComponent<Props> {
           handleSetCurrentStep={onSetCurrentStepIndex}
           stepStatuses={stepStatuses}
           stepTitles={this.stepTitles}
+          stepSkippable={this.stepSkippable}
         />
       </WizardProgressHeader>
     )

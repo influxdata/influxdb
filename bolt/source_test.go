@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/bolt"
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
-func initSourceService(f platformtesting.SourceFields, t *testing.T) (platform.SourceService, func()) {
+func initSourceService(f platformtesting.SourceFields, t *testing.T) (platform.SourceService, string, func()) {
 	c, closeFn, err := NewTestClient()
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
@@ -20,7 +21,7 @@ func initSourceService(f platformtesting.SourceFields, t *testing.T) (platform.S
 			t.Fatalf("failed to populate buckets")
 		}
 	}
-	return c, func() {
+	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, b := range f.Sources {
 			if err := c.DeleteSource(ctx, b.ID); err != nil {

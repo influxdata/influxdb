@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import Rows from 'src/onboarding/components/configureStep/streaming/MultipleRow'
+import Rows from 'src/onboarding/components/configureStep/streaming/MultipleRows'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   Input,

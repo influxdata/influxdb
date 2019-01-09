@@ -44,7 +44,7 @@
   &.component-spacer--right > * {
     margin-left: $ix-marg-a;
   
-    &:last-child {
+    &:first-child {
       margin-left: 0;
     }
   }

@@ -10,7 +10,7 @@ import {MultiGrid, PropsMultiGrid} from 'src/shared/components/MultiGrid'
 
 // Utils
 import {withHoverTime, InjectedHoverProps} from 'src/dashboards/utils/hoverTime'
-import {fastReduce} from 'src/utils/fast'
+import {findHoverTimeIndex} from 'src/dashboards/utils/tableGraph'
 
 // Constants
 import {
@@ -208,25 +208,14 @@ class TableGraphTable extends PureComponent<Props, State> {
     const {hoveredColumnIndex} = this.state
     const {hoverTime} = this.props
     const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
+
     if (!hoverTime || hoveringThisTable || !this.isTimeVisible) {
       return {scrollToColumn: 0, scrollToRow: -1}
     }
 
-    const firstDiff = this.getTimeDifference(hoverTime, sortedTimeVals[1]) // sortedTimeVals[0] is "time"
-    const hoverTimeFound = fastReduce<string, {index: number; diff: number}>(
-      sortedTimeVals,
-      (acc, currentTime, index) => {
-        const thisDiff = this.getTimeDifference(hoverTime, currentTime)
-        if (thisDiff < acc.diff) {
-          return {index, diff: thisDiff}
-        }
-        return acc
-      },
-      {index: 1, diff: firstDiff}
-    )
-
-    const scrollToColumn = this.isVerticalTimeAxis ? -1 : hoverTimeFound.index
-    const scrollToRow = this.isVerticalTimeAxis ? hoverTimeFound.index : null
+    const hoverIndex = findHoverTimeIndex(sortedTimeVals, hoverTime)
+    const scrollToColumn = this.isVerticalTimeAxis ? -1 : hoverIndex
+    const scrollToRow = this.isVerticalTimeAxis ? hoverIndex : null
     return {scrollToRow, scrollToColumn}
   }
 
@@ -248,10 +237,6 @@ class TableGraphTable extends PureComponent<Props, State> {
     ref.forceUpdate()
   }
 
-  private getTimeDifference(hoverTime, time: string | number) {
-    return Math.abs(parseInt(hoverTime, 10) - parseInt(time as string, 10))
-  }
-
   private handleHover = (e: React.MouseEvent<HTMLElement>) => {
     const {dataset} = e.target as HTMLElement
     const {onSetHoverTime} = this.props
@@ -266,7 +251,8 @@ class TableGraphTable extends PureComponent<Props, State> {
       const hoverTime = this.isVerticalTimeAxis
         ? sortedTimeVals[dataset.rowIndex]
         : sortedTimeVals[dataset.columnIndex]
-      onSetHoverTime(_.defaultTo(hoverTime, '').toString())
+
+      onSetHoverTime(new Date(hoverTime).valueOf())
     }
     this.setState({
       hoveredColumnIndex: +dataset.columnIndex,
@@ -276,8 +262,9 @@ class TableGraphTable extends PureComponent<Props, State> {
 
   private handleMouseLeave = (): void => {
     const {onSetHoverTime} = this.props
+
     if (onSetHoverTime) {
-      onSetHoverTime(null)
+      onSetHoverTime(0)
     }
     this.setState({
       hoveredColumnIndex: NULL_ARRAY_INDEX,
@@ -336,6 +323,8 @@ class TableGraphTable extends PureComponent<Props, State> {
       properties,
     } = this.props
     const {hoveredRowIndex, hoveredColumnIndex} = this.state
+    const {scrollToRow} = this.scrollToColRow
+    const hoverIndex = scrollToRow >= 0 ? scrollToRow : hoveredRowIndex
 
     return (
       <TableCell
@@ -344,7 +333,7 @@ class TableGraphTable extends PureComponent<Props, State> {
         onHover={this.handleHover}
         isTimeVisible={this.isTimeVisible}
         data={this.getCellData(rowIndex, columnIndex)}
-        hoveredRowIndex={hoveredRowIndex}
+        hoveredRowIndex={hoverIndex}
         properties={properties}
         resolvedFieldOptions={resolvedFieldOptions}
         hoveredColumnIndex={hoveredColumnIndex}

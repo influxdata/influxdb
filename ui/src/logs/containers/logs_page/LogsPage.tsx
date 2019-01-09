@@ -148,7 +148,7 @@ class LogsPage extends Component<Props, State> {
     } = this.props
 
     return (
-      <Page>
+      <Page titleTag="Log Viewer">
         {this.header}
         <div className="page-contents logs-viewer">
           <SearchBar

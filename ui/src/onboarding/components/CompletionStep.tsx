@@ -22,11 +22,11 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
     const {onExit, onDecrementCurrentStepIndex} = this.props
 
     return (
-      <div className="onboarding-step">
+      <div className="wizard--bookend-step">
         <div className="splash-logo secondary" />
         <h3 className="wizard-step--title">Setup Complete!</h3>
         <h5 className="wizard-step--sub-title" />
-        <div className="wizard--button-bar">
+        <div>
           <Button
             color={ComponentColor.Default}
             text="Back to Verify"

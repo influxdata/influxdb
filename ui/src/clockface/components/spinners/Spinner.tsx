@@ -15,7 +15,7 @@ interface Props {
 @ErrorHandling
 export default class Spinner extends Component<Props> {
   public render() {
-    return <>{this.children}</>
+    return this.children
   }
 
   private get children(): JSX.Element | JSX.Element[] {

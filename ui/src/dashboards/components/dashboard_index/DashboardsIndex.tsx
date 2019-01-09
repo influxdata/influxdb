@@ -90,7 +90,7 @@ class DashboardIndex extends PureComponent<Props, State> {
 
     return (
       <>
-        <Page>
+        <Page titleTag="Dashboards">
           <Page.Header fullWidth={false}>
             <Page.Header.Left>
               <Page.Title title="Dashboards" />

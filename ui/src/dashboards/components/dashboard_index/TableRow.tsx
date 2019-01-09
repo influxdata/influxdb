@@ -5,48 +5,60 @@ import {Link} from 'react-router'
 // Components
 import {
   Button,
-  ComponentColor,
   IconFont,
   ComponentSize,
   ComponentSpacer,
   IndexList,
+  ConfirmationButton,
+  Stack,
+  Label,
 } from 'src/clockface'
-import DefaultToggle from 'src/dashboards/components/DashboardDefaultToggle'
 
 // Types
 import {Dashboard} from 'src/types/v2'
 import {Alignment} from 'src/clockface'
+import moment from 'moment'
+
+// Constants
+import {
+  UPDATED_AT_TIME_FORMAT,
+  DEFAULT_DASHBOARD_NAME,
+} from 'src/dashboards/constants'
 
 interface Props {
   dashboard: Dashboard
-  defaultDashboardLink: string
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
-  onSetDefaultDashboard: (dashboardLink: string) => void
 }
 
 export default class DashboardsIndexTableRow extends PureComponent<Props> {
   public render() {
-    const {dashboard, onSetDefaultDashboard, defaultDashboardLink} = this.props
-    const {id, name, links} = dashboard
+    const {dashboard, onDeleteDashboard} = this.props
+    const {id} = dashboard
 
     return (
       <IndexList.Row key={`dashboard-id--${id}`} disabled={false}>
         <IndexList.Cell>
-          <Link to={`/dashboards/${id}`}>{name}</Link>
+          <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
+            <ComponentSpacer
+              stackChildren={Stack.Columns}
+              align={Alignment.Left}
+            >
+              <Link className={this.nameClassName} to={`/dashboards/${id}`}>
+                {this.name}
+              </Link>
+              {this.labels}
+            </ComponentSpacer>
+            {this.description}
+          </ComponentSpacer>
         </IndexList.Cell>
-        <IndexList.Cell>You</IndexList.Cell>
-        <IndexList.Cell>12h Ago</IndexList.Cell>
-        <IndexList.Cell alignment={Alignment.Center}>
-          <DefaultToggle
-            dashboardLink={links.self}
-            defaultDashboardLink={defaultDashboardLink}
-            onChangeDefault={onSetDefaultDashboard}
-          />
+        <IndexList.Cell>Owner does not come back from API</IndexList.Cell>
+        <IndexList.Cell>
+          {moment(dashboard.meta.updatedAt).format(UPDATED_AT_TIME_FORMAT)}
         </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
-          <ComponentSpacer align={Alignment.Right}>
+          <ComponentSpacer align={Alignment.Left} stackChildren={Stack.Columns}>
             <Button
               size={ComponentSize.ExtraSmall}
               text="Export"
@@ -59,15 +71,66 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
               icon={IconFont.Duplicate}
               onClick={this.handleClone}
             />
-            <Button
-              size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Danger}
+            <ConfirmationButton
               text="Delete"
-              onClick={this.handleDelete}
+              size={ComponentSize.ExtraSmall}
+              onConfirm={onDeleteDashboard}
+              returnValue={dashboard}
+              confirmText="Confirm"
             />
           </ComponentSpacer>
         </IndexList.Cell>
       </IndexList.Row>
+    )
+  }
+
+  private get labels(): JSX.Element {
+    const {dashboard} = this.props
+
+    if (!dashboard.labels.length) {
+      return
+    }
+
+    return (
+      <Label.Container limitChildCount={4} className="index-list--labels">
+        {dashboard.labels.map(label => (
+          <Label
+            key={label.resourceID}
+            id={label.resourceID}
+            colorHex={label.properties.color}
+            name={label.name}
+            description={label.properties.description}
+          />
+        ))}
+      </Label.Container>
+    )
+  }
+
+  private get name(): string {
+    const {dashboard} = this.props
+
+    return dashboard.name || DEFAULT_DASHBOARD_NAME
+  }
+
+  private get nameClassName(): string {
+    const {dashboard} = this.props
+
+    if (dashboard.name === '' || dashboard.name === DEFAULT_DASHBOARD_NAME) {
+      return 'untitled-name'
+    }
+  }
+
+  private get description(): JSX.Element {
+    const {dashboard} = this.props
+
+    if (dashboard.description) {
+      return (
+        <div className="index-list--description">{dashboard.description}</div>
+      )
+    }
+
+    return (
+      <div className="index-list--description untitled">No description</div>
     )
   }
 
@@ -79,10 +142,5 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
   private handleClone = () => {
     const {onCloneDashboard, dashboard} = this.props
     onCloneDashboard(dashboard)
-  }
-
-  private handleDelete = () => {
-    const {onDeleteDashboard, dashboard} = this.props
-    onDeleteDashboard(dashboard)
   }
 }

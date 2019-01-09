@@ -26,7 +26,7 @@ import (
 // QueryRequest is a flux query request.
 type QueryRequest struct {
 	Spec    *flux.Spec   `json:"spec,omitempty"`
-	AST     *ast.Program `json:"ast,omitempty"`
+	AST     *ast.Package `json:"ast,omitempty"`
 	Query   string       `json:"query"`
 	Type    string       `json:"type"`
 	Dialect QueryDialect `json:"dialect"`
@@ -128,48 +128,25 @@ func (r QueryRequest) Analyze() (*QueryAnalysis, error) {
 
 func (r QueryRequest) analyzeFluxQuery() (*QueryAnalysis, error) {
 	a := &QueryAnalysis{}
-	_, err := parser.NewAST(r.Query)
-	if err == nil {
+	pkg := parser.ParseSource(r.Query)
+	errCount := ast.Check(pkg)
+	if errCount == 0 {
 		a.Errors = []queryParseError{}
 		return a, nil
 	}
-
-	ms := fluxParseErrorRE.FindAllStringSubmatch(err.Error(), -1)
-	a.Errors = make([]queryParseError, 0, len(ms))
-	for _, m := range ms {
-		if len(m) != 5 {
-			return nil, fmt.Errorf("flux query error is not formatted as expected: got %d matches expected 5", len(m))
+	a.Errors = make([]queryParseError, 0, errCount)
+	ast.Walk(ast.CreateVisitor(func(node ast.Node) {
+		loc := node.Location()
+		for _, err := range node.Errs() {
+			a.Errors = append(a.Errors, queryParseError{
+				Line:    loc.Start.Line,
+				Column:  loc.Start.Column,
+				Message: err.Msg,
+			})
 		}
-		lineStr := m[1]
-		line, err := strconv.Atoi(lineStr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse line number from error mesage: %s -> %v", lineStr, err)
-		}
-		colStr := m[2]
-		col, err := strconv.Atoi(colStr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse column number from error mesage: %s -> %v", colStr, err)
-		}
-		charStr := m[3]
-		char, err := strconv.Atoi(charStr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse character number from error mesage: %s -> %v", charStr, err)
-		}
-		msg := m[4]
-
-		a.Errors = append(a.Errors, queryParseError{
-			Line:      line,
-			Column:    col,
-			Character: char,
-			Message:   msg,
-		})
-
-	}
-
+	}), pkg)
 	return a, nil
 }
-
-var fluxParseErrorRE = regexp.MustCompile(`(\d+):(\d+) \((\d+)\): ([[:graph:] ]+)`)
 
 func (r QueryRequest) analyzeInfluxQLQuery() (*QueryAnalysis, error) {
 	a := &QueryAnalysis{}
@@ -238,7 +215,7 @@ func nowFunc(now time.Time) values.Function {
 	return values.NewFunction("now", ftype, call, sideEffect)
 }
 
-func toSpec(p *ast.Program, now func() time.Time) (*flux.Spec, error) {
+func toSpec(p *ast.Package, now func() time.Time) (*flux.Spec, error) {
 	itrp := flux.NewInterpreter()
 	itrp.SetOption("now", nowFunc(now()))
 	semProg, err := semantic.New(p)
@@ -337,8 +314,18 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 
 func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.OrganizationService) (*QueryRequest, error) {
 	var req QueryRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+	// TODO(desa): I'm not sure I like this kind of conditional logic, but it feels better than
+	// introducing another method that does this exact thing.
+	if r.Method == http.MethodGet {
+		qp := r.URL.Query()
+		req.Query = qp.Get("query")
+		if req.Query == "" {
+			return nil, errors.New("query param \"query\" is required")
+		}
+	} else {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			return nil, err
+		}
 	}
 
 	req = req.WithDefaults()

@@ -203,8 +203,8 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 				if tt.wants.contentType != "" && content != tt.wants.contentType {
 					t.Errorf("%q. GetMembersHandler() = %v, want %v", tt.name, content, tt.wants.contentType)
 				}
-				if eq, _ := jsonEqual(string(body), fmt.Sprintf(tt.wants.body, resourceType)); tt.wants.body != "" && !eq {
-					t.Errorf("%q. GetMembersHandler() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), fmt.Sprintf(tt.wants.body, resourceType))
+				if eq, diff, _ := jsonEqual(string(body), fmt.Sprintf(tt.wants.body, resourceType)); tt.wants.body != "" && !eq {
+					t.Errorf("%q. GetMembersHandler() = ***%s***", tt.name, diff)
 				}
 			})
 		}
@@ -353,8 +353,8 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 				if tt.wants.contentType != "" && content != tt.wants.contentType {
 					t.Errorf("%q. PostMembersHandler() = %v, want %v", tt.name, content, tt.wants.contentType)
 				}
-				if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-					t.Errorf("%q. PostMembersHandler() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+				if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+					t.Errorf("%q. PostMembersHandler() = ***%s***", tt.name, diff)
 				}
 			})
 		}

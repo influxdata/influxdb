@@ -80,7 +80,11 @@ class LineOptions extends PureComponent<Props> {
 
     return (
       <>
-        <Grid.Column widthMD={Columns.Four}>
+        <Grid.Column
+          widthMD={Columns.Six}
+          widthLG={Columns.Four}
+          offsetLG={Columns.Two}
+        >
           <h4 className="view-options--header">Customize Graph</h4>
           <Form>
             <Grid>
@@ -95,7 +99,7 @@ class LineOptions extends PureComponent<Props> {
             </Grid>
           </Form>
         </Grid.Column>
-        <Grid.Column widthMD={Columns.Four}>
+        <Grid.Column widthMD={Columns.Six} widthLG={Columns.Four}>
           <h4 className="view-options--header">Left Y Axis</h4>
           <Form>
             <Grid>
@@ -125,9 +129,6 @@ class LineOptions extends PureComponent<Props> {
               </Grid.Row>
             </Grid>
           </Form>
-        </Grid.Column>
-        <Grid.Column widthMD={Columns.Four}>
-          <h4 className="view-options--header">Right Y Axis</h4>
         </Grid.Column>
       </>
     )

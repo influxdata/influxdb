@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -13,8 +14,12 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {NotificationAction, RemoteDataState} from 'src/types'
+import StatusIndicator from 'src/onboarding/components/verifyStep/lineProtocol/StatusIndicator'
+import {AppState} from 'src/types/v2'
 
-export interface Props {
+interface OwnProps {
+  notify: NotificationAction
   type: DataLoaderType
   org: string
   bucket: string
@@ -23,10 +28,17 @@ export interface Props {
   telegrafConfigID: string
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   onSetStepStatus: (index: number, status: StepStatus) => void
+  onDecrementCurrentStep: () => void
 }
 
+interface StateProps {
+  lpStatus: RemoteDataState
+}
+
+export type Props = OwnProps & StateProps
+
 @ErrorHandling
-class VerifyDataSwitcher extends PureComponent<Props> {
+export class VerifyDataSwitcher extends PureComponent<Props> {
   public render() {
     const {
       org,
@@ -37,12 +49,15 @@ class VerifyDataSwitcher extends PureComponent<Props> {
       authToken,
       telegrafConfigID,
       onSaveTelegrafConfig,
+      notify,
+      lpStatus,
     } = this.props
 
     switch (type) {
       case DataLoaderType.Streaming:
         return (
           <DataStreaming
+            notify={notify}
             org={org}
             configID={telegrafConfigID}
             authToken={authToken}
@@ -53,11 +68,28 @@ class VerifyDataSwitcher extends PureComponent<Props> {
           />
         )
       case DataLoaderType.LineProtocol:
-        return <div>Yay data has been loaded into {bucket}!</div>
+        return (
+          <StatusIndicator
+            status={lpStatus}
+            onClickRetry={this.handleClickRetry}
+          />
+        )
       default:
         return <div />
     }
   }
+
+  private handleClickRetry = () => {
+    this.props.onDecrementCurrentStep()
+  }
 }
 
-export default VerifyDataSwitcher
+const mstp = ({
+  onboarding: {
+    dataLoaders: {lpStatus},
+  },
+}: AppState): StateProps => ({
+  lpStatus,
+})
+
+export default connect<StateProps, {}, OwnProps>(mstp)(VerifyDataSwitcher)

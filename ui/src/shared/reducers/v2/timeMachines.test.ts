@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 // Reducers
 import {
   initialState,
@@ -9,15 +11,14 @@ import {
 // Actions
 import {
   submitScript,
-  setQuerySource,
   setActiveTab,
   setActiveTimeMachine,
-  setActiveQueryIndex,
+  setActiveQueryIndexSync,
   editActiveQueryWithBuilder,
   editActiveQueryAsFlux,
   editActiveQueryAsInfluxQL,
-  addQuery,
-  removeQuery,
+  addQuerySync,
+  removeQuerySync,
   updateActiveQueryName,
   setBackgroundThresholdColoring,
   setTextThresholdColoring,
@@ -35,6 +36,7 @@ import {
 // Types
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {
+  DashboardDraftQuery,
   DashboardQuery,
   QueryViewProperties,
   InfluxLanguage,
@@ -80,24 +82,14 @@ describe('timeMachinesReducer', () => {
         type: InfluxLanguage.InfluxQL,
         sourceID: '123',
         editMode: QueryEditMode.Advanced,
-        builderConfig: {
-          buckets: [],
-          measurements: [],
-          fields: [],
-          functions: [],
-        },
+        builderConfig: {buckets: [], tags: [], functions: []},
       },
       {
         text: 'bar',
         type: InfluxLanguage.Flux,
         sourceID: '456',
         editMode: QueryEditMode.Builder,
-        builderConfig: {
-          buckets: [],
-          measurements: [],
-          fields: [],
-          functions: [],
-        },
+        builderConfig: {buckets: [], tags: [], functions: []},
       },
     ]
 
@@ -113,7 +105,9 @@ describe('timeMachinesReducer', () => {
 
     expect(nextTimeMachine.activeTab).toEqual(TimeMachineTab.Queries)
     expect(nextTimeMachine.activeQueryIndex).toEqual(0)
-    expect(nextTimeMachine.draftQueries).toEqual(view.properties.queries)
+    expect(
+      _.map(nextTimeMachine.draftQueries, q => _.omit(q, ['hidden']))
+    ).toEqual(view.properties.queries)
   })
 })
 
@@ -122,17 +116,13 @@ describe('timeMachineReducer', () => {
     test('replaces each queries text', () => {
       const state = initialStateHelper()
 
-      const queryA: DashboardQuery = {
+      const queryA: DashboardDraftQuery = {
         text: 'foo',
         type: InfluxLanguage.Flux,
         sourceID: '123',
         editMode: QueryEditMode.Builder,
-        builderConfig: {
-          buckets: [],
-          measurements: [],
-          fields: [],
-          functions: [],
-        },
+        builderConfig: {buckets: [], tags: [], functions: []},
+        hidden: false,
       }
 
       const queryB: DashboardQuery = {
@@ -140,16 +130,14 @@ describe('timeMachineReducer', () => {
         type: InfluxLanguage.Flux,
         sourceID: '456',
         editMode: QueryEditMode.Builder,
-        builderConfig: {
-          buckets: [],
-          measurements: [],
-          fields: [],
-          functions: [],
-        },
+        builderConfig: {buckets: [], tags: [], functions: []},
       }
 
       state.view.properties.queries = [queryA, queryB]
-      state.draftQueries = [{...queryA, text: 'baz'}, {...queryB, text: 'buzz'}]
+      state.draftQueries = [
+        {...queryA, text: 'baz', hidden: false},
+        {...queryB, text: 'buzz', hidden: false},
+      ]
 
       const actual = timeMachineReducer(state, submitScript()).view.properties
         .queries
@@ -157,18 +145,6 @@ describe('timeMachineReducer', () => {
       const expected = state.draftQueries
 
       expect(actual).toEqual(expected)
-    })
-  })
-
-  describe('SET_QUERY_SOURCE', () => {
-    test('replaces the sourceID for the active query', () => {
-      const state = initialStateHelper()
-
-      expect(state.draftQueries[0].sourceID).toEqual('')
-
-      const nextState = timeMachineReducer(state, setQuerySource('howdy'))
-
-      expect(nextState.draftQueries[0].sourceID).toEqual('howdy')
     })
   })
 
@@ -183,24 +159,16 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'bar',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ]
 
@@ -213,12 +181,8 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: '',
@@ -227,10 +191,10 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           builderConfig: {
             buckets: [],
-            measurements: [],
-            fields: [],
+            tags: [{key: '_measurement', values: []}],
             functions: [],
           },
+          hidden: false,
         },
       ])
     })
@@ -247,24 +211,16 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'bar',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ]
 
@@ -277,24 +233,16 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'bar',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ])
     })
@@ -311,24 +259,16 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'bar',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ]
 
@@ -341,24 +281,16 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'bar',
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ])
     })
@@ -376,28 +308,18 @@ describe('timeMachineReducer', () => {
             type: InfluxLanguage.Flux,
             sourceID: '',
             editMode: QueryEditMode.Builder,
-            builderConfig: {
-              buckets: [],
-              measurements: [],
-              fields: [],
-              functions: [],
-            },
+            builderConfig: {buckets: [], tags: [], functions: []},
           },
           {
             text: 'bar',
             type: InfluxLanguage.Flux,
             sourceID: '',
             editMode: QueryEditMode.Advanced,
-            builderConfig: {
-              buckets: [],
-              measurements: [],
-              fields: [],
-              functions: [],
-            },
+            builderConfig: {buckets: [], tags: [], functions: []},
           },
         ]
 
-        const nextState = timeMachineReducer(state, setActiveQueryIndex(0))
+        const nextState = timeMachineReducer(state, setActiveQueryIndexSync(0))
 
         expect(nextState.activeQueryIndex).toEqual(0)
       })
@@ -412,28 +334,18 @@ describe('timeMachineReducer', () => {
             type: InfluxLanguage.InfluxQL,
             sourceID: '',
             editMode: QueryEditMode.Advanced,
-            builderConfig: {
-              buckets: [],
-              measurements: [],
-              fields: [],
-              functions: [],
-            },
+            builderConfig: {buckets: [], tags: [], functions: []},
           },
           {
             text: 'bar',
             type: InfluxLanguage.Flux,
             sourceID: '',
             editMode: QueryEditMode.Builder,
-            builderConfig: {
-              buckets: [],
-              measurements: [],
-              fields: [],
-              functions: [],
-            },
+            builderConfig: {buckets: [], tags: [], functions: []},
           },
         ]
 
-        const nextState = timeMachineReducer(state, setActiveQueryIndex(0))
+        const nextState = timeMachineReducer(state, setActiveQueryIndexSync(0))
 
         expect(nextState.activeQueryIndex).toEqual(0)
       })
@@ -448,28 +360,18 @@ describe('timeMachineReducer', () => {
             type: InfluxLanguage.Flux,
             sourceID: '',
             editMode: QueryEditMode.Advanced,
-            builderConfig: {
-              buckets: [],
-              measurements: [],
-              fields: [],
-              functions: [],
-            },
+            builderConfig: {buckets: [], tags: [], functions: []},
           },
           {
             text: 'bar',
             type: InfluxLanguage.Flux,
             sourceID: '',
             editMode: QueryEditMode.Builder,
-            builderConfig: {
-              buckets: [],
-              measurements: [],
-              fields: [],
-              functions: [],
-            },
+            builderConfig: {buckets: [], tags: [], functions: []},
           },
         ]
 
-        const nextState = timeMachineReducer(state, setActiveQueryIndex(0))
+        const nextState = timeMachineReducer(state, setActiveQueryIndexSync(0))
 
         expect(nextState.activeQueryIndex).toEqual(0)
       })
@@ -487,16 +389,12 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ]
 
-      const nextState = timeMachineReducer(state, addQuery())
+      const nextState = timeMachineReducer(state, addQuerySync())
 
       expect(nextState.activeQueryIndex).toEqual(1)
       expect(nextState.draftQueries).toEqual([
@@ -505,12 +403,8 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: '',
@@ -519,17 +413,17 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           builderConfig: {
             buckets: [],
-            measurements: [],
-            fields: [],
+            tags: [{key: '_measurement', values: []}],
             functions: [],
           },
+          hidden: false,
         },
       ])
     })
   })
 
   describe('REMOVE_QUERY', () => {
-    let queries: DashboardQuery[]
+    let queries: DashboardDraftQuery[]
 
     beforeEach(() => {
       queries = [
@@ -538,36 +432,24 @@ describe('timeMachineReducer', () => {
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'b',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
         {
           text: 'c',
           type: InfluxLanguage.InfluxQL,
           sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {
-            buckets: [],
-            measurements: [],
-            fields: [],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
+          hidden: false,
         },
       ]
     })
@@ -579,9 +461,8 @@ describe('timeMachineReducer', () => {
       state.draftQueries = queries
       state.activeQueryIndex = 1
 
-      const nextState = timeMachineReducer(state, removeQuery(1))
+      const nextState = timeMachineReducer(state, removeQuerySync(1))
 
-      expect(nextState.view.properties.queries).toEqual(queries)
       expect(nextState.draftQueries).toEqual([queries[0], queries[2]])
       expect(nextState.activeQueryIndex).toEqual(1)
     })
@@ -593,9 +474,8 @@ describe('timeMachineReducer', () => {
       state.draftQueries = queries
       state.activeQueryIndex = 2
 
-      const nextState = timeMachineReducer(state, removeQuery(2))
+      const nextState = timeMachineReducer(state, removeQuerySync(2))
 
-      expect(nextState.view.properties.queries).toEqual(queries)
       expect(nextState.draftQueries).toEqual([queries[0], queries[1]])
       expect(nextState.activeQueryIndex).toEqual(1)
     })
@@ -606,12 +486,7 @@ describe('timeMachineReducer', () => {
       const state = initialStateHelper()
       state.activeQueryIndex = 1
 
-      const builderConfig = {
-        buckets: [],
-        measurements: [],
-        fields: [],
-        functions: [],
-      }
+      const builderConfig = {buckets: [], tags: [], functions: []}
 
       state.draftQueries = [
         {
@@ -620,6 +495,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig,
+          hidden: false,
         },
         {
           text: 'bar',
@@ -627,6 +503,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Builder,
           builderConfig,
+          hidden: false,
         },
       ]
 
@@ -642,6 +519,7 @@ describe('timeMachineReducer', () => {
           sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig,
+          hidden: false,
         },
         {
           text: 'bar',
@@ -650,6 +528,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           name: 'test query',
           builderConfig,
+          hidden: false,
         },
       ])
     })

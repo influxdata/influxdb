@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 
 // Components
 import {
@@ -100,8 +100,9 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     this.setState({ruleType})
   }
 
-  private handleSubmit = (): void => {
-    return this.handleCreateBucket()
+  private handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
+    e.preventDefault()
+    this.handleCreateBucket()
   }
 
   private handleCreateBucket = (): void => {

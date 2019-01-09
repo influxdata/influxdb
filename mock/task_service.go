@@ -24,7 +24,6 @@ type TaskService struct {
 
 func (s *TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
 	return s.FindTaskByIDFn(ctx, id)
-
 }
 
 func (s *TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {

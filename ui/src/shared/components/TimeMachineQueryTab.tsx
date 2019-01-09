@@ -11,6 +11,7 @@ import {
   setActiveQueryIndex,
   removeQuery,
   updateActiveQueryName,
+  toggleQuery,
 } from 'src/shared/actions/v2/timeMachines'
 
 // Utils
@@ -20,7 +21,8 @@ import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 import 'src/shared/components/TimeMachineQueryTab.scss'
 
 // Types
-import {AppState, DashboardQuery} from 'src/types/v2'
+import {AppState} from 'src/types/v2'
+import {DashboardDraftQuery} from 'src/types/v2/dashboards'
 
 interface StateProps {
   activeQueryIndex: number
@@ -31,11 +33,12 @@ interface DispatchProps {
   onSetActiveQueryIndex: typeof setActiveQueryIndex
   onRemoveQuery: typeof removeQuery
   onUpdateActiveQueryName: typeof updateActiveQueryName
+  onToggleQuery: typeof toggleQuery
 }
 
 interface OwnProps {
   queryIndex: number
-  query: DashboardQuery
+  query: DashboardDraftQuery
 }
 
 type Props = StateProps & DispatchProps & OwnProps
@@ -75,6 +78,7 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
               onEdit={this.handleEditName}
               onCancelEdit={this.handleCancelEditName}
             />
+            {this.showHideButton}
             {this.removeButton}
           </div>
         </RightClick.Trigger>
@@ -105,7 +109,11 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
   }
 
   private handleSetActive = (): void => {
-    const {queryIndex, onSetActiveQueryIndex} = this.props
+    const {queryIndex, activeQueryIndex, onSetActiveQueryIndex} = this.props
+
+    if (queryIndex === activeQueryIndex) {
+      return
+    }
 
     onSetActiveQueryIndex(queryIndex)
   }
@@ -133,6 +141,24 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
     )
   }
 
+  private get showHideButton(): JSX.Element {
+    const {query} = this.props
+    if (this.state.isEditingName || !this.isRemovable) {
+      return null
+    }
+
+    const icon = query.hidden ? 'eye-open' : 'eye-closed'
+
+    return (
+      <div
+        className="time-machine-query-tab--close"
+        onClick={this.handleToggleView}
+      >
+        <span className={`icon ${icon}`} />
+      </div>
+    )
+  }
+
   private get isRemovable(): boolean {
     return this.props.queryCount > 1
   }
@@ -142,6 +168,13 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
 
     e.stopPropagation()
     onRemoveQuery(queryIndex)
+  }
+
+  private handleToggleView = (e: MouseEvent): void => {
+    const {queryIndex, onToggleQuery} = this.props
+
+    e.stopPropagation()
+    onToggleQuery(queryIndex)
   }
 }
 
@@ -155,6 +188,7 @@ const mdtp = {
   onSetActiveQueryIndex: setActiveQueryIndex,
   onRemoveQuery: removeQuery,
   onUpdateActiveQueryName: updateActiveQueryName,
+  onToggleQuery: toggleQuery,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

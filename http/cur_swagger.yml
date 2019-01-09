@@ -1050,6 +1050,11 @@ paths:
       summary: Get all dashboards
       parameters:
           - in: query
+            name: org
+            description: specifies the organization name of the resource
+            schema:
+              type: string
+          - in: query
             name: owner
             description: specifies the owner id to return resources for
             schema:
@@ -1333,6 +1338,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}/labels':
+    get:
+      tags:
+        - Dashboards
+      summary: list all labels for a dashboard
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of the dashboard
+      responses:
+        '200':
+          description: a list of all labels for a dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Dashboards
+      summary: add a label to a dashboard
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of the dashboard
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Label"
+      responses:
+        '200':
+          description: a list of all labels for a dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
         default:
           description: unexpected error
           content:
@@ -2398,7 +2471,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Users"
+                $ref: "#/components/schemas/ResourceOwners"
         default:
           description: unexpected error
           content:
@@ -3410,6 +3483,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 components:
+  parameters:
+    TraceSpan:
+      in: header
+      name: Zap-Trace-Span
+      description: OpenTracing span context
+      example:
+        trace_id: '1'
+        span_id: '1'
+        baggage:
+          key: value
+      required: false
+      schema:
+        type: string
   schemas:
     LanguageRequest:
       description: flux query to be analyzed.
@@ -3865,6 +3951,7 @@ components:
           description: The Flux script to run for this task.
           type: string
     Task:
+      type: object
       properties:
         id:
           readOnly: true
@@ -3884,6 +3971,8 @@ components:
             - inactive
         owner:
           $ref: "#/components/schemas/User"
+        labels:
+          $ref: "#/components/schemas/Labels"
         flux:
           description: The Flux script to run for this task.
           type: string
@@ -3894,8 +3983,13 @@ components:
           description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
           type: string
         offset:
-          description: How long to wait before running the task
+          description: Duration to delay after the schedule, before executing the task; parsed from flux.
           type: string
+        latest_completed:
+          description: Timestamp of latest scheduled, completed run, RFC3339.
+          type: string
+          format: date-time
+          readOnly: true
         links:
           type: object
           readOnly: true
@@ -3922,6 +4016,29 @@ components:
               type: string
               format: uri
       required: [name, organization, flux]
+    ResourceOwner:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            role:
+              type: string
+              default: owner
+              enum:
+                - owner
+    ResourceOwners:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+              format: uri
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceOwner"
     User:
       properties:
         id:
@@ -4712,6 +4829,8 @@ components:
               format: date
         cells:
             $ref: "#/components/schemas/Cells"
+        labels:
+            $ref: "#/components/schemas/Labels"
     Dashboards:
       type: object
       properties:
@@ -5501,21 +5620,12 @@ components:
     Label:
       type: object
       properties:
+        resourceID:
+          type: string
         name:
           type: string
         properties:
-          $ref: "#/components/schemas/LabelProperties"
-      required:
-        - properties
-        - name
-    LabelProperties:
-      type: object
-      properties:
-        color:
-          type: string
-        description:
-          type: string
-      required:
-        - color
-        - description
+          type: object
+          description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
+          example: {"color": "#ffb3b3", "description": "this is a description"}
       

@@ -9,19 +9,23 @@ import {
   TemplateValueType,
 } from 'src/types'
 import {Links} from 'src/types/v2/links'
-import {Task, TaskStatus} from 'src/types/v2/tasks'
+import {Task} from 'src/types/v2/tasks'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
+import {WithRouterProps} from 'react-router'
 import {ConfigurationState} from 'src/types/v2/dataLoaders'
 import {
   TelegrafPluginInputCpu,
   TelegrafPluginInputRedis,
   TelegrafPluginInputDisk,
-  TelegrafPluginInputKernel,
   TelegrafPluginInputDiskio,
   TelegrafPluginInputMem,
-  TelegrafPluginInputSwap,
   TelegrafPluginInputSystem,
   TelegrafPluginInputProcesses,
+  TelegrafPluginInputNet,
+  TelegrafPluginInputProcstat,
+  TelegrafPluginInputDocker,
+  Task as TaskApi,
+  Label,
 } from 'src/api'
 
 export const links: Links = {
@@ -206,6 +210,45 @@ export const dashboard: Dashboard = {
     self: 'self/link',
     cells: 'cells/link',
   },
+  meta: {
+    createdAt: '2019-01-08T11:57:31.562044-08:00',
+    updatedAt: '2019-01-08T12:57:31.562048-08:00',
+  },
+  labels: [],
+}
+
+export const labels: Label[] = [
+  {
+    resourceID: 'dashboard-mock-label-a',
+    name: 'Trogdor',
+    properties: {
+      color: '#44ffcc',
+      description: 'Burninating the countryside',
+    },
+  },
+  {
+    resourceID: 'dashboard-mock-label-b',
+    name: 'Strawberry',
+    properties: {
+      color: '#ff0054',
+      description: 'It is a great fruit',
+    },
+  },
+]
+
+export const dashboardWithLabels: Dashboard = {
+  id: '1',
+  cells: [],
+  name: 'd1',
+  links: {
+    self: 'self/link',
+    cells: 'cells/link',
+  },
+  meta: {
+    createdAt: '2019-01-08T11:57:31.562044-08:00',
+    updatedAt: '2019-01-08T12:57:31.562048-08:00',
+  },
+  labels,
 }
 
 export const cell: Cell = {
@@ -226,7 +269,7 @@ export const tasks: Task[] = [
     id: '02ef9deff2141000',
     organizationID: '02ee9e2a29d73000',
     name: 'pasdlak',
-    status: TaskStatus.Active,
+    status: TaskApi.StatusEnum.Active,
     owner: {id: '02ee9e2a19d73000', name: ''},
     flux:
       'option task = {\n  name: "pasdlak",\n  cron: "2 0 * * *"\n}\nfrom(bucket: "inbucket") \n|> range(start: -1h)',
@@ -243,12 +286,13 @@ export const tasks: Task[] = [
       id: '02ee9e2a29d73000',
       name: 'RadicalOrganization',
     },
+    labels: [],
   },
   {
     id: '02f12c50dba72000',
     organizationID: '02ee9e2a29d73000',
     name: 'somename',
-    status: TaskStatus.Active,
+    status: TaskApi.StatusEnum.Active,
     owner: {id: '02ee9e2a19d73000', name: ''},
     flux:
       'option task = {\n  name: "somename",\n  every: 1m,\n}\nfrom(bucket: "inbucket") \n|> range(start: -task.every)',
@@ -265,6 +309,7 @@ export const tasks: Task[] = [
       id: '02ee9e2a29d73000',
       name: 'RadicalOrganization',
     },
+    labels,
   },
 ]
 
@@ -283,6 +328,13 @@ export const defaultOnboardingStepProps: OnboardingStepProps = {
   onCompleteSetup: jest.fn(),
   onExit: jest.fn(),
   onSetSubstepIndex: jest.fn(),
+}
+
+export const withRouterProps: WithRouterProps = {
+  params: {},
+  location: null,
+  routes: null,
+  router: null,
 }
 
 export const token =
@@ -320,9 +372,9 @@ export const diskioTelegrafPlugin = {
   configured: ConfigurationState.Configured,
 }
 
-export const kernelTelegrafPlugin = {
+export const netTelegrafPlugin = {
   ...telegrafPlugin,
-  name: TelegrafPluginInputKernel.NameEnum.Kernel,
+  name: TelegrafPluginInputNet.NameEnum.Net,
   configured: ConfigurationState.Configured,
 }
 
@@ -338,10 +390,10 @@ export const processesTelegrafPlugin = {
   configured: ConfigurationState.Configured,
 }
 
-export const swapTelegrafPlugin = {
+export const procstatTelegrafPlugin = {
   ...telegrafPlugin,
-  name: TelegrafPluginInputSwap.NameEnum.Swap,
-  configured: ConfigurationState.Configured,
+  name: TelegrafPluginInputProcstat.NameEnum.Procstat,
+  configured: ConfigurationState.Unconfigured,
 }
 
 export const systemTelegrafPlugin = {
@@ -362,6 +414,12 @@ export const redisPlugin = {
     servers: [],
     password: '',
   },
+}
+
+export const dockerTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputDocker.NameEnum.Docker,
+  configured: ConfigurationState.Configured,
 }
 
 export const influxDB2Plugin = {

@@ -100,6 +100,16 @@ class Legend extends PureComponent<Props> {
 
     for (const column of columns) {
       for (const key of seriesKeys) {
+        if (!descsByKey[key]) {
+          // Guard against an edge case where the `values` prop (originating
+          // from the Dygraphs library) becomes out of sync from the
+          // `seriesDescriptions` prop. This will happen if the legend is
+          // displayed while a graph is rerendered with new time series. In
+          // this case we render nothing and wait for the next `values` prop to
+          // trigger a valid rerender.
+          return []
+        }
+
         column.rows.push({
           color: colors[key],
           value: descsByKey[key].metaColumns[column.name],

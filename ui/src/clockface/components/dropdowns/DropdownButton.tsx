@@ -34,29 +34,51 @@ class DropdownButton extends Component<Props> {
   }
 
   public render() {
-    const {onClick, status, children, title} = this.props
+    const {onClick, children, title} = this.props
     return (
       <button
         className={this.classname}
         onClick={onClick}
-        disabled={status === ComponentStatus.Disabled}
+        disabled={this.isDisabled}
         title={title}
       >
         {this.icon}
         <span className="dropdown--selected">{children}</span>
-        <span className="dropdown--caret icon caret-down" />
+        {this.caret}
       </button>
     )
   }
 
+  private get caret(): JSX.Element {
+    const {active} = this.props
+
+    if (active) {
+      return <span className="dropdown--caret icon caret-up" />
+    }
+
+    return <span className="dropdown--caret icon caret-down" />
+  }
+
+  private get isDisabled(): boolean {
+    const {status} = this.props
+
+    const isDisabled = [
+      ComponentStatus.Disabled,
+      ComponentStatus.Loading,
+      ComponentStatus.Error,
+    ].includes(status)
+
+    return isDisabled
+  }
+
   private get classname(): string {
-    const {status, active, color, size} = this.props
+    const {active, color, size} = this.props
 
     return classnames('dropdown--button button', {
       'button-stretch': true,
+      'button-disabled': this.isDisabled,
       [`button-${color}`]: color,
       [`button-${size}`]: size,
-      disabled: status === ComponentStatus.Disabled,
       active,
     })
   }

@@ -21,6 +21,7 @@ import (
 func TestService_handleGetDashboards(t *testing.T) {
 	type fields struct {
 		DashboardService platform.DashboardService
+		LabelService     platform.LabelService
 	}
 	type args struct {
 		queryParams map[string][]string
@@ -73,6 +74,20 @@ func TestService_handleGetDashboards(t *testing.T) {
 						}, 2, nil
 					},
 				},
+				&mock.LabelService{
+					FindLabelsFn: func(ctx context.Context, f platform.LabelFilter) ([]*platform.Label, error) {
+						labels := []*platform.Label{
+							{
+								ResourceID: f.ResourceID,
+								Name:       "label",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+						}
+						return labels, nil
+					},
+				},
 			},
 			args: args{},
 			wants: wants{
@@ -88,6 +103,15 @@ func TestService_handleGetDashboards(t *testing.T) {
       "id": "da7aba5e5d81e550",
       "name": "hello",
       "description": "oh hello there!",
+      "labels": [
+        {
+          "resourceID": "da7aba5e5d81e550",
+          "name": "label",
+          "properties": {
+            "color": "fff000"
+          }
+        }
+      ],
       "meta": {
         "createdAt": "2009-11-10T23:00:00Z",
         "updatedAt": "2009-11-11T00:00:00Z"
@@ -110,13 +134,22 @@ func TestService_handleGetDashboards(t *testing.T) {
         "self": "/api/v2/dashboards/da7aba5e5d81e550",
         "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells",
         "log": "/api/v2/dashboards/da7aba5e5d81e550/log",
-	"labels": "/api/v2/dashboards/da7aba5e5d81e550/labels"
+        "labels": "/api/v2/dashboards/da7aba5e5d81e550/labels"
       }
     },
     {
       "id": "0ca2204eca2204e0",
       "name": "example",
       "description": "",
+			"labels": [
+        {
+          "resourceID": "0ca2204eca2204e0",
+          "name": "label",
+          "properties": {
+            "color": "fff000"
+          }
+        }
+      ],
       "meta": {
         "createdAt": "2012-11-10T23:00:00Z",
         "updatedAt": "2012-11-11T00:00:00Z"
@@ -126,7 +159,7 @@ func TestService_handleGetDashboards(t *testing.T) {
         "self": "/api/v2/dashboards/0ca2204eca2204e0",
         "log": "/api/v2/dashboards/0ca2204eca2204e0/log",
         "cells": "/api/v2/dashboards/0ca2204eca2204e0/cells",
-	"labels": "/api/v2/dashboards/0ca2204eca2204e0/labels"
+        "labels": "/api/v2/dashboards/0ca2204eca2204e0/labels"
       }
     }
   ]
@@ -140,6 +173,11 @@ func TestService_handleGetDashboards(t *testing.T) {
 				&mock.DashboardService{
 					FindDashboardsF: func(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
 						return []*platform.Dashboard{}, 0, nil
+					},
+				},
+				&mock.LabelService{
+					FindLabelsFn: func(ctx context.Context, f platform.LabelFilter) ([]*platform.Label, error) {
+						return []*platform.Label{}, nil
 					},
 				},
 			},
@@ -161,7 +199,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
+			labelService := tt.fields.LabelService
 			userService := mock.NewUserService()
 			h := NewDashboardHandler(mappingService, labelService, userService)
 			h.DashboardService = tt.fields.DashboardService
@@ -190,8 +228,8 @@ func TestService_handleGetDashboards(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetDashboards() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetDashboards() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetDashboards() = ***%s***", tt.name, diff)
 			}
 
 		})
@@ -258,6 +296,7 @@ func TestService_handleGetDashboard(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "hello",
   "description": "",
+  "labels": [],
   "meta": {
     "createdAt": "2012-11-10T23:00:00Z",
     "updatedAt": "2012-11-11T00:00:00Z"
@@ -341,8 +380,8 @@ func TestService_handleGetDashboard(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetDashboard() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetDashboard() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetDashboard() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -406,6 +445,7 @@ func TestService_handlePostDashboard(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "hello",
   "description": "howdy there",
+  "labels": [],
   "meta": {
     "createdAt": "2012-11-10T23:00:00Z",
     "updatedAt": "2012-11-11T00:00:00Z"
@@ -464,8 +504,8 @@ func TestService_handlePostDashboard(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostDashboard() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostDashboard() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePostDashboard() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -565,8 +605,8 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleDeleteDashboard() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleDeleteDashboard() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleDeleteDashboard() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -640,6 +680,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "example",
   "description": "",
+  "labels": [],
   "meta": {
     "createdAt": "2012-11-10T23:00:00Z",
     "updatedAt": "2012-11-11T01:00:00Z"
@@ -750,8 +791,8 @@ func TestService_handlePatchDashboard(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePatchDashboard() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePatchDashboard() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePatchDashboard() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -856,8 +897,8 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostDashboardCell() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostDashboardCell() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePostDashboardCell() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -940,8 +981,8 @@ func TestService_handleDeleteDashboardCell(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleDeleteDashboardCell() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleDeleteDashboardCell() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleDeleteDashboardCell() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -1078,8 +1119,8 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePatchDashboardCell() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePatchDashboardCell() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePatchDashboardCell() = ***%s***", tt.name, diff)
 			}
 		})
 	}

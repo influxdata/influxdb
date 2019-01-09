@@ -1,5 +1,7 @@
 // Libraries
 import {get, cloneDeep} from 'lodash'
+import {produce} from 'immer'
+import _ from 'lodash'
 
 // Utils
 import {createView, defaultViewQuery} from 'src/shared/utils/view'
@@ -16,7 +18,8 @@ import {TimeRange} from 'src/types/v2'
 import {
   View,
   ViewType,
-  DashboardQuery,
+  DashboardDraftQuery,
+  BuilderConfig,
   InfluxLanguage,
   QueryEditMode,
   QueryView,
@@ -25,15 +28,30 @@ import {
 } from 'src/types/v2/dashboards'
 import {Action} from 'src/shared/actions/v2/timeMachines'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
+import {RemoteDataState} from 'src/types'
+
+interface QueryBuilderState {
+  buckets: string[]
+  bucketsStatus: RemoteDataState
+  tags: Array<{
+    valuesSearchTerm: string
+    keysSearchTerm: string
+    keys: string[]
+    keysStatus: RemoteDataState
+    values: string[]
+    valuesStatus: RemoteDataState
+  }>
+}
 
 export interface TimeMachineState {
   view: QueryView
   timeRange: TimeRange
-  draftQueries: DashboardQuery[]
+  draftQueries: DashboardDraftQuery[]
   isViewingRawData: boolean
   activeTab: TimeMachineTab
   activeQueryIndex: number | null
   submitToken: number
+  queryBuilder: QueryBuilderState
 }
 
 export interface TimeMachinesState {
@@ -46,11 +64,16 @@ export interface TimeMachinesState {
 export const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
   view: createView(),
-  draftQueries: [defaultViewQuery()],
+  draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
   activeTab: TimeMachineTab.Queries,
   activeQueryIndex: 0,
   submitToken: 0,
+  queryBuilder: {
+    buckets: [],
+    bucketsStatus: RemoteDataState.NotStarted,
+    tags: [],
+  },
 })
 
 export const initialState = (): TimeMachinesState => ({
@@ -69,7 +92,11 @@ export const timeMachinesReducer = (
     const {activeTimeMachineID, initialState} = action.payload
     const activeTimeMachine = state.timeMachines[activeTimeMachineID]
     const view = initialState.view || activeTimeMachine.view
-    const draftQueries = cloneDeep(view.properties.queries)
+    const draftQueries = _.map(cloneDeep(view.properties.queries), q => ({
+      ...q,
+      hidden: false,
+    }))
+    const queryBuilder = initialQueryBuilderState(draftQueries[0].builderConfig)
     const activeQueryIndex = 0
 
     return {
@@ -83,6 +110,7 @@ export const timeMachinesReducer = (
           activeTab: TimeMachineTab.Queries,
           activeQueryIndex,
           draftQueries,
+          queryBuilder,
         },
       },
     }
@@ -122,32 +150,11 @@ export const timeMachineReducer = (
     }
 
     case 'SET_TIME_RANGE': {
-      const {timeRange} = action.payload
-      const {view} = state
+      return produce(state, draftState => {
+        draftState.timeRange = action.payload.timeRange
 
-      const rebuildConfig = query => ({
-        ...query,
-        text: buildQuery(query.builderConfig, timeRange.duration),
+        buildAndSubmitAllQueries(draftState)
       })
-
-      const draftQueries = state.draftQueries.map(rebuildConfig)
-      const queries = view.properties.queries.map(rebuildConfig)
-
-      const newView = {
-        ...view,
-        properties: {
-          ...view.properties,
-          queries,
-        },
-      }
-
-      return {
-        ...state,
-        timeRange,
-        view: newView,
-        draftQueries,
-        submitToken: Date.now(),
-      }
     }
 
     case 'SET_VIEW_TYPE': {
@@ -170,19 +177,9 @@ export const timeMachineReducer = (
     }
 
     case 'SUBMIT_SCRIPT': {
-      const {view, draftQueries} = state
-
-      return {
-        ...state,
-        submitToken: Date.now(),
-        view: {
-          ...view,
-          properties: {
-            ...view.properties,
-            queries: draftQueries,
-          },
-        },
-      }
+      return produce(state, draftState => {
+        submitQueries(draftState)
+      })
     }
 
     case 'SET_IS_VIEWING_RAW_DATA': {
@@ -342,20 +339,6 @@ export const timeMachineReducer = (
       return setViewProperties(state, {staticLegend})
     }
 
-    case 'SET_QUERY_SOURCE': {
-      const {sourceID} = action.payload
-      const {activeQueryIndex} = state
-
-      const draftQueries = [...state.draftQueries]
-
-      draftQueries[activeQueryIndex] = {
-        ...draftQueries[activeQueryIndex],
-        sourceID,
-      }
-
-      return {...state, draftQueries}
-    }
-
     case 'INCREMENT_SUBMIT_TOKEN': {
       return {
         ...state,
@@ -367,7 +350,7 @@ export const timeMachineReducer = (
       const {activeQueryIndex} = state
       const draftQueries = [...state.draftQueries]
 
-      draftQueries[activeQueryIndex] = defaultViewQuery()
+      draftQueries[activeQueryIndex] = {...defaultViewQuery(), hidden: false}
 
       return {
         ...state,
@@ -408,59 +391,215 @@ export const timeMachineReducer = (
     }
 
     case 'SET_ACTIVE_QUERY_INDEX': {
-      const {activeQueryIndex} = action.payload
+      return produce(state, draftState => {
+        const {activeQueryIndex} = action.payload
 
-      return {...state, activeQueryIndex}
+        draftState.activeQueryIndex = activeQueryIndex
+
+        resetBuilderState(draftState)
+      })
     }
 
     case 'ADD_QUERY': {
-      const draftQueries = [...state.draftQueries, defaultViewQuery()]
-      const activeQueryIndex: number = draftQueries.length - 1
+      return produce(state, draftState => {
+        draftState.draftQueries = [
+          ...state.draftQueries,
+          {...defaultViewQuery(), hidden: false},
+        ]
+        draftState.activeQueryIndex = draftState.draftQueries.length - 1
 
-      return {...state, activeQueryIndex, draftQueries}
+        resetBuilderState(draftState)
+      })
     }
 
     case 'REMOVE_QUERY': {
-      const {queryIndex} = action.payload
-      const draftQueries = state.draftQueries.filter(
-        (__, i) => i !== queryIndex
-      )
-      const queryLength = draftQueries.length
+      return produce(state, draftState => {
+        const {queryIndex} = action.payload
 
-      let activeQueryIndex: number
+        draftState.draftQueries.splice(queryIndex, 1)
 
-      if (queryIndex < queryLength) {
-        activeQueryIndex = queryIndex
-      } else if (queryLength === queryIndex && queryLength > 0) {
-        activeQueryIndex = queryLength - 1
-      } else {
-        activeQueryIndex = 0
-      }
+        const queryLength = draftState.draftQueries.length
 
-      return {...state, activeQueryIndex, draftQueries}
+        let activeQueryIndex: number
+
+        if (queryIndex < queryLength) {
+          activeQueryIndex = queryIndex
+        } else if (queryLength === queryIndex && queryLength > 0) {
+          activeQueryIndex = queryLength - 1
+        } else {
+          activeQueryIndex = 0
+        }
+
+        draftState.activeQueryIndex = activeQueryIndex
+
+        resetBuilderState(draftState)
+        submitQueries(draftState)
+      })
     }
 
-    case 'BUILD_QUERY': {
-      const {builderConfig} = action.payload
-      const {activeQueryIndex, timeRange} = state
-      const draftQueries = [...state.draftQueries]
+    case 'TOGGLE_QUERY': {
+      return produce(state, draftState => {
+        const draftQuery = draftState.draftQueries[action.payload.queryIndex]
 
-      let text: string
-
-      if (!isConfigValid(builderConfig)) {
-        text = ''
-      } else {
-        text = buildQuery(builderConfig, timeRange.duration)
-      }
-
-      draftQueries[activeQueryIndex] = {
-        ...draftQueries[activeQueryIndex],
-        text,
-        builderConfig,
-      }
-
-      return {...state, draftQueries}
+        draftQuery.hidden = !draftQuery.hidden
+      })
     }
+
+    case 'SET_BUILDER_BUCKET_SELECTION': {
+      return produce(state, draftState => {
+        const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
+
+        draftQuery.builderConfig.buckets = [action.payload.bucket]
+      })
+    }
+
+    case 'SET_BUILDER_BUCKETS': {
+      return produce(state, draftState => {
+        draftState.queryBuilder.buckets = action.payload.buckets
+        draftState.queryBuilder.bucketsStatus = RemoteDataState.Done
+      })
+    }
+
+    case 'SET_BUILDER_BUCKETS_STATUS': {
+      return produce(state, draftState => {
+        draftState.queryBuilder.bucketsStatus = action.payload.bucketsStatus
+      })
+    }
+
+    case 'SET_BUILDER_TAG_KEYS': {
+      return produce(state, draftState => {
+        const {index, keys} = action.payload
+
+        draftState.queryBuilder.tags[index].keys = keys
+        draftState.queryBuilder.tags[index].keysStatus = RemoteDataState.Done
+      })
+    }
+
+    case 'SET_BUILDER_TAG_KEYS_STATUS': {
+      return produce(state, draftState => {
+        const {index, status} = action.payload
+        const tags = draftState.queryBuilder.tags
+
+        tags[index].keysStatus = status
+
+        if (status === RemoteDataState.Loading) {
+          for (let i = index + 1; i < tags.length; i++) {
+            tags[i].keysStatus = RemoteDataState.NotStarted
+          }
+        }
+      })
+    }
+
+    case 'SET_BUILDER_TAG_VALUES': {
+      return produce(state, draftState => {
+        const {index, values} = action.payload
+
+        draftState.queryBuilder.tags[index].values = values
+        draftState.queryBuilder.tags[index].valuesStatus = RemoteDataState.Done
+      })
+    }
+
+    case 'SET_BUILDER_TAG_VALUES_STATUS': {
+      return produce(state, draftState => {
+        const {index, status} = action.payload
+
+        draftState.queryBuilder.tags[index].valuesStatus = status
+      })
+    }
+
+    case 'SET_BUILDER_TAG_KEY_SELECTION': {
+      return produce(state, draftState => {
+        const {index, key} = action.payload
+        const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
+        const tag = draftQuery.builderConfig.tags[index]
+
+        tag.key = key
+        tag.values = []
+      })
+    }
+
+    case 'SET_BUILDER_TAG_VALUES_SELECTION': {
+      return produce(state, draftState => {
+        const {index, values} = action.payload
+        const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
+
+        draftQuery.builderConfig.tags[index].values = values
+
+        buildActiveQuery(draftState)
+      })
+    }
+
+    case 'SET_BUILDER_VALUES_SEARCH_TERM': {
+      return produce(state, draftState => {
+        const {index, searchTerm} = action.payload
+
+        draftState.queryBuilder.tags[index].valuesSearchTerm = searchTerm
+      })
+    }
+
+    case 'SET_BUILDER_KEYS_SEARCH_TERM': {
+      return produce(state, draftState => {
+        const {index, searchTerm} = action.payload
+
+        draftState.queryBuilder.tags[index].keysSearchTerm = searchTerm
+      })
+    }
+
+    case 'ADD_TAG_SELECTOR': {
+      return produce(state, draftState => {
+        const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
+
+        draftQuery.builderConfig.tags.push({key: '', values: []})
+        draftState.queryBuilder.tags.push({
+          valuesSearchTerm: '',
+          keysSearchTerm: '',
+          keys: [],
+          keysStatus: RemoteDataState.NotStarted,
+          values: [],
+          valuesStatus: RemoteDataState.NotStarted,
+        })
+      })
+    }
+
+    case 'REMOVE_TAG_SELECTOR': {
+      return produce(state, draftState => {
+        const {index} = action.payload
+        const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
+
+        const selectedValues = draftQuery.builderConfig.tags[index].values
+
+        draftQuery.builderConfig.tags.splice(index, 1)
+        draftState.queryBuilder.tags.splice(index, 1)
+
+        if (selectedValues.length) {
+          buildActiveQuery(draftState)
+        }
+      })
+    }
+
+    case 'SELECT_BUILDER_FUNCTION': {
+      return produce(state, draftState => {
+        const {name} = action.payload
+        const functions =
+          draftState.draftQueries[draftState.activeQueryIndex].builderConfig
+            .functions
+
+        let newFunctions
+
+        if (functions.find(f => f.name === name)) {
+          newFunctions = functions.filter(f => f.name !== name)
+        } else {
+          newFunctions = [...functions, {name}]
+        }
+
+        draftState.draftQueries[
+          draftState.activeQueryIndex
+        ].builderConfig.functions = newFunctions
+
+        buildActiveQuery(draftState)
+      })
+    }
+
     case 'UPDATE_ACTIVE_QUERY_NAME': {
       const {activeQueryIndex} = state
       const {queryName} = action.payload
@@ -484,6 +623,7 @@ export const timeMachineReducer = (
 
       return {...state, view}
     }
+
     case 'SET_TABLE_OPTIONS': {
       const workingView = state.view as ExtractWorkingView<
         typeof action.payload
@@ -548,4 +688,66 @@ const convertView = (
   newView.links = (view as any).links
 
   return newView
+}
+
+const initialQueryBuilderState = (
+  builderConfig: BuilderConfig
+): QueryBuilderState => {
+  return {
+    buckets: builderConfig.buckets,
+    bucketsStatus: RemoteDataState.NotStarted,
+    tags: builderConfig.tags.map(_ => ({
+      valuesSearchTerm: '',
+      keysSearchTerm: '',
+      keys: [],
+      keysStatus: RemoteDataState.NotStarted,
+      values: [],
+      valuesStatus: RemoteDataState.NotStarted,
+    })),
+  }
+}
+
+const buildActiveQuery = (draftState: TimeMachineState) => {
+  const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
+
+  if (isConfigValid(draftQuery.builderConfig)) {
+    draftQuery.text = buildQuery(
+      draftQuery.builderConfig,
+      draftState.timeRange.duration
+    )
+  } else {
+    draftQuery.text = ''
+  }
+}
+
+const buildAndSubmitAllQueries = (draftState: TimeMachineState) => {
+  draftState.draftQueries
+    .filter(query => query.editMode === QueryEditMode.Builder)
+    .forEach(query => {
+      if (isConfigValid(query.builderConfig)) {
+        query.text = buildQuery(
+          query.builderConfig,
+          draftState.timeRange.duration
+        )
+      } else {
+        query.text = ''
+      }
+    })
+
+  submitQueries(draftState)
+}
+
+const resetBuilderState = (draftState: TimeMachineState) => {
+  const newBuilderConfig =
+    draftState.draftQueries[draftState.activeQueryIndex].builderConfig
+
+  draftState.queryBuilder = initialQueryBuilderState(newBuilderConfig)
+}
+
+const submitQueries = (draftState: TimeMachineState) => {
+  draftState.submitToken = Date.now()
+  draftState.view.properties.queries = _.filter(
+    draftState.draftQueries,
+    q => !q.hidden
+  )
 }

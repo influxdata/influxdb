@@ -1,16 +1,20 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {ComponentSize, EmptyState} from 'src/clockface'
+import {ComponentSize, EmptyState, IconFont, Input} from 'src/clockface'
 import MemberList from 'src/organizations/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
 
 // Types
-import {User} from 'src/api'
+import {ResourceOwner} from 'src/api'
+
+// Constants
+import {resouceOwner} from 'src/organizations/dummyData'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 interface Props {
-  members: User[]
+  members: ResourceOwner[]
 }
 
 interface State {
@@ -25,18 +29,34 @@ export default class Members extends PureComponent<Props, State> {
     }
   }
   public render() {
-    const {members} = this.props
     const {searchTerm} = this.state
+    const dummyData = resouceOwner
 
     return (
-      <FilterList<User>
-        list={members}
-        searchKeys={['name']}
-        searchTerm={searchTerm}
-      >
-        {ms => <MemberList members={ms} emptyState={this.emptyState} />}
-      </FilterList>
+      <>
+        <TabbedPageHeader>
+          <Input
+            icon={IconFont.Search}
+            placeholder="Filter tasks..."
+            widthPixels={290}
+            value={searchTerm}
+            onChange={this.handleFilterChange}
+            onBlur={this.handleFilterChange}
+          />
+        </TabbedPageHeader>
+        <FilterList<ResourceOwner>
+          list={dummyData}
+          searchKeys={['name']}
+          searchTerm={searchTerm}
+        >
+          {ms => <MemberList members={ms} emptyState={this.emptyState} />}
+        </FilterList>
+      </>
     )
+  }
+
+  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({searchTerm: e.target.value})
   }
 
   private get emptyState(): JSX.Element {

@@ -350,12 +350,13 @@ func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger
 		Types: make([]models.FieldType, 0, batchSize),
 	}
 	var ti int
-	for i := 0; i < r.KeyCount(); i++ {
-		key, _ := r.KeyAt(i)
+	iter := r.Iterator(nil)
+	for iter.Next() {
+		key := iter.Key()
 		seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
 		var name []byte
 		name, collection.Tags[ti] = models.ParseKeyBytesWithTags(seriesKey, collection.Tags[ti])
-		typ, _ := r.Type(key)
+		typ := iter.Type()
 
 		if verboseLogging {
 			log.Info("Series", zap.String("name", string(name)), zap.String("tags", collection.Tags[ti].String()))
@@ -376,6 +377,9 @@ func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger
 			collection.Tags = collection.Tags[:batchSize]
 			ti = 0 // Reset tags.
 		}
+	}
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("problem creating series: (%s)", err)
 	}
 
 	// Flush any remaining series in the batches

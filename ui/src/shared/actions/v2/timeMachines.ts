@@ -1,6 +1,11 @@
+// Actions
+import {loadBuckets} from 'src/shared/actions/v2/queryBuilder'
+
 // Types
+import {Dispatch} from 'redux-thunk'
 import {TimeMachineState} from 'src/shared/reducers/v2/timeMachines'
-import {TimeRange, ViewType, BuilderConfig} from 'src/types/v2'
+import {Action as QueryBuilderAction} from 'src/shared/actions/v2/queryBuilder'
+import {TimeRange, ViewType} from 'src/types/v2'
 import {
   Axes,
   DecimalPlaces,
@@ -12,6 +17,7 @@ import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {Color} from 'src/types/colors'
 
 export type Action =
+  | QueryBuilderAction
   | SetActiveTimeMachineAction
   | SetActiveTabAction
   | SetNameAction
@@ -34,17 +40,16 @@ export type Action =
   | SetYAxisSuffix
   | SetYAxisBase
   | SetYAxisScale
-  | SetQuerySourceAction
   | SetPrefix
   | SetSuffix
   | IncrementSubmitToken
   | SetActiveQueryIndexAction
   | AddQueryAction
   | RemoveQueryAction
+  | ToggleQueryAction
   | EditActiveQueryAsFluxAction
   | EditActiveQueryAsInfluxQLAction
   | EditActiveQueryWithBuilderAction
-  | BuildQueryAction
   | UpdateActiveQueryNameAction
   | SetFieldOptionsAction
   | SetTableOptionsAction
@@ -296,16 +301,6 @@ export const setTextThresholdColoring = (): SetTextThresholdColoringAction => ({
   type: 'SET_TEXT_THRESHOLD_COLORING',
 })
 
-interface SetQuerySourceAction {
-  type: 'SET_QUERY_SOURCE'
-  payload: {sourceID: string}
-}
-
-export const setQuerySource = (sourceID: string): SetQuerySourceAction => ({
-  type: 'SET_QUERY_SOURCE',
-  payload: {sourceID},
-})
-
 interface IncrementSubmitToken {
   type: 'INCREMENT_SUBMIT_TOKEN'
 }
@@ -343,40 +338,66 @@ interface SetActiveQueryIndexAction {
   payload: {activeQueryIndex: number}
 }
 
-export const setActiveQueryIndex = (
+export const setActiveQueryIndexSync = (
   activeQueryIndex: number
 ): SetActiveQueryIndexAction => ({
   type: 'SET_ACTIVE_QUERY_INDEX',
   payload: {activeQueryIndex},
 })
 
+export const setActiveQueryIndex = (activeQueryIndex: number) => (
+  dispatch: Dispatch<Action>
+) => {
+  dispatch(setActiveQueryIndexSync(activeQueryIndex))
+  dispatch(loadBuckets())
+}
+
 interface AddQueryAction {
   type: 'ADD_QUERY'
 }
 
-export const addQuery = (): AddQueryAction => ({
+export const addQuerySync = (): AddQueryAction => ({
   type: 'ADD_QUERY',
 })
+
+export const addQuery = () => (dispatch: Dispatch<Action>) => {
+  dispatch(addQuerySync())
+  dispatch(loadBuckets())
+}
 
 interface RemoveQueryAction {
   type: 'REMOVE_QUERY'
   payload: {queryIndex: number}
 }
 
-export const removeQuery = (queryIndex: number): RemoveQueryAction => ({
+export const removeQuerySync = (queryIndex: number): RemoveQueryAction => ({
   type: 'REMOVE_QUERY',
   payload: {queryIndex},
 })
 
-interface BuildQueryAction {
-  type: 'BUILD_QUERY'
-  payload: {builderConfig: BuilderConfig}
+interface ToggleQueryAction {
+  type: 'TOGGLE_QUERY'
+  payload: {queryIndex: number}
 }
 
-export const buildQuery = (builderConfig: BuilderConfig): BuildQueryAction => ({
-  type: 'BUILD_QUERY',
-  payload: {builderConfig},
+export const toggleQuerySync = (queryIndex: number): ToggleQueryAction => ({
+  type: 'TOGGLE_QUERY',
+  payload: {queryIndex},
 })
+
+export const removeQuery = (queryIndex: number) => (
+  dispatch: Dispatch<Action>
+) => {
+  dispatch(removeQuerySync(queryIndex))
+  dispatch(loadBuckets())
+}
+
+export const toggleQuery = (queryIndex: number) => (
+  dispatch: Dispatch<Action>
+) => {
+  dispatch(toggleQuerySync(queryIndex))
+  dispatch(submitScript())
+}
 
 interface UpdateActiveQueryNameAction {
   type: 'UPDATE_ACTIVE_QUERY_NAME'

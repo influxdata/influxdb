@@ -6,49 +6,38 @@ import (
 	"github.com/influxdata/platform"
 )
 
-var _ platform.ScraperTargetStoreService = (*ScraperTargetStoreService)(nil)
+var _ platform.ScraperTargetStoreService = &ScraperTargetStoreService{}
 
-// ScraperTargetStoreService is a mock implementation of platform.ScraperTargetStoreService.
+// ScraperTargetStoreService is a mock implementation of a platform.ScraperTargetStoreService.
 type ScraperTargetStoreService struct {
-	ListTargetsFn   func(ctx context.Context) ([]platform.ScraperTarget, error)
-	AddTargetFn     func(ctx context.Context, t *platform.ScraperTarget) error
-	GetTargetByIDFn func(ctx context.Context, id platform.ID) (*platform.ScraperTarget, error)
-	RemoveTargetFn  func(ctx context.Context, id platform.ID) error
-	UpdateTargetFn  func(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error)
+	ListTargetsF   func(ctx context.Context) ([]platform.ScraperTarget, error)
+	AddTargetF     func(ctx context.Context, t *platform.ScraperTarget) error
+	GetTargetByIDF func(ctx context.Context, id platform.ID) (*platform.ScraperTarget, error)
+	RemoveTargetF  func(ctx context.Context, id platform.ID) error
+	UpdateTargetF  func(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error)
 }
 
-// NewScraperTargetStoreService returns a mock of ScraperTargetStoreService where its methods will return zero values.
-func NewScraperTargetStoreService() *ScraperTargetStoreService {
-	return &ScraperTargetStoreService{
-		ListTargetsFn:   func(ctx context.Context) ([]platform.ScraperTarget, error) { return nil, nil },
-		AddTargetFn:     func(ctx context.Context, t *platform.ScraperTarget) error { return nil },
-		GetTargetByIDFn: func(ctx context.Context, id platform.ID) (*platform.ScraperTarget, error) { return nil, nil },
-		RemoveTargetFn:  func(ctx context.Context, id platform.ID) error { return nil },
-		UpdateTargetFn:  func(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error) { return nil, nil },
-	}
-}
-
-// ListTargets returns a list of targets
+// ListTargets lists all the scraper targets.
 func (s *ScraperTargetStoreService) ListTargets(ctx context.Context) ([]platform.ScraperTarget, error) {
-	return s.ListTargetsFn(ctx)
+	return s.ListTargetsF(ctx)
 }
 
-// AddTarget adds a new target.
+// AddTarget adds a scraper target.
 func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, t *platform.ScraperTarget) error {
-	return s.AddTargetFn(ctx, t)
+	return s.AddTargetF(ctx, t)
 }
 
-// UpdateTarget updates a target.
-func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error) {
-	return s.UpdateTargetFn(ctx, t)
-}
-
-// GetTargetByID returns a single target by ID.
+// GetTargetByID retrieves a scraper target by id.
 func (s *ScraperTargetStoreService) GetTargetByID(ctx context.Context, id platform.ID) (*platform.ScraperTarget, error) {
-	return s.GetTargetByIDFn(ctx, id)
+	return s.GetTargetByIDF(ctx, id)
 }
 
-// RemoveTarget removes a target by ID.
+// RemoveTarget deletes a scraper target.
 func (s *ScraperTargetStoreService) RemoveTarget(ctx context.Context, id platform.ID) error {
-	return s.RemoveTargetFn(ctx, id)
+	return s.RemoveTargetF(ctx, id)
+}
+
+// UpdateTarget updates a scraper target.
+func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+	return s.UpdateTargetF(ctx, t)
 }

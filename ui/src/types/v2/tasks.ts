@@ -1,22 +1,6 @@
 import {Organization} from 'src/types/v2/orgs'
+import {Task as TaskAPI} from 'src/api'
 
-export interface Task {
-  every?: string
-  cron?: string
-  offset?: string
-  id: string
-  name: string
-  status: TaskStatus
-  organizationID: string
+export interface Task extends TaskAPI {
   organization: Organization
-  owner: {
-    id: string
-    name: string
-  }
-  flux?: string
-}
-
-export enum TaskStatus {
-  Active = 'active',
-  Inactive = 'inactive',
 }

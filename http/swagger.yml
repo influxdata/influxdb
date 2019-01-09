@@ -254,10 +254,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for a telegraf config
@@ -1258,10 +1255,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for a view
@@ -1905,15 +1899,12 @@ paths:
           required: true
           description: ID of the dashboard
       requestBody:
-        description: tag to add
+        description: label to add
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for a dashboard
@@ -2770,10 +2761,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for a bucket
@@ -3222,10 +3210,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for an organization
@@ -3991,10 +3976,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
+              $ref: "#/components/schemas/Label"
       responses:
         '200':
           description: a list of all labels for a task
@@ -4788,6 +4770,8 @@ components:
                 example: 86400
                 minimum: 1
             required: [type, everySeconds]
+        labels:
+          $ref: "#/components/schemas/Labels"
       required: [name, retentionRules]
     Buckets:
       type: object
@@ -4991,6 +4975,8 @@ components:
           enum:
             - active
             - inactive
+        labels:
+          $ref: "#/components/schemas/Labels"
         flux:
           description: The Flux script to run for this task.
           type: string
@@ -5991,6 +5977,8 @@ components:
               format: date
         cells:
             $ref: "#/components/schemas/Cells"
+        labels:
+            $ref: "#/components/schemas/Labels"
     Dashboards:
       type: object
       properties:
@@ -6614,8 +6602,10 @@ components:
               properties:
                 self:
                   type: string
-            owners:
-              $ref: "#/components/schemas/Owners"
+                labels:
+                  type: string
+            labels:
+              $ref: "#/components/schemas/Labels"
     Telegrafs:
       type: object
       properties:

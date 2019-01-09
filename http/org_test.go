@@ -142,8 +142,8 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("handleGetSecrets() = %v, want %v", content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("handleGetSecrets() = \n***%v***\n,\nwant\n***%v***", string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("handleGetSecrets() = ***%s***", diff)
 			}
 
 		})
@@ -218,8 +218,8 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("handlePatchSecrets() = %v, want %v", content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("handlePatchSecrets() = \n***%v***\n,\nwant\n***%v***", string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("handlePatchSecrets() = ***%s***", diff)
 			}
 
 		})
@@ -294,8 +294,8 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("handleDeleteSecrets() = %v, want %v", content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("handleDeleteSecrets() = \n***%v***\n,\nwant\n***%v***", string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("handleDeleteSecrets() = ***%s***", diff)
 			}
 
 		})

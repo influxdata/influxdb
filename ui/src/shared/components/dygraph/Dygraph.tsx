@@ -164,7 +164,7 @@ class Dygraph extends Component<Props, State> {
         {legendData && (
           <Legend {...legendData} seriesDescriptions={seriesDescriptions} />
         )}
-        {hoverTime && (
+        {!!hoverTime && (
           <HoverTimeMarker x={this.dygraph.toDomXCoord(hoverTime)} />
         )}
         {this.nestedGraph}
@@ -359,7 +359,7 @@ class Dygraph extends Component<Props, State> {
 
   private handleMouseLeave = () => {
     this.setState({legendData: null})
-    this.props.onSetHoverTime(null)
+    this.props.onSetHoverTime(0)
   }
 
   private captureLegendData = ({x: time, dygraph, series}: LegendData) => {

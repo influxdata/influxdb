@@ -18,5 +18,6 @@
 .veo .time-machine {
   padding: $page-gutter;
   padding-top: 0;
+  padding-bottom: $ix-marg-c;
   height: calc(100% - #{$page-header-size});
 }

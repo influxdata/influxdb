@@ -8,6 +8,7 @@ import TimeMachineQueriesSwitcher from 'src/shared/components/TimeMachineQueries
 import TimeMachineQueryTab from 'src/shared/components/TimeMachineQueryTab'
 import TimeMachineQueryBuilder from 'src/shared/components/TimeMachineQueryBuilder'
 import TimeMachineInfluxQLEditor from 'src/shared/components/TimeMachineInfluxQLEditor'
+import TimeMachineQueriesTimer from 'src/shared/components/TimeMachineQueriesTimer'
 import SubmitQueryButton from 'src/shared/components/SubmitQueryButton'
 import {
   Button,
@@ -36,11 +37,12 @@ import {
   InfluxLanguage,
   QueryEditMode,
 } from 'src/types/v2'
-import {RemoteDataState} from 'src/types'
+import {DashboardDraftQuery} from 'src/types/v2/dashboards'
+import {QueriesState} from 'src/shared/components/TimeSeries'
 
 interface StateProps {
   activeQuery: DashboardQuery
-  draftQueries: DashboardQuery[]
+  draftQueries: DashboardDraftQuery[]
 }
 
 interface DispatchProps {
@@ -48,13 +50,13 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  queryStatus: RemoteDataState
+  queriesState: QueriesState
 }
 
 type Props = StateProps & DispatchProps & OwnProps
 
 const TimeMachineQueries: SFC<Props> = props => {
-  const {activeQuery, queryStatus, draftQueries, onAddQuery} = props
+  const {activeQuery, queriesState, draftQueries, onAddQuery} = props
 
   let queryEditor
 
@@ -87,8 +89,12 @@ const TimeMachineQueries: SFC<Props> = props => {
           />
         </div>
         <div className="time-machine-queries--buttons">
+          <TimeMachineQueriesTimer
+            status={queriesState.loading}
+            duration={queriesState.duration}
+          />
           <TimeMachineQueriesSwitcher />
-          <SubmitQueryButton queryStatus={queryStatus} />
+          <SubmitQueryButton queryStatus={queriesState.loading} />
         </div>
       </div>
       <div className="time-machine-queries--body">{queryEditor}</div>
@@ -97,10 +103,10 @@ const TimeMachineQueries: SFC<Props> = props => {
 }
 
 const mstp = (state: AppState) => {
-  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
+  const {draftQueries} = getActiveTimeMachine(state)
   const activeQuery = getActiveQuery(state)
 
-  return {activeQuery, activeQueryIndex, draftQueries}
+  return {activeQuery, draftQueries}
 }
 
 const mdtp = {

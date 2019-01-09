@@ -2,6 +2,7 @@
 import React, {Component, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
+import _ from 'lodash'
 
 // Components
 import {Page} from 'src/pageLayout'
@@ -180,7 +181,7 @@ class DashboardPage extends Component<Props, State> {
     const {dashboardLinks, isShowingVEO} = this.state
 
     return (
-      <Page>
+      <Page titleTag={this.pageTitle}>
         <HoverTimeProvider>
           <DashboardHeader
             dashboard={dashboard}
@@ -367,6 +368,12 @@ class DashboardPage extends Component<Props, State> {
 
   private handleWindowResize = (): void => {
     this.setState({windowHeight: window.innerHeight})
+  }
+
+  private get pageTitle(): string {
+    const {dashboard} = this.props
+
+    return _.get(dashboard, 'name', 'Loading...')
   }
 }
 

@@ -90,7 +90,7 @@ func TestBatcher_read(t *testing.T) {
 			args: args{
 				r:     strings.NewReader("m1,t1=v1 f1=1\nm2,t2=v2 f2=2"),
 				lines: make(chan []byte),
-				errC:  make(chan error),
+				errC:  make(chan error, 1),
 			},
 			want: []string{"m1,t1=v1 f1=1\n", "m2,t2=v2 f2=2"},
 		},
@@ -100,7 +100,7 @@ func TestBatcher_read(t *testing.T) {
 				cancel: true,
 				r:      strings.NewReader("m1,t1=v1 f1=1"),
 				lines:  make(chan []byte),
-				errC:   make(chan error),
+				errC:   make(chan error, 1),
 			},
 			want:    []string{},
 			wantErr: true,
@@ -110,7 +110,7 @@ func TestBatcher_read(t *testing.T) {
 			args: args{
 				r:     &errorReader{},
 				lines: make(chan []byte),
-				errC:  make(chan error),
+				errC:  make(chan error, 1),
 			},
 			want:    []string{},
 			wantErr: true,

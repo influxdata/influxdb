@@ -142,8 +142,7 @@ export const query: DashboardQuery = {
   editMode: QueryEditMode.Builder,
   builderConfig: {
     buckets: [],
-    measurements: [],
-    fields: [],
+    tags: [],
     functions: [],
   },
 }

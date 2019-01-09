@@ -2,7 +2,7 @@
 import React, {PureComponent, KeyboardEvent, ChangeEvent} from 'react'
 
 // Components
-import {Input, InputType} from 'src/clockface'
+import {Input, InputType, ComponentSize} from 'src/clockface'
 
 // Styles
 import 'src/shared/components/TimeMachineQueryTab.scss'
@@ -32,23 +32,23 @@ class TimeMachineQueryTabName extends PureComponent<Props, State> {
       return (
         <Input
           type={InputType.Text}
-          placeholder="Name your query"
           value={this.state.newName || ''}
           onChange={this.handleChange}
           onBlur={onCancelEdit}
           onKeyUp={this.handleEnterKey}
+          size={ComponentSize.ExtraSmall}
           autoFocus={true}
         />
       )
     }
 
     return (
-      <span
-        className="time-machine-query-tab-name"
+      <div
+        className="time-machine-query-tab--name"
         onDoubleClick={this.handleDoubleClick}
       >
         {queryName}
-      </span>
+      </div>
     )
   }
 

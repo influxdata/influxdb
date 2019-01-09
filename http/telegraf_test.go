@@ -119,8 +119,8 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetTelegrafs() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetTelegrafs() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetTelegrafs() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -642,8 +642,8 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			}
 
 			if strings.Contains(tt.wants.contentType, "application/json") {
-				if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-					t.Errorf("%q. handleGetTelegraf() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+				if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+					t.Errorf("%q. handleGetTelegraf() = ***%s***", tt.name, diff)
 				}
 			} else if string(body) != tt.wants.body {
 				t.Errorf("%q. handleGetTelegraf() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
@@ -724,13 +724,14 @@ func Test_newTelegrafResponses(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := newTelegrafResponses(tt.args.tcs)
+			ctx := context.Background()
+			res := newTelegrafResponses(ctx, tt.args.tcs, mock.NewLabelService())
 			got, err := json.Marshal(res)
 			if err != nil {
 				t.Fatalf("newTelegrafResponses() JSON marshal %v", err)
 			}
-			if eq, _ := jsonEqual(string(got), tt.want); tt.want != "" && !eq {
-				t.Errorf("%q. newTelegrafResponses() = \n***%v***\n,\nwant\n***%v***", tt.name, string(got), tt.want)
+			if eq, diff, _ := jsonEqual(string(got), tt.want); tt.want != "" && !eq {
+				t.Errorf("%q. newTelegrafResponses() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -802,13 +803,13 @@ func Test_newTelegrafResponse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := newTelegrafResponse(tt.args.tc)
+			res := newTelegrafResponse(tt.args.tc, []*platform.Label{})
 			got, err := json.Marshal(res)
 			if err != nil {
 				t.Fatalf("newTelegrafResponse() JSON marshal %v", err)
 			}
-			if eq, _ := jsonEqual(string(got), tt.want); tt.want != "" && !eq {
-				t.Errorf("%q. newTelegrafResponse() = \n%v\n,\nwant\n%v", tt.name, string(got), tt.want)
+			if eq, diff, _ := jsonEqual(string(got), tt.want); tt.want != "" && !eq {
+				t.Errorf("%q. newTelegrafResponse() = ***%s***", tt.name, diff)
 			}
 		})
 	}

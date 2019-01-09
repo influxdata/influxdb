@@ -2,7 +2,7 @@ import Papa from 'papaparse'
 
 import {parseChunks} from 'src/shared/parsing/flux/response'
 
-interface ParseFilesResult {
+export interface ParseFilesResult {
   data: string[][]
   maxColumnCount: number
 }

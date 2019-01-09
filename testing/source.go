@@ -3,7 +3,6 @@ package testing
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 
@@ -41,7 +40,7 @@ type SourceFields struct {
 
 // CreateSource testing
 func CreateSource(
-	init func(SourceFields, *testing.T) (platform.SourceService, func()),
+	init func(SourceFields, *testing.T) (platform.SourceService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -90,19 +89,11 @@ func CreateSource(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.CreateSource(ctx, tt.args.source)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 			defer s.DeleteSource(ctx, tt.args.source.ID)
 
 			sources, _, err := s.FindSources(ctx, platform.FindOptions{})
@@ -118,7 +109,7 @@ func CreateSource(
 
 // FindSourceByID testing
 func FindSourceByID(
-	init func(SourceFields, *testing.T) (platform.SourceService, func()),
+	init func(SourceFields, *testing.T) (platform.SourceService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -181,19 +172,11 @@ func FindSourceByID(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			source, err := s.FindSourceByID(ctx, tt.args.id)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(source, tt.wants.source, sourceCmpOptions...); diff != "" {
 				t.Errorf("sources are different -got/+want\ndiff %s", diff)
@@ -204,7 +187,7 @@ func FindSourceByID(
 
 // FindSources testing
 func FindSources(
-	init func(SourceFields, *testing.T) (platform.SourceService, func()),
+	init func(SourceFields, *testing.T) (platform.SourceService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -265,19 +248,11 @@ func FindSources(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			sources, _, err := s.FindSources(ctx, tt.args.opts)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(sources, tt.wants.sources, sourceCmpOptions...); diff != "" {
 				t.Errorf("sources are different -got/+want\ndiff %s", diff)
@@ -288,7 +263,7 @@ func FindSources(
 
 // DeleteSource testing
 func DeleteSource(
-	init func(SourceFields, *testing.T) (platform.SourceService, func()),
+	init func(SourceFields, *testing.T) (platform.SourceService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -342,7 +317,11 @@ func DeleteSource(
 				id: MustIDBase16(defaultSourceID),
 			},
 			wants: wants{
-				err: fmt.Errorf("cannot delete autogen source"),
+				err: &platform.Error{
+					Code: platform.EForbidden,
+					Op:   platform.OpDeleteSource,
+					Msg:  "cannot delete autogen source",
+				},
 				sources: []*platform.Source{
 					{
 						Name:           "autogen",
@@ -358,19 +337,11 @@ func DeleteSource(
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 			err := s.DeleteSource(ctx, tt.args.id)
-			if (err != nil) != (tt.wants.err != nil) {
-				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-			}
-
-			if err != nil && tt.wants.err != nil {
-				if err.Error() != tt.wants.err.Error() {
-					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
-				}
-			}
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			sources, _, err := s.FindSources(ctx, platform.FindOptions{})
 			if err != nil {

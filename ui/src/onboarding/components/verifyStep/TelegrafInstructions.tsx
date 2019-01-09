@@ -1,15 +1,18 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
-import CopyToClipboard from 'react-copy-to-clipboard'
 
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Components
-import {Button, ComponentSize, ComponentColor} from 'src/clockface'
+import CopyText from 'src/shared/components/CopyText'
+
+// Types
+import {NotificationAction} from 'src/types'
 
 export interface Props {
+  notify: NotificationAction
   authToken: string
   configID: string
 }
@@ -17,10 +20,9 @@ export interface Props {
 @ErrorHandling
 class TelegrafInstructions extends PureComponent<Props> {
   public render() {
-    const exportToken = `export INFLUX_TOKEN=${this.props.authToken}`
-    const configScript = `telegraf -config http://localhost:9999/api/v2/telegrafs/${
-      this.props.configID
-    }`
+    const {notify, authToken, configID} = this.props
+    const exportToken = `export INFLUX_TOKEN=${authToken}`
+    const configScript = `telegraf -config http://localhost:9999/api/v2/telegrafs/${configID}`
     return (
       <>
         <h3 className="wizard-step--title">Listen for Streaming Data</h3>
@@ -39,40 +41,12 @@ class TelegrafInstructions extends PureComponent<Props> {
             After installing the telegraf client, save this environment
             variable. run the following command.
           </p>
-          <p className="wizard-step--body-snippet">
-            {exportToken}
-            <CopyToClipboard text={exportToken}>
-              <Button
-                customClass="wizard-step--body-copybutton"
-                size={ComponentSize.Small}
-                color={ComponentColor.Default}
-                titleText="copy to clipboard"
-                text="Copy"
-                onClick={this.handleClickCopy}
-              />
-            </CopyToClipboard>
-          </p>
+          <CopyText copyText={exportToken} notify={notify} />
           <p>Run the following command.</p>
-          <p className="wizard-step--body-snippet">
-            {configScript}
-            <CopyToClipboard text={configScript}>
-              <Button
-                customClass="wizard-step--body-copybutton"
-                size={ComponentSize.Small}
-                color={ComponentColor.Default}
-                titleText="copy to clipboard"
-                text="Copy"
-                onClick={this.handleClickCopy}
-              />
-            </CopyToClipboard>
-          </p>
+          <CopyText copyText={configScript} notify={notify} />
         </div>
       </>
     )
-  }
-  private handleClickCopy(e: MouseEvent<HTMLButtonElement>) {
-    e.stopPropagation()
-    e.preventDefault()
   }
 }
 

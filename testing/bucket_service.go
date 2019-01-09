@@ -328,6 +328,50 @@ func CreateBucket(
 				},
 			},
 		},
+		{
+			name: "create bucket with orgID not exist",
+			fields: BucketFields{
+				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
+				Buckets:       []*platform.Bucket{},
+				Organizations: []*platform.Organization{},
+			},
+			args: args{
+				bucket: &platform.Bucket{
+					Name:           "name1",
+					OrganizationID: MustIDBase16(orgOneID),
+				},
+			},
+			wants: wants{
+				buckets: []*platform.Bucket{},
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Msg:  "organization not found",
+					Op:   platform.OpCreateBucket,
+				},
+			},
+		},
+		{
+			name: "create bucket with org name not exist",
+			fields: BucketFields{
+				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
+				Buckets:       []*platform.Bucket{},
+				Organizations: []*platform.Organization{},
+			},
+			args: args{
+				bucket: &platform.Bucket{
+					Name:         "name1",
+					Organization: "org1",
+				},
+			},
+			wants: wants{
+				buckets: []*platform.Bucket{},
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Msg:  "organization not found",
+					Op:   platform.OpCreateBucket,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

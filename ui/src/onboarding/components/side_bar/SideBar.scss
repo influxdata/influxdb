@@ -5,7 +5,8 @@
 
 @import 'src/style/modules';
 
-$sidebar-width: 240px;
+$sidebar-width-sm: 140px;
+$sidebar-width-md: 240px;
 
 .side-bar {
   @include no-user-select();
@@ -15,21 +16,19 @@ $sidebar-width: 240px;
   transition: flex 0.4s ease;
 
   &.show {
-    flex: 1 0 $sidebar-width
+    flex: 1 0 $sidebar-width-sm;
   }
 }
 
 .side-bar--container {
+  box-sizing: border-box;
   opacity: 0;
   transition: opacity 0.5s ease;
   height: 100%;
-  width: $sidebar-width;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: $ix-marg-d;
-  padding-top: $ix-marg-d * 2;
-  padding-right: 0;
+  padding: $ix-marg-e 0 34px 0;
 }
 
 .side-bar.show .side-bar--container {
@@ -37,9 +36,9 @@ $sidebar-width: 240px;
 }
 
 .side-bar--title {
-  margin: 0;
-  margin-bottom: $ix-marg-d;
+  margin: 0 $ix-marg-c $ix-marg-c $ix-marg-c;
   color: $g13-mist;
+  font-size: $ix-text-base-1;
 }
 
 .side-bar--contents {
@@ -62,7 +61,7 @@ $sidebar-width: 240px;
   border-radius: $radius 0 0 $radius;
   font-size: 15px;
   font-weight: 600;
-  padding-left: 13px;
+  margin-left: $ix-marg-c;
   color: $g10-wolf;
   background-color: transparent;
   white-space: nowrap;
@@ -85,7 +84,7 @@ $sidebar-width: 240px;
   color: $g7-graphite;
   display: inline-block;
   font-size: 16px;
-  margin-right: 13px;
+  margin: 0 13px;
   transition: color 0.25s ease;
 
   .side-bar--tab:hover & {
@@ -123,9 +122,30 @@ $sidebar-width: 240px;
 }
 
 .side-bar--buttons {
-  padding-right: $ix-marg-d;
+  margin: 0 $ix-marg-c;
 }
 
 .side-bar--button {
   width: 100%;
+}
+
+@media screen and (min-width: $grid--breakpoint-md) {
+  .side-bar--tab {
+    margin-left: $ix-marg-d;
+  }
+
+  .side-bar--title {
+    margin: 0 $ix-marg-d $ix-marg-c $ix-marg-d;
+    font-size: $ix-text-base-2;
+  }
+
+  .side-bar--buttons {
+    margin: 0 $ix-marg-d;
+  }
+
+  .side-bar {
+    &.show {
+      flex: 1 0 $sidebar-width-md;
+    }
+  }
 }

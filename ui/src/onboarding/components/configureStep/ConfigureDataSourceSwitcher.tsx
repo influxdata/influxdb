@@ -30,6 +30,9 @@ export interface Props {
   org: string
   username: string
   onSetConfigArrayValue: typeof setConfigArrayValue
+  onClickNext: () => void
+  onClickPrevious: () => void
+  onClickSkip: () => void
 }
 
 @ErrorHandling
@@ -45,6 +48,9 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
       onAddConfigValue,
       onRemoveConfigValue,
       onSetConfigArrayValue,
+      onClickNext,
+      onClickPrevious,
+      onClickSkip,
     } = this.props
 
     switch (dataLoaderType) {
@@ -57,10 +63,21 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
             currentIndex={currentIndex}
             onAddConfigValue={onAddConfigValue}
             onSetConfigArrayValue={onSetConfigArrayValue}
+            onClickNext={onClickNext}
+            onClickPrevious={onClickPrevious}
+            onClickSkip={onClickSkip}
           />
         )
       case DataLoaderType.LineProtocol:
-        return <LineProtocol bucket={bucket} org={org} />
+        return (
+          <LineProtocol
+            bucket={bucket}
+            org={org}
+            onClickNext={onClickNext}
+            onClickBack={onClickPrevious}
+            onClickSkip={onClickSkip}
+          />
+        )
       case DataLoaderType.CSV:
         return <div>{DataLoaderType.CSV}</div>
       default:

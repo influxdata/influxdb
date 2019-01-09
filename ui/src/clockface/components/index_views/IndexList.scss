@@ -129,7 +129,7 @@
   ------------------------------------------------------------------------------
 */
 
-.profile-content {
+.tabbed-page-content {
   .index-list--cell {
     background-color: $g4-onyx;
   }
@@ -193,4 +193,25 @@
 .index-list--sort-descending .index-list--sort-arrow {
   opacity: 1;
   transform: rotate(00deg);
+}
+
+/*
+  Margin for "Name" column in tables
+  ------------------------------------------------------------------------------
+*/
+
+.index-list--description {
+  user-select: none;
+  font-size: 12px;
+  color: $g12-forge;
+  white-space: nowrap;
+
+  &.untitled {
+    color: $g9-mountain;
+    font-style: italic;
+  }
+}
+
+.index-list--labels {
+  margin-left: $ix-marg-b;
 }

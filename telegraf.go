@@ -344,7 +344,7 @@ var availableInputPlugins = map[string](func() plugins.Config){
 	"net":          func() plugins.Config { return &inputs.NetIOStats{} },
 	"ngnix":        func() plugins.Config { return &inputs.Nginx{} },
 	"processes":    func() plugins.Config { return &inputs.Processes{} },
-	"procstats":    func() plugins.Config { return &inputs.Procstat{} },
+	"procstat":     func() plugins.Config { return &inputs.Procstat{} },
 	"prometheus":   func() plugins.Config { return &inputs.Prometheus{} },
 	"redis":        func() plugins.Config { return &inputs.Redis{} },
 	"swap":         func() plugins.Config { return &inputs.SwapStats{} },

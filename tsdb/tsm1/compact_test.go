@@ -126,7 +126,10 @@ func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
-	entries := r.Entries([]byte("cpu,host=A#!~#value"))
+	entries, err := r.ReadEntries([]byte("cpu,host=A#!~#value"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, b, err := r.ReadBytes(&entries[0], nil)
 	if err != nil {
 		t.Fatalf("ReadBytes: unexpected error %v", err)
@@ -661,7 +664,11 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 		}
 	}
 
-	if got, exp := len(r.Entries([]byte("cpu,host=A#!~#value"))), 2; got != exp {
+	entries, err := r.ReadEntries([]byte("cpu,host=A#!~#value"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, exp := len(entries), 2; got != exp {
 		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -774,7 +781,11 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 		}
 	}
 
-	if got, exp := len(r.Entries([]byte("cpu,host=A#!~#value"))), 1; got != exp {
+	entries, err := r.ReadEntries([]byte("cpu,host=A#!~#value"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, exp := len(entries), 1; got != exp {
 		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -888,7 +899,11 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 		}
 	}
 
-	if got, exp := len(r.Entries([]byte("cpu,host=A#!~#value"))), 2; got != exp {
+	entries, err := r.ReadEntries([]byte("cpu,host=A#!~#value"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, exp := len(entries), 2; got != exp {
 		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -996,7 +1011,11 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 		}
 	}
 
-	if got, exp := len(r.Entries([]byte("cpu,host=A#!~#value"))), 2; got != exp {
+	entries, err := r.ReadEntries([]byte("cpu,host=A#!~#value"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, exp := len(entries), 2; got != exp {
 		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
 	}
 }

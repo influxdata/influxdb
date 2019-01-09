@@ -48,9 +48,8 @@ export enum QueryEditMode {
 
 export interface BuilderConfig {
   buckets: string[]
-  measurements: string[]
-  fields: string[]
-  functions: string[]
+  tags: Array<{key: string; values: string[]}>
+  functions: Array<{name: string}>
 }
 
 export interface DashboardQuery {
@@ -60,6 +59,10 @@ export interface DashboardQuery {
   builderConfig: BuilderConfig
   sourceID: string // Which source to use when running the query; may be empty, which means “use the dynamic source”
   name?: string
+}
+
+export interface DashboardDraftQuery extends DashboardQuery {
+  hidden: boolean
 }
 
 export interface URLQuery {

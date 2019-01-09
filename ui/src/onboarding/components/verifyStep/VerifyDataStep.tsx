@@ -1,16 +1,13 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  ComponentStatus,
-} from 'src/clockface'
 import VerifyDataSwitcher from 'src/onboarding/components/verifyStep/VerifyDataSwitcher'
+import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 // Actions
 import {
@@ -22,8 +19,13 @@ import {
 // Types
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {DataLoaderType, TelegrafPlugin} from 'src/types/v2/dataLoaders'
+import {Form} from 'src/clockface'
+import {NotificationAction, RemoteDataState} from 'src/types'
+import {StepStatus} from 'src/clockface/constants/wizard'
+import {AppState} from 'src/types/v2'
 
-export interface Props extends OnboardingStepProps {
+export interface OwnProps extends OnboardingStepProps {
+  notify: NotificationAction
   type: DataLoaderType
   authToken: string
   telegrafConfigID: string
@@ -34,8 +36,21 @@ export interface Props extends OnboardingStepProps {
   stepIndex: number
 }
 
+interface StateProps {
+  lpStatus: RemoteDataState
+}
+
+interface RouterProps {
+  params: {
+    stepID: string
+    substepID: string
+  }
+}
+
+export type Props = RouterProps & OwnProps & WithRouterProps & StateProps
+
 @ErrorHandling
-class VerifyDataStep extends PureComponent<Props> {
+export class VerifyDataStep extends PureComponent<Props> {
   public componentDidMount() {
     const {type, onSetPluginConfiguration, telegrafPlugins} = this.props
 
@@ -53,59 +68,37 @@ class VerifyDataStep extends PureComponent<Props> {
       authToken,
       type,
       onSaveTelegrafConfig,
-      onIncrementCurrentStepIndex,
+      onDecrementCurrentStepIndex,
       onSetStepStatus,
       stepIndex,
+      notify,
     } = this.props
 
     return (
-      <div className="onboarding-step">
-        <VerifyDataSwitcher
-          type={type}
-          telegrafConfigID={telegrafConfigID}
-          authToken={authToken}
-          onSaveTelegrafConfig={onSaveTelegrafConfig}
-          org={_.get(setupParams, 'org', '')}
-          bucket={_.get(setupParams, 'bucket', '')}
-          onSetStepStatus={onSetStepStatus}
-          stepIndex={stepIndex}
-        />
-        <div className="wizard--button-container">
-          <div className="wizard--button-bar">
-            <Button
-              color={ComponentColor.Default}
-              text={this.backButtonText}
-              size={ComponentSize.Medium}
-              onClick={this.handleDecrementStep}
-              data-test="back"
-            />
-            <Button
-              color={ComponentColor.Primary}
-              text="Continue to Completion"
-              size={ComponentSize.Medium}
-              onClick={onIncrementCurrentStepIndex}
-              status={ComponentStatus.Default}
-              titleText={'Next'}
-              data-test="next"
-            />
-          </div>
-          {this.skipLink}
+      <Form onSubmit={this.handleIncrementStep}>
+        <div className="onboarding-step wizard--skippable">
+          <VerifyDataSwitcher
+            notify={notify}
+            type={type}
+            telegrafConfigID={telegrafConfigID}
+            authToken={authToken}
+            onSaveTelegrafConfig={onSaveTelegrafConfig}
+            org={_.get(setupParams, 'org', '')}
+            bucket={_.get(setupParams, 'bucket', '')}
+            onSetStepStatus={onSetStepStatus}
+            stepIndex={stepIndex}
+            onDecrementCurrentStep={onDecrementCurrentStepIndex}
+          />
+          <OnboardingButtons
+            onClickBack={this.handleDecrementStep}
+            onClickSkip={this.jumpToCompletionStep}
+            nextButtonText={'Continue to Completion'}
+            backButtonText={this.backButtonText}
+            skipButtonText={'Skip'}
+            showSkip={true}
+          />
         </div>
-      </div>
-    )
-  }
-
-  private get skipLink() {
-    return (
-      <Button
-        color={ComponentColor.Default}
-        text="Skip"
-        customClass="wizard--skip-button"
-        size={ComponentSize.Medium}
-        onClick={this.jumpToCompletionStep}
-      >
-        skip
-      </Button>
+      </Form>
     )
   }
 
@@ -121,6 +114,29 @@ class VerifyDataStep extends PureComponent<Props> {
     }
 
     return type
+  }
+
+  private handleIncrementStep = () => {
+    const {
+      onIncrementCurrentStepIndex,
+      onSetStepStatus,
+      type,
+      lpStatus,
+    } = this.props
+    const {
+      params: {stepID},
+    } = this.props
+
+    if (
+      type === DataLoaderType.LineProtocol &&
+      lpStatus === RemoteDataState.Error
+    ) {
+      onSetStepStatus(parseInt(stepID, 10), StepStatus.Error)
+    } else {
+      onSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
+    }
+
+    onIncrementCurrentStepIndex()
   }
 
   private handleDecrementStep = () => {
@@ -149,4 +165,14 @@ class VerifyDataStep extends PureComponent<Props> {
   }
 }
 
-export default VerifyDataStep
+const mstp = ({
+  onboarding: {
+    dataLoaders: {lpStatus},
+  },
+}: AppState): StateProps => ({
+  lpStatus,
+})
+
+export default withRouter<OwnProps>(
+  connect<StateProps, {}, OwnProps>(mstp)(VerifyDataStep)
+)

@@ -634,6 +634,12 @@ export interface Dashboard {
      * @memberof Dashboard
      */
     cells?: Array<Cell>;
+    /**
+     * 
+     * @type {Array<Label>}
+     * @memberof Dashboard
+     */
+    labels?: Array<Label>;
 }
 
 /**
@@ -1070,10 +1076,10 @@ export namespace Health {
 export interface InlineResponse200 {
     /**
      * 
-     * @type {Array<Task>}
+     * @type {Array<Label>}
      * @memberof InlineResponse200
      */
-    tasks?: Array<Task>;
+    labels?: Array<Label>;
     /**
      * 
      * @type {Links}
@@ -1090,14 +1096,34 @@ export interface InlineResponse200 {
 export interface InlineResponse2001 {
     /**
      * 
-     * @type {Array<Run>}
+     * @type {Array<Task>}
      * @memberof InlineResponse2001
+     */
+    tasks?: Array<Task>;
+    /**
+     * 
+     * @type {Links}
+     * @memberof InlineResponse2001
+     */
+    links?: Links;
+}
+
+/**
+ * 
+ * @export
+ * @interface InlineResponse2002
+ */
+export interface InlineResponse2002 {
+    /**
+     * 
+     * @type {Array<Run>}
+     * @memberof InlineResponse2002
      */
     runs?: Array<Run>;
     /**
      * 
      * @type {Links}
-     * @memberof InlineResponse2001
+     * @memberof InlineResponse2002
      */
     links?: Links;
 }
@@ -1127,33 +1153,19 @@ export interface Label {
      * @type {string}
      * @memberof Label
      */
-    name: string;
+    resourceID?: string;
     /**
      * 
-     * @type {LabelProperties}
+     * @type {string}
      * @memberof Label
      */
-    properties: LabelProperties;
-}
-
-/**
- * 
- * @export
- * @interface LabelProperties
- */
-export interface LabelProperties {
+    name?: string;
     /**
-     * 
-     * @type {string}
-     * @memberof LabelProperties
+     * Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
+     * @type {any}
+     * @memberof Label
      */
-    color: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof LabelProperties
-     */
-    description: string;
+    properties?: any;
 }
 
 /**
@@ -1447,10 +1459,10 @@ export interface Logs {
 export interface Macro {
     /**
      * 
-     * @type {UserLinks}
+     * @type {ResourceOwnersLinks}
      * @memberof Macro
      */
-    links?: UserLinks;
+    links?: ResourceOwnersLinks;
     /**
      * 
      * @type {string}
@@ -2191,6 +2203,68 @@ export interface RenamableField {
 /**
  * 
  * @export
+ * @interface ResourceOwner
+ */
+export interface ResourceOwner extends User {
+    /**
+     * 
+     * @type {string}
+     * @memberof ResourceOwner
+     */
+    role?: ResourceOwner.RoleEnum;
+}
+
+/**
+ * @export
+ * @namespace ResourceOwner
+ */
+export namespace ResourceOwner {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum RoleEnum {
+        Owner = 'owner'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface ResourceOwners
+ */
+export interface ResourceOwners {
+    /**
+     * 
+     * @type {ResourceOwnersLinks}
+     * @memberof ResourceOwners
+     */
+    links?: ResourceOwnersLinks;
+    /**
+     * 
+     * @type {Array<ResourceOwner>}
+     * @memberof ResourceOwners
+     */
+    users?: Array<ResourceOwner>;
+}
+
+/**
+ * 
+ * @export
+ * @interface ResourceOwnersLinks
+ */
+export interface ResourceOwnersLinks {
+    /**
+     * 
+     * @type {string}
+     * @memberof ResourceOwnersLinks
+     */
+    self?: string;
+}
+
+/**
+ * 
+ * @export
  * @interface Routes
  */
 export interface Routes {
@@ -2550,10 +2624,10 @@ export interface SourceLinks {
 export interface Sources {
     /**
      * 
-     * @type {UserLinks}
+     * @type {ResourceOwnersLinks}
      * @memberof Sources
      */
-    links?: UserLinks;
+    links?: ResourceOwnersLinks;
     /**
      * 
      * @type {Array<Source>}
@@ -2599,6 +2673,12 @@ export interface Task {
      */
     owner?: User;
     /**
+     * 
+     * @type {Array<Label>}
+     * @memberof Task
+     */
+    labels?: Array<Label>;
+    /**
      * The Flux script to run for this task.
      * @type {string}
      * @memberof Task
@@ -2617,11 +2697,17 @@ export interface Task {
      */
     cron?: string;
     /**
-     * How long to wait before running the task
+     * Duration to delay after the schedule, before executing the task; parsed from flux.
      * @type {string}
      * @memberof Task
      */
     offset?: string;
+    /**
+     * Timestamp of latest scheduled, completed run, RFC3339.
+     * @type {Date}
+     * @memberof Task
+     */
+    latestCompleted?: Date;
     /**
      * 
      * @type {TaskLinks}
@@ -4590,10 +4676,10 @@ export interface User {
     status?: User.StatusEnum;
     /**
      * 
-     * @type {UserLinks}
+     * @type {ResourceOwnersLinks}
      * @memberof User
      */
-    links?: UserLinks;
+    links?: ResourceOwnersLinks;
 }
 
 /**
@@ -4614,29 +4700,15 @@ export namespace User {
 /**
  * 
  * @export
- * @interface UserLinks
- */
-export interface UserLinks {
-    /**
-     * 
-     * @type {string}
-     * @memberof UserLinks
-     */
-    self?: string;
-}
-
-/**
- * 
- * @export
  * @interface Users
  */
 export interface Users {
     /**
      * 
-     * @type {UserLinks}
+     * @type {ResourceOwnersLinks}
      * @memberof Users
      */
-    links?: UserLinks;
+    links?: ResourceOwnersLinks;
     /**
      * 
      * @type {Array<User>}
@@ -6804,6 +6876,91 @@ export const DashboardsApiAxiosParamCreator = function (configuration?: Configur
         },
         /**
          * 
+         * @summary list all labels for a dashboard
+         * @param {string} dashboardID ID of the dashboard
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDLabelsGet(dashboardID: string, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'dashboardID' is not null or undefined
+            if (dashboardID === null || dashboardID === undefined) {
+                throw new RequiredError('dashboardID','Required parameter dashboardID was null or undefined when calling dashboardsDashboardIDLabelsGet.');
+            }
+            const localVarPath = `/dashboards/{dashboardID}/labels`
+                .replace(`{${"dashboardID"}}`, encodeURIComponent(String(dashboardID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary add a label to a dashboard
+         * @param {string} dashboardID ID of the dashboard
+         * @param {Label} label label to add
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDLabelsPost(dashboardID: string, label: Label, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'dashboardID' is not null or undefined
+            if (dashboardID === null || dashboardID === undefined) {
+                throw new RequiredError('dashboardID','Required parameter dashboardID was null or undefined when calling dashboardsDashboardIDLabelsPost.');
+            }
+            // verify required parameter 'label' is not null or undefined
+            if (label === null || label === undefined) {
+                throw new RequiredError('label','Required parameter label was null or undefined when calling dashboardsDashboardIDLabelsPost.');
+            }
+            const localVarPath = `/dashboards/{dashboardID}/labels`
+                .replace(`{${"dashboardID"}}`, encodeURIComponent(String(dashboardID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'POST' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"Label" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(label || {}) : (label || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary List all dashboard members
          * @param {string} dashboardID ID of the dashboard
          * @param {*} [options] Override http request option.
@@ -7075,13 +7232,14 @@ export const DashboardsApiAxiosParamCreator = function (configuration?: Configur
         /**
          * 
          * @summary Get all dashboards
+         * @param {string} [org] specifies the organization name of the resource
          * @param {string} [owner] specifies the owner id to return resources for
          * @param {'ID' | 'CreatedAt' | 'UpdatedAt'} [sortBy] specifies the owner id to return resources for
          * @param {Array<string>} [id] ID list of dashboards to return. If both this and owner are specified, only ids is used.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        dashboardsGet(owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options: any = {}): RequestArgs {
+        dashboardsGet(org?: string, owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options: any = {}): RequestArgs {
             const localVarPath = `/dashboards`;
             const localVarUrlObj = url.parse(localVarPath, true);
             let baseOptions;
@@ -7091,6 +7249,10 @@ export const DashboardsApiAxiosParamCreator = function (configuration?: Configur
             const localVarRequestOptions = Object.assign({ method: 'GET' }, baseOptions, options);
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+
+            if (org !== undefined) {
+                localVarQueryParameter['org'] = org;
+            }
 
             if (owner !== undefined) {
                 localVarQueryParameter['owner'] = owner;
@@ -7259,6 +7421,37 @@ export const DashboardsApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary list all labels for a dashboard
+         * @param {string} dashboardID ID of the dashboard
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDLabelsGet(dashboardID: string, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse200> {
+            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsDashboardIDLabelsGet(dashboardID, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary add a label to a dashboard
+         * @param {string} dashboardID ID of the dashboard
+         * @param {Label} label label to add
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDLabelsPost(dashboardID: string, label: Label, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse200> {
+            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsDashboardIDLabelsPost(dashboardID, label, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary List all dashboard members
          * @param {string} dashboardID ID of the dashboard
          * @param {*} [options] Override http request option.
@@ -7363,14 +7556,15 @@ export const DashboardsApiFp = function(configuration?: Configuration) {
         /**
          * 
          * @summary Get all dashboards
+         * @param {string} [org] specifies the organization name of the resource
          * @param {string} [owner] specifies the owner id to return resources for
          * @param {'ID' | 'CreatedAt' | 'UpdatedAt'} [sortBy] specifies the owner id to return resources for
          * @param {Array<string>} [id] ID list of dashboards to return. If both this and owner are specified, only ids is used.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        dashboardsGet(owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Dashboards> {
-            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsGet(owner, sortBy, id, options);
+        dashboardsGet(org?: string, owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Dashboards> {
+            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsGet(org, owner, sortBy, id, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -7467,6 +7661,29 @@ export const DashboardsApiFactory = function (configuration?: Configuration, bas
         },
         /**
          * 
+         * @summary list all labels for a dashboard
+         * @param {string} dashboardID ID of the dashboard
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDLabelsGet(dashboardID: string, zapTraceSpan?: string, options?: any) {
+            return DashboardsApiFp(configuration).dashboardsDashboardIDLabelsGet(dashboardID, zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary add a label to a dashboard
+         * @param {string} dashboardID ID of the dashboard
+         * @param {Label} label label to add
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        dashboardsDashboardIDLabelsPost(dashboardID: string, label: Label, zapTraceSpan?: string, options?: any) {
+            return DashboardsApiFp(configuration).dashboardsDashboardIDLabelsPost(dashboardID, label, zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary List all dashboard members
          * @param {string} dashboardID ID of the dashboard
          * @param {*} [options] Override http request option.
@@ -7543,14 +7760,15 @@ export const DashboardsApiFactory = function (configuration?: Configuration, bas
         /**
          * 
          * @summary Get all dashboards
+         * @param {string} [org] specifies the organization name of the resource
          * @param {string} [owner] specifies the owner id to return resources for
          * @param {'ID' | 'CreatedAt' | 'UpdatedAt'} [sortBy] specifies the owner id to return resources for
          * @param {Array<string>} [id] ID list of dashboards to return. If both this and owner are specified, only ids is used.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        dashboardsGet(owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any) {
-            return DashboardsApiFp(configuration).dashboardsGet(owner, sortBy, id, options)(axios, basePath);
+        dashboardsGet(org?: string, owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any) {
+            return DashboardsApiFp(configuration).dashboardsGet(org, owner, sortBy, id, options)(axios, basePath);
         },
         /**
          * 
@@ -7652,6 +7870,33 @@ export class DashboardsApi extends BaseAPI {
 
     /**
      * 
+     * @summary list all labels for a dashboard
+     * @param {string} dashboardID ID of the dashboard
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DashboardsApi
+     */
+    public dashboardsDashboardIDLabelsGet(dashboardID: string, zapTraceSpan?: string, options?: any) {
+        return DashboardsApiFp(this.configuration).dashboardsDashboardIDLabelsGet(dashboardID, zapTraceSpan, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary add a label to a dashboard
+     * @param {string} dashboardID ID of the dashboard
+     * @param {Label} label label to add
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DashboardsApi
+     */
+    public dashboardsDashboardIDLabelsPost(dashboardID: string, label: Label, zapTraceSpan?: string, options?: any) {
+        return DashboardsApiFp(this.configuration).dashboardsDashboardIDLabelsPost(dashboardID, label, zapTraceSpan, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
      * @summary List all dashboard members
      * @param {string} dashboardID ID of the dashboard
      * @param {*} [options] Override http request option.
@@ -7742,6 +7987,7 @@ export class DashboardsApi extends BaseAPI {
     /**
      * 
      * @summary Get all dashboards
+     * @param {string} [org] specifies the organization name of the resource
      * @param {string} [owner] specifies the owner id to return resources for
      * @param {'ID' | 'CreatedAt' | 'UpdatedAt'} [sortBy] specifies the owner id to return resources for
      * @param {Array<string>} [id] ID list of dashboards to return. If both this and owner are specified, only ids is used.
@@ -7749,8 +7995,8 @@ export class DashboardsApi extends BaseAPI {
      * @throws {RequiredError}
      * @memberof DashboardsApi
      */
-    public dashboardsGet(owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any) {
-        return DashboardsApiFp(this.configuration).dashboardsGet(owner, sortBy, id, options)(this.axios, this.basePath);
+    public dashboardsGet(org?: string, owner?: string, sortBy?: 'ID' | 'CreatedAt' | 'UpdatedAt', id?: Array<string>, options?: any) {
+        return DashboardsApiFp(this.configuration).dashboardsGet(org, owner, sortBy, id, options)(this.axios, this.basePath);
     }
 
     /**
@@ -8932,7 +9178,7 @@ export const OrganizationsApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        orgsOrgIDMembersGet(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Users> {
+        orgsOrgIDMembersGet(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ResourceOwners> {
             const localVarAxiosArgs = OrganizationsApiAxiosParamCreator(configuration).orgsOrgIDMembersGet(orgID, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -11276,7 +11522,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        tasksGet(after?: string, user?: string, org?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse200> {
+        tasksGet(after?: string, user?: string, org?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2001> {
             const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksGet(after, user, org, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -11453,7 +11699,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        tasksTaskIDRunsGet(taskID: string, after?: string, limit?: number, afterTime?: Date, beforeTime?: Date, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2001> {
+        tasksTaskIDRunsGet(taskID: string, after?: string, limit?: number, afterTime?: Date, beforeTime?: Date, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2002> {
             const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksTaskIDRunsGet(taskID, after, limit, afterTime, beforeTime, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -14569,7 +14815,7 @@ export const UsersApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        orgsOrgIDMembersGet(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Users> {
+        orgsOrgIDMembersGet(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ResourceOwners> {
             const localVarAxiosArgs = UsersApiAxiosParamCreator(configuration).orgsOrgIDMembersGet(orgID, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})

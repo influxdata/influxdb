@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import CreateLabelOverlay from 'src/organizations/components/CreateLabelOverlay'
-import ProfilePageHeader from 'src/shared/components/profile_page/ProfilePageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {
   ComponentSize,
   EmptyState,
@@ -18,7 +18,7 @@ import LabelList from 'src/organizations/components/LabelList'
 import FilterList from 'src/shared/components/Filter'
 
 // API
-import {createLabel, deleteLabel, updateLabel} from 'src/organizations/apis'
+import {createLabel, deleteLabel, updateLabel} from 'src/configuration/apis'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -35,14 +35,18 @@ import {
 
 // Types
 import {LabelType} from 'src/clockface'
-import {Label, Organization, LabelProperties} from 'src/api'
+import {Label} from 'src/api'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface LabelProperties {
+  color: string
+  description: string
+}
+
 interface PassedProps {
   labels: Label[]
-  org: Organization
 }
 
 interface State {
@@ -70,12 +74,11 @@ class Labels extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {org} = this.props
     const {searchTerm, isOverlayVisible, labelTypes} = this.state
 
     return (
       <>
-        <ProfilePageHeader>
+        <TabbedPageHeader>
           <Input
             icon={IconFont.Search}
             widthPixels={290}
@@ -86,12 +89,12 @@ class Labels extends PureComponent<Props, State> {
             placeholder="Filter Labels..."
           />
           <Button
-            text="Create Labels"
+            text="Create Label"
             color={ComponentColor.Primary}
             icon={IconFont.Plus}
             onClick={this.handleShowOverlay}
           />
-        </ProfilePageHeader>
+        </TabbedPageHeader>
         <FilterList<LabelType>
           list={labelTypes}
           searchKeys={['name', 'description']}
@@ -106,7 +109,6 @@ class Labels extends PureComponent<Props, State> {
           )}
         </FilterList>
         <CreateLabelOverlay
-          org={org}
           isVisible={isOverlayVisible}
           onDismiss={this.handleDismissOverlay}
           onCreateLabel={this.handleCreateLabel}
@@ -132,12 +134,9 @@ class Labels extends PureComponent<Props, State> {
     this.setState({searchTerm: e.target.value})
   }
 
-  private handleCreateLabel = async (
-    org: Organization,
-    labelType: LabelType
-  ) => {
+  private handleCreateLabel = async (labelType: LabelType) => {
     try {
-      const newLabel = await createLabel(org, {
+      const newLabel = await createLabel({
         name: labelType.name,
         properties: this.labelProperties(labelType),
       })
@@ -151,7 +150,7 @@ class Labels extends PureComponent<Props, State> {
 
   private handleUpdateLabel = async (labelType: LabelType) => {
     try {
-      const label = await updateLabel(this.props.org, {
+      const label = await updateLabel({
         name: labelType.name,
         properties: this.labelProperties(labelType),
       })
@@ -191,11 +190,11 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleDelete = async (name: string) => {
-    const {org, labels} = this.props
+    const {labels} = this.props
     const label = labels.find(label => label.name === name)
 
     try {
-      await deleteLabel(org, label)
+      await deleteLabel(label)
       const labelTypes = this.state.labelTypes.filter(l => l.id !== name)
 
       this.setState({labelTypes})
@@ -214,7 +213,7 @@ class Labels extends PureComponent<Props, State> {
   private get emptyState(): JSX.Element {
     const {searchTerm} = this.state
 
-    let emptyText = "This organization doesn't have any Labels yet"
+    let emptyText = 'No Labels were found'
 
     if (searchTerm) {
       emptyText = 'No Labels match your search term'

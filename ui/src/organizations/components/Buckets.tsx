@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import ProfilePageHeader from 'src/shared/components/profile_page/ProfilePageHeader'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/organizations/components/BucketList'
 import {PrettyBucket} from 'src/organizations/components/BucketRow'
@@ -62,7 +62,7 @@ export default class Buckets extends PureComponent<Props, State> {
 
     return (
       <>
-        <ProfilePageHeader>
+        <TabbedPageHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter Buckets..."
@@ -77,7 +77,7 @@ export default class Buckets extends PureComponent<Props, State> {
             color={ComponentColor.Primary}
             onClick={this.handleOpenModal}
           />
-        </ProfilePageHeader>
+        </TabbedPageHeader>
         <FilterList<PrettyBucket>
           searchTerm={searchTerm}
           searchKeys={['name', 'ruleString']}

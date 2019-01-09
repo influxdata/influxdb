@@ -1,0 +1,15 @@
+@import "src/style/modules";
+
+.time-machine-queries-timer {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  margin-right: 10px;
+  color: $g10-wolf;
+  transition: 0.3s;
+  opacity: 0;
+
+  &.visible {
+    opacity: 1;
+  }
+}

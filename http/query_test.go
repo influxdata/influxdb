@@ -24,7 +24,7 @@ import (
 func TestQueryRequest_WithDefaults(t *testing.T) {
 	type fields struct {
 		Spec    *flux.Spec
-		AST     *ast.Program
+		AST     *ast.Package
 		Query   string
 		Type    string
 		Dialect QueryDialect
@@ -67,7 +67,7 @@ func TestQueryRequest_WithDefaults(t *testing.T) {
 func TestQueryRequest_Validate(t *testing.T) {
 	type fields struct {
 		Spec    *flux.Spec
-		AST     *ast.Program
+		AST     *ast.Package
 		Query   string
 		Type    string
 		Dialect QueryDialect
@@ -181,7 +181,7 @@ func TestQueryRequest_Validate(t *testing.T) {
 
 func Test_toSpec(t *testing.T) {
 	type args struct {
-		p   *ast.Program
+		p   *ast.Package
 		now func() time.Time
 	}
 	tests := []struct {
@@ -193,7 +193,7 @@ func Test_toSpec(t *testing.T) {
 		{
 			name: "ast converts to spec",
 			args: args{
-				p:   &ast.Program{},
+				p:   &ast.Package{},
 				now: func() time.Time { return time.Unix(0, 0) },
 			},
 			want: &flux.Spec{
@@ -203,10 +203,12 @@ func Test_toSpec(t *testing.T) {
 		{
 			name: "bad semantics error",
 			args: args{
-				p: &ast.Program{
-					Body: []ast.Statement{
-						&ast.ReturnStatement{},
-					},
+				p: &ast.Package{
+					Files: []*ast.File{{
+						Body: []ast.Statement{
+							&ast.ReturnStatement{},
+						},
+					}},
 				},
 				now: func() time.Time { return time.Unix(0, 0) },
 			},
@@ -231,7 +233,7 @@ func Test_toSpec(t *testing.T) {
 func TestQueryRequest_proxyRequest(t *testing.T) {
 	type fields struct {
 		Spec    *flux.Spec
-		AST     *ast.Program
+		AST     *ast.Package
 		Query   string
 		Type    string
 		Dialect QueryDialect
@@ -279,7 +281,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 		{
 			name: "valid AST",
 			fields: fields{
-				AST:  &ast.Program{},
+				AST:  &ast.Package{},
 				Type: "flux",
 				Dialect: QueryDialect{
 					Delimiter:      ",",
@@ -436,7 +438,7 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "valid query request",
+			name: "valid post query request",
 			args: args{
 				r: httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"query": "from()"}`)),
 				svc: &mock.OrganizationService{
@@ -452,6 +454,33 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 					Compiler: lang.FluxCompiler{
 						Query: "from()",
+					},
+				},
+				Dialect: &csv.Dialect{
+					ResultEncoderConfig: csv.ResultEncoderConfig{
+						NoHeader:  false,
+						Delimiter: ',',
+					},
+				},
+			},
+		},
+		{
+			name: "valid get query request",
+			args: args{
+				r: httptest.NewRequest("GET", "/api/v2/query?query=from(bucket%3A%20%22mybucket%22)&org=myorg", nil),
+				svc: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+						}, nil
+					},
+				},
+			},
+			want: &query.ProxyRequest{
+				Request: query.Request{
+					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+					Compiler: lang.FluxCompiler{
+						Query: "from(bucket: \"mybucket\")",
 					},
 				},
 				Dialect: &csv.Dialect{

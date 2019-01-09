@@ -2,7 +2,7 @@
 
 exports[`Onboarding.Components.CompletionStep renders 1`] = `
 <div
-  className="onboarding-step"
+  className="wizard--bookend-step"
 >
   <div
     className="splash-logo secondary"
@@ -15,9 +15,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
   <h5
     className="wizard-step--sub-title"
   />
-  <div
-    className="wizard--button-bar"
-  >
+  <div>
     <Button
       active={false}
       color="default"
@@ -26,7 +24,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
       size="lg"
       status="default"
       text="Back to Verify"
-      type="submit"
+      type="button"
     />
     <Button
       active={false}
@@ -36,7 +34,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
       size="lg"
       status="default"
       text="Go to InfluxDB 2.0"
-      type="submit"
+      type="button"
     />
   </div>
 </div>

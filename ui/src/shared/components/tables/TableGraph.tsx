@@ -4,7 +4,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {
   ASCENDING,
-  DEFAULT_TIME_FIELD,
   DESCENDING,
   DEFAULT_SORT_DIRECTION,
 } from 'src/shared/constants/tableGraph'
@@ -33,7 +32,7 @@ class TableGraph extends PureComponent<Props, State> {
 
     this.state = {
       sortOptions: {
-        field: sortField || DEFAULT_TIME_FIELD.internalName,
+        field: sortField,
         direction: ASCENDING,
       },
     }
@@ -41,12 +40,12 @@ class TableGraph extends PureComponent<Props, State> {
 
   public render() {
     const {table, properties} = this.props
-    const {sortOptions} = this.state
+
     return (
       <TableGraphTransform
         data={table.data}
         properties={properties}
-        sortOptions={sortOptions}
+        sortOptions={this.sortOptions}
       >
         {transformedDataBundle => (
           <TableGraphTable
@@ -70,6 +69,25 @@ class TableGraph extends PureComponent<Props, State> {
       sortOptions.direction = DEFAULT_SORT_DIRECTION
     }
     this.setState({sortOptions})
+  }
+
+  private get sortOptions(): SortOptions {
+    const {sortOptions} = this.state
+    const {table} = this.props
+    const headerSet = new Set(table.data[0])
+
+    if (headerSet.has(sortOptions.field)) {
+      return sortOptions
+    } else if (headerSet.has('_time')) {
+      return {...sortOptions, field: '_time'}
+    } else if (headerSet.has('_start')) {
+      return {...sortOptions, field: '_start'}
+    } else if (headerSet.has('_stop')) {
+      return {...sortOptions, field: '_stop'}
+    } else {
+      const headers = table.data[0]
+      return {...sortOptions, field: headers[0]}
+    }
   }
 }
 

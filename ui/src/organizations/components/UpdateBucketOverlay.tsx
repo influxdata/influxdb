@@ -107,7 +107,8 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     this.setState({ruleType})
   }
 
-  private handleSubmit = (): void => {
+  private handleSubmit = (e): void => {
+    e.preventDefault()
     const {onUpdateBucket} = this.props
     const {ruleType, bucket} = this.state
 

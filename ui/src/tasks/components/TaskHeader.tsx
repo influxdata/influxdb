@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 
 import {Page} from 'src/pageLayout'
-import {ComponentColor, ComponentSize, Button} from 'src/clockface'
+import {ComponentColor, Button} from 'src/clockface'
 
 import 'src/tasks/components/TasksPage.scss'
 
@@ -23,13 +23,11 @@ export default class TaskHeader extends PureComponent<Props> {
             color={ComponentColor.Default}
             text="Cancel"
             onClick={this.props.onCancel}
-            size={ComponentSize.Medium}
           />
           <Button
             color={ComponentColor.Success}
             text="Save"
             onClick={this.props.onSave}
-            size={ComponentSize.Medium}
           />
         </Page.Header.Right>
       </Page.Header>
