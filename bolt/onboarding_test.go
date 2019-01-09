@@ -28,6 +28,6 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 	}
 }
 
-func TestGenerate(t *testing.T) {
+func TestOnboardingService_Generate(t *testing.T) {
 	platformtesting.Generate(initOnboardingService, t)
 }

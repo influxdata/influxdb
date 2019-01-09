@@ -92,11 +92,24 @@ func (s *Service) Generate(ctx context.Context, req *platform.OnboardingRequest)
 	if err = s.CreateBucket(ctx, bucket); err != nil {
 		return nil, err
 	}
+
+	perms := platform.OperPermissions()
+	perms = append(perms, platform.OrgAdminPermissions(o.ID)...)
+	writeBucketPerm, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResource)
+	if err != nil {
+		return nil, err
+	}
+	readBucketPerm, err := platform.NewPermissionAtID(bucket.ID, platform.ReadAction, platform.BucketsResource)
+	if err != nil {
+		return nil, err
+	}
+	perms = append(perms, *writeBucketPerm, *readBucketPerm)
+
 	auth := &platform.Authorization{
 		UserID:      u.ID,
 		Description: fmt.Sprintf("%s's Token", u.Name),
 		OrgID:       o.ID,
-		Permissions: platform.OperPermissions(),
+		Permissions: perms,
 	}
 	if err = s.CreateAuthorization(ctx, auth); err != nil {
 		return nil, err
