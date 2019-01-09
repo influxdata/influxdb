@@ -50,7 +50,7 @@ class TimeMachineRefreshDropdown extends PureComponent<DispatchProps, State> {
       <AutoRefreshDropdown
         selected={autoRefreshInterval}
         onChoose={this.handleChooseInterval}
-        showManualRefresh={false}
+        onManualRefresh={this.incrementSubmitToken}
       />
     )
   }
