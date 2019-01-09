@@ -29,9 +29,25 @@ type Authorizer interface {
 	Kind() string
 }
 
-func allowed(p Permission, ps []Permission) bool {
+// PermissionAllowed
+func PermissionAllowed(p Permission, ps []Permission) bool {
+	pID := ID(0)
+	if p.ID != nil {
+		pID = *p.ID
+		if !pID.Valid() {
+			return false
+		}
+	}
+
 	for _, perm := range ps {
-		if perm.Action == p.Action && perm.Resource == p.Resource {
+		permID := ID(0)
+		if perm.ID != nil {
+			permID = *perm.ID
+			if !permID.Valid() {
+				return false
+			}
+		}
+		if perm.Action == p.Action && perm.Resource == p.Resource && permID == pID {
 			return true
 		}
 	}
