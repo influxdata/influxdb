@@ -134,7 +134,7 @@ func decodeGetTelegrafRequest(ctx context.Context, r *http.Request) (i platform.
 
 func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	filter, err := decodeUserResourceMappingFilter(ctx, r)
+	filter, err := decodeTelegrafConfigFilter(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
 		EncodeError(ctx, err, w)
@@ -189,6 +189,23 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(tc.TOML()))
 	}
+}
+
+func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform.TelegrafConfigFilter, error) {
+	f := &platform.TelegrafConfigFilter{}
+	urm, err := decodeUserResourceMappingFilter(ctx, r)
+	if err == nil {
+		return f, err
+	}
+	f.UserResourceMappingFilter = *urm
+
+	q := r.URL.Query()
+	if orgIDStr := q.Get("orgID"); orgIDStr != "" {
+		orgID, _ := platform.IDFromString(orgIDStr)
+		f.OrganizationID = orgID
+	}
+
+	return f, err
 }
 
 func decodeUserResourceMappingFilter(ctx context.Context, r *http.Request) (*platform.UserResourceMappingFilter, error) {
