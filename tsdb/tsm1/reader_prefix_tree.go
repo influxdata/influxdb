@@ -1,7 +1,5 @@
 package tsm1
 
-import "unsafe"
-
 type prefixTreeKey [8]byte
 
 const prefixTreeKeySize = len(prefixTreeKey{})
@@ -27,7 +25,9 @@ func newPrefixTree() *prefixTree {
 
 func (p *prefixTree) Append(prefix []byte, values ...TimeRange) {
 	if len(prefix) >= prefixTreeKeySize {
-		lookup := *(*prefixTreeKey)(unsafe.Pointer(&prefix[0]))
+		var lookup prefixTreeKey
+		copy(lookup[:], prefix)
+
 		ch, ok := p.long[lookup]
 		if !ok {
 			ch = newPrefixTree()
@@ -58,7 +58,9 @@ func (p *prefixTree) Search(key []byte, buf []TimeRange) []TimeRange {
 	}
 
 	if len(key) >= prefixTreeKeySize {
-		lookup := *(*prefixTreeKey)(unsafe.Pointer(&key[0]))
+		var lookup prefixTreeKey
+		copy(lookup[:], key)
+
 		if ch, ok := p.long[lookup]; ok {
 			buf = ch.Search(key[prefixTreeKeySize:], buf)
 		}
@@ -81,7 +83,9 @@ func (p *prefixTree) checkOverlap(key []byte, ts int64) bool {
 	}
 
 	if len(key) >= prefixTreeKeySize {
-		lookup := *(*prefixTreeKey)(unsafe.Pointer(&key[0]))
+		var lookup prefixTreeKey
+		copy(lookup[:], key)
+
 		if ch, ok := p.long[lookup]; ok && ch.checkOverlap(key[prefixTreeKeySize:], ts) {
 			return true
 		}
