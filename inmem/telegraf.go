@@ -11,7 +11,7 @@ var _ platform.TelegrafConfigStore = new(Service)
 
 // FindTelegrafConfigByID returns a single telegraf config by ID.
 func (s *Service) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (tc *platform.TelegrafConfig, err error) {
-	op := "inmem/find telegraf config by id"
+	op := OpPrefix + platform.OpFindTelegrafConfigByID
 	var pErr *platform.Error
 	tc, pErr = s.findTelegrafConfigByID(ctx, id)
 	if pErr != nil {
@@ -41,9 +41,9 @@ func (s *Service) findTelegrafConfigByID(ctx context.Context, id platform.ID) (*
 }
 
 // FindTelegrafConfig returns the first telegraf config that matches filter.
-func (s *Service) FindTelegrafConfig(ctx context.Context, filter platform.UserResourceMappingFilter) (*platform.TelegrafConfig, error) {
-	op := "inmem/find telegraf config"
-	tcs, n, err := s.FindTelegrafConfigs(ctx, filter)
+func (s *Service) FindTelegrafConfig(ctx context.Context, filter platform.TelegrafConfigFilter) (*platform.TelegrafConfig, error) {
+	op := OpPrefix + platform.OpFindTelegrafConfig
+	tcs, n, err := s.FindTelegrafConfigs(ctx, filter, platform.FindOptions{Limit: 1})
 	if err != nil {
 		return nil, err
 	}
@@ -56,9 +56,9 @@ func (s *Service) FindTelegrafConfig(ctx context.Context, filter platform.UserRe
 	}
 }
 
-func (s *Service) findTelegrafConfigs(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, *platform.Error) {
+func (s *Service) findTelegrafConfigs(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, *platform.Error) {
 	tcs := make([]*platform.TelegrafConfig, 0)
-	m, _, err := s.FindUserResourceMappings(ctx, filter)
+	m, _, err := s.FindUserResourceMappings(ctx, filter.UserResourceMappingFilter)
 	if err != nil {
 		return nil, 0, &platform.Error{
 			Err: err,
@@ -75,6 +75,10 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, filter platform.UserR
 				Err: err,
 			}
 		}
+		// Restrict results by organization ID, if it has been provided
+		if filter.OrganizationID != nil && filter.OrganizationID.Valid() && tc.OrganizationID != *filter.OrganizationID {
+			continue
+		}
 		tcs = append(tcs, tc)
 	}
 	if len(tcs) == 0 {
@@ -87,8 +91,8 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, filter platform.UserR
 
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
-func (s *Service) FindTelegrafConfigs(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) (tcs []*platform.TelegrafConfig, n int, err error) {
-	op := "inmem/find telegraf configs"
+func (s *Service) FindTelegrafConfigs(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) (tcs []*platform.TelegrafConfig, n int, err error) {
+	op := OpPrefix + platform.OpFindTelegrafConfigs
 	var pErr *platform.Error
 	tcs, n, pErr = s.findTelegrafConfigs(ctx, filter)
 	if pErr != nil {
@@ -105,44 +109,54 @@ func (s *Service) putTelegrafConfig(ctx context.Context, tc *platform.TelegrafCo
 			Err:  platform.ErrInvalidID,
 		}
 	}
+	if !tc.OrganizationID.Valid() {
+		return &platform.Error{
+			Code: platform.EEmptyValue,
+			Msg:  platform.ErrTelegrafConfigInvalidOrganizationID,
+		}
+	}
 	s.telegrafConfigKV.Store(tc.ID, *tc)
 	return nil
 }
 
 // CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
 func (s *Service) CreateTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig, userID platform.ID) error {
-	op := "inmem/create telegraf config"
+	op := OpPrefix + platform.OpCreateTelegrafConfig
 	tc.ID = s.IDGenerator.ID()
-	err := s.CreateUserResourceMapping(ctx, &platform.UserResourceMapping{
+
+	pErr := s.putTelegrafConfig(ctx, tc)
+	if pErr != nil {
+		pErr.Op = op
+		return pErr
+	}
+
+	urm := &platform.UserResourceMapping{
 		ResourceID: tc.ID,
 		UserID:     userID,
 		UserType:   platform.Owner,
 		Resource:   platform.TelegrafsResource,
-	})
-	if err != nil {
+	}
+	if err := s.CreateUserResourceMapping(ctx, urm); err != nil {
 		return err
 	}
-	pErr := s.putTelegrafConfig(ctx, tc)
-	if pErr != nil {
-		pErr.Op = op
-		err = pErr
-	}
-	return err
 
+	return nil
 }
 
 // UpdateTelegrafConfig updates a single telegraf config.
 // Returns the new telegraf config after update.
 func (s *Service) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *platform.TelegrafConfig, userID platform.ID) (*platform.TelegrafConfig, error) {
 	var err error
-	op := "inmem/update telegraf config"
-	_, pErr := s.findTelegrafConfigByID(ctx, id)
+	op := OpPrefix + platform.OpUpdateTelegrafConfig
+	current, pErr := s.findTelegrafConfigByID(ctx, id)
 	if pErr != nil {
 		pErr.Op = op
 		err = pErr
 		return nil, err
 	}
 	tc.ID = id
+	// OrganizationID can not be updated
+	tc.OrganizationID = current.OrganizationID
 	pErr = s.putTelegrafConfig(ctx, tc)
 	if pErr != nil {
 		pErr.Op = op
@@ -154,7 +168,7 @@ func (s *Service) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *
 
 // DeleteTelegrafConfig removes a telegraf config by ID.
 func (s *Service) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
-	op := "inmem/delete telegraf config"
+	op := OpPrefix + platform.OpDeleteTelegrafConfig
 	var err error
 	if !id.Valid() {
 		return &platform.Error{
