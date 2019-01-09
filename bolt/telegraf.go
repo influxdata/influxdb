@@ -24,7 +24,7 @@ func (c *Client) initializeTelegraf(ctx context.Context, tx *bolt.Tx) error {
 
 // FindTelegrafConfigByID returns a single telegraf config by ID.
 func (c *Client) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (tc *platform.TelegrafConfig, err error) {
-	op := "bolt/find telegraf config by id"
+	op := OpPrefix + platform.OpFindTelegrafConfigByID
 	err = c.db.View(func(tx *bolt.Tx) error {
 		var pErr *platform.Error
 		tc, pErr = c.findTelegrafConfigByID(ctx, tx, id)
@@ -63,9 +63,9 @@ func (c *Client) findTelegrafConfigByID(ctx context.Context, tx *bolt.Tx, id pla
 }
 
 // FindTelegrafConfig returns the first telegraf config that matches filter.
-func (c *Client) FindTelegrafConfig(ctx context.Context, filter platform.UserResourceMappingFilter) (*platform.TelegrafConfig, error) {
-	op := "bolt/find telegraf config"
-	tcs, n, err := c.FindTelegrafConfigs(ctx, filter)
+func (c *Client) FindTelegrafConfig(ctx context.Context, filter platform.TelegrafConfigFilter) (*platform.TelegrafConfig, error) {
+	op := OpPrefix + platform.OpFindTelegrafConfig
+	tcs, n, err := c.FindTelegrafConfigs(ctx, filter, platform.FindOptions{Limit: 1})
 	if err != nil {
 		return nil, err
 	}
@@ -78,9 +78,9 @@ func (c *Client) FindTelegrafConfig(ctx context.Context, filter platform.UserRes
 	}
 }
 
-func (c *Client) findTelegrafConfigs(ctx context.Context, tx *bolt.Tx, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, *platform.Error) {
+func (c *Client) findTelegrafConfigs(ctx context.Context, tx *bolt.Tx, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, *platform.Error) {
 	tcs := make([]*platform.TelegrafConfig, 0)
-	m, err := c.findUserResourceMappings(ctx, tx, filter)
+	m, err := c.findUserResourceMappings(ctx, tx, filter.UserResourceMappingFilter)
 	if err != nil {
 		return nil, 0, &platform.Error{
 			Err: err,
@@ -97,6 +97,10 @@ func (c *Client) findTelegrafConfigs(ctx context.Context, tx *bolt.Tx, filter pl
 				Err: err,
 			}
 		}
+		// Restrict results by organization ID, if it has been provided
+		if filter.OrganizationID != nil && filter.OrganizationID.Valid() && tc.OrganizationID != *filter.OrganizationID {
+			continue
+		}
 		tcs = append(tcs, tc)
 	}
 	if len(tcs) == 0 {
@@ -109,8 +113,8 @@ func (c *Client) findTelegrafConfigs(ctx context.Context, tx *bolt.Tx, filter pl
 
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
-func (c *Client) FindTelegrafConfigs(ctx context.Context, filter platform.UserResourceMappingFilter, opt ...platform.FindOptions) (tcs []*platform.TelegrafConfig, n int, err error) {
-	op := "bolt/find telegraf configs"
+func (c *Client) FindTelegrafConfigs(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) (tcs []*platform.TelegrafConfig, n int, err error) {
+	op := OpPrefix + platform.OpFindTelegrafConfigs
 	err = c.db.View(func(tx *bolt.Tx) error {
 		var pErr *platform.Error
 		tcs, n, pErr = c.findTelegrafConfigs(ctx, tx, filter)
@@ -137,6 +141,12 @@ func (c *Client) putTelegrafConfig(ctx context.Context, tx *bolt.Tx, tc *platfor
 			Err:  err,
 		}
 	}
+	if !tc.OrganizationID.Valid() {
+		return &platform.Error{
+			Code: platform.EEmptyValue,
+			Msg:  platform.ErrTelegrafConfigInvalidOrganizationID,
+		}
+	}
 	err = tx.Bucket(telegrafBucket).Put(encodedID, v)
 	if err != nil {
 		return &platform.Error{
@@ -148,39 +158,44 @@ func (c *Client) putTelegrafConfig(ctx context.Context, tx *bolt.Tx, tc *platfor
 
 // CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
 func (c *Client) CreateTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig, userID platform.ID) error {
-	op := "bolt/create telegraf config"
+	op := OpPrefix + platform.OpCreateTelegrafConfig
 	return c.db.Update(func(tx *bolt.Tx) error {
 		tc.ID = c.IDGenerator.ID()
-		err := c.createUserResourceMapping(ctx, tx, &platform.UserResourceMapping{
+
+		pErr := c.putTelegrafConfig(ctx, tx, tc)
+		if pErr != nil {
+			pErr.Op = op
+			return pErr
+		}
+
+		urm := &platform.UserResourceMapping{
 			ResourceID: tc.ID,
 			UserID:     userID,
 			UserType:   platform.Owner,
 			Resource:   platform.TelegrafsResource,
-		})
-		if err != nil {
+		}
+		if err := c.createUserResourceMapping(ctx, tx, urm); err != nil {
 			return err
 		}
-		pErr := c.putTelegrafConfig(ctx, tx, tc)
-		if pErr != nil {
-			pErr.Op = op
-			err = pErr
-		}
-		return err
+
+		return nil
 	})
 }
 
 // UpdateTelegrafConfig updates a single telegraf config.
 // Returns the new telegraf config after update.
 func (c *Client) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *platform.TelegrafConfig, userID platform.ID) (*platform.TelegrafConfig, error) {
-	op := "bolt/update telegraf config"
+	op := OpPrefix + platform.OpUpdateTelegrafConfig
 	err := c.db.Update(func(tx *bolt.Tx) (err error) {
-		_, pErr := c.findTelegrafConfigByID(ctx, tx, id)
+		current, pErr := c.findTelegrafConfigByID(ctx, tx, id)
 		if pErr != nil {
 			pErr.Op = op
 			err = pErr
 			return err
 		}
 		tc.ID = id
+		// OrganizationID can not be updated
+		tc.OrganizationID = current.OrganizationID
 		pErr = c.putTelegrafConfig(ctx, tx, tc)
 		if pErr != nil {
 			return &platform.Error{
@@ -194,7 +209,7 @@ func (c *Client) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *p
 
 // DeleteTelegrafConfig removes a telegraf config by ID.
 func (c *Client) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
-	op := "bolt/delete telegraf config"
+	op := OpPrefix + platform.OpDeleteTelegrafConfig
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		encodedID, err := id.Encode()
 		if err != nil {
@@ -222,7 +237,7 @@ func (c *Client) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error
 	return err
 }
 
-// PutTelegrafConfig put a telegraf config to storage
+// PutTelegrafConfig put a telegraf config to storage.
 func (c *Client) PutTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig) error {
 	return c.db.Update(func(tx *bolt.Tx) (err error) {
 		pErr := c.putTelegrafConfig(ctx, tx, tc)

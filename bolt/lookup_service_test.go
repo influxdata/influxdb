@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/mock"
+	platformtesting "github.com/influxdata/platform/testing"
 )
 
 var (
@@ -154,7 +155,8 @@ func TestClient_Name(t *testing.T) {
 				id:       testID,
 				init: func(ctx context.Context, s *bolt.Client) error {
 					return s.CreateTelegrafConfig(ctx, &platform.TelegrafConfig{
-						Name: "telegraf1",
+						OrganizationID: platformtesting.MustIDBase16("0000000000000009"),
+						Name:           "telegraf1",
 					}, testID)
 				},
 			},
