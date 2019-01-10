@@ -12,6 +12,7 @@ const setup = async (override = {}) => {
     org: 'default',
     children: jest.fn(),
     onSaveTelegrafConfig: jest.fn(),
+    notify: jest.fn(),
     authToken: '',
     ...override,
   }
