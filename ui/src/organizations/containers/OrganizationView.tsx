@@ -10,6 +10,7 @@ import {
   getDashboards,
   getMembers,
   getTasks,
+  getOwners,
 } from 'src/organizations/apis'
 
 // Actions
@@ -71,7 +72,7 @@ class OrganizationView extends PureComponent<Props> {
               >
                 <GetOrgResources<ResourceOwner[]>
                   organization={org}
-                  fetcher={getMembers}
+                  fetcher={this.getOwnersAndMembers}
                 >
                   {(members, loading) => (
                     <Spinner loading={loading}>
@@ -137,6 +138,12 @@ class OrganizationView extends PureComponent<Props> {
         </Page.Contents>
       </Page>
     )
+  }
+
+  private getOwnersAndMembers = async (org: Organization) => {
+    const allMembers = await Promise.all([getOwners(org), getMembers(org)])
+
+    return [].concat(...allMembers)
   }
 }
 

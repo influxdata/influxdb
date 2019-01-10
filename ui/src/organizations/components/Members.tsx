@@ -11,7 +11,6 @@ import FilterList from 'src/shared/components/Filter'
 import {ResourceOwner} from 'src/api'
 
 // Constants
-import {resouceOwner} from 'src/organizations/dummyData'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 interface Props {
@@ -32,7 +31,6 @@ export default class Members extends PureComponent<Props, State> {
   }
   public render() {
     const {searchTerm} = this.state
-    const dummyData = resouceOwner
 
     return (
       <>
@@ -47,7 +45,7 @@ export default class Members extends PureComponent<Props, State> {
           />
         </TabbedPageHeader>
         <FilterList<ResourceOwner>
-          list={dummyData}
+          list={this.props.members}
           searchKeys={['name']}
           searchTerm={searchTerm}
         >

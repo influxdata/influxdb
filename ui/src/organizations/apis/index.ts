@@ -57,6 +57,19 @@ export const getMembers = async (
   }
 }
 
+export const getOwners = async (
+  org: Organization
+): Promise<ResourceOwner[]> => {
+  try {
+    const {data} = await orgsAPI.orgsOrgIDOwnersGet(org.id)
+
+    return data.users
+  } catch (error) {
+    console.error('Could not get owners for org', error)
+    throw error
+  }
+}
+
 // Buckets
 export const getBuckets = async (org: Organization): Promise<Bucket[]> => {
   try {
