@@ -23,7 +23,7 @@ const setup = (override = {}) => {
   return {wrapper}
 }
 
-describe('Onboarding.Components.ConfigureStep.Streaming.ArrayFormElement', () => {
+describe('Clockface.Components.MultipleRows', () => {
   it('renders', () => {
     const fieldName = 'yo'
     const {wrapper} = setup({fieldName})

@@ -14,6 +14,7 @@ const setup = (override = {}) => {
     helpText: '',
     onAddRow: jest.fn(),
     onDeleteRow: jest.fn(),
+    onEditRow: jest.fn(),
     autoFocus: true,
     tags: [],
     onSetConfigArrayValue: jest.fn(),
@@ -26,7 +27,7 @@ const setup = (override = {}) => {
   return {wrapper}
 }
 
-describe('Onboarding.Components.ConfigureStep.Streaming.ArrayFormElement', () => {
+describe('Clockface.Components.MultipleInput', () => {
   it('renders', () => {
     const fieldName = 'yo'
     const {wrapper} = setup({fieldName})

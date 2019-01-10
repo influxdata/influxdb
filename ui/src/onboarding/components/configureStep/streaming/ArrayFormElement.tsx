@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import MultipleInput, {Item} from './MultipleInput'
+import {MultipleInput, MultiInputType} from 'src/clockface'
 
 // Actions
 import {setConfigArrayValue} from 'src/onboarding/actions/dataLoaders'
@@ -25,30 +25,33 @@ interface Props {
 
 class ArrayFormElement extends PureComponent<Props> {
   public render() {
-    const {
-      fieldName,
-      fieldType,
-      autoFocus,
-      helpText,
-      onSetConfigArrayValue,
-      telegrafPluginName,
-    } = this.props
+    const {fieldName, autoFocus, helpText} = this.props
 
     return (
       <div className="multiple-input-index">
         <MultipleInput
           title={fieldName}
           helpText={helpText}
-          fieldType={fieldType}
+          inputType={this.inputType}
           autoFocus={autoFocus}
           onAddRow={this.handleAddRow}
           onDeleteRow={this.handleRemoveRow}
+          onEditRow={this.handleEditRow}
           tags={this.tags}
-          onSetConfigArrayValue={onSetConfigArrayValue}
-          telegrafPluginName={telegrafPluginName}
         />
       </div>
     )
+  }
+
+  private get inputType(): MultiInputType {
+    switch (this.props.fieldType) {
+      case ConfigFieldType.Uri:
+      case ConfigFieldType.UriArray:
+        return MultiInputType.URI
+      case ConfigFieldType.String:
+      case ConfigFieldType.StringArray:
+        return MultiInputType.String
+    }
   }
 
   private handleAddRow = (item: string) => {
@@ -61,7 +64,13 @@ class ArrayFormElement extends PureComponent<Props> {
     removeTagValue(item, fieldName)
   }
 
-  private get tags(): Item[] {
+  private handleEditRow = (index: number, item: string) => {
+    const {onSetConfigArrayValue, telegrafPluginName, fieldName} = this.props
+
+    onSetConfigArrayValue(telegrafPluginName, fieldName, index, item)
+  }
+
+  private get tags(): Array<{name: string; text: string}> {
     const {value} = this.props
     return value.map(v => {
       return {text: v, name: v}

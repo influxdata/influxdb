@@ -11,6 +11,7 @@
 @import 'components/form_layout/Form';
 @import 'components/grid_sizer/GridSizer';
 @import 'components/inputs/Input';
+@import 'components/inputs/multipleInput/MultipleInput';
 @import 'components/overlays/Overlay';
 @import 'components/panel/Panel';
 @import 'components/slide_toggle/SlideToggle';
@@ -20,4 +21,3 @@
 @import 'components/component_spacer/ComponentSpacer';
 @import 'components/empty_state/EmptyState';
 @import 'components/spinners/SparkleSpinner';
-@import 'src/onboarding/components/configureStep/streaming/MultipleInput';
