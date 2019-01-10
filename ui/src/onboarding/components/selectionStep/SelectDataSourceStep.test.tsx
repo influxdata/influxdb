@@ -54,7 +54,7 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
       expect(wrapper.exists()).toBe(true)
       expect(typeSelector.exists()).toBe(true)
       expect(onboardingButtons.prop('backButtonText')).toBe(
-        'Back to Admin Setup'
+        'Back to Initial User Setup'
       )
       expect(onboardingButtons.prop('nextButtonText')).toBe(
         'Continue to Configuration'
@@ -94,7 +94,7 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
       const onboardingButtons = wrapper.find(OnboardingButtons)
 
       expect(onboardingButtons.prop('backButtonText')).toBe(
-        'Back to Admin Setup'
+        'Back to Initial User Setup'
       )
       expect(onboardingButtons.prop('nextButtonText')).toBe(
         'Continue to Line Protocol Configuration'

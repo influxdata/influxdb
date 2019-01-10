@@ -143,7 +143,7 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
       }
     }
 
-    return 'Back to Admin Setup'
+    return 'Back to Initial User Setup'
   }
 
   private get title(): string {

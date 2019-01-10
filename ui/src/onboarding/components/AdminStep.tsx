@@ -59,7 +59,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
           <div className="wizard-step--scroll-area">
             <FancyScrollbar autoHide={false}>
               <div className="wizard-step--scroll-content">
-                <h3 className="wizard-step--title">Setup Admin User</h3>
+                <h3 className="wizard-step--title">Setup Initial User</h3>
                 <h5 className="wizard-step--sub-title">
                   You will be able to create additional Users, Buckets and
                   Organizations later
@@ -71,15 +71,15 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
                       widthMD={Columns.Ten}
                       offsetMD={Columns.One}
                     >
-                      <Form.Element label="Admin Username">
+                      <Form.Element label="Username">
                         <Input
                           value={username}
                           onChange={this.handleUsername}
-                          titleText="Admin Username"
+                          titleText="Username"
                           size={ComponentSize.Medium}
                           icon={icon}
                           status={status}
-                          disabledTitleText="Admin username has been set"
+                          disabledTitleText="Username has been set"
                           autoFocus={true}
                         />
                       </Form.Element>
@@ -89,30 +89,30 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
                       widthMD={Columns.Five}
                       offsetMD={Columns.One}
                     >
-                      <Form.Element label="Admin Password">
+                      <Form.Element label="Password">
                         <Input
                           type={InputType.Password}
                           value={password}
                           onChange={this.handlePassword}
-                          titleText="Admin Password"
+                          titleText="Password"
                           size={ComponentSize.Medium}
                           icon={icon}
                           status={status}
-                          disabledTitleText="Admin password has been set"
+                          disabledTitleText="Password has been set"
                         />
                       </Form.Element>
                     </Grid.Column>
                     <Grid.Column widthXS={Columns.Six} widthMD={Columns.Five}>
-                      <Form.Element label="Confirm Admin Password">
+                      <Form.Element label="Confirm Password">
                         <Input
                           type={InputType.Password}
                           value={confirmPassword}
                           onChange={this.handleConfirmPassword}
-                          titleText="Confirm Admin Password"
+                          titleText="Confirm Password"
                           size={ComponentSize.Medium}
                           icon={icon}
                           status={this.passwordStatus}
-                          disabledTitleText="Admin password has been set"
+                          disabledTitleText="password has been set"
                         />
                       </Form.Element>
                     </Grid.Column>

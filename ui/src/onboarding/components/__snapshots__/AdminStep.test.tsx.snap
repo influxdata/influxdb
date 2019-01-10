@@ -23,7 +23,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           <h3
             className="wizard-step--title"
           >
-            Setup Admin User
+            Setup Initial User
           </h3>
           <h5
             className="wizard-step--sub-title"
@@ -38,12 +38,12 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 widthXS={12}
               >
                 <FormElement
-                  label="Admin Username"
+                  label="Username"
                 >
                   <Input
                     autoFocus={true}
                     autocomplete="off"
-                    disabledTitleText="Admin username has been set"
+                    disabledTitleText="Username has been set"
                     icon="checkmark"
                     name=""
                     onChange={[Function]}
@@ -51,7 +51,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="disabled"
-                    titleText="Admin Username"
+                    titleText="Username"
                     value=""
                   />
                 </FormElement>
@@ -62,12 +62,12 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 widthXS={6}
               >
                 <FormElement
-                  label="Admin Password"
+                  label="Password"
                 >
                   <Input
                     autoFocus={false}
                     autocomplete="off"
-                    disabledTitleText="Admin password has been set"
+                    disabledTitleText="Password has been set"
                     icon="checkmark"
                     name=""
                     onChange={[Function]}
@@ -75,7 +75,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="disabled"
-                    titleText="Admin Password"
+                    titleText="Password"
                     type="password"
                     value=""
                   />
@@ -86,12 +86,12 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 widthXS={6}
               >
                 <FormElement
-                  label="Confirm Admin Password"
+                  label="Confirm Password"
                 >
                   <Input
                     autoFocus={false}
                     autocomplete="off"
-                    disabledTitleText="Admin password has been set"
+                    disabledTitleText="password has been set"
                     icon="checkmark"
                     name=""
                     onChange={[Function]}
@@ -99,7 +99,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="disabled"
-                    titleText="Confirm Admin Password"
+                    titleText="Confirm Password"
                     type="password"
                     value=""
                   />
