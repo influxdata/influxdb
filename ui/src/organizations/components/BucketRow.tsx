@@ -2,7 +2,12 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {ComponentSize, IndexList, ConfirmationButton} from 'src/clockface'
+import {
+  ComponentSize,
+  IndexList,
+  ConfirmationButton,
+  Alignment,
+} from 'src/clockface'
 
 // Types
 import {OverlayState} from 'src/types/v2'
@@ -34,7 +39,7 @@ export default class BucketRow extends PureComponent<Props, State> {
             </a>
           </IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
-          <IndexList.Cell>
+          <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
               size={ComponentSize.ExtraSmall}
               text="Delete"
