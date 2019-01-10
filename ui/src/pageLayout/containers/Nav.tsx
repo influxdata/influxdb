@@ -93,13 +93,6 @@ class SideNav extends PureComponent<Props> {
           highlightWhen={['organizations']}
         />
         <NavMenu.Item
-          title="Sources"
-          link="/sources"
-          icon={IconFont.Wrench}
-          location={location.pathname}
-          highlightWhen={['sources']}
-        />
-        <NavMenu.Item
           title="Configuration"
           link="/configuration/labels_tab"
           icon={IconFont.Wrench}
