@@ -572,6 +572,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /scrapertargets:
+    get:
+      tags:
+        - ScraperTargets
+      summary: get all scraper targets
+      responses:
+        '200':
+          description: all scraper targets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScraperTargetResponses"
+    post:
+      summary: create a scraper target
+      tags:
+        - ScraperTargets
+      requestBody:
+        description: scraper target to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScraperTargetRequest"
+      responses:
+        '201':
+          description: scraper target created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScraperTargetResponse"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/scrapertargets/{scraperTargetID}':
+    delete:
+      tags:
+        - ScraperTargets
+      summary: delete a scraper target
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          required: true
+          schema:
+            type: string
+          description: id of the scraper target
+      responses:
+        '204':
+          description: scraper target deleted
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      summary: update a scraper target
+      tags:
+        - ScraperTargets
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          required: true
+          schema:
+            type: string
+          description: id of the scraper target
+      requestBody:
+        description: scraper target update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScraperTargetRequest"
+      responses:
+        '200':
+          description: scraper target updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScraperTargetResponse"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"              
   /macros:
     get:
       tags:
@@ -6195,6 +6285,51 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Source"
+    ScraperTargetRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: name of the scraper target
+        type:
+          type: string
+          description: type of the metrics to be parsed
+          enum: [prometheus]
+        url:
+          type: string
+          description: url of the metrics endpoint
+          example:  http://localhost:9090/metrics
+        orgID:
+          type: string
+          description: id of the organization
+        bucketID:
+          type: string
+          description: id of the bucket to be written
+    ScraperTargetResponse:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/ScraperTargetRequest"
+        - type: object
+          properties:
+            id:
+              type: string
+              readOnly: true
+            organization:
+              type: string
+              description: name of the organization
+            bucket:
+              type: string
+              description: name of the bucket
+            links:
+              readOnly: true
+              $ref: "#/components/schemas/Links"
+    ScraperTargetResponses:
+      type: object
+      properties:
+        configurations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScraperTargetResponse"
     TelegrafRequest:
       type: object
       properties:
