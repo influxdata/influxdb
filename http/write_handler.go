@@ -138,7 +138,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		bucket = b
 	}
 
-	p, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResource)
+	p, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResource, org.ID)
 	if err != nil {
 		EncodeError(ctx, fmt.Errorf("could not create permission for bucket: %v", err), w)
 		return

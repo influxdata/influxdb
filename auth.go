@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"fmt"
 )
 
 var (
@@ -21,6 +22,20 @@ type Authorization struct {
 	OrgID       ID           `json:"orgID"`
 	UserID      ID           `json:"userID"`
 	Permissions []Permission `json:"permissions"`
+}
+
+// Valid ensures that the authorization is valid.
+func (a *Authorization) Valid() error {
+	for _, p := range a.Permissions {
+		if p.OrgID != a.OrgID {
+			return &Error{
+				Msg:  fmt.Sprintf("permisson %s is not for org id %s", p, a.OrgID),
+				Code: EInvalid,
+			}
+		}
+	}
+
+	return nil
 }
 
 // Allowed returns true if the authorization is active and request permission
