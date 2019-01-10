@@ -1527,11 +1527,11 @@ paths:
                   links:
                     $ref: "#/components/schemas/Links"
         default:
-            description: unexpected error
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Error"
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/members':
     get:
       tags:

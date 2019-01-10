@@ -10,6 +10,7 @@ import {
   Dashboard,
   View,
 } from 'src/types/v2/'
+
 import {Label, Cell as CellTypeAPI} from 'src/api'
 
 // Utils
@@ -31,9 +32,7 @@ const addDashboardIDToCells = (
 export const getDashboards = async (): Promise<Dashboard[]> => {
   const {data} = await dashboardsAPI.dashboardsGet()
 
-  const dashboards = data.dashboards
-
-  return dashboards.map(d => ({
+  return data.dashboards.map(d => ({
     ...d,
     cells: addDashboardIDToCells(d.cells, d.id),
   }))
