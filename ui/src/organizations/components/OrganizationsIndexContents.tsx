@@ -4,8 +4,13 @@ import {Link} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import DeleteOrgButton from 'src/organizations/components/DeleteOrgButton'
-import {Alignment, ComponentSize, EmptyState, IndexList} from 'src/clockface'
+import {
+  Alignment,
+  ComponentSize,
+  EmptyState,
+  IndexList,
+  ConfirmationButton,
+} from 'src/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -17,6 +22,7 @@ import {deleteOrg} from 'src/organizations/actions'
 interface Props {
   orgs: Organization[]
   onDeleteOrg: typeof deleteOrg
+  searchTerm: string
 }
 
 @ErrorHandling
@@ -28,9 +34,8 @@ class OrganizationsPageContents extends Component<Props> {
           <IndexList.Header>
             <IndexList.HeaderCell columnName="Name" />
             <IndexList.HeaderCell />
-            <IndexList.HeaderCell />
           </IndexList.Header>
-          <IndexList.Body columnCount={3} emptyState={this.emptyState}>
+          <IndexList.Body columnCount={2} emptyState={this.emptyState}>
             {this.rows}
           </IndexList.Body>
         </IndexList>
@@ -45,18 +50,33 @@ class OrganizationsPageContents extends Component<Props> {
         <IndexList.Cell>
           <Link to={`/organizations/${o.id}/members_tab`}>{o.name}</Link>
         </IndexList.Cell>
-        <IndexList.Cell>Owner</IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-          <DeleteOrgButton org={o} onDeleteOrg={onDeleteOrg} />
+          <ConfirmationButton
+            confirmText="Confirm"
+            text="Delete"
+            size={ComponentSize.ExtraSmall}
+            returnValue={o}
+            onConfirm={onDeleteOrg}
+          />
         </IndexList.Cell>
       </IndexList.Row>
     ))
   }
 
   private get emptyState(): JSX.Element {
+    const {searchTerm} = this.props
+
+    if (searchTerm) {
+      return (
+        <EmptyState size={ComponentSize.Large}>
+          <EmptyState.Text text="No Organizations match your query" />
+        </EmptyState>
+      )
+    }
+
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text="Looks like you are not a member of any Organizations" />
+        <EmptyState.Text text="You are not a member of any Organizations" />
       </EmptyState>
     )
   }
