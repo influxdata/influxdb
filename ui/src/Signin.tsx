@@ -4,6 +4,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // APIs
 import {trySources} from 'src/onboarding/apis'
+import {getSetupStatus} from 'src/onboarding/apis'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -41,15 +42,23 @@ export class Signin extends PureComponent<Props, State> {
     const isSourcesAllowed = await trySources()
     const isUserSignedIn = isSourcesAllowed
     this.setState({loading: RemoteDataState.Done, isUserSignedIn})
-    this.checkForLogin()
-    this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
+
+    const isSetupAllowed = await this.checkForSetup()
+
+    if (isSetupAllowed) {
+      return
+    }
+
     if (!isUserSignedIn) {
       this.props.router.push('/signin')
     }
+
+    this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
   }
 
   public componentWillUnmount() {
     clearInterval(this.intervalID)
+    this.intervalID = null
   }
 
   public render() {
@@ -68,13 +77,26 @@ export class Signin extends PureComponent<Props, State> {
     )
   }
 
+  private checkForSetup = async () => {
+    const isSetupAllowed = await getSetupStatus()
+
+    if (isSetupAllowed) {
+      this.props.router.push('/onboarding/0')
+    }
+
+    return isSetupAllowed
+  }
+
   private checkForLogin = async () => {
     try {
       await getMe()
     } catch (error) {
-      clearInterval(this.intervalID)
-      this.setState({isUserSignedIn: false})
-      this.props.router.push('/signin')
+      // guard against unmounted redirecting
+      if (this.intervalID) {
+        clearInterval(this.intervalID)
+        this.setState({isUserSignedIn: false})
+        this.props.router.push('/signin')
+      }
     }
   }
 }
