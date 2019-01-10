@@ -55,6 +55,11 @@ export type Action =
   | RemovePluginBundle
   | SetPluginConfiguration
   | SetConfigArrayValue
+  | SetScrapingInterval
+  | SetScrapingBucket
+  | AddScrapingURL
+  | RemoveScrapingURL
+  | UpdateScrapingURL
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -199,6 +204,59 @@ export const removeBundlePlugins = (
 ): RemoveBundlePlugins => ({
   type: 'REMOVE_BUNDLE_PLUGINS',
   payload: {bundle},
+})
+
+interface SetScrapingInterval {
+  type: 'SET_SCRAPING_INTERVAL'
+  payload: {interval: string}
+}
+
+export const setScrapingInterval = (interval: string): SetScrapingInterval => ({
+  type: 'SET_SCRAPING_INTERVAL',
+  payload: {interval},
+})
+
+interface SetScrapingBucket {
+  type: 'SET_SCRAPING_BUCKET'
+  payload: {bucket: string}
+}
+
+export const setScrapingBucket = (bucket: string): SetScrapingBucket => ({
+  type: 'SET_SCRAPING_BUCKET',
+  payload: {bucket},
+})
+
+interface AddScrapingURL {
+  type: 'ADD_SCRAPING_URL'
+  payload: {url: string}
+}
+
+export const addScrapingURL = (url: string): AddScrapingURL => ({
+  type: 'ADD_SCRAPING_URL',
+  payload: {url},
+})
+
+interface RemoveScrapingURL {
+  type: 'REMOVE_SCRAPING_URL'
+  payload: {url: string}
+}
+
+export const removeScrapingURL = (url: string): RemoveScrapingURL => ({
+  type: 'REMOVE_SCRAPING_URL',
+  payload: {url},
+})
+
+interface UpdateScrapingURL {
+  type: 'UPDATE_SCRAPING_URL'
+  payload: {index: number; url: string}
+}
+
+export const updateScrapingURL = (
+  index: number,
+  url: string
+): UpdateScrapingURL => ({
+  type: 'UPDATE_SCRAPING_URL',
+  payload: {index, url},
 })
 
 export const addPluginBundleWithPlugins = (bundle: BundleName) => dispatch => {

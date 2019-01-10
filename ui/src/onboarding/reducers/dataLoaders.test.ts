@@ -20,6 +20,11 @@ import {
   removePluginBundleWithPlugins,
   createOrUpdateTelegrafConfigAsync,
   setPluginConfiguration,
+  setScrapingInterval,
+  setScrapingBucket,
+  addScrapingURL,
+  removeScrapingURL,
+  updateScrapingURL,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Mock Data
@@ -395,6 +400,87 @@ describe('dataLoader reducer', () => {
       ...INITIAL_STATE,
       pluginBundles: [BundleName.Docker, BundleName.System],
       telegrafPlugins: [dockerTelegrafPlugin],
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can set scraping interval', () => {
+    const actual = dataLoadersReducer(
+      {
+        ...INITIAL_STATE,
+        scraper: {interval: '', bucket: '', urls: []},
+      },
+      setScrapingInterval('100')
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      scraper: {interval: '100', bucket: '', urls: []},
+    }
+
+    expect(actual).toEqual(expected)
+  })
+  it('can set scraping bucket', () => {
+    const actual = dataLoadersReducer(
+      {
+        ...INITIAL_STATE,
+        scraper: {interval: '', bucket: '', urls: []},
+      },
+      setScrapingBucket('a')
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      scraper: {interval: '', bucket: 'a', urls: []},
+    }
+
+    expect(actual).toEqual(expected)
+  })
+  it('can add scraping urls', () => {
+    const actual = dataLoadersReducer(
+      {
+        ...INITIAL_STATE,
+        scraper: {interval: '', bucket: '', urls: []},
+      },
+      addScrapingURL('http://googledoodle.com')
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      scraper: {interval: '', bucket: '', urls: ['http://googledoodle.com']},
+    }
+
+    expect(actual).toEqual(expected)
+  })
+  it('can remove scraping urls', () => {
+    const actual = dataLoadersReducer(
+      {
+        ...INITIAL_STATE,
+        scraper: {interval: '', bucket: '', urls: []},
+      },
+      removeScrapingURL('http://googledoodle.com')
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      scraper: {interval: '', bucket: '', urls: []},
+    }
+
+    expect(actual).toEqual(expected)
+  })
+  it('can update scraping urls', () => {
+    const actual = dataLoadersReducer(
+      {
+        ...INITIAL_STATE,
+        scraper: {interval: '', bucket: '', urls: ['http://googledoodle.com']},
+      },
+      updateScrapingURL(0, 'http://google.com')
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      scraper: {interval: '', bucket: '', urls: ['http://google.com']},
     }
 
     expect(actual).toEqual(expected)
