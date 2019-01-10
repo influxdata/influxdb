@@ -119,12 +119,12 @@ export const SigninError: Notification = {
 
 export const TelegrafConfigCreationSuccess: Notification = {
   ...defaultSuccessNotification,
-  message: `Your Telegraf configuration has been created`,
+  message: `Your configurations have been saved`,
 }
 
 export const TelegrafConfigCreationError: Notification = {
   ...defaultErrorNotification,
-  message: `Failed to create Telegraf configuration`,
+  message: `Failed to save configurations`,
 }
 
 //  Hosts Page Notifications

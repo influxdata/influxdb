@@ -48,6 +48,7 @@ class DataStreaming extends PureComponent<Props> {
       <>
         <CreateOrUpdateConfig
           org={org}
+          notify={notify}
           authToken={authToken}
           onSaveTelegrafConfig={onSaveTelegrafConfig}
         >

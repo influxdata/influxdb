@@ -7,7 +7,6 @@ import {Spinner} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
-import {notify} from 'src/shared/actions/notifications'
 import {createOrUpdateTelegrafConfigAsync} from 'src/onboarding/actions/dataLoaders'
 
 // Constants
@@ -17,13 +16,14 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, NotificationAction} from 'src/types'
 
 export interface Props {
   org: string
   authToken: string
   children: () => JSX.Element
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
+  notify: NotificationAction
 }
 
 interface State {
@@ -39,7 +39,7 @@ class CreateOrUpdateConfig extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {onSaveTelegrafConfig, authToken} = this.props
+    const {onSaveTelegrafConfig, authToken, notify} = this.props
 
     this.setState({loading: RemoteDataState.Loading})
 
@@ -50,6 +50,7 @@ class CreateOrUpdateConfig extends PureComponent<Props, State> {
       this.setState({loading: RemoteDataState.Done})
     } catch (error) {
       notify(TelegrafConfigCreationError)
+      this.setState({loading: RemoteDataState.Error})
     }
   }
 
