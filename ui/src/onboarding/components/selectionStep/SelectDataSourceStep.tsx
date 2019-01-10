@@ -10,6 +10,7 @@ import {ComponentStatus, Form} from 'src/clockface'
 import TypeSelector from 'src/onboarding/components/selectionStep/TypeSelector'
 import StreamingSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
 import {
@@ -70,13 +71,19 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <Form onSubmit={this.handleClickNext} className={this.skippableClassName}>
-        <div className="onboarding-step">
-          <h3 className="wizard-step--title">{this.title}</h3>
-          <h5 className="wizard-step--sub-title">
-            You will be able to configure additional Data Sources later
-          </h5>
-          {this.selector}
+      <div className={this.skippableClassName}>
+        <Form onSubmit={this.handleClickNext}>
+          <div className="wizard-step--scroll-area">
+            <FancyScrollbar autoHide={false}>
+              <div className="wizard-step--scroll-content">
+                <h3 className="wizard-step--title">{this.title}</h3>
+                <h5 className="wizard-step--sub-title">
+                  You will be able to configure additional Data Sources later
+                </h5>
+                {this.selector}
+              </div>
+            </FancyScrollbar>
+          </div>
           <OnboardingButtons
             onClickBack={this.handleClickBack}
             onClickSkip={this.jumpToCompletionStep}
@@ -87,8 +94,8 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
             nextButtonStatus={this.nextButtonStatus}
             showSkip={this.showSkip}
           />
-        </div>
-      </Form>
+        </Form>
+      </div>
     )
   }
 

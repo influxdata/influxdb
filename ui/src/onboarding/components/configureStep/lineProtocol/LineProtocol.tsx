@@ -8,6 +8,7 @@ import _ from 'lodash'
 import LineProtocolTabs from 'src/onboarding/components/configureStep/lineProtocol/LineProtocolTabs'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import {Form} from 'src/clockface'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
 import {
@@ -54,14 +55,20 @@ export class LineProtocol extends PureComponent<Props> {
   public render() {
     return (
       <Form onSubmit={this.handleSubmit}>
-        <h3 className="wizard-step--title">Add Data via Line Protocol</h3>
-        <h5 className="wizard-step--sub-title">
-          Need help writing InfluxDB Line Protocol? See Documentation
-        </h5>
-        {this.Content}
+        <div className="wizard-step--scroll-area">
+          <FancyScrollbar autoHide={false}>
+            <div className="wizard-step--scroll-content">
+              <h3 className="wizard-step--title">Add Data via Line Protocol</h3>
+              <h5 className="wizard-step--sub-title">
+                Need help writing InfluxDB Line Protocol? See Documentation
+              </h5>
+              {this.Content}
+            </div>
+          </FancyScrollbar>
+        </div>
         <OnboardingButtons
-          nextButtonText={this.nextButtonText}
-          backButtonText={this.backButtonText}
+          nextButtonText="Continue to Verify"
+          backButtonText="Back to Select Data Source Type"
           onClickBack={this.props.onClickBack}
           onClickSkip={this.props.onClickSkip}
           showSkip={true}
@@ -70,14 +77,6 @@ export class LineProtocol extends PureComponent<Props> {
         />
       </Form>
     )
-  }
-
-  private get nextButtonText(): string {
-    return 'Continue to Verify'
-  }
-
-  private get backButtonText(): string {
-    return 'Back to Select Data Source Type'
   }
 
   private get LineProtocolTabs(): LineProtocolTab[] {

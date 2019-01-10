@@ -48,7 +48,6 @@
 
 .wizard-step--container {
   position: relative;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -56,10 +55,9 @@
   text-align: center;
   background-color: $g3-castle;
   border-radius: $radius;
-  padding: $ix-marg-c $ix-marg-c ($ix-marg-d * 2 + 38px) $ix-marg-c;
+  padding: $ix-marg-c;
+  padding-bottom: 0;
   flex: 1 0 100%;
-  transition: flex 0.4s ease;
-  transform: translate3d(0, 0, 0);
 }
 
 .side-bar.show + .wizard-step--container {
@@ -69,8 +67,8 @@
 .wizard--button-container {
   position: absolute;
   bottom: $ix-marg-d;
-  left: $ix-marg-c;
-  right: $ix-marg-c;
+  left: 0;
+  right: 0;
   display: inline-flex;
   justify-content: center;
   flex-wrap: wrap;
@@ -107,7 +105,6 @@
   font-size: 32px;
   font-weight: 300;
   color: $g15-platinum;
-  margin-top: $ix-marg-d;
   margin-bottom: $ix-marg-b;
   @include no-user-select();
 }
@@ -123,7 +120,7 @@
 
 .wizard-step--body,
 .wizard-step--body-streaming {
-  background-color: $g5-pepper;
+  background-color: $g2-kevlar;
   color: $g20-white;
   padding: 25px;
   width: 100%;
@@ -142,7 +139,7 @@
 
 .wizard-step--body-streaming {
   text-align: center;
-  margin-top: 30px;
+  margin-top: $ix-marg-a;
 }
 
 .wizard-step--text-state {
@@ -164,7 +161,6 @@
   border-radius: $radius;
   margin: $ix-marg-a 0;
   padding: $ix-marg-b;
-  overflow-x: auto;
   font-family: 'RobotoMono', monospace;
 }
 
@@ -182,8 +178,6 @@
 .wizard-step--top-container {
   width: 100%;
   padding: 40px;
-  max-width: 750px;
-  margin: 10px auto 0 auto;
   border-radius: $radius;
   background-color: $g2-kevlar;
   transition: background-color 0.25s ease, border-color 0.25s ease;
@@ -223,20 +217,41 @@
 }
 
 .onboarding-step {
-  width: 100%;
-  max-height: 100%;
+  min-width: 100%;
+  min-height: 100%;
   text-align: center;
+  position: relative;
   display: inline-flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  overflow-y: scroll;
-  overflow-x: hidden;
   transition: max-width .4s ease-in-out;
 }
 
+.wizard-step--scroll-area {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: calc(100% - 102px);
+  border: $ix-border solid $g5-pepper;
+  border-radius: $ix-radius;
+}
+
 .wizard--skippable {
-  margin-bottom: $ix-marg-a + 38px;
+  .wizard-step--scroll-area {
+    height: calc(100% - 147px);
+  }
+}
+
+.wizard-step--scroll-content {
+  width: 100%;
+  max-width: 90%;
+  min-height: 100%;
+  margin: o auto $ix-marg-d auto;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .wizard-step--grid-container {
@@ -252,11 +267,14 @@
 
 @media screen and (min-width: $grid--breakpoint-md) {
   .wizard-step--container {
-    padding: $ix-marg-d $ix-marg-d ($ix-marg-d * 2 + 38px) $ix-marg-d;
+    padding: $ix-marg-d;
+    padding-bottom: 0;
   }
 
   .wizard--skippable {
-    margin-bottom: 0;
+    .wizard-step--scroll-area {
+      height: calc(100% - 102px);
+    }
 
     .wizard--button-container::before {
       content: "";
@@ -266,9 +284,6 @@
   }
 
   .wizard--button-container {
-    left: $ix-marg-d;
-    right: $ix-marg-d;
-
     .wizard--skip-container {
       width: auto;
       flex: 1;

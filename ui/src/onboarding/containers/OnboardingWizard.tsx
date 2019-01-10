@@ -168,23 +168,14 @@ class OnboardingWizard extends PureComponent<Props> {
   }
 
   private get progressHeader(): JSX.Element {
-    const {
-      stepStatuses,
-      currentStepIndex,
-      onIncrementCurrentStepIndex,
-      onSetCurrentStepIndex,
-    } = this.props
+    const {stepStatuses, currentStepIndex, onSetCurrentStepIndex} = this.props
 
     if (currentStepIndex === 0) {
       return <div className="wizard--progress-header hidden" />
     }
 
     return (
-      <WizardProgressHeader
-        currentStepIndex={currentStepIndex}
-        stepSkippable={this.stepSkippable}
-        onSkip={onIncrementCurrentStepIndex}
-      >
+      <WizardProgressHeader>
         <ProgressBar
           currentStepIndex={currentStepIndex}
           handleSetCurrentStep={onSetCurrentStepIndex}

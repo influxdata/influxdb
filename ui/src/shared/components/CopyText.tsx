@@ -8,6 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Components
 import {Button, ComponentSize, ComponentColor} from 'src/clockface'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
 import {NotificationAction} from 'src/types'
@@ -26,8 +27,10 @@ class CopyText extends PureComponent<Props> {
   public render() {
     const {copyText} = this.props
     return (
-      <p className="script-snippet">
-        {copyText}
+      <div className="script-snippet--container">
+        <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={400}>
+          <p>{copyText}</p>
+        </FancyScrollbar>
         <CopyToClipboard text={copyText} onCopy={this.handleCopyAttempt}>
           <Button
             customClass="copy-button"
@@ -38,7 +41,7 @@ class CopyText extends PureComponent<Props> {
             onClick={this.handleClickCopy}
           />
         </CopyToClipboard>
-      </p>
+      </div>
     )
   }
 

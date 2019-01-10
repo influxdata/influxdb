@@ -5,6 +5,7 @@ import _ from 'lodash'
 // Components
 import {Form} from 'src/clockface'
 import ConfigFieldHandler from 'src/onboarding/components/configureStep/streaming/ConfigFieldHandler'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
 import {
@@ -46,28 +47,32 @@ class PluginConfigForm extends PureComponent<Props> {
       onClickSkip,
     } = this.props
     return (
-      <>
-        <h3 className="wizard-step--title">{_.startCase(name)}</h3>
-        <Form onSubmit={this.props.onClickNext}>
-          <ConfigFieldHandler
-            configFields={configFields}
-            telegrafPlugin={telegrafPlugin}
-            onSetConfigArrayValue={onSetConfigArrayValue}
-            onAddConfigValue={onAddConfigValue}
-            onRemoveConfigValue={onRemoveConfigValue}
-            onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
-          />
-          <OnboardingButtons
-            onClickBack={onClickPrevious}
-            onClickSkip={onClickSkip}
-            backButtonText={this.backButtonText}
-            nextButtonText={this.nextButtonText}
-            showSkip={true}
-            skipButtonText={'Skip to Verify'}
-            autoFocusNext={this.autoFocus}
-          />
-        </Form>
-      </>
+      <Form onSubmit={this.props.onClickNext}>
+        <div className="wizard-step--scroll-area">
+          <FancyScrollbar autoHide={false}>
+            <div className="wizard-step--scroll-content">
+              <h3 className="wizard-step--title">{_.startCase(name)}</h3>
+              <ConfigFieldHandler
+                configFields={configFields}
+                telegrafPlugin={telegrafPlugin}
+                onSetConfigArrayValue={onSetConfigArrayValue}
+                onAddConfigValue={onAddConfigValue}
+                onRemoveConfigValue={onRemoveConfigValue}
+                onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
+              />
+            </div>
+          </FancyScrollbar>
+        </div>
+        <OnboardingButtons
+          onClickBack={onClickPrevious}
+          onClickSkip={onClickSkip}
+          backButtonText={this.backButtonText}
+          nextButtonText={this.nextButtonText}
+          showSkip={true}
+          skipButtonText={'Skip to Verify'}
+          autoFocusNext={this.autoFocus}
+        />
+      </Form>
     )
   }
   private get autoFocus(): boolean {

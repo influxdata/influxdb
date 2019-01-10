@@ -138,9 +138,9 @@ export type TelegrafPluginName =
   | TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2
 
 export enum LineProtocolTab {
-  UploadFile = 'uploadFile',
-  EnterManually = 'enterManually',
-  EnterURL = 'enterURL',
+  UploadFile = 'Upload File',
+  EnterManually = 'Enter Manually',
+  EnterURL = 'Enter URL',
 }
 
 export enum LineProtocolStatus {

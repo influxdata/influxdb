@@ -8,6 +8,7 @@ import _ from 'lodash'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import VerifyDataSwitcher from 'src/onboarding/components/verifyStep/VerifyDataSwitcher'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
 import {
@@ -75,20 +76,26 @@ export class VerifyDataStep extends PureComponent<Props> {
     } = this.props
 
     return (
-      <Form onSubmit={this.handleIncrementStep}>
-        <div className="onboarding-step wizard--skippable">
-          <VerifyDataSwitcher
-            notify={notify}
-            type={type}
-            telegrafConfigID={telegrafConfigID}
-            authToken={authToken}
-            onSaveTelegrafConfig={onSaveTelegrafConfig}
-            org={_.get(setupParams, 'org', '')}
-            bucket={_.get(setupParams, 'bucket', '')}
-            onSetStepStatus={onSetStepStatus}
-            stepIndex={stepIndex}
-            onDecrementCurrentStep={onDecrementCurrentStepIndex}
-          />
+      <div className="onboarding-step wizard--skippable">
+        <Form onSubmit={this.handleIncrementStep}>
+          <div className="wizard-step--scroll-area">
+            <FancyScrollbar autoHide={false}>
+              <div className="wizard-step--scroll-content">
+                <VerifyDataSwitcher
+                  notify={notify}
+                  type={type}
+                  telegrafConfigID={telegrafConfigID}
+                  authToken={authToken}
+                  onSaveTelegrafConfig={onSaveTelegrafConfig}
+                  org={_.get(setupParams, 'org', '')}
+                  bucket={_.get(setupParams, 'bucket', '')}
+                  onSetStepStatus={onSetStepStatus}
+                  stepIndex={stepIndex}
+                  onDecrementCurrentStep={onDecrementCurrentStepIndex}
+                />
+              </div>
+            </FancyScrollbar>
+          </div>
           <OnboardingButtons
             onClickBack={this.handleDecrementStep}
             onClickSkip={this.jumpToCompletionStep}
@@ -97,8 +104,8 @@ export class VerifyDataStep extends PureComponent<Props> {
             skipButtonText={'Skip'}
             showSkip={true}
           />
-        </div>
-      </Form>
+        </Form>
+      </div>
     )
   }
 

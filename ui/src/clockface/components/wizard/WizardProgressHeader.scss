@@ -17,11 +17,6 @@
   transition: height .4s ease-in-out;
 }
 
-.wizard--progress-skip {
-  position: absolute;
-  right: $ix-marg-c;
-}
-
 .wizard--progress-header.hidden {
   visibility: hidden;
 }

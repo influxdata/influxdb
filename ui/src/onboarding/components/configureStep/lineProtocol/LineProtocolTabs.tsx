@@ -74,7 +74,7 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
     const {urlInput} = this.state
 
     return (
-      <>
+      <div>
         <TabSelector
           activeLPTab={activeLPTab}
           tabs={tabs}
@@ -104,7 +104,7 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
             </Grid.Column>
           </Grid.Row>
         </Grid>
-      </>
+      </div>
     )
   }
 

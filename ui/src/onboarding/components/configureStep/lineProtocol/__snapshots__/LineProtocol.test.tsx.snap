@@ -4,27 +4,43 @@ exports[`LineProtocol rendering renders! 1`] = `
 <Form
   onSubmit={[Function]}
 >
-  <h3
-    className="wizard-step--title"
+  <div
+    className="wizard-step--scroll-area"
   >
-    Add Data via Line Protocol
-  </h3>
-  <h5
-    className="wizard-step--sub-title"
-  >
-    Need help writing InfluxDB Line Protocol? See Documentation
-  </h5>
-  <Connect(LineProtocolTabs)
-    bucket="a"
-    org="a"
-    tabs={
-      Array [
-        "uploadFile",
-        "enterManually",
-        "enterURL",
-      ]
-    }
-  />
+    <FancyScrollbar
+      autoHeight={false}
+      autoHide={false}
+      maxHeight={null}
+      setScrollTop={[Function]}
+      style={Object {}}
+    >
+      <div
+        className="wizard-step--scroll-content"
+      >
+        <h3
+          className="wizard-step--title"
+        >
+          Add Data via Line Protocol
+        </h3>
+        <h5
+          className="wizard-step--sub-title"
+        >
+          Need help writing InfluxDB Line Protocol? See Documentation
+        </h5>
+        <Connect(LineProtocolTabs)
+          bucket="a"
+          org="a"
+          tabs={
+            Array [
+              "Upload File",
+              "Enter Manually",
+              "Enter URL",
+            ]
+          }
+        />
+      </div>
+    </FancyScrollbar>
+  </div>
   <OnboardingButtons
     autoFocusNext={true}
     backButtonText="Back to Select Data Source Type"

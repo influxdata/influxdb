@@ -64,10 +64,119 @@ exports[`Account rendering renders! 1`] = `
           <CopyText
             copyText="ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA=="
           >
-            <p
-              className="script-snippet"
+            <div
+              className="script-snippet--container"
             >
-              ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==
+              <FancyScrollbar
+                autoHeight={true}
+                autoHide={false}
+                maxHeight={400}
+                setScrollTop={[Function]}
+                style={Object {}}
+              >
+                <Scrollbars
+                  autoHeight={true}
+                  autoHeightMax={400}
+                  autoHeightMin={0}
+                  autoHide={false}
+                  autoHideDuration={250}
+                  autoHideTimeout={1000}
+                  className="fancy-scroll--container"
+                  hideTracksWhenNotNeeded={false}
+                  onScroll={[Function]}
+                  renderThumbHorizontal={[Function]}
+                  renderThumbVertical={[Function]}
+                  renderTrackHorizontal={[Function]}
+                  renderTrackVertical={[Function]}
+                  renderView={[Function]}
+                  style={Object {}}
+                  tagName="div"
+                  thumbMinSize={30}
+                  universal={false}
+                >
+                  <div
+                    className="fancy-scroll--container"
+                    style={
+                      Object {
+                        "height": "auto",
+                        "maxHeight": 400,
+                        "minHeight": 0,
+                        "overflow": "hidden",
+                        "position": "relative",
+                        "width": "100%",
+                      }
+                    }
+                  >
+                    <div
+                      className="fancy-scroll--view"
+                      key="view"
+                      style={
+                        Object {
+                          "WebkitOverflowScrolling": "touch",
+                          "bottom": undefined,
+                          "left": undefined,
+                          "marginBottom": 0,
+                          "marginRight": 0,
+                          "maxHeight": 400,
+                          "minHeight": 0,
+                          "overflow": "scroll",
+                          "position": "relative",
+                          "right": undefined,
+                          "top": undefined,
+                        }
+                      }
+                    >
+                      <p>
+                        ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==
+                      </p>
+                    </div>
+                    <div
+                      className="fancy-scroll--track-h"
+                      key="trackHorizontal"
+                      style={
+                        Object {
+                          "display": "none",
+                          "height": 6,
+                          "position": "absolute",
+                        }
+                      }
+                    >
+                      <div
+                        className="fancy-scroll--thumb-h"
+                        style={
+                          Object {
+                            "display": "block",
+                            "height": "100%",
+                            "position": "relative",
+                          }
+                        }
+                      />
+                    </div>
+                    <div
+                      className="fancy-scroll--track-v"
+                      key="trackVertical"
+                      style={
+                        Object {
+                          "display": "none",
+                          "position": "absolute",
+                          "width": 6,
+                        }
+                      }
+                    >
+                      <div
+                        className="fancy-scroll--thumb-v"
+                        style={
+                          Object {
+                            "display": "block",
+                            "position": "relative",
+                            "width": "100%",
+                          }
+                        }
+                      />
+                    </div>
+                  </div>
+                </Scrollbars>
+              </FancyScrollbar>
               <CopyToClipboard
                 onCopy={[Function]}
                 text="ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA=="
@@ -96,7 +205,7 @@ exports[`Account rendering renders! 1`] = `
                   </button>
                 </Button>
               </CopyToClipboard>
-            </p>
+            </div>
           </CopyText>
           <PermissionsWidget
             heightPixels={500}

@@ -1,14 +1,14 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`LineProtocolTabs rendering renders! 1`] = `
-<Fragment>
+<div>
   <default_1
     onClick={[Function]}
     tabs={
       Array [
-        "uploadFile",
-        "enterManually",
-        "enterURL",
+        "Upload File",
+        "Enter Manually",
+        "Enter URL",
       ]
     }
   />
@@ -33,5 +33,5 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
       </GridColumn>
     </GridRow>
   </Grid>
-</Fragment>
+</div>
 `;

@@ -1,6 +1,13 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
-import {Input, InputType, Form} from 'src/clockface'
+import {
+  Input,
+  InputType,
+  Form,
+  Grid,
+  Columns,
+  ComponentSize,
+} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import TextArea from 'src/clockface/components/inputs/TextArea'
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'
@@ -45,17 +52,27 @@ export default class extends PureComponent<Props> {
         )
       case LineProtocolTab.EnterURL:
         return (
-          <Form.Element label="File URL:">
-            <Input
-              titleText="File URL:"
-              type={InputType.Text}
-              placeholder="http://..."
-              widthPixels={700}
-              value={urlInput}
-              onChange={this.handleChange}
-              autoFocus={true}
-            />
-          </Form.Element>
+          <Grid>
+            <Grid.Row>
+              <Grid.Column
+                widthXS={Columns.Twelve}
+                widthMD={Columns.Ten}
+                offsetMD={Columns.One}
+              >
+                <Form.Element label="File URL:">
+                  <Input
+                    titleText="File URL:"
+                    type={InputType.Text}
+                    placeholder="http://..."
+                    value={urlInput}
+                    onChange={this.handleChange}
+                    autoFocus={true}
+                    size={ComponentSize.Large}
+                  />
+                </Form.Element>
+              </Grid.Column>
+            </Grid.Row>
+          </Grid>
         )
     }
   }

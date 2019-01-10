@@ -15,6 +15,7 @@ import {
   ComponentStatus,
 } from 'src/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // APIS
 import {setSetupParams, SetupParams, signin} from 'src/onboarding/apis'
@@ -54,105 +55,108 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     const status = this.InputStatus
     return (
       <div className="onboarding-step">
-        <h3 className="wizard-step--title">Setup Admin User</h3>
-        <h5 className="wizard-step--sub-title">
-          You will be able to create additional Users, Buckets and Organizations
-          later
-        </h5>
-        <Form
-          className="onboarding--admin-user-form"
-          onSubmit={this.handleNext}
-        >
-          <Grid>
-            <Grid.Row>
-              <Grid.Column
-                widthXS={Columns.Twelve}
-                widthMD={Columns.Ten}
-                offsetMD={Columns.One}
-              >
-                <Form.Element label="Admin Username">
-                  <Input
-                    value={username}
-                    onChange={this.handleUsername}
-                    titleText="Admin Username"
-                    size={ComponentSize.Medium}
-                    icon={icon}
-                    status={status}
-                    disabledTitleText="Admin username has been set"
-                    autoFocus={true}
-                  />
-                </Form.Element>
-              </Grid.Column>
-              <Grid.Column
-                widthXS={Columns.Six}
-                widthMD={Columns.Five}
-                offsetMD={Columns.One}
-              >
-                <Form.Element label="Admin Password">
-                  <Input
-                    type={InputType.Password}
-                    value={password}
-                    onChange={this.handlePassword}
-                    titleText="Admin Password"
-                    size={ComponentSize.Medium}
-                    icon={icon}
-                    status={status}
-                    disabledTitleText="Admin password has been set"
-                  />
-                </Form.Element>
-              </Grid.Column>
-              <Grid.Column widthXS={Columns.Six} widthMD={Columns.Five}>
-                <Form.Element label="Confirm Admin Password">
-                  <Input
-                    type={InputType.Password}
-                    value={confirmPassword}
-                    onChange={this.handleConfirmPassword}
-                    titleText="Confirm Admin Password"
-                    size={ComponentSize.Medium}
-                    icon={icon}
-                    status={this.passwordStatus}
-                    disabledTitleText="Admin password has been set"
-                  />
-                </Form.Element>
-              </Grid.Column>
-              <Grid.Column
-                widthXS={Columns.Twelve}
-                widthMD={Columns.Ten}
-                offsetMD={Columns.One}
-              >
-                <Form.Element label="Default Organization Name">
-                  <Input
-                    value={org}
-                    onChange={this.handleOrg}
-                    titleText="Default Organization Name"
-                    size={ComponentSize.Medium}
-                    icon={icon}
-                    status={ComponentStatus.Default}
-                    placeholder="Your organization is where everything you create lives"
-                    disabledTitleText="Default organization name has been set"
-                  />
-                </Form.Element>
-              </Grid.Column>
-              <Grid.Column
-                widthXS={Columns.Twelve}
-                widthMD={Columns.Ten}
-                offsetMD={Columns.One}
-              >
-                <Form.Element label="Default Bucket Name">
-                  <Input
-                    value={bucket}
-                    onChange={this.handleBucket}
-                    titleText="Default Bucket Name"
-                    size={ComponentSize.Medium}
-                    icon={icon}
-                    status={status}
-                    placeholder="Your bucket is where you will store all your data"
-                    disabledTitleText="Default bucket name has been set"
-                  />
-                </Form.Element>
-              </Grid.Column>
-            </Grid.Row>
-          </Grid>
+        <Form onSubmit={this.handleNext}>
+          <div className="wizard-step--scroll-area">
+            <FancyScrollbar autoHide={false}>
+              <div className="wizard-step--scroll-content">
+                <h3 className="wizard-step--title">Setup Admin User</h3>
+                <h5 className="wizard-step--sub-title">
+                  You will be able to create additional Users, Buckets and
+                  Organizations later
+                </h5>
+                <Grid>
+                  <Grid.Row>
+                    <Grid.Column
+                      widthXS={Columns.Twelve}
+                      widthMD={Columns.Ten}
+                      offsetMD={Columns.One}
+                    >
+                      <Form.Element label="Admin Username">
+                        <Input
+                          value={username}
+                          onChange={this.handleUsername}
+                          titleText="Admin Username"
+                          size={ComponentSize.Medium}
+                          icon={icon}
+                          status={status}
+                          disabledTitleText="Admin username has been set"
+                          autoFocus={true}
+                        />
+                      </Form.Element>
+                    </Grid.Column>
+                    <Grid.Column
+                      widthXS={Columns.Six}
+                      widthMD={Columns.Five}
+                      offsetMD={Columns.One}
+                    >
+                      <Form.Element label="Admin Password">
+                        <Input
+                          type={InputType.Password}
+                          value={password}
+                          onChange={this.handlePassword}
+                          titleText="Admin Password"
+                          size={ComponentSize.Medium}
+                          icon={icon}
+                          status={status}
+                          disabledTitleText="Admin password has been set"
+                        />
+                      </Form.Element>
+                    </Grid.Column>
+                    <Grid.Column widthXS={Columns.Six} widthMD={Columns.Five}>
+                      <Form.Element label="Confirm Admin Password">
+                        <Input
+                          type={InputType.Password}
+                          value={confirmPassword}
+                          onChange={this.handleConfirmPassword}
+                          titleText="Confirm Admin Password"
+                          size={ComponentSize.Medium}
+                          icon={icon}
+                          status={this.passwordStatus}
+                          disabledTitleText="Admin password has been set"
+                        />
+                      </Form.Element>
+                    </Grid.Column>
+                    <Grid.Column
+                      widthXS={Columns.Twelve}
+                      widthMD={Columns.Ten}
+                      offsetMD={Columns.One}
+                    >
+                      <Form.Element label="Default Organization Name">
+                        <Input
+                          value={org}
+                          onChange={this.handleOrg}
+                          titleText="Default Organization Name"
+                          size={ComponentSize.Medium}
+                          icon={icon}
+                          status={ComponentStatus.Default}
+                          placeholder="Your organization is where everything you create lives"
+                          disabledTitleText="Default organization name has been set"
+                        />
+                      </Form.Element>
+                    </Grid.Column>
+                    <Grid.Column
+                      widthXS={Columns.Twelve}
+                      widthMD={Columns.Ten}
+                      offsetMD={Columns.One}
+                    >
+                      <Form.Element label="Default Bucket Name">
+                        <Input
+                          value={bucket}
+                          onChange={this.handleBucket}
+                          titleText="Default Bucket Name"
+                          size={ComponentSize.Medium}
+                          icon={icon}
+                          status={status}
+                          placeholder="Your bucket is where you will store all your data"
+                          disabledTitleText="Default bucket name has been set"
+                        />
+                      </Form.Element>
+                    </Grid.Column>
+                  </Grid.Row>
+                </Grid>
+              </div>
+            </FancyScrollbar>
+          </div>
           <OnboardingButtons
             onClickBack={this.props.onDecrementCurrentStepIndex}
             nextButtonText={this.nextButtonText}
