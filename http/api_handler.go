@@ -20,6 +20,7 @@ type APIHandler struct {
 	DashboardHandler     *DashboardHandler
 	AssetHandler         *AssetHandler
 	ChronografHandler    *ChronografHandler
+	ScraperHandler       *ScraperHandler
 	SourceHandler        *SourceHandler
 	MacroHandler         *MacroHandler
 	TaskHandler          *TaskHandler
@@ -101,6 +102,9 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.AuthorizationHandler.LookupService = b.LookupService
 	h.AuthorizationHandler.Logger = b.Logger.With(zap.String("handler", "auth"))
 
+	h.ScraperHandler = NewScraperHandler()
+	h.ScraperHandler.ScraperStorageService = b.ScraperTargetStoreService
+
 	h.SourceHandler = NewSourceHandler()
 	h.SourceHandler.SourceService = b.SourceService
 	h.SourceHandler.NewBucketService = b.NewBucketService
@@ -159,10 +163,11 @@ var apiLinks = map[string]interface{}{
 		"spec":        "/api/v2/query/spec",
 		"suggestions": "/api/v2/query/suggestions",
 	},
-	"setup":   "/api/v2/setup",
-	"signin":  "/api/v2/signin",
-	"signout": "/api/v2/signout",
-	"sources": "/api/v2/sources",
+	"setup":          "/api/v2/setup",
+	"signin":         "/api/v2/signin",
+	"signout":        "/api/v2/signout",
+	"sources":        "/api/v2/sources",
+	"scrapertargets": "/api/v2/scrapertargets",
 	"system": map[string]string{
 		"metrics": "/metrics",
 		"debug":   "/debug/pprof",
@@ -247,6 +252,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/sources") {
 		h.SourceHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v2/scrapertargets") {
+		h.ScraperHandler.ServeHTTP(w, r)
 		return
 	}
 

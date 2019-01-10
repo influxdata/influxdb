@@ -8,7 +8,6 @@ import (
 	"path"
 
 	platform "github.com/influxdata/influxdb"
-	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -159,7 +158,10 @@ func decodeScraperTargetIDRequest(ctx context.Context, r *http.Request) (*platfo
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -268,6 +270,21 @@ func (s *ScraperService) AddTarget(ctx context.Context, target *platform.Scraper
 	url, err := newURL(s.Addr, targetPath)
 	if err != nil {
 		return err
+	}
+
+	if !target.OrgID.Valid() {
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "org id is invalid",
+			Op:   s.OpPrefix + platform.OpAddTarget,
+		}
+	}
+	if !target.BucketID.Valid() {
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "bucket id is invalid",
+			Op:   s.OpPrefix + platform.OpAddTarget,
+		}
 	}
 
 	octets, err := json.Marshal(target)

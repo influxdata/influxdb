@@ -46,6 +46,20 @@ func (c *Client) ListTargets(ctx context.Context) (list []platform.ScraperTarget
 
 // AddTarget add a new scraper target into storage.
 func (c *Client) AddTarget(ctx context.Context, target *platform.ScraperTarget) (err error) {
+	if !target.OrgID.Valid() {
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "org id is invalid",
+			Op:   OpPrefix + platform.OpAddTarget,
+		}
+	}
+	if !target.BucketID.Valid() {
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "bucket id is invalid",
+			Op:   OpPrefix + platform.OpAddTarget,
+		}
+	}
 	err = c.db.Update(func(tx *bolt.Tx) error {
 		target.ID = c.IDGenerator.ID()
 		return c.putTarget(ctx, tx, target)
@@ -99,6 +113,12 @@ func (c *Client) UpdateTarget(ctx context.Context, update *platform.ScraperTarge
 		target, pe = c.findTargetByID(ctx, tx, update.ID)
 		if pe != nil {
 			return pe
+		}
+		if !update.BucketID.Valid() {
+			update.BucketID = target.BucketID
+		}
+		if !update.OrgID.Valid() {
+			update.OrgID = target.OrgID
 		}
 		target = update
 		return c.putTarget(ctx, tx, target)

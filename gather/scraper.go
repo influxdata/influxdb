@@ -3,10 +3,10 @@ package gather
 import (
 	"context"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 )
 
 // Scraper gathers metrics from a scraper target.
 type Scraper interface {
-	Gather(ctx context.Context, target platform.ScraperTarget) (ms []Metrics, err error)
+	Gather(ctx context.Context, target influxdb.ScraperTarget) (collected MetricsCollection, err error)
 }

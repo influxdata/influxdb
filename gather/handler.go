@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/nats"
 	"go.uber.org/zap"
 )
@@ -22,7 +22,7 @@ type handler struct {
 func (h *handler) Process(s nats.Subscription, m nats.Message) {
 	defer m.Ack()
 
-	req := new(platform.ScraperTarget)
+	req := new(influxdb.ScraperTarget)
 	err := json.Unmarshal(m.Data(), req)
 	if err != nil {
 		h.Logger.Error("unable to unmarshal json", zap.Error(err))
@@ -35,7 +35,7 @@ func (h *handler) Process(s nats.Subscription, m nats.Message) {
 		return
 	}
 
-	// send metrics to storage queue
+	// send metrics to recorder queue
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(ms); err != nil {
 		h.Logger.Error("unable to marshal json", zap.Error(err))

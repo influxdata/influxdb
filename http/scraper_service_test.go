@@ -55,20 +55,20 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 					ListTargetsF: func(ctx context.Context) ([]platform.ScraperTarget, error) {
 						return []platform.ScraperTarget{
 							{
-								ID:         targetOneID,
-								Name:       "target-1",
-								Type:       platform.PrometheusScraperType,
-								URL:        "www.one.url",
-								OrgName:    "org-name",
-								BucketName: "bkt-one",
+								ID:       targetOneID,
+								Name:     "target-1",
+								Type:     platform.PrometheusScraperType,
+								URL:      "www.one.url",
+								OrgID:    platformtesting.MustIDBase16("0000000000000211"),
+								BucketID: platformtesting.MustIDBase16("0000000000000212"),
 							},
 							{
-								ID:         targetTwoID,
-								Name:       "target-2",
-								Type:       platform.PrometheusScraperType,
-								URL:        "www.two.url",
-								OrgName:    "org-name",
-								BucketName: "bkt-two",
+								ID:       targetTwoID,
+								Name:     "target-2",
+								Type:     platform.PrometheusScraperType,
+								URL:      "www.two.url",
+								OrgID:    platformtesting.MustIDBase16("0000000000000211"),
+								BucketID: platformtesting.MustIDBase16("0000000000000212"),
 							},
 						}, nil
 					},
@@ -88,8 +88,8 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 					    {
 					      "id": "%s",
 						  "name": "target-1",
-						  "bucket": "bkt-one",
-						  "org": "org-name",
+						  "bucketID": "0000000000000212",
+						  "orgID": "0000000000000211",
 						  "type": "prometheus",
 						  "url": "www.one.url",
 						  "links": {
@@ -99,8 +99,8 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						{
 						  "id": "%s",
 						  "name": "target-2",
-						  "bucket": "bkt-two",
-						  "org": "org-name",
+						  "bucketID": "0000000000000212",
+						  "orgID": "0000000000000211",
 						  "type": "prometheus",
 						  "url": "www.two.url",
 						  "links": {
@@ -204,12 +204,12 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 					GetTargetByIDF: func(ctx context.Context, id platform.ID) (*platform.ScraperTarget, error) {
 						if id == targetOneID {
 							return &platform.ScraperTarget{
-								ID:         targetOneID,
-								Name:       "target-1",
-								Type:       platform.PrometheusScraperType,
-								URL:        "www.some.url",
-								OrgName:    "org-name",
-								BucketName: "bkt-name",
+								ID:       targetOneID,
+								Name:     "target-1",
+								Type:     platform.PrometheusScraperType,
+								URL:      "www.some.url",
+								OrgID:    platformtesting.MustIDBase16("0000000000000211"),
+								BucketID: platformtesting.MustIDBase16("0000000000000212"),
 							}, nil
 						}
 						return nil, fmt.Errorf("not found")
@@ -229,8 +229,8 @@ func TestService_handleGetScraperTarget(t *testing.T) {
                       "name": "target-1",
                       "type": "prometheus",
                       "url": "www.some.url",
-                      "bucket": "bkt-name",
-                      "org": "org-name",
+                      "bucketID": "0000000000000212",
+                      "orgID": "0000000000000211",
                       "links": {
                         "self": "/api/v2/scrapertargets/%[1]s"
                       }
@@ -413,11 +413,11 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 			},
 			args: args{
 				target: &platform.ScraperTarget{
-					Name:       "hello",
-					Type:       platform.PrometheusScraperType,
-					BucketName: "bkt-name",
-					OrgName:    "org-name",
-					URL:        "www.some.url",
+					Name:     "hello",
+					Type:     platform.PrometheusScraperType,
+					BucketID: platformtesting.MustIDBase16("0000000000000212"),
+					OrgID:    platformtesting.MustIDBase16("0000000000000211"),
+					URL:      "www.some.url",
 				},
 			},
 			wants: wants{
@@ -430,8 +430,8 @@ func TestService_handlePostScraperTarget(t *testing.T) {
                       "name": "hello",
                       "type": "prometheus",
                       "url": "www.some.url",
-                      "org": "org-name",
-                      "bucket": "bkt-name",
+                      "orgID": "0000000000000211",
+                      "bucketID": "0000000000000212",
                       "links": {
                         "self": "/api/v2/scrapertargets/%[1]s"
                       }
@@ -513,12 +513,12 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 			args: args{
 				id: targetOneIDString,
 				update: &platform.ScraperTarget{
-					ID:         targetOneID,
-					Name:       "name",
-					BucketName: "buck",
-					Type:       platform.PrometheusScraperType,
-					URL:        "www.example.url",
-					OrgName:    "orgg",
+					ID:       targetOneID,
+					Name:     "name",
+					BucketID: platformtesting.MustIDBase16("0000000000000212"),
+					Type:     platform.PrometheusScraperType,
+					URL:      "www.example.url",
+					OrgID:    platformtesting.MustIDBase16("0000000000000211"),
 				},
 			},
 			wants: wants{
@@ -531,8 +531,8 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 		              "name":"name",
 		              "type":"prometheus",
 		              "url":"www.example.url",
-		              "org":"orgg",
-		              "bucket":"buck",
+		              "orgID":"0000000000000211",
+		              "bucketID":"0000000000000212",
 		              "links":{
 		                "self":"/api/v2/scrapertargets/%[1]s"
 		              }
@@ -557,12 +557,12 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 			args: args{
 				id: targetOneIDString,
 				update: &platform.ScraperTarget{
-					ID:         targetOneID,
-					Name:       "name",
-					BucketName: "buck",
-					Type:       platform.PrometheusScraperType,
-					URL:        "www.example.url",
-					OrgName:    "orgg",
+					ID:       targetOneID,
+					Name:     "name",
+					BucketID: platformtesting.MustIDBase16("0000000000000212"),
+					Type:     platform.PrometheusScraperType,
+					URL:      "www.example.url",
+					OrgID:    platformtesting.MustIDBase16("0000000000000211"),
 				},
 			},
 			wants: wants{

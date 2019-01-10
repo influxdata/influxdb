@@ -1,16 +1,74 @@
 package gather
 
 import (
+	"bytes"
+	"io"
+	"time"
+
 	"github.com/gogo/protobuf/proto"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
 )
+
+// MetricsCollection is the struct including metrics and other requirements.
+type MetricsCollection struct {
+	OrgID        influxdb.ID  `json:"orgID"`
+	BucketID     influxdb.ID  `json:"bucketID"`
+	MetricsSlice MetricsSlice `json:"metrics"`
+}
 
 // Metrics is the default influx based metrics.
 type Metrics struct {
 	Name      string                 `json:"name"`
 	Tags      map[string]string      `json:"tags"`
 	Fields    map[string]interface{} `json:"fields"`
-	Timestamp int64                  `json:"timestamp"`
+	Timestamp time.Time              `json:"timestamp"`
 	Type      MetricType             `json:"type"`
+}
+
+// MetricsSlice is a slice of Metrics
+type MetricsSlice []Metrics
+
+// Points convert the MetricsSlice to model.Points
+func (ms MetricsSlice) Points() (models.Points, error) {
+	ps := make([]models.Point, len(ms))
+	for mi, m := range ms {
+		point, err := models.NewPoint(m.Name, models.NewTags(m.Tags), m.Fields, m.Timestamp)
+		if err != nil {
+			return ps, err
+		}
+		if m.Type.Valid() {
+			point.AddTag("type", m.Type.String())
+		}
+		ps[mi] = point
+	}
+	return ps, nil
+}
+
+// Reader returns an io.Reader that enumerates the metrics.
+// All metrics are allocated into the underlying buffer.
+func (ms MetricsSlice) Reader() (io.Reader, error) {
+	buf := new(bytes.Buffer)
+	for mi, m := range ms {
+		point, err := models.NewPoint(m.Name, models.NewTags(m.Tags), m.Fields, m.Timestamp)
+		if err != nil {
+			return nil, err
+		}
+		if m.Type.Valid() {
+			point.AddTag("type", m.Type.String())
+		}
+		_, err = buf.WriteString(point.String())
+		if err != nil {
+			return nil, err
+		}
+		if mi < len(ms)-1 && len(ms) > 1 {
+			_, err = buf.WriteString("\n")
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return buf, nil
 }
 
 // MetricType is prometheus metrics type.
@@ -38,6 +96,11 @@ var metricTypeValue = map[string]int32{
 	"SUMMARY":   2,
 	"UNTYPED":   3,
 	"HISTOGRAM": 4,
+}
+
+// Valid returns whether the metrics type is valid.
+func (x MetricType) Valid() bool {
+	return x >= MetricTypeCounter && x <= MetricTypeHistogrm
 }
 
 // String returns the string value of MetricType.

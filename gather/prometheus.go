@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -20,23 +20,23 @@ import (
 type prometheusScraper struct{}
 
 // Gather parse metrics from a scraper target url.
-func (p *prometheusScraper) Gather(ctx context.Context, target platform.ScraperTarget) (ms []Metrics, err error) {
+func (p *prometheusScraper) Gather(ctx context.Context, target influxdb.ScraperTarget) (collected MetricsCollection, err error) {
 	resp, err := http.Get(target.URL)
 	if err != nil {
-		return ms, err
+		return collected, err
 	}
 	defer resp.Body.Close()
 
-	return p.parse(resp.Body, resp.Header)
+	return p.parse(resp.Body, resp.Header, target)
 }
 
-func (p *prometheusScraper) parse(r io.Reader, header http.Header) ([]Metrics, error) {
+func (p *prometheusScraper) parse(r io.Reader, header http.Header, target influxdb.ScraperTarget) (collected MetricsCollection, err error) {
 	var parser expfmt.TextParser
 	now := time.Now()
 
 	mediatype, params, err := mime.ParseMediaType(header.Get("Content-Type"))
 	if err != nil {
-		return nil, err
+		return collected, err
 	}
 	// Prepare output
 	metricFamilies := make(map[string]*dto.MetricFamily)
@@ -49,14 +49,14 @@ func (p *prometheusScraper) parse(r io.Reader, header http.Header) ([]Metrics, e
 				if err == io.EOF {
 					break
 				}
-				return nil, fmt.Errorf("reading metric family protocol buffer failed: %s", err)
+				return collected, fmt.Errorf("reading metric family protocol buffer failed: %s", err)
 			}
 			metricFamilies[mf.GetName()] = mf
 		}
 	} else {
 		metricFamilies, err = parser.TextToMetricFamilies(r)
 		if err != nil {
-			return nil, fmt.Errorf("reading text format failed: %s", err)
+			return collected, fmt.Errorf("reading text format failed: %s", err)
 		}
 	}
 	ms := make([]Metrics, 0)
@@ -91,7 +91,7 @@ func (p *prometheusScraper) parse(r io.Reader, header http.Header) ([]Metrics, e
 				tm = time.Unix(0, *m.TimestampMs*1000000)
 			}
 			me := Metrics{
-				Timestamp: tm.UnixNano(),
+				Timestamp: tm,
 				Tags:      tags,
 				Fields:    fields,
 				Name:      name,
@@ -102,7 +102,13 @@ func (p *prometheusScraper) parse(r io.Reader, header http.Header) ([]Metrics, e
 
 	}
 
-	return ms, nil
+	collected = MetricsCollection{
+		MetricsSlice: ms,
+		OrgID:        target.OrgID,
+		BucketID:     target.BucketID,
+	}
+
+	return collected, nil
 }
 
 // Get labels from metric
