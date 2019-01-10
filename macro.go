@@ -6,6 +6,9 @@ import (
 	"fmt"
 )
 
+// ErrMacroNotFound is the error msg for a missing macro.
+const ErrMacroNotFound = "macro not found"
+
 // ops for macro error.
 const (
 	OpFindMacroByID = "FindMacroByID"
@@ -41,11 +44,14 @@ type MacroService interface {
 // values when used in an InfluxQL or Flux query
 type Macro struct {
 	ID             ID              `json:"id,omitempty"`
-	OrganizationID ID              `json:"org_id,omitempty"` // todo(leodido) > remove omitempty
+	OrganizationID ID              `json:"org_id,omitempty"`
 	Name           string          `json:"name"`
 	Selected       []string        `json:"selected"`
 	Arguments      *MacroArguments `json:"arguments"`
 }
+
+// DefaultMacroFindOptions are the default find options for macros.
+var DefaultMacroFindOptions = FindOptions{}
 
 // MacroFilter represents a set of filter that restrict the returned results.
 type MacroFilter struct {
@@ -101,7 +107,7 @@ type MacroMapValues map[string]string
 
 // Valid returns an error if a Macro contains invalid data
 func (m *Macro) Valid() error {
-	// todo(leodido) > is organization mandatory? ie., every macro belongs to an organization? if yes, check it
+	// todo(leodido) > check it org ID validity?
 
 	if m.Name == "" {
 		return fmt.Errorf("missing macro name")
