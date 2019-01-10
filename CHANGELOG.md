@@ -4,6 +4,7 @@ v1.7.3 [unreleased]
 ### Bugfixes
 
 -	[#10584](https://github.com/influxdata/influxdb/pull/10584): Fix invalid UTF-8 bytes preventing shard opening.
+-	[#10950](https://github.com/influxdata/influxdb/pull/10950): Marked functions that always return floats as always returning floats.
 
 v1.7.2 [2018-12-11]
 -------------------
