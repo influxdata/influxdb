@@ -37,7 +37,6 @@ ui/src/api/git_push.sh
 # that may be present but previously ignored if you cloned/developed before v2.
 
 *~
-src/
 
 config.json
 /bin/
