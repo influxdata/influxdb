@@ -159,19 +159,29 @@ export default class Buckets extends PureComponent<Props, State> {
   }
 
   private get emptyState(): JSX.Element {
+    const {org} = this.props
     const {searchTerm} = this.state
 
     if (_.isEmpty(searchTerm)) {
       return (
-        <EmptyState size={ComponentSize.Large}>
-          <EmptyState.Text text="Oh noes I dun see na buckets" />
+        <EmptyState size={ComponentSize.Medium}>
+          <EmptyState.Text
+            text={`${org.name} does not own any Buckets , why not create one?`}
+            highlightWords={['Buckets']}
+          />
+          <Button
+            text="Create Bucket"
+            icon={IconFont.Plus}
+            color={ComponentColor.Primary}
+            onClick={this.handleOpenModal}
+          />
         </EmptyState>
       )
     }
 
     return (
-      <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text="No buckets match your query" />
+      <EmptyState size={ComponentSize.Medium}>
+        <EmptyState.Text text="No Buckets match your query" />
       </EmptyState>
     )
   }

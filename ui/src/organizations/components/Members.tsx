@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import _ from 'lodash'
 
 // Components
 import {ComponentSize, EmptyState, IconFont, Input} from 'src/clockface'
@@ -15,6 +16,7 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 
 interface Props {
   members: ResourceOwner[]
+  orgName: string
 }
 
 interface State {
@@ -60,9 +62,23 @@ export default class Members extends PureComponent<Props, State> {
   }
 
   private get emptyState(): JSX.Element {
+    const {orgName} = this.props
+    const {searchTerm} = this.state
+
+    if (_.isEmpty(searchTerm)) {
+      return (
+        <EmptyState size={ComponentSize.Medium}>
+          <EmptyState.Text
+            text={`${orgName} doesn't have any Members , why not invite some?`}
+            highlightWords={['Members']}
+          />
+        </EmptyState>
+      )
+    }
+
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text="This org has been abandoned" />
+        <EmptyState.Text text="No Members match your query" />
       </EmptyState>
     )
   }

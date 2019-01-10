@@ -28,6 +28,7 @@ interface Props {
   onCreateDashboard: () => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
+  onUpdateDashboard: (dashboard: Dashboard) => void
   onSetDefaultDashboard: (dashboardLink: string) => void
 }
 
@@ -62,26 +63,26 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
             columnName={headerKeys[0]}
             sortKey={headerKeys[0]}
             sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-            width="50%"
+            width="62%"
             onClick={this.handleClickColumn}
           />
           <IndexList.HeaderCell
             columnName={headerKeys[1]}
             sortKey={headerKeys[1]}
             sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
-            width="10%"
+            width="17%"
             onClick={this.handleClickColumn}
           />
           <IndexList.HeaderCell
             columnName={headerKeys[2]}
             sortKey={headerKeys[2]}
             sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
-            width="30%"
+            width="11%"
             onClick={this.handleClickColumn}
           />
           <IndexList.HeaderCell
             columnName=""
-            width="20%"
+            width="10%"
             alignment={Alignment.Right}
           />
         </IndexList.Header>
@@ -102,6 +103,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onExportDashboard,
       onCloneDashboard,
       onDeleteDashboard,
+      onUpdateDashboard,
     } = this.props
 
     const {sortKey, sortDirection} = this.state
@@ -119,6 +121,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onCloneDashboard={onCloneDashboard}
               onExportDashboard={onExportDashboard}
               onDeleteDashboard={onDeleteDashboard}
+              onUpdateDashboard={onUpdateDashboard}
             />
           )}
         </SortingHat>

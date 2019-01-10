@@ -200,18 +200,6 @@
   ------------------------------------------------------------------------------
 */
 
-.index-list--description {
-  user-select: none;
-  font-size: 12px;
-  color: $g12-forge;
-  white-space: nowrap;
-
-  &.untitled {
-    color: $g9-mountain;
-    font-style: italic;
-  }
-}
-
 .index-list--labels {
   margin-left: $ix-marg-b;
 }

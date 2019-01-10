@@ -13,6 +13,7 @@ import {
   Stack,
   Label,
 } from 'src/clockface'
+import EditableDescription from 'src/shared/components/editable_description/EditableDescription'
 
 // Types
 import {Dashboard} from 'src/types/v2'
@@ -30,6 +31,7 @@ interface Props {
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
+  onUpdateDashboard: (dashboard: Dashboard) => void
 }
 
 export default class DashboardsIndexTableRow extends PureComponent<Props> {
@@ -40,7 +42,11 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     return (
       <IndexList.Row key={`dashboard-id--${id}`} disabled={false}>
         <IndexList.Cell>
-          <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
+          <ComponentSpacer
+            stackChildren={Stack.Rows}
+            align={Alignment.Left}
+            stretchToFitWidth={true}
+          >
             <ComponentSpacer
               stackChildren={Stack.Columns}
               align={Alignment.Left}
@@ -50,21 +56,17 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
               </Link>
               {this.labels}
             </ComponentSpacer>
-            {this.description}
+            <EditableDescription
+              description={dashboard.description}
+              placeholder={`Describe ${dashboard.name}`}
+              onUpdate={this.handleUpdateDescription}
+            />
           </ComponentSpacer>
         </IndexList.Cell>
         <IndexList.Cell>Owner does not come back from API</IndexList.Cell>
-        <IndexList.Cell>
-          {moment(dashboard.meta.updatedAt).format(UPDATED_AT_TIME_FORMAT)}
-        </IndexList.Cell>
+        {this.lastModifiedCell}
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Left} stackChildren={Stack.Columns}>
-            <Button
-              size={ComponentSize.ExtraSmall}
-              text="Export"
-              icon={IconFont.Export}
-              onClick={this.handleExport}
-            />
             <Button
               size={ComponentSize.ExtraSmall}
               text="Clone"
@@ -106,6 +108,21 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     )
   }
 
+  private get lastModifiedCell(): JSX.Element {
+    const {dashboard} = this.props
+
+    const relativeTimestamp = moment(dashboard.meta.updatedAt).fromNow()
+    const absoluteTimestamp = moment(dashboard.meta.updatedAt).format(
+      UPDATED_AT_TIME_FORMAT
+    )
+
+    return (
+      <IndexList.Cell>
+        <span title={absoluteTimestamp}>{relativeTimestamp}</span>
+      </IndexList.Cell>
+    )
+  }
+
   private get name(): string {
     const {dashboard} = this.props
 
@@ -120,23 +137,11 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     }
   }
 
-  private get description(): JSX.Element {
-    const {dashboard} = this.props
+  private handleUpdateDescription = (description: string): void => {
+    const {onUpdateDashboard} = this.props
+    const dashboard = {...this.props.dashboard, description}
 
-    if (dashboard.description) {
-      return (
-        <div className="index-list--description">{dashboard.description}</div>
-      )
-    }
-
-    return (
-      <div className="index-list--description untitled">No description</div>
-    )
-  }
-
-  private handleExport = () => {
-    const {onExportDashboard, dashboard} = this.props
-    onExportDashboard(dashboard)
+    onUpdateDashboard(dashboard)
   }
 
   private handleClone = () => {

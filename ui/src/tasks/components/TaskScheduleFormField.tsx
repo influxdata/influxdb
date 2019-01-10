@@ -22,7 +22,7 @@ export default class TaskScheduleFormFields extends PureComponent<Props> {
 
     return (
       <>
-        <ComponentSpacer align={Alignment.Left} stretchToFit={true}>
+        <ComponentSpacer align={Alignment.Left} stretchToFitWidth={true}>
           <label className="task-form--form-label">
             {schedule === TaskSchedule.interval ? 'Interval' : 'Cron'}
           </label>
@@ -37,7 +37,7 @@ export default class TaskScheduleFormFields extends PureComponent<Props> {
           />
         </ComponentSpacer>
 
-        <ComponentSpacer align={Alignment.Left} stretchToFit={true}>
+        <ComponentSpacer align={Alignment.Left} stretchToFitWidth={true}>
           <label className="task-form--form-label">Offset</label>
           <Input
             name="offset"

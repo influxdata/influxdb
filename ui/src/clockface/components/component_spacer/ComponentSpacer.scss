@@ -6,6 +6,14 @@
 .component-spacer {
   display: flex;
   flex-wrap: nowrap;
+
+  &.component-spacer--stretch-w {
+    width: 100%;
+  }
+
+  &.component-spacer--stretch-h {
+    height: 100%;
+  }
 }
 
 .component-spacer--left {
@@ -23,10 +31,6 @@
 .component-spacer--horizontal {
   flex-direction: row;
   align-items: center;
-
-  &.component-spacer--stretch {
-    width: 100%;
-  }
 
   &.component-spacer--left > * {
     margin-right: $ix-marg-a;
@@ -52,10 +56,6 @@
 
 .component-spacer--vertical {
   flex-direction: column;
-
-  &.component-spacer--stretch {
-    height: 100%;
-  }
 
   &.component-spacer--left {
     align-items: flex-start;

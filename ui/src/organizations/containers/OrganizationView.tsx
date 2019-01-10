@@ -75,7 +75,7 @@ class OrganizationView extends PureComponent<Props> {
                 >
                   {(members, loading) => (
                     <Spinner loading={loading}>
-                      <Members members={members} />
+                      <Members members={members} orgName={org.name} />
                     </Spinner>
                   )}
                 </GetOrgResources>
@@ -107,7 +107,7 @@ class OrganizationView extends PureComponent<Props> {
                 >
                   {(dashboards, loading) => (
                     <Spinner loading={loading}>
-                      <Dashboards dashboards={dashboards} />
+                      <Dashboards dashboards={dashboards} orgName={org.name} />
                     </Spinner>
                   )}
                 </GetOrgResources>
@@ -120,7 +120,7 @@ class OrganizationView extends PureComponent<Props> {
                 <GetOrgResources<Task[]> organization={org} fetcher={getTasks}>
                   {(tasks, loading) => (
                     <Spinner loading={loading}>
-                      <Tasks tasks={tasks} />
+                      <Tasks tasks={tasks} orgName={org.name} />
                     </Spinner>
                   )}
                 </GetOrgResources>

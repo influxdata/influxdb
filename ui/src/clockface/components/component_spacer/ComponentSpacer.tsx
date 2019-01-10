@@ -9,14 +9,16 @@ interface Props {
   children: JSX.Element | JSX.Element[]
   align: Alignment
   stackChildren?: Stack
-  stretchToFit?: boolean
+  stretchToFitWidth?: boolean
+  stretchToFitHeight?: boolean
 }
 
 const ComponentSpacer: SFC<Props> = ({
   children,
   align,
   stackChildren = Stack.Columns,
-  stretchToFit = false,
+  stretchToFitWidth = false,
+  stretchToFitHeight = false,
 }) => (
   <div
     className={classnames('component-spacer', {
@@ -25,7 +27,8 @@ const ComponentSpacer: SFC<Props> = ({
       'component-spacer--right': align === Alignment.Right,
       'component-spacer--horizontal': stackChildren === Stack.Columns,
       'component-spacer--vertical': stackChildren === Stack.Rows,
-      'component-spacer--stretch': stretchToFit,
+      'component-spacer--stretch-w': stretchToFitWidth,
+      'component-spacer--stretch-h': stretchToFitHeight,
     })}
   >
     {children}

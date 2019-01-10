@@ -28,6 +28,7 @@ import {
   getDashboardsAsync,
   importDashboardAsync,
   deleteDashboardAsync,
+  updateDashboardAsync,
 } from 'src/dashboards/actions/v2'
 import {setDefaultDashboard} from 'src/shared/actions/links'
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/v2/ranges'
@@ -59,6 +60,7 @@ interface Props {
   handleGetDashboards: typeof getDashboardsAsync
   handleDeleteDashboard: typeof deleteDashboardAsync
   handleImportDashboard: typeof importDashboardAsync
+  handleUpdateDashboard: typeof updateDashboardAsync
   notify: (message: Notification) => void
   retainRangesDashTimeV1: (dashboardIDs: string[]) => void
   dashboards: Dashboard[]
@@ -88,7 +90,7 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {dashboards, notify, links} = this.props
+    const {dashboards, notify, links, handleUpdateDashboard} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -102,12 +104,6 @@ class DashboardIndex extends PureComponent<Props, State> {
               <SearchWidget
                 placeholderText="Filter dashboards by name..."
                 onSearch={this.filterDashboards}
-              />
-              <Button
-                onClick={this.handleToggleOverlay}
-                icon={IconFont.Import}
-                text="Import"
-                titleText="Import a dashboard from a file"
               />
               <Button
                 color={ComponentColor.Primary}
@@ -127,6 +123,7 @@ class DashboardIndex extends PureComponent<Props, State> {
               onCreateDashboard={this.handleCreateDashboard}
               onCloneDashboard={this.handleCloneDashboard}
               onExportDashboard={this.handleExportDashboard}
+              onUpdateDashboard={handleUpdateDashboard}
               notify={notify}
               searchTerm={searchTerm}
             />
@@ -271,6 +268,7 @@ const mdtp = {
   handleGetDashboards: getDashboardsAsync,
   handleDeleteDashboard: deleteDashboardAsync,
   handleImportDashboard: importDashboardAsync,
+  handleUpdateDashboard: updateDashboardAsync,
   retainRangesDashTimeV1: retainRangesDashTimeV1Action,
 }
 

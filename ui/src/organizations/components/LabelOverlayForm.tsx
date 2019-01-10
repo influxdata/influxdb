@@ -26,7 +26,7 @@ import {
   HEX_CODE_CHAR_LENGTH,
   INPUT_ERROR_COLOR,
 } from 'src/organizations/constants/LabelColors'
-const MAX_LABEL_CHARS = 75
+const MAX_LABEL_CHARS = 50
 
 // Utils
 import {validateHexCode} from 'src/organizations/utils/labels'

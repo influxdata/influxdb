@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import _ from 'lodash'
 
 // Components
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
@@ -12,6 +13,7 @@ import {Task} from 'src/api'
 
 interface Props {
   tasks: Task[]
+  orgName: string
 }
 
 interface State {
@@ -62,9 +64,23 @@ export default class Tasks extends PureComponent<Props, State> {
   }
 
   private get emptyState(): JSX.Element {
+    const {orgName} = this.props
+    const {searchTerm} = this.state
+
+    if (_.isEmpty(searchTerm)) {
+      return (
+        <EmptyState size={ComponentSize.Medium}>
+          <EmptyState.Text
+            text={`${orgName} does not own any Tasks , why not create one?`}
+            highlightWords={'Tasks'}
+          />
+        </EmptyState>
+      )
+    }
+
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text="I see nay a task" />
+        <EmptyState.Text text="No Tasks match your query" />
       </EmptyState>
     )
   }
