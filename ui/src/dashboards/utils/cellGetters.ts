@@ -1,5 +1,5 @@
-import {NewCell} from 'src/types/v2/dashboards'
-import {Cell, Dashboard} from 'src/api'
+import {NewCell, Cell, Dashboard} from 'src/types/v2/'
+
 import {UNTITLED_GRAPH} from 'src/dashboards/constants'
 
 const getMostCommonValue = (values: number[]): number => {

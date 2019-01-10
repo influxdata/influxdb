@@ -120,5 +120,5 @@ export const updateViewNote = () => async (dispatch, getState: GetState) => {
     properties: {...view.properties, note, showNoteWhenEmpty},
   }
 
-  return dispatch(updateView(updatedView))
+  return dispatch(updateView(view.dashboardID, updatedView))
 }

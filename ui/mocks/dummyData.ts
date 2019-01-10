@@ -2,12 +2,11 @@ import {
   Source,
   SourceAuthenticationMethod,
   Template,
-  Dashboard,
-  Cell,
   SourceLinks,
   TemplateType,
   TemplateValueType,
 } from 'src/types'
+import {Cell, Dashboard} from 'src/types/v2'
 import {Links} from 'src/types/v2/links'
 import {Task} from 'src/types/v2/tasks'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
@@ -256,8 +255,8 @@ export const cell: Cell = {
   y: 0,
   w: 4,
   h: 4,
-  viewID: 'view-1',
   id: '0246e457-916b-43e3-be99-211c4cbc03e8',
+  dashboardID: 'dummyDashboardID',
   links: {
     self: 'self/link',
     view: 'view/link',

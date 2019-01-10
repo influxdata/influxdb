@@ -15,14 +15,13 @@ import {readView} from 'src/dashboards/actions/v2/views'
 
 // Types
 import {RemoteDataState, TimeRange} from 'src/types'
-import {AppState, ViewType} from 'src/types/v2'
-import {Cell, View} from 'src/api'
+import {AppState, ViewType, View, Cell} from 'src/types/v2'
 
 // Styles
 import './Cell.scss'
 
 interface StateProps {
-  view: View | null
+  view: View
   viewStatus: RemoteDataState
 }
 
@@ -49,7 +48,8 @@ class CellComponent extends Component<Props> {
     const {viewStatus, cell, onReadView} = this.props
 
     if (viewStatus === RemoteDataState.NotStarted) {
-      onReadView(cell.viewID)
+      const dashboardID = cell.dashboardID
+      onReadView(dashboardID, cell.id)
     }
   }
 
@@ -132,7 +132,7 @@ class CellComponent extends Component<Props> {
 }
 
 const mstp = (state: AppState, ownProps: PassedProps): StateProps => {
-  const entry = state.views[ownProps.cell.viewID]
+  const entry = state.views[ownProps.cell.id]
 
   if (entry) {
     return {view: entry.view, viewStatus: entry.status}
