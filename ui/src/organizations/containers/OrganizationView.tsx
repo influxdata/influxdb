@@ -25,6 +25,7 @@ import Members from 'src/organizations/components/Members'
 import Buckets from 'src/organizations/components/Buckets'
 import Dashboards from 'src/organizations/components/Dashboards'
 import Tasks from 'src/organizations/components/Tasks'
+import Scrapers from 'src/organizations/components/Scrapers'
 import OrgOptions from 'src/organizations/components/OrgOptions'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
@@ -125,6 +126,13 @@ class OrganizationView extends PureComponent<Props> {
                     </Spinner>
                   )}
                 </GetOrgResources>
+              </TabbedPageSection>
+              <TabbedPageSection
+                id="org-view-tab--scrapers"
+                url="scrapers_tab"
+                title="Scrapers"
+              >
+                <Scrapers />
               </TabbedPageSection>
               <TabbedPageSection
                 id="org-view-tab--options"
