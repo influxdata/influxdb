@@ -1279,7 +1279,7 @@ func TestStore_Sketches(t *testing.T) {
 		}
 
 		// Check cardinalities. In this case, the indexes behave differently.
-		expS, expTS, expM, expTM := 160, 0, 10, 5
+		expS, expTS, expM, expTM := 160, 80, 10, 5
 		if index == inmem.IndexName {
 			expS, expTS, expM, expTM = 160, 80, 10, 5
 		}
@@ -1295,7 +1295,7 @@ func TestStore_Sketches(t *testing.T) {
 		}
 
 		// Check cardinalities. In this case, the indexes behave differently.
-		expS, expTS, expM, expTM = 160, 0, 5, 5
+		expS, expTS, expM, expTM = 80, 80, 5, 5
 		if index == inmem.IndexName {
 			expS, expTS, expM, expTM = 80, 0, 5, 0
 		}
