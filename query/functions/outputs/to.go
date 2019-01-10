@@ -9,10 +9,12 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/outputs"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/http"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/flux/stdlib/kafka"
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
@@ -22,7 +24,7 @@ import (
 )
 
 // ToKind is the kind for the `to` flux function
-const ToKind = "to"
+const ToKind = influxdb.ToKind
 
 // TODO(jlapacik) remove this once we have execute.DefaultFieldColLabel
 const defaultFieldColLabel = "_field"
@@ -65,7 +67,7 @@ func init() {
 		[]string{},
 	)
 
-	flux.RegisterFunctionWithSideEffect(ToKind, createToOpSpec, toSignature)
+	flux.ReplacePackageValue("influxdata/influxdb", "to", flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature))
 	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
 	execute.RegisterTransformation(ToKind, createToTransformation)
@@ -152,9 +154,9 @@ func createToOpSpec(args flux.Arguments, a *flux.Administration) (flux.Operation
 	case httpOK && kafkaOK:
 		return nil, errors.New("specify at most one of url, brokers in the same `to` function")
 	case httpOK:
-		s = &outputs.ToHTTPOpSpec{}
+		s = &http.ToHTTPOpSpec{}
 	case kafkaOK:
-		s = &outputs.ToKafkaOpSpec{}
+		s = &kafka.ToKafkaOpSpec{}
 	default:
 		s = &ToOpSpec{}
 	}

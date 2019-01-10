@@ -9,7 +9,6 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions"
 	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb"
 	"github.com/pkg/errors"
@@ -185,13 +184,13 @@ const (
 )
 
 // ToGroupMode accepts the group mode from Flux and produces the appropriate storage group mode.
-func ToGroupMode(fluxMode functions.GroupMode) GroupMode {
+func ToGroupMode(fluxMode flux.GroupMode) GroupMode {
 	switch fluxMode {
-	case functions.GroupModeNone:
+	case flux.GroupModeNone:
 		return GroupModeDefault
-	case functions.GroupModeBy:
+	case flux.GroupModeBy:
 		return GroupModeBy
-	case functions.GroupModeExcept:
+	case flux.GroupModeExcept:
 		return GroupModeExcept
 	default:
 		panic(fmt.Sprint("unknown group mode: ", fluxMode))

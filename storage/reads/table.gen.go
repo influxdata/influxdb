@@ -7,10 +7,9 @@
 package reads
 
 import (
-	"sync"
-
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/memory"
+	"sync"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"

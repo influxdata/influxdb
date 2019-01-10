@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/flux/values"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/inputs"
+	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
@@ -177,7 +176,6 @@ func createDatabasesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a 
 	bd := &DatabasesDecoder{orgID: orgID, deps: &deps, alloc: a.Allocator(), ctx: a.Context()}
 
 	return inputs.CreateSourceFromDecoder(bd, dsid, a)
-
 }
 
 type DatabasesDependencies struct {

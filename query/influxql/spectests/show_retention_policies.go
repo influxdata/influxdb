@@ -3,8 +3,8 @@ package spectests
 import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxdb/query/functions/inputs"
 )
 
@@ -20,7 +20,7 @@ func init() {
 					},
 					{
 						ID: "filter0",
-						Spec: &transformations.FilterOpSpec{
+						Spec: &universe.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Block: &semantic.FunctionBlock{
 									Parameters: &semantic.FunctionParameters{
@@ -42,7 +42,7 @@ func init() {
 					},
 					{
 						ID: "rename0",
-						Spec: &transformations.RenameOpSpec{
+						Spec: &universe.RenameOpSpec{
 							Columns: map[string]string{
 								"retentionPolicy": "name",
 								"retentionPeriod": "duration",
@@ -51,21 +51,21 @@ func init() {
 					},
 					{
 						ID: "set0",
-						Spec: &transformations.SetOpSpec{
+						Spec: &universe.SetOpSpec{
 							Key:   "shardGroupDuration",
 							Value: "0",
 						},
 					},
 					{
 						ID: "set1",
-						Spec: &transformations.SetOpSpec{
+						Spec: &universe.SetOpSpec{
 							Key:   "replicaN",
 							Value: "2",
 						},
 					},
 					{
 						ID: "keep0",
-						Spec: &transformations.KeepOpSpec{
+						Spec: &universe.KeepOpSpec{
 							Columns: []string{
 								"name",
 								"duration",
@@ -77,7 +77,7 @@ func init() {
 					},
 					{
 						ID: "yield0",
-						Spec: &transformations.YieldOpSpec{
+						Spec: &universe.YieldOpSpec{
 							Name: "0",
 						},
 					},

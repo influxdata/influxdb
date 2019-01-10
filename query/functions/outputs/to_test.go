@@ -9,8 +9,8 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
-	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/models"
@@ -29,7 +29,7 @@ func TestTo_Query(t *testing.T) {
 				Operations: []*flux.Operation{
 					{
 						ID: "from0",
-						Spec: &inputs.FromOpSpec{
+						Spec: &influxdb.FromOpSpec{
 							Bucket: "mydb",
 						},
 					},
