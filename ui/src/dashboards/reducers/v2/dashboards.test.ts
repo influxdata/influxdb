@@ -8,10 +8,13 @@ import {
   deleteDashboard,
   updateDashboard,
   deleteCell,
+  addDashboardLabels,
+  removeDashboardLabels,
 } from 'src/dashboards/actions/v2/'
 
 // Resources
 import {dashboard} from 'src/dashboards/resources'
+import {labels} from 'mocks/dummyData'
 
 describe('dashboards reducer', () => {
   it('can load the dashboards', () => {
@@ -54,6 +57,28 @@ describe('dashboards reducer', () => {
     const actual = reducer(
       [dashboard],
       deleteCell(dashboard, dashboard.cells[0])
+    )
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can add labels to a dashboard', () => {
+    const dashboardWithoutLabels = {...dashboard, labels: []}
+    const expected = [{...dashboard, labels}]
+    const actual = reducer(
+      [dashboardWithoutLabels],
+      addDashboardLabels(dashboardWithoutLabels.id, labels)
+    )
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can delete labels from a dashboard', () => {
+    const dashboardWithLabels = {...dashboard, labels}
+    const expected = [{...dashboard, labels: []}]
+    const actual = reducer(
+      [dashboardWithLabels],
+      removeDashboardLabels(dashboardWithLabels.id, labels)
     )
 
     expect(actual).toEqual(expected)

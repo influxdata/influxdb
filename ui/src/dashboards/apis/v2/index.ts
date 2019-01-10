@@ -2,7 +2,7 @@
 import {dashboardsAPI, cellsAPI} from 'src/utils/api'
 
 // Types
-import {Dashboard, Cell, CreateCell} from 'src/api'
+import {Dashboard, Cell, CreateCell, Label} from 'src/api'
 import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
 
 // Utils
@@ -82,4 +82,36 @@ export const deleteCell = async (
   cell: Cell
 ): Promise<void> => {
   await cellsAPI.dashboardsDashboardIDCellsCellIDDelete(dashboardID, cell.id)
+}
+
+export const addDashboardLabels = async (
+  dashboardID: string,
+  labels: Label[]
+): Promise<Label[]> => {
+  const addedLabels = await Promise.all(
+    labels.map(async label => {
+      const {data} = await dashboardsAPI.dashboardsDashboardIDLabelsPost(
+        dashboardID,
+        label
+      )
+      return data.label
+    })
+  )
+
+  return addedLabels
+}
+
+export const removeDashboardLabels = async (
+  dashboardID: string,
+  labels: Label[]
+): Promise<void> => {
+  await Promise.all(
+    labels.map(async label => {
+      const {data} = await dashboardsAPI.dashboardsDashboardIDLabelsNameDelete(
+        dashboardID,
+        label.name
+      )
+      return data
+    })
+  )
 }

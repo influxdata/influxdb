@@ -16,6 +16,7 @@ import {
   IconFont,
 } from 'src/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
+import EditDashboardLabelsOverlay from 'src/dashboards/components/EditDashboardLabelsOverlay'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -29,6 +30,8 @@ import {
   importDashboardAsync,
   deleteDashboardAsync,
   updateDashboardAsync,
+  addDashboardLabelsAsync,
+  removeDashboardLabelsAsync,
 } from 'src/dashboards/actions/v2'
 import {setDefaultDashboard} from 'src/shared/actions/links'
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/v2/ranges'
@@ -48,14 +51,12 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 import {Notification} from 'src/types/notifications'
 import {DashboardFile} from 'src/types/v2/dashboards'
 import {Cell, Dashboard} from 'src/api'
-import {Links} from 'src/types/v2'
+import {Links, AppState} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
-  router: InjectedRouter
-  links: Links
+interface DispatchProps {
   handleSetDefaultDashboard: typeof setDefaultDashboard
   handleGetDashboards: typeof getDashboardsAsync
   handleDeleteDashboard: typeof deleteDashboardAsync
@@ -63,12 +64,26 @@ interface Props {
   handleUpdateDashboard: typeof updateDashboardAsync
   notify: (message: Notification) => void
   retainRangesDashTimeV1: (dashboardIDs: string[]) => void
+  onAddDashboardLabels: typeof addDashboardLabelsAsync
+  onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
+}
+
+interface StateProps {
+  links: Links
   dashboards: Dashboard[]
 }
+
+interface OwnProps {
+  router: InjectedRouter
+}
+
+type Props = DispatchProps & StateProps & OwnProps
 
 interface State {
   searchTerm: string
   isImportingDashboard: boolean
+  isEditingDashboardLabels: boolean
+  dashboardLabelsEdit: Dashboard
 }
 
 @ErrorHandling
@@ -79,6 +94,8 @@ class DashboardIndex extends PureComponent<Props, State> {
     this.state = {
       searchTerm: '',
       isImportingDashboard: false,
+      isEditingDashboardLabels: false,
+      dashboardLabelsEdit: null,
     }
   }
 
@@ -124,12 +141,14 @@ class DashboardIndex extends PureComponent<Props, State> {
               onCloneDashboard={this.handleCloneDashboard}
               onExportDashboard={this.handleExportDashboard}
               onUpdateDashboard={handleUpdateDashboard}
+              onEditLabels={this.handleStartEditingLabels}
               notify={notify}
               searchTerm={searchTerm}
             />
           </Page.Contents>
         </Page>
         {this.renderImportOverlay}
+        {this.renderLabelEditorOverlay}
       </>
     )
   }
@@ -251,9 +270,33 @@ class DashboardIndex extends PureComponent<Props, State> {
       </OverlayTechnology>
     )
   }
+
+  private handleStartEditingLabels = (dashboardLabelsEdit: Dashboard): void => {
+    this.setState({dashboardLabelsEdit, isEditingDashboardLabels: true})
+  }
+
+  private handleStopEditingLabels = (): void => {
+    this.setState({isEditingDashboardLabels: false})
+  }
+
+  private get renderLabelEditorOverlay(): JSX.Element {
+    const {onAddDashboardLabels, onRemoveDashboardLabels} = this.props
+    const {isEditingDashboardLabels, dashboardLabelsEdit} = this.state
+
+    return (
+      <OverlayTechnology visible={isEditingDashboardLabels}>
+        <EditDashboardLabelsOverlay
+          dashboard={dashboardLabelsEdit}
+          onDismissOverlay={this.handleStopEditingLabels}
+          onAddDashboardLabels={onAddDashboardLabels}
+          onRemoveDashboardLabels={onRemoveDashboardLabels}
+        />
+      </OverlayTechnology>
+    )
+  }
 }
 
-const mstp = state => {
+const mstp = (state: AppState): StateProps => {
   const {dashboards, links} = state
 
   return {
@@ -262,7 +305,7 @@ const mstp = state => {
   }
 }
 
-const mdtp = {
+const mdtp: DispatchProps = {
   notify: notifyAction,
   handleSetDefaultDashboard: setDefaultDashboard,
   handleGetDashboards: getDashboardsAsync,
@@ -270,9 +313,11 @@ const mdtp = {
   handleImportDashboard: importDashboardAsync,
   handleUpdateDashboard: updateDashboardAsync,
   retainRangesDashTimeV1: retainRangesDashTimeV1Action,
+  onAddDashboardLabels: addDashboardLabelsAsync,
+  onRemoveDashboardLabels: removeDashboardLabelsAsync,
 }
 
-export default connect(
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
 )(DashboardIndex)
