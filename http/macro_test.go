@@ -161,8 +161,8 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 			if contentType != tt.wants.contentType {
 				t.Errorf("%q. handleGetMacros() = %v, want %v", tt.name, contentType, tt.wants.contentType)
 			}
-			if err := platformtesting.CompareJSON(string(body), tt.wants.body, tt.name, "handleGetMacros()"); err != nil {
-				t.Error(err)
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetMacros() = ***%s***", tt.name, diff)
 			}
 		})
 	}
