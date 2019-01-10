@@ -5408,6 +5408,44 @@ export const BucketsApiAxiosParamCreator = function (configuration?: Configurati
     return {
         /**
          * 
+         * @summary Delete a bucket
+         * @param {string} bucketID ID of bucket to delete
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        bucketsBucketIDDelete(bucketID: string, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'bucketID' is not null or undefined
+            if (bucketID === null || bucketID === undefined) {
+                throw new RequiredError('bucketID','Required parameter bucketID was null or undefined when calling bucketsBucketIDDelete.');
+            }
+            const localVarPath = `/buckets/{bucketID}`
+                .replace(`{${"bucketID"}}`, encodeURIComponent(String(bucketID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'DELETE' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary Retrieve a bucket
          * @param {string} bucketID ID of bucket to get
          * @param {*} [options] Override http request option.
@@ -5843,6 +5881,21 @@ export const BucketsApiFp = function(configuration?: Configuration) {
     return {
         /**
          * 
+         * @summary Delete a bucket
+         * @param {string} bucketID ID of bucket to delete
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        bucketsBucketIDDelete(bucketID: string, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+            const localVarAxiosArgs = BucketsApiAxiosParamCreator(configuration).bucketsBucketIDDelete(bucketID, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary Retrieve a bucket
          * @param {string} bucketID ID of bucket to get
          * @param {*} [options] Override http request option.
@@ -6013,6 +6066,17 @@ export const BucketsApiFactory = function (configuration?: Configuration, basePa
     return {
         /**
          * 
+         * @summary Delete a bucket
+         * @param {string} bucketID ID of bucket to delete
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        bucketsBucketIDDelete(bucketID: string, zapTraceSpan?: string, options?: any) {
+            return BucketsApiFp(configuration).bucketsBucketIDDelete(bucketID, zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary Retrieve a bucket
          * @param {string} bucketID ID of bucket to get
          * @param {*} [options] Override http request option.
@@ -6138,6 +6202,19 @@ export const BucketsApiFactory = function (configuration?: Configuration, basePa
  * @extends {BaseAPI}
  */
 export class BucketsApi extends BaseAPI {
+    /**
+     * 
+     * @summary Delete a bucket
+     * @param {string} bucketID ID of bucket to delete
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof BucketsApi
+     */
+    public bucketsBucketIDDelete(bucketID: string, zapTraceSpan?: string, options?: any) {
+        return BucketsApiFp(this.configuration).bucketsBucketIDDelete(bucketID, zapTraceSpan, options)(this.axios, this.basePath);
+    }
+
     /**
      * 
      * @summary Retrieve a bucket

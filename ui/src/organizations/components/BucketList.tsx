@@ -13,6 +13,7 @@ interface Props {
   buckets: PrettyBucket[]
   emptyState: JSX.Element
   onUpdateBucket: (b: PrettyBucket) => Promise<void>
+  onDeleteBucket: (b: PrettyBucket) => Promise<void>
 }
 
 interface State {
@@ -31,7 +32,7 @@ export default class BucketList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {buckets} = this.props
+    const {buckets, emptyState, onDeleteBucket} = this.props
 
     return (
       <>
@@ -40,12 +41,13 @@ export default class BucketList extends PureComponent<Props, State> {
             <IndexList.HeaderCell columnName="Name" width="50%" />
             <IndexList.HeaderCell columnName="Retention Rule" width="50%" />
           </IndexList.Header>
-          <IndexList.Body columnCount={2} emptyState={this.props.emptyState}>
+          <IndexList.Body columnCount={3} emptyState={emptyState}>
             {buckets.map(bucket => (
               <BucketRow
                 key={bucket.id}
                 bucket={bucket}
                 onEditBucket={this.handleStartEdit}
+                onDeleteBucket={onDeleteBucket}
               />
             ))}
           </IndexList.Body>
