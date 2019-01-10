@@ -1046,7 +1046,7 @@ func (f *LogFile) seriesSketches() (sketch, tSketch estimator.Sketch, err error)
 	tSketch = hll.NewDefaultPlus()
 	f.tombstoneSeriesIDSet.ForEach(func(id uint64) {
 		name, keys := f.sfile.Series(id)
-		sketch.Add(models.MakeKey(name, keys))
+		tSketch.Add(models.MakeKey(name, keys))
 	})
 	return sketch, tSketch, nil
 }

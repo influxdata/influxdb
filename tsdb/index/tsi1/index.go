@@ -367,7 +367,6 @@ func (i *Index) availableThreads() int {
 
 // updateMeasurementSketches rebuilds the cached measurement sketches.
 func (i *Index) updateMeasurementSketches() error {
-	i.mSketch, i.mTSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for j := 0; j < int(i.PartitionN); j++ {
 		if s, t, err := i.partitions[j].MeasurementsSketches(); err != nil {
 			return err
@@ -382,7 +381,6 @@ func (i *Index) updateMeasurementSketches() error {
 
 // updateSeriesSketches rebuilds the cached series sketches.
 func (i *Index) updateSeriesSketches() error {
-	i.sSketch, i.sTSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for j := 0; j < int(i.PartitionN); j++ {
 		if s, t, err := i.partitions[j].SeriesSketches(); err != nil {
 			return err
