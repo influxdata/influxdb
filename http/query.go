@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/semantic"
@@ -216,17 +217,32 @@ func nowFunc(now time.Time) values.Function {
 }
 
 func toSpec(p *ast.Package, now func() time.Time) (*flux.Spec, error) {
-	itrp := flux.NewInterpreter()
-	itrp.SetOption("now", nowFunc(now()))
 	semProg, err := semantic.New(p)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := itrp.Eval(semProg, nil); err != nil {
+	scope := flux.Prelude()
+	scope.Set("now", nowFunc(now()))
+
+	itrp := interpreter.NewInterpreter()
+
+	sideEffects, err := itrp.Eval(semProg, scope, flux.StdLib())
+	if err != nil {
 		return nil, err
 	}
-	return flux.ToSpec(itrp, itrp.SideEffects()...), nil
+
+	nowOpt, ok := scope.Lookup("now")
+	if !ok {
+		return nil, fmt.Errorf("now option not set")
+	}
+
+	nowTime, err := nowOpt.Function().Call(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return flux.ToSpec(sideEffects, nowTime.Time().Time())
 }
 
 // ProxyRequest returns a request to proxy from the flux.
