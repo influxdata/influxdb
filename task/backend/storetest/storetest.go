@@ -607,11 +607,15 @@ from(bucket:"test") |> range(start:-1h)`
 		defer destroy(t, s)
 
 		const secondsPerDay = 60 * 60 * 24
-		const scriptFmt = `option task = {
+		const scriptFmt = `
+import "http"
+
+option task = {
 	name: "task with every",
 	every: %s,
 }
-from(bucket: "b") |> range(start:-1h) |> toHTTP(url: "http://example.com")`
+
+from(bucket: "b") |> range(start:-1h) |> http.to(url: "http://example.com")`
 
 		for _, tc := range []struct {
 			e  string // every option in task

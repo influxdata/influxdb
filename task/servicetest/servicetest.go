@@ -802,12 +802,16 @@ func creds(t *testing.T, s *System) (orgID, userID platform.ID, token string) {
 	return o, u, tok
 }
 
-const scriptFmt = `option task = {
+const scriptFmt = `
+import "http"
+
+option task = {
 	name: "task #%d",
 	cron: "* * * * *",
 	offset: 5s,
 	concurrency: 100,
 }
-from(bucket:"b") |> toHTTP(url:"http://example.com")`
+
+from(bucket:"b") |> http.to(url:"http://example.com")`
 
 var idGen = snowflake.NewIDGenerator()

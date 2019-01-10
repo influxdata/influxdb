@@ -3,20 +3,20 @@ package inputs
 import (
 	"fmt"
 
-	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/flux/values"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/flux/stdlib/inputs"
+	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
 )
 
 func init() {
-	execute.RegisterSource(inputs.BucketsKind, createBucketsSource)
+	execute.RegisterSource(influxdb.BucketsKind, createBucketsSource)
 }
 
 type BucketsDecoder struct {
@@ -99,14 +99,14 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 }
 
 func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	_, ok := prSpec.(*inputs.BucketsProcedureSpec)
+	_, ok := prSpec.(*influxdb.BucketsProcedureSpec)
 	if !ok {
 		return nil, fmt.Errorf("invalid spec type %T", prSpec)
 	}
 
 	// the dependencies used for FromKind are adequate for what we need here
 	// so there's no need to inject custom dependencies for buckets()
-	deps := a.Dependencies()[inputs.BucketsKind].(BucketDependencies)
+	deps := a.Dependencies()[influxdb.BucketsKind].(BucketDependencies)
 	req := query.RequestFromContext(a.Context())
 	if req == nil {
 		return nil, errors.New("missing request on context")
@@ -116,7 +116,6 @@ func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a ex
 	bd := &BucketsDecoder{orgID: orgID, deps: deps, alloc: a.Allocator()}
 
 	return inputs.CreateSourceFromDecoder(bd, dsid, a)
-
 }
 
 type AllBucketLookup interface {
@@ -128,6 +127,6 @@ func InjectBucketDependencies(depsMap execute.Dependencies, deps BucketDependenc
 	if deps == nil {
 		return errors.New("missing all bucket lookup dependency")
 	}
-	depsMap[inputs.BucketsKind] = deps
+	depsMap[influxdb.BucketsKind] = deps
 	return nil
 }

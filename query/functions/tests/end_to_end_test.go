@@ -20,13 +20,9 @@ import (
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/query"
 
-	_ "github.com/influxdata/flux/functions" // Import the built-in functions
-	_ "github.com/influxdata/flux/functions/inputs"
-	_ "github.com/influxdata/flux/functions/outputs"
-	_ "github.com/influxdata/flux/functions/tests"
-	_ "github.com/influxdata/flux/functions/transformations"
-	_ "github.com/influxdata/flux/functions/universe"
-	_ "github.com/influxdata/flux/options"             // Import the built-in options
+	_ "github.com/influxdata/flux/options" // Import the built-in options
+	_ "github.com/influxdata/flux/stdlib"  // Import the built-in functions
+	_ "github.com/influxdata/flux/stdlib/tests"
 	_ "github.com/influxdata/influxdb/query/functions" // Import the built-in functions
 	_ "github.com/influxdata/influxdb/query/functions/inputs"
 	_ "github.com/influxdata/influxdb/query/functions/outputs"
@@ -46,11 +42,12 @@ func init() {
 }
 
 var loadTestBuiltin = `
-// loadData is a function that's referenced in all the transformation tests.  
-// it's registered here so that we can register a different loadData function for 
-// each platform/binary.  
-testLoadStorageHelper = (csv, bucket, org) => {fromCSV(csv: csv) |> to(bucket: bucket, org: org) return from(bucket: bucket) }
-testLoadMem = (csv) => fromCSV(csv: csv)
+import c "csv"
+// loadData is a function that's referenced in all the transformation tests.
+// it's registered here so that we can register a different loadData function for
+// each platform/binary.
+testLoadStorageHelper = (csv, bucket, org) => {c.from(csv: csv) |> to(bucket: bucket, org: org) return from(bucket: bucket) }
+testLoadMem = (csv) => c.from(csv: csv)
 `
 
 var skipTests = map[string]string{
@@ -79,24 +76,24 @@ var skipTests = map[string]string{
 	"meta_query_fields":        "Reason TBD",
 	"meta_query_keys":          "Reason TBD",
 	"meta_query_measurements":  "Reason TBD",
-	"min":                     "Reason TBD",
-	"multiple_range":          "Reason TBD",
-	"sample":                  "Reason TBD",
-	"selector_preserve_time":  "Reason TBD",
-	"shift":                   "Reason TBD",
-	"shift_negative_duration": "Reason TBD",
-	"show_all_tag_keys":       "Reason TBD",
-	"sort":                    "Reason TBD",
-	"task_per_line":           "Reason TBD",
-	"top":                     "Reason TBD",
-	"union":                   "Reason TBD",
-	"union_heterogeneous":     "Reason TBD",
-	"unique":                  "Reason TBD",
+	"min":                      "Reason TBD",
+	"multiple_range":           "Reason TBD",
+	"sample":                   "Reason TBD",
+	"selector_preserve_time":   "Reason TBD",
+	"shift":                    "Reason TBD",
+	"shift_negative_duration":  "Reason TBD",
+	"show_all_tag_keys":        "Reason TBD",
+	"sort":                     "Reason TBD",
+	"task_per_line":            "Reason TBD",
+	"top":                      "Reason TBD",
+	"union":                    "Reason TBD",
+	"union_heterogeneous":      "Reason TBD",
+	"unique":                   "Reason TBD",
 
-	"string_max":    "error: invalid use of function: *functions.MaxSelector has no implementation for type string (https://github.com/influxdata/platform/issues/224)",
-	"null_as_value": "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
-	"string_interp": "string interpolation not working as expected in flux (https://github.com/influxdata/platform/issues/404)",
-	"to":            "to functions are not supported in the testing framework (https://github.com/influxdata/flux/issues/77)",
+	"string_max":                  "error: invalid use of function: *functions.MaxSelector has no implementation for type string (https://github.com/influxdata/platform/issues/224)",
+	"null_as_value":               "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
+	"string_interp":               "string interpolation not working as expected in flux (https://github.com/influxdata/platform/issues/404)",
+	"to":                          "to functions are not supported in the testing framework (https://github.com/influxdata/flux/issues/77)",
 	"covariance_missing_column_1": "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",
 	"covariance_missing_column_2": "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",
 	"drop_before_rename":          "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",

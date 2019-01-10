@@ -2,7 +2,7 @@ package spectests
 
 import (
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/functions/transformations"
+	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxdb/query/functions/inputs"
 )
 
@@ -18,7 +18,7 @@ func init() {
 					},
 					{
 						ID: "rename0",
-						Spec: &transformations.RenameOpSpec{
+						Spec: &universe.RenameOpSpec{
 							Columns: map[string]string{
 								"databaseName": "name",
 							},
@@ -26,7 +26,7 @@ func init() {
 					},
 					{
 						ID: "extractcol0",
-						Spec: &transformations.KeepOpSpec{
+						Spec: &universe.KeepOpSpec{
 							Columns: []string{
 								"name",
 							},
@@ -34,7 +34,7 @@ func init() {
 					},
 					{
 						ID: "yield0",
-						Spec: &transformations.YieldOpSpec{
+						Spec: &universe.YieldOpSpec{
 							Name: "0",
 						},
 					},

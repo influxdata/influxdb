@@ -4,12 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/flux/functions/inputs"
-	"github.com/influxdata/flux/functions/transformations"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/querytest"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/flux/stdlib/universe"
 	platform "github.com/influxdata/influxdb"
 	pquerytest "github.com/influxdata/influxdb/query/querytest"
 )
@@ -49,7 +48,7 @@ func TestFrom_NewQuery(t *testing.T) {
 				Operations: []*flux.Operation{
 					{
 						ID: "from0",
-						Spec: &inputs.FromOpSpec{
+						Spec: &influxdb.FromOpSpec{
 							BucketID: "aaaabbbbccccdddd",
 						},
 					},
@@ -63,13 +62,13 @@ func TestFrom_NewQuery(t *testing.T) {
 				Operations: []*flux.Operation{
 					{
 						ID: "from0",
-						Spec: &inputs.FromOpSpec{
+						Spec: &influxdb.FromOpSpec{
 							Bucket: "mybucket",
 						},
 					},
 					{
 						ID: "range1",
-						Spec: &transformations.RangeOpSpec{
+						Spec: &universe.RangeOpSpec{
 							Start: flux.Time{
 								Relative:   -4 * time.Hour,
 								IsRelative: true,
@@ -85,7 +84,7 @@ func TestFrom_NewQuery(t *testing.T) {
 					},
 					{
 						ID: "sum2",
-						Spec: &transformations.SumOpSpec{
+						Spec: &universe.SumOpSpec{
 							AggregateConfig: execute.DefaultAggregateConfig,
 						},
 					},
@@ -111,7 +110,7 @@ func TestFromOperation_Marshaling(t *testing.T) {
 	data := []byte(`{"id":"from","kind":"from","spec":{"bucket":"mybucket"}}`)
 	op := &flux.Operation{
 		ID: "from",
-		Spec: &inputs.FromOpSpec{
+		Spec: &influxdb.FromOpSpec{
 			Bucket: "mybucket",
 		},
 	}

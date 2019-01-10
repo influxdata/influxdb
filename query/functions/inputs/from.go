@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/functions/inputs/storage"
@@ -13,14 +13,14 @@ import (
 )
 
 func init() {
-	execute.RegisterSource(inputs.FromKind, createFromSource)
+	execute.RegisterSource(influxdb.FromKind, createFromSource)
 }
 
 // TODO(adam): implement a BucketsAccessed that doesn't depend on flux.
 // https://github.com/influxdata/flux/issues/114
 
 func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	spec := prSpec.(*inputs.FromProcedureSpec)
+	spec := prSpec.(*influxdb.FromProcedureSpec)
 	var w execute.Window
 	bounds := a.StreamContext().Bounds()
 	if bounds == nil {
@@ -44,7 +44,7 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 	}
 	currentTime := w.Start + execute.Time(w.Period)
 
-	deps := a.Dependencies()[inputs.FromKind].(storage.Dependencies)
+	deps := a.Dependencies()[influxdb.FromKind].(storage.Dependencies)
 	req := query.RequestFromContext(a.Context())
 	if req == nil {
 		return nil, errors.New("missing request on context")
@@ -93,6 +93,6 @@ func InjectFromDependencies(depsMap execute.Dependencies, deps storage.Dependenc
 	if err := deps.Validate(); err != nil {
 		return err
 	}
-	depsMap[inputs.FromKind] = deps
+	depsMap[influxdb.FromKind] = deps
 	return nil
 }
