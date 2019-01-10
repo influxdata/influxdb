@@ -77,6 +77,7 @@ func TestService_handleGetViews(t *testing.T) {
       "id": "7365637465747572",
       "name": "hello",
       "links": {
+        "labels": "/api/v2/views/7365637465747572/labels",
         "self": "/api/v2/views/7365637465747572"
       },
       "properties": {
@@ -95,6 +96,7 @@ func TestService_handleGetViews(t *testing.T) {
       "id": "6167697474697320",
       "name": "example",
       "links": {
+        "labels": "/api/v2/views/6167697474697320/labels",
         "self": "/api/v2/views/6167697474697320"
       },
       "properties": {
@@ -210,6 +212,7 @@ func TestService_handleGetView(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "example",
   "links": {
+    "labels": "/api/v2/views/020f755c3c082000/labels",
     "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {
@@ -326,6 +329,7 @@ func TestService_handlePostViews(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "hello",
   "links": {
+    "labels": "/api/v2/views/020f755c3c082000/labels",
     "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {
@@ -529,6 +533,7 @@ func TestService_handlePatchView(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "example",
   "links": {
+    "labels": "/api/v2/views/020f755c3c082000/labels",
     "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {

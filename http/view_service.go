@@ -72,7 +72,8 @@ func NewViewHandler(mappingService platform.UserResourceMappingService, labelSer
 }
 
 type viewLinks struct {
-	Self string `json:"self"`
+	Self   string `json:"self"`
+	Labels string `json:"labels"`
 }
 
 type viewResponse struct {
@@ -100,7 +101,8 @@ func (r viewResponse) MarshalJSON() ([]byte, error) {
 func newViewResponse(c *platform.View) viewResponse {
 	return viewResponse{
 		Links: viewLinks{
-			Self: fmt.Sprintf("/api/v2/views/%s", c.ID),
+			Self:   fmt.Sprintf("/api/v2/views/%s", c.ID),
+			Labels: fmt.Sprintf("/api/v2/views/%s/labels", c.ID),
 		},
 		View: *c,
 	}
