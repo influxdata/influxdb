@@ -4,6 +4,8 @@
 
 Around January 11th, 2019, `master` on this repository will become InfluxDB 2.0 code. The content of `infludata/platform` will be moved to this repository. If you rely on `master`, you should update your dependencies to track the `1.7` branch.
 
+Follow [#10618](https://github.com/influxdata/influxdb/issues/10618) for details.
+
 ## An Open-Source Time Series Database
 
 InfluxDB is an open source **time series database** with
