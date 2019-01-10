@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
@@ -8,12 +8,12 @@ import _ from 'lodash'
 import {Page} from 'src/pageLayout'
 import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
 import OrganizationsIndexContents from 'src/organizations/components/OrganizationsIndexContents'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {
   Button,
   IconFont,
   ComponentColor,
   OverlayTechnology,
-  Input,
 } from 'src/clockface'
 
 // Actions
@@ -66,12 +66,10 @@ class OrganizationsIndex extends PureComponent<Props, State> {
               <Page.Title title="Organizations" />
             </Page.Header.Left>
             <Page.Header.Right>
-              <Input
-                value={searchTerm}
-                placeholder="Filter organizations by name..."
-                onChange={this.handleChangeSearchTerm}
+              <SearchWidget
+                placeholderText="Filter organizations by name..."
+                onSearch={this.handleChangeSearchTerm}
               />
-
               <Button
                 color={ComponentColor.Primary}
                 onClick={this.handleOpenModal}
@@ -85,6 +83,7 @@ class OrganizationsIndex extends PureComponent<Props, State> {
             <OrganizationsIndexContents
               orgs={this.filteredOrgs}
               onDeleteOrg={onDeleteOrg}
+              searchTerm={searchTerm}
             />
           </Page.Contents>
         </Page>
@@ -118,8 +117,8 @@ class OrganizationsIndex extends PureComponent<Props, State> {
     this.setState({modalState: ModalState.Closed})
   }
 
-  private handleChangeSearchTerm = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
+  private handleChangeSearchTerm = (searchTerm: string): void => {
+    this.setState({searchTerm})
   }
 }
 
