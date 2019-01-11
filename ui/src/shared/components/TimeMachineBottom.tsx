@@ -4,7 +4,6 @@ import {connect} from 'react-redux'
 
 // Components
 import TimeMachineQueries from 'src/shared/components/TimeMachineQueries'
-import TimeMachineTabs from 'src/shared/components/TimeMachineTabs'
 import ViewOptions from 'src/shared/components/view_options/ViewOptions'
 
 // Utils
@@ -38,9 +37,6 @@ const TimeMachineBottom: SFC<Props> = ({activeTab, queriesState}) => {
 
   return (
     <div className="time-machine--bottom">
-      <div className="time-machine--bottom-tabs">
-        <TimeMachineTabs />
-      </div>
       <div className="time-machine--bottom-contents">{tabContents}</div>
     </div>
   )

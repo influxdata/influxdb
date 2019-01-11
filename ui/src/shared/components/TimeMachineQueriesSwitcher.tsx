@@ -42,17 +42,19 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
     if (editMode !== QueryEditMode.Builder) {
       return (
         <Button
-          text="Visual Query Builder"
+          text="Switch to Query Builder"
           onClick={this.handleEditWithBuilder}
         />
       )
     }
 
     if (sourceType === Source.TypeEnum.V1) {
-      return <Button text="Edit Query As InfluxQL" onClick={onEditAsInfluxQL} />
+      return (
+        <Button text="Switch to Script Editor" onClick={onEditAsInfluxQL} />
+      )
     }
 
-    return <Button text="Edit Query As Flux" onClick={onEditAsFlux} />
+    return <Button text="Switch to Script Editor" onClick={onEditAsFlux} />
   }
 
   private handleEditWithBuilder = (): void => {

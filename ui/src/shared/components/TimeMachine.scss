@@ -32,15 +32,10 @@ $time-machine--controls-height: 62px;
   overflow: hidden;
 }
 
-.time-machine--bottom-tabs {
-  padding: $ix-marg-b 0;
-  width: 270px;
-}
-
 .time-machine--bottom-contents {
   overflow: hidden;
   width: 100%;
-  flex: 0 0 calc(100% - #{($ix-marg-b * 2) + $form-sm-height});
+  flex: 0 0 100%;
 }
 
 .time-machine--controls {

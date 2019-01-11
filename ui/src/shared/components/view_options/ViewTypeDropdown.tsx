@@ -27,7 +27,7 @@ interface StateProps {
 
 type Props = DispatchProps & StateProps
 
-class ViewOptions extends PureComponent<Props> {
+class ViewTypeDropdown extends PureComponent<Props> {
   public render() {
     return (
       <Dropdown
@@ -77,4 +77,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(ViewOptions)
+)(ViewTypeDropdown)

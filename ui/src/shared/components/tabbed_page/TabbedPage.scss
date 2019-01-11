@@ -8,7 +8,7 @@
 .tabbed-page {
   display: flex;
   align-items: stretch;
-  background-color: rgba($g3-castle, 0.5);
+  background-color: rgba($g3-castle, 0.25);
   border-radius: $radius;
 }
 
@@ -58,6 +58,7 @@
   line-height: $nav-size;
   padding: 0 17px;
   color: $g11-sidewalk;
+  white-space: nowrap;
   transition: background-color 0.25s ease, color 0.25s ease;
 
   &:hover {

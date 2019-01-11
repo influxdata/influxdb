@@ -12,7 +12,6 @@ import {
   Alignment,
 } from 'src/clockface'
 import TimeMachineRefreshDropdown from 'src/shared/components/TimeMachineRefreshDropdown'
-import ViewTypeDropdown from 'src/shared/components/view_options/ViewTypeDropdown'
 
 // Actions
 import {
@@ -54,9 +53,6 @@ class TimeMachineControls extends PureComponent<Props> {
 
     return (
       <div className="time-machine--controls">
-        <ComponentSpacer align={Alignment.Left}>
-          <ViewTypeDropdown />
-        </ComponentSpacer>
         <ComponentSpacer align={Alignment.Right}>
           <SlideToggle.Label text="View Raw Data" />
           <SlideToggle
