@@ -11,6 +11,7 @@ import {defaultOnboardingStepProps} from 'mocks/dummyData'
 const setup = (override = {}) => {
   const props = {
     ...defaultOnboardingStepProps,
+    onSetupAdmin: jest.fn(),
     ...override,
   }
 

@@ -15,7 +15,11 @@ import OnboardingStepSwitcher from 'src/onboarding/components/OnboardingStepSwit
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {setSetupParams, setStepStatus} from 'src/onboarding/actions/steps'
+import {
+  setSetupParams,
+  setStepStatus,
+  setupAdmin,
+} from 'src/onboarding/actions/steps'
 
 import {
   setDataLoadersType,
@@ -83,6 +87,7 @@ interface DispatchProps {
   onSetPluginConfiguration: typeof setPluginConfiguration
   onSetConfigArrayValue: typeof setConfigArrayValue
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
+  onSetupAdmin: typeof setupAdmin
 }
 
 interface StateProps {
@@ -128,6 +133,7 @@ class OnboardingWizard extends PureComponent<Props> {
       setupParams,
       notify,
       onSetConfigArrayValue,
+      onSetupAdmin,
     } = this.props
 
     return (
@@ -160,6 +166,7 @@ class OnboardingWizard extends PureComponent<Props> {
               onAddPluginBundle={onAddPluginBundle}
               onRemovePluginBundle={onRemovePluginBundle}
               onSetConfigArrayValue={onSetConfigArrayValue}
+              onSetupAdmin={onSetupAdmin}
             />
           </div>
         </div>
@@ -294,6 +301,7 @@ const mdtp: DispatchProps = {
   onRemovePluginBundle: removePluginBundleWithPlugins,
   onSetPluginConfiguration: setPluginConfiguration,
   onSetConfigArrayValue: setConfigArrayValue,
+  onSetupAdmin: setupAdmin,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
