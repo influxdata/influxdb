@@ -153,6 +153,13 @@ func (c *TagValueSeriesIDCache) Delete(name, key, value []byte, x tsdb.SeriesID)
 	c.Unlock()
 }
 
+// DeleteMeasurement removes all cached entries for the provided measurement name.
+func (c *TagValueSeriesIDCache) DeleteMeasurement(name []byte) {
+	c.Lock()
+	delete(c.cache, string(name))
+	c.Unlock()
+}
+
 // delete removes x from the tuple {name, key, value} if it exists.
 func (c *TagValueSeriesIDCache) delete(name, key, value []byte, x tsdb.SeriesID) {
 	if mmap, ok := c.cache[string(name)]; ok {
