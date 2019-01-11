@@ -18,10 +18,10 @@ export default class Account extends PureComponent<WithRouterProps> {
   public render() {
     const {params} = this.props
     return (
-      <Page titleTag="My Account">
+      <Page titleTag="Account">
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <Page.Title title="My Account" />
+            <Page.Title title="Account" />
           </Page.Header.Left>
           <Page.Header.Right />
         </Page.Header>
@@ -32,14 +32,14 @@ export default class Account extends PureComponent<WithRouterProps> {
             parentUrl="/account"
           >
             <TabbedPageSection
-              title="Settings"
+              title="My Settings"
               id={Tabs.Settings}
               url={Tabs.Settings}
             >
               <Settings />
             </TabbedPageSection>
             <TabbedPageSection
-              title="Tokens"
+              title="My Tokens"
               id={Tabs.Tokens}
               url={Tabs.Tokens}
             >

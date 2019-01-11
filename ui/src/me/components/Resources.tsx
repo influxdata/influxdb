@@ -28,16 +28,16 @@ class ResourceLists extends PureComponent<Props> {
     return (
       <>
         <Panel>
-          <Panel.Header title="My Settings">
+          <Panel.Header title="Account">
             <LogoutButton />
           </Panel.Header>
           <Panel.Body>
             <ul className="link-list">
               <li>
-                <Link to={`/account/settings`}>Account Settings</Link>
+                <Link to={`/account/settings`}>My Settings</Link>
               </li>
               <li>
-                <Link to={`/account/tokens`}>Tokens</Link>
+                <Link to={`/account/tokens`}>My Tokens</Link>
               </li>
             </ul>
           </Panel.Body>

@@ -10,7 +10,7 @@ import NavMenu from 'src/pageLayout/components/NavMenu'
 import {getSources} from 'src/sources/selectors'
 
 // Types
-import {Source, AppState} from 'src/types/v2'
+import {Source, MeState, AppState} from 'src/types/v2'
 import {IconFont} from 'src/clockface'
 
 // Styles
@@ -21,6 +21,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props extends WithRouterProps {
   sources: Source[]
   isHidden: boolean
+  me: MeState
 }
 
 @ErrorHandling
@@ -30,7 +31,7 @@ class SideNav extends PureComponent<Props> {
   }
 
   public render() {
-    const {isHidden} = this.props
+    const {isHidden, me} = this.props
 
     if (isHidden) {
       return null
@@ -39,20 +40,20 @@ class SideNav extends PureComponent<Props> {
     return (
       <NavMenu>
         <NavMenu.Item
-          title="My Profile"
+          title={me.name}
           link="/me"
           icon={IconFont.CuboNav}
           location={location.pathname}
           highlightWhen={['me', 'account']}
         >
           <NavMenu.SubItem
-            title="Settings"
+            title="My Settings"
             link="/account/settings"
             location={location.pathname}
             highlightWhen={['settings']}
           />
           <NavMenu.SubItem
-            title="Tokens"
+            title="My Tokens"
             link="/account/tokens"
             location={location.pathname}
             highlightWhen={['tokens']}
@@ -107,8 +108,9 @@ class SideNav extends PureComponent<Props> {
 const mstp = (state: AppState) => {
   const isHidden = state.app.ephemeral.inPresentationMode
   const sources = getSources(state)
+  const {me} = state
 
-  return {sources, isHidden}
+  return {sources, isHidden, me}
 }
 
 export default connect(mstp)(withRouter(SideNav))
