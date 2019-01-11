@@ -1,0 +1,1 @@
+SELECT sum(errors) / sum(total) AS p_err FROM (SELECT sum(n) AS total FROM requests GROUP BY path), (SELECT sum(n) AS errors FROM requests WHERE status = '500' GROUP BY path) GROUP BY path

@@ -1,0 +1,14 @@
+@import "src/style/modules";
+
+.cell-header-note-tooltip {
+  position: fixed;
+  z-index: 3;
+}
+
+.cell-header-note-tooltip--content {
+  padding: 10px 15px;
+  border-radius: 4px;
+  @include gradient-v($g0-obsidian, $g1-raven);
+  font-size: 13px;
+  overflow: scroll;
+}

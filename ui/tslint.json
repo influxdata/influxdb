@@ -1,0 +1,47 @@
+{
+  "defaultSeverity": "error",
+  "extends": [
+    "tslint:recommended",
+    "tslint-react",
+    "tslint-plugin-prettier",
+    "tslint-config-prettier"
+  ],
+  "linterOptions": {
+    "exclude": ["src/api/**/*"]
+  },
+  "rules": {
+    "object-literal-sort-keys": false,
+    "ordered-imports": false,
+    "interface-name": [
+      true,
+      "never-prefix"
+    ],
+    "no-console": [
+      true,
+      "log",
+      "warn"
+    ],
+    "no-empty": false,
+    "jsx-no-lambda": false,
+    "max-classes-per-file": false,
+    "no-empty-interface": false,
+    "no-shadowed-variable": false,
+    "prefer-for-of": false,
+    "prettier": [
+      true,
+      {
+        "singleQuote": true,
+        "semi": false,
+        "trailingComma": "es5",
+        "bracketSpacing": false
+      }
+    ]
+  },
+  "rulesDirectory": [],
+  "no-unused-variable": [
+    true,
+    {
+      "ignore-pattern": "^_"
+    }
+  ]
+}

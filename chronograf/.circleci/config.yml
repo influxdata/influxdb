@@ -1,0 +1,138 @@
+workflows:
+  version: 2
+  main:
+    jobs:
+      - build
+      - deploy-nightly:
+          requires:
+            - build
+          filters:
+            branches:
+              only: master
+      - deploy-pre-release:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^[0-9]+(\.[0-9]+)*(\S*)([a|rc|beta]([0-9]+))+$/
+      - deploy-release:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^[0-9]+(\.[0-9]+)*$/
+
+
+version: 2
+jobs:
+  build:
+    environment:
+      DOCKER_TAG: chronograf-20180327
+    machine: true
+    steps:
+      - checkout
+      - run: |
+          ls -lah
+          pwd
+      - run: ./etc/scripts/docker/pull.sh
+      - run:
+          name: "Run Tests"
+          command: >
+            ./etc/scripts/docker/run.sh
+            --debug
+            --test
+            --no-build
+      - persist_to_workspace:
+          root: /home/circleci
+          paths:
+            - project
+
+  deploy-nightly:
+    environment:
+      DOCKER_TAG: chronograf-20180327
+    machine: true
+    steps:
+      - attach_workspace:
+          at: /home/circleci
+      - run: |
+          ./etc/scripts/docker/run.sh \
+            --debug \
+            --clean \
+            --package \
+            --platform all \
+            --arch all \
+            --upload \
+            --nightly \
+            --bucket=dl.influxdata.com/chronograf/releases
+          cp build/linux/static_amd64/chronograf .
+          cp build/linux/static_amd64/chronoctl .
+          docker build -t chronograf .
+          docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+          docker tag chronograf quay.io/influxdb/chronograf:nightly
+          docker push quay.io/influxdb/chronograf:nightly
+      - store_artifacts:
+          path: ./build/
+
+  deploy-pre-release:
+    environment:
+      DOCKER_TAG: chronograf-20180327
+    machine: true
+    steps:
+      - attach_workspace:
+          at: /home/circleci
+      - run: |
+          ./etc/scripts/docker/run.sh \
+            --clean \
+            --debug \
+            --release \
+            --package \
+            --platform all \
+            --arch all \
+            --upload-overwrite \
+            --upload \
+            --bucket dl.influxdata.com/chronograf/releases
+          cp build/linux/static_amd64/chronograf .
+          cp build/linux/static_amd64/chronoctl .
+          docker build -t chronograf .
+          docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+          docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
+          docker push quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
+          docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_TAG}
+          docker push quay.io/influxdb/chronograf:${CIRCLE_TAG}
+      - store_artifacts:
+          path: ./build/
+
+  deploy-release:
+    environment:
+      DOCKER_TAG: chronograf-20180327
+    machine: true
+    steps:
+      - attach_workspace:
+          at: /home/circleci
+      - run: |
+          ./etc/scripts/docker/run.sh \
+            --clean \
+            --debug \
+            --release \
+            --package \
+            --platform all \
+            --arch all \
+            --upload-overwrite \
+            --upload \
+            --bucket dl.influxdata.com/chronograf/releases
+          cp build/linux/static_amd64/chronograf .
+          cp build/linux/static_amd64/chronoctl .
+          docker build -t chronograf .
+          docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+          docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
+          docker push quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
+          docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_TAG}
+          docker push quay.io/influxdb/chronograf:${CIRCLE_TAG}
+          docker tag chronograf quay.io/influxdb/chronograf:latest
+          docker push quay.io/influxdb/chronograf:latest
+      - store_artifacts:
+          path: ./build/

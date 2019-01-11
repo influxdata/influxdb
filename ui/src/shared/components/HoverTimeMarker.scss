@@ -1,0 +1,8 @@
+@import "src/style/modules";
+
+.hover-time-marker {
+  position: absolute;
+  height: calc(100% - 40px);
+  top: 10px;
+  border-left: 1px solid $g8-storm;
+}

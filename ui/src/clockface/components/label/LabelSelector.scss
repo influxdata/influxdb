@@ -1,0 +1,100 @@
+/*
+  Label Selector Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.label-selector--input {
+  position: relative;
+}
+
+.label-selector--menu-container {
+  overflow: hidden;
+  z-index: 999;
+  width: 100%;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  @include gradient-h($g2-kevlar, $g4-onyx);
+  border-radius: $radius;
+  box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.7);
+}
+
+.label-selector--menu-container .fancy-scroll--track-h {
+  display: none;
+}
+
+.label-selector--menu {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.label-selector--menu-item {
+  display: flex;
+  align-items: center;
+  padding: $ix-marg-a $ix-marg-b;
+  color: $g13-mist;
+  transition: color 0.25s ease, background-color 0.25s ease;
+  
+  &.active,
+  &.active:hover {
+    cursor: pointer;
+    color: $g18-cloud;
+    background-color: $g6-smoke;
+  }
+}
+
+.label-selector--label {
+  flex: 4 0 0
+}
+
+.label-selector--description,
+.label-selector--empty {
+  font-size: 13px;
+  font-weight: 500;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.label-selector--empty {
+  padding: $ix-marg-a $ix-marg-b;
+  color: $g9-mountain;
+  font-style: italic;
+  min-height: 30px;
+  line-height: 30px;
+}
+
+.label-selector--description {
+  margin-left: 6px;
+  color: $g13-mist;
+  flex: 2 0 50%;
+}
+
+.label-selector--bottom {
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.label-selector--remove-all {
+  margin-top: $ix-marg-b;
+  margin-left: $ix-marg-b;
+}
+
+.label-selector--selected,
+.label-selector--none-selected {
+  flex: 1 0 0;
+  margin-top: $ix-marg-b;
+}
+
+.label-selector--none-selected {
+  font-size: 13px;
+  color: $g10-wolf;
+  font-weight: 500;
+  font-style: italic;
+  user-select: none;
+}

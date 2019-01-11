@@ -1,0 +1,25 @@
+@import "src/style/modules";
+
+.selector-list--item {
+  font-weight: 500;
+  padding: 5px 15px;
+  margin-bottom: 1px;
+  cursor: pointer;
+  color: $g14-chromium;
+  font-family: $code-font;
+  font-size: 13px;
+
+  &.selected {
+    background: $c-pool;
+    color: $g18-cloud;
+  }
+
+  &.selected:hover {
+    background: $c-pool;
+    opacity: 0.9;
+  }
+
+  &:hover {
+    background: $g5-pepper;
+  }
+}

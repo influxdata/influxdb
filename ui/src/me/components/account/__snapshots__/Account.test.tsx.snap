@@ -1,0 +1,48 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Account rendering renders! 1`] = `
+<Page
+  titleTag="My Account"
+>
+  <PageHeader
+    fullWidth={false}
+    inPresentationMode={false}
+  >
+    <PageHeaderLeft
+      offsetPixels={0}
+    >
+      <PageTitle
+        title="My Account"
+      />
+    </PageHeaderLeft>
+    <PageHeaderRight
+      offsetPixels={0}
+    />
+  </PageHeader>
+  <PageContents
+    fullWidth={false}
+    scrollable={true}
+  >
+    <withRouter(TabbedPage)
+      activeTabUrl="settings"
+      name="Account"
+      parentUrl="/account"
+    >
+      <TabbedPageSection
+        id="settings"
+        title="Settings"
+        url="settings"
+      >
+        <Connect(Settings) />
+      </TabbedPageSection>
+      <TabbedPageSection
+        id="tokens"
+        title="Tokens"
+        url="tokens"
+      >
+        <Connect(Tokens) />
+      </TabbedPageSection>
+    </withRouter(TabbedPage)>
+  </PageContents>
+</Page>
+`;

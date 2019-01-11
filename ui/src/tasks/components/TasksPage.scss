@@ -1,0 +1,20 @@
+/*
+   Tasks Page Styles
+   -----------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.hidden-tasks-alert {
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: ($ix-border / 2);
+    width: 100%;
+    background-color: rgba($g3-castle, 0.5);
+    text-align: center;
+    @include no-user-select();
+    color: $g9-mountain;
+    padding: $ix-marg-b;
+    border-radius: $radius;
+    font-style: italic;
+}

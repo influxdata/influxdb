@@ -1,0 +1,26 @@
+package gen
+
+import (
+	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/tsdb/cursors"
+)
+
+{{range .}}
+{{ $typename := print .Name "Array" }}
+type {{$typename}} struct {
+	cursors.{{$typename}}
+}
+
+func New{{$typename}}Len(sz int) *{{$typename}} {
+	return &{{$typename}}{
+		{{$typename}}: cursors.{{$typename}}{
+			Timestamps: make([]int64, sz),
+			Values: make([]{{.Type}}, sz),
+		},
+	}
+}
+
+func (a *{{$typename}}) Encode(b []byte) ([]byte, error) {
+	return tsm1.Encode{{$typename}}Block(&a.{{$typename}}, b)
+}
+{{end}}

@@ -1,0 +1,259 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`IndexList matches snapshot when 0 rows exist 1`] = `
+<IndexList>
+  <table
+    className="index-list"
+  >
+    <IndexListHeader
+      key="index-header"
+    >
+      <thead
+        className="index-list--header"
+      >
+        <tr>
+          <IndexListHeaderCell
+            alignment="left"
+            columnName="Fruit"
+            width="50%"
+          >
+            <th
+              className="index-list--header-cell index-list--align-left"
+              onClick={[Function]}
+              style={
+                Object {
+                  "width": "50%",
+                }
+              }
+            >
+              Fruit
+            </th>
+          </IndexListHeaderCell>
+          <IndexListHeaderCell
+            alignment="left"
+            columnName="Calories"
+            width="50%"
+          >
+            <th
+              className="index-list--header-cell index-list--align-left"
+              onClick={[Function]}
+              style={
+                Object {
+                  "width": "50%",
+                }
+              }
+            >
+              Calories
+            </th>
+          </IndexListHeaderCell>
+        </tr>
+      </thead>
+    </IndexListHeader>
+    <IndexListBody
+      columnCount={2}
+      emptyState={
+        <div>
+          Empty
+        </div>
+      }
+      key="index-body"
+    >
+      <tbody
+        className="index-list--empty"
+      >
+        <tr
+          className="index-list--empty-row"
+        >
+          <td
+            colSpan={2}
+          >
+            <div
+              className="index-list--empty-cell"
+              data-test="empty-state"
+            >
+              <div>
+                Empty
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </IndexListBody>
+  </table>
+</IndexList>
+`;
+
+exports[`IndexList matches snapshot with minimal props 1`] = `
+<IndexList>
+  <table
+    className="index-list"
+  >
+    <IndexListHeader
+      key="index-header"
+    >
+      <thead
+        className="index-list--header"
+      >
+        <tr>
+          <IndexListHeaderCell
+            alignment="left"
+            columnName="Fruit"
+            width="50%"
+          >
+            <th
+              className="index-list--header-cell index-list--align-left"
+              onClick={[Function]}
+              style={
+                Object {
+                  "width": "50%",
+                }
+              }
+            >
+              Fruit
+            </th>
+          </IndexListHeaderCell>
+          <IndexListHeaderCell
+            alignment="left"
+            columnName="Calories"
+            width="50%"
+          >
+            <th
+              className="index-list--header-cell index-list--align-left"
+              onClick={[Function]}
+              style={
+                Object {
+                  "width": "50%",
+                }
+              }
+            >
+              Calories
+            </th>
+          </IndexListHeaderCell>
+        </tr>
+      </thead>
+    </IndexListHeader>
+    <IndexListBody
+      columnCount={2}
+      emptyState={
+        <div>
+          Empty
+        </div>
+      }
+      key="index-body"
+    >
+      <tbody
+        className="index-list--body"
+      >
+        <IndexListRow
+          disabled={false}
+        >
+          <tr
+            className="index-list--row"
+          >
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
+            >
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  Apple
+                </div>
+              </td>
+            </IndexListRowCell>
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
+            >
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  500
+                </div>
+              </td>
+            </IndexListRowCell>
+          </tr>
+        </IndexListRow>
+        <IndexListRow
+          disabled={false}
+        >
+          <tr
+            className="index-list--row"
+          >
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
+            >
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  Pear
+                </div>
+              </td>
+            </IndexListRowCell>
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
+            >
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  1000
+                </div>
+              </td>
+            </IndexListRowCell>
+          </tr>
+        </IndexListRow>
+        <IndexListRow
+          disabled={false}
+        >
+          <tr
+            className="index-list--row"
+          >
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
+            >
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  Banana
+                </div>
+              </td>
+            </IndexListRowCell>
+            <IndexListRowCell
+              alignment="left"
+              revealOnHover={false}
+            >
+              <td
+                className="index-list--row-cell index-list--align-left"
+              >
+                <div
+                  className="index-list--cell"
+                >
+                  100
+                </div>
+              </td>
+            </IndexListRowCell>
+          </tr>
+        </IndexListRow>
+      </tbody>
+    </IndexListBody>
+  </table>
+</IndexList>
+`;

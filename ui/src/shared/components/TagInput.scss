@@ -1,0 +1,110 @@
+@import 'src/style/modules';
+/*
+  Input Tag List Styles
+  ---------------------------------------------
+*/
+
+$input-tag--item-height: 24px;
+
+.input-tag-list {
+  margin: 1px -1px;
+  display: flex;
+  flex-wrap: wrap;
+}
+// Special rule for alert handlers config
+.tag-input + .input-tag-list {
+  padding: 0 11px;
+  margin: 4px -1px;
+}
+
+.input-tag--item,
+.tags-add {
+  height: $input-tag--item-height;
+  line-height: $input-tag--item-height;
+  border-radius: 3px;
+  margin: 1px;
+}
+
+.input-tag--item {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  padding: 0 0 0 9px;
+  font-size: 12px;
+  font-weight: 600;
+  background-color: $g5-pepper;
+  color: $g18-cloud;
+  cursor: default;
+}
+
+.btn.confirm-button.input-tag--remove {
+  margin-left: 2px;
+  color: $g8-storm;
+  background-color: transparent;
+
+  &:hover {
+    background-color: transparent;
+    color: $c-dreamsicle;
+  }
+}
+
+
+// Optional Add Tags Button
+.tags-add {
+  position: relative;
+  width: $input-tag--item-height;
+  background-color: $c-pool;
+  color: $g20-white;
+  text-align: center;
+  transition: background-color 0.25s ease;
+
+  .icon {
+    font-size: 14px;
+  }
+
+  &:hover,
+  &.open {
+    cursor: pointer;
+    background-color: $c-laser;
+  }
+}
+.tags-add--menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 99;
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  border-radius: 4px;
+  overflow: auto;
+  max-height: 200px;
+  @include gradient-h($c-ocean,$c-pool);
+}
+.tags-add--menu-item {
+  text-align: left;
+  font-size: 13px;
+  line-height: 13px;
+  font-weight: 500;
+  padding: 7px 9px;
+  white-space: nowrap;
+  color: $c-yeti;
+  transition: color 0.25s ease;
+  @include no-user-select();
+
+  &:hover {
+    cursor: pointer;
+    color: $g20-white;
+    @include gradient-h($c-laser,$c-pool);
+  }
+  &:active,
+  &:active:focus {
+    cursor: pointer;
+    color: $g20-white;
+    @include gradient-h($c-sapphire,$c-pool);
+  }
+}
+.tags-add.open .tags-add--menu {
+  display: flex;
+}

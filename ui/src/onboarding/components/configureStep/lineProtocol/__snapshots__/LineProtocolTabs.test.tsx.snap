@@ -1,0 +1,37 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`LineProtocolTabs rendering renders! 1`] = `
+<div>
+  <default_1
+    onClick={[Function]}
+    tabs={
+      Array [
+        "Upload File",
+        "Enter Manually",
+        "Enter URL",
+      ]
+    }
+  />
+  <Grid>
+    <GridRow>
+      <GridColumn
+        widthXS={12}
+      >
+        <div
+          className="onboarding--admin-user-form"
+        >
+          <div
+            className="wizard-step--lp-body"
+          >
+            <default_1
+              onURLChange={[Function]}
+              urlInput=""
+            />
+          </div>
+          <PrecisionDropdown />
+        </div>
+      </GridColumn>
+    </GridRow>
+  </Grid>
+</div>
+`;

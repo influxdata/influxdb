@@ -1,0 +1,27 @@
+/*
+  View Options Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.view-options {
+  padding: $ix-marg-c $ix-marg-d;
+}
+
+.view-options--header {
+  @include no-user-select();
+  margin-top: 0;
+  margin-bottom: $ix-marg-d;
+  color: $g11-sidewalk;
+}
+
+@media screen and (max-width: 991px) {
+  .view-options--header {
+    margin-top: $ix-marg-d;
+  }
+
+  .view-options .row > div:first-child .view-options--header {
+    margin-top: 0;
+  }
+}

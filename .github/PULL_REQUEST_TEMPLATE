@@ -1,0 +1,8 @@
+Closes #
+
+_Briefly describe your proposed changes:_
+
+  - [ ] Rebased/mergeable
+  - [ ] Tests pass
+  - [ ] http/swagger.yml updated (if modified Go structs or API)
+  - [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)

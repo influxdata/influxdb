@@ -1,0 +1,57 @@
+/*
+   Panels
+   -----------------------------------------------------------------------------
+*/
+
+$panel-gutter: $ix-marg-b * 2;
+$panel-background: $g3-castle;
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-bottom: $panel-gutter;
+  background-color: $panel-background;
+  border-radius: $radius;
+  margin-bottom: $ix-marg-a;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $panel-gutter;
+  padding-bottom: 0;
+}
+
+.panel-title {
+  font-weight: 500;
+  font-size: 17px;
+  color: $g12-forge;
+  letter-spacing: 0.015em;
+  margin: 0;
+  line-height: 1em;
+  @extend %no-user-select;
+}
+
+.panel-controls {
+  display: flex;
+  align-items: center;
+}
+
+.panel-body {
+  padding: $panel-gutter;
+}
+
+.panel-footer {
+  padding: $ix-marg-b $panel-gutter;
+  border-radius: 0 0 $ix-radius $ix-radius;
+  background-color: mix($panel-background, $g2-kevlar, 50%);
+  color: $g9-mountain;
+}
+
+//  Horizontal Rules directly inside Panels
+//  ----------------------------------------------------------------------------
+.panel-body hr {
+  margin: $ix-marg-c 0;
+}

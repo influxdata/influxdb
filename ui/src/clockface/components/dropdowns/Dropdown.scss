@@ -1,0 +1,175 @@
+/*
+  Dropdowns
+  ------------------------------------------------------------------------------
+*/
+
+.dropdown {
+  position: relative;
+
+  &.dropdown-xs {
+    height: $form-xs-height;
+  }
+  &.dropdown-sm {
+    height: $form-sm-height;
+  }
+  &.dropdown-md {
+    height: $form-md-height;
+  }
+  &.dropdown-lg {
+    height: $form-lg-height;
+  }
+}
+
+/* Dropdown Menu */
+.dropdown--menu-container {
+  overflow: hidden;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 500;
+  border-radius: $radius;
+  box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.7);
+}
+
+.dropdown--menu {
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  cursor: pointer;
+}
+
+.dropdown--item {
+  padding: 6px 11px;
+  font-size: 12px;
+  line-height: 12px;
+  font-weight: 600;
+  color: fade-out($g20-white, 0.18);
+  white-space: nowrap;
+  position: relative;
+
+  &.active {
+    padding-left: 24px;
+    color: $g20-white;
+  }
+
+  &:hover {
+    color: $g20-white;
+    cursor: pointer;
+  }
+
+  .dropdown-wrap & {
+    word-break: break-all;
+    white-space: pre-wrap;
+  } 
+}
+
+.dropdown-item--dot {
+  display: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 11px;
+  transform: translateY(-50%);
+  background-color: $g20-white;
+
+  .active & {
+    display: inline-block;
+  }
+}
+
+.dropdown--divider {
+  padding: 6px 11px;
+  font-size: 12px;
+  font-weight: 600;
+
+  &.line {
+    padding: 0;
+    height: 2px;
+  }
+
+  &:hover {
+    cursor: default;
+  }
+}
+
+.dropdown--item.multi-select--item {
+  padding-left: 28px;
+}
+
+.dropdown-item--checkbox {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    width: 6px;
+    height: 6px;
+    opacity: 0;
+    transform: translate(-50%,-50%) scale(1.5,1.5);
+  }
+
+  .active &:after {
+    opacity: 1;
+    transform: translate(-50%,-50%) scale(1,1);
+  }
+}
+
+/* Themes */
+
+@mixin dropdownMenuColor($backgroundA, $backgroundB, $hoverA, $hoverB, $dividerA, $dividerB, $dividerText, $scrollA, $scrollB) {
+  @include gradient-h($backgroundA, $backgroundB);
+
+  .dropdown--item:hover,
+  .dropdown--item.active {
+    @include gradient-h($hoverA, $hoverB);
+  }
+  .dropdown--divider {
+    color: $dividerText;
+    @include gradient-h($dividerA, $dividerB);
+  }
+  .dropdown-item--checkbox {
+    background-color: $dividerA;
+  }
+  .dropdown-item--checkbox:after {
+    background-color: $scrollA;
+  }
+  .fancy-scroll--thumb-h {
+    @include gradient-h($scrollA, $scrollB);
+  }
+  .fancy-scroll--thumb-v {
+    @include gradient-v($scrollA, $scrollB);
+  }
+}
+
+.dropdown--amethyst {
+  @include dropdownMenuColor($c-star, $c-pool, $c-comet, $c-laser, $c-amethyst, $c-ocean, $c-potassium, $c-neutrino, $c-hydrogen);
+}
+
+.dropdown--sapphire {
+  @include dropdownMenuColor($c-ocean, $c-pool, $c-pool, $c-laser, $c-sapphire, $c-ocean, $c-laser, $c-neutrino, $c-hydrogen);
+}
+
+.dropdown--malachite {
+  @include dropdownMenuColor($c-pool, $c-rainforest, $c-laser, $c-honeydew, $c-ocean, $c-viridian, $c-krypton, $c-neutrino, $c-krypton);
+}
+
+.dropdown--onyx {
+  @include dropdownMenuColor($g2-kevlar, $g4-onyx, $g4-onyx, $g6-smoke, $g0-obsidian, $g2-kevlar, $g11-sidewalk, $c-pool, $c-comet);
+}
+
+/* TODO: Make fancyscroll more customizable */
+.dropdown--menu-container .fancy-scroll--track-h {
+  display: none;
+}

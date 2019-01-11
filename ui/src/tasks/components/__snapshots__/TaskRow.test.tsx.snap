@@ -1,0 +1,114 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Tasks.Components.TaskRow renders 1`] = `
+<IndexListRow
+  disabled={false}
+>
+  <IndexListRowCell
+    alignment="left"
+    revealOnHover={false}
+  >
+    <ComponentSpacer
+      align="left"
+      stackChildren="rows"
+    >
+      <a
+        href="#"
+        onClick={[Function]}
+      >
+        pasdlak
+      </a>
+    </ComponentSpacer>
+  </IndexListRowCell>
+  <IndexListRowCell
+    alignment="left"
+    revealOnHover={false}
+  >
+    <SlideToggle
+      active={true}
+      color="primary"
+      disabled={false}
+      onChange={[Function]}
+      size="xs"
+      tooltipText=""
+    />
+  </IndexListRowCell>
+  <IndexListRowCell
+    alignment="left"
+    revealOnHover={false}
+  >
+    2 0 * * *
+  </IndexListRowCell>
+  <IndexListRowCell
+    alignment="left"
+    revealOnHover={false}
+  >
+    <a
+      href=""
+      onClick={[Function]}
+    >
+      RadicalOrganization
+    </a>
+  </IndexListRowCell>
+  <IndexListRowCell
+    alignment="right"
+    revealOnHover={true}
+  >
+    <ComponentSpacer
+      align="right"
+    >
+      <Button
+        active={false}
+        color="default"
+        icon="export"
+        onClick={[Function]}
+        shape="none"
+        size="xs"
+        status="default"
+        text="Export"
+        type="button"
+      />
+      <ConfirmationButton
+        confirmText="Confirm"
+        onConfirm={[MockFunction]}
+        returnValue={
+          Object {
+            "cron": "2 0 * * *",
+            "flux": "option task = {
+  name: \\"pasdlak\\",
+  cron: \\"2 0 * * *\\"
+}
+from(bucket: \\"inbucket\\") 
+|> range(start: -1h)",
+            "id": "02ef9deff2141000",
+            "labels": Array [],
+            "name": "pasdlak",
+            "organization": Object {
+              "id": "02ee9e2a29d73000",
+              "links": Object {
+                "buckets": "/api/v2/buckets?org=RadicalOrganization",
+                "dashboards": "/api/v2/dashboards?org=RadicalOrganization",
+                "log": "/api/v2/orgs/02ee9e2a29d73000/log",
+                "members": "/api/v2/orgs/02ee9e2a29d73000/members",
+                "self": "/api/v2/orgs/02ee9e2a29d73000",
+                "tasks": "/api/v2/tasks?org=RadicalOrganization",
+              },
+              "name": "RadicalOrganization",
+            },
+            "organizationID": "02ee9e2a29d73000",
+            "owner": Object {
+              "id": "02ee9e2a19d73000",
+              "name": "",
+            },
+            "status": "active",
+          }
+        }
+        shape="none"
+        size="xs"
+        status="default"
+        text="Delete"
+      />
+    </ComponentSpacer>
+  </IndexListRowCell>
+</IndexListRow>
+`;

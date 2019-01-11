@@ -1,0 +1,103 @@
+/*
+  Label Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+$label-margin: 1px;
+
+.label {
+  display: inline-block;
+  margin: 0;
+  user-select: none;
+  transition: background-color 0.25s ease;
+  white-space: nowrap;
+  
+  > label {
+    cursor: inherit;
+    font-weight: 700;
+    margin: 0;
+  }
+}
+
+.label--clickable {
+  &, &:hover {
+    cursor: pointer;
+  }
+}
+
+.label--delete {
+  z-index: 2;
+  display: inline-block;
+  background-color: transparent;
+  position: absolute;
+  top: 0;
+  right: $ix-border + $label-margin;
+  border: 0;
+  margin: 0;
+  outline: none;
+  opacity: 0.4;
+  transition: opacity 0.25s ease;
+
+  &:hover {
+    opacity: 1;
+    cursor: pointer;
+  }
+}
+
+.label--delete-x {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60%;
+  height: $ix-border;
+  border-radius: $ix-border / 2;
+  transform: translate(-50%,-50%) rotate(45deg);
+
+  &:nth-child(2) {
+    transform: translate(-50%,-50%) rotate(-45deg);
+  }
+}
+
+/*
+  Size Modifiers
+  ------------------------------------------------------------------------------
+*/
+
+@mixin labelSizeModifier($fontSize, $padding, $height) {
+  &,
+  & + .additional-labels {
+    border-radius: $height / 2;
+    font-size: $fontSize;
+    height: $height - $ix-marg-a;
+    line-height: $height - $ix-marg-a;
+    padding: 0 ($padding + $ix-border);
+  }
+
+  .label--delete {
+    height: $height - $ix-marg-a;
+    width: $height - $ix-marg-a;
+  }
+
+  &.label--deletable {
+    position: relative;
+    padding-right: $height;
+  }
+}
+
+.label--xs {
+  @include labelSizeModifier($form-xs-font, $form-xs-padding, $form-xs-height);
+}
+
+.label--sm {
+  @include labelSizeModifier($form-sm-font, $form-sm-padding, $form-sm-height);
+}
+
+.label--md {
+  @include labelSizeModifier($form-md-font, $form-md-padding, $form-md-height);
+}
+
+.label--lg {
+  @include labelSizeModifier($form-lg-font, $form-lg-padding, $form-lg-height);
+}

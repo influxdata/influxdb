@@ -1,0 +1,55 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
+<ConfirmationButton
+  confirmText="Click me if you dare"
+  onConfirm={[Function]}
+  shape="none"
+  size="sm"
+  status="default"
+  text="I am a dangerous button!"
+>
+  <ClickOutside
+    onClickOutside={[Function]}
+  >
+    <div
+      className="confirmation-button"
+    >
+      <Button
+        active={true}
+        color="danger"
+        onClick={[Function]}
+        shape="none"
+        size="sm"
+        status="default"
+        text="I am a dangerous button!"
+        type="button"
+      >
+        <button
+          className="button button-sm button-danger active"
+          disabled={false}
+          onClick={[Function]}
+          tabIndex={0}
+          title="I am a dangerous button!"
+          type="button"
+        >
+          I am a dangerous button!
+        </button>
+      </Button>
+      <div
+        className="confirmation-button--tooltip visible"
+      >
+        <div
+          className="confirmation-button--tooltip-body"
+          data-test="confirmation-button--click-target"
+          onClick={[Function]}
+        >
+          Click me if you dare
+        </div>
+      </div>
+    </div>
+  </ClickOutside>
+</ConfirmationButton>
+`;
+
+exports[`ConfirmationButton matches snapshot with minimal props 1`] = `undefined`;

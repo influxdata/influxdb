@@ -1,0 +1,114 @@
+/*
+  Dashboards
+  ------------------------------------------------------
+*/
+
+.dash-graph--custom-indicators {
+  height: 24px;
+  border-radius: 3px;
+  display: flex;
+  cursor: default;
+  > .custom-indicator,
+  > .source-indicator {
+    font-size: 10px;
+    line-height: 24px;
+    padding: 0 7px;
+    font-style: normal;
+    font-family: $code-font;
+    color: $c-pool;
+    background-color: $g2-kevlar;
+    margin-right: 2px;
+    border-radius: 3px;
+  }
+  > .source-indicator {
+    height: 24px;
+    > .icon {
+      font-size: 12px;
+      margin: 0;
+    }
+  }
+}
+
+
+
+@keyframes refreshingSpinnerA {
+  0% {
+    transform: translate(-50%, -50%) scale(1.75);
+    background-color: $g7-graphite;
+  }
+  33% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  66% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+}
+
+@keyframes refreshingSpinnerB {
+  0% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  33% {
+    transform: translate(-50%, -50%) scale(1.75);
+    background-color: $g7-graphite;
+  }
+  66% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+}
+
+@keyframes refreshingSpinnerC {
+  0% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  33% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  66% {
+    transform: translate(-50%, -50%) scale(1.75);
+    background-color: $g7-graphite;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+}
+
+.graph-panel__refreshing {
+  position: absolute;
+  top: -18px !important;
+  transform: translate(0, 0);
+  right: 50%;
+  transform: translateX(50%);
+  width: 16px;
+  height: 18px;
+  > div {
+    width: 4px;
+    height: 4px;
+    background-color: $g6-smoke;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+  div:nth-child(1) {
+    left: 0;
+    animation: refreshingSpinnerA 0.8s cubic-bezier(0.645, 0.045, 0.355, 1)
+      infinite;
+  }
+  div:nth-child(2) {
+    left: 50%;
+    animation: refreshingSpinnerB 0.8s cubic-bezier(0.645, 0.045, 0.355, 1)
+      infinite;
+  }
+  div:nth-child(3) {
+    left: 100%;
+    animation: refreshingSpinnerC 0.8s cubic-bezier(0.645, 0.045, 0.355, 1)
+      infinite;
+  }
+}

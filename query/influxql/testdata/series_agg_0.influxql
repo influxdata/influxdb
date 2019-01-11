@@ -1,0 +1,1 @@
+SELECT difference(f) FROM m GROUP BY *

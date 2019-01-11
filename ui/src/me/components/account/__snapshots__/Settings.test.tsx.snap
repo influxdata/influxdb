@@ -1,0 +1,165 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Account rendering renders! 1`] = `
+<Settings
+  me={
+    Object {
+      "id": "id-of-groot",
+      "links": Object {
+        "log": "/api/v2/users/id-of-groot/log",
+        "self": "/api/v2/users/id-of-groot",
+      },
+      "name": "groot",
+    }
+  }
+>
+  <Panel>
+    <div
+      className="panel"
+    >
+      <PanelHeader
+        title="About Me"
+      >
+        <div
+          className="panel-header"
+        >
+          <div
+            className="panel-title"
+          >
+            About Me
+          </div>
+          <div
+            className="panel-controls"
+          >
+            <ComponentSpacer
+              align="right"
+            >
+              <div
+                className="component-spacer component-spacer--right component-spacer--horizontal"
+              >
+                <Button
+                  active={false}
+                  color="default"
+                  shape="none"
+                  size="sm"
+                  status="default"
+                  text="Edit About Me"
+                  type="button"
+                >
+                  <button
+                    className="button button-sm button-default"
+                    disabled={false}
+                    tabIndex={0}
+                    title="Edit About Me"
+                    type="button"
+                  >
+                    Edit About Me
+                  </button>
+                </Button>
+              </div>
+            </ComponentSpacer>
+          </div>
+        </div>
+      </PanelHeader>
+      <PanelBody>
+        <div
+          className="panel-body"
+        >
+          <Form>
+            <form
+              className="form--wrapper"
+              onSubmit={[Function]}
+            >
+              <Grid>
+                <div
+                  className="grid--container"
+                >
+                  <Select
+                    type={[Function]}
+                  >
+                    <GridRow
+                      key=".0"
+                    >
+                      <div
+                        className="grid--row"
+                      >
+                        <GridColumn
+                          widthXS={6}
+                        >
+                          <div
+                            className="grid--column col-xs-6"
+                          >
+                            <FormElement
+                              label="Username"
+                            >
+                              <div
+                                className="form--element"
+                              >
+                                <FormLabel
+                                  label="Username"
+                                >
+                                  <label
+                                    className="form--label"
+                                  >
+                                    <span>
+                                      Username
+                                    </span>
+                                  </label>
+                                </FormLabel>
+                                <Input
+                                  autoFocus={false}
+                                  autocomplete="off"
+                                  dataTest="nameInput"
+                                  disabledTitleText="This input is disabled"
+                                  name=""
+                                  onChange={[Function]}
+                                  placeholder=""
+                                  size="sm"
+                                  spellCheck={false}
+                                  status="disabled"
+                                  titleText="Username"
+                                  value="groot"
+                                >
+                                  <div
+                                    className="input input-sm input--disabled"
+                                    style={
+                                      Object {
+                                        "width": "100%",
+                                      }
+                                    }
+                                  >
+                                    <input
+                                      autoComplete="off"
+                                      autoFocus={false}
+                                      className="input-field"
+                                      data-test="nameInput"
+                                      disabled={true}
+                                      name=""
+                                      onChange={[Function]}
+                                      placeholder=""
+                                      spellCheck={false}
+                                      title="This input is disabled"
+                                      value="groot"
+                                    />
+                                    <div
+                                      className="input-shadow"
+                                    />
+                                  </div>
+                                </Input>
+                              </div>
+                            </FormElement>
+                          </div>
+                        </GridColumn>
+                      </div>
+                    </GridRow>
+                  </Select>
+                </div>
+              </Grid>
+            </form>
+          </Form>
+        </div>
+      </PanelBody>
+    </div>
+  </Panel>
+</Settings>
+`;

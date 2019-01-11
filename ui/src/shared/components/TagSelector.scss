@@ -1,0 +1,53 @@
+@import "src/style/modules";
+
+.tag-selector {
+  min-height: 130px;
+  background: $g4-onyx;
+  border-radius: 4px;
+  padding: 10px 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+
+  input {
+    margin-top: 5px;
+  }
+}
+
+.tag-selector--top, .tag-selector--search {
+  margin: 0 10px;
+}
+
+.tag-selector--top {
+  display: flex;
+}
+
+.tag-selector--search {
+  margin-bottom: 10px;
+  width: initial !important;
+}
+
+button.tag-selector--remove {
+  margin-left: 3px;
+}
+
+.tag-selector .selector-list {
+  flex: 1 1 0;
+}
+
+
+.tag-selector--empty {
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: $g8-storm;
+  font-weight: 500;
+  font-size: 16px;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 10px;
+}

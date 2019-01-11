@@ -1,0 +1,5 @@
+{
+  "id": "howdy",
+  "name": "An Organization",
+  "defaultRole": "viewer"
+}

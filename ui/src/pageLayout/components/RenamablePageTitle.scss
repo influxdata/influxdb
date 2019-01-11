@@ -1,0 +1,87 @@
+/*
+  RenamablePageTitle Component Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+$rename-dash-title-padding: 8px;
+
+.renamable-page-title {
+  height: $form-sm-height;
+  width: 100%;
+  min-width: 29vw;
+  max-width: 42vw;
+}
+
+.renamable-page-title--title,
+.input.renamable-page-title--input > input {
+  font-size: $page-title-size;
+  font-weight: $page-title-weight;
+  font-family: $ix-text-font;
+  padding: 0 $rename-dash-title-padding;
+}
+
+.renamable-page-title--title,
+.renamable-page-title--input {
+  position: relative;
+  width: calc(100% + #{$rename-dash-title-padding}) !important;
+  left: -$rename-dash-title-padding;
+}
+
+.renamable-page-title--title {
+  border-radius: $radius;
+  position: relative;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  @include no-user-select();
+  color: $g17-whisper;
+  transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+  border: $ix-border solid transparent;
+  height: $form-sm-height;
+  line-height: $form-sm-height - ($ix-border * 2);
+  
+  .icon {
+    position: absolute;
+    font-size: 15px;
+    top: 50%;
+    right: $rename-dash-title-padding;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    color: $g11-sidewalk;
+  }
+
+  &:hover {
+    cursor: text;
+    color: $g20-white;
+    background-color: $g3-castle;
+    border-color: $g3-castle;
+  }
+
+  &:hover .icon {
+    opacity: 1;
+  }
+
+  &.untitled {
+    color: $g9-mountain;
+    font-style: italic;
+  }
+}
+
+/* Ensure placeholder text matches font weight of title */
+.input.renamable-page-title--input > input {
+  &::-webkit-input-placeholder {
+      font-weight: $page-title-weight !important;
+    }
+    &::-moz-placeholder {
+      font-weight: $page-title-weight !important;
+    }
+    &:-ms-input-placeholder {
+      font-weight: $page-title-weight !important;
+    }
+    &:-moz-placeholder {
+      font-weight: $page-title-weight !important;
+    }
+}

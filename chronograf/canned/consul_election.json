@@ -1,0 +1,24 @@
+{
+    "id": "b15aaf24-701a-4d9b-920c-9a407e91da71",
+    "measurement": "consul_raft_state_candidate",
+    "app": "consul_telemetry",
+    "autoflow": true,
+    "cells": [
+        {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 4,
+            "i": "5b2bddce-badb-4594-91fb-0486f62266e5",
+            "name": "Consul – Leadership Election",
+            "queries": [
+                {
+                    "query": "SELECT max(\"value\") AS \"max_value\" FROM \":db:\".\":rp:\".\"consul_raft_state_candidate\"",
+                    "label": "count",
+                    "groupbys": [],
+                    "wheres": []
+                }
+            ]
+        }
+    ]
+}

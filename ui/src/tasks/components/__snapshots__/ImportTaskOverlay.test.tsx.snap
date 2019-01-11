@@ -1,0 +1,22 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ImportTaskOverlay rendering renders 1`] = `
+<OverlayContainer
+  maxWidth={800}
+>
+  <OverlayHeading
+    onDismiss={[MockFunction]}
+    title="Import Task"
+  />
+  <OverlayBody>
+    <DragAndDrop
+      compact={false}
+      fileTypesToAccept=".flux"
+      handleSubmit={[Function]}
+      submitOnDrop={false}
+      submitOnUpload={false}
+      submitText="Upload Task"
+    />
+  </OverlayBody>
+</OverlayContainer>
+`;

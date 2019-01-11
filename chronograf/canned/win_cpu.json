@@ -1,0 +1,23 @@
+{
+  "id": "188b7f23-648f-4c54-99f6-6a0e2e90a2fc",
+  "measurement": "win_cpu",
+  "app": "win_system",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "6921e19a-951e-42ef-b304-2b8b661fcc81",
+      "name": "System - CPU Usage",
+      "queries": [
+        {
+          "query": "SELECT mean(\"Percent_Processor_Time\") AS \"percent_processor_time\" FROM \":db:\".\":rp:\".\"win_cpu\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

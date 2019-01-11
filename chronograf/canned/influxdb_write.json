@@ -1,0 +1,45 @@
+{
+  "id": "74fe93bf-14d6-40d4-af8f-335554f4acf3",
+  "measurement": "influxdb_write",
+  "app": "influxdb",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "12384232-7bc7-4129-8958-ef551a320524",
+      "name": "InfluxDB - Write Points",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"pointReq\")) AS \"points_written\" FROM \":db:\".\":rp:\".\"influxdb_write\"",
+          "label": "points/s",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "6281a48f-c29a-4941-bdd9-07f6d0fd98cf",
+      "name": "InfluxDB - Write Errors",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"writeError\")) AS \"shard_write_error\" FROM \":db:\".\":rp:\".\"influxdb_write\"",
+          "label": "errors/s",
+          "groupbys": [],
+          "wheres": []
+        },
+        {
+          "query": "SELECT non_negative_derivative(max(\"serveError\")) AS \"http_error\" FROM \":db:\".\":rp:\".\"influxdb_httpd\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

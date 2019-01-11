@@ -1,0 +1,69 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Card Select Card matches snapshot with minimal props 1`] = `
+<div
+  className="card-select--card card-select--active"
+  data-toggle="card_toggle"
+  onClick={[Function]}
+>
+  <label
+    className="card-select--container"
+  >
+    <input
+      defaultChecked={false}
+      disabled={false}
+      id="card_select_card_id"
+      type="checkbox"
+      value="card_id"
+    />
+    <span
+      className="card-select--checkmark icon checkmark"
+    />
+    <div
+      className="card-select--image"
+    >
+      <ProtoboardIcon
+        displayText="Card Label"
+      />
+    </div>
+    <span
+      className="card-select--label"
+    >
+      Card Label
+    </span>
+  </label>
+</div>
+`;
+
+exports[`Card Select Card with image matches snapshot when provided image source 1`] = `
+<div
+  className="card-select--card card-select--active"
+  data-toggle="card_toggle"
+  onClick={[Function]}
+>
+  <label
+    className="card-select--container"
+  >
+    <input
+      defaultChecked={false}
+      disabled={false}
+      id="card_select_card_id"
+      type="checkbox"
+      value="card_id"
+    />
+    <span
+      className="card-select--checkmark icon checkmark"
+    />
+    <div
+      className="card-select--image"
+    >
+      <MockChild />
+    </div>
+    <span
+      className="card-select--label"
+    >
+      Card Label
+    </span>
+  </label>
+</div>
+`;

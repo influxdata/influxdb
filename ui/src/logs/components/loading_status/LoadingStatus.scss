@@ -1,0 +1,91 @@
+
+
+.logs-viewer--searching-time {
+  text-transform: uppercase;
+  margin-top: $ix-marg-b;
+  @include gradient-h($c-laser, $c-comet);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@keyframes magnifier {
+  0% {
+    transform: translate(-50%,-50%);
+  }
+  25% {
+    transform: translate(0%,-50%);
+  }
+  75% {
+    transform: translate(-100%,-50%);
+  }
+  100% {
+    transform: translate(-50%,-50%);
+  }
+}
+
+@keyframes magRotateA {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes magRotateB {
+  0% {
+    transform: translate(-50%,-50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%,-50%) rotate(-360deg);
+  }
+}
+
+.logs-viewer--search-graphic {
+  width: 100px;
+  height: 100px;
+  display: inline-block;
+  position: relative;
+}
+
+.logs-viewer--graphic-log,
+.logs-viewer--graphic-magnifier-b,
+.logs-viewer--graphic-empty {
+  background-size: 100% 100%;
+  background-position: center center;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+.logs-viewer--graphic-magnifier-a {
+  width: 100px;
+  height: 100px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  animation: magRotateA 1.8s infinite linear;
+}
+.logs-viewer--graphic-log {
+  background-image: url('../../assets/images/log.svg');
+  width: 50px;
+  height: 50px;
+  transform: translate(-50%,-50%);
+}
+.logs-viewer--graphic-magnifier-b {
+  background-image: url('../../assets/images/magnifier.svg');
+  width: 50px;
+  height: 50px;
+  top: 35%;
+  left: 35%;
+  animation: magRotateB 1.8s infinite linear;
+}
+.logs-viewer--graphic-empty {
+  background-image: url('../../assets/images/no-logs.svg');
+  width: 60px;
+  height: 60px;
+  transform: translate(-50%,-50%);
+}
+
+.logs-viewer--loading-message {
+  text-align: center;
+}

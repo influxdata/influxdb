@@ -1,0 +1,44 @@
+{
+  "id": "45845136-bcb7-41ad-a02e-c63e9d3452de",
+  "measurement": "kubernetes_pod_network",
+  "app": "kubernetes",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "0e06ddcd-05dd-493f-9dba-a382300a7190",
+      "name": "K8s - Pod TX Bytes/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"tx_bytes\")) AS \"tx_bytes_per_second\" FROM \":db:\".\":rp:\".\"kubernetes_pod_network\"",
+          "groupbys": [
+            "\"pod_name\"",
+            "\"host\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 4,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "cc062b4c-70ca-4bd7-b372-398e734feb49",
+      "name": "K8s - Pod RX Bytes/Second ",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"rx_bytes\")) AS \"rx_bytes_per_second\" FROM \":db:\".\":rp:\".\"kubernetes_pod_network\"",
+          "groupbys": [
+            "\"pod_name\"",
+            "\"host\""
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

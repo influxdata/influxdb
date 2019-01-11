@@ -1,0 +1,42 @@
+@import "src/style/modules";
+
+.time-machine-query-tab {
+  background: $g2-kevlar;
+  border-radius: 5px 5px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: $g10-wolf;
+  font-weight: 700;
+  padding: 0 12px;
+  font-size: 13px;
+  cursor: pointer !important;
+  width: 130px;
+  @include no-user-select();
+
+
+  &.active {
+    background: $g3-castle;
+    color: $g16-pearl;
+  }
+
+  &:hover:not(.active) {
+    color: $g14-chromium;
+  }
+}
+
+.time-machine-query-tab--name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.time-machine-query-tab--close {
+  margin-left: 10px;
+  margin-bottom: 2px;
+  color: $g7-graphite;
+
+  &:hover {
+    color: $g16-pearl;
+  }
+}

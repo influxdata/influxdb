@@ -1,0 +1,118 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`MultiSelectDropdown matches snapshot with minimal props 1`] = `
+<ClickOutside
+  onClickOutside={[Function]}
+>
+  <div
+    className="dropdown dropdown-sm dropdown-default"
+    style={
+      Object {
+        "width": "100%",
+      }
+    }
+  >
+    <DropdownButton
+      active={false}
+      color="default"
+      onClick={[Function]}
+      size="sm"
+      status="default"
+    >
+      A
+    </DropdownButton>
+  </div>
+</ClickOutside>
+`;
+
+exports[`MultiSelectDropdown with menu expanded matches snapshot 1`] = `
+<ClickOutside
+  onClickOutside={[Function]}
+>
+  <div
+    className="dropdown dropdown-sm dropdown-default"
+    style={
+      Object {
+        "width": "100%",
+      }
+    }
+  >
+    <DropdownButton
+      active={true}
+      color="default"
+      onClick={[Function]}
+      size="sm"
+      status="default"
+    >
+      A
+    </DropdownButton>
+    <div
+      className="dropdown--menu-container dropdown--sapphire"
+      style={
+        Object {
+          "minWidth": "100%",
+        }
+      }
+    >
+      <FancyScrollbar
+        autoHeight={true}
+        autoHide={false}
+        maxHeight={250}
+        setScrollTop={[Function]}
+        style={Object {}}
+      >
+        <div
+          className="dropdown--menu"
+          data-test="dropdown-menu"
+        >
+          <DropdownItem
+            checkbox={true}
+            id="item-a"
+            key=".$item-a"
+            onClick={[Function]}
+            selected={true}
+            value={
+              Object {
+                "id": "item-a",
+                "text": "A",
+              }
+            }
+          >
+            A
+          </DropdownItem>
+          <DropdownItem
+            checkbox={true}
+            id="item-b"
+            key=".$item-b"
+            onClick={[Function]}
+            selected={false}
+            value={
+              Object {
+                "id": "item-b",
+                "text": "B",
+              }
+            }
+          >
+            B
+          </DropdownItem>
+          <DropdownItem
+            checkbox={true}
+            id="item-c"
+            key=".$item-c"
+            onClick={[Function]}
+            selected={false}
+            value={
+              Object {
+                "id": "item-c",
+                "text": "C",
+              }
+            }
+          >
+            C
+          </DropdownItem>
+        </div>
+      </FancyScrollbar>
+    </div>
+  </div>
+</ClickOutside>
+`;

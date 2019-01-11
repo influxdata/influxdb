@@ -1,0 +1,44 @@
+/*
+    Styles for Logs Viewer Options Overlay
+    ----------------------------------------------------------------------------
+*/
+
+.logs-options--color-list {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .logs-options--color-row {
+    display: flex;
+    height: 30px;
+    align-items: stretch;
+    margin-bottom: 4px;
+  }
+  
+  .logs-options--color-column {
+    width: 50%;
+  }
+  
+  .logs-options--color-label {
+    height: 30px;
+    border-radius: $radius;
+    background-color: $g3-castle;
+    padding: 0 11px;
+    line-height: 30px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: $g13-mist;
+    font-weight: 500;
+    font-size: 13px;
+    margin-right: 4px;
+    @include no-user-select();
+  }
+  
+  // Not very clean way of slightly darkening the disabled state
+  // of draggable columns in the overlay
+  .logs-options--columns .customizable-field--label__hidden {
+    background-color: $g3-castle;
+  }
+  

@@ -1,0 +1,40 @@
+package reads_test
+
+import (
+	"sort"
+
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
+)
+
+{{range .}}
+type {{.Name}}Points datatypes.ReadResponse_{{.Name}}PointsFrame
+
+func (a {{.Name}}Points) Len() int { return len(a.Timestamps) }
+
+func (a {{.Name}}Points) Less(i, j int) bool { return a.Timestamps[i] < a.Timestamps[j] }
+
+func (a {{.Name}}Points) Swap(i, j int) {
+	a.Timestamps[i], a.Timestamps[j] = a.Timestamps[j], a.Timestamps[i]
+	a.Values[i], a.Values[j] = a.Values[j], a.Values[i]
+}
+
+{{$type := print .name "S"}}
+type {{$type}} map[int64]{{.Type}}
+
+func {{.name}}F(points {{$type}}) datatypes.ReadResponse_Frame {
+	var block {{.Name}}Points
+	for t, v := range points {
+		block.Timestamps = append(block.Timestamps, t)
+		block.Values = append(block.Values, v)
+	}
+
+	sort.Sort(block)
+	pointsFrame := datatypes.ReadResponse_{{.Name}}PointsFrame(block)
+
+	return datatypes.ReadResponse_Frame{
+		Data: &datatypes.ReadResponse_Frame_{{.Name}}Points{
+			{{.Name}}Points: &pointsFrame,
+		},
+	}
+}
+{{end}}

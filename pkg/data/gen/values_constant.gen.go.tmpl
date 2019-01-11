@@ -1,0 +1,68 @@
+package gen
+
+import (
+	"time"
+
+	"github.com/influxdata/influxdb/tsdb/cursors"
+)
+
+{{range .}}
+type {{.Name}}ConstantValuesSequence struct {
+	vals  {{.Name}}Array
+	n     int
+	t     int64
+	state struct {
+		n int
+		t int64
+		d int64
+		v {{.Type}}
+	}
+}
+
+func New{{.Name}}ConstantValuesSequence(n int, start time.Time, delta time.Duration, v {{.Type}}) *{{.Name}}ConstantValuesSequence {
+	g := &{{.Name}}ConstantValuesSequence{
+		vals: *New{{.Name}}ArrayLen(cursors.DefaultMaxPointsPerBlock),
+	}
+	g.state.n = n
+	g.state.t = start.UnixNano()
+	g.state.d = int64(delta)
+	g.state.v = v
+	g.Reset()
+	return g
+}
+
+func (g *{{.Name}}ConstantValuesSequence) Reset() {
+	g.n = g.state.n
+	g.t = g.state.t
+}
+
+func (g *{{.Name}}ConstantValuesSequence) Next() bool {
+	if g.n == 0 {
+		return false
+	}
+
+	c := min(g.n, cursors.DefaultMaxPointsPerBlock)
+	g.n -= c
+	g.vals.Timestamps = g.vals.Timestamps[:c]
+	g.vals.Values = g.vals.Values[:c]
+
+	var (
+		t  = g.t
+		ts = g.vals.Timestamps
+		vs = g.vals.Values
+		d  = g.state.d
+	)
+	for i := 0; i < len(ts) && i < len(vs); i++ {
+		ts[i] = g.t
+		vs[i] = g.state.v
+		t += d
+	}
+	g.t = t
+
+	return true
+}
+
+func (g *{{.Name}}ConstantValuesSequence) Values() Values {
+	return &g.vals
+}
+{{end}}

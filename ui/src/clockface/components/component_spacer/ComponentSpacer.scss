@@ -1,0 +1,88 @@
+/*
+  Component Spacer Styles
+  ------------------------------------------------------------------------------
+*/
+
+.component-spacer {
+  display: flex;
+  flex-wrap: nowrap;
+
+  &.component-spacer--stretch-w {
+    width: 100%;
+  }
+
+  &.component-spacer--stretch-h {
+    height: 100%;
+  }
+}
+
+.component-spacer--left {
+  justify-content: flex-start;
+}
+
+.component-spacer--center {
+  justify-content: center;
+}
+
+.component-spacer--right {
+  justify-content: flex-end;
+}
+
+.component-spacer--horizontal {
+  flex-direction: row;
+  align-items: center;
+
+  &.component-spacer--left > * {
+    margin-right: $ix-marg-a;
+  
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+
+  &.component-spacer--center > * {
+    margin-left: ($ix-marg-a / 2);
+    margin-right: ($ix-marg-a / 2);
+  }
+
+  &.component-spacer--right > * {
+    margin-left: $ix-marg-a;
+  
+    &:first-child {
+      margin-left: 0;
+    }
+  }
+}
+
+.component-spacer--vertical {
+  flex-direction: column;
+
+  &.component-spacer--left {
+    align-items: flex-start;
+  }
+
+  &.component-spacer--left > * {
+    margin-bottom: $ix-marg-a;
+  
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &.component-spacer--center > * {
+    margin-top: ($ix-marg-a / 2);
+    margin-top: ($ix-marg-a / 2);
+  }
+
+  &.component-spacer--right {
+    align-items: flex-end;
+  }
+
+  &.component-spacer--right > * {
+    margin-top: $ix-marg-a;
+  
+    &:last-child {
+      margin-top: 0;
+    }
+  }
+}

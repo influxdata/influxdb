@@ -1,0 +1,49 @@
+{
+	"id": "4585a7db-73af-4ca1-9378-47ee67c71f99",
+	"measurement": "net",
+	"app": "system",
+	"autoflow": true,
+	"cells": [
+		{
+			"x": 0,
+			"y": 0,
+			"w": 4,
+			"h": 4,
+			"i": "e2f65d45-1898-4a16-860c-14b655575925",
+			"name": "System – Network Mb/s",
+			"queries": [
+				{
+					"query": "SELECT non_negative_derivative(max(\"bytes_recv\"), 1s) / 125000 as \"rx_megabits_per_second\" FROM \":db:\".\":rp:\".\"net\"",
+					"groupbys": [],
+					"wheres": [],
+					"label": "Mb/s"
+				},
+				{
+					"query": "SELECT non_negative_derivative(max(\"bytes_sent\"), 1s) / 125000 as \"tx_megabits_per_second\" FROM \":db:\".\":rp:\".\"net\"",
+					"groupbys": [],
+					"wheres": []
+				}
+			]
+		},
+		{
+			"x": 0,
+			"y": 0,
+			"w": 4,
+			"h": 4,
+			"i": "5e957624-b28b-4904-8068-5e7a9a058609",
+			"name": "System – Network Error Rate",
+			"queries": [
+				{
+					"query": "SELECT non_negative_derivative(max(\"err_in\"), 1s) / 125000 as \"tx_errors_per_second\" FROM \":db:\".\":rp:\".\"net\"",
+					"groupbys": [],
+					"wheres": []
+				},
+				{
+					"query": "SELECT non_negative_derivative(max(\"err_out\"), 1s) / 125000 as \"rx_errors_per_second\" FROM \":db:\".\":rp:\".\"net\"",
+					"groupbys": [],
+					"wheres": []
+				}
+			]
+		}
+	]
+}

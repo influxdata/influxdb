@@ -1,0 +1,23 @@
+/*
+  View Editor Overlay Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.veo {
+  width: calc(100% - #{$ix-marg-e});
+  height: calc(100% - #{$ix-marg-d});
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  @include gradient-v($g2-kevlar, $g0-obsidian);
+  border-radius: 0 0 $radius $radius;
+}
+
+.veo .time-machine {
+  padding: $page-gutter;
+  padding-top: 0;
+  padding-bottom: $ix-marg-c;
+  height: calc(100% - #{$page-header-size});
+}

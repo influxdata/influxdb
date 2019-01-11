@@ -1,0 +1,89 @@
+@import 'src/style/modules';
+
+/*
+  TextArea Styles
+  ------------------------------------------------------------------------------
+*/
+
+$text-area-bg: $g2-kevlar;
+$text-area-disabled-bg: $g3-castle;
+
+$text-area-text: $g15-platinum;
+$text-area-border: $g5-pepper;
+$text-area-hover-text: $g17-whisper;
+$text-area-hover-border: $g7-graphite;
+$text-area-focus-text: $g20-white;
+$text-area-focus-border: $c-pool;
+$text-area-disabled-text: $g9-mountain;
+
+$text-area-field-z: 1;
+$text-area-shadow-z: $text-area-field-z + 1;
+$text-area-status-z: $text-area-field-z + 2;
+
+.text-area--container { 
+    width: 100%; 
+    height: 100%;
+}
+.text-area {
+  position: relative;
+  padding:15px;
+  z-index: $text-area-field-z;
+  width: 100%; 
+  height: 100%;
+  font-weight: 600;
+  font-size: small;
+  resize: none;
+  font-family: $ix-text-font;
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    color 0.25s ease;
+  outline: none;
+  appearance: none;
+  border-radius: $radius;
+  background-color: $text-area-bg;
+  color: $text-area-text;
+  border: $ix-border solid $text-area-border;
+
+  &:hover {
+    border-color: $text-area-hover-border;
+    color: $text-area-hover-text;
+  }
+
+  &:focus {
+    color: $text-area-focus-text;
+    border-color: $text-area-focus-border;
+    box-shadow: 0 0 6px 0 $text-area-focus-border;
+  }
+
+  &[disabled],
+  &[disabled]:hover {
+    cursor: default;
+    border-color: $text-area-border;
+    background-color: $text-area-disabled-bg;
+    color: $text-area-disabled-text;
+    font-style: italic;
+  }
+
+  &::-webkit-text-area-placeholder {
+    color: $text-area-disabled-text;
+    font-weight: 600 !important;
+    font-style: italic;
+  }
+  &::-moz-placeholder {
+    color: $text-area-disabled-text;
+    font-weight: 600 !important;
+    font-style: italic;
+  }
+  &:-ms-text-area-placeholder {
+    color: $text-area-disabled-text;
+    font-weight: 600 !important;
+    font-style: italic;
+  }
+  &:-moz-placeholder {
+    color: $text-area-disabled-text;
+    font-weight: 600 !important;
+    font-style: italic;
+  }
+}

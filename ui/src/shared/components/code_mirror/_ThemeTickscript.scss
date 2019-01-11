@@ -1,0 +1,95 @@
+/*
+  CodeMirror "TICKscript" Theme
+  ------------------------------------------------------------------------------
+  Intended for use with the TICKscript CodeMirror Mode
+*/
+
+.cm-s-tickscript {
+  .cm-keyword {
+    color: $c-comet;
+  }
+
+  .cm-operator {
+    color: $c-dreamsicle;
+  }
+
+  .cm-variable-2 {
+    color: #80CBC4;
+  }
+
+  .cm-variable-3,
+  .cm-type {
+    color: $c-laser;
+  }
+
+  .cm-builtin {
+    color: #DECB6B;
+  }
+
+  .cm-atom {
+    color: $c-viridian;
+  }
+
+  .cm-number {
+    color: $c-daisy;
+  }
+
+  .cm-def {
+    color: rgba(233, 237, 237, 1);
+  }
+
+  .cm-string {
+    color: $c-krypton;
+  }
+
+  .cm-string-2 {
+    color: #80CBC4;
+  }
+
+  .cm-comment {
+    color: $g10-wolf;
+  }
+
+  .cm-variable {
+    color: $c-laser;
+  }
+
+  .cm-tag {
+    color: #80CBC4;
+  }
+
+  .cm-meta {
+    color: #80CBC4;
+  }
+
+  .cm-attribute {
+    color: #FFCB6B;
+  }
+
+  .cm-property {
+    color: #80CBAE;
+  }
+
+  .cm-qualifier {
+    color: #DECB6B;
+  }
+
+  .cm-variable-3,
+  .cm-type {
+    color: #DECB6B;
+  }
+
+  .cm-tag {
+    color: rgba(255, 83, 112, 1);
+  }
+
+  .cm-error {
+    color: rgba(255, 255, 255, 1.0);
+    background-color: #EC5F67;
+  }
+
+  .CodeMirror-matchingbracket {
+    text-decoration: underline;
+    color: white !important;
+  }
+}

@@ -1,0 +1,37 @@
+/*
+  Grid Sizer
+  ------------------------------------------------------------------------------
+*/
+
+
+.grid-sizer {
+  width: 100%;
+  display: inline-flex;
+  justify-content: center;
+  position: relative;
+}
+
+.grid-sizer--cells {
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.grid-sizer--cells:after {
+  clear: both;
+  content: "";
+  display: block;
+}
+
+.grid-sizer--cell {
+  float: left;
+  position: relative;
+}
+
+.grid-sizer--content {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  position: absolute;
+}

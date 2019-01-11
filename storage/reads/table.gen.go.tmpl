@@ -1,0 +1,253 @@
+package reads
+
+import (
+	"github.com/influxdata/flux/arrow"
+	"github.com/influxdata/flux/memory"
+	"sync"
+
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/pkg/errors"
+)
+{{range .}}
+//
+// *********** {{.Name}} ***********
+//
+
+type {{.name}}Table struct {
+	table
+	valBuf []{{.Type}}
+	mu     sync.Mutex
+	cur    cursors.{{.Name}}ArrayCursor
+}
+
+func new{{.Name}}Table(
+	done chan struct{},
+	cur cursors.{{.Name}}ArrayCursor,
+	bounds execute.Bounds,
+	key flux.GroupKey,
+	cols []flux.ColMeta,
+	tags models.Tags,
+	defs [][]byte,
+) *{{.name}}Table {
+	t := &{{.name}}Table{
+		table: newTable(done, bounds, key, cols, defs),
+		cur:   cur,
+	}
+	t.readTags(tags)
+	t.advance()
+
+	return t
+}
+
+func (t *{{.name}}Table) Close() {
+	t.mu.Lock()
+	if t.cur != nil {
+		t.cur.Close()
+		t.cur = nil
+	}
+	t.mu.Unlock()
+}
+
+func (t *{{.name}}Table) Statistics() flux.Statistics {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	cur := t.cur
+	if cur == nil {
+		return flux.Statistics{}
+	}
+	cs := cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
+}
+
+func (t *{{.name}}Table) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *{{.name}}Table) DoArrow(f func(flux.ArrowColReader) error) error {
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
+
+	if !t.Empty() {
+		t.err = f(t)
+		for !t.isCancelled() && t.err == nil && t.advance() {
+			t.err = f(t)
+		}
+	}
+
+	return t.err
+}
+
+func (t *{{.name}}Table) advance() bool {
+	a := t.cur.Next()
+	t.l = a.Len()
+	if t.l == 0 {
+		return false
+	}
+
+	if cap(t.timeBuf) < t.l {
+		t.timeBuf = make([]int64, t.l)
+	} else {
+		t.timeBuf = t.timeBuf[:t.l]
+	}
+	copy(t.timeBuf, a.Timestamps)
+
+	if cap(t.valBuf) < t.l {
+		t.valBuf = make([]{{.Type}}, t.l)
+	} else {
+		t.valBuf = t.valBuf[:t.l]
+	}
+	copy(t.valBuf, a.Values)
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
+	t.appendTags()
+	t.appendBounds()
+	return true
+}
+
+// group table
+
+type {{.name}}GroupTable struct {
+	table
+	valBuf []{{.Type}}
+	mu     sync.Mutex
+	gc     GroupCursor
+	cur    cursors.{{.Name}}ArrayCursor
+}
+
+func new{{.Name}}GroupTable(
+	done chan struct{},
+	gc GroupCursor,
+	cur cursors.{{.Name}}ArrayCursor,
+	bounds execute.Bounds,
+	key flux.GroupKey,
+	cols []flux.ColMeta,
+	tags models.Tags,
+	defs [][]byte,
+) *{{.name}}GroupTable {
+	t := &{{.name}}GroupTable{
+		table: newTable(done, bounds, key, cols, defs),
+		gc:    gc,
+		cur:   cur,
+	}
+	t.readTags(tags)
+	t.advance()
+
+	return t
+}
+
+func (t *{{.name}}GroupTable) Close() {
+	t.mu.Lock()
+	if t.cur != nil {
+		t.cur.Close()
+		t.cur = nil
+	}
+	if t.gc != nil {
+		t.gc.Close()
+		t.gc = nil
+	}
+	t.mu.Unlock()
+}
+
+func (t *{{.name}}GroupTable) Do(f func(flux.ColReader) error) error {
+	return t.DoArrow(func(cr flux.ArrowColReader) error {
+		return f(arrow.ColReader(cr))
+	})
+}
+
+func (t *{{.name}}GroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
+	t.mu.Lock()
+	defer func() {
+		t.closeDone()
+		t.mu.Unlock()
+	}()
+
+	if !t.Empty() {
+		t.err = f(t)
+		for !t.isCancelled() && t.err == nil && t.advance() {
+			t.err = f(t)
+		}
+	}
+
+	return t.err
+}
+
+func (t *{{.name}}GroupTable) advance() bool {
+RETRY:
+	a := t.cur.Next()
+	t.l = a.Len()
+	if t.l == 0 {
+		if t.advanceCursor() {
+			goto RETRY
+		}
+
+		return false
+	}
+
+	if cap(t.timeBuf) < t.l {
+		t.timeBuf = make([]int64, t.l)
+	} else {
+		t.timeBuf = t.timeBuf[:t.l]
+	}
+	copy(t.timeBuf, a.Timestamps)
+
+	if cap(t.valBuf) < t.l {
+		t.valBuf = make([]{{.Type}}, t.l)
+	} else {
+		t.valBuf = t.valBuf[:t.l]
+	}
+	copy(t.valBuf, a.Values)
+
+	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
+	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
+	t.appendTags()
+	t.appendBounds()
+	return true
+}
+
+func (t *{{.name}}GroupTable) advanceCursor() bool {
+	t.cur.Close()
+	t.cur = nil
+	for t.gc.Next() {
+		cur := t.gc.Cursor()
+		if cur == nil {
+			continue
+		}
+
+		if typedCur, ok := cur.(cursors.{{.Name}}ArrayCursor); !ok {
+			// TODO(sgc): error or skip?
+			cur.Close()
+			t.err = errors.Errorf("expected {{.name}} cursor type, got %T", cur)
+			return false
+		} else {
+			t.readTags(t.gc.Tags())
+			t.cur = typedCur
+			return true
+		}
+	}
+	return false
+}
+
+func (t *{{.name}}GroupTable) Statistics() flux.Statistics {
+	if t.cur == nil {
+		return flux.Statistics{}
+	}
+	cs := t.cur.Stats()
+	return flux.Statistics{
+		ScannedValues: cs.ScannedValues,
+		ScannedBytes:  cs.ScannedBytes,
+	}
+}
+
+{{end}}

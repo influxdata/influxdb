@@ -1,0 +1,10 @@
+.note-editor-container .overlay--container {
+  height: 80%;
+  max-height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+
+.note-editor-container .overlay--body {
+  height: 100%;
+}

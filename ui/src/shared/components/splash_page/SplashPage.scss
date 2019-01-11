@@ -1,0 +1,203 @@
+/*
+    Styles for Authorization Page
+    ----------------------------------------------------------------------------
+*/
+.auth-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  @include custom-scrollbar($g3-castle, $c-pool);
+  @include gradient-v($g3-castle, $g0-obsidian);
+  padding: $sidebar--width;
+}
+
+.auth-image {
+  background-image: url('../../assets/images/auth-bg.svg');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  z-index: 2;
+}
+
+.auth-box {
+  z-index: 90;
+  position: absolute;
+  top: 43%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  h1 {
+    color: $g20-white;
+    @include no-user-select();
+    font-weight: 200;
+    font-size: 52px;
+    letter-spacing: -2px;
+  }
+  p {
+    color: $g11-sidewalk;
+    @include no-user-select();
+  }
+
+  > .btn {
+    margin-top: 6px;
+    margin-bottom: 6px;
+
+    &:first-of-type {
+      margin-top: ($sidebar--width / 2);
+    }
+    &:last-child {
+      margin-bottom: $sidebar--width;
+    }
+
+    > .icon {
+      font-size: 20px;
+      margin-right: 8px;
+    }
+  }
+}
+
+.auth-logo {
+  background-image: url('../../assets/images/auth-logo.svg');
+  background-size: 100% 100%;
+  background-position: center center;
+  background-repeat: no-repeat;
+  width: 100px;
+  height: 100px;
+  display: inline-block;
+}
+
+.auth-credits {
+  @include no-user-select();
+  font-weight: 600;
+  z-index: 90;
+  position: absolute;
+  bottom: ($sidebar--width / 4);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: $g11-sidewalk;
+
+  .icon {
+    display: inline-block;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+    margin-right: 2px;
+  }
+
+  a {
+    color: $g10-wolf;
+    text-decoration: none;
+  }
+
+  a:hover, a:active {
+    color: $c-pool;
+  }
+}
+
+/*
+    Styles for Purgatory Page
+    ----------------------------------------------------------------------------
+*/
+.auth--purgatory {
+  margin-top: 30px;
+  min-width: 400px;
+  background-color: $g3-castle;
+  border-radius: 4px;
+  min-height: 200px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  > h3 {
+    white-space: nowrap;
+  }
+  > p {
+    text-align: center;
+  }
+
+  hr {
+    width: 100%;
+  }
+}
+
+.auth--list {
+  margin-top: 30px;
+  width: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.auth--list-item {
+  height: 70px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: $g4-onyx;
+  border-radius: 4px;
+  margin: 2px 0;
+}
+.auth--list-info {
+  @include no-user-select();
+}
+.auth--list-org {
+  font-size: 17px;
+  font-weight: 400;
+  color: $g11-sidewalk;
+}
+.auth--list-role {
+  font-weight: 700;
+  color: $g13-mist;
+}
+
+.auth--list-item.current {
+  background-color: $g5-pepper;
+  width: calc(100% + 20px);
+  margin: 2px -10px;
+  padding: 0 30px;
+
+  > .auth--list-info > .auth--list-org,
+  > .auth--list-info > .auth--list-role {
+    color: $g20-white;
+  }
+}
+.auth--list-blocked {
+  font-size: 13px;
+  text-align: center;
+  font-style: italic;
+  color: $g9-mountain;
+  @include no-user-select();
+}
+
+.btn.auth--logout {
+  margin-top: 30px;
+}
+
+
+.auth-panel {
+  border-radius: $radius;
+  background-color: $g3-castle;
+  padding: 32px;
+  text-align: center;
+}
+
+.auth-heading {
+  font-size: 32px;
+  font-weight: 300;
+  margin-bottom: 32px;
+}

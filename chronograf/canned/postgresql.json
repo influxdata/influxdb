@@ -1,0 +1,72 @@
+{
+  "id": "0975a073-9eb8-471c-aaf2-692b65f9fe5c",
+  "measurement": "postgresql",
+  "app": "postgresql",
+  "autoflow": false,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 4,
+      "i": "b417bc9f-b16d-4691-91a7-85adfdd3e8ec",
+      "name": "PostgreSQL - Rows",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(mean(\"tup_fetched\")) AS \"fetched\", non_negative_derivative(mean(\"tup_returned\")) AS \"returned\", non_negative_derivative(mean(\"tup_inserted\")) AS \"inserted\", non_negative_derivative(mean(\"tup_updated\")) AS \"updated\" FROM \":db:\".\":rp:\".\"postgresql\"",
+          "groupbys": [
+            "db"
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 8,
+      "w": 12,
+      "h": 4,
+      "i": "230d5baa-9376-438c-9a55-6f97f8c68e69",
+      "name": "PostgreSQL - QPS",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(mean(\"xact_commit\")) AS \"xact_commit\" FROM \":db:\".\":rp:\".\"postgresql\"",
+          "groupbys": [
+            "db"
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 4,
+      "w": 6,
+      "h": 4,
+      "i": "4762130d-7005-467f-80ad-8c7f6dfe822e",
+      "name": "PostgreSQL - Buffers",
+      "queries": [
+        {
+          "query": "SELECT mean(\"buffers_alloc\") AS \"buffers_allocated\", mean(\"buffers_backend\") AS \"buffers_backend\", mean(\"buffers_backend_fsync\") AS \"buffers_backend_fsync\", mean(\"buffers_checkpoint\") AS \"buffers_checkpoint\", mean(\"buffers_clean\") AS \"buffers_clean\" FROM \":db:\".\":rp:\".\"postgresql\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 6,
+      "y": 4,
+      "w": 6,
+      "h": 4,
+      "i": "95e73bda-7527-4aca-89dd-109cb6bb4294",
+      "name": "PostgreSQL - Conflicts/Deadlocks",
+      "queries": [
+        {
+          "query": "SELECT mean(\"conflicts\") AS \"conflicts\", mean(\"deadlocks\") AS \"deadlocks\" FROM \":db:\".\":rp:\".\"postgresql\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+/*
+  Time Machine Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+$time-machine--controls-height: 62px;
+
+.time-machine {
+  height: 100%;
+  @include no-user-select();
+}
+
+.time-machine--top,
+.time-machine--bottom {
+  border-radius: $radius;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  background-color: $g3-castle;
+}
+
+.time-machine--top {
+  position: relative;
+}
+
+.time-machine--bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+
+.time-machine--bottom-tabs {
+  padding: $ix-marg-b 0;
+  width: 270px;
+}
+
+.time-machine--bottom-contents {
+  overflow: hidden;
+  width: 100%;
+  flex: 0 0 calc(100% - #{($ix-marg-b * 2) + $form-sm-height});
+}
+
+.time-machine--controls {
+  height: $time-machine--controls-height;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: $ix-marg-c;
+  justify-content: space-between;
+}
+
+.time-machine--controls .slide-toggle {
+  margin-right: $ix-marg-b;
+}
+
+.time-machine--view {
+  position: absolute;
+  top: $time-machine--controls-height;
+  right: 0;
+  bottom: 0;
+  left: 0;
+
+  > .single-stat {
+    border-radius: 0 0 $radius $radius;
+  }
+}

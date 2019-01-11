@@ -1,0 +1,81 @@
+/*
+    Styles for Log Viewer Page
+    ----------------------------------------------------------------------------
+*/
+
+$logs-viewer-graph-height: 170px;
+$logs-viewer-search-height: 46px; 
+$logs-viewer-filter-height: 40px;
+$logs-viewer-results-text-indent: 33px;
+$logs-viewer-gutter: 60px;
+
+.logs-viewer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+
+.logs-viewer--graph {
+  flex: 1 0 calc(100% - 38px);
+}
+
+.logs-viewer--search-bar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+  padding: 0 $logs-viewer-gutter;
+  height: $logs-viewer-search-height;
+  background-color: $g3-castle;
+}
+
+.logs-viewer--table-container {
+  padding: 0 $logs-viewer-gutter;
+  height: calc(
+    100% - #{$logs-viewer-search-height +
+      $logs-viewer-filter-height}
+  );
+  background-color: $g3-castle;
+}
+
+// Search Bar
+.logs-viewer--search-input {
+  flex: 1 0 0;
+  margin-right: $ix-marg-b;
+  position: relative;
+}
+.logs-viewer--search-dropdown {
+  margin-right: $ix-marg-b;
+}
+
+
+@keyframes resultsSpinner {
+  0% {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  100% {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
+.logs-viewer--results-spinner {
+  position: absolute;
+  top: 50%;
+  left: $logs-viewer-gutter + 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid $c-pool;
+  border-bottom-color: transparent;
+  animation: resultsSpinner 0.75s linear infinite;
+
+  & + .logs-viewer--results-text {
+    color: $c-pool;
+  }
+}
+
+
+// Play & Pause Toggle in Header
+.logs-viewer--mode-toggle {
+  margin-right: 10px;
+}

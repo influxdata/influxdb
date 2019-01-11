@@ -1,0 +1,126 @@
+/*
+   Overlays
+   -----------------------------------------------------------------------------
+*/
+
+$overlay-title-height: $chronograf-page-header-height;
+$overlay-gutter: 30px;
+$overlay-min-height: 150px;
+
+
+/*
+    Overlay Technology Styles
+    ----------------------------------------------------------------------------
+*/
+
+%overlay-styles {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+.overlay--mask {
+  @extend %overlay-styles;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  @include gradient-diag-down($c-pool,$c-comet);
+}
+
+.overlay--dialog {
+  height: 100%;
+  position: relative;
+  z-index: 2;
+  transform: translateY(72px);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+}
+
+.overlay-tech {
+  @extend %overlay-styles;
+  visibility: hidden;
+  transition: all 0.25s ease;
+  z-index: $z--overlays;
+
+  &.show {
+    visibility: visible;
+  }
+}
+
+// Open State
+.overlay-tech.show {
+  .overlay--mask {
+    opacity: 0.7;
+  }
+  .overlay--dialog {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.overlay--container {
+  margin: 40px auto;
+  @include gradient-v($g3-castle, $g2-kevlar);
+  border-radius: $radius;
+}
+
+.overlay--heading {
+  height: 80px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 $overlay-gutter;
+  @include no-user-select();
+}
+
+.overlay--title {
+  font-size: 19px;
+  font-weight: 400;
+  color: $g17-whisper;
+  white-space: nowrap;
+}
+
+.overlay--dismiss {
+  width: ($overlay-title-height - 20px);
+  height: ($overlay-title-height - 20px);
+  position: relative;
+  background-color: transparent;
+  border: 0;
+  outline: none;
+
+  /* Use psuedo elements to render the X */
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: calc(50% + 10px);
+    width: 22px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g11-sidewalk;
+    transition: background-color 0.25s ease;
+  }
+  &:before {
+    transform: translate(-50%,-50%) rotate(45deg);
+  }
+  &:after {
+    transform: translate(-50%,-50%) rotate(-45deg);
+  }
+  /* Hover State */
+  &:hover {
+    cursor: pointer;
+  }
+  &:hover:before,
+  &:hover:after {
+    background-color: $g18-cloud;
+  }
+}
+
+.overlay--body {
+  padding: $overlay-gutter;
+  padding-top: 18px; 
+  min-height: $overlay-min-height;
+}

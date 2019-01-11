@@ -1,0 +1,16 @@
+/*
+  Auto Input Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.auto-input {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.auto-input--input {
+  padding-top: $ix-marg-a;
+}

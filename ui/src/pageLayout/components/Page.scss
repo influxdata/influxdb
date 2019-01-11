@@ -1,0 +1,101 @@
+/*
+   Page Styles
+   -----------------------------------------------------------------------------
+*/
+
+.page {
+  width: 100%;
+  flex: 1 0 calc(100% - #{$nav-size});
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+@media screen and (min-width: $nav-breakpoint) {
+  .page {
+    width: auto;
+    height: 100%;
+  }
+}
+
+.page-header {
+  height: $page-header-size;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.page-header--container {
+  display: flex;
+  padding: 0 $page-gutter;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  width: 100%;
+  max-width: $page-max-width;
+}
+
+.page-header.full-width .page-header--container {
+  max-width: 100%;
+}
+
+.page-header--left,
+.page-header--right {
+  display: flex;
+  align-items: center;
+}
+
+.page-header--left {
+  justify-content: flex-start;
+  > * {
+    margin: 0 4px 0 0;
+  }
+}
+
+.page-header--right {
+  justify-content: flex-end;
+  > * {
+    margin: 0 0 0 4px !important;
+
+    &:only-child {
+      margin-right: 0 !important;
+    }
+  }
+}
+
+.page--title {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: $page-title-size;
+  font-weight: $page-title-weight;
+  margin: 0;
+  display: inline-block;
+  @include no-user-select();
+  cursor: default;
+}
+
+.page-contents {
+  height: calc(100% - #{$page-header-size}) !important;
+
+  &.full-width {
+    padding: 0 $page-gutter;
+  }
+}
+
+.container-fluid {
+  margin: 0 auto;
+  padding: $page-gutter;
+  padding-top: 0;
+  max-width: $page-max-width;
+
+  &.full-width {
+    max-width: 100%;
+  }
+}
+
+/* Presentation Mode */
+.page-contents.presentation-mode {
+  height: 100% !important;
+
+  .container-fluid {padding: 8px}
+}

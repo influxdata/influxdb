@@ -1,0 +1,47 @@
+@import "src/style/modules";
+
+.note-editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  .note-editor-text, .note-editor-preview {
+    flex: 1 1 0;
+    border-width: $ix-border;
+    border-style: solid;
+    border-radius: $ix-radius;
+  }
+
+  .note-editor-text {
+    border-color: $g5-pepper;
+  }
+
+  .note-editor-preview {
+    border-color: $g4-onyx;
+    padding: $ix-marg-b * 2;
+  }
+}
+
+.note-editor--controls {
+  margin-bottom: $ix-marg-c;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  &.centered {
+    justify-content: center;
+  }
+}
+
+.note-editor--toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.note-editor--footer {
+  font-size: 13px;
+  font-weight: 600;
+  color: $g11-sidewalk;
+  margin-top: $ix-marg-b;
+}

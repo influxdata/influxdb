@@ -1,0 +1,23 @@
+.script-snippet--container {
+  position: relative;
+  margin: $ix-marg-a 0;
+  padding: $ix-marg-a $ix-marg-c;
+  font-family: 'RobotoMono', monospace;
+  background-color: $g4-onyx;
+  border-radius: $ix-radius;
+  height: 100%;
+}
+
+.copy-button {
+  position: absolute;
+  right: $ix-marg-b;
+  top: calc(50% - 15px);
+  opacity: 0;
+  transition: opacity .2s ease-in-out;
+}
+
+.script-snippet--container:hover {
+  .copy-button {
+    opacity: 1;
+  }
+}

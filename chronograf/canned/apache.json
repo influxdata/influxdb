@@ -1,0 +1,62 @@
+{
+  "id": "6dfb4d49-20dc-4157-9018-2b1b1cb75c2d",
+  "measurement": "apache",
+  "app": "apache",
+  "autoflow": false,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "0246e457-916b-43e3-be99-211c4cbc03e8",
+      "name": "Apache Bytes/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"BytesPerSec\")) AS \"bytes_per_sec\" FROM \":db:\".\":rp:\".\"apache\"",
+          "label": "bytes/s",
+          "groupbys": [
+            "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 4,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "37f2e4bb-9fa5-4891-a424-9df5ce7458bb",
+      "name": "Apache - Requests/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"ReqPerSec\")) AS \"req_per_sec\" FROM \":db:\".\":rp:\".\"apache\"",
+          "label": "requests/s",
+          "groupbys": [
+            "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 8,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "ea9174b3-2b56-4e80-a37d-064507c6775a",
+      "name": "Apache - Total Accesses",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"TotalAccesses\")) AS \"tot_access\" FROM \":db:\".\":rp:\".\"apache\"",
+          "label": "accesses/s",
+          "groupbys": [
+            "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

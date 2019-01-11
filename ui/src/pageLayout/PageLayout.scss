@@ -1,0 +1,28 @@
+/*
+   Page Layout Styles
+   -----------------------------------------------------------------------------
+*/
+
+@import "src/style/modules";
+
+.chronograf-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  color: $g17-whisper;
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+}
+
+@media screen and (min-width: $nav-breakpoint) {
+  .chronograf-root {
+    flex-direction: row;
+  }
+}
+
+@import 'components/Nav';
+@import 'components/Page';

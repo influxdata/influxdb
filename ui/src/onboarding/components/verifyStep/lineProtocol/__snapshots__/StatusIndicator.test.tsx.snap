@@ -1,0 +1,25 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`StatusIndicator rendering renders! 1`] = `
+<Fragment>
+  <div
+    className="wizard-step--top-container"
+  >
+    <div
+      className="wizard-step--sparkle-container"
+    >
+      <SparkleSpinner
+        loading="NotStarted"
+      />
+    </div>
+  </div>
+  <div
+    className="wizard-step--footer"
+  >
+    <div
+      className="wizard-step--text-state"
+    />
+  </div>
+  <br />
+</Fragment>
+`;

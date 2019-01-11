@@ -1,0 +1,51 @@
+// +build OMIT
+package server
+
+import (
+	"bufio"
+	"bytes"
+	"io"
+	"net/http"
+
+	"github.com/influxdata/influxdb/chronograf"
+)
+
+// URLPrefixer is a wrapper for an http.Handler that will prefix all occurrences of a relative URL with the configured Prefix
+type URLPrefixer struct {
+	Prefix string            // the prefix to be appended after any detected Attrs
+	Next   http.Handler      // the http.Handler which will generate the content to be modified by this handler
+	Attrs  [][]byte          // a list of attrs that should have their URLs prefixed. For example `src="` or `href="` would be valid
+}
+
+func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	...
+	// Read next handler's response byte by byte
+	src := bufio.NewScanner(nextRead)
+	src.Split(bufio.ScanBytes)
+	for {
+		window := buf.Bytes()
+		if matchlen, match := up.match(window, up.Attrs...); matchlen != 0 {
+			buf.Next(matchlen) // advance to the relative URL
+			for i := 0; i < matchlen; i++ {
+				src.Scan()
+				buf.Write(src.Bytes())
+			}
+			rw.Write(match)               // add the src attr to the output
+			io.WriteString(rw, up.Prefix) // write the prefix
+		} else {...}
+	}
+}
+
+func NewDefaultURLPrefixer(prefix string, next http.Handler) *URLPrefixer {
+	return &URLPrefixer{
+		Prefix: prefix,
+		Next:   next,
+		Logger: lg,
+		Attrs: [][]byte{
+			[]byte(`src="`),
+			[]byte(`href="`),
+			[]byte(`url(`),
+			[]byte(`data-basepath="`), // for forwarding basepath to frontend
+		},
+	}
+}

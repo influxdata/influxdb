@@ -1,0 +1,25 @@
+{
+  "id": "4a805493-f7ef-4da0-8de8-e78afd899722",
+  "measurement": "mem",
+  "app": "system",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "e6e5063c-43d5-409b-a0ab-68da51ed3f28",
+      "name": "System - Memory Gigabytes Used",
+      "queries": [
+        {
+          "query": "SELECT mean(\"used\") / 1073741824 AS \"used\", mean(\"available\") / 1073741824 AS \"available\" FROM \":db:\".\":rp:\".\"mem\"",
+          "label": "GB",
+          "groupbys": [],
+          "wheres": []
+        }
+      ],
+      "type": "line-stacked"
+    }
+  ]
+}

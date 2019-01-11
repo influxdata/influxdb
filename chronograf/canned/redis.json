@@ -1,0 +1,64 @@
+{
+  "id": "793e6cca-7d7f-48e4-8db2-7b81761cc6ff",
+  "measurement": "redis",
+  "app": "redis",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "9c168ac8-2985-4883-bdf2-938ea9f065b9",
+      "name": "Redis - Connected Clients",
+      "queries": [
+        {
+          "query": "SELECT mean(\"clients\") AS \"clients\" FROM \":db:\".\":rp:\".\"redis\"",
+          "groupbys": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "9c168ac8-2985-4883-bdf2-938ea9f065a0",
+      "name": "Redis - Blocked Clients",
+      "queries": [
+        {
+          "query": "SELECT mean(\"blocked_clients\") AS \"blocked_clients\" FROM \":db:\".\":rp:\".\"redis\"",
+          "groupbys": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "9c168ac8-2985-4883-bdf2-938ea9f065b1",
+      "name": "Redis - CPU",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"used_cpu_user\")) AS \"used_cpu_per_second\" FROM \":db:\".\":rp:\".\"redis\"",
+          "groupbys": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "9c168ac8-2985-4883-bdf2-938ea9f065b2",
+      "name": "Redis - Memory",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"used_memory\")) AS \"used_memory_per_second\" FROM \":db:\".\":rp:\".\"redis\"",
+          "groupbys": []
+        }
+      ]
+    }
+  ]
+}

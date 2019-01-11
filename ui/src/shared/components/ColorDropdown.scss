@@ -1,0 +1,12 @@
+.color-dropdown--item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.color-dropdown--swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-right: 5px;
+}

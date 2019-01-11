@@ -1,0 +1,104 @@
+package slices
+
+import "bytes"
+
+{{with $types := .}}{{range $k := $types}}
+
+// Merge uses a k-way merge to merge n collections of sorted byte slices.
+//
+// The resulting slice is returned in ascending order, with any duplicate values
+// removed.
+func MergeSorted{{$k.Name}}(n ...[]{{$k.Type}}) []{{$k.Type}} {
+	var result []{{$k.Type}}
+	if len(n) == 0 {
+		return nil
+	} else if len(n) == 1 {
+		// Special case. Merge single slice with a nil slice, to remove any
+		// duplicates from the single slice.
+		return MergeSorted{{$k.Name}}(n[0], nil)
+	}
+
+	var maxSize int
+	for _, a := range n {
+		if len(a) > maxSize {
+			maxSize = len(a)
+		}
+	}
+	result = make([]{{$k.Type}}, 0, maxSize) // This will likely be too small but it's a start.
+
+	idxs := make([]int, len(n)) // Indexes we've processed.
+	var j int                   // Index we currently think is minimum.
+{{if eq $k.Name "Bytes" }}
+	var cmp int                 // Result of comparing most recent value.
+{{end}}
+	for {
+		j = -1
+
+		// Find the smallest minimum in all slices.
+		for i := 0; i < len(n); i++ {
+			if idxs[i] >= len(n[i]) {
+				continue // We have completely drained all values in this slice.
+			} else if j == -1 {
+				// We haven't picked the minimum value yet. Pick this one.
+				j = i
+				continue
+			}
+
+			// It this value key is lower than the candidate.
+{{if eq $k.Name "Bytes" }}
+            cmp = bytes.Compare(n[i][idxs[i]], n[j][idxs[j]])
+			if cmp == -1 {
+				j = i
+			} else if cmp == 0 {
+				// Duplicate value. Throw it away.
+				idxs[i]++
+			}
+{{else}}
+			if n[i][idxs[i]] < n[j][idxs[j]] {
+				j = i
+			} else if n[i][idxs[i]] == n[j][idxs[j]] {
+				// Duplicate value. Throw it away.
+				idxs[i]++
+			}
+{{end}}
+		}
+
+		// We could have drained all of the values and be done...
+		if j == -1 {
+			break
+		}
+
+		// First value to just append it and move on.
+		if len(result) == 0 {
+			result = append(result, n[j][idxs[j]])
+			idxs[j]++
+			continue
+		}
+
+		// Append the minimum value to results if it's not a duplicate of
+		// the existing one.
+{{if eq $k.Name "Bytes" }}
+            cmp = bytes.Compare(result[len(result)-1], n[j][idxs[j]])
+			if cmp == -1 {
+				result = append(result, n[j][idxs[j]])
+			} else if cmp == 0 {
+				// Duplicate so drop it.
+			}  else {
+                panic("value being merged out of order.")
+            }
+{{else}}
+			if result[len(result)-1] < n[j][idxs[j]] {
+				result = append(result, n[j][idxs[j]])
+			} else if result[len(result)-1] == n[j][idxs[j]] {
+				// Duplicate so drop it.
+			} else {
+                panic("value being merged out of order.")
+            }
+{{end}}
+			idxs[j]++
+	}
+	return result
+}
+
+
+{{end}}{{end}}

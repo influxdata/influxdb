@@ -1,0 +1,164 @@
+/*
+  Cell Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+$cell--header-size: 36px;
+
+.cell {
+  background-color: $g3-castle;
+  border-radius: $radius;
+  transform: translate3d(0,0,0); // gpu boost
+}
+
+.cell--view {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  padding-top: $cell--header-size;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  left: 0;
+  z-index: $z--cell-view;
+
+  > .single-stat {
+    border-radius: 0 0 $radius $radius;
+  }
+}
+
+.cell--view-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-content: center;
+  color: $empty-state-text;
+  @extend %no-user-select;
+}
+
+.cell--header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: $cell--header-size;
+  z-index: $z--cell-header;
+}
+
+.cell--draggable:hover {
+  cursor: move;
+}
+
+.cell--context {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  padding: 4px;
+  height: $cell--header-size;
+  z-index: $z--cell-context;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.cell--name {
+  z-index: 3;
+  font-size: 13px;
+  line-height: 13px;
+  font-weight: 600;
+  position: absolute;
+  top: 50%;
+  padding: 0 10px;
+  transform: translateY(-50%);
+  width: 100%;
+  pointer-events: none;
+  
+  .cell--header-note & {
+    padding-left: $cell--header-size;
+  }
+}
+
+.cell--note-indicator {
+  position: absolute;
+  width: $cell--header-size;
+  height: $cell--header-size;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  cursor: default;
+  color: $g20-white;
+  opacity: 0.5;
+  transition: opacity 0.25s ease;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  & > span.icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.cell--header-bar {
+  position: absolute;
+  z-index: 1;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  top: 4px;
+  left: 4px;
+  background-color: rgba($g20-white, 0.1);
+  border-radius: $radius-small;
+  opacity: 0;
+  transition: 0.25s opacity ease;
+
+  &:after {
+    opacity: 0;
+    transition: 0.25s opacity ease;
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: $radius-small;
+    @include gradient-h($c-pool, mix($c-pool, $c-comet));
+  }
+}
+
+/* Hover State */
+.cell:hover {
+  .cell--context {
+    opacity: 1;
+  }
+  .cell--header-bar {
+    opacity: 0.6;
+  }
+  .cell--header:hover .cell--header-bar {
+    opacity: 1;
+  }
+}
+
+/* Drag & Resize State */
+.react-grid-item.resizing,
+.react-grid-item.react-draggable-dragging {
+  .cell--header-bar,
+  .cell--header-bar:after {
+    opacity: 1;
+  }
+  .cell--context {
+    opacity: 0;
+  }
+}
+
+/* Presentation Mode */
+.presentation-mode {
+  .cell--context {
+    display: none;
+  }
+}

@@ -1,0 +1,19 @@
+/*
+  Auto Refresh Dropdown
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.autorefresh-dropdown {
+  display: flex;
+  flex-wrap: nowrap;
+
+  &.paused .dropdown--selected {
+    opacity: 0;
+  }
+}
+
+.autorefresh-dropdown--pause {
+  margin-left: $ix-marg-a;
+}

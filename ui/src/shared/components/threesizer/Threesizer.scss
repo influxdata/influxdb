@@ -1,0 +1,226 @@
+/*
+  Resizable Container with 3 divisions
+  ------------------------------------------------------------------------------
+*/
+
+.threesizer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  &.dragging .threesizer--division {
+    @include no-user-select();
+    pointer-events: none;
+  }
+  &.vertical {
+    flex-direction: row;
+  }
+  &.horizontal {
+    flex-direction: column;
+  }
+}
+
+.threesizer--division {
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  transition: height 0.25s ease-in-out, width 0.25s ease-in-out;
+  &.dragging {
+    transition: none;
+  }
+  &.vertical {
+    flex-direction: row;
+  }
+  &.horizontal {
+    flex-direction: column;
+  }
+}
+
+/* Draggable Handle With Title */
+
+.threesizer--handle {
+  @include no-user-select();
+  background-color: $g4-onyx;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  &.vertical {
+    border-right: solid 2px $g3-castle;
+    &:hover,
+    &.dragging {
+      cursor: col-resize;
+    }
+  }
+  &.horizontal {
+    border-bottom: solid 2px $g3-castle;
+    &:hover,
+    &.dragging {
+      cursor: row-resize;
+    }
+  }
+  &:hover {
+    &.disabled {
+      cursor: pointer;
+    }
+    color: $g16-pearl;
+    background-color: $g5-pepper;
+  }
+  &.dragging {
+    color: $c-laser;
+    background-color: $g5-pepper;
+  }
+}
+
+.threesizer--title {
+  padding-left: 14px;
+  position: relative;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: $g11-sidewalk;
+  z-index: 1;
+  transition: transform 0.25s ease, letter-spacing 0.25s ease;
+  &.vertical {
+    transform: translate(20px, 14px);
+    &.threesizer--collapsed {
+      transform: translate(0, 5px) rotate(90deg) scale(0.75);
+      letter-spacing: 0.15em;
+    }
+  }
+}
+
+$threesizer-shadow-size: 9px;
+$threesizer-z-index: 2;
+$threesizer-shadow-start: fade-out($g0-obsidian, 0.82);
+$threesizer-shadow-stop: fade-out($g0-obsidian, 1);
+.threesizer--contents {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  position: relative;
+  &.horizontal {
+    flex-direction: row;
+  }
+  &.vertical {
+    flex-direction: column;
+  } // Bottom Shadow
+  &.horizontal:after,
+  &.vertical:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    z-index: $threesizer-z-index;
+  }
+  &.horizontal:after {
+    width: 100%;
+    height: $threesizer-shadow-size;
+    @include gradient-v($threesizer-shadow-stop, $threesizer-shadow-start);
+  }
+  &.vertical:after {
+    height: 100%;
+    width: $threesizer-shadow-size;
+    @include gradient-h($threesizer-shadow-stop, $threesizer-shadow-start);
+  }
+}
+
+// Hide bottom shadow on last division
+.threesizer--contents.no-shadows:before,
+.threesizer--contents.no-shadows:after,
+.threesizer--division:last-child .threesizer--contents:after {
+  content: none;
+  display: none;
+}
+
+// Header
+.threesizer--header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 11px;
+  background-color: $g2-kevlar;
+  .horizontal>& {
+    width: 44px;
+    border-right: 2px solid $g4-onyx;
+  }
+  .vertical>& {
+    height: 44px;
+    border-bottom: 2px solid $g4-onyx;
+  }
+}
+
+.threesizer--header-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: $g11-sidewalk;
+  padding-left: 4px;
+  padding-right: 2px;
+}
+
+.threesizer--header-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+
+  > * {
+    margin-left: 4px;
+  }
+}
+
+.threesizer--body {
+  position: relative;
+
+  .horizontal>&:only-child {
+    width: 100%;
+  }
+  .vertical>&:only-child {
+    height: 100%;
+  }
+  .threesizer--header+& {
+    flex: 1 1 0;
+    overflow: hidden;
+  }
+}
+
+// Division context menus
+.threesizer-context--buttons {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+// Header Dropdown Menu
+.threesizer--menu {
+  .dropdown-menu {
+    right: 0;
+  }
+}
+
+// Hide Header children when collapsed
+.threesizer--handle.vertical.threesizer--collapsed+.threesizer--contents>.threesizer--header>* {
+  display: none;
+}
+
+// When threesizer has horizontal handles, division headers appear inside
+// the drag handle and styles must adapt
+.threesizer--handle.horizontal.named {
+  background-color: transparent;
+  border: 0;
+
+  .threesizer--header {
+    border-right: 0;
+    border-bottom: 2px solid $g4-onyx;
+    width: 100%;
+    height: 100%;
+    justify-content: space-between;
+    transition: background-color 0.25s ease;
+  } 
+
+  &:hover .threesizer--header,
+  &.dragging .threesizer--header {
+    background-color: $g3-castle;
+  }
+}

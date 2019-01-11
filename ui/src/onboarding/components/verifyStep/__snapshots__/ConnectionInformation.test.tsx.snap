@@ -1,0 +1,53 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Onboarding.Components.ConnectionInformation matches snapshot if error 1`] = `
+<Fragment>
+  <h4
+    className="wizard-step--text-state error"
+  >
+    Error Listening for Data
+  </h4>
+  <p>
+    Check config and try again
+  </p>
+</Fragment>
+`;
+
+exports[`Onboarding.Components.ConnectionInformation matches snapshot if loading 1`] = `
+<Fragment>
+  <h4
+    className="wizard-step--text-state loading"
+  >
+    Awaiting Connection...
+  </h4>
+  <p>
+    Timeout in 60 seconds
+  </p>
+</Fragment>
+`;
+
+exports[`Onboarding.Components.ConnectionInformation matches snapshot if no data is found 1`] = `
+<Fragment>
+  <h4
+    className="wizard-step--text-state error"
+  >
+    Data Not Found
+  </h4>
+  <p>
+    Check config and try again
+  </p>
+</Fragment>
+`;
+
+exports[`Onboarding.Components.ConnectionInformation matches snapshot if success 1`] = `
+<Fragment>
+  <h4
+    className="wizard-step--text-state success"
+  >
+    Connection Found!
+  </h4>
+  <p>
+    defbuck is receiving data loud and clear!
+  </p>
+</Fragment>
+`;

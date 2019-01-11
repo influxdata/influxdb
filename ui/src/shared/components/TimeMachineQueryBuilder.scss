@@ -1,0 +1,60 @@
+@import "src/style/modules";
+
+.query-builder {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  @include no-user-select();
+  background: $g3-castle;
+}
+
+.query-builder--buttons {
+  display: flex;
+  justify-content: flex-start;
+
+  > .form--element {
+    width: 200px;
+    margin-right: 5px;
+  }
+}
+
+.query-builder--cards {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.query-builder--tag-selectors {
+  display: flex;
+  flex-wrap: nowrap;
+  flex: 1 1 0;
+  height: 100%;
+
+  .tag-selector {
+    margin-right: 5px;
+    flex: 0 0 250px;
+
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+}
+
+.query-builder .function-selector {
+  flex: 0 0 250px;
+  margin-left: 10px;
+}
+
+button.query-builder--add-tag-selector {
+  height: 100%;
+  background-color: $g4-onyx;
+  border-color: $g4-onyx;
+  margin-right: 5px;
+  flex-grow: 0;
+  flex-shrink: 0;
+}
