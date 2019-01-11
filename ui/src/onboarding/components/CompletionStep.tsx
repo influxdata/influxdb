@@ -29,7 +29,7 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
         <div>
           <Button
             color={ComponentColor.Default}
-            text="Back to Verify"
+            text="Previous"
             size={ComponentSize.Large}
             onClick={onDecrementCurrentStepIndex}
           />

@@ -158,7 +158,6 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
             </FancyScrollbar>
           </div>
           <OnboardingButtons
-            nextButtonText={this.nextButtonText}
             nextButtonStatus={this.nextButtonStatus}
             autoFocusNext={false}
           />
@@ -221,13 +220,6 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
       bucket &&
       !isPassMismatched
     )
-  }
-
-  private get nextButtonText(): string {
-    if (this.areInputsValid) {
-    }
-    return 'Continue to Data Source Selection'
-    return 'All fields are required to continue'
   }
 
   private get passwordStatus(): ComponentStatus {

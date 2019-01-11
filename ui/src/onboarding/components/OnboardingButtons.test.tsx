@@ -22,8 +22,8 @@ const setup = (override = {}) => {
 describe('Onboarding.Components.OnboardingButtons', () => {
   describe('rendering', () => {
     it('renders next and back buttons with the correct text', () => {
-      const nextButtonText = 'Next'
-      const backButtonText = 'Back'
+      const nextButtonText = 'Continue'
+      const backButtonText = 'Previous'
       const onClickBack = jest.fn()
 
       const {wrapper} = setup({

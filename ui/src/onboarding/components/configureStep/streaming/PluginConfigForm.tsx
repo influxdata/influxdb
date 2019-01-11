@@ -66,8 +66,6 @@ class PluginConfigForm extends PureComponent<Props> {
         <OnboardingButtons
           onClickBack={onClickPrevious}
           onClickSkip={onClickSkip}
-          backButtonText={this.backButtonText}
-          nextButtonText={this.nextButtonText}
           showSkip={true}
           skipButtonText={'Skip to Verify'}
           autoFocusNext={this.autoFocus}
@@ -78,28 +76,6 @@ class PluginConfigForm extends PureComponent<Props> {
   private get autoFocus(): boolean {
     const {configFields} = this.props
     return !configFields
-  }
-
-  private get nextButtonText(): string {
-    const {telegrafPlugins, currentIndex} = this.props
-
-    if (currentIndex + 1 > telegrafPlugins.length - 1) {
-      return 'Continue to Verify'
-    }
-    return `Continue to ${_.startCase(
-      _.get(telegrafPlugins, `${currentIndex + 1}.name`)
-    )}`
-  }
-
-  private get backButtonText(): string {
-    const {telegrafPlugins, currentIndex} = this.props
-
-    if (currentIndex < 1) {
-      return 'Back to Select Streaming Sources'
-    }
-    return `Back to ${_.startCase(
-      _.get(telegrafPlugins, `${currentIndex - 1}.name`)
-    )}`
   }
 }
 

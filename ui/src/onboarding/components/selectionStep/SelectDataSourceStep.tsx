@@ -87,8 +87,6 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
           <OnboardingButtons
             onClickBack={this.handleClickBack}
             onClickSkip={this.jumpToCompletionStep}
-            nextButtonText={this.nextButtonText}
-            backButtonText={this.backButtonText}
             skipButtonText={'Skip to Complete'}
             autoFocusNext={true}
             nextButtonStatus={this.nextButtonStatus}
@@ -113,37 +111,6 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
     }
 
     return ComponentStatus.Default
-  }
-
-  private get nextButtonText(): string {
-    const {type, telegrafPlugins} = this.props
-
-    switch (type) {
-      case DataLoaderType.CSV:
-        return 'Continue to CSV Configuration'
-      case DataLoaderType.Streaming:
-        if (this.isStreaming) {
-          if (telegrafPlugins.length) {
-            return `Continue to ${_.startCase(telegrafPlugins[0].name)}`
-          }
-          return 'Continue to Plugin Configuration'
-        }
-        return 'Continue to Streaming Selection'
-      case DataLoaderType.LineProtocol:
-        return 'Continue to Line Protocol Configuration'
-      case DataLoaderType.Empty:
-        return 'Continue to Configuration'
-    }
-  }
-
-  private get backButtonText(): string {
-    if (this.props.type === DataLoaderType.Streaming) {
-      if (this.isStreaming) {
-        return 'Back to Data Source Selection'
-      }
-    }
-
-    return 'Back to Admin Setup'
   }
 
   private get title(): string {

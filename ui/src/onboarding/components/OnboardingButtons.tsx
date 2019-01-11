@@ -8,26 +8,25 @@ import {
   ComponentStatus,
 } from 'src/clockface'
 
-interface Props extends DefaultProps {
+interface Props {
   onClickBack?: () => void
-  nextButtonText: string
+  skipButtonText?: string
+  nextButtonText?: string
   backButtonText?: string
   onClickSkip?: () => void
-}
-
-interface DefaultProps {
   nextButtonStatus?: ComponentStatus
   showSkip?: boolean
   autoFocusNext?: boolean
-  skipButtonText?: string
 }
 
 class OnboardingButtons extends PureComponent<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps: Props = {
     nextButtonStatus: ComponentStatus.Default,
     showSkip: false,
     autoFocusNext: true,
     skipButtonText: 'Skip',
+    backButtonText: 'Previous',
+    nextButtonText: 'Continue',
   }
 
   private submitRef: RefObject<Button> = React.createRef()
