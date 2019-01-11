@@ -6,7 +6,7 @@ v1.7.3 [2019-01-11]
 -	[#10584](https://github.com/influxdata/influxdb/pull/10584): Fix invalid UTF-8 bytes preventing shard opening.Treat fields and measurements as raw bytes.
 -	[#10593](https://github.com/influxdata/influxdb/pull/10593): Limit force-full and cold compaction size.
 -	[#10596](https://github.com/influxdata/influxdb/pull/10596): Add user authentication and authorization support for Flux HTTP requests.
--	[#10598](https://github.com/influxdata/influxdb/pull/10598): Call storage.Group API to correctly map group mode. 
+-	[#10598](https://github.com/influxdata/influxdb/pull/10598): Call storage.Group API to correctly map group mode.
 -	[#10950](https://github.com/influxdata/influxdb/pull/10950): Marked functions that always return floats as always returning floats.
 -	[#10998](https://github.com/influxdata/influxdb/pull/10998): Add support for optionally logging Flux queries.
 
