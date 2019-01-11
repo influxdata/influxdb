@@ -9,6 +9,7 @@ v1.7.3 [2019-01-11]
 -	[#10598](https://github.com/influxdata/influxdb/pull/10598): Call storage.Group API to correctly map group mode.
 -	[#10950](https://github.com/influxdata/influxdb/pull/10950): Marked functions that always return floats as always returning floats.
 -	[#10998](https://github.com/influxdata/influxdb/pull/10998): Add support for optionally logging Flux queries.
+-	[#11002](https://github.com/influxdata/influxdb/pull/11002): Fix cardinality estimation error.
 
 ### Features
 
