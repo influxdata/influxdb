@@ -628,6 +628,7 @@ func (p *Partition) DropMeasurement(name []byte) error {
 	// Delete all series.
 	if itr := fs.MeasurementSeriesIDIterator(name); itr != nil {
 		defer itr.Close()
+		var total uint64
 		for {
 			elem, err := itr.Next()
 			if err != nil {
@@ -638,7 +639,15 @@ func (p *Partition) DropMeasurement(name []byte) error {
 			if err := p.activeLogFile.DeleteSeriesID(elem.SeriesID); err != nil {
 				return err
 			}
+
+			// Update series set.
+			p.seriesIDSet.Remove(elem.SeriesID)
+			total++
 		}
+
+		p.tracker.AddSeriesDropped(total)
+		p.tracker.SubSeries(total)
+
 		if err = itr.Close(); err != nil {
 			return err
 		}

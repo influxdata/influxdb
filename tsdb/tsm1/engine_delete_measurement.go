@@ -10,7 +10,10 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
+// DeleteBucket removes all TSM data belonging to a bucket, and removes all index
+// and series file data associated with the bucket. The provided time range ensures
+// that only bucket data for that range is removed.
+func (e *Engine) DeleteBucket(name []byte, min, max int64) error {
 	// TODO(jeff): we need to block writes to this prefix while deletes are in progress
 	// otherwise we can end up in a situation where we have staged data in the cache or
 	// WAL that was deleted from the index, or worse. This needs to happen at a higher
@@ -63,7 +66,7 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 	possiblyDead.keys = make(map[string]struct{})
 
 	if err := e.FileStore.Apply(func(r TSMFile) error {
-		return r.DeletePrefix(prefix, min, max, func(key []byte) {
+		return r.DeletePrefix(name, min, max, func(key []byte) {
 			possiblyDead.Lock()
 			possiblyDead.keys[string(key)] = struct{}{}
 			possiblyDead.Unlock()
@@ -79,7 +82,7 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
 	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-		if bytes.HasPrefix(k, prefix) {
+		if bytes.HasPrefix(k, name) {
 			if deleteKeys == nil {
 				deleteKeys = make([][]byte, 0, 10000)
 			}
@@ -107,10 +110,10 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 		possiblyDead.RLock()
 		defer possiblyDead.RUnlock()
 
-		iter := r.Iterator(prefix)
+		iter := r.Iterator(name)
 		for i := 0; iter.Next(); i++ {
 			key := iter.Key()
-			if !bytes.HasPrefix(key, prefix) {
+			if !bytes.HasPrefix(key, name) {
 				break
 			}
 
@@ -154,10 +157,21 @@ func (e *Engine) DeletePrefix(prefix []byte, min, max int64) error {
 				continue
 			}
 
-			if err := e.index.DropSeries(sid, keyb, true); err != nil {
-				return err
+			// If the time range is not full then the index must drop each series
+			// individually.
+			if min != math.MinInt64 || max != math.MaxInt64 {
+				if err := e.index.DropSeries(sid, keyb, true); err != nil {
+					return err
+				}
 			}
 			if err := e.sfile.DeleteSeriesID(sid); err != nil {
+				return err
+			}
+		}
+
+		// In this case the entire measurement (bucket) can be removed from the index.
+		if min == math.MinInt64 && max == math.MaxInt64 {
+			if err := e.index.DropMeasurement(name); err != nil {
 				return err
 			}
 		}
