@@ -13,11 +13,7 @@ import {telegrafPluginsInfo} from 'src/onboarding/constants/pluginConfigs'
 import {telegrafPlugin} from 'mocks/dummyData'
 
 // Dummy Data
-import {
-  cpuTelegrafPlugin,
-  diskTelegrafPlugin,
-  redisTelegrafPlugin,
-} from 'mocks/dummyData'
+import {cpuTelegrafPlugin} from 'mocks/dummyData'
 
 // Types
 import {TelegrafPluginInputCpu, TelegrafPluginInputRedis} from 'src/api'
@@ -81,53 +77,6 @@ describe('Onboarding.Components.ConfigureStep.Streaming.PluginConfigForm', () =>
       expect(wrapper.exists()).toBe(true)
       expect(form.exists()).toBe(true)
       expect(configFieldSwitchers.length).toBe(fields.length)
-    })
-  })
-
-  describe('if its the first plugin', () => {
-    it('renders the back button with correct text', () => {
-      const {wrapper} = setup({
-        telegrafPlugins: [cpuTelegrafPlugin],
-        currentIndex: 0,
-      })
-
-      const onboardingButtons = wrapper.find(OnboardingButtons)
-
-      expect(onboardingButtons.prop('backButtonText')).toBe(
-        'Back to Select Streaming Sources'
-      )
-    })
-  })
-
-  describe('if its the last plugin', () => {
-    it('renders the next button with correct text', () => {
-      const {wrapper} = setup({
-        telegrafPlugins: [cpuTelegrafPlugin],
-        currentIndex: 0,
-      })
-
-      const onboardingButtons = wrapper.find(OnboardingButtons)
-
-      expect(onboardingButtons.prop('nextButtonText')).toBe(
-        'Continue to Verify'
-      )
-    })
-  })
-
-  describe('if its the neither the last or firt plugin', () => {
-    it('renders the next and back buttons with correct text', () => {
-      const {wrapper} = setup({
-        telegrafPlugins: [
-          cpuTelegrafPlugin,
-          redisTelegrafPlugin,
-          diskTelegrafPlugin,
-        ],
-        currentIndex: 1,
-      })
-      const onboardingButtons = wrapper.find(OnboardingButtons)
-
-      expect(onboardingButtons.prop('nextButtonText')).toBe('Continue to Disk')
-      expect(onboardingButtons.prop('backButtonText')).toBe('Back to Cpu')
     })
   })
 

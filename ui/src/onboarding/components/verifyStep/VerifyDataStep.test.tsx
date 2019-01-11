@@ -11,11 +11,7 @@ import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 // Constants
-import {
-  defaultOnboardingStepProps,
-  cpuTelegrafPlugin,
-  withRouterProps,
-} from 'mocks/dummyData'
+import {defaultOnboardingStepProps, withRouterProps} from 'mocks/dummyData'
 import {RemoteDataState} from 'src/types'
 
 const setup = (override = {}) => {
@@ -49,22 +45,5 @@ describe('Onboarding.Components.VerifyStep.VerifyDataStep', () => {
     expect(wrapper.exists()).toBe(true)
     expect(onboardingButtons.prop('showSkip')).toBe(true)
     expect(switcher.exists()).toBe(true)
-  })
-
-  describe('if type is streaming', () => {
-    it('renders back button with correct text', () => {
-      const {wrapper} = setup({
-        type: DataLoaderType.Streaming,
-        telegrafPlugins: [cpuTelegrafPlugin],
-      })
-      const onboardingButtons = wrapper.find(OnboardingButtons)
-
-      expect(onboardingButtons.prop('nextButtonText')).toBe(
-        'Continue to Completion'
-      )
-      expect(onboardingButtons.prop('backButtonText')).toBe(
-        'Back to Cpu Configuration'
-      )
-    })
   })
 })

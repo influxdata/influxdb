@@ -99,18 +99,12 @@ export class VerifyDataStep extends PureComponent<Props> {
           <OnboardingButtons
             onClickBack={this.handleDecrementStep}
             onClickSkip={this.jumpToCompletionStep}
-            nextButtonText={'Continue to Completion'}
-            backButtonText={this.backButtonText}
             skipButtonText={'Skip'}
             showSkip={true}
           />
         </Form>
       </div>
     )
-  }
-
-  private get backButtonText(): string {
-    return `Back to ${_.startCase(this.previousStepName) || ''} Configuration`
   }
 
   private get previousStepName() {
