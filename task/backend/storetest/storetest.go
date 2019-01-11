@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/snowflake"
 	"github.com/influxdata/influxdb/task/backend"
@@ -173,7 +174,7 @@ from(bucket:"y") |> range(start:-1h)`
 		task = res.NewTask
 		meta = res.NewMeta
 		if task.Script != script2 {
-			t.Fatalf("Task script unexpectedly updated: %s", task.Script)
+			t.Fatalf("Task script unexpectedly updated: newtask:\n%s\n, oldtask:\n%s, \ndiff:\n %s", task.Script, script2, cmp.Diff(task.Script, script2))
 		}
 		if task.Name != "a task2" {
 			t.Fatalf("Task name unexpectedly updated: %q", task.Name)

@@ -69,7 +69,6 @@ func (s *inmem) UpdateTask(_ context.Context, req UpdateTaskRequest) (UpdateTask
 	if err != nil {
 		return res, err
 	}
-
 	idStr := req.ID.String()
 
 	s.mu.Lock()
@@ -83,6 +82,9 @@ func (s *inmem) UpdateTask(_ context.Context, req UpdateTaskRequest) (UpdateTask
 		found = true
 
 		res.OldScript = t.Script
+		if err = req.UpdateFlux(t.Script); err != nil {
+			return res, err
+		}
 		if req.Script == "" {
 			op, err = options.FromScript(t.Script)
 			if err != nil {
@@ -113,7 +115,6 @@ func (s *inmem) UpdateTask(_ context.Context, req UpdateTaskRequest) (UpdateTask
 		s.meta[req.ID] = stm
 	}
 	res.NewMeta = stm
-
 	return res, nil
 }
 
