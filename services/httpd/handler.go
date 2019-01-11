@@ -25,6 +25,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -1166,6 +1167,18 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 	}
 
 	pr := req.ProxyRequest()
+
+	// Logging
+	var (
+		stats flux.Statistics
+		n     int64
+	)
+	if h.Config.FluxLogEnabled {
+		defer func() {
+			h.logFluxQuery(n, stats, pr.Compiler, err)
+		}()
+	}
+
 	q, err := h.Controller.Query(ctx, pr.Compiler)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)
@@ -1195,15 +1208,48 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 		}
 		encoder := pr.Dialect.Encoder()
 		results := flux.NewResultIteratorFromQuery(q)
-		n, err := encoder.Encode(w, results)
+		if h.Config.FluxLogEnabled {
+			if s, ok := results.(flux.Statisticser); ok {
+				defer func() {
+					stats = s.Statistics()
+				}()
+			}
+		}
+		defer results.Release()
+
+		n, err = encoder.Encode(w, results)
 		if err != nil {
-			results.Release()
 			if n == 0 {
 				// If the encoder did not write anything, we can write an error header.
 				h.httpError(w, err.Error(), http.StatusInternalServerError)
 			}
 		}
 	}
+}
+
+func (h *Handler) logFluxQuery(n int64, stats flux.Statistics, compiler flux.Compiler, err error) {
+	var q string
+	switch c := compiler.(type) {
+	case lang.SpecCompiler:
+		q = fmt.Sprint(flux.Formatted(c.Spec))
+	case lang.FluxCompiler:
+		q = c.Query
+	}
+
+	h.Logger.Info("Executed Flux query",
+		zap.String("compiler_type", string(compiler.CompilerType())),
+		zap.Int64("response_size", n),
+		zap.String("query", q),
+		zap.Error(err),
+		zap.Duration("stat_total_duration", stats.TotalDuration),
+		zap.Duration("stat_compile_duration", stats.CompileDuration),
+		zap.Duration("stat_queue_duration", stats.QueueDuration),
+		zap.Duration("stat_plan_duration", stats.PlanDuration),
+		zap.Duration("stat_requeue_duration", stats.RequeueDuration),
+		zap.Duration("stat_execute_duration", stats.ExecuteDuration),
+		zap.Int64("stat_max_allocated", stats.MaxAllocated),
+		zap.Int("stat_concurrency", stats.Concurrency),
+	)
 }
 
 // serveExpvar serves internal metrics in /debug/vars format over HTTP.
