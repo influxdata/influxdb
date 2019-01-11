@@ -23,9 +23,7 @@ interface DispatchProps {
   onSetActiveTab: typeof setActiveTab
 }
 
-interface OwnProps {}
-
-type Props = StateProps & DispatchProps & OwnProps
+type Props = StateProps & DispatchProps
 
 class VisOptionsButton extends Component<Props> {
   public render() {
@@ -57,17 +55,17 @@ class VisOptionsButton extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState) => {
+const mstp = (state: AppState): StateProps => {
   const {activeTab} = getActiveTimeMachine(state)
 
   return {activeTab}
 }
 
-const mdtp = {
+const mdtp: DispatchProps = {
   onSetActiveTab: setActiveTab,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
 )(VisOptionsButton)
