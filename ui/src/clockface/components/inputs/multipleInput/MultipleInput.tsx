@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import Rows from 'src/onboarding/components/configureStep/streaming/MultipleRows'
+import Rows from 'src/clockface/components/inputs/multipleInput/MultipleRows'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   Input,
@@ -19,29 +19,28 @@ import {
 // Utils
 import {validateURI} from 'src/shared/utils/validateURI'
 
-// Actions
-import {setConfigArrayValue} from 'src/onboarding/actions/dataLoaders'
-
-// Types
-import {TelegrafPluginName, ConfigFieldType} from 'src/types/v2/dataLoaders'
-
 const VALIDATE_DEBOUNCE_MS = 350
 
 export interface Item {
   text?: string
   name?: string
 }
+
+export enum MultiInputType {
+  String = 'string',
+  URI = 'uri',
+}
+
 interface Props {
   onAddRow: (item: string) => void
   onDeleteRow: (item: string) => void
+  onEditRow: (index: number, item: string) => void
   tags: Item[]
   title: string
   helpText: string
   inputID?: string
-  fieldType?: ConfigFieldType
+  inputType?: MultiInputType
   autoFocus?: boolean
-  onSetConfigArrayValue: typeof setConfigArrayValue
-  telegrafPluginName: TelegrafPluginName
 }
 
 interface State {
@@ -64,14 +63,7 @@ class MultipleInput extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      title,
-      helpText,
-      tags,
-      autoFocus,
-      onSetConfigArrayValue,
-      telegrafPluginName,
-    } = this.props
+    const {title, helpText, tags, autoFocus, onEditRow} = this.props
     const {editingText} = this.state
 
     return (
@@ -95,9 +87,7 @@ class MultipleInput extends PureComponent<Props, State> {
             <Rows
               tags={tags}
               onDeleteTag={this.handleDeleteRow}
-              onSetConfigArrayValue={onSetConfigArrayValue}
-              fieldName={title}
-              telegrafPluginName={telegrafPluginName}
+              onChange={onEditRow}
             />
           </Grid.Column>
         </Grid.Row>
@@ -106,11 +96,11 @@ class MultipleInput extends PureComponent<Props, State> {
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const {fieldType} = this.props
+    const {inputType} = this.props
     const {value} = e.target
 
     this.setState({editingText: value})
-    if (fieldType === ConfigFieldType.UriArray) {
+    if (inputType === MultiInputType.URI) {
       this.debouncedValidate(value)
     }
   }

@@ -4,7 +4,7 @@ import {shallow} from 'enzyme'
 
 // Components
 import ArrayFormElement from 'src/onboarding/components/configureStep/streaming/ArrayFormElement'
-import MultipleInput from './MultipleInput'
+import {MultipleInput} from 'src/clockface'
 
 import {TelegrafPluginInputCpu} from 'src/api'
 
