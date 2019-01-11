@@ -29,7 +29,9 @@ var (
 
 func TestService_handleGetScraperTargets(t *testing.T) {
 	type fields struct {
-		Service platform.ScraperTargetStoreService
+		ScraperTargetStoreService platform.ScraperTargetStoreService
+		OrganizationService       platform.OrganizationService
+		BucketService             platform.BucketService
 	}
 
 	type args struct {
@@ -51,7 +53,23 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 		{
 			name: "get all scraper targets",
 			fields: fields{
-				Service: &mock.ScraperTargetStoreService{
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   platformtesting.MustIDBase16("0000000000000211"),
+							Name: "org1",
+						}, nil
+					},
+				},
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+						return &platform.Bucket{
+							ID:   platformtesting.MustIDBase16("0000000000000212"),
+							Name: "bucket1",
+						}, nil
+					},
+				},
+				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
 					ListTargetsF: func(ctx context.Context) ([]platform.ScraperTarget, error) {
 						return []platform.ScraperTarget{
 							{
@@ -88,7 +106,9 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 					    {
 					      "id": "%s",
 						  "name": "target-1",
+						  "bucket": "bucket1",
 						  "bucketID": "0000000000000212",
+						  "organization": "org1",
 						  "orgID": "0000000000000211",
 						  "type": "prometheus",
 						  "url": "www.one.url",
@@ -99,8 +119,10 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						{
 						  "id": "%s",
 						  "name": "target-2",
+						  "bucket": "bucket1",
 						  "bucketID": "0000000000000212",
 						  "orgID": "0000000000000211",
+						  "organization": "org1",
 						  "type": "prometheus",
 						  "url": "www.two.url",
 						  "links": {
@@ -118,7 +140,23 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 		{
 			name: "get all scraper targets when there are none",
 			fields: fields{
-				Service: &mock.ScraperTargetStoreService{
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   platformtesting.MustIDBase16("0000000000000211"),
+							Name: "org1",
+						}, nil
+					},
+				},
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+						return &platform.Bucket{
+							ID:   platformtesting.MustIDBase16("0000000000000212"),
+							Name: "bucket1",
+						}, nil
+					},
+				},
+				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
 					ListTargetsF: func(ctx context.Context) ([]platform.ScraperTarget, error) {
 						return []platform.ScraperTarget{}, nil
 					},
@@ -143,7 +181,9 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := NewScraperHandler()
-			h.ScraperStorageService = tt.fields.Service
+			h.ScraperStorageService = tt.fields.ScraperTargetStoreService
+			h.OrganizationService = tt.fields.OrganizationService
+			h.BucketService = tt.fields.BucketService
 
 			r := httptest.NewRequest("GET", "http://any.tld", nil)
 
@@ -178,7 +218,9 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 
 func TestService_handleGetScraperTarget(t *testing.T) {
 	type fields struct {
-		Service platform.ScraperTargetStoreService
+		OrganizationService       platform.OrganizationService
+		BucketService             platform.BucketService
+		ScraperTargetStoreService platform.ScraperTargetStoreService
 	}
 
 	type args struct {
@@ -200,7 +242,23 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 		{
 			name: "get a scraper target by id",
 			fields: fields{
-				Service: &mock.ScraperTargetStoreService{
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   platformtesting.MustIDBase16("0000000000000211"),
+							Name: "org1",
+						}, nil
+					},
+				},
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+						return &platform.Bucket{
+							ID:   platformtesting.MustIDBase16("0000000000000212"),
+							Name: "bucket1",
+						}, nil
+					},
+				},
+				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
 					GetTargetByIDF: func(ctx context.Context, id platform.ID) (*platform.ScraperTarget, error) {
 						if id == targetOneID {
 							return &platform.ScraperTarget{
@@ -212,7 +270,10 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 								BucketID: platformtesting.MustIDBase16("0000000000000212"),
 							}, nil
 						}
-						return nil, fmt.Errorf("not found")
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "scraper target is not found",
+						}
 					},
 				},
 			},
@@ -228,9 +289,11 @@ func TestService_handleGetScraperTarget(t *testing.T) {
                       "id": "%[1]s",
                       "name": "target-1",
                       "type": "prometheus",
-                      "url": "www.some.url",
+					  "url": "www.some.url",
+					  "bucket": "bucket1",
                       "bucketID": "0000000000000212",
-                      "orgID": "0000000000000211",
+					  "orgID": "0000000000000211",
+					  "organization": "org1",
                       "links": {
                         "self": "/api/v2/scrapertargets/%[1]s"
                       }
@@ -245,7 +308,9 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := NewScraperHandler()
-			h.ScraperStorageService = tt.fields.Service
+			h.ScraperStorageService = tt.fields.ScraperTargetStoreService
+			h.OrganizationService = tt.fields.OrganizationService
+			h.BucketService = tt.fields.BucketService
 
 			r := httptest.NewRequest("GET", "http://any.tld", nil)
 
@@ -382,7 +447,9 @@ func TestService_handleDeleteScraperTarget(t *testing.T) {
 
 func TestService_handlePostScraperTarget(t *testing.T) {
 	type fields struct {
-		Service platform.ScraperTargetStoreService
+		OrganizationService       platform.OrganizationService
+		BucketService             platform.BucketService
+		ScraperTargetStoreService platform.ScraperTargetStoreService
 	}
 
 	type args struct {
@@ -404,7 +471,23 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 		{
 			name: "create a new scraper target",
 			fields: fields{
-				Service: &mock.ScraperTargetStoreService{
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   platformtesting.MustIDBase16("0000000000000211"),
+							Name: "org1",
+						}, nil
+					},
+				},
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+						return &platform.Bucket{
+							ID:   platformtesting.MustIDBase16("0000000000000212"),
+							Name: "bucket1",
+						}, nil
+					},
+				},
+				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
 					AddTargetF: func(ctx context.Context, st *platform.ScraperTarget) error {
 						st.ID = targetOneID
 						return nil
@@ -430,7 +513,9 @@ func TestService_handlePostScraperTarget(t *testing.T) {
                       "name": "hello",
                       "type": "prometheus",
                       "url": "www.some.url",
-                      "orgID": "0000000000000211",
+					  "orgID": "0000000000000211",
+					  "organization": "org1",
+					  "bucket": "bucket1",
                       "bucketID": "0000000000000212",
                       "links": {
                         "self": "/api/v2/scrapertargets/%[1]s"
@@ -446,7 +531,9 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := NewScraperHandler()
-			h.ScraperStorageService = tt.fields.Service
+			h.ScraperStorageService = tt.fields.ScraperTargetStoreService
+			h.OrganizationService = tt.fields.OrganizationService
+			h.BucketService = tt.fields.BucketService
 
 			st, err := json.Marshal(tt.args.target)
 			if err != nil {
@@ -477,7 +564,9 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 
 func TestService_handlePatchScraperTarget(t *testing.T) {
 	type fields struct {
-		Service platform.ScraperTargetStoreService
+		BucketService             platform.BucketService
+		OrganizationService       platform.OrganizationService
+		ScraperTargetStoreService platform.ScraperTargetStoreService
 	}
 
 	type args struct {
@@ -500,13 +589,32 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 		{
 			name: "update a scraper target",
 			fields: fields{
-				Service: &mock.ScraperTargetStoreService{
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   platformtesting.MustIDBase16("0000000000000211"),
+							Name: "org1",
+						}, nil
+					},
+				},
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+						return &platform.Bucket{
+							ID:   platformtesting.MustIDBase16("0000000000000212"),
+							Name: "bucket1",
+						}, nil
+					},
+				},
+				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
 					UpdateTargetF: func(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error) {
 						if t.ID == targetOneID {
 							return t, nil
 						}
 
-						return nil, fmt.Errorf("not found")
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "scraper target is not found",
+						}
 					},
 				},
 			},
@@ -525,19 +633,19 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: fmt.Sprintf(
-					`
-		            {
+					`{
 		              "id":"%[1]s",
 		              "name":"name",
 		              "type":"prometheus",
-		              "url":"www.example.url",
-		              "orgID":"0000000000000211",
-		              "bucketID":"0000000000000212",
+					  "url":"www.example.url",
+					  "organization": "org1",
+					  "orgID":"0000000000000211",
+					  "bucket": "bucket1",
+					  "bucketID":"0000000000000212",
 		              "links":{
 		                "self":"/api/v2/scrapertargets/%[1]s"
 		              }
-		            }
-		            `,
+		            }`,
 					targetOneIDString,
 				),
 			},
@@ -545,7 +653,23 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 		{
 			name: "scraper target not found",
 			fields: fields{
-				Service: &mock.ScraperTargetStoreService{
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   platformtesting.MustIDBase16("0000000000000211"),
+							Name: "org1",
+						}, nil
+					},
+				},
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+						return &platform.Bucket{
+							ID:   platformtesting.MustIDBase16("0000000000000212"),
+							Name: "bucket1",
+						}, nil
+					},
+				},
+				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
 					UpdateTargetF: func(ctx context.Context, upd *platform.ScraperTarget) (*platform.ScraperTarget, error) {
 						return nil, &platform.Error{
 							Code: platform.ENotFound,
@@ -574,7 +698,9 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := NewScraperHandler()
-			h.ScraperStorageService = tt.fields.Service
+			h.ScraperStorageService = tt.fields.ScraperTargetStoreService
+			h.OrganizationService = tt.fields.OrganizationService
+			h.BucketService = tt.fields.BucketService
 
 			var err error
 			st := make([]byte, 0)
@@ -632,6 +758,22 @@ func initScraperService(f platformtesting.TargetFields, t *testing.T) (platform.
 
 	handler := NewScraperHandler()
 	handler.ScraperStorageService = svc
+	handler.OrganizationService = &mock.OrganizationService{
+		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+			return &platform.Organization{
+				ID:   id,
+				Name: "org1",
+			}, nil
+		},
+	}
+	handler.BucketService = &mock.BucketService{
+		FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+			return &platform.Bucket{
+				ID:   id,
+				Name: "bucket1",
+			}, nil
+		},
+	}
 	server := httptest.NewServer(handler)
 	client := ScraperService{
 		Addr:     server.URL,
