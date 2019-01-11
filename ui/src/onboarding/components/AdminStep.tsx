@@ -158,9 +158,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
             </FancyScrollbar>
           </div>
           <OnboardingButtons
-            onClickBack={this.props.onDecrementCurrentStepIndex}
             nextButtonText={this.nextButtonText}
-            backButtonText="Back to Start"
             nextButtonStatus={this.nextButtonStatus}
             autoFocusNext={false}
           />

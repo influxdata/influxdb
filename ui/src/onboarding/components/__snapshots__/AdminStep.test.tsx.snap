@@ -160,10 +160,8 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
     </div>
     <OnboardingButtons
       autoFocusNext={false}
-      backButtonText="Back to Start"
       nextButtonStatus="disabled"
       nextButtonText="Continue to Data Source Selection"
-      onClickBack={[MockFunction]}
       showSkip={false}
       skipButtonText="Skip"
     />

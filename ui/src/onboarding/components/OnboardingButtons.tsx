@@ -9,9 +9,9 @@ import {
 } from 'src/clockface'
 
 interface Props extends DefaultProps {
-  onClickBack: () => void
+  onClickBack?: () => void
   nextButtonText: string
-  backButtonText: string
+  backButtonText?: string
   onClickSkip?: () => void
 }
 
@@ -51,23 +51,11 @@ class OnboardingButtons extends PureComponent<Props> {
   }
 
   public render() {
-    const {
-      backButtonText,
-      nextButtonText,
-      onClickBack,
-      nextButtonStatus,
-    } = this.props
+    const {nextButtonText, nextButtonStatus} = this.props
     return (
       <div className="wizard--button-container">
         <div className="wizard--button-bar">
-          <Button
-            color={ComponentColor.Default}
-            text={backButtonText}
-            size={ComponentSize.Medium}
-            onClick={onClickBack}
-            data-test="back"
-            tabIndex={1}
-          />
+          {this.backButton}
           <Button
             color={ComponentColor.Primary}
             text={nextButtonText}
@@ -81,6 +69,25 @@ class OnboardingButtons extends PureComponent<Props> {
         </div>
         {this.skipButton}
       </div>
+    )
+  }
+
+  private get backButton(): JSX.Element {
+    const {backButtonText, onClickBack} = this.props
+
+    if (!backButtonText || !onClickBack) {
+      return
+    }
+
+    return (
+      <Button
+        color={ComponentColor.Default}
+        text={backButtonText}
+        size={ComponentSize.Medium}
+        onClick={onClickBack}
+        data-test="back"
+        tabIndex={1}
+      />
     )
   }
 
