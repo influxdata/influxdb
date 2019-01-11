@@ -235,6 +235,9 @@
   # Determines whether the Flux query endpoint is enabled.
   # flux-enabled = false
 
+  # Determines whether the Flux query logging is enabled.
+  # flux-log-enabled = false
+
   # The bind address used by the HTTP service.
   # bind-address = ":8086"
 
