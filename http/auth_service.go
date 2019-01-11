@@ -104,6 +104,9 @@ func newPermissionsResponse(ctx context.Context, ps []platform.Permission, svc p
 
 		if p.ID != nil {
 			name, err := svc.Name(ctx, p.Resource, *p.ID)
+			if platform.ErrorCode(err) == platform.ENotFound {
+				continue
+			}
 			if err != nil {
 				return nil, err
 			}

@@ -204,6 +204,13 @@ func (c *Client) findAuthorizations(ctx context.Context, tx *bolt.Tx, f platform
 // CreateAuthorization creates a platform authorization and sets b.ID, and b.UserID if not provided.
 func (c *Client) CreateAuthorization(ctx context.Context, a *platform.Authorization) error {
 	op := getOp(platform.OpCreateAuthorization)
+	if err := a.Valid(); err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  op,
+		}
+	}
+
 	return c.db.Update(func(tx *bolt.Tx) error {
 		_, pErr := c.findUserByID(ctx, tx, a.UserID)
 		if pErr != nil {

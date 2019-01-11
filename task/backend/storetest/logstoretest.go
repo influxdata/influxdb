@@ -404,6 +404,6 @@ func makeNewAuthorization() *platform.Authorization {
 		ID:          platformtesting.MustIDBase16("ab01ab01ab01ab01"),
 		UserID:      platformtesting.MustIDBase16("ab01ab01ab01ab01"),
 		OrgID:       platformtesting.MustIDBase16("ab01ab01ab01ab05"),
-		Permissions: platform.OperPermissions(),
+		Permissions: platform.OperPermissions(platformtesting.MustIDBase16("ab01ab01ab01ab05")),
 	}
 }
