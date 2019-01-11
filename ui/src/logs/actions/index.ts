@@ -2,7 +2,7 @@
 import _ from 'lodash'
 import uuid from 'uuid'
 import {getDeep} from 'src/utils/wrappers'
-import {serverToUIConfig, uiToServerConfig} from 'src/logs/utils/config'
+import {serverToUIConfig} from 'src/logs/utils/config'
 import {
   getTableData,
   buildTableQueryConfig,
@@ -11,11 +11,6 @@ import {
 } from 'src/logs/utils/logQuery'
 
 // APIs
-import {
-  readViews as readViewsAJAX,
-  createView as createViewAJAX,
-  updateView as updateViewAJAX,
-} from 'src/dashboards/apis/v2/view'
 import {readSource} from 'src/sources/apis'
 import {getBuckets} from 'src/shared/apis/v2/buckets'
 import {executeQueryAsync} from 'src/logs/api/v2'
@@ -26,8 +21,8 @@ import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
 // Types
 import {Dispatch} from 'redux'
 import {ThunkDispatch} from 'redux-thunk'
-import {View, Bucket, Source} from 'src/api'
-import {NewView, TimeSeriesValue} from 'src/types/v2/dashboards'
+import {Bucket, Source} from 'src/api'
+import {TimeSeriesValue} from 'src/types/v2/dashboards'
 import {
   Filter,
   LogConfig,
@@ -348,8 +343,12 @@ export const getLogConfigAsync = () => async (
 ) => {
   const state = getState()
   const isTruncated = getIsTruncated(state)
-  const views = await readViewsAJAX()
-  const logView: NewView | View = getDeep(views, '0', defaultLogView)
+
+  // TODO: fix this before adding logs back in to platform
+  // It is probably a bad idea to use the views resource in this way with views nested under dashboards
+  // const views = await readViewsAJAX()
+  // const logView: NewView | View = getDeep(views, '0', defaultLogView)
+  const logView = defaultLogView
 
   const logConfig = {
     ...serverToUIConfig(logView),
@@ -358,33 +357,40 @@ export const getLogConfigAsync = () => async (
 
   await dispatch(setConfig(logConfig))
 }
+export const createLogConfigAsync = a => {
+  console.error('createLogConfigAsync function is broken', a)
+} // TODO: fix this before adding logs back in to platform
 
-export const createLogConfigAsync = (newConfig: LogConfig) => async (
-  dispatch: Dispatch<SetConfigAction>
-) => {
-  const {isTruncated} = newConfig
-  const {id, ...newLogView} = uiToServerConfig(newConfig)
-  const logView = await createViewAJAX(newLogView)
-  const logConfig = {
-    ...serverToUIConfig(logView),
-    isTruncated,
-  }
-  await dispatch(setConfig(logConfig))
+// export const createLogConfigAsync = (newConfig: LogConfig) => async (
+//   dispatch: Dispatch<SetConfigAction>
+// ) => {
+//   const {isTruncated} = newConfig
+//   const {id, ...newLogView} = uiToServerConfig(newConfig)
+//   const logView = await createViewAJAX(newLogView)
+//   const logConfig = {
+//     ...serverToUIConfig(logView),
+//     isTruncated,
+//   }
+//   await dispatch(setConfig(logConfig))
+// }
+export const updateLogConfigAsync = a => () => {
+  console.error('updateLogConfigAsync function is broken', a)
 }
 
-export const updateLogConfigAsync = (updatedConfig: LogConfig) => async (
-  dispatch: Dispatch<SetConfigAction>
-) => {
-  const {isTruncated} = updatedConfig
-  const updatedView = uiToServerConfig(updatedConfig)
-  const logView = await updateViewAJAX(updatedView.id, updatedView)
+// TODO: fix this before adding logs back in to platform
+// export const updateLogConfigAsync = (updatedConfig: LogConfig) => async (
+//   dispatch: Dispatch<SetConfigAction>
+// ) => {
+//   const {isTruncated} = updatedConfig
+//   const updatedView = uiToServerConfig(updatedConfig)
+//   const logView = await updateViewAJAX(updatedView.id, updatedView)
 
-  const logConfig = {
-    ...serverToUIConfig(logView),
-    isTruncated,
-  }
-  await dispatch(setConfig(logConfig))
-}
+//   const logConfig = {
+//     ...serverToUIConfig(logView),
+//     isTruncated,
+//   }
+//   await dispatch(setConfig(logConfig))
+// }
 
 export const setConfig = (logConfig: LogConfig): SetConfigAction => {
   return {

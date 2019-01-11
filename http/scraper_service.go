@@ -7,8 +7,7 @@ import (
 	"net/http"
 	"path"
 
-	platform "github.com/influxdata/influxdb"
-	kerrors "github.com/influxdata/influxdb/kit/errors"
+	"github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -17,7 +16,9 @@ import (
 type ScraperHandler struct {
 	*httprouter.Router
 	Logger                *zap.Logger
-	ScraperStorageService platform.ScraperTargetStoreService
+	ScraperStorageService influxdb.ScraperTargetStoreService
+	BucketService         influxdb.BucketService
+	OrganizationService   influxdb.OrganizationService
 }
 
 const (
@@ -28,7 +29,6 @@ const (
 func NewScraperHandler() *ScraperHandler {
 	h := &ScraperHandler{
 		Router: NewRouter(),
-		Logger: zap.NewNop(),
 	}
 	h.HandlerFunc("POST", targetPath, h.handlePostScraperTarget)
 	h.HandlerFunc("GET", targetPath, h.handleGetScraperTargets)
@@ -52,7 +52,12 @@ func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.
 		EncodeError(ctx, err, w)
 		return
 	}
-	if err := encodeResponse(ctx, w, http.StatusCreated, newTargetResponse(*req)); err != nil {
+	resp, err := h.newTargetResponse(ctx, *req)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+	if err := encodeResponse(ctx, w, http.StatusCreated, resp); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -92,7 +97,13 @@ func (h *ScraperHandler) handlePatchScraperTarget(w http.ResponseWriter, r *http
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newTargetResponse(*target)); err != nil {
+	resp, err := h.newTargetResponse(ctx, *target)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, resp); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -112,7 +123,13 @@ func (h *ScraperHandler) handleGetScraperTarget(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newTargetResponse(*target)); err != nil {
+	resp, err := h.newTargetResponse(ctx, *target)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, resp); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -128,14 +145,20 @@ func (h *ScraperHandler) handleGetScraperTargets(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newListTargetsResponse(targets)); err != nil {
+	resp, err := h.newListTargetsResponse(ctx, targets)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, resp); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
 
-func decodeScraperTargetUpdateRequest(ctx context.Context, r *http.Request) (*platform.ScraperTarget, error) {
-	update := &platform.ScraperTarget{}
+func decodeScraperTargetUpdateRequest(ctx context.Context, r *http.Request) (*influxdb.ScraperTarget, error) {
+	update := &influxdb.ScraperTarget{}
 	if err := json.NewDecoder(r.Body).Decode(update); err != nil {
 		return nil, err
 	}
@@ -147,22 +170,25 @@ func decodeScraperTargetUpdateRequest(ctx context.Context, r *http.Request) (*pl
 	return update, nil
 }
 
-func decodeScraperTargetAddRequest(ctx context.Context, r *http.Request) (*platform.ScraperTarget, error) {
-	req := &platform.ScraperTarget{}
+func decodeScraperTargetAddRequest(ctx context.Context, r *http.Request) (*influxdb.ScraperTarget, error) {
+	req := &influxdb.ScraperTarget{}
 	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
 		return nil, err
 	}
 	return req, nil
 }
 
-func decodeScraperTargetIDRequest(ctx context.Context, r *http.Request) (*platform.ID, error) {
+func decodeScraperTargetIDRequest(ctx context.Context, r *http.Request) (*influxdb.ID, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -180,7 +206,7 @@ type ScraperService struct {
 }
 
 // ListTargets returns a list of all scraper targets.
-func (s *ScraperService) ListTargets(ctx context.Context) ([]platform.ScraperTarget, error) {
+func (s *ScraperService) ListTargets(ctx context.Context) ([]influxdb.ScraperTarget, error) {
 	url, err := newURL(s.Addr, targetPath)
 	if err != nil {
 		return nil, err
@@ -210,7 +236,7 @@ func (s *ScraperService) ListTargets(ctx context.Context) ([]platform.ScraperTar
 		return nil, err
 	}
 
-	targets := make([]platform.ScraperTarget, len(targetsResp.Targets))
+	targets := make([]influxdb.ScraperTarget, len(targetsResp.Targets))
 	for k, v := range targetsResp.Targets {
 		targets[k] = v.ScraperTarget
 	}
@@ -220,11 +246,11 @@ func (s *ScraperService) ListTargets(ctx context.Context) ([]platform.ScraperTar
 
 // UpdateTarget updates a single scraper target with changeset.
 // Returns the new target state after update.
-func (s *ScraperService) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget) (*influxdb.ScraperTarget, error) {
 	if !update.ID.Valid() {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
-			Op:   s.OpPrefix + platform.OpUpdateTarget,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Op:   s.OpPrefix + influxdb.OpUpdateTarget,
 			Msg:  "id is invalid",
 		}
 	}
@@ -264,10 +290,25 @@ func (s *ScraperService) UpdateTarget(ctx context.Context, update *platform.Scra
 }
 
 // AddTarget creates a new scraper target and sets target.ID with the new identifier.
-func (s *ScraperService) AddTarget(ctx context.Context, target *platform.ScraperTarget) error {
+func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.ScraperTarget) error {
 	url, err := newURL(s.Addr, targetPath)
 	if err != nil {
 		return err
+	}
+
+	if !target.OrgID.Valid() {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "org id is invalid",
+			Op:   s.OpPrefix + influxdb.OpAddTarget,
+		}
+	}
+	if !target.BucketID.Valid() {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "bucket id is invalid",
+			Op:   s.OpPrefix + influxdb.OpAddTarget,
+		}
 	}
 
 	octets, err := json.Marshal(target)
@@ -304,7 +345,7 @@ func (s *ScraperService) AddTarget(ctx context.Context, target *platform.Scraper
 }
 
 // RemoveTarget removes a scraper target by ID.
-func (s *ScraperService) RemoveTarget(ctx context.Context, id platform.ID) error {
+func (s *ScraperService) RemoveTarget(ctx context.Context, id influxdb.ID) error {
 	url, err := newURL(s.Addr, targetIDPath(id))
 	if err != nil {
 		return err
@@ -326,7 +367,7 @@ func (s *ScraperService) RemoveTarget(ctx context.Context, id platform.ID) error
 }
 
 // GetTargetByID returns a single target by ID.
-func (s *ScraperService) GetTargetByID(ctx context.Context, id platform.ID) (*platform.ScraperTarget, error) {
+func (s *ScraperService) GetTargetByID(ctx context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
 	url, err := newURL(s.Addr, targetIDPath(id))
 	if err != nil {
 		return nil, err
@@ -357,7 +398,7 @@ func (s *ScraperService) GetTargetByID(ctx context.Context, id platform.ID) (*pl
 	return &targetResp.ScraperTarget, nil
 }
 
-func targetIDPath(id platform.ID) string {
+func targetIDPath(id influxdb.ID) string {
 	return path.Join(targetPath, id.String())
 }
 
@@ -375,11 +416,15 @@ type targetLinks struct {
 }
 
 type targetResponse struct {
-	platform.ScraperTarget
-	Links targetLinks `json:"links"`
+	influxdb.ScraperTarget
+	// Organization name.
+	Organization string `json:"organization"`
+	// Bucket name.
+	Bucket string      `json:"bucket"`
+	Links  targetLinks `json:"links"`
 }
 
-func newListTargetsResponse(targets []platform.ScraperTarget) getTargetsResponse {
+func (h *ScraperHandler) newListTargetsResponse(ctx context.Context, targets []influxdb.ScraperTarget) (getTargetsResponse, error) {
 	res := getTargetsResponse{
 		Links: getTargetsLinks{
 			Self: targetPath,
@@ -388,17 +433,31 @@ func newListTargetsResponse(targets []platform.ScraperTarget) getTargetsResponse
 	}
 
 	for _, target := range targets {
-		res.Targets = append(res.Targets, newTargetResponse(target))
+		resp, err := h.newTargetResponse(ctx, target)
+		if err != nil {
+			return res, err
+		}
+		res.Targets = append(res.Targets, resp)
 	}
 
-	return res
+	return res, nil
 }
 
-func newTargetResponse(target platform.ScraperTarget) targetResponse {
+func (h *ScraperHandler) newTargetResponse(ctx context.Context, target influxdb.ScraperTarget) (targetResponse, error) {
+	bucket, err := h.BucketService.FindBucketByID(ctx, target.BucketID)
+	if err != nil {
+		return targetResponse{}, err
+	}
+	org, err := h.OrganizationService.FindOrganizationByID(ctx, target.OrgID)
+	if err != nil {
+		return targetResponse{}, err
+	}
 	return targetResponse{
 		Links: targetLinks{
 			Self: targetIDPath(target.ID),
 		},
+		Bucket:        bucket.Name,
+		Organization:  org.Name,
 		ScraperTarget: target,
-	}
+	}, nil
 }

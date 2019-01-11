@@ -34,7 +34,6 @@ exports[`LineProtocol rendering renders! 1`] = `
             Array [
               "Upload File",
               "Enter Manually",
-              "Enter URL",
             ]
           }
         />
@@ -43,9 +42,9 @@ exports[`LineProtocol rendering renders! 1`] = `
   </div>
   <OnboardingButtons
     autoFocusNext={true}
-    backButtonText="Back to Select Data Source Type"
+    backButtonText="Previous"
     nextButtonStatus="default"
-    nextButtonText="Continue to Verify"
+    nextButtonText="Continue"
     showSkip={true}
     skipButtonText="Skip Config"
   />

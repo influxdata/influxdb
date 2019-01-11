@@ -40,7 +40,7 @@ require (
 	github.com/elazarl/go-bindata-assetfs v1.0.0
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
-	github.com/getkin/kin-openapi v0.1.0
+	github.com/getkin/kin-openapi v0.1.1-0.20190103155524-1fa206970bc1
 	github.com/ghodss/yaml v1.0.0
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect
@@ -153,7 +153,5 @@ replace (
 	github.com/Sirupsen/logrus => github.com/sirupsen/logrus v1.2.0
 	github.com/goreleaser/goreleaser => github.com/influxdata/goreleaser v0.86.2-0.20181010170531-0fd209ba67f5
 )
-
-replace github.com/getkin/kin-openapi v0.1.0 => github.com/influxdata/kin-openapi v0.1.1-0.20181212221347-ca3615a71f83
 
 replace github.com/influxdata/platform => /dev/null

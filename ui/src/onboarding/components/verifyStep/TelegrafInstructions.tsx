@@ -21,8 +21,9 @@ export interface Props {
 class TelegrafInstructions extends PureComponent<Props> {
   public render() {
     const {notify, authToken, configID} = this.props
-    const exportToken = `export INFLUX_TOKEN=${authToken}`
-    const configScript = `telegraf -config http://localhost:9999/api/v2/telegrafs/${configID}`
+    const exportToken = `export INFLUX_TOKEN=${authToken || ''}`
+    const configScript = `telegraf -config http://localhost:9999/api/v2/telegrafs/${configID ||
+      ''}`
     return (
       <>
         <h3 className="wizard-step--title">Listen for Streaming Data</h3>

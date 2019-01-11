@@ -53,6 +53,20 @@ func (s *Service) ListTargets(ctx context.Context) (list []platform.ScraperTarge
 // AddTarget add a new scraper target into storage.
 func (s *Service) AddTarget(ctx context.Context, target *platform.ScraperTarget) (err error) {
 	target.ID = s.IDGenerator.ID()
+	if !target.OrgID.Valid() {
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "org id is invalid",
+			Op:   OpPrefix + platform.OpAddTarget,
+		}
+	}
+	if !target.BucketID.Valid() {
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "bucket id is invalid",
+			Op:   OpPrefix + platform.OpAddTarget,
+		}
+	}
 	if err := s.PutTarget(ctx, target); err != nil {
 		return &platform.Error{
 			Op:  OpPrefix + platform.OpAddTarget,
@@ -84,12 +98,18 @@ func (s *Service) UpdateTarget(ctx context.Context, update *platform.ScraperTarg
 			Msg:  "id is invalid",
 		}
 	}
-	_, pe := s.loadScraperTarget(update.ID)
+	oldTarget, pe := s.loadScraperTarget(update.ID)
 	if pe != nil {
 		return nil, &platform.Error{
 			Op:  op,
 			Err: pe,
 		}
+	}
+	if !update.OrgID.Valid() {
+		update.OrgID = oldTarget.OrgID
+	}
+	if !update.BucketID.Valid() {
+		update.BucketID = oldTarget.BucketID
 	}
 	if err = s.PutTarget(ctx, update); err != nil {
 		return nil, &platform.Error{

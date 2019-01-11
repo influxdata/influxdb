@@ -19,9 +19,8 @@ import {
   LogViewerView,
   LogViewerColumn,
   LogViewerColumnSetting,
+  View,
 } from 'src/types/v2/dashboards'
-
-import {View} from 'src/api'
 
 import {
   DEFAULT_TRUNCATION,

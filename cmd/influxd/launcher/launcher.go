@@ -375,6 +375,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	subscriber.Subscribe(gather.MetricsSubject, "", &gather.RecorderHandler{
+		Logger: m.logger,
+		Recorder: gather.PointWriter{
+			Writer: pointsWriter,
+		},
+	})
 	scraperScheduler, err := gather.NewScheduler(10, m.logger, scraperTargetSvc, publisher, subscriber, 0, 0)
 	if err != nil {
 		m.logger.Error("failed to create scraper subscriber", zap.Error(err))

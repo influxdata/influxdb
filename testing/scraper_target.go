@@ -99,22 +99,106 @@ func AddTarget(
 			},
 			args: args{
 				target: &platform.ScraperTarget{
-					Name:       "name1",
-					Type:       platform.PrometheusScraperType,
-					OrgName:    "org1",
-					BucketName: "bucket1",
-					URL:        "url1",
+					Name:     "name1",
+					Type:     platform.PrometheusScraperType,
+					OrgID:    MustIDBase16(orgOneID),
+					BucketID: MustIDBase16(bucketOneID),
+					URL:      "url1",
 				},
 			},
 			wants: wants{
 				targets: []platform.ScraperTarget{
 					{
-						Name:       "name1",
-						Type:       platform.PrometheusScraperType,
-						OrgName:    "org1",
-						BucketName: "bucket1",
-						URL:        "url1",
-						ID:         MustIDBase16(targetOneID),
+						Name:     "name1",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
+						URL:      "url1",
+						ID:       MustIDBase16(targetOneID),
+					},
+				},
+			},
+		},
+		{
+			name: "create target with invalid org id",
+			fields: TargetFields{
+				IDGenerator: mock.NewIDGenerator(targetTwoID, t),
+				Targets: []*platform.ScraperTarget{
+					{
+						Name:     "name1",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
+						URL:      "url1",
+						ID:       MustIDBase16(targetOneID),
+					},
+				},
+			},
+			args: args{
+				target: &platform.ScraperTarget{
+					ID:       MustIDBase16(targetTwoID),
+					Name:     "name2",
+					Type:     platform.PrometheusScraperType,
+					BucketID: MustIDBase16(bucketTwoID),
+					URL:      "url2",
+				},
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.EInvalid,
+					Msg:  "org id is invalid",
+					Op:   platform.OpAddTarget,
+				},
+				targets: []platform.ScraperTarget{
+					{
+						Name:     "name1",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
+						URL:      "url1",
+						ID:       MustIDBase16(targetOneID),
+					},
+				},
+			},
+		},
+		{
+			name: "create target with invalid bucket id",
+			fields: TargetFields{
+				IDGenerator: mock.NewIDGenerator(targetTwoID, t),
+				Targets: []*platform.ScraperTarget{
+					{
+						Name:     "name1",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
+						URL:      "url1",
+						ID:       MustIDBase16(targetOneID),
+					},
+				},
+			},
+			args: args{
+				target: &platform.ScraperTarget{
+					ID:    MustIDBase16(targetTwoID),
+					Name:  "name2",
+					Type:  platform.PrometheusScraperType,
+					OrgID: MustIDBase16(orgTwoID),
+					URL:   "url2",
+				},
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.EInvalid,
+					Msg:  "bucket id is invalid",
+					Op:   platform.OpAddTarget,
+				},
+				targets: []platform.ScraperTarget{
+					{
+						Name:     "name1",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
+						URL:      "url1",
+						ID:       MustIDBase16(targetOneID),
 					},
 				},
 			},
@@ -125,42 +209,42 @@ func AddTarget(
 				IDGenerator: mock.NewIDGenerator(targetTwoID, t),
 				Targets: []*platform.ScraperTarget{
 					{
-						Name:       "name1",
-						Type:       platform.PrometheusScraperType,
-						OrgName:    "org1",
-						BucketName: "bucket1",
-						URL:        "url1",
-						ID:         MustIDBase16(targetOneID),
+						Name:     "name1",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
+						URL:      "url1",
+						ID:       MustIDBase16(targetOneID),
 					},
 				},
 			},
 			args: args{
 				target: &platform.ScraperTarget{
-					ID:         MustIDBase16(targetTwoID),
-					Name:       "name2",
-					Type:       platform.PrometheusScraperType,
-					OrgName:    "org2",
-					BucketName: "bucket2",
-					URL:        "url2",
+					ID:       MustIDBase16(targetTwoID),
+					Name:     "name2",
+					Type:     platform.PrometheusScraperType,
+					OrgID:    MustIDBase16(orgTwoID),
+					BucketID: MustIDBase16(bucketTwoID),
+					URL:      "url2",
 				},
 			},
 			wants: wants{
 				targets: []platform.ScraperTarget{
 					{
-						Name:       "name1",
-						Type:       platform.PrometheusScraperType,
-						OrgName:    "org1",
-						BucketName: "bucket1",
-						URL:        "url1",
-						ID:         MustIDBase16(targetOneID),
+						Name:     "name1",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
+						URL:      "url1",
+						ID:       MustIDBase16(targetOneID),
 					},
 					{
-						Name:       "name2",
-						Type:       platform.PrometheusScraperType,
-						OrgName:    "org2",
-						BucketName: "bucket2",
-						URL:        "url2",
-						ID:         MustIDBase16(targetTwoID),
+						Name:     "name2",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgTwoID),
+						BucketID: MustIDBase16(bucketTwoID),
+						URL:      "url2",
+						ID:       MustIDBase16(targetTwoID),
 					},
 				},
 			},
@@ -208,40 +292,40 @@ func ListTargets(
 			fields: TargetFields{
 				Targets: []*platform.ScraperTarget{
 					{
-						Name:       "name1",
-						Type:       platform.PrometheusScraperType,
-						OrgName:    "org1",
-						BucketName: "bucket1",
-						URL:        "url1",
-						ID:         MustIDBase16(targetOneID),
+						Name:     "name1",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
+						URL:      "url1",
+						ID:       MustIDBase16(targetOneID),
 					},
 					{
-						Name:       "name2",
-						Type:       platform.PrometheusScraperType,
-						OrgName:    "org2",
-						BucketName: "bucket2",
-						URL:        "url2",
-						ID:         MustIDBase16(targetTwoID),
+						Name:     "name2",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgTwoID),
+						BucketID: MustIDBase16(bucketTwoID),
+						URL:      "url2",
+						ID:       MustIDBase16(targetTwoID),
 					},
 				},
 			},
 			wants: wants{
 				targets: []platform.ScraperTarget{
 					{
-						Name:       "name1",
-						Type:       platform.PrometheusScraperType,
-						OrgName:    "org1",
-						BucketName: "bucket1",
-						URL:        "url1",
-						ID:         MustIDBase16(targetOneID),
+						Name:     "name1",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
+						URL:      "url1",
+						ID:       MustIDBase16(targetOneID),
 					},
 					{
-						Name:       "name2",
-						Type:       platform.PrometheusScraperType,
-						OrgName:    "org2",
-						BucketName: "bucket2",
-						URL:        "url2",
-						ID:         MustIDBase16(targetTwoID),
+						Name:     "name2",
+						Type:     platform.PrometheusScraperType,
+						OrgID:    MustIDBase16(orgTwoID),
+						BucketID: MustIDBase16(bucketTwoID),
+						URL:      "url2",
+						ID:       MustIDBase16(targetTwoID),
 					},
 				},
 			},
@@ -286,12 +370,16 @@ func GetTargetByID(
 			fields: TargetFields{
 				Targets: []*platform.ScraperTarget{
 					{
-						ID:   MustIDBase16(targetOneID),
-						Name: "target1",
+						ID:       MustIDBase16(targetOneID),
+						Name:     "target1",
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 					{
-						ID:   MustIDBase16(targetTwoID),
-						Name: "target2",
+						ID:       MustIDBase16(targetTwoID),
+						Name:     "target2",
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 				},
 			},
@@ -300,8 +388,10 @@ func GetTargetByID(
 			},
 			wants: wants{
 				target: &platform.ScraperTarget{
-					ID:   MustIDBase16(targetTwoID),
-					Name: "target2",
+					ID:       MustIDBase16(targetTwoID),
+					Name:     "target2",
+					OrgID:    MustIDBase16(orgOneID),
+					BucketID: MustIDBase16(bucketOneID),
 				},
 			},
 		},
@@ -310,12 +400,16 @@ func GetTargetByID(
 			fields: TargetFields{
 				Targets: []*platform.ScraperTarget{
 					{
-						ID:   MustIDBase16(targetOneID),
-						Name: "target1",
+						ID:       MustIDBase16(targetOneID),
+						Name:     "target1",
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 					{
-						ID:   MustIDBase16(targetTwoID),
-						Name: "target2",
+						ID:       MustIDBase16(targetTwoID),
+						Name:     "target2",
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 				},
 			},
@@ -369,10 +463,14 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 			fields: TargetFields{
 				Targets: []*platform.ScraperTarget{
 					{
-						ID: MustIDBase16(targetOneID),
+						ID:       MustIDBase16(targetOneID),
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 					{
-						ID: MustIDBase16(targetTwoID),
+						ID:       MustIDBase16(targetTwoID),
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 				},
 			},
@@ -382,7 +480,9 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 			wants: wants{
 				targets: []platform.ScraperTarget{
 					{
-						ID: MustIDBase16(targetTwoID),
+						ID:       MustIDBase16(targetTwoID),
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 				},
 			},
@@ -392,10 +492,14 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 			fields: TargetFields{
 				Targets: []*platform.ScraperTarget{
 					{
-						ID: MustIDBase16(targetOneID),
+						ID:       MustIDBase16(targetOneID),
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 					{
-						ID: MustIDBase16(targetTwoID),
+						ID:       MustIDBase16(targetTwoID),
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 				},
 			},
@@ -410,10 +514,14 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 				},
 				targets: []platform.ScraperTarget{
 					{
-						ID: MustIDBase16(targetOneID),
+						ID:       MustIDBase16(targetOneID),
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 					{
-						ID: MustIDBase16(targetTwoID),
+						ID:       MustIDBase16(targetTwoID),
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 				},
 			},
@@ -463,12 +571,16 @@ func UpdateTarget(
 			fields: TargetFields{
 				Targets: []*platform.ScraperTarget{
 					{
-						ID:  MustIDBase16(targetOneID),
-						URL: "url1",
+						ID:       MustIDBase16(targetOneID),
+						URL:      "url1",
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 					{
-						ID:  MustIDBase16(targetTwoID),
-						URL: "url2",
+						ID:       MustIDBase16(targetTwoID),
+						URL:      "url2",
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 				},
 			},
@@ -488,12 +600,16 @@ func UpdateTarget(
 			fields: TargetFields{
 				Targets: []*platform.ScraperTarget{
 					{
-						ID:  MustIDBase16(targetOneID),
-						URL: "url1",
+						ID:       MustIDBase16(targetOneID),
+						URL:      "url1",
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 					{
-						ID:  MustIDBase16(targetTwoID),
-						URL: "url2",
+						ID:       MustIDBase16(targetTwoID),
+						URL:      "url2",
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 				},
 			},
@@ -514,12 +630,16 @@ func UpdateTarget(
 			fields: TargetFields{
 				Targets: []*platform.ScraperTarget{
 					{
-						ID:  MustIDBase16(targetOneID),
-						URL: "url1",
+						ID:       MustIDBase16(targetOneID),
+						URL:      "url1",
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 					{
-						ID:  MustIDBase16(targetTwoID),
-						URL: "url2",
+						ID:       MustIDBase16(targetTwoID),
+						URL:      "url2",
+						OrgID:    MustIDBase16(orgOneID),
+						BucketID: MustIDBase16(bucketOneID),
 					},
 				},
 			},
@@ -529,8 +649,10 @@ func UpdateTarget(
 			},
 			wants: wants{
 				target: &platform.ScraperTarget{
-					ID:  MustIDBase16(targetOneID),
-					URL: "changed",
+					ID:       MustIDBase16(targetOneID),
+					URL:      "changed",
+					OrgID:    MustIDBase16(orgOneID),
+					BucketID: MustIDBase16(bucketOneID),
 				},
 			},
 		},

@@ -14,9 +14,8 @@ import {
 } from 'src/shared/constants/timeMachine'
 
 // Types
-import {TimeRange} from 'src/types/v2'
+import {TimeRange, View} from 'src/types/v2'
 import {
-  View,
   ViewType,
   DashboardDraftQuery,
   BuilderConfig,

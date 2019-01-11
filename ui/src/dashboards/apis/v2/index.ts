@@ -2,8 +2,16 @@
 import {dashboardsAPI, cellsAPI} from 'src/utils/api'
 
 // Types
-import {Dashboard, Cell, CreateCell, Label} from 'src/api'
-import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
+
+import {
+  DashboardSwitcherLinks,
+  Cell,
+  NewCell,
+  Dashboard,
+  View,
+} from 'src/types/v2/'
+
+import {Label, Cell as CellTypeAPI} from 'src/api'
 
 // Utils
 import {
@@ -11,24 +19,36 @@ import {
   updateDashboardLinks,
 } from 'src/dashboards/utils/dashboardSwitcherLinks'
 
+const addDashboardIDToCells = (
+  cells: CellTypeAPI[],
+  dashboardID: string
+): Cell[] => {
+  return cells.map(c => {
+    return {...c, dashboardID}
+  })
+}
+
 // TODO(desa): what to do about getting dashboards from another v2 source
 export const getDashboards = async (): Promise<Dashboard[]> => {
   const {data} = await dashboardsAPI.dashboardsGet()
 
-  return data.dashboards
+  return data.dashboards.map(d => ({
+    ...d,
+    cells: addDashboardIDToCells(d.cells, d.id),
+  }))
 }
 
 export const getDashboard = async (id: string): Promise<Dashboard> => {
   const {data} = await dashboardsAPI.dashboardsDashboardIDGet(id)
 
-  return data
+  return {...data, cells: addDashboardIDToCells(data.cells, data.id)}
 }
 
 export const createDashboard = async (
   dashboard: Partial<Dashboard>
 ): Promise<Dashboard> => {
   const {data} = await dashboardsAPI.dashboardsPost('', dashboard)
-  return data
+  return {...data, cells: addDashboardIDToCells(data.cells, data.id)}
 }
 
 export const deleteDashboard = async (dashboard: Dashboard): Promise<void> => {
@@ -43,7 +63,7 @@ export const updateDashboard = async (
     dashboard
   )
 
-  return data
+  return {...data, cells: addDashboardIDToCells(data.cells, data.id)}
 }
 
 export const loadDashboardLinks = async (
@@ -59,13 +79,16 @@ export const loadDashboardLinks = async (
 
 export const addCell = async (
   dashboardID: string,
-  cell: CreateCell
+  cell: NewCell
 ): Promise<Cell> => {
   const {data} = await cellsAPI.dashboardsDashboardIDCellsPost(
     dashboardID,
     cell
   )
-  return data
+
+  const cellWithID = {...data, dashboardID}
+
+  return cellWithID
 }
 
 export const updateCells = async (
@@ -74,7 +97,7 @@ export const updateCells = async (
 ): Promise<Cell[]> => {
   const {data} = await cellsAPI.dashboardsDashboardIDCellsPut(id, cells)
 
-  return data.cells
+  return addDashboardIDToCells(data.cells, id)
 }
 
 export const deleteCell = async (
@@ -114,4 +137,34 @@ export const removeDashboardLabels = async (
       return data
     })
   )
+}
+
+export const readView = async (
+  dashboardID: string,
+  cellID: string
+): Promise<View> => {
+  const {data} = await dashboardsAPI.dashboardsDashboardIDCellsCellIDViewGet(
+    dashboardID,
+    cellID
+  )
+
+  const view: View = {...data, dashboardID, cellID}
+
+  return view
+}
+
+export const updateView = async (
+  dashboardID: string,
+  cellID: string,
+  view: Partial<View>
+): Promise<View> => {
+  const {data} = await dashboardsAPI.dashboardsDashboardIDCellsCellIDViewPatch(
+    dashboardID,
+    cellID,
+    view
+  )
+
+  const viewWithIDs: View = {...data, dashboardID, cellID}
+
+  return viewWithIDs
 }

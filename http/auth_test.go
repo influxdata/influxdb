@@ -53,7 +53,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 								UserID:      platformtesting.MustIDBase16("2070616e656d2076"),
 								OrgID:       platformtesting.MustIDBase16("3070616e656d2076"),
 								Description: "t1",
-								Permissions: platform.OperPermissions(),
+								Permissions: platform.OperPermissions(platformtesting.MustIDBase16("3070616e656d2076")),
 							},
 							{
 								ID:          platformtesting.MustIDBase16("6669646573207375"),
@@ -61,7 +61,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 								UserID:      platformtesting.MustIDBase16("6c7574652c206f6e"),
 								OrgID:       platformtesting.MustIDBase16("9d70616e656d2076"),
 								Description: "t2",
-								Permissions: platform.OperPermissions(),
+								Permissions: platform.OperPermissions(platformtesting.MustIDBase16("3070616e656d2076")),
 							},
 						}, 2, nil
 					},
@@ -125,7 +125,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
     }
   ]
 }
-`, MustMarshal(platform.OperPermissions()), MustMarshal(platform.OperPermissions())),
+`, MustMarshal(platform.OperPermissions(platformtesting.MustIDBase16("3070616e656d2076"))), MustMarshal(platform.OperPermissions(platformtesting.MustIDBase16("3070616e656d2076")))),
 			},
 		},
 		{
@@ -227,6 +227,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 									{
 										Action:   platform.ReadAction,
 										Resource: platform.BucketsResource,
+										OrgID:    platformtesting.MustIDBase16("020f755c3c083000"),
 										ID: func() *platform.ID {
 											id := platformtesting.MustIDBase16("020f755c3c084000")
 											return &id
@@ -270,19 +271,27 @@ func TestService_handleGetAuthorization(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `
 {
-  "links": {
-    "user": "/api/v2/users/020f755c3c082000",
-    "self": "/api/v2/authorizations/020f755c3c082000"
-  },
+  "description": "",
   "id": "020f755c3c082000",
-  "user": "u1",
-  "userID": "020f755c3c082000",
+  "links": {
+    "self": "/api/v2/authorizations/020f755c3c082000",
+    "user": "/api/v2/users/020f755c3c082000"
+  },
   "org": "o1",
   "orgID": "020f755c3c083000",
-  "token": "hello",
+  "permissions": [
+    {
+      "action": "read",
+      "id": "020f755c3c084000",
+      "name": "b1",
+      "orgID": "020f755c3c083000",
+      "resource": "buckets"
+    }
+  ],
   "status": "",
-  "description": "",
-  "permissions": [{"action": "read","id": "020f755c3c084000", "name": "b1", "resource": "buckets"}]
+  "token": "hello",
+  "user": "u1",
+  "userID": "020f755c3c082000"
 }
 `,
 			},
@@ -346,7 +355,9 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetAuthorization() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil || (tt.wants.body != "" && !eq) {
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, handleGetAuthorization. unexpected error %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handleGetAuthorization() = -got/+want %s**", tt.name, diff)
 			}
 		})
@@ -412,6 +423,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 					Permissions: []platform.Permission{
 						{
 							Action:   platform.WriteAction,
+							OrgID:    platformtesting.MustIDBase16("020f755c3c083000"),
 							Resource: platform.AuthorizationsResource,
 						},
 					},
@@ -424,6 +436,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 					Permissions: []platform.Permission{
 						{
 							Action:   platform.ReadAction,
+							OrgID:    platformtesting.MustIDBase16("020f755c3c083000"),
 							Resource: platform.DashboardsResource,
 						},
 					},
@@ -434,19 +447,25 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `
 {
-  "links": {
-    "user": "/api/v2/users/aaaaaaaaaaaaaaaa",
-    "self": "/api/v2/authorizations/020f755c3c082000"
-  },
-  "id": "020f755c3c082000",
-  "user": "u1",
-  "userID": "aaaaaaaaaaaaaaaa",
-  "orgID": "020f755c3c083000",
-  "org": "o1",
-  "token": "new-test-token",
-  "status": "active",
   "description": "only read dashboards sucka",
-  "permissions": [{"action": "read", "resource": "dashboards"}]
+  "id": "020f755c3c082000",
+  "links": {
+    "self": "/api/v2/authorizations/020f755c3c082000",
+    "user": "/api/v2/users/aaaaaaaaaaaaaaaa"
+  },
+  "org": "o1",
+  "orgID": "020f755c3c083000",
+  "permissions": [
+    {
+      "action": "read",
+      "orgID": "020f755c3c083000",
+      "resource": "dashboards"
+    }
+  ],
+  "status": "active",
+  "token": "new-test-token",
+  "user": "u1",
+  "userID": "aaaaaaaaaaaaaaaa"
 }
 `,
 			},

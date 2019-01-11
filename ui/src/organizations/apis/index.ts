@@ -1,7 +1,8 @@
 import {orgsAPI, bucketsAPI, dashboardsAPI, taskAPI} from 'src/utils/api'
 
 // Types
-import {Bucket, Dashboard, Task, Organization, ResourceOwner} from 'src/api'
+import {Bucket, Task, Organization, ResourceOwner} from 'src/api'
+import {Dashboard} from 'src/types/v2'
 
 // CRUD APIs for Organizations and Organization resources
 // i.e. Organization Members, Buckets, Dashboards etc

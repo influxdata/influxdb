@@ -4,12 +4,14 @@ import React, {PureComponent} from 'react'
 // Components
 import SaveAsCellForm from 'src/dataExplorer/components/SaveAsCellForm'
 import {
+  IconFont,
   Button,
   Radio,
   OverlayTechnology,
   OverlayBody,
   OverlayHeading,
   OverlayContainer,
+  ComponentColor,
 } from 'src/clockface'
 
 // Styles
@@ -38,17 +40,19 @@ class SaveAsButton extends PureComponent<Props, State> {
 
     return (
       <>
-        <Button text="Save As..." onClick={this.handleShowOverlay} />
+        <Button
+          icon={IconFont.Export}
+          text="Save As"
+          onClick={this.handleShowOverlay}
+          color={ComponentColor.Success}
+          titleText="Save your query as a Dashboard Cell or a Task"
+        />
         <OverlayTechnology visible={isOverlayVisible}>
           <OverlayContainer>
-            <OverlayHeading title="Save As">
-              <div className="save-as--close-overlay">
-                <span
-                  className="icon remove"
-                  onClick={this.handleHideOverlay}
-                />
-              </div>
-            </OverlayHeading>
+            <OverlayHeading
+              title="Save As"
+              onDismiss={this.handleHideOverlay}
+            />
             <OverlayBody>
               <div className="save-as--options">
                 <Radio>

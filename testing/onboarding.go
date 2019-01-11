@@ -170,7 +170,7 @@ func Generate(
 						UserID:      MustIDBase16(oneID),
 						Description: "admin's Token",
 						OrgID:       MustIDBase16(twoID),
-						Permissions: mustGeneratePermissions(MustIDBase16(twoID), MustIDBase16(threeID)),
+						Permissions: platform.OperPermissions(MustIDBase16(twoID)),
 					},
 				},
 			},
@@ -201,22 +201,6 @@ func Generate(
 		})
 	}
 
-}
-
-func mustGeneratePermissions(orgID, bucketID platform.ID) []platform.Permission {
-	perms := platform.OperPermissions()
-	perms = append(perms, platform.OrgAdminPermissions(orgID)...)
-	writeBucketPerm, err := platform.NewPermissionAtID(bucketID, platform.WriteAction, platform.BucketsResource)
-	if err != nil {
-		panic(err)
-	}
-	readBucketPerm, err := platform.NewPermissionAtID(bucketID, platform.ReadAction, platform.BucketsResource)
-	if err != nil {
-		panic(err)
-	}
-	perms = append(perms, *writeBucketPerm, *readBucketPerm)
-
-	return perms
 }
 
 const (

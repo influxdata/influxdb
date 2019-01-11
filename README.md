@@ -8,9 +8,106 @@ This project requires Go 1.11 and Go module support.
 
 Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
 
-If you are getting an `error loading module requirements` error with `bzr executable file not found in $PATH”` on `make`, `brew install bazaar` (on macOSX) before continuing.
+If you are getting an `error loading module requirements` error with `bzr executable file not found in $PATH”` on `make`, `brew install bazaar` (on macOS) before continuing. This error will also be returned if you have not installed `npm`.  On macOS, `brew install npm` will install `npm`.
 
 For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
+
+## Basic Usage
+
+A successful `make` run results in two binaries, with platform-dependent paths:
+```
+$ make
+...
+env GO111MODULE=on go build -tags 'assets ' -o bin/darwin/influx ./cmd/influx
+env GO111MODULE=on go build -tags 'assets ' -o bin/darwin/influxd ./cmd/influxd
+```
+
+`influxd` is the InfluxDB service. `influx` is the CLI management tool.
+
+
+Start the service. Logs to stdout by default:
+```
+$ bin/darwin/influxd
+```
+
+To write and read fancy timeseries data, you'll need to first create a user, credentials, organization and bucket.
+Use the subcommands `influx user`, `influx auth`, `influx org` and `influx bucket`, or do it all in one breath with `influx setup`:
+```
+$ bin/darwin/influx setup
+Welcome to InfluxDB 2.0!
+Please type your primary username: user
+
+Please type your password: s3^R#tpA$s
+
+Please type your password again: s3^R#tpA$s
+
+Please type your primary organization name.: my-org
+
+Please type your primary bucket name.: my-bucket
+
+Please type your retention period in hours (exp 168 for 1 week).
+Or press ENTER for infinite.: 72
+
+
+You have entered:
+  Username:          user
+  Organization:      my-org
+  Bucket:            my-bucket
+  Retention Period:  72 hrs
+Confirm? (y/n): y
+
+UserID                  Username        Organization    Bucket
+033a3f2c5ccaa000        user            my-org          my-bucket
+Your token has been stored in /Users/you/.influxdbv2/credentials
+```
+
+`~/.influxdbv2/credentials` contains your auth token.
+Most `influx` commands read the token from this file path by default.
+
+You may need the organization ID and bucket ID later:
+```
+$ influx org find
+ID                      Name
+033a3f2c708aa000        my-org
+```
+
+```
+$ influx bucket find
+ID                      Name            Retention       Organization    OrganizationID
+033a3f2c710aa000        my-bucket       72h0m0s         my-org          033a3f2c708aa000
+```
+
+Write to measurement `m`, with tag `v=2`, in bucket `my-bucket`, which belongs to organization `my-org`:
+```
+$ bin/darwin/influx write --org my-org --bucket my-bucket --precision s "m v=2 $(date +%s)"
+```
+
+Write the same point using `curl`:
+```
+curl --header "Authorization: Token $(cat ~/.influxdbv2/credentials)" --data-raw "m v=2 $(date +%s)" "http://localhost:9999/api/v2/write?org=033a3f2c708aa000&bucket=033a3f2c710aa000&precision=s"
+```
+
+Read that back with a simple Flux query (currently, the `query` subcommand does not have a `--org` flag):
+```
+$ bin/darwin/influx query --org-id 033a3f2c708aa000 'from(bucket:"my-bucket") |> range(start:-1h)'
+Result: _result
+Table: keys: [_start, _stop, _field, _measurement]
+                   _start:time                      _stop:time           _field:string     _measurement:string                      _time:time                  _value:float
+------------------------------  ------------------------------  ----------------------  ----------------------  ------------------------------  ----------------------------
+2019-01-10T19:24:06.806244000Z  2019-01-10T20:24:06.806244000Z                       v                       m  2019-01-10T20:04:09.000000000Z                             2
+```
+
+Use the fancy REPL:
+```
+$ bin/darwin/influx repl --org my-org
+> from(bucket:"my-bucket") |> range(start:-1h)
+Result: _result
+Table: keys: [_start, _stop, _field, _measurement]
+                   _start:time                      _stop:time           _field:string     _measurement:string                      _time:time                  _value:float
+------------------------------  ------------------------------  ----------------------  ----------------------  ------------------------------  ----------------------------
+2019-01-10T19:36:23.361220000Z  2019-01-10T20:36:23.361220000Z                       v                       m  2019-01-10T20:04:09.000000000Z                             2
+>
+```
 
 ## Introducing Flux
 

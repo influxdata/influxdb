@@ -49,6 +49,7 @@ import {
   ViewType,
   TimeRange,
   DashboardSwitcherLinks,
+  AppState,
 } from 'src/types/v2'
 import {NewView, XYView, QueryViewProperties} from 'src/types/v2/dashboards'
 import {RemoteDataState} from 'src/types'
@@ -68,7 +69,7 @@ interface StateProps {
   autoRefresh: number
   inPresentationMode: boolean
   showTemplateControlBar: boolean
-  views: {[viewID: string]: {view: View; status: RemoteDataState}}
+  views: {[cellID: string]: {view: View; status: RemoteDataState}}
 }
 
 interface DispatchProps {
@@ -283,14 +284,14 @@ class DashboardPage extends Component<Props, State> {
     this.setState({isShowingVEO: false})
   }
 
-  private handleSaveVEO = async (view): Promise<void> => {
+  private handleSaveVEO = async (view: View): Promise<void> => {
     this.setState({isShowingVEO: false})
 
     const {dashboard, onCreateCellWithView, onUpdateView, notify} = this.props
 
     try {
       if (view.id) {
-        await onUpdateView(view)
+        onUpdateView(dashboard.id, view)
       } else {
         await onCreateCellWithView(dashboard, view)
       }
@@ -300,11 +301,11 @@ class DashboardPage extends Component<Props, State> {
     }
   }
 
-  private handleEditView = (viewID: string): void => {
-    const entry = this.props.views[viewID]
+  private handleEditView = (cellID: string): void => {
+    const entry = this.props.views[cellID]
 
     if (!entry || !entry.view) {
-      throw new Error(`Can't edit non-existant view with ID "${viewID}"`)
+      throw new Error(`Can't edit non-existent view with ID "${cellID}"`)
     }
 
     this.showVEO(entry.view as View<QueryViewProperties>)
@@ -321,8 +322,11 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleCloneCell = async (cell: Cell): Promise<void> => {
-    const {dashboard, copyCell} = this.props
-    await copyCell(dashboard, cell)
+    const {dashboard, onCreateCellWithView, views} = this.props
+    const viewEntry = views[cell.id]
+    if (viewEntry && viewEntry.view) {
+      await onCreateCellWithView(dashboard, viewEntry.view)
+    }
   }
 
   private handleRenameDashboard = async (name: string): Promise<void> => {
@@ -378,7 +382,7 @@ class DashboardPage extends Component<Props, State> {
   }
 }
 
-const mstp = (state, {params: {dashboardID}}): StateProps => {
+const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
   const {
     links,
     app: {
@@ -399,7 +403,7 @@ const mstp = (state, {params: {dashboardID}}): StateProps => {
   return {
     links,
     views,
-    sources,
+    sources: Object.values(sources.sources),
     zoomedTimeRange: {lower: null, upper: null},
     timeRange,
     dashboard,

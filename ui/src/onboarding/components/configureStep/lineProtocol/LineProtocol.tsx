@@ -67,8 +67,6 @@ export class LineProtocol extends PureComponent<Props> {
           </FancyScrollbar>
         </div>
         <OnboardingButtons
-          nextButtonText="Continue to Verify"
-          backButtonText="Back to Select Data Source Type"
           onClickBack={this.props.onClickBack}
           onClickSkip={this.props.onClickSkip}
           showSkip={true}
@@ -80,11 +78,7 @@ export class LineProtocol extends PureComponent<Props> {
   }
 
   private get LineProtocolTabs(): LineProtocolTab[] {
-    return [
-      LineProtocolTab.UploadFile,
-      LineProtocolTab.EnterManually,
-      LineProtocolTab.EnterURL,
-    ]
+    return [LineProtocolTab.UploadFile, LineProtocolTab.EnterManually]
   }
 
   private get Content(): JSX.Element {

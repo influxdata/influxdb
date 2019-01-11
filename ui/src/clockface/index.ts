@@ -6,6 +6,9 @@ import Dropdown, {DropdownMode} from './components/dropdowns/Dropdown'
 import MultiSelectDropdown from './components/dropdowns/MultiSelectDropdown'
 import Form from './components/form_layout/Form'
 import Input, {InputType, AutoComplete} from './components/inputs/Input'
+import MultipleInput, {
+  MultiInputType,
+} from './components/inputs/multipleInput/MultipleInput'
 import OverlayTechnology from './components/overlays/OverlayTechnology'
 import OverlayContainer from './components/overlays/OverlayContainer'
 import OverlayHeading from './components/overlays/OverlayHeading'
@@ -81,6 +84,8 @@ export {
   LabelSelector,
   LabelType,
   MultiSelectDropdown,
+  MultiInputType,
+  MultipleInput,
   OverlayTechnology,
   OverlayContainer,
   OverlayHeading,

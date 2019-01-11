@@ -21,7 +21,7 @@ import {
 } from 'src/shared/constants'
 
 // Types
-import {Cell} from 'src/api'
+import {Cell} from 'src/types/v2'
 import {TimeRange} from 'src/types'
 
 // Styles
@@ -38,7 +38,7 @@ interface Props {
   onCloneCell?: (cell: Cell) => void
   onDeleteCell?: (cell: Cell) => void
   onPositionChange?: (cells: Cell[]) => void
-  onEditView: (viewID: string) => void
+  onEditView: (cellID: string) => void
 }
 
 interface State {
@@ -161,7 +161,7 @@ class Cells extends Component<Props & WithRouterProps, State> {
   private handleEditCell = (cell: Cell) => {
     const {onEditView} = this.props
 
-    return () => onEditView(cell.viewID)
+    return () => onEditView(cell.id)
   }
 
   // ensures that Status Page height fits the window

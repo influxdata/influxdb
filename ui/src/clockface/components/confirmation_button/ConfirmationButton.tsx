@@ -13,6 +13,7 @@ import {
   ComponentSize,
   ButtonShape,
   IconFont,
+  ButtonType,
 } from 'src/clockface/types'
 
 // Styles
@@ -65,6 +66,7 @@ class ConfirmationButton extends Component<Props, State> {
       shape,
       status,
       confirmText,
+      icon,
     } = this.props
     const {isTooltipVisible} = this.state
 
@@ -81,6 +83,8 @@ class ConfirmationButton extends Component<Props, State> {
             status={status}
             active={isTooltipVisible}
             onClick={this.handleButtonClick}
+            icon={icon}
+            type={ButtonType.Button}
           />
           <div className={this.tooltipClassName}>
             <div

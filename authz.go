@@ -29,8 +29,12 @@ type Authorizer interface {
 	Kind() string
 }
 
-// PermissionAllowed
+// PermissionAllowed determines if a permission is allowed.
 func PermissionAllowed(p Permission, ps []Permission) bool {
+	if !p.OrgID.Valid() {
+		return false
+	}
+
 	pID := ID(0)
 	if p.ID != nil {
 		pID = *p.ID
@@ -40,15 +44,14 @@ func PermissionAllowed(p Permission, ps []Permission) bool {
 	}
 
 	for _, perm := range ps {
-		permID := ID(0)
-		if perm.ID != nil {
-			permID = *perm.ID
-			if !permID.Valid() {
-				return false
+		if perm.ID == nil {
+			if perm.Action == p.Action && perm.Resource == p.Resource && perm.OrgID == p.OrgID {
+				return true
 			}
-		}
-		if perm.Action == p.Action && perm.Resource == p.Resource && permID == pID {
-			return true
+		} else {
+			if *perm.ID == pID && perm.Action == p.Action && perm.Resource == p.Resource && perm.OrgID == p.OrgID {
+				return true
+			}
 		}
 	}
 	return false
@@ -147,13 +150,14 @@ func (r Resource) Valid() (err error) {
 type Permission struct {
 	Action   Action   `json:"action"`
 	Resource Resource `json:"resource"`
+	OrgID    ID       `json:"orgID"`
 	ID       *ID      `json:"id,omitempty"`
 }
 
 func (p Permission) String() string {
-	str := fmt.Sprintf("%s:%s", p.Action, p.Resource)
+	str := fmt.Sprintf("%s:orgs/%s/%s", p.Action, p.OrgID, p.Resource)
 	if p.ID != nil {
-		str += fmt.Sprintf(":%s", (*p.ID).String())
+		str += fmt.Sprintf("/%s", (*p.ID).String())
 	}
 
 	return str
@@ -177,6 +181,14 @@ func (p *Permission) Valid() error {
 		}
 	}
 
+	if !p.OrgID.Valid() {
+		return &Error{
+			Code: EInvalid,
+			Err:  ErrInvalidID,
+			Msg:  "invalid org id for permission",
+		}
+	}
+
 	if p.ID != nil && !(*p.ID).Valid() {
 		return &Error{
 			Code: EInvalid,
@@ -189,20 +201,22 @@ func (p *Permission) Valid() error {
 }
 
 // NewPermission returns a permission with provided arguments.
-func NewPermission(a Action, r Resource) (*Permission, error) {
+func NewPermission(a Action, r Resource, orgID ID) (*Permission, error) {
 	p := &Permission{
 		Action:   a,
 		Resource: r,
+		OrgID:    orgID,
 	}
 
 	return p, p.Valid()
 }
 
 // NewPermissionAtID creates a permission with the provided arguments.
-func NewPermissionAtID(id ID, a Action, r Resource) (*Permission, error) {
+func NewPermissionAtID(id ID, a Action, r Resource, orgID ID) (*Permission, error) {
 	p := &Permission{
 		Action:   a,
 		Resource: r,
+		OrgID:    orgID,
 		ID:       &id,
 	}
 
@@ -210,34 +224,22 @@ func NewPermissionAtID(id ID, a Action, r Resource) (*Permission, error) {
 }
 
 // OperPermissions are the default permissions for those who setup the application.
-func OperPermissions() []Permission {
+func OperPermissions(orgID ID) []Permission {
 	ps := []Permission{}
 	for _, r := range AllResources {
 		for _, a := range actions {
-			ps = append(ps, Permission{Action: a, Resource: r})
+			ps = append(ps, Permission{Action: a, Resource: r, OrgID: orgID})
 		}
 	}
 
 	return ps
 }
 
-// OrgAdminPermissions are the default permissions for org admins.
-func OrgAdminPermissions(orgID ID) []Permission {
+// MemberPermissions are the default permissions for those members.
+func MemberPermissions(orgID ID) []Permission {
 	ps := []Permission{}
-	for _, r := range OrgResources {
-		for _, a := range actions {
-			ps = append(ps, Permission{ID: &orgID, Action: a, Resource: r})
-		}
-	}
-
-	return ps
-}
-
-// OrgMemberPermissions are the default permissions for org members.
-func OrgMemberPermissions(orgID ID) []Permission {
-	ps := []Permission{}
-	for _, r := range OrgResources {
-		ps = append(ps, Permission{ID: &orgID, Action: ReadAction, Resource: r})
+	for _, r := range AllResources {
+		ps = append(ps, Permission{Action: ReadAction, Resource: r, OrgID: orgID})
 	}
 
 	return ps

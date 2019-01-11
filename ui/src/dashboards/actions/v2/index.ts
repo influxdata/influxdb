@@ -14,8 +14,8 @@ import {
   deleteCell as deleteCellAJAX,
   addDashboardLabels as addDashboardLabelsAJAX,
   removeDashboardLabels as removeDashboardLabelsAJAX,
+  updateView as updateViewAJAX,
 } from 'src/dashboards/apis/v2'
-import {createView as createViewAJAX} from 'src/dashboards/apis/v2/view'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -38,8 +38,8 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
-import {Dashboard, Cell, Label} from 'src/api'
-import {NewView} from 'src/types/v2/dashboards'
+import {CreateCell, Label} from 'src/api'
+import {Dashboard, NewView, Cell} from 'src/types/v2'
 
 export enum ActionTypes {
   LoadDashboards = 'LOAD_DASHBOARDS',
@@ -287,14 +287,9 @@ export const createCellWithView = (
   view: NewView
 ) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
-    const createdView = await createViewAJAX(view)
-
-    const cell = {
-      ...getNewDashboardCell(dashboard),
-      viewID: createdView.id,
-    }
-
+    const cell: CreateCell = getNewDashboardCell(dashboard)
     const createdCell = await addCellAJAX(dashboard.id, cell)
+    const updatedView = await updateViewAJAX(dashboard.id, createdCell.id, view)
 
     let updatedDashboard: Dashboard = {
       ...dashboard,
@@ -303,7 +298,7 @@ export const createCellWithView = (
 
     updatedDashboard = await updateDashboardAJAX(dashboard)
 
-    dispatch(setView(createdView.id, createdView, RemoteDataState.Done))
+    dispatch(setView(createdCell.id, updatedView, RemoteDataState.Done))
     dispatch(updateDashboard(updatedDashboard))
   } catch {
     notify(copy.cellAddFailed())

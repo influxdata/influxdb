@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/mock"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	influxdbtesting "github.com/influxdata/influxdb/testing"
 )
 
 func TestScheduler(t *testing.T) {
@@ -29,20 +29,22 @@ func TestScheduler(t *testing.T) {
 	defer cancel()
 
 	storage := &mockStorage{
-		Metrics: make(map[int64]Metrics),
-		Targets: []platform.ScraperTarget{
+		Metrics: make(map[time.Time]Metrics),
+		Targets: []influxdb.ScraperTarget{
 			{
-				ID:   platformtesting.MustIDBase16("3a0d0a6365646120"),
-				Type: platform.PrometheusScraperType,
-				URL:  ts.URL + "/metrics",
+				ID:       influxdbtesting.MustIDBase16("3a0d0a6365646120"),
+				Type:     influxdb.PrometheusScraperType,
+				URL:      ts.URL + "/metrics",
+				OrgID:    *orgID,
+				BucketID: *bucketID,
 			},
 		},
 		TotalGatherJobs: make(chan struct{}, totalGatherJobs),
 	}
 
-	subscriber.Subscribe(MetricsSubject, "", &StorageHandler{
-		Logger:  logger,
-		Storage: storage,
+	subscriber.Subscribe(MetricsSubject, "", &RecorderHandler{
+		Logger:   logger,
+		Recorder: storage,
 	})
 
 	scheduler, err := NewScheduler(10, logger,

@@ -18,7 +18,7 @@ import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import {Sort} from 'src/clockface'
-import {Dashboard} from 'src/api'
+import {Dashboard} from 'src/types/v2'
 
 interface Props {
   searchTerm: string

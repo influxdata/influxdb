@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/nats"
 	"go.uber.org/zap"
 )
@@ -20,7 +20,7 @@ const (
 
 // Scheduler is struct to run scrape jobs.
 type Scheduler struct {
-	Targets platform.ScraperTargetStoreService
+	Targets influxdb.ScraperTargetStoreService
 	// Interval is between each metrics gathering event.
 	Interval time.Duration
 	// Timeout is the maxisium time duration allowed by each TCP request
@@ -38,7 +38,7 @@ type Scheduler struct {
 func NewScheduler(
 	numScrapers int,
 	l *zap.Logger,
-	targets platform.ScraperTargetStoreService,
+	targets influxdb.ScraperTargetStoreService,
 	p nats.Publisher,
 	s nats.Subscriber,
 	interval time.Duration,
@@ -111,14 +111,14 @@ func (s *Scheduler) run(ctx context.Context) error {
 	}
 }
 
-func requestScrape(t platform.ScraperTarget, publisher nats.Publisher) error {
+func requestScrape(t influxdb.ScraperTarget, publisher nats.Publisher) error {
 	buf := new(bytes.Buffer)
 	err := json.NewEncoder(buf).Encode(t)
 	if err != nil {
 		return err
 	}
 	switch t.Type {
-	case platform.PrometheusScraperType:
+	case influxdb.PrometheusScraperType:
 		return publisher.Publish(promTargetSubject, buf)
 	}
 	return fmt.Errorf("unsupported target scrape type: %s", t.Type)

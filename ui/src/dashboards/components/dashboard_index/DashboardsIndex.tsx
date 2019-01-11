@@ -50,8 +50,7 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 // Types
 import {Notification} from 'src/types/notifications'
 import {DashboardFile} from 'src/types/v2/dashboards'
-import {Cell, Dashboard} from 'src/api'
-import {Links, AppState} from 'src/types/v2'
+import {Links, Cell, Dashboard, AppState} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

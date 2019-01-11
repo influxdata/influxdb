@@ -22,7 +22,7 @@ interface Props {
   onZoom: (range: TimeRange) => void
   onPositionChange: (cells: Cell[]) => void
   setScrollTop: (e: MouseEvent<HTMLElement>) => void
-  onEditView: (viewID: string) => void
+  onEditView: (cellID: string) => void
   onAddCell: () => void
 }
 

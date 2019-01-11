@@ -85,41 +85,23 @@ type UserResourceMappingFilter struct {
 	UserType   UserType
 }
 
-var ownerActions = []Action{WriteAction, ReadAction}
-var memberActions = []Action{ReadAction}
-
 func (m *UserResourceMapping) ownerPerms() ([]Permission, error) {
-	ps := make([]Permission, 0, len(ownerActions))
-	for _, a := range ownerActions {
-		p, err := NewPermissionAtID(m.ResourceID, a, m.Resource)
-		if err != nil {
-			return nil, err
-		}
+	ps := []Permission{}
+	// TODO(desa): how to grant access to specific resources.
 
-		ps = append(ps, *p)
-
-		if m.Resource == OrgsResource {
-			ps = append(ps, OrgAdminPermissions(m.ResourceID)...)
-		}
-
+	if m.Resource == OrgsResource {
+		ps = append(ps, OperPermissions(m.ResourceID)...)
 	}
 
 	return ps, nil
 }
 
 func (m *UserResourceMapping) memberPerms() ([]Permission, error) {
-	ps := make([]Permission, 0, len(memberActions))
-	for _, a := range memberActions {
-		p, err := NewPermissionAtID(m.ResourceID, a, m.Resource)
-		if err != nil {
-			return nil, err
-		}
+	ps := []Permission{}
+	// TODO(desa): how to grant access to specific resources.
 
-		ps = append(ps, *p)
-
-		if m.Resource == OrgsResource {
-			ps = append(ps, OrgMemberPermissions(m.ResourceID)...)
-		}
+	if m.Resource == OrgsResource {
+		ps = append(ps, MemberPermissions(m.ResourceID)...)
 	}
 
 	return ps, nil

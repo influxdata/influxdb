@@ -2,9 +2,8 @@ import {
   DEFAULT_VERTICAL_TIME_AXIS,
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
-import {Cell} from 'src/types'
+import {Cell, Dashboard} from 'src/types/v2'
 import {DecimalPlaces} from 'src/types/v2/dashboards'
-import {Dashboard} from 'src/api'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 export const UNTITLED_GRAPH: string = 'Untitled Graph'
@@ -50,7 +49,7 @@ export const FORMAT_OPTIONS: Array<{text: string}> = [
 
 export type NewDefaultCell = Pick<
   Cell,
-  Exclude<keyof Cell, 'id' | 'links' | 'viewID'>
+  Exclude<keyof Cell, 'id' | 'links' | 'dashboardID' | 'name'>
 >
 
 export const NEW_DEFAULT_DASHBOARD_CELL: NewDefaultCell = {
@@ -70,14 +69,7 @@ type EmptyDefaultDashboard = Pick<
 export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
   id: '0',
   name: '',
-  cells: [
-    {
-      x: 0,
-      y: 0,
-      w: 4,
-      h: 4,
-    },
-  ],
+  cells: [NEW_DEFAULT_DASHBOARD_CELL],
 }
 
 type NewDefaultDashboard = Pick<

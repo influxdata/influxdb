@@ -38,8 +38,9 @@ export default class BucketList extends PureComponent<Props, State> {
       <>
         <IndexList>
           <IndexList.Header>
-            <IndexList.HeaderCell columnName="Name" width="50%" />
-            <IndexList.HeaderCell columnName="Retention Rule" width="50%" />
+            <IndexList.HeaderCell columnName="Name" width="40%" />
+            <IndexList.HeaderCell columnName="Retention" width="40%" />
+            <IndexList.HeaderCell columnName="" width="20%" />
           </IndexList.Header>
           <IndexList.Body columnCount={3} emptyState={emptyState}>
             {buckets.map(bucket => (
