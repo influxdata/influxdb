@@ -1,13 +1,114 @@
 package gather
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestMetrics(t *testing.T) {
+func TestMetricsReader(t *testing.T) {
+	cases := []struct {
+		name  string
+		ms    MetricsSlice
+		wants string
+		or    string
+	}{
+		{
+			name: "single value only",
+			ms: []Metrics{
+				{
+					Name: "cpu_load_short",
+					Fields: map[string]interface{}{
+						"value": 0.64,
+					},
+					Type:      -1,
+					Timestamp: time.Unix(0, 1422568543702900257),
+				},
+			},
+			wants: "cpu_load_short value=0.64 1422568543702900257",
+		},
+		{
+			name: "single regular metrics",
+			ms: []Metrics{
+				{
+					Name: "cpu_load_short",
+					Tags: map[string]string{
+						"host":   "server01",
+						"region": "us-west",
+					},
+					Fields: map[string]interface{}{
+						"value": 0.64,
+					},
+					Type:      MetricTypeGauge,
+					Timestamp: time.Unix(0, 1422568543702900257),
+				},
+			},
+			wants: "cpu_load_short,host=server01,region=us-west,type=GAUGE value=0.64 1422568543702900257",
+		},
+		{
+			name: "multiple value only",
+			ms: []Metrics{
+				{
+					Name: "cpu_load_short",
+					Fields: map[string]interface{}{
+						"value":  0.64,
+						"region": "us-west",
+					},
+					Type:      -1,
+					Timestamp: time.Unix(0, 1522568543702900257),
+				},
+			},
+			wants: `cpu_load_short region="us-west",value=0.64 1522568543702900257`,
+		},
+		{
+			name: "multiple metrics",
+			ms: []Metrics{
+				{
+					Name: "cpu_load_short",
+					Tags: map[string]string{
+						"region": "us-west",
+					},
+					Fields: map[string]interface{}{
+						"value": 0.64,
+					},
+					Type:      -1,
+					Timestamp: time.Unix(0, 1422568543702900257),
+				},
+				{
+					Name: "cpu_load_short",
+					Tags: map[string]string{
+						"region": "us-east",
+					},
+					Fields: map[string]interface{}{
+						"value": 0.34,
+					},
+					Type:      -1,
+					Timestamp: time.Unix(0, 1522568543702900257),
+				},
+			},
+			wants: "cpu_load_short,region=us-west value=0.64 1422568543702900257\ncpu_load_short,region=us-east value=0.34 1522568543702900257",
+		},
+	}
+	for _, c := range cases {
+		r, err := c.ms.Reader()
+		if err != nil {
+			t.Fatalf("error in convert metrics to reader: %v", err)
+		}
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(r)
+
+		if diff1 := cmp.Diff(c.wants, buf.String(), nil); diff1 != "" {
+			if diff2 := cmp.Diff(c.or, buf.String(), nil); diff2 != "" {
+				t.Fatalf("convert metrics is incorrect, diff %s", diff1)
+			}
+		}
+	}
+}
+
+func TestMetricsMarshal(t *testing.T) {
 	cases := []struct {
 		name string
 		ms   []Metrics
@@ -20,7 +121,7 @@ func TestMetrics(t *testing.T) {
 			name: "single",
 			ms: []Metrics{
 				{
-					Timestamp: 12345,
+					Timestamp: time.Unix(12345, 0),
 					Tags: map[string]string{
 						"b": "B",
 						"a": "A",
@@ -38,7 +139,7 @@ func TestMetrics(t *testing.T) {
 			name: "multiple",
 			ms: []Metrics{
 				{
-					Timestamp: 12345,
+					Timestamp: time.Unix(12345, 0),
 					Tags: map[string]string{
 						"b": "B",
 						"a": "A",
@@ -52,7 +153,7 @@ func TestMetrics(t *testing.T) {
 				},
 
 				{
-					Timestamp: 12345,
+					Timestamp: time.Unix(12345, 0),
 					Tags: map[string]string{
 						"b": "B2",
 						"a": "A2",

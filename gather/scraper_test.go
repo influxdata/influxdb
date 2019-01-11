@@ -7,9 +7,15 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
+)
+
+var (
+	orgID, _    = influxdb.IDFromString("020f755c3c082000")
+	bucketID, _ = influxdb.IDFromString("020f755c3c082001")
 )
 
 func TestPrometheusScraper(t *testing.T) {
@@ -124,19 +130,19 @@ func TestPrometheusScraper(t *testing.T) {
 			defer ts.Close()
 			url = ts.URL
 		}
-		results, err := scraper.Gather(context.Background(), platform.ScraperTarget{
-			URL:        url + "/metrics",
-			OrgName:    "org1",
-			BucketName: "bucket1",
+		results, err := scraper.Gather(context.Background(), influxdb.ScraperTarget{
+			URL:      url + "/metrics",
+			OrgID:    *orgID,
+			BucketID: *bucketID,
 		})
 		if err != nil && !c.hasErr {
 			t.Fatalf("scraper parse err in testing %s: %v", c.name, err)
 		}
-		if len(c.ms) != len(results) {
+		if len(c.ms) != len(results.MetricsSlice) {
 			t.Fatalf("scraper parse metrics incorrect length, want %d, got %d",
-				len(c.ms), len(results))
+				len(c.ms), len(results.MetricsSlice))
 		}
-		for _, m := range results {
+		for _, m := range results.MetricsSlice {
 			for _, cm := range c.ms {
 				if m.Name == cm.Name {
 					if diff := cmp.Diff(m, cm, metricsCmpOption); diff != "" {
@@ -182,47 +188,47 @@ go_memstats_frees_total 1.8944339e+07
 go_memstats_gc_cpu_fraction 1.972734963012756e-05
 `
 
-// mockStorage implement storage interface
-// and platform.ScraperTargetStoreService interface.
+// mockStorage implement recorder interface
+// and influxdb.ScraperTargetStoreService interface.
 type mockStorage struct {
 	sync.RWMutex
 	TotalGatherJobs chan struct{}
-	Metrics         map[int64]Metrics
-	Targets         []platform.ScraperTarget
+	Metrics         map[time.Time]Metrics
+	Targets         []influxdb.ScraperTarget
 }
 
-func (s *mockStorage) Record(ms []Metrics) error {
+func (s *mockStorage) Record(collected MetricsCollection) error {
 	s.Lock()
 	defer s.Unlock()
-	for _, m := range ms {
+	for _, m := range collected.MetricsSlice {
 		s.Metrics[m.Timestamp] = m
 	}
 	s.TotalGatherJobs <- struct{}{}
 	return nil
 }
 
-func (s *mockStorage) ListTargets(ctx context.Context) (targets []platform.ScraperTarget, err error) {
+func (s *mockStorage) ListTargets(ctx context.Context) (targets []influxdb.ScraperTarget, err error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.Targets == nil {
 		s.Lock()
-		s.Targets = make([]platform.ScraperTarget, 0)
+		s.Targets = make([]influxdb.ScraperTarget, 0)
 		s.Unlock()
 	}
 	return s.Targets, nil
 }
 
-func (s *mockStorage) AddTarget(ctx context.Context, t *platform.ScraperTarget) error {
+func (s *mockStorage) AddTarget(ctx context.Context, t *influxdb.ScraperTarget) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.Targets == nil {
-		s.Targets = make([]platform.ScraperTarget, 0)
+		s.Targets = make([]influxdb.ScraperTarget, 0)
 	}
 	s.Targets = append(s.Targets, *t)
 	return nil
 }
 
-func (s *mockStorage) RemoveTarget(ctx context.Context, id platform.ID) error {
+func (s *mockStorage) RemoveTarget(ctx context.Context, id influxdb.ID) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -238,7 +244,7 @@ func (s *mockStorage) RemoveTarget(ctx context.Context, id platform.ID) error {
 	return nil
 }
 
-func (s *mockStorage) GetTargetByID(ctx context.Context, id platform.ID) (target *platform.ScraperTarget, err error) {
+func (s *mockStorage) GetTargetByID(ctx context.Context, id influxdb.ID) (target *influxdb.ScraperTarget, err error) {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -253,7 +259,7 @@ func (s *mockStorage) GetTargetByID(ctx context.Context, id platform.ID) (target
 
 }
 
-func (s *mockStorage) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (target *platform.ScraperTarget, err error) {
+func (s *mockStorage) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget) (target *influxdb.ScraperTarget, err error) {
 	s.Lock()
 	defer s.Unlock()
 

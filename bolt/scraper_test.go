@@ -18,7 +18,7 @@ func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T)
 	ctx := context.Background()
 	for _, target := range f.Targets {
 		if err := c.PutTarget(ctx, target); err != nil {
-			t.Fatalf("failed to populate users")
+			t.Fatalf("failed to populate targets: %v", err)
 		}
 	}
 	return c, bolt.OpPrefix, func() {
