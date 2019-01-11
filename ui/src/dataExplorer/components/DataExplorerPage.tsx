@@ -6,6 +6,7 @@ import DataExplorer from 'src/dataExplorer/components/DataExplorer'
 import {Page} from 'src/pageLayout'
 import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
 import VisOptionsButton from 'src/shared/components/VisOptionsButton'
+import ViewTypeDropdown from 'src/shared/components/view_options/ViewTypeDropdown'
 
 const DataExplorerPage: SFC<{}> = () => {
   return (
@@ -15,6 +16,7 @@ const DataExplorerPage: SFC<{}> = () => {
           <Page.Title title="Data Explorer" />
         </Page.Header.Left>
         <Page.Header.Right>
+          <ViewTypeDropdown />
           <VisOptionsButton />
           <SaveAsButton />
         </Page.Header.Right>

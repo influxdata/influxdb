@@ -3,7 +3,7 @@ import React, {Component} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, ButtonShape, IconFont} from 'src/clockface'
+import {Button, ButtonShape, IconFont, ComponentColor} from 'src/clockface'
 
 // Actions
 import {setActiveTab} from 'src/shared/actions/v2/timeMachines'
@@ -31,11 +31,16 @@ class VisOptionsButton extends Component<Props> {
   public render() {
     const {activeTab} = this.props
 
+    const color =
+      activeTab === TimeMachineTab.Visualization
+        ? ComponentColor.Primary
+        : ComponentColor.Default
+
     return (
       <Button
+        color={color}
         shape={ButtonShape.Square}
         icon={IconFont.CogThick}
-        active={activeTab === TimeMachineTab.Visualization}
         onClick={this.handleClick}
       />
     )

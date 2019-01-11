@@ -12,6 +12,7 @@ import {
 } from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import VisOptionsButton from 'src/shared/components/VisOptionsButton'
+import ViewTypeDropdown from 'src/shared/components/view_options/ViewTypeDropdown'
 
 // Constants
 import {
@@ -42,6 +43,7 @@ class VEOHeader extends PureComponent<Props> {
             />
           </Page.Header.Left>
           <Page.Header.Right>
+            <ViewTypeDropdown />
             <VisOptionsButton />
             <Button
               icon={IconFont.Remove}
