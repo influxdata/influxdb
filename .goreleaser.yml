@@ -50,8 +50,11 @@ s3:
 
 dockers:
   -
-    binary: influxd
-    image: quay.io/influxdb/influx
+    binaries:
+     - influxd
+     - influx
+    image_templates:
+      - quay.io/influxdb/influx
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
@@ -59,3 +62,4 @@ dockers:
 # Do not make github release
 release:
   disable: true
+
