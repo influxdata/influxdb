@@ -30,6 +30,18 @@ type AuthorizationCreateFlags struct {
 
 	readBucketPermissions  []string
 	writeBucketPermissions []string
+
+	writeTasksPermission bool
+	readTasksPermission  bool
+
+	writeTelegrafsPermission bool
+	readTelegrafsPermission  bool
+
+	writeOrganizationsPermission bool
+	readOrganizationsPermission  bool
+
+	writeDashboardsPermission bool
+	readDashboardsPermission  bool
 }
 
 var authorizationCreateFlags AuthorizationCreateFlags
@@ -49,6 +61,18 @@ func init() {
 
 	authorizationCreateCmd.Flags().StringArrayVarP(&authorizationCreateFlags.readBucketPermissions, "read-bucket", "", []string{}, "bucket id")
 	authorizationCreateCmd.Flags().StringArrayVarP(&authorizationCreateFlags.writeBucketPermissions, "write-bucket", "", []string{}, "bucket id")
+
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeTasksPermission, "write-tasks", "", false, "grants the permission to create tasks")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readTasksPermission, "read-tasks", "", false, "grants the permission to read tasks")
+
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeTelegrafsPermission, "write-telegrafs", "", false, "grants the permission to create telegraf configs")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readTelegrafsPermission, "read-telegrafs", "", false, "grants the permission to read telegraf configs")
+
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeOrganizationsPermission, "write-orgs", "", false, "grants the permission to create organizations")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readOrganizationsPermission, "read-orgs", "", false, "grants the permission to read organizations")
+
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeDashboardsPermission, "write-dashboards", "", false, "grants the permission to create dashboards")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readDashboardsPermission, "read-dashboards", "", false, "grants the permission to read dashboards")
 
 	authorizationCmd.AddCommand(authorizationCreateCmd)
 }
@@ -92,6 +116,70 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 		}
 
 		p, err := platform.NewPermissionAtID(id, platform.ReadAction, platform.BucketsResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.writeTasksPermission {
+		p, err := platform.NewPermission(platform.WriteAction, platform.TasksResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.readTasksPermission {
+		p, err := platform.NewPermission(platform.ReadAction, platform.TasksResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.writeTelegrafsPermission {
+		p, err := platform.NewPermission(platform.WriteAction, platform.TelegrafsResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.readTelegrafsPermission {
+		p, err := platform.NewPermission(platform.ReadAction, platform.TelegrafsResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.writeOrganizationsPermission {
+		p, err := platform.NewPermission(platform.WriteAction, platform.OrgsResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.readOrganizationsPermission {
+		p, err := platform.NewPermission(platform.ReadAction, platform.OrgsResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.writeDashboardsPermission {
+		p, err := platform.NewPermission(platform.WriteAction, platform.DashboardsResource)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.readDashboardsPermission {
+		p, err := platform.NewPermission(platform.ReadAction, platform.DashboardsResource)
 		if err != nil {
 			return err
 		}
