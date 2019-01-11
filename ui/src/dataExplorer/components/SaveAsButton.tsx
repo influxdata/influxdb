@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import SaveAsCellForm from 'src/dataExplorer/components/SaveAsCellForm'
+import SaveAsTaskForm from 'src/dataExplorer/components/SaveAsTaskForm'
 import {
   IconFont,
   Button,
@@ -67,13 +68,15 @@ class SaveAsButton extends PureComponent<Props, State> {
                     active={saveAsOption === SaveAsOption.Task}
                     value={SaveAsOption.Task}
                     onClick={this.handleSetSaveAsOption}
-                    disabled={true}
                   >
                     Task
                   </Radio.Button>
                 </Radio>
               </div>
-              {saveAsOption === SaveAsOption.Dashboard && <SaveAsCellForm />}
+              {saveAsOption === SaveAsOption.Dashboard && (
+                <SaveAsCellForm dismiss={this.handleHideOverlay} />
+              )}
+              {saveAsOption === SaveAsOption.Task && <SaveAsTaskForm />}
             </OverlayBody>
           </OverlayContainer>
         </OverlayTechnology>
