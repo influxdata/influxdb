@@ -1,9 +1,9 @@
 // Libraries
-import React, {SFC} from 'react'
+import React, {Component} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Radio, ButtonShape} from 'src/clockface'
+import {Button, ButtonShape, IconFont} from 'src/clockface'
 
 // Actions
 import {setActiveTab} from 'src/shared/actions/v2/timeMachines'
@@ -27,30 +27,29 @@ interface OwnProps {}
 
 type Props = StateProps & DispatchProps & OwnProps
 
-const TimeMachineTabs: SFC<Props> = ({activeTab, onSetActiveTab}) => {
-  return (
-    <Radio shape={ButtonShape.StretchToFit}>
-      <Radio.Button
-        id="deceo-tab-queries"
-        titleText="Queries"
-        value={TimeMachineTab.Queries}
-        active={activeTab === TimeMachineTab.Queries}
-        onClick={onSetActiveTab}
-      >
-        Queries
-      </Radio.Button>
-      <Radio.Button
-        id="deceo-tab-vis"
-        titleText="Visualization"
-        value={TimeMachineTab.Visualization}
+class VisOptionsButton extends Component<Props> {
+  public render() {
+    const {activeTab} = this.props
+
+    return (
+      <Button
+        shape={ButtonShape.Square}
+        icon={IconFont.CogThick}
         active={activeTab === TimeMachineTab.Visualization}
-        onClick={onSetActiveTab}
-      >
-        Visualization
-      </Radio.Button>
-    </Radio>
-  )
-  return null
+        onClick={this.handleClick}
+      />
+    )
+  }
+
+  private handleClick = (): void => {
+    const {onSetActiveTab, activeTab} = this.props
+
+    if (activeTab === TimeMachineTab.Queries) {
+      onSetActiveTab(TimeMachineTab.Visualization)
+    } else {
+      onSetActiveTab(TimeMachineTab.Queries)
+    }
+  }
 }
 
 const mstp = (state: AppState) => {
@@ -66,4 +65,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(TimeMachineTabs)
+)(VisOptionsButton)

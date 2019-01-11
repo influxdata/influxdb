@@ -5,6 +5,7 @@ import React, {SFC} from 'react'
 import DataExplorer from 'src/dataExplorer/components/DataExplorer'
 import {Page} from 'src/pageLayout'
 import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
+import VisOptionsButton from 'src/shared/components/VisOptionsButton'
 
 const DataExplorerPage: SFC<{}> = () => {
   return (
@@ -14,6 +15,7 @@ const DataExplorerPage: SFC<{}> = () => {
           <Page.Title title="Data Explorer" />
         </Page.Header.Left>
         <Page.Header.Right>
+          <VisOptionsButton />
           <SaveAsButton />
         </Page.Header.Right>
       </Page.Header>
