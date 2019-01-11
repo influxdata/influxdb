@@ -34,7 +34,6 @@ exports[`LineProtocol rendering renders! 1`] = `
             Array [
               "Upload File",
               "Enter Manually",
-              "Enter URL",
             ]
           }
         />

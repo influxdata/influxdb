@@ -25,4 +25,13 @@
   span {
     margin: 0 5px;
   }
+
+  a {
+    color: $g10-wolf;
+    text-decoration: none;
+  }
+
+  a:hover, a:active {
+    color: $c-pool;
+  }
 }

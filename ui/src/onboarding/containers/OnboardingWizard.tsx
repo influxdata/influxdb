@@ -98,7 +98,7 @@ type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 class OnboardingWizard extends PureComponent<Props> {
   public stepTitles = [
     'Welcome',
-    'Admin Setup',
+    'Initial User Setup',
     'Select Data Sources',
     'Configure Data Sources',
     'Verify',
