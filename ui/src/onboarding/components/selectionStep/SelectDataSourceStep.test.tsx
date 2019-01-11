@@ -83,7 +83,7 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
   })
 
   describe('if type is line protocol', () => {
-    it('renders back and next buttons with correct text', () => {
+    it('renders back and next buttons with correct status', () => {
       const wrapper = setup({type: DataLoaderType.LineProtocol})
       const onboardingButtons = wrapper.find(OnboardingButtons)
       expect(onboardingButtons.prop('nextButtonStatus')).toBe(
@@ -110,7 +110,7 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
     })
 
     describe('if there are plugins selected', () => {
-      it('renders back and next button with correct text', () => {
+      it('renders back and next button with correct status', () => {
         const wrapper = setup({
           type: DataLoaderType.Streaming,
           params: {stepID: '2', substepID: 'streaming'},
