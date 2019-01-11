@@ -22,6 +22,27 @@ func (c *Client) initializeSessions(ctx context.Context, tx *bolt.Tx) error {
 	return nil
 }
 
+// RenewSession extends the expire time to newExpiration.
+func (c *Client) RenewSession(ctx context.Context, session *platform.Session, newExpiration time.Time) error {
+	op := getOp(platform.OpRenewSession)
+	if session == nil {
+		return &platform.Error{
+			Op:  op,
+			Msg: "session is nil",
+		}
+	}
+	return c.db.Update(func(tx *bolt.Tx) error {
+		session.ExpiresAt = newExpiration
+		if err := c.putSession(ctx, tx, session); err != nil {
+			return &platform.Error{
+				Op:  op,
+				Err: err,
+			}
+		}
+		return nil
+	})
+}
+
 // FindSession retrieves the session found at the provided key.
 func (c *Client) FindSession(ctx context.Context, key string) (*platform.Session, error) {
 	op := getOp(platform.OpFindSession)
