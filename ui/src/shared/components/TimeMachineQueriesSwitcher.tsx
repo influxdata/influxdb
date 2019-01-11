@@ -42,7 +42,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
     if (editMode !== QueryEditMode.Builder) {
       return (
         <Button
-          text="Visual Query Builder"
+          text="Switch to Query Builder"
           onClick={this.handleEditWithBuilder}
         />
       )
