@@ -142,6 +142,14 @@ const randomGreetings: Greeting[] = [
     text: '.... . .-.. .-.. ---',
     language: 'Morse Code',
   },
+  {
+    text: 'nuqneH',
+    language: 'Klingon',
+  },
+  {
+    text: 'Saluton',
+    language: 'Esperanto',
+  },
 ]
 
 export const generateRandomGreeting = (): Greeting => {
