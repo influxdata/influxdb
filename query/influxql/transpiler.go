@@ -15,7 +15,7 @@ import (
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
 	platform "github.com/influxdata/influxdb"
-	pinputs "github.com/influxdata/influxdb/query/functions/inputs"
+	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb/v1"
 	"github.com/influxdata/influxql"
 )
 
@@ -218,7 +218,7 @@ func (t *transpilerState) transpileShowDatabases(ctx context.Context, stmt *infl
 	// the default retention policy when evaluating which bucket we are querying and we do not have to consult
 	// the sources in the statement.
 
-	spec := &pinputs.DatabasesOpSpec{}
+	spec := &v1.DatabasesOpSpec{}
 	op := t.op("databases", spec)
 
 	// SHOW DATABASES has one column, name
@@ -239,7 +239,7 @@ func (t *transpilerState) transpileShowRetentionPolicies(ctx context.Context, st
 	// the default retention policy when evaluating which bucket we are querying and we do not have to consult
 	// the sources in the statement.
 
-	spec := &pinputs.DatabasesOpSpec{}
+	spec := &v1.DatabasesOpSpec{}
 	op := t.op("databases", spec)
 	var expr semantic.Expression = &semantic.BinaryExpression{
 		Operator: ast.EqualOperator,

@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/models"
-	fstorage "github.com/influxdata/influxdb/query/functions/inputs/storage"
+	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
@@ -26,11 +26,11 @@ type storeReader struct {
 	s Store
 }
 
-func NewReader(s Store) fstorage.Reader {
+func NewReader(s Store) influxdb.Reader {
 	return &storeReader{s: s}
 }
 
-func (r *storeReader) Read(ctx context.Context, rs fstorage.ReadSpec, start, stop execute.Time) (flux.TableIterator, error) {
+func (r *storeReader) Read(ctx context.Context, rs influxdb.ReadSpec, start, stop execute.Time) (flux.TableIterator, error) {
 	var predicate *datatypes.Predicate
 	if rs.Predicate != nil {
 		p, err := toStoragePredicate(rs.Predicate)
@@ -55,7 +55,7 @@ type tableIterator struct {
 	ctx       context.Context
 	bounds    execute.Bounds
 	s         Store
-	readSpec  fstorage.ReadSpec
+	readSpec  influxdb.ReadSpec
 	predicate *datatypes.Predicate
 	stats     flux.Statistics
 }
@@ -381,16 +381,16 @@ func determineAggregateMethod(agg string) (datatypes.Aggregate_AggregateType, er
 	return 0, fmt.Errorf("unknown aggregate type %q", agg)
 }
 
-func convertGroupMode(m fstorage.GroupMode) datatypes.ReadRequest_Group {
+func convertGroupMode(m influxdb.GroupMode) datatypes.ReadRequest_Group {
 	switch m {
-	case fstorage.GroupModeNone:
+	case influxdb.GroupModeNone:
 		return datatypes.GroupNone
-	case fstorage.GroupModeBy:
+	case influxdb.GroupModeBy:
 		return datatypes.GroupBy
-	case fstorage.GroupModeExcept:
+	case influxdb.GroupModeExcept:
 		return datatypes.GroupExcept
 
-	case fstorage.GroupModeDefault, fstorage.GroupModeAll:
+	case influxdb.GroupModeDefault, influxdb.GroupModeAll:
 		fallthrough
 	default:
 		return datatypes.GroupAll
@@ -433,7 +433,7 @@ func determineTableColsForSeries(tags models.Tags, typ flux.ColType) ([]flux.Col
 	return cols, defs
 }
 
-func groupKeyForSeries(tags models.Tags, readSpec *fstorage.ReadSpec, bnds execute.Bounds) flux.GroupKey {
+func groupKeyForSeries(tags models.Tags, readSpec *influxdb.ReadSpec, bnds execute.Bounds) flux.GroupKey {
 	cols := make([]flux.ColMeta, 2, len(tags))
 	vs := make([]values.Value, 2, len(tags))
 	cols[0] = flux.ColMeta{
@@ -447,7 +447,7 @@ func groupKeyForSeries(tags models.Tags, readSpec *fstorage.ReadSpec, bnds execu
 	}
 	vs[1] = values.NewTime(bnds.Stop)
 	switch readSpec.GroupMode {
-	case fstorage.GroupModeBy:
+	case influxdb.GroupModeBy:
 		// group key in GroupKeys order, including tags in the GroupKeys slice
 		for _, k := range readSpec.GroupKeys {
 			bk := []byte(k)
@@ -461,10 +461,10 @@ func groupKeyForSeries(tags models.Tags, readSpec *fstorage.ReadSpec, bnds execu
 				}
 			}
 		}
-	case fstorage.GroupModeExcept:
+	case influxdb.GroupModeExcept:
 		// group key in GroupKeys order, skipping tags in the GroupKeys slice
 		panic("not implemented")
-	case fstorage.GroupModeDefault, fstorage.GroupModeAll:
+	case influxdb.GroupModeDefault, influxdb.GroupModeAll:
 		for i := range tags {
 			cols = append(cols, flux.ColMeta{
 				Label: string(tags[i].Key),
@@ -506,7 +506,7 @@ func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType) ([]flux.ColM
 	return cols, defs
 }
 
-func groupKeyForGroup(kv [][]byte, readSpec *fstorage.ReadSpec, bnds execute.Bounds) flux.GroupKey {
+func groupKeyForGroup(kv [][]byte, readSpec *influxdb.ReadSpec, bnds execute.Bounds) flux.GroupKey {
 	cols := make([]flux.ColMeta, 2, len(readSpec.GroupKeys)+2)
 	vs := make([]values.Value, 2, len(readSpec.GroupKeys)+2)
 	cols[0] = flux.ColMeta{

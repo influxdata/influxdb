@@ -5,9 +5,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	pcontrol "github.com/influxdata/influxdb/query/control"
-	"github.com/influxdata/influxdb/query/functions/inputs"
-	fstorage "github.com/influxdata/influxdb/query/functions/inputs/storage"
-	"github.com/influxdata/influxdb/query/functions/outputs"
+	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads"
 )
@@ -32,7 +30,7 @@ func AddControllerConfigDependencies(
 ) error {
 	bucketLookupSvc := query.FromBucketService(bucketSvc)
 	orgLookupSvc := query.FromOrganizationService(orgSvc)
-	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, fstorage.Dependencies{
+	err := influxdb.InjectFromDependencies(cc.ExecutorDependencies, influxdb.Dependencies{
 		Reader:             reads.NewReader(newStore(engine)),
 		BucketLookup:       bucketLookupSvc,
 		OrganizationLookup: orgLookupSvc,
@@ -41,11 +39,11 @@ func AddControllerConfigDependencies(
 		return err
 	}
 
-	if err := inputs.InjectBucketDependencies(cc.ExecutorDependencies, bucketLookupSvc); err != nil {
+	if err := influxdb.InjectBucketDependencies(cc.ExecutorDependencies, bucketLookupSvc); err != nil {
 		return err
 	}
 
-	return outputs.InjectToDependencies(cc.ExecutorDependencies, outputs.ToDependencies{
+	return influxdb.InjectToDependencies(cc.ExecutorDependencies, influxdb.ToDependencies{
 		BucketLookup:       bucketLookupSvc,
 		OrganizationLookup: orgLookupSvc,
 		PointsWriter:       engine,
