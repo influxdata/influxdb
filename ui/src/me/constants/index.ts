@@ -119,7 +119,7 @@ const randomGreetings: Greeting[] = [
     language: 'Korean',
   },
   {
-    text: 'Salvete',
+    text: 'Salve',
     language: 'Latin',
   },
   {
