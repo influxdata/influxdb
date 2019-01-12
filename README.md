@@ -4,7 +4,8 @@ This is the [monorepo](https://danluu.com/monorepo/) for InfluxDB 2.0 OSS.
 
 ## ATTENTION
 
-** This repo is a corpse. Do not attempt to animate a corpse. Animating corpses never goes well. **
+**This repo is a corpse. Do not attempt to animate a corpse. Animating corpses never goes well.**
+
 ## Installation
 
 This project requires Go 1.11 and Go module support.
