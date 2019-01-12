@@ -1,6 +1,8 @@
 # InfluxDB [![CircleCI](https://circleci.com/gh/influxdata/influxdb.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb)
 
-This is the [monorepo](https://danluu.com/monorepo/) for InfluxDB 2.0 OSS.
+This is the for InfluxDB 2.0 OSS, which includes parts that used to be known as Chronograf and Kapacitor.
+
+If you are looking for the [InfluxDB 1.x Go Client, we've created a new repo](https://github.com/influxdata/influxdb1-client) for that.
 
 ## Installation
 
