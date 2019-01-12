@@ -5,7 +5,7 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/universe"
-	"github.com/influxdata/influxdb/query/functions/inputs"
+	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb/v1"
 )
 
 func init() {
@@ -16,7 +16,7 @@ func init() {
 				Operations: []*flux.Operation{
 					{
 						ID:   "databases0",
-						Spec: &inputs.DatabasesOpSpec{},
+						Spec: &v1.DatabasesOpSpec{},
 					},
 					{
 						ID: "filter0",

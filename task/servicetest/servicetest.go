@@ -818,8 +818,7 @@ func creds(t *testing.T, s *System) (orgID, userID platform.ID, token string) {
 }
 
 const (
-	scriptFmt = `
-import "http"
+	scriptFmt = `import "http"
 
 option task = {
 	name: "task #%d",
@@ -831,8 +830,7 @@ option task = {
 from(bucket:"b")
 	|> http.to(url: "http://example.com")`
 
-	scriptDifferentName = `
-import "http"
+	scriptDifferentName = `import "http"
 
 option task = {
 	name: "task-changed #%d",
