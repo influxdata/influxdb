@@ -8,11 +8,13 @@ import {SetupParams} from 'src/onboarding/apis'
 export interface OnboardingStepsState {
   stepStatuses: StepStatus[]
   setupParams: SetupParams
+  organizationID: string
 }
 
 const INITIAL_STATE: OnboardingStepsState = {
   stepStatuses: new Array(6).fill(StepStatus.Incomplete),
   setupParams: null,
+  organizationID: '',
 }
 
 export default (
@@ -26,6 +28,8 @@ export default (
       const stepStatuses = [...state.stepStatuses]
       stepStatuses[action.payload.index] = action.payload.status
       return {...state, stepStatuses}
+    case 'SET_ORG_ID':
+      return {...state, organizationID: action.payload.organizationID}
     default:
       return state
   }

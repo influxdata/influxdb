@@ -5,7 +5,12 @@ import {baseAPI, setupAPI, sourcesAPI} from 'src/utils/api'
 
 // Utils
 import {telegrafsAPI, authorizationsAPI, writeAPI} from 'src/utils/api'
-import {Telegraf, WritePrecision, TelegrafRequest} from 'src/api'
+import {
+  Telegraf,
+  WritePrecision,
+  TelegrafRequest,
+  OnboardingResponse,
+} from 'src/api'
 
 import {getDeep} from 'src/utils/wrappers'
 
@@ -46,9 +51,10 @@ export interface SetupParams {
 
 export const setSetupParams = async (
   setupParams: SetupParams
-): Promise<void> => {
+): Promise<OnboardingResponse> => {
   try {
-    await setupAPI.setupPost(setupParams)
+    const result = await setupAPI.setupPost(setupParams)
+    return result.data
   } catch (error) {
     console.error("Can't set setup parameters", error)
     throw error

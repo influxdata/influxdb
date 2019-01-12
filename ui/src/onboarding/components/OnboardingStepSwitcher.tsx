@@ -30,6 +30,7 @@ import {
 import {SetupParams} from 'src/onboarding/apis'
 import {DataLoadersState} from 'src/types/v2/dataLoaders'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
+import {setupAdmin} from '../actions/steps'
 
 interface Props {
   onboardingStepProps: OnboardingStepProps
@@ -46,6 +47,7 @@ interface Props {
   onAddPluginBundle: typeof addPluginBundleWithPlugins
   onRemovePluginBundle: typeof removePluginBundleWithPlugins
   onSetConfigArrayValue: typeof setConfigArrayValue
+  onSetupAdmin: typeof setupAdmin
 }
 
 @ErrorHandling
@@ -66,13 +68,16 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
       onAddPluginBundle,
       onRemovePluginBundle,
       onSetConfigArrayValue,
+      onSetupAdmin,
     } = this.props
 
     switch (currentStepIndex) {
       case 0:
         return <InitStep {...onboardingStepProps} />
       case 1:
-        return <AdminStep {...onboardingStepProps} />
+        return (
+          <AdminStep {...onboardingStepProps} onSetupAdmin={onSetupAdmin} />
+        )
       case 2:
         return (
           <SelectDataSourceStep

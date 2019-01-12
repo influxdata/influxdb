@@ -5,8 +5,6 @@ import _ from 'lodash'
 import {
   writeLineProtocol,
   createTelegrafConfig,
-  getTelegrafConfigs,
-  updateTelegrafConfig,
 } from 'src/onboarding/apis/index'
 
 // Utils
@@ -237,11 +235,10 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
       dataLoaders: {telegrafPlugins},
       steps: {
         setupParams: {org, bucket},
+        organizationID,
       },
     },
   } = getState()
-
-  const telegrafConfigsFromServer = await getTelegrafConfigs(org)
 
   let plugins = []
   telegrafPlugins.forEach(tp => {
@@ -254,14 +251,7 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     name: 'new config',
     agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
     plugins,
-  }
-
-  if (telegrafConfigsFromServer.length) {
-    const id = _.get(telegrafConfigsFromServer, '0.id', '')
-
-    await updateTelegrafConfig(id, body)
-    dispatch(setTelegrafConfigID(id))
-    return
+    organizationID,
   }
 
   const influxDB2Out = {

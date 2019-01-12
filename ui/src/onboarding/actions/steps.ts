@@ -1,10 +1,18 @@
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
+import {SetupSuccess, SetupError} from 'src/shared/copy/notifications'
+
+// Actions
+import {notify} from 'src/shared/actions/notifications'
 
 // Types
-import {SetupParams} from 'src/onboarding/apis'
+import {
+  SetupParams,
+  signin as signinAJAX,
+  setSetupParams as setSetupParamsAJAX,
+} from 'src/onboarding/apis'
 
-export type Action = SetSetupParams | SetStepStatus
+export type Action = SetSetupParams | SetStepStatus | SetOrganizationID
 
 interface SetSetupParams {
   type: 'SET_SETUP_PARAMS'
@@ -31,3 +39,32 @@ export const setStepStatus = (
     status,
   },
 })
+
+interface SetOrganizationID {
+  type: 'SET_ORG_ID'
+  payload: {organizationID}
+}
+
+const setOrganizationID = organizationID => ({
+  type: 'SET_ORG_ID',
+  payload: {organizationID},
+})
+
+export const setupAdmin = (setupParams: SetupParams) => async dispatch => {
+  try {
+    dispatch(setSetupParams(setupParams))
+    const onboardingResponse = await setSetupParamsAJAX(setupParams)
+    const {id: organizationID} = onboardingResponse.org
+
+    dispatch(setOrganizationID(organizationID))
+
+    await signinAJAX({
+      username: setupParams.username,
+      password: setupParams.password,
+    })
+    dispatch(notify(SetupSuccess))
+  } catch (err) {
+    console.error(err)
+    dispatch(notify(SetupError))
+  }
+}

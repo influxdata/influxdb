@@ -17,8 +17,8 @@ import {
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
-// APIS
-import {setSetupParams, SetupParams, signin} from 'src/onboarding/apis'
+// Actions
+import {setupAdmin} from 'src/onboarding/actions/steps'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -26,6 +26,7 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {StepStatus} from 'src/clockface/constants/wizard'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
+import {SetupParams} from 'src/onboarding/apis'
 
 interface State extends SetupParams {
   confirmPassword: string
@@ -33,9 +34,13 @@ interface State extends SetupParams {
   isPassMismatched: boolean
 }
 
+interface Props extends OnboardingStepProps {
+  onSetupAdmin: typeof setupAdmin
+}
+
 @ErrorHandling
-class AdminStep extends PureComponent<OnboardingStepProps, State> {
-  constructor(props: OnboardingStepProps) {
+class AdminStep extends PureComponent<Props, State> {
+  constructor(props: Props) {
     super(props)
     const {setupParams} = props
     this.state = {
@@ -253,9 +258,9 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     const {
       onSetStepStatus,
       currentStepIndex,
-      handleSetSetupParams,
       notify,
       onIncrementCurrentStepIndex,
+      onSetupAdmin: onSetupAdmin,
     } = this.props
 
     const {username, password, org, bucket, isAlreadySet} = this.state
@@ -274,10 +279,7 @@ class AdminStep extends PureComponent<OnboardingStepProps, State> {
     }
 
     try {
-      await setSetupParams(setupParams)
-      await signin({username, password})
-      notify(copy.SetupSuccess)
-      handleSetSetupParams(setupParams)
+      onSetupAdmin(setupParams)
       onSetStepStatus(currentStepIndex, StepStatus.Complete)
       onIncrementCurrentStepIndex()
     } catch (error) {
