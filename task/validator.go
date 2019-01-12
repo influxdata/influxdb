@@ -50,7 +50,7 @@ func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID
 		return nil, err
 	}
 
-	return task, err
+	return task, nil
 }
 
 func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
