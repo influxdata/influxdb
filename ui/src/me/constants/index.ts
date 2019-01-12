@@ -134,6 +134,14 @@ const randomGreetings: Greeting[] = [
     text: 'Beannachtaí',
     language: 'Irish',
   },
+  {
+    text: '01001000 01100101 01101100 01101100 01101111',
+    language: 'Binary',
+  },
+  {
+    text: '.... . .-.. .-.. ---',
+    language: 'Morse Code',
+  },
 ]
 
 export const generateRandomGreeting = (): Greeting => {
