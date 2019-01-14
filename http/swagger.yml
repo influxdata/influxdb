@@ -661,7 +661,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"              
+                $ref: "#/components/schemas/Error"
   /macros:
     get:
       tags:
@@ -4946,7 +4946,7 @@ components:
           type: string
         name:
           type: string
-        organizationID:
+        orgID:
           type: string
         organization:
           type: string
@@ -5161,7 +5161,7 @@ components:
         id:
           readOnly: true
           type: string
-        organizationID:
+        orgID:
           description: The ID of the organization that owns this Task.
           type: string
         name:
@@ -6152,7 +6152,7 @@ components:
             type: string
     CreateProtoResourcesRequest:
       properties:
-        organizationID:
+        orgID:
           type: string
     Proto:
       properties:
@@ -6196,7 +6196,7 @@ components:
         id:
           readOnly: true
           type: string
-        organizationID:
+        orgID:
           type: string
           description: id of the organization that owns the dashboard
         name:
@@ -6237,7 +6237,7 @@ components:
               type: string
         id:
           type: string
-        organizationID:
+        orgID:
           type: string
         default:
           type: boolean

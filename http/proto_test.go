@@ -154,7 +154,7 @@ func TestProtoHandler(t *testing.T) {
 		      ],
 		      "description": "oh hello there!",
 		      "id": "da7aba5e5d81e550",
-					"organizationID": "0000000000000001",
+					"orgID": "0000000000000001",
 		      "labels": [
 		      ],
 		      "links": {
@@ -177,7 +177,7 @@ func TestProtoHandler(t *testing.T) {
 		      ],
 		      "description": "",
 		      "id": "0ca2204eca2204e0",
-					"organizationID": "0000000000000001",
+					"orgID": "0000000000000001",
 		      "labels": [
 		      ],
 		      "links": {
