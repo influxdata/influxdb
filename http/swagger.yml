@@ -142,7 +142,7 @@ paths:
       parameters:
           - $ref: '#/components/parameters/TraceSpan'
           - in: query
-            name: org
+            name: orgID
             description: specifies the organization of the resource
             required: true
             schema:
