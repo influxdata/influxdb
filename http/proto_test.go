@@ -94,9 +94,10 @@ func TestProtoHandler(t *testing.T) {
 					CreateDashboardsFromProtoFn: func(ctx context.Context, protoID, orgID platform.ID) ([]*platform.Dashboard, error) {
 						return []*platform.Dashboard{
 							{
-								ID:          platformtesting.MustIDBase16("da7aba5e5d81e550"),
-								Name:        "hello",
-								Description: "oh hello there!",
+								ID:             platformtesting.MustIDBase16("da7aba5e5d81e550"),
+								OrganizationID: orgID,
+								Name:           "hello",
+								Description:    "oh hello there!",
 								Meta: platform.DashboardMeta{
 									CreatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 									UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
@@ -112,7 +113,8 @@ func TestProtoHandler(t *testing.T) {
 								},
 							},
 							{
-								ID: platformtesting.MustIDBase16("0ca2204eca2204e0"),
+								ID:             platformtesting.MustIDBase16("0ca2204eca2204e0"),
+								OrganizationID: orgID,
 								Meta: platform.DashboardMeta{
 									CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
 									UpdatedAt: time.Date(2012, time.November, 10, 24, 0, 0, 0, time.UTC),
@@ -127,7 +129,7 @@ func TestProtoHandler(t *testing.T) {
 				method:   "POST",
 				endpoint: "/api/v2/protos/0000000000000001/dashboards",
 				body: &createProtoResourcesRequest{
-					OrganizationID: 100,
+					OrganizationID: 1,
 				},
 			},
 			wants: wants{
@@ -152,12 +154,14 @@ func TestProtoHandler(t *testing.T) {
 		      ],
 		      "description": "oh hello there!",
 		      "id": "da7aba5e5d81e550",
+					"organizationID": "0000000000000001",
 		      "labels": [
 		      ],
 		      "links": {
 		        "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells",
 		        "labels": "/api/v2/dashboards/da7aba5e5d81e550/labels",
 		        "log": "/api/v2/dashboards/da7aba5e5d81e550/log",
+		        "org": "/api/v2/orgs/0000000000000001",
 		        "self": "/api/v2/dashboards/da7aba5e5d81e550"
 		      },
 		      "meta": {
@@ -171,12 +175,14 @@ func TestProtoHandler(t *testing.T) {
 		      ],
 		      "description": "",
 		      "id": "0ca2204eca2204e0",
+					"organizationID": "0000000000000001",
 		      "labels": [
 		      ],
 		      "links": {
 		        "cells": "/api/v2/dashboards/0ca2204eca2204e0/cells",
 		        "labels": "/api/v2/dashboards/0ca2204eca2204e0/labels",
 		        "log": "/api/v2/dashboards/0ca2204eca2204e0/log",
+		        "org": "/api/v2/orgs/0000000000000001",
 		        "self": "/api/v2/dashboards/0ca2204eca2204e0"
 		      },
 		      "meta": {
@@ -187,7 +193,7 @@ func TestProtoHandler(t *testing.T) {
 		    }
 		  ],
 		  "links": {
-		    "self": "/api/v2/dashboards"
+		    "self": "/api/v2/dashboards?orgID=0000000000000001"
 		  }
 		}
 		`,

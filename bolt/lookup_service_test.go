@@ -92,7 +92,8 @@ func TestClient_Name(t *testing.T) {
 				id:       testID,
 				init: func(ctx context.Context, s *bolt.Client) error {
 					return s.CreateDashboard(ctx, &platform.Dashboard{
-						Name: "dashboard1",
+						Name:           "dashboard1",
+						OrganizationID: 1,
 					})
 				},
 			},

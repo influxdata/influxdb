@@ -156,7 +156,8 @@ func (h *ProtoHandler) handlePostProtosDashboards(w http.ResponseWriter, r *http
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newGetDashboardsResponse(ctx, ds, h.LabelService)); err != nil {
+	filter := platform.DashboardFilter{OrganizationID: &req.OrganizationID}
+	if err := encodeResponse(ctx, w, http.StatusCreated, newGetDashboardsResponse(ctx, ds, filter, h.LabelService)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
