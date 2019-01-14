@@ -89,6 +89,8 @@ func NewDashboardHandler(mappingService platform.UserResourceMappingService, lab
 
 type dashboardLinks struct {
 	Self         string `json:"self"`
+	Members      string `json:"members"`
+	Owners       string `json:"owners"`
 	Cells        string `json:"cells"`
 	Log          string `json:"log"`
 	Labels       string `json:"labels"`
@@ -123,6 +125,8 @@ func newDashboardResponse(d *platform.Dashboard, labels []*platform.Label) dashb
 	res := dashboardResponse{
 		Links: dashboardLinks{
 			Self:         fmt.Sprintf("/api/v2/dashboards/%s", d.ID),
+			Members:      fmt.Sprintf("/api/v2/dashboards/%s/members", d.ID),
+			Owners:       fmt.Sprintf("/api/v2/dashboards/%s/owners", d.ID),
 			Cells:        fmt.Sprintf("/api/v2/dashboards/%s/cells", d.ID),
 			Log:          fmt.Sprintf("/api/v2/dashboards/%s/log", d.ID),
 			Labels:       fmt.Sprintf("/api/v2/dashboards/%s/labels", d.ID),

@@ -134,6 +134,8 @@ func TestService_handleGetDashboards(t *testing.T) {
       "links": {
         "self": "/api/v2/dashboards/da7aba5e5d81e550",
         "org": "/api/v2/orgs/0000000000000001",
+        "members": "/api/v2/dashboards/da7aba5e5d81e550/members",
+        "owners": "/api/v2/dashboards/da7aba5e5d81e550/owners",
         "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells",
         "log": "/api/v2/dashboards/da7aba5e5d81e550/log",
         "labels": "/api/v2/dashboards/da7aba5e5d81e550/labels"
@@ -161,6 +163,8 @@ func TestService_handleGetDashboards(t *testing.T) {
       "links": {
         "self": "/api/v2/dashboards/0ca2204eca2204e0",
         "org": "/api/v2/orgs/0000000000000001",
+        "members": "/api/v2/dashboards/0ca2204eca2204e0/members",
+        "owners": "/api/v2/dashboards/0ca2204eca2204e0/owners",
         "log": "/api/v2/dashboards/0ca2204eca2204e0/log",
         "cells": "/api/v2/dashboards/0ca2204eca2204e0/cells",
         "labels": "/api/v2/dashboards/0ca2204eca2204e0/labels"
@@ -320,7 +324,9 @@ func TestService_handleGetDashboard(t *testing.T) {
   ],
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000",
-		"org": "/api/v2/orgs/0000000000000001",
+    "org": "/api/v2/orgs/0000000000000001",
+    "members": "/api/v2/dashboards/020f755c3c082000/members",
+    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
     "log": "/api/v2/dashboards/020f755c3c082000/log",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
     "labels": "/api/v2/dashboards/020f755c3c082000/labels"
@@ -470,7 +476,9 @@ func TestService_handlePostDashboard(t *testing.T) {
   ],
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000",
-		"org": "/api/v2/orgs/0000000000000001",
+    "org": "/api/v2/orgs/0000000000000001",
+    "members": "/api/v2/dashboards/020f755c3c082000/members",
+    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
     "log": "/api/v2/dashboards/020f755c3c082000/log",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
     "labels": "/api/v2/dashboards/020f755c3c082000/labels"
@@ -707,6 +715,8 @@ func TestService_handlePatchDashboard(t *testing.T) {
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000",
     "org": "/api/v2/orgs/0000000000000001",
+    "members": "/api/v2/dashboards/020f755c3c082000/members",
+    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
     "log": "/api/v2/dashboards/020f755c3c082000/log",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
     "labels": "/api/v2/dashboards/020f755c3c082000/labels"

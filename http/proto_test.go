@@ -158,6 +158,8 @@ func TestProtoHandler(t *testing.T) {
 		      "labels": [
 		      ],
 		      "links": {
+		        "members": "/api/v2/dashboards/da7aba5e5d81e550/members",
+		        "owners": "/api/v2/dashboards/da7aba5e5d81e550/owners",
 		        "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells",
 		        "labels": "/api/v2/dashboards/da7aba5e5d81e550/labels",
 		        "log": "/api/v2/dashboards/da7aba5e5d81e550/log",
@@ -179,6 +181,8 @@ func TestProtoHandler(t *testing.T) {
 		      "labels": [
 		      ],
 		      "links": {
+		        "members": "/api/v2/dashboards/0ca2204eca2204e0/members",
+		        "owners": "/api/v2/dashboards/0ca2204eca2204e0/owners",
 		        "cells": "/api/v2/dashboards/0ca2204eca2204e0/cells",
 		        "labels": "/api/v2/dashboards/0ca2204eca2204e0/labels",
 		        "log": "/api/v2/dashboards/0ca2204eca2204e0/log",
