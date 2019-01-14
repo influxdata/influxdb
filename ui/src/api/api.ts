@@ -12697,14 +12697,14 @@ export const TelegrafsApiAxiosParamCreator = function (configuration?: Configura
     return {
         /**
          * 
-         * @param {string} org specifies the organization of the resource
+         * @param {string} orgID specifies the organization of the resource
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        telegrafsGet(org: string, options: any = {}): RequestArgs {
-            // verify required parameter 'org' is not null or undefined
-            if (org === null || org === undefined) {
-                throw new RequiredError('org','Required parameter org was null or undefined when calling telegrafsGet.');
+        telegrafsGet(orgID: string, options: any = {}): RequestArgs {
+            // verify required parameter 'orgID' is not null or undefined
+            if (orgID === null || orgID === undefined) {
+                throw new RequiredError('orgID','Required parameter orgID was null or undefined when calling telegrafsGet.');
             }
             const localVarPath = `/telegrafs`;
             const localVarUrlObj = url.parse(localVarPath, true);
@@ -12716,8 +12716,8 @@ export const TelegrafsApiAxiosParamCreator = function (configuration?: Configura
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
-            if (org !== undefined) {
-                localVarQueryParameter['org'] = org;
+            if (orgID !== undefined) {
+                localVarQueryParameter['orgID'] = orgID;
             }
 
             localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
@@ -13089,12 +13089,12 @@ export const TelegrafsApiFp = function(configuration?: Configuration) {
     return {
         /**
          * 
-         * @param {string} org specifies the organization of the resource
+         * @param {string} orgID specifies the organization of the resource
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        telegrafsGet(org: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Telegrafs> {
-            const localVarAxiosArgs = TelegrafsApiAxiosParamCreator(configuration).telegrafsGet(org, options);
+        telegrafsGet(orgID: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Telegrafs> {
+            const localVarAxiosArgs = TelegrafsApiAxiosParamCreator(configuration).telegrafsGet(orgID, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -13243,12 +13243,12 @@ export const TelegrafsApiFactory = function (configuration?: Configuration, base
     return {
         /**
          * 
-         * @param {string} org specifies the organization of the resource
+         * @param {string} orgID specifies the organization of the resource
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        telegrafsGet(org: string, options?: any) {
-            return TelegrafsApiFp(configuration).telegrafsGet(org, options)(axios, basePath);
+        telegrafsGet(orgID: string, options?: any) {
+            return TelegrafsApiFp(configuration).telegrafsGet(orgID, options)(axios, basePath);
         },
         /**
          * 
@@ -13358,13 +13358,13 @@ export const TelegrafsApiFactory = function (configuration?: Configuration, base
 export class TelegrafsApi extends BaseAPI {
     /**
      * 
-     * @param {string} org specifies the organization of the resource
+     * @param {string} orgID specifies the organization of the resource
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof TelegrafsApi
      */
-    public telegrafsGet(org: string, options?: any) {
-        return TelegrafsApiFp(this.configuration).telegrafsGet(org, options)(this.axios, this.basePath);
+    public telegrafsGet(orgID: string, options?: any) {
+        return TelegrafsApiFp(this.configuration).telegrafsGet(orgID, options)(this.axios, this.basePath);
     }
 
     /**

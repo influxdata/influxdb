@@ -5,6 +5,8 @@ import _ from 'lodash'
 import {
   writeLineProtocol,
   createTelegrafConfig,
+  getTelegrafConfigs,
+  updateTelegrafConfig,
 } from 'src/onboarding/apis/index'
 
 // Utils
@@ -240,7 +242,20 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     },
   } = getState()
 
-  let plugins = []
+  const telegrafConfigsFromServer = await getTelegrafConfigs(organizationID)
+
+  const influxDB2Out = {
+    name: TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2,
+    type: TelegrafPluginOutputInfluxDBV2.TypeEnum.Output,
+    config: {
+      urls: ['http://127.0.0.1:9999'],
+      token: authToken,
+      organization: org,
+      bucket,
+    },
+  }
+
+  let plugins: Plugin[] = [influxDB2Out]
   telegrafPlugins.forEach(tp => {
     if (tp.configured === ConfigurationState.Configured) {
       plugins = [...plugins, tp.plugin || createNewPlugin(tp.name)]
@@ -254,18 +269,13 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     organizationID,
   }
 
-  const influxDB2Out = {
-    name: TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2,
-    type: TelegrafPluginOutputInfluxDBV2.TypeEnum.Output,
-    config: {
-      urls: ['http://127.0.0.1:9999'],
-      token: authToken,
-      organization: org,
-      bucket,
-    },
-  }
+  if (telegrafConfigsFromServer.length) {
+    const id = _.get(telegrafConfigsFromServer, '0.id', '')
 
-  plugins = [...plugins, influxDB2Out]
+    await updateTelegrafConfig(id, body)
+    dispatch(setTelegrafConfigID(id))
+    return
+  }
 
   body = {
     ...body,
