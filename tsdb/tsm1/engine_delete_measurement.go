@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
@@ -146,6 +147,46 @@ func (e *Engine) DeleteBucket(name []byte, min, max int64) error {
 		// TODO(jeff): it's also important that all of the deletes happen atomically with
 		// the deletes of the data in the tsm files.
 
+		// In this case the entire measurement (bucket) can be removed from the index.
+		if min == math.MinInt64 && max == math.MaxInt64 {
+			// Build up a set of series IDs that we need to remove from the series file.
+			set := tsdb.NewSeriesIDSet()
+			itr, err := e.index.MeasurementSeriesIDIterator(name)
+			if err != nil {
+				return err
+			}
+
+			var elem tsdb.SeriesIDElem
+			for elem, err = itr.Next(); err != nil; elem, err = itr.Next() {
+				if elem.SeriesID.IsZero() {
+					break
+				}
+
+				set.AddNoLock(elem.SeriesID)
+			}
+
+			if err != nil {
+				return err
+			} else if err := itr.Close(); err != nil {
+				return err
+			}
+
+			// Remove the measurement from the index before the series file.
+			if err := e.index.DropMeasurement(name); err != nil {
+				return err
+			}
+
+			// Iterate over the series ids we previously extracted from the index
+			// and remove from the series file.
+			set.ForEachNoLock(func(id tsdb.SeriesID) {
+				if err = e.sfile.DeleteSeriesID(id); err != nil {
+					return
+				}
+			})
+			return err
+		}
+
+		// This is the slow path, when not dropping the entire bucket (measurement)
 		for key := range possiblyDead.keys {
 			// TODO(jeff): ugh reduce copies here
 			keyb := []byte(key)
@@ -157,21 +198,11 @@ func (e *Engine) DeleteBucket(name []byte, min, max int64) error {
 				continue
 			}
 
-			// If the time range is not full then the index must drop each series
-			// individually.
-			if min != math.MinInt64 || max != math.MaxInt64 {
-				if err := e.index.DropSeries(sid, keyb, true); err != nil {
-					return err
-				}
-			}
-			if err := e.sfile.DeleteSeriesID(sid); err != nil {
+			if err := e.index.DropSeries(sid, keyb, true); err != nil {
 				return err
 			}
-		}
 
-		// In this case the entire measurement (bucket) can be removed from the index.
-		if min == math.MinInt64 && max == math.MaxInt64 {
-			if err := e.index.DropMeasurement(name); err != nil {
+			if err := e.sfile.DeleteSeriesID(sid); err != nil {
 				return err
 			}
 		}
