@@ -75,6 +75,19 @@ window.addEventListener('keyup', event => {
   }
 })
 
+const MainLine = ({children}) => {
+  const {pathname} = window.location
+  if (
+    pathname.includes('signin') ||
+    pathname.includes('onboarding') ||
+    pathname.includes('logout')
+  ) {
+    return null
+  }
+
+  return children
+}
+
 class Root extends PureComponent {
   public render() {
     return (
@@ -91,43 +104,45 @@ class Root extends PureComponent {
                 component={OnboardingWizardPage}
               />
               <Route path="/signin" component={SigninPage} />
-              <Route component={Signin}>
-                <Route component={GetMe}>
-                  <Route component={GetOrganizations}>
-                    <Route component={App}>
-                      <Route component={GetSources}>
-                        <Route path="/" component={SetActiveSource}>
-                          <IndexRedirect to="/dashboards" />
-                          <Route
-                            path="dashboards/:dashboardID"
-                            component={DashboardPage}
-                          />
-                          <Route path="tasks" component={TasksPage} />
-                          <Route
-                            path="organizations"
-                            component={OrganizationsIndex}
-                          />
-                          <Route
-                            path="organizations/:orgID/:tab"
-                            component={OrganizationView}
-                          />
-                          <Route path="tasks/new" component={TaskPage} />
-                          <Route path="tasks/:id" component={TaskEditPage} />
-                          <Route
-                            path="data-explorer"
-                            component={DataExplorerPage}
-                          />
-                          <Route
-                            path="dashboards"
-                            component={DashboardsIndex}
-                          />
-                          <Route path="me" component={MePage} />
-                          <Route path="account/:tab" component={Account} />
-                          <Route path="sources" component={SourcesPage} />
-                          <Route
-                            path="configuration/:tab"
-                            component={ConfigurationPage}
-                          />
+              <Route component={MainLine}>
+                <Route component={Signin}>
+                  <Route component={GetMe}>
+                    <Route component={GetOrganizations}>
+                      <Route component={App}>
+                        <Route component={GetSources}>
+                          <Route path="/" component={SetActiveSource}>
+                            <IndexRedirect to="/dashboards" />
+                            <Route
+                              path="dashboards/:dashboardID"
+                              component={DashboardPage}
+                            />
+                            <Route path="tasks" component={TasksPage} />
+                            <Route
+                              path="organizations"
+                              component={OrganizationsIndex}
+                            />
+                            <Route
+                              path="organizations/:orgID/:tab"
+                              component={OrganizationView}
+                            />
+                            <Route path="tasks/new" component={TaskPage} />
+                            <Route path="tasks/:id" component={TaskEditPage} />
+                            <Route
+                              path="data-explorer"
+                              component={DataExplorerPage}
+                            />
+                            <Route
+                              path="dashboards"
+                              component={DashboardsIndex}
+                            />
+                            <Route path="me" component={MePage} />
+                            <Route path="account/:tab" component={Account} />
+                            <Route path="sources" component={SourcesPage} />
+                            <Route
+                              path="configuration/:tab"
+                              component={ConfigurationPage}
+                            />
+                          </Route>
                         </Route>
                       </Route>
                     </Route>
