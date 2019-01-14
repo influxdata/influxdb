@@ -13,7 +13,9 @@ import (
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/mock"
+
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 )
@@ -398,6 +400,9 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				},
 				UserService: &mock.UserService{
 					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						if !id.Valid() {
+							return nil, platform.ErrInvalidID
+						}
 						return &platform.User{
 							ID:   id,
 							Name: "u1",
@@ -406,6 +411,9 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				},
 				OrganizationService: &mock.OrganizationService{
 					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						if !id.Valid() {
+							return nil, platform.ErrInvalidID
+						}
 						return &platform.Organization{
 							ID:   id,
 							Name: "o1",
@@ -430,7 +438,6 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				},
 				authorization: &platform.Authorization{
 					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
-					UserID:      platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
 					OrgID:       platformtesting.MustIDBase16("020f755c3c083000"),
 					Description: "only read dashboards sucka",
 					Permissions: []platform.Permission{
@@ -470,6 +477,95 @@ func TestService_handlePostAuthorization(t *testing.T) {
 `,
 			},
 		},
+		{
+			name: "create a new authorization with user id set explicitly",
+			fields: fields{
+				AuthorizationService: &mock.AuthorizationService{
+					CreateAuthorizationFn: func(ctx context.Context, c *platform.Authorization) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						c.Token = "new-test-token"
+						return nil
+					},
+				},
+				UserService: &mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						if !id.Valid() {
+							return nil, errors.New("invalid user ID")
+						}
+						return &platform.User{
+							ID:   id,
+							Name: "u1",
+						}, nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						if !id.Valid() {
+							return nil, errors.New("invalid org ID")
+						}
+						return &platform.Organization{
+							ID:   id,
+							Name: "o1",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				session: &platform.Authorization{
+					Token:       "session-token",
+					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
+					UserID:      platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+					OrgID:       platformtesting.MustIDBase16("020f755c3c083000"),
+					Description: "can write to authorization resource",
+					Permissions: []platform.Permission{
+						{
+							Action:   platform.WriteAction,
+							Resource: platform.AuthorizationsResource,
+						},
+					},
+				},
+				authorization: &platform.Authorization{
+					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
+					UserID:      platformtesting.MustIDBase16("bbbbbbbbbbbbbbbb"),
+					OrgID:       platformtesting.MustIDBase16("020f755c3c083000"),
+					Description: "only read dashboards sucka",
+					Permissions: []platform.Permission{
+						{
+							Action:   platform.ReadAction,
+							Resource: platform.DashboardsResource,
+							OrgID:    platformtesting.MustIDBase16("020f755c3c083000"),
+						},
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "user": "/api/v2/users/bbbbbbbbbbbbbbbb",
+    "self": "/api/v2/authorizations/020f755c3c082000"
+  },
+  "id": "020f755c3c082000",
+  "user": "u1",
+  "userID": "bbbbbbbbbbbbbbbb",
+  "orgID": "020f755c3c083000",
+  "org": "o1",
+  "token": "new-test-token",
+  "status": "active",
+  "description": "only read dashboards sucka",
+  "permissions": [
+		{
+  	  "action": "read",
+  	  "orgID": "020f755c3c083000",
+  	  "resource": "dashboards"
+  	}
+	]
+}
+`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -479,7 +575,11 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			h.UserService = tt.fields.UserService
 			h.OrganizationService = tt.fields.OrganizationService
 
-			b, err := json.Marshal(tt.args.authorization)
+			req, err := newPostAuthorizationRequest(tt.args.authorization)
+			if err != nil {
+				t.Fatalf("failed to create new authorization request: %v", err)
+			}
+			b, err := json.Marshal(req)
 			if err != nil {
 				t.Fatalf("failed to unmarshal authorization: %v", err)
 			}

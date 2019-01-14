@@ -60,8 +60,7 @@ func init() {
 	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.org, "org", "o", "", "org name (required)")
 	authorizationCreateCmd.MarkFlagRequired("org")
 
-	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.user, "user", "u", "", "user name (required)")
-	authorizationCreateCmd.MarkFlagRequired("user")
+	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.user, "user", "u", "", "user name")
 
 	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeUserPermission, "write-user", "", false, "grants the permission to perform mutative actions against organization users")
 	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readUserPermission, "read-user", "", false, "grants the permission to perform read actions against organization users")
@@ -227,6 +226,23 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	authorization := &platform.Authorization{
 		Permissions: permissions,
 		OrgID:       o.ID,
+	}
+
+	if authorizationCreateFlags.user != "" {
+		// if the user flag is supplied, then set the user ID explicitly on the request
+		userSvc, err := newUserService(flags)
+		if err != nil {
+			return err
+		}
+		userFilter := platform.UserFilter{
+			Name: &authorizationCreateFlags.user,
+		}
+		user, err := userSvc.FindUser(context.Background(), userFilter)
+		if err != nil {
+			return err
+		}
+
+		authorization.UserID = user.ID
 	}
 
 	s, err := newAuthorizationService(flags)
