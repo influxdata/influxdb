@@ -20,7 +20,7 @@ type Authorization struct {
 	Status      Status       `json:"status"`
 	Description string       `json:"description"`
 	OrgID       ID           `json:"orgID"`
-	UserID      ID           `json:"userID"`
+	UserID      ID           `json:"userID,omitempty"`
 	Permissions []Permission `json:"permissions"`
 }
 
