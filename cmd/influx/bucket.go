@@ -17,7 +17,7 @@ import (
 // Bucket Command
 var bucketCmd = &cobra.Command{
 	Use:   "bucket",
-	Short: "bucket related commands",
+	Short: "Bucket management commands",
 	Run:   bucketF,
 }
 
@@ -42,10 +42,10 @@ func init() {
 		Run:   bucketCreateF,
 	}
 
-	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.name, "name", "n", "", "name of bucket that will be created")
-	bucketCreateCmd.Flags().DurationVarP(&bucketCreateFlags.retention, "retention", "r", 0, "duration in nanoseconds data will live in bucket")
-	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.org, "org", "o", "", "name of the organization that owns the bucket")
-	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.orgID, "org-id", "", "", "id of the organization that owns the bucket")
+	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.name, "name", "n", "", "Name of bucket that will be created")
+	bucketCreateCmd.Flags().DurationVarP(&bucketCreateFlags.retention, "retention", "r", 0, "Duration in nanoseconds data will live in bucket")
+	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.org, "org", "o", "", "Name of the organization that owns the bucket")
+	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.orgID, "org-id", "", "", "The ID of the organization that owns the bucket")
 	bucketCreateCmd.MarkFlagRequired("name")
 
 	bucketCmd.AddCommand(bucketCreateCmd)
@@ -143,10 +143,10 @@ func init() {
 		Run:   bucketFindF,
 	}
 
-	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.name, "name", "n", "", "bucket name")
-	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.id, "id", "i", "", "bucket ID")
-	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.orgID, "org-id", "", "", "bucket organization ID")
-	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.org, "org", "o", "", "bucket organization name")
+	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.name, "name", "n", "", "The bucket name")
+	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.id, "id", "i", "", "The bucket ID")
+	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.orgID, "org-id", "", "", "The bucket organization ID")
+	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.org, "org", "o", "", "The bucket organization name")
 
 	bucketCmd.AddCommand(bucketFindCmd)
 }
@@ -233,9 +233,9 @@ func init() {
 		Run:   bucketUpdateF,
 	}
 
-	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.id, "id", "i", "", "bucket ID (required)")
-	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.name, "name", "n", "", "new bucket name")
-	bucketUpdateCmd.Flags().DurationVarP(&bucketUpdateFlags.retention, "retention", "r", 0, "new duration data will live in bucket")
+	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.id, "id", "i", "", "The bucket ID (required)")
+	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.name, "name", "n", "", "New bucket name")
+	bucketUpdateCmd.Flags().DurationVarP(&bucketUpdateFlags.retention, "retention", "r", 0, "New duration data will live in bucket")
 	bucketUpdateCmd.MarkFlagRequired("id")
 
 	bucketCmd.AddCommand(bucketUpdateCmd)
@@ -345,7 +345,7 @@ func init() {
 		Run:   bucketDeleteF,
 	}
 
-	bucketDeleteCmd.Flags().StringVarP(&bucketDeleteFlags.id, "id", "i", "", "bucket id (required)")
+	bucketDeleteCmd.Flags().StringVarP(&bucketDeleteFlags.id, "id", "i", "", "The bucket ID (required)")
 	bucketDeleteCmd.MarkFlagRequired("id")
 
 	bucketCmd.AddCommand(bucketDeleteCmd)

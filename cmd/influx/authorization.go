@@ -57,31 +57,31 @@ func init() {
 		RunE:  authorizationCreateF,
 	}
 
-	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.org, "org", "o", "", "org name (required)")
+	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.org, "org", "o", "", "The organization name (required)")
 	authorizationCreateCmd.MarkFlagRequired("org")
 
-	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.user, "user", "u", "", "user name")
+	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.user, "user", "u", "", "The user name")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeUserPermission, "write-user", "", false, "grants the permission to perform mutative actions against organization users")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readUserPermission, "read-user", "", false, "grants the permission to perform read actions against organization users")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeUserPermission, "write-user", "", false, "Grants the permission to perform mutative actions against organization users")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readUserPermission, "read-user", "", false, "Grants the permission to perform read actions against organization users")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeBucketsPermission, "write-buckets", "", false, "grants the permission to perform mutative actions against organization buckets")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readBucketsPermission, "read-buckets", "", false, "grants the permission to perform read actions against organization buckets")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeBucketsPermission, "write-buckets", "", false, "Grants the permission to perform mutative actions against organization buckets")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readBucketsPermission, "read-buckets", "", false, "Grants the permission to perform read actions against organization buckets")
 
-	authorizationCreateCmd.Flags().StringArrayVarP(&authorizationCreateFlags.writeBucketPermissions, "write-bucket", "", []string{}, "bucket id")
-	authorizationCreateCmd.Flags().StringArrayVarP(&authorizationCreateFlags.readBucketPermissions, "read-bucket", "", []string{}, "bucket id")
+	authorizationCreateCmd.Flags().StringArrayVarP(&authorizationCreateFlags.writeBucketPermissions, "write-bucket", "", []string{}, "The bucket id")
+	authorizationCreateCmd.Flags().StringArrayVarP(&authorizationCreateFlags.readBucketPermissions, "read-bucket", "", []string{}, "The bucket id")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeTasksPermission, "write-tasks", "", false, "grants the permission to create tasks")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readTasksPermission, "read-tasks", "", false, "grants the permission to read tasks")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeTasksPermission, "write-tasks", "", false, "Grants the permission to create tasks")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readTasksPermission, "read-tasks", "", false, "Grants the permission to read tasks")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeTelegrafsPermission, "write-telegrafs", "", false, "grants the permission to create telegraf configs")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readTelegrafsPermission, "read-telegrafs", "", false, "grants the permission to read telegraf configs")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeTelegrafsPermission, "write-telegrafs", "", false, "Grants the permission to create telegraf configs")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readTelegrafsPermission, "read-telegrafs", "", false, "Grants the permission to read telegraf configs")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeOrganizationsPermission, "write-orgs", "", false, "grants the permission to create organizations")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readOrganizationsPermission, "read-orgs", "", false, "grants the permission to read organizations")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeOrganizationsPermission, "write-orgs", "", false, "Grants the permission to create organizations")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readOrganizationsPermission, "read-orgs", "", false, "Grants the permission to read organizations")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeDashboardsPermission, "write-dashboards", "", false, "grants the permission to create dashboards")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readDashboardsPermission, "read-dashboards", "", false, "grants the permission to read dashboards")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeDashboardsPermission, "write-dashboards", "", false, "Grants the permission to create dashboards")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readDashboardsPermission, "read-dashboards", "", false, "Grants the permission to read dashboards")
 
 	authorizationCmd.AddCommand(authorizationCreateCmd)
 }
@@ -297,9 +297,9 @@ func init() {
 		RunE:  authorizationFindF,
 	}
 
-	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "user")
-	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.userID, "user-id", "", "", "user ID")
-	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.id, "id", "i", "", "authorization ID")
+	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
+	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.userID, "user-id", "", "", "The user ID")
+	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.id, "id", "i", "", "The authorization ID")
 
 	authorizationCmd.AddCommand(authorizationFindCmd)
 }
@@ -398,7 +398,7 @@ func init() {
 		RunE:  authorizationDeleteF,
 	}
 
-	authorizationDeleteCmd.Flags().StringVarP(&authorizationDeleteFlags.id, "id", "i", "", "authorization id (required)")
+	authorizationDeleteCmd.Flags().StringVarP(&authorizationDeleteFlags.id, "id", "i", "", "The authorization ID (required)")
 	authorizationDeleteCmd.MarkFlagRequired("id")
 
 	authorizationCmd.AddCommand(authorizationDeleteCmd)
@@ -463,11 +463,11 @@ var authorizationActiveFlags AuthorizationActiveFlags
 func init() {
 	authorizationActiveCmd := &cobra.Command{
 		Use:   "active",
-		Short: "active authorization",
+		Short: "Active authorization",
 		RunE:  authorizationActiveF,
 	}
 
-	authorizationActiveCmd.Flags().StringVarP(&authorizationActiveFlags.id, "id", "i", "", "authorization id (required)")
+	authorizationActiveCmd.Flags().StringVarP(&authorizationActiveFlags.id, "id", "i", "", "The authorization ID (required)")
 	authorizationActiveCmd.MarkFlagRequired("id")
 
 	authorizationCmd.AddCommand(authorizationActiveCmd)
@@ -532,11 +532,11 @@ var authorizationInactiveFlags AuthorizationInactiveFlags
 func init() {
 	authorizationInactiveCmd := &cobra.Command{
 		Use:   "inactive",
-		Short: "inactive authorization",
+		Short: "Inactive authorization",
 		RunE:  authorizationInactiveF,
 	}
 
-	authorizationInactiveCmd.Flags().StringVarP(&authorizationInactiveFlags.id, "id", "i", "", "authorization id (required)")
+	authorizationInactiveCmd.Flags().StringVarP(&authorizationInactiveFlags.id, "id", "i", "", "The authorization ID (required)")
 	authorizationInactiveCmd.MarkFlagRequired("id")
 
 	authorizationCmd.AddCommand(authorizationInactiveCmd)
