@@ -283,10 +283,10 @@ exports[`Account rendering renders! 1`] = `
                         }
                       >
                         <PermissionsWidgetSection
-                          id="users"
+                          id="orgs"
                           key=".$0"
                           mode="read"
-                          title="users:*"
+                          title="orgs:*"
                         >
                           <section
                             className="permissions-widget--section"
@@ -297,28 +297,28 @@ exports[`Account rendering renders! 1`] = `
                               <h3
                                 className="permissions-widget--section-title"
                               >
-                                users:*
+                                orgs:*
                               </h3>
                             </header>
                             <ul
                               className="permissions-widget--section-list"
                             >
                               <PermissionsWidgetItem
-                                id="users-read"
+                                id="orgs-read"
                                 key=".$0"
                                 label="read"
                                 mode="read"
-                                selected="selected"
+                                selected="unselected"
                               >
                                 <li
-                                  className="permissions-widget--item selected"
+                                  className="permissions-widget--item unselected"
                                   onClick={[Function]}
                                 >
                                   <div
                                     className="permissions-widget--icon"
                                   >
                                     <span
-                                      className="icon checkmark"
+                                      className="icon remove"
                                     />
                                   </div>
                                   <label
@@ -329,7 +329,7 @@ exports[`Account rendering renders! 1`] = `
                                 </li>
                               </PermissionsWidgetItem>
                               <PermissionsWidgetItem
-                                id="users-write"
+                                id="orgs-write"
                                 key=".$1"
                                 label="write"
                                 mode="read"
@@ -357,10 +357,10 @@ exports[`Account rendering renders! 1`] = `
                           </section>
                         </PermissionsWidgetSection>
                         <PermissionsWidgetSection
-                          id="1"
+                          id="buckets"
                           key=".$1"
                           mode="read"
-                          title="orgs:myorg"
+                          title="buckets:*"
                         >
                           <section
                             className="permissions-widget--section"
@@ -371,41 +371,16 @@ exports[`Account rendering renders! 1`] = `
                               <h3
                                 className="permissions-widget--section-title"
                               >
-                                orgs:myorg
+                                buckets:*
                               </h3>
                             </header>
                             <ul
                               className="permissions-widget--section-list"
                             >
                               <PermissionsWidgetItem
-                                id="1-read"
+                                id="buckets-read"
                                 key=".$0"
                                 label="read"
-                                mode="read"
-                                selected="selected"
-                              >
-                                <li
-                                  className="permissions-widget--item selected"
-                                  onClick={[Function]}
-                                >
-                                  <div
-                                    className="permissions-widget--icon"
-                                  >
-                                    <span
-                                      className="icon checkmark"
-                                    />
-                                  </div>
-                                  <label
-                                    className="permissions-widget--item-label"
-                                  >
-                                    read
-                                  </label>
-                                </li>
-                              </PermissionsWidgetItem>
-                              <PermissionsWidgetItem
-                                id="1-write"
-                                key=".$1"
-                                label="write"
                                 mode="read"
                                 selected="unselected"
                               >
@@ -423,38 +398,14 @@ exports[`Account rendering renders! 1`] = `
                                   <label
                                     className="permissions-widget--item-label"
                                   >
-                                    write
+                                    read
                                   </label>
                                 </li>
                               </PermissionsWidgetItem>
-                            </ul>
-                          </section>
-                        </PermissionsWidgetSection>
-                        <PermissionsWidgetSection
-                          id="2"
-                          key=".$2"
-                          mode="read"
-                          title="buckets:telegraf"
-                        >
-                          <section
-                            className="permissions-widget--section"
-                          >
-                            <header
-                              className="permissions-widget--section-heading"
-                            >
-                              <h3
-                                className="permissions-widget--section-title"
-                              >
-                                buckets:telegraf
-                              </h3>
-                            </header>
-                            <ul
-                              className="permissions-widget--section-list"
-                            >
                               <PermissionsWidgetItem
-                                id="2-read"
-                                key=".$0"
-                                label="read"
+                                id="buckets-write"
+                                key=".$1"
+                                label="write"
                                 mode="read"
                                 selected="selected"
                               >
@@ -467,179 +418,6 @@ exports[`Account rendering renders! 1`] = `
                                   >
                                     <span
                                       className="icon checkmark"
-                                    />
-                                  </div>
-                                  <label
-                                    className="permissions-widget--item-label"
-                                  >
-                                    read
-                                  </label>
-                                </li>
-                              </PermissionsWidgetItem>
-                              <PermissionsWidgetItem
-                                id="2-write"
-                                key=".$1"
-                                label="write"
-                                mode="read"
-                                selected="unselected"
-                              >
-                                <li
-                                  className="permissions-widget--item unselected"
-                                  onClick={[Function]}
-                                >
-                                  <div
-                                    className="permissions-widget--icon"
-                                  >
-                                    <span
-                                      className="icon remove"
-                                    />
-                                  </div>
-                                  <label
-                                    className="permissions-widget--item-label"
-                                  >
-                                    write
-                                  </label>
-                                </li>
-                              </PermissionsWidgetItem>
-                            </ul>
-                          </section>
-                        </PermissionsWidgetSection>
-                        <PermissionsWidgetSection
-                          id="tasks"
-                          key=".$3"
-                          mode="read"
-                          title="tasks:task1"
-                        >
-                          <section
-                            className="permissions-widget--section"
-                          >
-                            <header
-                              className="permissions-widget--section-heading"
-                            >
-                              <h3
-                                className="permissions-widget--section-title"
-                              >
-                                tasks:task1
-                              </h3>
-                            </header>
-                            <ul
-                              className="permissions-widget--section-list"
-                            >
-                              <PermissionsWidgetItem
-                                id="tasks-read"
-                                key=".$0"
-                                label="read"
-                                mode="read"
-                                selected="selected"
-                              >
-                                <li
-                                  className="permissions-widget--item selected"
-                                  onClick={[Function]}
-                                >
-                                  <div
-                                    className="permissions-widget--icon"
-                                  >
-                                    <span
-                                      className="icon checkmark"
-                                    />
-                                  </div>
-                                  <label
-                                    className="permissions-widget--item-label"
-                                  >
-                                    read
-                                  </label>
-                                </li>
-                              </PermissionsWidgetItem>
-                              <PermissionsWidgetItem
-                                id="tasks-write"
-                                key=".$1"
-                                label="write"
-                                mode="read"
-                                selected="unselected"
-                              >
-                                <li
-                                  className="permissions-widget--item unselected"
-                                  onClick={[Function]}
-                                >
-                                  <div
-                                    className="permissions-widget--icon"
-                                  >
-                                    <span
-                                      className="icon remove"
-                                    />
-                                  </div>
-                                  <label
-                                    className="permissions-widget--item-label"
-                                  >
-                                    write
-                                  </label>
-                                </li>
-                              </PermissionsWidgetItem>
-                            </ul>
-                          </section>
-                        </PermissionsWidgetSection>
-                        <PermissionsWidgetSection
-                          id="2"
-                          key=".$4"
-                          mode="read"
-                          title="tasks:task1"
-                        >
-                          <section
-                            className="permissions-widget--section"
-                          >
-                            <header
-                              className="permissions-widget--section-heading"
-                            >
-                              <h3
-                                className="permissions-widget--section-title"
-                              >
-                                tasks:task1
-                              </h3>
-                            </header>
-                            <ul
-                              className="permissions-widget--section-list"
-                            >
-                              <PermissionsWidgetItem
-                                id="2-read"
-                                key=".$0"
-                                label="read"
-                                mode="read"
-                                selected="selected"
-                              >
-                                <li
-                                  className="permissions-widget--item selected"
-                                  onClick={[Function]}
-                                >
-                                  <div
-                                    className="permissions-widget--icon"
-                                  >
-                                    <span
-                                      className="icon checkmark"
-                                    />
-                                  </div>
-                                  <label
-                                    className="permissions-widget--item-label"
-                                  >
-                                    read
-                                  </label>
-                                </li>
-                              </PermissionsWidgetItem>
-                              <PermissionsWidgetItem
-                                id="2-write"
-                                key=".$1"
-                                label="write"
-                                mode="read"
-                                selected="unselected"
-                              >
-                                <li
-                                  className="permissions-widget--item unselected"
-                                  onClick={[Function]}
-                                >
-                                  <div
-                                    className="permissions-widget--icon"
-                                  >
-                                    <span
-                                      className="icon remove"
                                     />
                                   </div>
                                   <label
