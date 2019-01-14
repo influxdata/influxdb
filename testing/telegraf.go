@@ -1090,6 +1090,62 @@ func FindTelegrafConfigs(
 			},
 		},
 		{
+			name: "look for organization not bound to any telegraf config",
+			fields: TelegrafConfigFields{
+				UserResourceMappings: []*platform.UserResourceMapping{
+					{
+						ResourceID: MustIDBase16(oneID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Owner,
+					},
+					{
+						ResourceID: MustIDBase16(twoID),
+						Resource:   platform.TelegrafsResource,
+						UserID:     MustIDBase16(threeID),
+						UserType:   platform.Member,
+					},
+				},
+				TelegrafConfigs: []*platform.TelegrafConfig{
+					{
+						ID:             MustIDBase16(oneID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc1",
+						Plugins: []platform.TelegrafPlugin{
+							{
+								Config: &inputs.CPUStats{},
+							},
+						},
+					},
+					{
+						ID:             MustIDBase16(twoID),
+						OrganizationID: MustIDBase16(threeID),
+						Name:           "tc2",
+						Plugins: []platform.TelegrafPlugin{
+							{
+								Comment: "comment1",
+								Config: &inputs.File{
+									Files: []string{"f1", "f2"},
+								},
+							},
+							{
+								Comment: "comment2",
+								Config:  &inputs.MemStats{},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				filter: platform.TelegrafConfigFilter{
+					OrganizationID: idPtr(MustIDBase16(oneID)),
+				},
+			},
+			wants: wants{
+				telegrafConfigs: []*platform.TelegrafConfig{},
+			},
+		},
+		{
 			name: "find nothing",
 			fields: TelegrafConfigFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
