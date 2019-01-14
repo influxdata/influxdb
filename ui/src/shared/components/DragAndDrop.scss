@@ -65,7 +65,7 @@
     align-items: center;
     flex-wrap: nowrap;
     margin-top: 18px;
-    > button.btn {
+    > button {
       margin: 0 4px;
     }
   }
@@ -109,7 +109,7 @@
       right: 20px;
       flex-direction: column;
       align-items: stretch;
-      > button.btn {
+      > button {
         margin: 2px 0;
       }
     }
