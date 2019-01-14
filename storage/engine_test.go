@@ -1,12 +1,14 @@
 package storage_test
 
 import (
+	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"testing"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
@@ -149,6 +151,68 @@ func TestEngine_WriteAddNewField(t *testing.T) {
 	}
 }
 
+func TestEngine_DeleteBucket(t *testing.T) {
+	engine := NewDefaultEngine()
+	defer engine.Close()
+	engine.MustOpen()
+
+	pt := models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err := engine.Write1xPoints([]models.Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	pt = models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 1.0, "value2": 2.0},
+		time.Unix(1, 3),
+	)
+
+	// Same org, different bucket.
+	err = engine.Write1xPointsWithOrgBucket([]models.Point{pt}, "3131313131313131", "8888888888888888")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if got, exp := engine.SeriesCardinality(), int64(3); got != exp {
+		t.Fatalf("got %d series, exp %d series in index", got, exp)
+	}
+
+	// Remove the original bucket.
+	if err := engine.DeleteBucket(engine.org, engine.bucket); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check only one bucket was removed.
+	if got, exp := engine.SeriesCardinality(), int64(2); got != exp {
+		t.Fatalf("got %d series, exp %d series in index", got, exp)
+	}
+}
+
+func TestEngine_OpenClose(t *testing.T) {
+	engine := NewDefaultEngine()
+	engine.MustOpen()
+
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := engine.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // Ensures that when a shard is closed, it removes any series meta-data
 // from the index.
 func TestEngineClose_RemoveIndex(t *testing.T) {
@@ -201,8 +265,53 @@ func TestEngine_WALDisabled(t *testing.T) {
 	}
 }
 
+func BenchmarkDeleteBucket(b *testing.B) {
+	var engine *Engine
+	setup := func(card int) {
+		engine = NewDefaultEngine()
+		engine.MustOpen()
+
+		points := make([]models.Point, card)
+		for i := 0; i < card; i++ {
+			points[i] = models.MustNewPoint(
+				"cpu",
+				models.NewTags(map[string]string{"host": "server"}),
+				map[string]interface{}{"value": i},
+				time.Unix(1, 2),
+			)
+		}
+
+		if err := engine.Write1xPoints(points); err != nil {
+			panic(err)
+		}
+	}
+
+	for i := 1; i <= 5; i++ {
+		card := int(math.Pow10(i))
+
+		b.Run(fmt.Sprintf("cardinality_%d", card), func(b *testing.B) {
+			setup(card)
+			for i := 0; i < b.N; i++ {
+				if err := engine.DeleteBucket(engine.org, engine.bucket); err != nil {
+					b.Fatal(err)
+				}
+
+				b.StopTimer()
+				if err := engine.Close(); err != nil {
+					panic(err)
+				}
+				setup(card)
+				b.StartTimer()
+			}
+		})
+
+	}
+}
+
 type Engine struct {
-	path string
+	path        string
+	org, bucket influxdb.ID
+
 	*storage.Engine
 }
 
@@ -211,8 +320,21 @@ func NewEngine(c storage.Config) *Engine {
 	path, _ := ioutil.TempDir("", "storage_engine_test")
 
 	engine := storage.NewEngine(path, c)
+
+	org, err := influxdb.IDFromString("3131313131313131")
+	if err != nil {
+		panic(err)
+	}
+
+	bucket, err := influxdb.IDFromString("3232323232323232")
+	if err != nil {
+		panic(err)
+	}
+
 	return &Engine{
 		path:   path,
+		org:    *org,
+		bucket: *bucket,
 		Engine: engine,
 	}
 }
@@ -233,9 +355,26 @@ func (e *Engine) MustOpen() {
 // This allows us to use the old `models` package helper functions and still write
 // the points in the correct format.
 func (e *Engine) Write1xPoints(pts []models.Point) error {
-	org, _ := platform.IDFromString("3131313131313131")
-	bucket, _ := platform.IDFromString("3232323232323232")
-	points, err := tsdb.ExplodePoints(*org, *bucket, pts)
+	points, err := tsdb.ExplodePoints(e.org, e.bucket, pts)
+	if err != nil {
+		return err
+	}
+	return e.Engine.WritePoints(points)
+}
+
+// Write1xPointsWithOrgBucket writes 1.x points with the provided org and bucket id strings.
+func (e *Engine) Write1xPointsWithOrgBucket(pts []models.Point, org, bucket string) error {
+	o, err := influxdb.IDFromString(org)
+	if err != nil {
+		return err
+	}
+
+	b, err := influxdb.IDFromString(bucket)
+	if err != nil {
+		return err
+	}
+
+	points, err := tsdb.ExplodePoints(*o, *b, pts)
 	if err != nil {
 		return err
 	}
