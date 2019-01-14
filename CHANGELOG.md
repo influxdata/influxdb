@@ -4,6 +4,7 @@ v1.6.6 [unreleased]
 ### Bugfixes
 
 -	[#10951](https://github.com/influxdata/influxdb/pull/10951): Marked functions that always return floats as always returning floats.
+-	[#11003](https://github.com/influxdata/influxdb/pull/11003): Fix Cardinality estimation error.
 
 v1.6.5 [2019-01-09]
 -------------------
