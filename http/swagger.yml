@@ -6196,6 +6196,9 @@ components:
         id:
           readOnly: true
           type: string
+        organizationID:
+          type: string
+          description: id of the organization that owns the dashboard
         name:
           type: string
           description: user-facing name of the dashboard
