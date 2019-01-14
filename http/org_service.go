@@ -124,6 +124,7 @@ func newOrgResponse(o *platform.Organization, labels []*platform.Label) *orgResp
 			"self":       fmt.Sprintf("/api/v2/orgs/%s", o.ID),
 			"log":        fmt.Sprintf("/api/v2/orgs/%s/log", o.ID),
 			"members":    fmt.Sprintf("/api/v2/orgs/%s/members", o.ID),
+			"owners":     fmt.Sprintf("/api/v2/orgs/%s/owners", o.ID),
 			"secrets":    fmt.Sprintf("/api/v2/orgs/%s/secrets", o.ID),
 			"labels":     fmt.Sprintf("/api/v2/orgs/%s/labels", o.ID),
 			"buckets":    fmt.Sprintf("/api/v2/buckets?org=%s", o.Name),
