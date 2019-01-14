@@ -15,7 +15,7 @@ import (
 // task Command
 var taskCmd = &cobra.Command{
 	Use:   "task",
-	Short: "task related commands",
+	Short: "Task management commands",
 	Run:   taskF,
 }
 
@@ -30,7 +30,7 @@ func taskF(cmd *cobra.Command, args []string) {
 
 var logCmd = &cobra.Command{
 	Use:   "log",
-	Short: "log related commands",
+	Short: "Log related commands",
 	Run:   logF,
 }
 
@@ -40,7 +40,7 @@ func logF(cmd *cobra.Command, args []string) {
 
 var runCmd = &cobra.Command{
 	Use:   "run",
-	Short: "run related commands",
+	Short: "Run related commands",
 	Run:   runF,
 }
 
