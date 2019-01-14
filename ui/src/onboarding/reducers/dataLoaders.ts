@@ -34,6 +34,7 @@ export const INITIAL_STATE: DataLoadersState = {
   precision: WritePrecision.Ns,
   telegrafConfigID: null,
   pluginBundles: [],
+  scraper: {interval: '', bucket: '', urls: []},
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
@@ -259,6 +260,50 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
 
           return {...tp}
         }),
+      }
+    case 'SET_SCRAPING_INTERVAL':
+      const {interval} = action.payload
+
+      return {
+        ...state,
+        scraper: {...state.scraper, interval},
+      }
+    case 'SET_SCRAPING_BUCKET':
+      const {bucket} = action.payload
+
+      return {
+        ...state,
+        scraper: {...state.scraper, bucket},
+      }
+    case 'ADD_SCRAPING_URL':
+      const {url} = action.payload
+      return {
+        ...state,
+        scraper: {
+          ...state.scraper,
+          urls: [...state.scraper.urls, url],
+        },
+      }
+    case 'REMOVE_SCRAPING_URL':
+      return {
+        ...state,
+        scraper: {
+          ...state.scraper,
+          urls: state.scraper.urls.filter(url => url !== action.payload.url),
+        },
+      }
+    case 'UPDATE_SCRAPING_URL':
+      return {
+        ...state,
+        scraper: {
+          ...state.scraper,
+          urls: state.scraper.urls.map((url, i) => {
+            if (i === action.payload.index) {
+              return action.payload.url
+            }
+            return url
+          }),
+        },
       }
     case 'SET_LINE_PROTOCOL_BODY':
       return {
