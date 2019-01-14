@@ -80,10 +80,23 @@ func init() {
 	}
 
 	influxCmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
+
+	// Override help on all the commands tree
+	walk(influxCmd, func(c *cobra.Command) {
+		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
+	})
 }
 
 func influxF(cmd *cobra.Command, args []string) {
 	cmd.Usage()
+}
+
+// walk calls f for c and all of its children.
+func walk(c *cobra.Command, f func(*cobra.Command)) {
+	f(c)
+	for _, c := range c.Commands() {
+		walk(c, f)
+	}
 }
 
 // Execute executes the influx command
