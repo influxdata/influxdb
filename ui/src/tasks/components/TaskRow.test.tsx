@@ -18,6 +18,7 @@ const setup = (override = {}) => {
     onActivate: jest.fn(),
     onDelete: jest.fn(),
     onSelect: jest.fn(),
+    onEditLabels: jest.fn(),
     ...override,
   }
 

@@ -6,6 +6,8 @@ import _ from 'lodash'
 import {IndexList} from 'src/clockface'
 import TaskRow from 'src/tasks/components/TaskRow'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
+import {OverlayTechnology} from 'src/clockface'
+import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
@@ -16,6 +18,7 @@ interface Task extends TaskAPI {
   owner?: User
 }
 import {Sort} from 'src/clockface'
+import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions/v2'
 
 interface Props {
   tasks: Task[]
@@ -25,6 +28,8 @@ interface Props {
   onCreate: () => void
   onSelect: (task: Task) => void
   totalCount: number
+  onRemoveTaskLabels: typeof removeTaskLabelsAsync
+  onAddTaskLabels: typeof addTaskLabelsAsync
 }
 
 type SortKey = keyof Task | 'organization.name'
@@ -32,6 +37,8 @@ type SortKey = keyof Task | 'organization.name'
 interface State {
   sortKey: SortKey
   sortDirection: Sort
+  taskLabelsEdit: Task
+  isEditingTaskLabels: boolean
 }
 
 export default class TasksList extends PureComponent<Props, State> {
@@ -40,6 +47,8 @@ export default class TasksList extends PureComponent<Props, State> {
     this.state = {
       sortKey: null,
       sortDirection: Sort.Descending,
+      taskLabelsEdit: null,
+      isEditingTaskLabels: false,
     }
   }
 
@@ -55,51 +64,54 @@ export default class TasksList extends PureComponent<Props, State> {
     ]
 
     return (
-      <IndexList>
-        <IndexList.Header>
-          <IndexList.HeaderCell
-            columnName="Name"
-            width="20%"
-            sortKey={headerKeys[0]}
-            sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
-          />
-          <IndexList.HeaderCell
-            columnName="Active"
-            width="10%"
-            sortKey={headerKeys[1]}
-            sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
-          />
-          <IndexList.HeaderCell
-            columnName="Schedule"
-            width="20%"
-            sortKey={headerKeys[2]}
-            sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
-          />
-          <IndexList.HeaderCell
-            columnName="Owner"
-            width="15%"
-            sortKey={headerKeys[3]}
-            sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
-          />
-          <IndexList.HeaderCell columnName="" width="35%" />
-        </IndexList.Header>
-        <IndexList.Body
-          emptyState={
-            <EmptyTasksList
-              searchTerm={searchTerm}
-              onCreate={onCreate}
-              totalCount={totalCount}
+      <>
+        <IndexList>
+          <IndexList.Header>
+            <IndexList.HeaderCell
+              columnName="Name"
+              width="20%"
+              sortKey={headerKeys[0]}
+              sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
+              onClick={this.handleClickColumn}
             />
-          }
-          columnCount={5}
-        >
-          {this.sortedRows}
-        </IndexList.Body>
-      </IndexList>
+            <IndexList.HeaderCell
+              columnName="Active"
+              width="10%"
+              sortKey={headerKeys[1]}
+              sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
+              onClick={this.handleClickColumn}
+            />
+            <IndexList.HeaderCell
+              columnName="Schedule"
+              width="20%"
+              sortKey={headerKeys[2]}
+              sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
+              onClick={this.handleClickColumn}
+            />
+            <IndexList.HeaderCell
+              columnName="Owner"
+              width="15%"
+              sortKey={headerKeys[3]}
+              sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
+              onClick={this.handleClickColumn}
+            />
+            <IndexList.HeaderCell columnName="" width="35%" />
+          </IndexList.Header>
+          <IndexList.Body
+            emptyState={
+              <EmptyTasksList
+                searchTerm={searchTerm}
+                onCreate={onCreate}
+                totalCount={totalCount}
+              />
+            }
+            columnCount={5}
+          >
+            {this.sortedRows}
+          </IndexList.Body>
+        </IndexList>
+        {this.renderLabelEditorOverlay}
+      </>
     )
   }
 
@@ -118,6 +130,7 @@ export default class TasksList extends PureComponent<Props, State> {
             onActivate={onActivate}
             onDelete={onDelete}
             onSelect={onSelect}
+            onEditLabels={this.handleStartEditingLabels}
           />
         ))}
       </>
@@ -142,5 +155,29 @@ export default class TasksList extends PureComponent<Props, State> {
     }
 
     return null
+  }
+
+  private handleStartEditingLabels = (taskLabelsEdit: Task): void => {
+    this.setState({taskLabelsEdit, isEditingTaskLabels: true})
+  }
+
+  private handleStopEditingLabels = (): void => {
+    this.setState({isEditingTaskLabels: false})
+  }
+
+  private get renderLabelEditorOverlay(): JSX.Element {
+    const {onAddTaskLabels, onRemoveTaskLabels} = this.props
+    const {isEditingTaskLabels, taskLabelsEdit} = this.state
+
+    return (
+      <OverlayTechnology visible={isEditingTaskLabels}>
+        <EditLabelsOverlay<Task>
+          resource={taskLabelsEdit}
+          onDismissOverlay={this.handleStopEditingLabels}
+          onAddLabels={onAddTaskLabels}
+          onRemoveLabels={onRemoveTaskLabels}
+        />
+      </OverlayTechnology>
+    )
   }
 }

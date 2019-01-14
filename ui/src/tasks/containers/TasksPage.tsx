@@ -21,6 +21,8 @@ import {
   setShowInactive as setShowInactiveAction,
   setDropdownOrgID as setDropdownOrgIDAction,
   importScript,
+  addTaskLabelsAsync,
+  removeTaskLabelsAsync,
 } from 'src/tasks/actions/v2'
 
 // Constants
@@ -48,6 +50,8 @@ interface ConnectedDispatchProps {
   setShowInactive: typeof setShowInactiveAction
   setDropdownOrgID: typeof setDropdownOrgIDAction
   importScript: typeof importScript
+  onAddTaskLabels: typeof addTaskLabelsAsync
+  onRemoveTaskLabels: typeof removeTaskLabelsAsync
 }
 
 interface ConnectedStateProps {
@@ -61,7 +65,8 @@ interface ConnectedStateProps {
 type Props = ConnectedDispatchProps & PassedInProps & ConnectedStateProps
 
 interface State {
-  isOverlayVisible: boolean
+  isImportOverlayVisible: boolean
+  taskLabelsEdit: Task
 }
 
 @ErrorHandling
@@ -75,7 +80,10 @@ class TasksPage extends PureComponent<Props, State> {
     }
     props.setDropdownOrgID(null)
 
-    this.state = {isOverlayVisible: false}
+    this.state = {
+      isImportOverlayVisible: false,
+      taskLabelsEdit: null,
+    }
   }
 
   public render(): JSX.Element {
@@ -84,6 +92,8 @@ class TasksPage extends PureComponent<Props, State> {
       searchTerm,
       setShowInactive,
       showInactive,
+      onAddTaskLabels,
+      onRemoveTaskLabels,
     } = this.props
 
     return (
@@ -106,6 +116,8 @@ class TasksPage extends PureComponent<Props, State> {
                 onDelete={this.handleDelete}
                 onCreate={this.handleCreateTask}
                 onSelect={this.props.selectTask}
+                onAddTaskLabels={onAddTaskLabels}
+                onRemoveTaskLabels={onRemoveTaskLabels}
               />
               {this.hiddenTaskAlert}
             </div>
@@ -134,7 +146,7 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private handleToggleOverlay = () => {
-    this.setState({isOverlayVisible: !this.state.isOverlayVisible})
+    this.setState({isImportOverlayVisible: !this.state.isImportOverlayVisible})
   }
 
   private handleSave = (script: string, fileName: string) => {
@@ -142,10 +154,10 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private get renderImportOverlay(): JSX.Element {
-    const {isOverlayVisible} = this.state
+    const {isImportOverlayVisible} = this.state
 
     return (
-      <OverlayTechnology visible={isOverlayVisible}>
+      <OverlayTechnology visible={isImportOverlayVisible}>
         <ImportTaskOverlay
           onDismissOverlay={this.handleToggleOverlay}
           onSave={this.handleSave}
@@ -224,6 +236,8 @@ const mdtp: ConnectedDispatchProps = {
   setShowInactive: setShowInactiveAction,
   setDropdownOrgID: setDropdownOrgIDAction,
   importScript,
+  onRemoveTaskLabels: removeTaskLabelsAsync,
+  onAddTaskLabels: addTaskLabelsAsync,
 }
 
 export default connect<

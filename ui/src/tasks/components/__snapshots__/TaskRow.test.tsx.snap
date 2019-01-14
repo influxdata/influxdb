@@ -18,6 +18,12 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
       >
         pasdlak
       </a>
+      <LabelContainer
+        className="index-list--labels"
+        limitChildCount={4}
+        onEdit={[Function]}
+        resourceName="this resource"
+      />
     </ComponentSpacer>
   </IndexListRowCell>
   <IndexListRowCell

@@ -1,4 +1,6 @@
-import {Task} from 'src/api'
+import _ from 'lodash'
+
+import {Task, Label} from 'src/api'
 import {taskAPI} from 'src/utils/api'
 
 export const submitNewTask = async (
@@ -40,4 +42,31 @@ export const getTask = async (id): Promise<Task> => {
 
 export const deleteTask = (taskID: string) => {
   return taskAPI.tasksTaskIDDelete(taskID)
+}
+
+export const addTaskLabels = async (
+  taskID: string,
+  labels: Label[]
+): Promise<Label[]> => {
+  await Promise.all(
+    labels.map(async label => {
+      await taskAPI.tasksTaskIDLabelsPost(taskID, label)
+    })
+  )
+
+  const {data} = await taskAPI.tasksTaskIDLabelsGet(taskID)
+
+  return data.labels
+}
+
+export const removeTaskLabels = async (
+  taskID: string,
+  labels: Label[]
+): Promise<void> => {
+  await Promise.all(
+    labels.map(async label => {
+      const name = _.get(label, 'name', '')
+      await taskAPI.tasksTaskIDLabelsLabelDelete(taskID, name)
+    })
+  )
 }

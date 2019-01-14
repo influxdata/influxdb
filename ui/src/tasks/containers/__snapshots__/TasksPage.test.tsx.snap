@@ -1,138 +1,148 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`TasksList rendering renders 1`] = `
-<IndexList>
-  <IndexListHeader>
-    <IndexListHeaderCell
-      alignment="left"
-      columnName="Name"
-      onClick={[Function]}
-      sort="none"
-      sortKey="name"
-      width="20%"
-    />
-    <IndexListHeaderCell
-      alignment="left"
-      columnName="Active"
-      onClick={[Function]}
-      sort="none"
-      sortKey="status"
-      width="10%"
-    />
-    <IndexListHeaderCell
-      alignment="left"
-      columnName="Schedule"
-      onClick={[Function]}
-      sort="none"
-      sortKey="every"
-      width="20%"
-    />
-    <IndexListHeaderCell
-      alignment="left"
-      columnName="Owner"
-      onClick={[Function]}
-      sort="none"
-      sortKey="organization.name"
-      width="15%"
-    />
-    <IndexListHeaderCell
-      alignment="left"
-      columnName=""
-      width="35%"
-    />
-  </IndexListHeader>
-  <IndexListBody
-    columnCount={5}
-    emptyState={
-      <EmptyTasksLists
-        onCreate={[Function]}
-        searchTerm=""
+<Fragment>
+  <IndexList>
+    <IndexListHeader>
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="Name"
+        onClick={[Function]}
+        sort="none"
+        sortKey="name"
+        width="20%"
       />
-    }
-  >
-    <SortingHat
-      direction="desc"
-      list={
-        Array [
-          Object {
-            "cron": "2 0 * * *",
-            "flux": "option task = {
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="Active"
+        onClick={[Function]}
+        sort="none"
+        sortKey="status"
+        width="10%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="Schedule"
+        onClick={[Function]}
+        sort="none"
+        sortKey="every"
+        width="20%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="Owner"
+        onClick={[Function]}
+        sort="none"
+        sortKey="organization.name"
+        width="15%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
+        columnName=""
+        width="35%"
+      />
+    </IndexListHeader>
+    <IndexListBody
+      columnCount={5}
+      emptyState={
+        <EmptyTasksLists
+          onCreate={[Function]}
+          searchTerm=""
+        />
+      }
+    >
+      <SortingHat
+        direction="desc"
+        list={
+          Array [
+            Object {
+              "cron": "2 0 * * *",
+              "flux": "option task = {
   name: \\"pasdlak\\",
   cron: \\"2 0 * * *\\"
 }
 from(bucket: \\"inbucket\\") 
 |> range(start: -1h)",
-            "id": "02ef9deff2141000",
-            "labels": Array [],
-            "name": "pasdlak",
-            "orgID": "02ee9e2a29d73000",
-            "organization": Object {
-              "id": "02ee9e2a29d73000",
-              "links": Object {
-                "buckets": "/api/v2/buckets?org=RadicalOrganization",
-                "dashboards": "/api/v2/dashboards?org=RadicalOrganization",
-                "self": "/api/v2/orgs/02ee9e2a29d73000",
-                "tasks": "/api/v2/tasks?org=RadicalOrganization",
+              "id": "02ef9deff2141000",
+              "labels": Array [],
+              "name": "pasdlak",
+              "orgID": "02ee9e2a29d73000",
+              "organization": Object {
+                "id": "02ee9e2a29d73000",
+                "links": Object {
+                  "buckets": "/api/v2/buckets?org=RadicalOrganization",
+                  "dashboards": "/api/v2/dashboards?org=RadicalOrganization",
+                  "self": "/api/v2/orgs/02ee9e2a29d73000",
+                  "tasks": "/api/v2/tasks?org=RadicalOrganization",
+                },
+                "name": "RadicalOrganization",
               },
-              "name": "RadicalOrganization",
+              "owner": Object {
+                "id": "02ee9e2a19d73000",
+                "name": "",
+              },
+              "status": "active",
             },
-            "owner": Object {
-              "id": "02ee9e2a19d73000",
-              "name": "",
-            },
-            "status": "active",
-          },
-          Object {
-            "every": "1m0s",
-            "flux": "option task = {
+            Object {
+              "every": "1m0s",
+              "flux": "option task = {
   name: \\"somename\\",
   every: 1m,
 }
 from(bucket: \\"inbucket\\") 
 |> range(start: -task.every)",
-            "id": "02f12c50dba72000",
-            "labels": Array [
-              Object {
-                "name": "Trogdor",
-                "properties": Object {
-                  "color": "#44ffcc",
-                  "description": "Burninating the countryside",
+              "id": "02f12c50dba72000",
+              "labels": Array [
+                Object {
+                  "name": "Trogdor",
+                  "properties": Object {
+                    "color": "#44ffcc",
+                    "description": "Burninating the countryside",
+                  },
+                  "resourceID": "dashboard-mock-label-a",
                 },
-                "resourceID": "dashboard-mock-label-a",
-              },
-              Object {
-                "name": "Strawberry",
-                "properties": Object {
-                  "color": "#ff0054",
-                  "description": "It is a great fruit",
+                Object {
+                  "name": "Strawberry",
+                  "properties": Object {
+                    "color": "#ff0054",
+                    "description": "It is a great fruit",
+                  },
+                  "resourceID": "dashboard-mock-label-b",
                 },
-                "resourceID": "dashboard-mock-label-b",
+              ],
+              "name": "somename",
+              "orgID": "02ee9e2a29d73000",
+              "organization": Object {
+                "id": "02ee9e2a29d73000",
+                "links": Object {
+                  "buckets": "/api/v2/buckets?org=RadicalOrganization",
+                  "dashboards": "/api/v2/dashboards?org=RadicalOrganization",
+                  "self": "/api/v2/orgs/02ee9e2a29d73000",
+                  "tasks": "/api/v2/tasks?org=RadicalOrganization",
+                },
+                "name": "RadicalOrganization",
               },
-            ],
-            "name": "somename",
-            "orgID": "02ee9e2a29d73000",
-            "organization": Object {
-              "id": "02ee9e2a29d73000",
-              "links": Object {
-                "buckets": "/api/v2/buckets?org=RadicalOrganization",
-                "dashboards": "/api/v2/dashboards?org=RadicalOrganization",
-                "self": "/api/v2/orgs/02ee9e2a29d73000",
-                "tasks": "/api/v2/tasks?org=RadicalOrganization",
+              "owner": Object {
+                "id": "02ee9e2a19d73000",
+                "name": "",
               },
-              "name": "RadicalOrganization",
+              "status": "active",
             },
-            "owner": Object {
-              "id": "02ee9e2a19d73000",
-              "name": "",
-            },
-            "status": "active",
-          },
-        ]
-      }
-      sortKey={null}
-    >
-      <Component />
-    </SortingHat>
-  </IndexListBody>
-</IndexList>
+          ]
+        }
+        sortKey={null}
+      >
+        <Component />
+      </SortingHat>
+    </IndexListBody>
+  </IndexList>
+  <OverlayTechnology
+    visible={false}
+  >
+    <EditLabelsOverlay
+      onDismissOverlay={[Function]}
+      resource={null}
+    />
+  </OverlayTechnology>
+</Fragment>
 `;
