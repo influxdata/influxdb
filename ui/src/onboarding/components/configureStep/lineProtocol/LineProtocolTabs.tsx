@@ -31,6 +31,7 @@ interface OwnProps {
   tabs: LineProtocolTab[]
   bucket: string
   org: string
+  handleSubmit?: () => void
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -69,6 +70,7 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
       tabs,
       setLineProtocolBody,
       lineProtocolBody,
+      handleSubmit,
     } = this.props
 
     const {urlInput} = this.state
@@ -83,7 +85,13 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
 
         <Grid>
           <Grid.Row>
-            <Grid.Column widthXS={Columns.Twelve}>
+            <Grid.Column
+              widthXS={Columns.Twelve}
+              widthMD={Columns.Ten}
+              offsetMD={Columns.One}
+              widthLG={Columns.Eight}
+              offsetLG={Columns.Two}
+            >
               <div className="onboarding--admin-user-form">
                 <div className={'wizard-step--lp-body'}>
                   <TabBody
@@ -93,6 +101,7 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
                     urlInput={urlInput}
                     lineProtocolBody={lineProtocolBody}
                     setLineProtocolBody={setLineProtocolBody}
+                    handleSubmit={handleSubmit}
                   />
                 </div>
 

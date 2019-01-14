@@ -15,6 +15,10 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
   <Grid>
     <GridRow>
       <GridColumn
+        offsetLG={2}
+        offsetMD={1}
+        widthLG={8}
+        widthMD={10}
         widthXS={12}
       >
         <div

@@ -88,6 +88,7 @@ export class LineProtocol extends PureComponent<Props> {
         tabs={this.LineProtocolTabs}
         bucket={bucket}
         org={org}
+        handleSubmit={this.handleSubmit}
       />
     )
   }
