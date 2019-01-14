@@ -98,7 +98,7 @@ func (o orgsResponse) ToPlatform() []*platform.Organization {
 	return orgs
 }
 
-func newOrgsResponse(orgs []*platform.Organization) *orgsResponse {
+func newOrgsResponse(ctx context.Context, orgs []*platform.Organization, labelService platform.LabelService) *orgsResponse {
 	res := orgsResponse{
 		Links: map[string]string{
 			"self": "/api/v2/orgs",
@@ -106,18 +106,20 @@ func newOrgsResponse(orgs []*platform.Organization) *orgsResponse {
 		Organizations: []*orgResponse{},
 	}
 	for _, org := range orgs {
-		res.Organizations = append(res.Organizations, newOrgResponse(org))
+		labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: org.ID})
+		res.Organizations = append(res.Organizations, newOrgResponse(org, labels))
 	}
 	return &res
 }
 
 type orgResponse struct {
-	Links map[string]string `json:"links"`
 	platform.Organization
+	Labels []platform.Label  `json:"labels"`
+	Links  map[string]string `json:"links"`
 }
 
-func newOrgResponse(o *platform.Organization) *orgResponse {
-	return &orgResponse{
+func newOrgResponse(o *platform.Organization, labels []*platform.Label) *orgResponse {
+	res := &orgResponse{
 		Links: map[string]string{
 			"self":       fmt.Sprintf("/api/v2/orgs/%s", o.ID),
 			"log":        fmt.Sprintf("/api/v2/orgs/%s/log", o.ID),
@@ -129,7 +131,14 @@ func newOrgResponse(o *platform.Organization) *orgResponse {
 			"dashboards": fmt.Sprintf("/api/v2/dashboards?org=%s", o.Name),
 		},
 		Organization: *o,
+		Labels:       []platform.Label{},
 	}
+
+	for _, l := range labels {
+		res.Labels = append(res.Labels, *l)
+	}
+
+	return res
 }
 
 type secretsResponse struct {
@@ -162,7 +171,7 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newOrgResponse(req.Org)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newOrgResponse(req.Org, []*platform.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -193,13 +202,19 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, err := h.OrganizationService.FindOrganizationByID(ctx, req.OrgID)
+	o, err := h.OrganizationService.FindOrganizationByID(ctx, req.OrgID)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(b)); err != nil {
+	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: o.ID})
+	if labels != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(o, labels)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -244,7 +259,7 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newOrgsResponse(orgs)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgsResponse(ctx, orgs, h.LabelService)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -329,7 +344,13 @@ func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(o)); err != nil {
+	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: o.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(o, labels)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}

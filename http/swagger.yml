@@ -661,7 +661,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"              
+                $ref: "#/components/schemas/Error"
   /macros:
     get:
       tags:
@@ -5072,6 +5072,8 @@ components:
           enum:
             - active
             - inactive
+        labels:
+          $ref: "#/components/schemas/Labels"
         owners:
           $ref: "#/components/schemas/Owners"
       required: [name]
