@@ -10,12 +10,14 @@ $getting-started--gutter: $ix-marg-b;
 .getting-started {
   margin-top: $ix-marg-b;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
 }
 
 .getting-started--container {
-  width: calc(33.3333% - #{$getting-started--gutter});
-  padding-bottom: calc(33.3333% - #{$getting-started--gutter});
+  width: 100%;
+  padding-bottom: 100%;
+  margin-bottom: $getting-started--gutter;
   position: relative;
 }
 
@@ -45,9 +47,10 @@ $getting-started--gutter: $ix-marg-b;
 .getting-started--title {
   font-weight: 500;
   color: $g11-sidewalk;
-  font-size: 19px;
+  font-size: 20px;
   transition: color 0.25s ease;
-  margin-bottom: 10%;
+  margin: 0;
+  margin-bottom: $ix-marg-e;
 
   .getting-started--card:hover & {
     color: $g20-white;
@@ -69,4 +72,25 @@ $getting-started--gutter: $ix-marg-b;
   }
 }
 
+@media screen and (min-width: $grid--breakpoint-sm) {
+  .getting-started--container {
+    width: calc(33.3333% - #{$getting-started--gutter});
+    padding-bottom: calc(50% - #{$getting-started--gutter});
+    margin-bottom: 0;
+  }
+  .getting-started--title {
+    font-size: 14px;
+    margin: 0;
+  }
+}
 
+@media screen and (min-width: $grid--breakpoint-md) {
+  .getting-started--container {
+    width: calc(33.3333% - #{$getting-started--gutter});
+    padding-bottom: calc(33.3333% - #{$getting-started--gutter});
+  }
+  .getting-started--title {
+    font-size: 19px;
+    margin-bottom: $ix-marg-d;
+  }
+}

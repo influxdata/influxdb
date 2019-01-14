@@ -5,6 +5,7 @@ import {Link} from 'react-router'
 // Components
 import GradientBorder from 'src/shared/components/cells/GradientBorder'
 import DashboardingGraphic from 'src/me/graphics/DashboardingGraphic'
+import ExploreGraphic from 'src/me/graphics/ExploreGraphic'
 
 // Styles
 import 'src/me/components/GettingStarted.scss'
@@ -37,7 +38,7 @@ export default class GettingStarted extends PureComponent {
         <div className="getting-started--container">
           <Link to={`/data-explorer`} className="getting-started--card">
             <GradientBorder />
-            <div className="getting-started--image" />
+            <ExploreGraphic />
             <h3 className="getting-started--title">
               Explore your data
               <br />

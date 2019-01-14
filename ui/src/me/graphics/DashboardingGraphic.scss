@@ -75,32 +75,6 @@ $dashboarding-graphic-anim-time: 0.5s;
   height: 0;
 }
 
-
-@keyframes grabbedCell {
-  0% {
-    transform: translate(0,0);
-  }
-  50% {
-    transform: translate(7.5%,-7.5%);
-  }
-  100% {
-    transform: translate(0,0);
-  }
-}
-
-@keyframes grabbedCellShadow {
-  0% {
-    transform: translate(0,0);
-  }
-  50% {
-    transform: translate(-1.4%,-1.4%);
-  }
-  100% {
-    transform: translate(0,0);
-  }
-}
-
-
 /* Hover State */
 .getting-started--card:hover {
   .dashboarding-graphic--bg {
