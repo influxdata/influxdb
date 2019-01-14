@@ -58,6 +58,7 @@ type TelegrafConfigStore interface {
 // TelegrafConfigFilter represents a set of filter that restrict the returned telegraf configs.
 type TelegrafConfigFilter struct {
 	OrganizationID *ID
+	Organization   *string
 	UserResourceMappingFilter
 }
 

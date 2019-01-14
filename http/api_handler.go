@@ -127,6 +127,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 		b.LabelService,
 		b.TelegrafService,
 		b.UserService,
+		b.OrganizationService,
 	)
 
 	h.WriteHandler = NewWriteHandler(b.PointsWriter)
