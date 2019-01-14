@@ -1,9 +1,9 @@
 version: 0.{build}
 pull_requests:
   do_not_increment_build_number: true
-branches:
-  only:
-  - next
+
+# After a PR is opened, don't run separate appveyor builds for the branch - only builds for the PR.
+skip_branch_with_pr: true
 
 os: Windows Server 2012 R2
 
