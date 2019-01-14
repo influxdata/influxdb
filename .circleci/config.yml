@@ -98,7 +98,6 @@ jobs:
           name: Restore Yarn package cache
           keys:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
-
       - run: make build
 
   deploy:
@@ -124,12 +123,16 @@ jobs:
           name: Restore Yarn package cache
           keys:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
-
       - setup_remote_docker
-
-      - run: |
-          docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-          make nightly
+      - run:
+          name: "Docker Login"
+          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - run:
+          name: "Tag commit for goreleaser semantic versioning"
+          command: git tag v0.0.0
+      - run:
+          name: "Build nightly"
+          command: make nightly
 
 workflows:
   version: 2
