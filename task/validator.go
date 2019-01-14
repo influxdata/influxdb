@@ -35,6 +35,40 @@ func NewValidator(ts platform.TaskService, bs platform.BucketService) platform.T
 		preAuth:     query.NewPreAuthorizer(bs),
 	}
 }
+func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
+	task, err := ts.TaskService.FindTaskByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResource, task.Organization)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validatePermission(ctx, *perm); err != nil {
+		return nil, err
+	}
+
+	return task, nil
+}
+
+func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
+	if filter.Organization != nil {
+		perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResource, *filter.Organization)
+		if err != nil {
+			return nil, -1, err
+		}
+
+		if err := validatePermission(ctx, *perm); err != nil {
+			return nil, -1, err
+		}
+
+	}
+
+	// TODO(lyon): If the user no longer has permission to the organization we might fail or filter here?
+	return ts.TaskService.FindTasks(ctx, filter)
+}
 
 func (ts *taskServiceValidator) CreateTask(ctx context.Context, t *platform.Task) error {
 	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResource, t.Organization)
@@ -53,7 +87,151 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t *platform.Task
 	return ts.TaskService.CreateTask(ctx, t)
 }
 
-// TODO(lh): add permission checking for the all the platform.TaskService functions.
+func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+	task, err := ts.TaskService.FindTaskByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResource, task.Organization)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validatePermission(ctx, *p); err != nil {
+		return nil, err
+	}
+
+	if err := validateBucket(ctx, task.Flux, ts.preAuth); err != nil {
+		return nil, err
+	}
+
+	return ts.TaskService.UpdateTask(ctx, id, upd)
+}
+
+func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) error {
+	task, err := ts.TaskService.FindTaskByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResource, task.Organization)
+	if err != nil {
+		return err
+	}
+
+	if err := validatePermission(ctx, *p); err != nil {
+		return err
+	}
+
+	return ts.TaskService.DeleteTask(ctx, id)
+}
+
+func (ts *taskServiceValidator) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
+	if filter.Org != nil {
+		perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResource, *filter.Org)
+		if err != nil {
+			return nil, -1, err
+		}
+
+		if err := validatePermission(ctx, *perm); err != nil {
+			return nil, -1, err
+		}
+
+	}
+
+	// TODO(lyon): If the user no longer has permission to the organization we might fail or filter here?
+	return ts.TaskService.FindLogs(ctx, filter)
+}
+
+func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*platform.Run, int, error) {
+	if filter.Org != nil {
+		perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResource, *filter.Org)
+		if err != nil {
+			return nil, -1, err
+		}
+
+		if err := validatePermission(ctx, *perm); err != nil {
+			return nil, -1, err
+		}
+
+	}
+
+	// TODO(lyon): If the user no longer has permission to the organization we might fail or filter here?
+	return ts.TaskService.FindRuns(ctx, filter)
+}
+
+func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+	task, err := ts.TaskService.FindTaskByID(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := platform.NewPermission(platform.ReadAction, platform.TasksResource, task.Organization)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validatePermission(ctx, *p); err != nil {
+		return nil, err
+	}
+
+	return ts.TaskService.FindRunByID(ctx, taskID, runID)
+}
+
+func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
+	task, err := ts.TaskService.FindTaskByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResource, task.Organization)
+	if err != nil {
+		return err
+	}
+
+	if err := validatePermission(ctx, *p); err != nil {
+		return err
+	}
+
+	return ts.TaskService.CancelRun(ctx, taskID, runID)
+}
+
+func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+	task, err := ts.TaskService.FindTaskByID(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResource, task.Organization)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validatePermission(ctx, *p); err != nil {
+		return nil, err
+	}
+
+	return ts.TaskService.RetryRun(ctx, taskID, runID)
+}
+
+func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
+	task, err := ts.TaskService.FindTaskByID(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResource, task.Organization)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validatePermission(ctx, *p); err != nil {
+		return nil, err
+	}
+
+	return ts.TaskService.ForceRun(ctx, taskID, scheduledFor)
+}
 
 func validatePermission(ctx context.Context, perm platform.Permission) error {
 	auth, err := platcontext.GetAuthorizer(ctx)
