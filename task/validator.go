@@ -256,7 +256,7 @@ func validateBucket(ctx context.Context, script string, preAuth query.PreAuthori
 	if err != nil {
 		return platform.NewError(
 			platform.WithErrorErr(err),
-			platform.WithErrorMsg("Failed to parse flux script."),
+			platform.WithErrorMsg("Failed to compile flux script."),
 			platform.WithErrorCode(platform.EInvalid))
 	}
 
