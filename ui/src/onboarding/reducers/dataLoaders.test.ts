@@ -1,6 +1,5 @@
 // Reducer
 import dataLoadersReducer, {
-// DataLoadersState,
   INITIAL_STATE,
 } from 'src/onboarding/reducers/dataLoaders'
 
@@ -462,12 +461,13 @@ describe('dataLoader reducer', () => {
     const bucket = 'defbuck'
     const telegrafPlugins = [cpuTelegrafPlugin]
     const getState = (): any => ({
-      onboarding: {
+      dataLoading: {
         dataLoaders: {
           telegrafPlugins,
         },
         steps: {
-          setupParams: {org, bucket},
+          org,
+          bucket,
         },
       },
     })

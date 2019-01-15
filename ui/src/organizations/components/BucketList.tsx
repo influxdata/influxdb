@@ -8,6 +8,7 @@ import {OverlayTechnology, IndexList} from 'src/clockface'
 
 // Types
 import {OverlayState} from 'src/types/v2'
+import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
 
 interface Props {
   buckets: PrettyBucket[]
@@ -18,7 +19,8 @@ interface Props {
 
 interface State {
   bucketID: string
-  overlayState: OverlayState
+  bucketOverlayState: OverlayState
+  dataLoadersOverlayState: OverlayState
 }
 
 export default class BucketList extends PureComponent<Props, State> {
@@ -27,7 +29,8 @@ export default class BucketList extends PureComponent<Props, State> {
 
     this.state = {
       bucketID: null,
-      overlayState: OverlayState.Closed,
+      bucketOverlayState: OverlayState.Closed,
+      dataLoadersOverlayState: OverlayState.Closed,
     }
   }
 
@@ -49,17 +52,23 @@ export default class BucketList extends PureComponent<Props, State> {
                 bucket={bucket}
                 onEditBucket={this.handleStartEdit}
                 onDeleteBucket={onDeleteBucket}
+                onAddData={this.handleStartAddData}
               />
             ))}
           </IndexList.Body>
         </IndexList>
-        <OverlayTechnology visible={this.isOverlayVisible}>
+        <OverlayTechnology visible={this.isBucketOverlayVisible}>
           <UpdateBucketOverlay
             bucket={this.bucket}
             onCloseModal={this.handleCloseModal}
             onUpdateBucket={this.handleUpdateBucket}
           />
         </OverlayTechnology>
+        <DataLoadersWizard
+          visible={this.isDataLoadersWizardVisible}
+          onCompleteSetup={this.handleDismissDataLoaders}
+          bucket={this.bucket}
+        />
       </>
     )
   }
@@ -69,20 +78,39 @@ export default class BucketList extends PureComponent<Props, State> {
   }
 
   private handleCloseModal = () => {
-    this.setState({overlayState: OverlayState.Closed})
+    this.setState({bucketOverlayState: OverlayState.Closed})
   }
 
   private handleStartEdit = (bucket: PrettyBucket) => {
-    this.setState({bucketID: bucket.id, overlayState: OverlayState.Open})
+    this.setState({bucketID: bucket.id, bucketOverlayState: OverlayState.Open})
   }
 
-  private get isOverlayVisible(): boolean {
-    const {bucketID, overlayState} = this.state
-    return !!bucketID && overlayState === OverlayState.Open
+  private handleStartAddData = (bucket: PrettyBucket) => {
+    this.setState({
+      bucketID: bucket.id,
+      dataLoadersOverlayState: OverlayState.Open,
+    })
+  }
+
+  private handleDismissDataLoaders = () => {
+    this.setState({
+      bucketID: '',
+      dataLoadersOverlayState: OverlayState.Closed,
+    })
+  }
+
+  private get isDataLoadersWizardVisible(): boolean {
+    const {bucketID, dataLoadersOverlayState} = this.state
+    return !!bucketID && dataLoadersOverlayState === OverlayState.Open
+  }
+
+  private get isBucketOverlayVisible(): boolean {
+    const {bucketID, bucketOverlayState} = this.state
+    return !!bucketID && bucketOverlayState === OverlayState.Open
   }
 
   private handleUpdateBucket = async (updatedBucket: PrettyBucket) => {
     await this.props.onUpdateBucket(updatedBucket)
-    this.setState({overlayState: OverlayState.Closed})
+    this.setState({bucketOverlayState: OverlayState.Closed})
   }
 }

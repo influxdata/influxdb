@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -18,37 +17,32 @@ import {
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
-import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {DataLoaderType, TelegrafPlugin} from 'src/types/v2/dataLoaders'
 import {Form} from 'src/clockface'
 import {NotificationAction, RemoteDataState} from 'src/types'
 import {StepStatus} from 'src/clockface/constants/wizard'
 import {AppState} from 'src/types/v2'
+import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'
 
-export interface OwnProps extends OnboardingStepProps {
+export interface OwnProps extends DataLoaderStepProps {
   notify: NotificationAction
   type: DataLoaderType
-  authToken: string
   telegrafConfigID: string
   telegrafPlugins: TelegrafPlugin[]
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onSetPluginConfiguration: typeof setPluginConfiguration
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   stepIndex: number
+  bucket: string
+  username: string
+  org: string
 }
 
 interface StateProps {
   lpStatus: RemoteDataState
 }
 
-interface RouterProps {
-  params: {
-    stepID: string
-    substepID: string
-  }
-}
-
-export type Props = RouterProps & OwnProps & WithRouterProps & StateProps
+export type Props = OwnProps & StateProps
 
 @ErrorHandling
 export class VerifyDataStep extends PureComponent<Props> {
@@ -64,15 +58,17 @@ export class VerifyDataStep extends PureComponent<Props> {
 
   public render() {
     const {
-      setupParams,
+      bucket,
+      username,
       telegrafConfigID,
-      authToken,
       type,
       onSaveTelegrafConfig,
       onDecrementCurrentStepIndex,
       onSetStepStatus,
       stepIndex,
       notify,
+      lpStatus,
+      org,
     } = this.props
 
     return (
@@ -85,13 +81,14 @@ export class VerifyDataStep extends PureComponent<Props> {
                   notify={notify}
                   type={type}
                   telegrafConfigID={telegrafConfigID}
-                  authToken={authToken}
                   onSaveTelegrafConfig={onSaveTelegrafConfig}
-                  org={_.get(setupParams, 'org', '')}
-                  bucket={_.get(setupParams, 'bucket', '')}
+                  org={org}
+                  bucket={bucket}
+                  username={username}
                   onSetStepStatus={onSetStepStatus}
                   stepIndex={stepIndex}
                   onDecrementCurrentStep={onDecrementCurrentStepIndex}
+                  lpStatus={lpStatus}
                 />
               </div>
             </FancyScrollbar>
@@ -101,6 +98,7 @@ export class VerifyDataStep extends PureComponent<Props> {
             onClickSkip={this.jumpToCompletionStep}
             skipButtonText={'Skip'}
             showSkip={true}
+            nextButtonText={'Finish'}
           />
         </Form>
       </div>
@@ -118,26 +116,19 @@ export class VerifyDataStep extends PureComponent<Props> {
   }
 
   private handleIncrementStep = () => {
-    const {
-      onIncrementCurrentStepIndex,
-      onSetStepStatus,
-      type,
-      lpStatus,
-    } = this.props
-    const {
-      params: {stepID},
-    } = this.props
+    const {onSetStepStatus, type, lpStatus, onExit} = this.props
+    const {currentStepIndex} = this.props
 
     if (
       type === DataLoaderType.LineProtocol &&
       lpStatus === RemoteDataState.Error
     ) {
-      onSetStepStatus(parseInt(stepID, 10), StepStatus.Error)
+      onSetStepStatus(currentStepIndex, StepStatus.Error)
     } else {
-      onSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
+      onSetStepStatus(currentStepIndex, StepStatus.Complete)
     }
 
-    onIncrementCurrentStepIndex()
+    onExit()
   }
 
   private handleDecrementStep = () => {
@@ -167,13 +158,11 @@ export class VerifyDataStep extends PureComponent<Props> {
 }
 
 const mstp = ({
-  onboarding: {
+  dataLoading: {
     dataLoaders: {lpStatus},
   },
 }: AppState): StateProps => ({
   lpStatus,
 })
 
-export default withRouter<OwnProps>(
-  connect<StateProps, {}, OwnProps>(mstp)(VerifyDataStep)
-)
+export default connect<StateProps, {}, OwnProps>(mstp)(VerifyDataStep)

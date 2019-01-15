@@ -7,10 +7,12 @@ import {
   IndexList,
   ConfirmationButton,
   Alignment,
+  Button,
+  ComponentSpacer,
+  ComponentColor,
 } from 'src/clockface'
 
 // Types
-import {OverlayState} from 'src/types/v2'
 import {Bucket} from 'src/api'
 
 export interface PrettyBucket extends Bucket {
@@ -21,13 +23,10 @@ interface Props {
   bucket: PrettyBucket
   onEditBucket: (b: PrettyBucket) => void
   onDeleteBucket: (b: PrettyBucket) => void
+  onAddData: (b: PrettyBucket) => void
 }
 
-interface State {
-  overlayState: OverlayState
-}
-
-export default class BucketRow extends PureComponent<Props, State> {
+export default class BucketRow extends PureComponent<Props> {
   public render() {
     const {bucket, onDeleteBucket} = this.props
     return (
@@ -40,13 +39,20 @@ export default class BucketRow extends PureComponent<Props, State> {
           </IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-            <ConfirmationButton
-              size={ComponentSize.ExtraSmall}
-              text="Delete"
-              confirmText="Confirm"
-              onConfirm={onDeleteBucket}
-              returnValue={bucket}
-            />
+            <ComponentSpacer align={Alignment.Right}>
+              <Button
+                text={'Add Data'}
+                onClick={this.handleClickAddData}
+                color={ComponentColor.Default}
+              />
+              <ConfirmationButton
+                size={ComponentSize.ExtraSmall}
+                text="Delete"
+                confirmText="Confirm"
+                onConfirm={onDeleteBucket}
+                returnValue={bucket}
+              />
+            </ComponentSpacer>
           </IndexList.Cell>
         </IndexList.Row>
       </>
@@ -55,5 +61,9 @@ export default class BucketRow extends PureComponent<Props, State> {
 
   private handleEditBucket = (): void => {
     this.props.onEditBucket(this.props.bucket)
+  }
+
+  private handleClickAddData = (): void => {
+    this.props.onAddData(this.props.bucket)
   }
 }

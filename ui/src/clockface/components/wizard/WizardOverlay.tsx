@@ -19,22 +19,25 @@ interface Props {
   resetWizardState: () => void
   maxWidth?: number
   jumpStep: number
+  onDismis: () => void
 }
 
 @ErrorHandling
 class WizardOverlay extends PureComponent<Props> {
   public static defaultProps: Partial<Props> = {
-    maxWidth: 800,
+    maxWidth: 1200,
   }
 
   public render() {
-    const {visible, title, maxWidth} = this.props
+    const {visible, title, maxWidth, children, onDismis} = this.props
 
     return (
       <OverlayTechnology visible={visible}>
         <OverlayContainer maxWidth={maxWidth}>
-          <OverlayHeading title={title} />
-          <OverlayBody>wizard</OverlayBody>
+          <OverlayHeading title={title} onDismiss={onDismis} />
+          <OverlayBody>
+            <div className="wizard-overlay">{children}</div>
+          </OverlayBody>
         </OverlayContainer>
       </OverlayTechnology>
     )

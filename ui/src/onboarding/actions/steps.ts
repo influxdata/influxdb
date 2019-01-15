@@ -1,31 +1,82 @@
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
-import {SetupSuccess, SetupError} from 'src/shared/copy/notifications'
-
-// Actions
-import {notify} from 'src/shared/actions/notifications'
 
 // Types
-import {
-  SetupParams,
-  signin as signinAJAX,
-  setSetupParams as setSetupParamsAJAX,
-} from 'src/onboarding/apis'
+import {Substep} from 'src/types/v2/dataLoaders'
 
 export type Action =
-  | SetSetupParams
+  | SetBucketInfo
   | SetStepStatus
-  | SetOrganizationID
   | SetBucketID
+  | IncrementCurrentStepIndex
+  | DecrementCurrentStepIndex
+  | SetCurrentStepIndex
+  | SetSubstepIndex
+  | ClearSteps
 
-interface SetSetupParams {
-  type: 'SET_SETUP_PARAMS'
-  payload: {setupParams: SetupParams}
+interface ClearSteps {
+  type: 'CLEAR_STEPS'
 }
 
-export const setSetupParams = (setupParams: SetupParams): SetSetupParams => ({
-  type: 'SET_SETUP_PARAMS',
-  payload: {setupParams},
+export const clearSteps = (): ClearSteps => ({type: 'CLEAR_STEPS'})
+
+interface IncrementCurrentStepIndex {
+  type: 'INCREMENT_CURRENT_STEP_INDEX'
+}
+
+export const incrementCurrentStepIndex = (): IncrementCurrentStepIndex => ({
+  type: 'INCREMENT_CURRENT_STEP_INDEX',
+})
+
+interface DecrementCurrentStepIndex {
+  type: 'DECREMENT_CURRENT_STEP_INDEX'
+}
+
+export const decrementCurrentStepIndex = (): DecrementCurrentStepIndex => ({
+  type: 'DECREMENT_CURRENT_STEP_INDEX',
+})
+
+interface SetCurrentStepIndex {
+  type: 'SET_CURRENT_STEP_INDEX'
+  payload: {index: number}
+}
+
+export const setCurrentStepIndex = (index: number): SetCurrentStepIndex => ({
+  type: 'SET_CURRENT_STEP_INDEX',
+  payload: {index},
+})
+
+interface SetSubstepIndex {
+  type: 'SET_SUBSTEP_INDEX'
+  payload: {stepIndex: number; substep: Substep}
+}
+
+export const setSubstepIndex = (
+  stepIndex: number,
+  substep: Substep
+): SetSubstepIndex => ({
+  type: 'SET_SUBSTEP_INDEX',
+  payload: {stepIndex, substep},
+})
+
+interface SetBucketInfo {
+  type: 'SET_BUCKET_INFO'
+  payload: {
+    org: string
+    orgID: string
+    bucket: string
+    bucketID: string
+  }
+}
+
+export const setBucketInfo = (
+  org: string,
+  orgID: string,
+  bucket: string,
+  bucketID: string
+): SetBucketInfo => ({
+  type: 'SET_BUCKET_INFO',
+  payload: {org, orgID, bucket, bucketID},
 })
 
 interface SetStepStatus {
@@ -44,16 +95,6 @@ export const setStepStatus = (
   },
 })
 
-interface SetOrganizationID {
-  type: 'SET_ORG_ID'
-  payload: {orgID: string}
-}
-
-const setOrganizationID = (orgID: string): SetOrganizationID => ({
-  type: 'SET_ORG_ID',
-  payload: {orgID},
-})
-
 interface SetBucketID {
   type: 'SET_BUCKET_ID'
   payload: {bucketID: string}
@@ -63,25 +104,3 @@ export const setBucketID = (bucketID: string): SetBucketID => ({
   type: 'SET_BUCKET_ID',
   payload: {bucketID},
 })
-
-export const setupAdmin = (setupParams: SetupParams) => async dispatch => {
-  try {
-    dispatch(setSetupParams(setupParams))
-    const onboardingResponse = await setSetupParamsAJAX(setupParams)
-
-    const {id: orgID} = onboardingResponse.org
-    const {id: bucketID} = onboardingResponse.bucket
-
-    dispatch(setOrganizationID(orgID))
-    dispatch(setBucketID(bucketID))
-
-    await signinAJAX({
-      username: setupParams.username,
-      password: setupParams.password,
-    })
-    dispatch(notify(SetupSuccess))
-  } catch (err) {
-    console.error(err)
-    dispatch(notify(SetupError))
-  }
-}

@@ -11,23 +11,27 @@ import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 // Constants
-import {defaultOnboardingStepProps, withRouterProps} from 'mocks/dummyData'
+import {defaultOnboardingStepProps} from 'mocks/dummyData'
 import {RemoteDataState} from 'src/types'
+
+jest.mock('src/utils/api', () => require('src/onboarding/apis/mocks'))
 
 const setup = (override = {}) => {
   const props = {
     ...defaultOnboardingStepProps,
-    ...withRouterProps,
     type: DataLoaderType.Empty,
     telegrafPlugins: [],
-    stepIndex: 4,
-    authToken: '',
+    stepIndex: 2,
+    substep: 0,
     telegrafConfigID: '',
     onSaveTelegrafConfig: jest.fn(),
     onSetActiveTelegrafPlugin: jest.fn(),
     onSetPluginConfiguration: jest.fn(),
     lpStatus: RemoteDataState.NotStarted,
-    params: {stepID: '', substepID: ''},
+    bucket: 'defbuck',
+    username: 'user',
+    org: '',
+    notify: jest.fn(),
     ...override,
   }
 
