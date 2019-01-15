@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import TableRow from 'src/dashboards/components/dashboard_index/TableRow'
 
 // Types
-import {Dashboard} from 'src/types/v2'
+import {Dashboard, Organization} from 'src/types/v2'
 
 interface Props {
   dashboards: Dashboard[]
@@ -14,6 +14,7 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onEditLabels: (dashboard: Dashboard) => void
+  orgs: Organization[]
 }
 
 export default class DashboardsIndexTableRows extends PureComponent<Props> {
@@ -25,6 +26,7 @@ export default class DashboardsIndexTableRows extends PureComponent<Props> {
       onDeleteDashboard,
       onUpdateDashboard,
       onEditLabels,
+      orgs,
     } = this.props
 
     return dashboards.map(d => (
@@ -36,6 +38,7 @@ export default class DashboardsIndexTableRows extends PureComponent<Props> {
         onDeleteDashboard={onDeleteDashboard}
         onUpdateDashboard={onUpdateDashboard}
         onEditLabels={onEditLabels}
+        orgs={orgs}
       />
     ))
   }

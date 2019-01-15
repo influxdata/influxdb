@@ -28,7 +28,7 @@ import {createDashboard} from 'src/dashboards/apis/v2'
 import {notify} from 'src/shared/actions/notifications'
 
 // types
-import {AppState, Dashboard, View} from 'src/types/v2'
+import {AppState, Dashboard, View, Organization} from 'src/types/v2'
 import {
   DashboardTemplate,
   DEFAULT_DASHBOARD_NAME,
@@ -45,6 +45,7 @@ interface State {
 interface StateProps {
   dashboards: Dashboard[]
   view: View
+  orgs: Organization[]
 }
 
 interface DispatchProps {
@@ -187,9 +188,10 @@ class SaveAsCellForm extends PureComponent<Props, State> {
     dashboardName: string,
     view: View
   ): Promise<void> => {
-    const {onCreateCellWithView} = this.props
+    const {onCreateCellWithView, orgs} = this.props
     try {
       const newDashboard = {
+        orgID: orgs[0].id,
         name: dashboardName || DEFAULT_DASHBOARD_NAME,
         cells: [],
       }
@@ -232,13 +234,14 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   const {
+    orgs,
     dashboards,
     timeMachines: {
       timeMachines: {de},
     },
   } = state
   const {view} = de
-  return {dashboards, view}
+  return {dashboards, view, orgs}
 }
 
 const mdtp: DispatchProps = {

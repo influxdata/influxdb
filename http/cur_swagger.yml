@@ -1016,13 +1016,6 @@ paths:
       tags:
         - Dashboards
       summary: Create a dashboard
-      parameters:
-          - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
-            schema:
-              type: string
       requestBody:
           description: dashboard to create
           required: true
@@ -4964,6 +4957,9 @@ components:
         id:
           readOnly: true
           type: string
+        orgID:
+          type: string
+          description: id of organization that owns dashboard
         name:
           type: string
           description: user-facing name of the dashboard
@@ -5008,7 +5004,7 @@ components:
               type: string
         id:
           type: string
-        organizationID:
+        orgID:
           type: string
         name:
           type: string
