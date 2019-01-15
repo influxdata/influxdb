@@ -77,11 +77,15 @@ exports[`Account rendering renders! 1`] = `
                       "permissions": Array [
                         Object {
                           "action": "write",
-                          "resource": "orgs",
+                          "resource": Object {
+                            "type": "orgs",
+                          },
                         },
                         Object {
                           "action": "write",
-                          "resource": "buckets",
+                          "resource": Object {
+                            "type": "buckets",
+                          },
                         },
                       ],
                       "status": "active",
@@ -100,11 +104,15 @@ exports[`Account rendering renders! 1`] = `
                       "permissions": Array [
                         Object {
                           "action": "write",
-                          "resource": "orgs",
+                          "resource": Object {
+                            "type": "orgs",
+                          },
                         },
                         Object {
                           "action": "write",
-                          "resource": "buckets",
+                          "resource": Object {
+                            "type": "buckets",
+                          },
                         },
                       ],
                       "status": "active",
@@ -136,11 +144,15 @@ exports[`Account rendering renders! 1`] = `
                         "permissions": Array [
                           Object {
                             "action": "write",
-                            "resource": "orgs",
+                            "resource": Object {
+                              "type": "orgs",
+                            },
                           },
                           Object {
                             "action": "write",
-                            "resource": "buckets",
+                            "resource": Object {
+                              "type": "buckets",
+                            },
                           },
                         ],
                         "status": "active",
@@ -159,11 +171,15 @@ exports[`Account rendering renders! 1`] = `
                         "permissions": Array [
                           Object {
                             "action": "write",
-                            "resource": "orgs",
+                            "resource": Object {
+                              "type": "orgs",
+                            },
                           },
                           Object {
                             "action": "write",
-                            "resource": "buckets",
+                            "resource": Object {
+                              "type": "buckets",
+                            },
                           },
                         ],
                         "status": "active",
@@ -247,11 +263,15 @@ exports[`Account rendering renders! 1`] = `
                                 "permissions": Array [
                                   Object {
                                     "action": "write",
-                                    "resource": "orgs",
+                                    "resource": Object {
+                                      "type": "orgs",
+                                    },
                                   },
                                   Object {
                                     "action": "write",
-                                    "resource": "buckets",
+                                    "resource": Object {
+                                      "type": "buckets",
+                                    },
                                   },
                                 ],
                                 "status": "active",
@@ -359,11 +379,15 @@ exports[`Account rendering renders! 1`] = `
                                 "permissions": Array [
                                   Object {
                                     "action": "write",
-                                    "resource": "orgs",
+                                    "resource": Object {
+                                      "type": "orgs",
+                                    },
                                   },
                                   Object {
                                     "action": "write",
-                                    "resource": "buckets",
+                                    "resource": Object {
+                                      "type": "buckets",
+                                    },
                                   },
                                 ],
                                 "status": "active",

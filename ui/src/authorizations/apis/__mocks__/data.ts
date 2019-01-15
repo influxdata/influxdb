@@ -1,6 +1,7 @@
-import {Permission, Authorization} from 'src/api'
+import {Permission, PermissionResource, Authorization} from 'src/api'
 
-const {ActionEnum, ResourceEnum} = Permission
+const {TypeEnum} = PermissionResource
+const {ActionEnum} = Permission
 const {StatusEnum} = Authorization
 
 export const authorization: Authorization = {
@@ -17,7 +18,7 @@ export const authorization: Authorization = {
   orgID: '030444b10a713000',
   description: 'im a token',
   permissions: [
-    {action: ActionEnum.Write, resource: ResourceEnum.Orgs},
-    {action: ActionEnum.Write, resource: ResourceEnum.Buckets},
+    {action: ActionEnum.Write, resource: {type: TypeEnum.Orgs}},
+    {action: ActionEnum.Write, resource: {type: TypeEnum.Buckets}},
   ],
 }

@@ -14,11 +14,15 @@ exports[`Account rendering renders! 1`] = `
       "permissions": Array [
         Object {
           "action": "write",
-          "resource": "orgs",
+          "resource": Object {
+            "type": "orgs",
+          },
         },
         Object {
           "action": "write",
-          "resource": "buckets",
+          "resource": Object {
+            "type": "buckets",
+          },
         },
       ],
       "status": "active",
@@ -304,7 +308,7 @@ exports[`Account rendering renders! 1`] = `
                               className="permissions-widget--section-list"
                             >
                               <PermissionsWidgetItem
-                                id="orgs-read"
+                                id="orgs-read-*-*"
                                 key=".$0"
                                 label="read"
                                 mode="read"
@@ -329,7 +333,7 @@ exports[`Account rendering renders! 1`] = `
                                 </li>
                               </PermissionsWidgetItem>
                               <PermissionsWidgetItem
-                                id="orgs-write"
+                                id="orgs-write-*-*"
                                 key=".$1"
                                 label="write"
                                 mode="read"
@@ -378,7 +382,7 @@ exports[`Account rendering renders! 1`] = `
                               className="permissions-widget--section-list"
                             >
                               <PermissionsWidgetItem
-                                id="buckets-read"
+                                id="buckets-read-*-*"
                                 key=".$0"
                                 label="read"
                                 mode="read"
@@ -403,7 +407,7 @@ exports[`Account rendering renders! 1`] = `
                                 </li>
                               </PermissionsWidgetItem>
                               <PermissionsWidgetItem
-                                id="buckets-write"
+                                id="buckets-write-*-*"
                                 key=".$1"
                                 label="write"
                                 mode="read"

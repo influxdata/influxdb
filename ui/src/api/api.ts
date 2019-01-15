@@ -519,6 +519,14 @@ export interface CellUpdate {
 /**
  * 
  * @export
+ * @interface Cells
+ */
+export interface Cells extends Array<Cell> {
+}
+
+/**
+ * 
+ * @export
  * @interface ConstantMacroProperties
  */
 export interface ConstantMacroProperties {
@@ -638,16 +646,16 @@ export interface Dashboard {
     meta?: DashboardMeta;
     /**
      * 
-     * @type {Array<Cell>}
+     * @type {Cells}
      * @memberof Dashboard
      */
-    cells?: Array<Cell>;
+    cells?: Cells;
     /**
      * 
-     * @type {Array<Label>}
+     * @type {Labels}
      * @memberof Dashboard
      */
-    labels?: Array<Label>;
+    labels?: Labels;
 }
 
 /**
@@ -1084,10 +1092,10 @@ export namespace Health {
 export interface InlineResponse200 {
     /**
      * 
-     * @type {Array<Label>}
+     * @type {Labels}
      * @memberof InlineResponse200
      */
-    labels?: Array<Label>;
+    labels?: Labels;
     /**
      * 
      * @type {Links}
@@ -1214,6 +1222,14 @@ export interface Label {
      * @memberof Label
      */
     properties?: any;
+}
+
+/**
+ * 
+ * @export
+ * @interface Labels
+ */
+export interface Labels extends Array<Label> {
 }
 
 /**
@@ -1857,12 +1873,6 @@ export interface PasswordResetBody {
  */
 export interface Permission {
     /**
-     * if id is set that is a permission for a specific resource. if it is not set it is a permission for all resources of that resource type.
-     * @type {string}
-     * @memberof Permission
-     */
-    id?: string;
-    /**
      * 
      * @type {string}
      * @memberof Permission
@@ -1870,10 +1880,10 @@ export interface Permission {
     action: Permission.ActionEnum;
     /**
      * 
-     * @type {string}
+     * @type {PermissionResource}
      * @memberof Permission
      */
-    resource: Permission.ResourceEnum;
+    resource: PermissionResource;
 }
 
 /**
@@ -1889,11 +1899,56 @@ export namespace Permission {
         Read = 'read',
         Write = 'write'
     }
+}
+
+/**
+ * 
+ * @export
+ * @interface PermissionResource
+ */
+export interface PermissionResource {
+    /**
+     * 
+     * @type {string}
+     * @memberof PermissionResource
+     */
+    type: PermissionResource.TypeEnum;
+    /**
+     * if id is set that is a permission for a specific resource. if it is not set it is a permission for all resources of that resource type.
+     * @type {string}
+     * @memberof PermissionResource
+     */
+    id?: string;
+    /**
+     * optional name of the resource if the resource has a name field.
+     * @type {string}
+     * @memberof PermissionResource
+     */
+    name?: string;
+    /**
+     * if orgID is set that is a permission for all resources owned my that org. if it is not set it is a permission for all resources of that resource type.
+     * @type {string}
+     * @memberof PermissionResource
+     */
+    orgID?: string;
+    /**
+     * optional name of the organization of the organization with orgID.
+     * @type {string}
+     * @memberof PermissionResource
+     */
+    org?: string;
+}
+
+/**
+ * @export
+ * @namespace PermissionResource
+ */
+export namespace PermissionResource {
     /**
      * @export
      * @enum {string}
      */
-    export enum ResourceEnum {
+    export enum TypeEnum {
         Authorizations = 'authorizations',
         Buckets = 'buckets',
         Dashboards = 'dashboards',
@@ -2722,10 +2777,10 @@ export interface Task {
     owner?: User;
     /**
      * 
-     * @type {Array<Label>}
+     * @type {Labels}
      * @memberof Task
      */
-    labels?: Array<Label>;
+    labels?: Labels;
     /**
      * The Flux script to run for this task.
      * @type {string}
