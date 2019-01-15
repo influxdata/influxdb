@@ -213,15 +213,26 @@ class Labels extends PureComponent<Props, State> {
   private get emptyState(): JSX.Element {
     const {searchTerm} = this.state
 
-    let emptyText = 'No Labels were found'
-
     if (searchTerm) {
-      emptyText = 'No Labels match your search term'
+      return (
+        <EmptyState size={ComponentSize.Medium}>
+          <EmptyState.Text text="No Labels match your search term" />
+        </EmptyState>
+      )
     }
 
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text={emptyText} />
+        <EmptyState.Text
+          text="Looks like you haven't created any Labels , why not create one?"
+          highlightWords={['Labels']}
+        />
+        <Button
+          text="Create Label"
+          color={ComponentColor.Primary}
+          icon={IconFont.Plus}
+          onClick={this.handleShowOverlay}
+        />
       </EmptyState>
     )
   }

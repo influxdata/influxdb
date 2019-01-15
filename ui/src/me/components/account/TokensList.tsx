@@ -82,11 +82,13 @@ export default class TokenList extends PureComponent<Props, State> {
 
   private get emptyState(): JSX.Element {
     const {searchTerm} = this.props
-    let emptyStateText = 'Could not find any tokens'
+    let emptyStateText =
+      'There are not any Tokens associated with this account. Contact your administrator'
 
     if (searchTerm) {
-      emptyStateText = 'Looks like no tokens match your search term'
+      emptyStateText = 'No Tokens match your search term'
     }
+
     return (
       <EmptyState size={ComponentSize.Large}>
         <EmptyState.Text text={emptyStateText} />

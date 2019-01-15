@@ -3,10 +3,11 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Panel, Input, Spinner} from 'src/clockface'
+import {IconFont, Input, Spinner} from 'src/clockface'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import TokenList from 'src/me/components/account/TokensList'
 import FilterList from 'src/shared/components/Filter'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 // APIs
 import {getAuthorizations} from 'src/authorizations/apis'
@@ -44,37 +45,36 @@ export class Tokens extends PureComponent<Props, State> {
     const {searchTerm} = this.state
 
     return (
-      <Panel>
-        <Panel.Body>
+      <>
+        <TabbedPageHeader>
           <Input
+            icon={IconFont.Search}
             value={searchTerm}
-            placeholder="Filter tokens by column"
+            placeholder="Filter Tokens..."
             onChange={this.handleChangeSearchTerm}
             widthPixels={256}
           />
-        </Panel.Body>
-        <Panel.Body>
-          <ResourceFetcher<Authorization[]> fetcher={getAuthorizations}>
-            {(fetchedAuths, loading) => (
-              <Spinner loading={loading}>
-                <FilterList<Authorization>
-                  list={fetchedAuths}
-                  searchTerm={searchTerm}
-                  searchKeys={this.searchKeys}
-                >
-                  {filteredAuths => (
-                    <TokenList
-                      auths={filteredAuths}
-                      onNotify={onNotify}
-                      searchTerm={searchTerm}
-                    />
-                  )}
-                </FilterList>
-              </Spinner>
-            )}
-          </ResourceFetcher>
-        </Panel.Body>
-      </Panel>
+        </TabbedPageHeader>
+        <ResourceFetcher<Authorization[]> fetcher={getAuthorizations}>
+          {(fetchedAuths, loading) => (
+            <Spinner loading={loading}>
+              <FilterList<Authorization>
+                list={fetchedAuths}
+                searchTerm={searchTerm}
+                searchKeys={this.searchKeys}
+              >
+                {filteredAuths => (
+                  <TokenList
+                    auths={filteredAuths}
+                    onNotify={onNotify}
+                    searchTerm={searchTerm}
+                  />
+                )}
+              </FilterList>
+            </Spinner>
+          )}
+        </ResourceFetcher>
+      </>
     )
   }
 
