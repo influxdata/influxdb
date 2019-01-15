@@ -45,14 +45,16 @@ export const readView = (dashboardID: string, cellID: string) => async (
 export const updateView = (dashboardID: string, view: View) => async (
   dispatch: Dispatch<Action>
 ): Promise<View> => {
-  dispatch(setView(view.cellID, null, RemoteDataState.Loading))
+  const viewID = view.cellID
+
+  dispatch(setView(viewID, null, RemoteDataState.Loading))
 
   try {
-    const newView = await updateViewAJAX(dashboardID, view.cellID, view)
+    const newView = await updateViewAJAX(dashboardID, viewID, view)
 
-    dispatch(setView(view.cellID, newView, RemoteDataState.Done))
+    dispatch(setView(viewID, newView, RemoteDataState.Done))
     return newView
   } catch {
-    dispatch(setView(view.cellID, null, RemoteDataState.Error))
+    dispatch(setView(viewID, null, RemoteDataState.Error))
   }
 }

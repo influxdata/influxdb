@@ -102,7 +102,7 @@ type Omit<K, V> = Pick<K, Exclude<keyof K, V>>
 
 export type NewView<T extends ViewProperties = ViewProperties> = Omit<
   View<T>,
-  'id' | 'links' | 'cellID' | 'dashboardID'
+  'id' | 'links'
 >
 
 export interface ViewLinks {
