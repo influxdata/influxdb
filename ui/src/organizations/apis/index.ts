@@ -1,7 +1,19 @@
-import {orgsAPI, bucketsAPI, dashboardsAPI, taskAPI} from 'src/utils/api'
+// Libraries
+import _ from 'lodash'
+
+// Utils
+import {getDeep} from 'src/utils/wrappers'
+
+import {
+  orgsAPI,
+  bucketsAPI,
+  dashboardsAPI,
+  taskAPI,
+  telegrafsAPI,
+} from 'src/utils/api'
 
 // Types
-import {Bucket, Task, Organization, ResourceOwner} from 'src/api'
+import {Bucket, Task, Organization, ResourceOwner, Telegraf} from 'src/api'
 import {Dashboard} from 'src/types/v2'
 
 // CRUD APIs for Organizations and Organization resources
@@ -145,5 +157,15 @@ export const getTasks = async (org: Organization): Promise<Task[]> => {
   } catch (error) {
     console.error('Could not get tasks for org', error)
     throw error
+  }
+}
+
+export const getCollectors = async (org: Organization): Promise<Telegraf[]> => {
+  try {
+    const data = await telegrafsAPI.telegrafsGet(org.id)
+
+    return getDeep<Telegraf[]>(data, 'data.configurations', [])
+  } catch (error) {
+    console.error(error)
   }
 }
