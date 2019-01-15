@@ -9,6 +9,8 @@ import {Spinner} from 'src/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Labels from 'src/organizations/components/Labels'
+import Settings from 'src/me/components/account/Settings'
+import Tokens from 'src/me/components/account/Tokens'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -53,6 +55,20 @@ class ConfigurationPage extends Component<Props> {
                     </Spinner>
                   )}
                 </GetLabels>
+              </TabbedPageSection>
+              <TabbedPageSection
+                id="settings_tab"
+                url="settings_tab"
+                title="My Settings"
+              >
+                <Settings />
+              </TabbedPageSection>
+              <TabbedPageSection
+                id="tokens_tab"
+                url="tokens_tab"
+                title="My Tokens"
+              >
+                <Tokens />
               </TabbedPageSection>
             </TabbedPage>
           </div>

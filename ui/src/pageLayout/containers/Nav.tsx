@@ -47,18 +47,6 @@ class SideNav extends PureComponent<Props> {
           highlightWhen={['me', 'account']}
         >
           <NavMenu.SubItem
-            title="My Settings"
-            link="/account/settings"
-            location={location.pathname}
-            highlightWhen={['settings']}
-          />
-          <NavMenu.SubItem
-            title="My Tokens"
-            link="/account/tokens"
-            location={location.pathname}
-            highlightWhen={['tokens']}
-          />
-          <NavMenu.SubItem
             title="Logout"
             link="/logout"
             location={location.pathname}
@@ -99,7 +87,26 @@ class SideNav extends PureComponent<Props> {
           icon={IconFont.Wrench}
           location={location.pathname}
           highlightWhen={['configuration']}
-        />
+        >
+          <NavMenu.SubItem
+            title="Labels"
+            link="/configuration/labels_tab"
+            location={location.pathname}
+            highlightWhen={['labels']}
+          />
+          <NavMenu.SubItem
+            title="My Settings"
+            link="/configuration/settings_tab"
+            location={location.pathname}
+            highlightWhen={['settings']}
+          />
+          <NavMenu.SubItem
+            title="My Tokens"
+            link="/configuration/tokens_tab"
+            location={location.pathname}
+            highlightWhen={['tokens']}
+          />
+        </NavMenu.Item>
       </NavMenu>
     )
   }
