@@ -3,26 +3,23 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import {Scraper} from 'src/onboarding/components/configureStep/Scraper'
+import {ScraperTarget} from 'src/onboarding/components/configureStep/ScraperTarget'
 
 const setup = (override = {}) => {
   const props = {
     bucket: '',
-    dropdownBuckets: [<></>],
-    onChooseInterval: jest.fn(),
-    onDropdownHandle: jest.fn(),
-    onAddRow: jest.fn(),
-    onRemoveRow: jest.fn(),
-    onUpdateRow: jest.fn(),
-    tags: [{name: '', text: ''}],
+    buckets: [],
+    onSelectBucket: jest.fn(),
+    onChangeURL: jest.fn(),
+    url: '',
     ...override,
   }
-  const wrapper = shallow(<Scraper {...props} />)
+  const wrapper = shallow(<ScraperTarget {...props} />)
 
   return {wrapper}
 }
 
-describe('Scraping', () => {
+describe('ScraperTarget', () => {
   describe('rendering', () => {
     it('renders!', () => {
       const {wrapper} = setup()

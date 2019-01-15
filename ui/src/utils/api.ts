@@ -13,6 +13,7 @@ import {
   OrganizationsApi,
   QueryApi,
   SetupApi,
+  ScraperTargetsApi,
 } from 'src/api'
 
 const basePath = '/api/v2'
@@ -31,3 +32,4 @@ export const bucketsAPI = new BucketsApi({basePath})
 export const orgsAPI = new OrganizationsApi({basePath})
 export const queryAPI = new QueryApi({basePath})
 export const setupAPI = new SetupApi({basePath})
+export const scraperTargetsApi = new ScraperTargetsApi({basePath})
