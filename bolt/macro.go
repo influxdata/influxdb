@@ -1,6 +1,7 @@
 package bolt
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -23,13 +24,71 @@ func (c *Client) initializeMacros(ctx context.Context, tx *bolt.Tx) error {
 	return nil
 }
 
-// func (c *Client) findOrganizationMacros(ctx context.Context, tx *bolt.Tx, orgID platform.ID) ([]*platform.Macro, error) {
-// }
+func decodeMacroOrgsIndexKey(indexKey []byte) (orgID platform.ID, macroID platform.ID, err error) {
+	if len(indexKey) != 2*platform.IDLength {
+		return 0, 0, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "malformed macro orgs index key (please report this error)",
+		}
+	}
+
+	if err := (&orgID).Decode(indexKey[:platform.IDLength]); err != nil {
+		return 0, 0, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "bad org id",
+			Err:  platform.ErrInvalidID,
+		}
+	}
+
+	if err := (&macroID).Decode(indexKey[platform.IDLength:]); err != nil {
+		return 0, 0, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "bad macro id",
+			Err:  platform.ErrInvalidID,
+		}
+	}
+
+	return orgID, macroID, nil
+}
+
+func (c *Client) findOrganizationMacros(ctx context.Context, tx *bolt.Tx, orgID platform.ID) ([]*platform.Macro, error) {
+	// TODO(leodido): support find options
+	cur := tx.Bucket(macroOrgsIndex).Cursor()
+	prefix, err := orgID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	macros := []*platform.Macro{}
+	for k, _ := cur.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
+		_, id, err := decodeMacroOrgsIndexKey(k)
+		if err != nil {
+			return nil, err
+		}
+
+		m, err := c.findMacroByID(ctx, tx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		macros = append(macros, m)
+	}
+
+	return macros, nil
+}
 
 func (c *Client) findMacros(ctx context.Context, tx *bolt.Tx, filter platform.MacroFilter) ([]*platform.Macro, error) {
-	// if filter.OrganizationID != nil {
-	// 	return c.findOrganizationMacros(ctx, tx, *filter.OrganizationID)
-	// }
+	if filter.OrganizationID != nil {
+		return c.findOrganizationMacros(ctx, tx, *filter.OrganizationID)
+	}
+
+	if filter.Organization != nil {
+		o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
+		if err != nil {
+			return nil, err
+		}
+		return c.findOrganizationMacros(ctx, tx, o.ID)
+	}
 
 	macros := []*platform.Macro{}
 	filterFn := filterMacrosFn(filter)
@@ -86,7 +145,7 @@ func (c *Client) FindMacros(ctx context.Context, filter platform.MacroFilter, op
 	res := []*platform.Macro{}
 	err := c.db.View(func(tx *bolt.Tx) error {
 		macros, err := c.findMacros(ctx, tx, filter)
-		if err != nil {
+		if err != nil && platform.ErrorCode(err) != platform.ENotFound {
 			return err
 		}
 		res = macros
@@ -125,7 +184,7 @@ func (c *Client) FindMacroByID(ctx context.Context, id platform.ID) (*platform.M
 	return macro, nil
 }
 
-func (c *Client) findMacroByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Macro, *platform.Error) {
+func (c *Client) findMacroByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Macro, error) {
 	encID, err := id.Encode()
 	if err != nil {
 		return nil, &platform.Error{
@@ -176,15 +235,11 @@ func (c *Client) CreateMacro(ctx context.Context, macro *platform.Macro) error {
 
 // ReplaceMacro puts a macro in the store
 func (c *Client) ReplaceMacro(ctx context.Context, macro *platform.Macro) error {
-	op := getOp(platform.OpReplaceMacro)
 	return c.db.Update(func(tx *bolt.Tx) error {
-		if pe := c.putMacro(ctx, tx, macro); pe != nil {
-			return &platform.Error{
-				Op:  op,
-				Err: pe,
-			}
+		if err := c.putMacroOrgsIndex(ctx, tx, macro); err != nil {
+			return err
 		}
-		return nil
+		return c.putMacro(ctx, tx, macro)
 	})
 }
 
@@ -240,8 +295,8 @@ func (c *Client) removeMacroOrgsIndex(ctx context.Context, tx *bolt.Tx, macro *p
 	return nil
 }
 
-func (c *Client) putMacro(ctx context.Context, tx *bolt.Tx, macro *platform.Macro) *platform.Error {
-	j, err := json.Marshal(macro)
+func (c *Client) putMacro(ctx context.Context, tx *bolt.Tx, macro *platform.Macro) error {
+	m, err := json.Marshal(macro)
 	if err != nil {
 		return &platform.Error{
 			Err: err,
@@ -256,7 +311,7 @@ func (c *Client) putMacro(ctx context.Context, tx *bolt.Tx, macro *platform.Macr
 		}
 	}
 
-	if err := tx.Bucket(macroBucket).Put(encID, j); err != nil {
+	if err := tx.Bucket(macroBucket).Put(encID, m); err != nil {
 		return &platform.Error{
 			Err: err,
 		}
@@ -302,17 +357,21 @@ func (c *Client) UpdateMacro(ctx context.Context, id platform.ID, update *platfo
 func (c *Client) DeleteMacro(ctx context.Context, id platform.ID) error {
 	op := getOp(platform.OpDeleteMacro)
 	return c.db.Update(func(tx *bolt.Tx) error {
-		m, err := c.findMacroByID(ctx, tx, id)
+		m, pe := c.findMacroByID(ctx, tx, id)
+		if pe != nil {
+			return pe
+		}
+
+		encID, err := id.Encode()
 		if err != nil {
-			return err
+			return &platform.Error{
+				Err: err,
+			}
 		}
 
 		if err := c.removeMacroOrgsIndex(ctx, tx, m); err != nil {
 			return platform.NewError(platform.WithErrorErr(err))
 		}
-
-		// Encoding can not error since already done
-		encID, _ := id.Encode()
 
 		if err := tx.Bucket(macroBucket).Delete(encID); err != nil {
 			return &platform.Error{
