@@ -438,7 +438,7 @@ export const influxDB2Plugin = {
 
 export const telegrafConfig = {
   id: telegrafConfigID,
-  orgID: '1',
+  organizationID: '1',
   name: 'in n out',
   created: '2018-11-28T18:56:48.854337-08:00',
   lastModified: '2018-11-28T18:56:48.854337-08:00',

@@ -102,13 +102,6 @@ paths:
       tags:
         - Telegrafs
       summary: Create a telegraf config
-      parameters:
-          - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
-            schema:
-              type: string
       requestBody:
         description: telegraf config to create
         required: true
@@ -5067,6 +5060,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TelegrafRequestPlugin"
+        organizationID:
+          type: string
     TelegrafRequestPlugin:
       type: object
       discriminator:

@@ -6359,6 +6359,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TelegrafRequestPlugin"
+        organizationID:
+          type: string
     TelegrafRequestPlugin:
       type: object
       discriminator:
