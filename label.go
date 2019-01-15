@@ -17,6 +17,9 @@ const (
 
 // LabelService represents a service for managing resource labels
 type LabelService interface {
+	// Returns a single label by ID.
+	FindLabelByID(ctx context.Context, id ID) (*Label, error)
+
 	// FindLabels returns a list of labels that match a filter
 	FindLabels(ctx context.Context, filter LabelFilter, opt ...FindOptions) ([]*Label, error)
 

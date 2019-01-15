@@ -163,7 +163,13 @@ func newPostLabelHandler(s plat.LabelService) http.HandlerFunc {
 			return
 		}
 
-		if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(&req.Mapping)); err != nil {
+		label, err := s.FindLabelByID(ctx, req.Mapping.LabelID)
+		if err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(label)); err != nil {
 			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
 			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
 			// is called is distinct from the time that a potential logger is set.

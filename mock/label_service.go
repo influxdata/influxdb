@@ -10,6 +10,7 @@ var _ platform.LabelService = &LabelService{}
 
 // LabelService is a mock implementation of platform.LabelService
 type LabelService struct {
+	FindLabelByIDFn      func(ctx context.Context, id platform.ID) (*platform.Label, error)
 	FindLabelsFn         func(context.Context, platform.LabelFilter) ([]*platform.Label, error)
 	FindResourceLabelsFn func(context.Context, platform.LabelMappingFilter) ([]*platform.Label, error)
 	CreateLabelFn        func(context.Context, *platform.Label) error
@@ -23,6 +24,9 @@ type LabelService struct {
 // where its methods will return zero values.
 func NewLabelService() *LabelService {
 	return &LabelService{
+		FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
+			return nil, nil
+		},
 		FindLabelsFn: func(context.Context, platform.LabelFilter) ([]*platform.Label, error) {
 			return nil, nil
 		},
@@ -35,6 +39,11 @@ func NewLabelService() *LabelService {
 		DeleteLabelFn:        func(context.Context, platform.ID) error { return nil },
 		DeleteLabelMappingFn: func(context.Context, *platform.LabelMapping) error { return nil },
 	}
+}
+
+// FindLabelByID finds mappings by their ID
+func (s *LabelService) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
+	return s.FindLabelByIDFn(ctx, id)
 }
 
 // FindLabels finds mappings that match a given filter.

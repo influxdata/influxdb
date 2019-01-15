@@ -157,7 +157,7 @@ func newTasksResponse(ctx context.Context, ts []*platform.Task, labelService pla
 	}
 
 	for i := range ts {
-		labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: ts[i].ID})
+		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: ts[i].ID})
 		rs.Tasks[i] = newTaskResponse(*ts[i], labels)
 	}
 	return rs
@@ -359,7 +359,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: task.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: task.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -408,7 +408,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: task.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: task.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return

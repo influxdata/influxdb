@@ -308,7 +308,7 @@ func (s *Service) DeleteBucket(ctx context.Context, id platform.ID) error {
 		}
 	}
 	s.bucketKV.Delete(id.String())
-	return s.deleteLabel(ctx, platform.LabelFilter{ResourceID: id})
+	// return s.deleteLabel(ctx, platform.LabelFilter{ResourceID: id})
 }
 
 // DeleteOrganizationBuckets removes all the buckets for a given org
