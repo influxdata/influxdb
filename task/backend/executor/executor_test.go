@@ -270,11 +270,15 @@ func TestExecutor(t *testing.T) {
 
 // Some tests use t.Parallel, and the fake query service depends on unique scripts,
 // so format a new script with the test name in each test.
-const fmtTestScript = `option task = {
+const fmtTestScript = `
+import "http"
+
+option task = {
 			name: %q,
 			every: 1m,
-		}
-		from(bucket: "one") |> toHTTP(url: "http://example.com")`
+}
+
+from(bucket: "one") |> http.to(url: "http://example.com")`
 
 func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")

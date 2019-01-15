@@ -818,17 +818,21 @@ func creds(t *testing.T, s *System) (orgID, userID platform.ID, token string) {
 }
 
 const (
-	scriptFmt = `option task = {
+	scriptFmt = `import "http"
+
+option task = {
 	name: "task #%d",
 	cron: "* * * * *",
 	offset: 5s,
 	concurrency: 100,
 }
 
-from(bucket: "b")
-	|> toHTTP(url: "http://example.com")`
+from(bucket:"b")
+	|> http.to(url: "http://example.com")`
 
-	scriptDifferentName = `option task = {
+	scriptDifferentName = `import "http"
+
+option task = {
 	name: "task-changed #%d",
 	cron: "* * * * *",
 	offset: 5s,
@@ -836,7 +840,7 @@ from(bucket: "b")
 }
 
 from(bucket: "b")
-	|> toHTTP(url: "http://example.com")`
+	|> http.to(url: "http://example.com")`
 )
 
 var idGen = snowflake.NewIDGenerator()

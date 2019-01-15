@@ -20,7 +20,7 @@ const InfiniteRetention = 0
 // Bucket is a bucket. 🎉
 type Bucket struct {
 	ID                  ID            `json:"id,omitempty"`
-	OrganizationID      ID            `json:"organizationID,omitempty"`
+	OrganizationID      ID            `json:"orgID,omitempty"`
 	Organization        string        `json:"organization,omitempty"`
 	Name                string        `json:"name"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources

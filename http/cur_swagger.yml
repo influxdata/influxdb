@@ -102,13 +102,6 @@ paths:
       tags:
         - Telegrafs
       summary: Create a telegraf config
-      parameters:
-          - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
-            schema:
-              type: string
       requestBody:
         description: telegraf config to create
         required: true
@@ -1016,13 +1009,6 @@ paths:
       tags:
         - Dashboards
       summary: Create a dashboard
-      parameters:
-          - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
-            schema:
-              type: string
       requestBody:
           description: dashboard to create
           required: true
@@ -3907,7 +3893,7 @@ components:
           type: string
         rp:
           type: string
-        organizationID:
+        orgID:
           type: string
         retentionRules:
           type: array
@@ -4082,7 +4068,7 @@ components:
           type: string
     TaskCreateRequest:
       properties:
-        organizationID:
+        orgID:
           description: The ID of the organization that owns this Task.
           type: string
         status:
@@ -4095,7 +4081,7 @@ components:
         flux:
           description: The Flux script to run for this task.
           type: string
-      required: [organizationID, flux]
+      required: [orgID, flux]
     TaskUpdateRequest:
       properties:
         status:
@@ -4114,7 +4100,7 @@ components:
         id:
           readOnly: true
           type: string
-        organizationID:
+        orgID:
           description: The ID of the organization that owns this Task.
           type: string
         name:
@@ -4964,6 +4950,9 @@ components:
         id:
           readOnly: true
           type: string
+        orgID:
+          type: string
+          description: id of organization that owns dashboard
         name:
           type: string
           description: user-facing name of the dashboard
@@ -5008,7 +4997,7 @@ components:
               type: string
         id:
           type: string
-        organizationID:
+        orgID:
           type: string
         name:
           type: string
@@ -5071,6 +5060,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TelegrafRequestPlugin"
+        organizationID:
+          type: string
     TelegrafRequestPlugin:
       type: object
       discriminator:

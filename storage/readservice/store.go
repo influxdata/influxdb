@@ -8,7 +8,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
-	fstorage "github.com/influxdata/influxdb/query/functions/inputs/storage"
+	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
@@ -113,7 +113,7 @@ func (r *readSource) Reset()                  { *r = readSource{} }
 func (r *readSource) String() string          { return "readSource{}" }
 func (r *readSource) ProtoMessage()           {}
 
-func (s *store) GetSource(rs fstorage.ReadSpec) (proto.Message, error) {
+func (s *store) GetSource(rs influxdb.ReadSpec) (proto.Message, error) {
 	return &readSource{
 		BucketID:       uint64(rs.BucketID),
 		OrganizationID: uint64(rs.OrganizationID),

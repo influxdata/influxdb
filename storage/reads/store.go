@@ -5,7 +5,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/models"
-	fstorage "github.com/influxdata/influxdb/query/functions/inputs/storage"
+	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
@@ -77,5 +77,5 @@ type GroupCursor interface {
 type Store interface {
 	Read(ctx context.Context, req *datatypes.ReadRequest) (ResultSet, error)
 	GroupRead(ctx context.Context, req *datatypes.ReadRequest) (GroupResultSet, error)
-	GetSource(rs fstorage.ReadSpec) (proto.Message, error)
+	GetSource(rs influxdb.ReadSpec) (proto.Message, error)
 }

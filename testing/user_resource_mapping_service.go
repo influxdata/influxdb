@@ -86,34 +86,34 @@ func CreateUserResourceMapping(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						UserID:     MustIDBase16(userOneID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
 			args: args{
 				mapping: &platform.UserResourceMapping{
-					ResourceID: MustIDBase16(bucketTwoID),
-					UserID:     MustIDBase16(userTwoID),
-					UserType:   platform.Member,
-					Resource:   platform.BucketsResource,
+					ResourceID:   MustIDBase16(bucketTwoID),
+					UserID:       MustIDBase16(userTwoID),
+					UserType:     platform.Member,
+					ResourceType: platform.BucketsResourceType,
 				},
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						UserID:     MustIDBase16(userOneID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 					{
-						ResourceID: MustIDBase16(bucketTwoID),
-						UserID:     MustIDBase16(userTwoID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
@@ -281,16 +281,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						UserID:     MustIDBase16(userOneID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 					{
-						ResourceID: MustIDBase16(bucketTwoID),
-						UserID:     MustIDBase16(userTwoID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
@@ -300,16 +300,16 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						UserID:     MustIDBase16(userOneID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 					{
-						ResourceID: MustIDBase16(bucketTwoID),
-						UserID:     MustIDBase16(userTwoID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
@@ -319,16 +319,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						UserID:     MustIDBase16(userOneID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 					{
-						ResourceID: MustIDBase16(bucketTwoID),
-						UserID:     MustIDBase16(userTwoID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
@@ -340,10 +340,10 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						UserID:     MustIDBase16(userOneID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
@@ -353,16 +353,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						UserID:     MustIDBase16(userOneID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 					{
-						ResourceID: MustIDBase16(bucketTwoID),
-						UserID:     MustIDBase16(userTwoID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
@@ -374,10 +374,10 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						UserID:     MustIDBase16(userOneID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
@@ -387,16 +387,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						UserID:     MustIDBase16(userOneID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 					{
-						ResourceID: MustIDBase16(bucketTwoID),
-						UserID:     MustIDBase16(userTwoID),
-						UserType:   platform.Owner,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Owner,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
@@ -408,10 +408,10 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketTwoID),
-						UserID:     MustIDBase16(userTwoID),
-						UserType:   platform.Owner,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Owner,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
@@ -421,31 +421,31 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						UserID:     MustIDBase16(userOneID),
-						UserType:   platform.Member,
-						Resource:   platform.DashboardsResource,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.DashboardsResourceType,
 					},
 					{
-						ResourceID: MustIDBase16(bucketTwoID),
-						UserID:     MustIDBase16(userTwoID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					Resource: platform.BucketsResource,
+					ResourceType: platform.BucketsResourceType,
 				},
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: MustIDBase16(bucketTwoID),
-						UserID:     MustIDBase16(userTwoID),
-						UserType:   platform.Member,
-						Resource:   platform.BucketsResource,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketsResourceType,
 					},
 				},
 			},

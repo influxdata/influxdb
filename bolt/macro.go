@@ -1,6 +1,7 @@
 package bolt
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -9,45 +10,156 @@ import (
 )
 
 var (
-	macroBucket = []byte("macros")
+	macroBucket    = []byte("macrosv1")
+	macroOrgsIndex = []byte("macroorgsv1")
 )
 
 func (c *Client) initializeMacros(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(macroBucket)); err != nil {
 		return err
 	}
+	if _, err := tx.CreateBucketIfNotExists(macroOrgsIndex); err != nil {
+		return err
+	}
 	return nil
 }
 
-// FindMacros returns all macros in the store
-func (c *Client) FindMacros(ctx context.Context) ([]*platform.Macro, error) {
-	op := getOp(platform.OpFindMacros)
+func decodeMacroOrgsIndexKey(indexKey []byte) (orgID platform.ID, macroID platform.ID, err error) {
+	if len(indexKey) != 2*platform.IDLength {
+		return 0, 0, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "malformed macro orgs index key (please report this error)",
+		}
+	}
+
+	if err := (&orgID).Decode(indexKey[:platform.IDLength]); err != nil {
+		return 0, 0, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "bad org id",
+			Err:  platform.ErrInvalidID,
+		}
+	}
+
+	if err := (&macroID).Decode(indexKey[platform.IDLength:]); err != nil {
+		return 0, 0, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "bad macro id",
+			Err:  platform.ErrInvalidID,
+		}
+	}
+
+	return orgID, macroID, nil
+}
+
+func (c *Client) findOrganizationMacros(ctx context.Context, tx *bolt.Tx, orgID platform.ID) ([]*platform.Macro, error) {
+	// TODO(leodido): support find options
+	cur := tx.Bucket(macroOrgsIndex).Cursor()
+	prefix, err := orgID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
 	macros := []*platform.Macro{}
-	err := c.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(macroBucket)
-		c := b.Cursor()
-
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			macro := platform.Macro{}
-
-			err := json.Unmarshal(v, &macro)
-			if err != nil {
-				return &platform.Error{
-					Err: err,
-					Op:  op,
-				}
-			}
-
-			macros = append(macros, &macro)
+	for k, _ := cur.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
+		_, id, err := decodeMacroOrgsIndexKey(k)
+		if err != nil {
+			return nil, err
 		}
 
-		return nil
+		m, err := c.findMacroByID(ctx, tx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		macros = append(macros, m)
+	}
+
+	return macros, nil
+}
+
+func (c *Client) findMacros(ctx context.Context, tx *bolt.Tx, filter platform.MacroFilter) ([]*platform.Macro, error) {
+	if filter.OrganizationID != nil {
+		return c.findOrganizationMacros(ctx, tx, *filter.OrganizationID)
+	}
+
+	if filter.Organization != nil {
+		o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
+		if err != nil {
+			return nil, err
+		}
+		return c.findOrganizationMacros(ctx, tx, o.ID)
+	}
+
+	macros := []*platform.Macro{}
+	filterFn := filterMacrosFn(filter)
+	err := c.forEachMacro(ctx, tx, func(m *platform.Macro) bool {
+		if filterFn(m) {
+			macros = append(macros, m)
+		}
+		return true
 	})
+
 	if err != nil {
 		return nil, err
 	}
 
 	return macros, nil
+}
+
+func filterMacrosFn(filter platform.MacroFilter) func(m *platform.Macro) bool {
+	if filter.ID != nil {
+		return func(m *platform.Macro) bool {
+			return m.ID == *filter.ID
+		}
+	}
+
+	if filter.OrganizationID != nil {
+		return func(m *platform.Macro) bool {
+			return m.OrganizationID == *filter.OrganizationID
+		}
+	}
+
+	return func(m *platform.Macro) bool { return true }
+}
+
+// forEachMacro will iterate through all macros while fn returns true.
+func (c *Client) forEachMacro(ctx context.Context, tx *bolt.Tx, fn func(*platform.Macro) bool) error {
+	cur := tx.Bucket(macroBucket).Cursor()
+	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+		m := &platform.Macro{}
+		if err := json.Unmarshal(v, m); err != nil {
+			return err
+		}
+		if !fn(m) {
+			break
+		}
+	}
+
+	return nil
+}
+
+// FindMacros returns all macros in the store
+func (c *Client) FindMacros(ctx context.Context, filter platform.MacroFilter, opt ...platform.FindOptions) ([]*platform.Macro, error) {
+	// todo(leodido) > handle find options
+	op := getOp(platform.OpFindMacros)
+	res := []*platform.Macro{}
+	err := c.db.View(func(tx *bolt.Tx) error {
+		macros, err := c.findMacros(ctx, tx, filter)
+		if err != nil && platform.ErrorCode(err) != platform.ENotFound {
+			return err
+		}
+		res = macros
+		return nil
+	})
+
+	if err != nil {
+		return nil, &platform.Error{
+			Op:  op,
+			Err: err,
+		}
+	}
+
+	return res, nil
 }
 
 // FindMacroByID finds a single macro in the store by its ID
@@ -72,7 +184,7 @@ func (c *Client) FindMacroByID(ctx context.Context, id platform.ID) (*platform.M
 	return macro, nil
 }
 
-func (c *Client) findMacroByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Macro, *platform.Error) {
+func (c *Client) findMacroByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Macro, error) {
 	encID, err := id.Encode()
 	if err != nil {
 		return nil, &platform.Error{
@@ -85,7 +197,7 @@ func (c *Client) findMacroByID(ctx context.Context, tx *bolt.Tx, id platform.ID)
 	if d == nil {
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
-			Msg:  "macro not found",
+			Msg:  platform.ErrMacroNotFound,
 		}
 	}
 
@@ -105,6 +217,11 @@ func (c *Client) CreateMacro(ctx context.Context, macro *platform.Macro) error {
 	op := getOp(platform.OpCreateMacro)
 	return c.db.Update(func(tx *bolt.Tx) error {
 		macro.ID = c.IDGenerator.ID()
+
+		if err := c.putMacroOrgsIndex(ctx, tx, macro); err != nil {
+			return err
+		}
+
 		if pe := c.putMacro(ctx, tx, macro); pe != nil {
 			return &platform.Error{
 				Op:  op,
@@ -120,18 +237,70 @@ func (c *Client) CreateMacro(ctx context.Context, macro *platform.Macro) error {
 func (c *Client) ReplaceMacro(ctx context.Context, macro *platform.Macro) error {
 	op := getOp(platform.OpReplaceMacro)
 	return c.db.Update(func(tx *bolt.Tx) error {
-		if pe := c.putMacro(ctx, tx, macro); pe != nil {
+		if err := c.putMacroOrgsIndex(ctx, tx, macro); err != nil {
 			return &platform.Error{
 				Op:  op,
-				Err: pe,
+				Err: err,
 			}
 		}
-		return nil
+		return c.putMacro(ctx, tx, macro)
 	})
 }
 
-func (c *Client) putMacro(ctx context.Context, tx *bolt.Tx, macro *platform.Macro) *platform.Error {
-	j, err := json.Marshal(macro)
+func encodeMacroOrgsIndex(macro *platform.Macro) ([]byte, error) {
+	oID, err := macro.OrganizationID.Encode()
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Msg: "bad organization id",
+		}
+	}
+
+	mID, err := macro.ID.Encode()
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Msg: "bad macro id",
+		}
+	}
+
+	key := make([]byte, 0, platform.IDLength*2)
+	key = append(key, oID...)
+	key = append(key, mID...)
+
+	return key, nil
+}
+
+func (c *Client) putMacroOrgsIndex(ctx context.Context, tx *bolt.Tx, macro *platform.Macro) error {
+	key, err := encodeMacroOrgsIndex(macro)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Bucket(macroOrgsIndex).Put(key, nil); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+func (c *Client) removeMacroOrgsIndex(ctx context.Context, tx *bolt.Tx, macro *platform.Macro) error {
+	key, err := encodeMacroOrgsIndex(macro)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Bucket(macroOrgsIndex).Delete(key); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) putMacro(ctx context.Context, tx *bolt.Tx, macro *platform.Macro) error {
+	m, err := json.Marshal(macro)
 	if err != nil {
 		return &platform.Error{
 			Err: err,
@@ -146,7 +315,7 @@ func (c *Client) putMacro(ctx context.Context, tx *bolt.Tx, macro *platform.Macr
 		}
 	}
 
-	if err := tx.Bucket(macroBucket).Put(encID, j); err != nil {
+	if err := tx.Bucket(macroBucket).Put(encID, m); err != nil {
 		return &platform.Error{
 			Err: err,
 		}
@@ -192,27 +361,30 @@ func (c *Client) UpdateMacro(ctx context.Context, id platform.ID, update *platfo
 func (c *Client) DeleteMacro(ctx context.Context, id platform.ID) error {
 	op := getOp(platform.OpDeleteMacro)
 	return c.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(macroBucket)
+		m, pe := c.findMacroByID(ctx, tx, id)
+		if pe != nil {
+			return &platform.Error{
+				Op:  op,
+				Err: pe,
+			}
+		}
 
 		encID, err := id.Encode()
 		if err != nil {
 			return &platform.Error{
-				Code: platform.EInvalid,
-				Op:   op,
-				Err:  err,
+				Op:  op,
+				Err: err,
 			}
 		}
 
-		d := b.Get(encID)
-		if d == nil {
+		if err := c.removeMacroOrgsIndex(ctx, tx, m); err != nil {
 			return &platform.Error{
-				Code: platform.ENotFound,
-				Op:   op,
-				Msg:  "macro not found",
+				Op:  op,
+				Err: err,
 			}
 		}
 
-		if err := b.Delete(encID); err != nil {
+		if err := tx.Bucket(macroBucket).Delete(encID); err != nil {
 			return &platform.Error{
 				Op:  op,
 				Err: err,

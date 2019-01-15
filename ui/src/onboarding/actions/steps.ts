@@ -42,21 +42,21 @@ export const setStepStatus = (
 
 interface SetOrganizationID {
   type: 'SET_ORG_ID'
-  payload: {organizationID}
+  payload: {orgID: string}
 }
 
-const setOrganizationID = organizationID => ({
+const setOrganizationID = (orgID: string) => ({
   type: 'SET_ORG_ID',
-  payload: {organizationID},
+  payload: {orgID},
 })
 
 export const setupAdmin = (setupParams: SetupParams) => async dispatch => {
   try {
     dispatch(setSetupParams(setupParams))
     const onboardingResponse = await setSetupParamsAJAX(setupParams)
-    const {id: organizationID} = onboardingResponse.org
+    const {id: orgID} = onboardingResponse.org
 
-    dispatch(setOrganizationID(organizationID))
+    dispatch(setOrganizationID(orgID))
 
     await signinAJAX({
       username: setupParams.username,

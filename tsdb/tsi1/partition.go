@@ -626,8 +626,14 @@ func (p *Partition) DropMeasurement(name []byte) error {
 	}
 
 	// Delete all series.
+	// TODO(edd): it's not clear to me why we have to delete all series IDs from
+	// the index when we could just mark the measurement as deleted.
 	if itr := fs.MeasurementSeriesIDIterator(name); itr != nil {
 		defer itr.Close()
+
+		// 1024 is assuming that typically a bucket (measurement) will have at least
+		// 1024 series in it.
+		all := make([]tsdb.SeriesID, 0, 1024)
 		for {
 			elem, err := itr.Next()
 			if err != nil {
@@ -635,10 +641,19 @@ func (p *Partition) DropMeasurement(name []byte) error {
 			} else if elem.SeriesID.IsZero() {
 				break
 			}
-			if err := p.activeLogFile.DeleteSeriesID(elem.SeriesID); err != nil {
-				return err
-			}
+			all = append(all, elem.SeriesID)
+
+			// Update series set.
+			p.seriesIDSet.Remove(elem.SeriesID)
 		}
+
+		if err := p.activeLogFile.DeleteSeriesIDList(all); err != nil {
+			return err
+		}
+
+		p.tracker.AddSeriesDropped(uint64(len(all)))
+		p.tracker.SubSeries(uint64(len(all)))
+
 		if err = itr.Close(); err != nil {
 			return err
 		}

@@ -9,7 +9,10 @@ import (
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
-var macroTestID = "debac1e0deadbeef"
+var (
+	macroTestID    = "debac1e0deadbeef"
+	macroTestOrgID = "deadbeefdeadbeef"
+)
 
 func TestMacro_UnmarshalJSON(t *testing.T) {
 	tests := []struct {
@@ -17,6 +20,31 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 		json string
 		want platform.Macro
 	}{
+		{
+			name: "with organization",
+			json: `
+{ 
+  "id": "debac1e0deadbeef",
+  "org_id": "deadbeefdeadbeef",
+  "name": "howdy",
+  "selected": [],
+  "arguments": {
+    "type": "constant",
+    "values": ["a", "b", "c", "d"]
+  }
+}
+`,
+			want: platform.Macro{
+				ID:             platformtesting.MustIDBase16(macroTestID),
+				OrganizationID: platformtesting.MustIDBase16(macroTestOrgID),
+				Name:           "howdy",
+				Selected:       make([]string, 0),
+				Arguments: &platform.MacroArguments{
+					Type:   "constant",
+					Values: platform.MacroConstantValues{"a", "b", "c", "d"},
+				},
+			},
+		},
 		{
 			name: "with constant arguments",
 			json: `

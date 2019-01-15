@@ -17,7 +17,7 @@ import (
 var organizationCmd = &cobra.Command{
 	Use:     "org",
 	Aliases: []string{"organization"},
-	Short:   "Organization related commands",
+	Short:   "Organization management commands",
 	Run:     organizationF,
 }
 
@@ -39,7 +39,7 @@ func init() {
 		Run:   organizationCreateF,
 	}
 
-	organizationCreateCmd.Flags().StringVarP(&organizationCreateFlags.name, "name", "n", "", "name of organization that will be created")
+	organizationCreateCmd.Flags().StringVarP(&organizationCreateFlags.name, "name", "n", "", "The name of organization that will be created")
 	organizationCreateCmd.MarkFlagRequired("name")
 
 	organizationCmd.AddCommand(organizationCreateCmd)
@@ -109,8 +109,8 @@ func init() {
 		Run:   organizationFindF,
 	}
 
-	organizationFindCmd.Flags().StringVarP(&organizationFindFlags.name, "name", "n", "", "organization name")
-	organizationFindCmd.Flags().StringVarP(&organizationFindFlags.id, "id", "i", "", "organization id")
+	organizationFindCmd.Flags().StringVarP(&organizationFindFlags.name, "name", "n", "", "The organization name")
+	organizationFindCmd.Flags().StringVarP(&organizationFindFlags.id, "id", "i", "", "The organization ID")
 
 	organizationCmd.AddCommand(organizationFindCmd)
 }
@@ -171,8 +171,8 @@ func init() {
 		Run:   organizationUpdateF,
 	}
 
-	organizationUpdateCmd.Flags().StringVarP(&organizationUpdateFlags.id, "id", "i", "", "organization ID (required)")
-	organizationUpdateCmd.Flags().StringVarP(&organizationUpdateFlags.name, "name", "n", "", "organization name")
+	organizationUpdateCmd.Flags().StringVarP(&organizationUpdateFlags.id, "id", "i", "", "The organization ID (required)")
+	organizationUpdateCmd.Flags().StringVarP(&organizationUpdateFlags.name, "name", "n", "", "The organization name")
 	organizationUpdateCmd.MarkFlagRequired("id")
 
 	organizationCmd.AddCommand(organizationUpdateCmd)
@@ -214,7 +214,7 @@ func organizationUpdateF(cmd *cobra.Command, args []string) {
 	w.Flush()
 }
 
-// Delete command
+// OrganizationDeleteFlags contains the flag of the org delete command
 type OrganizationDeleteFlags struct {
 	id string
 }
@@ -267,7 +267,7 @@ func init() {
 		Run:   organizationDeleteF,
 	}
 
-	organizationDeleteCmd.Flags().StringVarP(&organizationDeleteFlags.id, "id", "i", "", "organization id (required)")
+	organizationDeleteCmd.Flags().StringVarP(&organizationDeleteFlags.id, "id", "i", "", "The organization ID (required)")
 	organizationDeleteCmd.MarkFlagRequired("id")
 
 	organizationCmd.AddCommand(organizationDeleteCmd)
@@ -276,7 +276,7 @@ func init() {
 // Member management
 var organizationMembersCmd = &cobra.Command{
 	Use:   "members",
-	Short: "organization membership commands",
+	Short: "Organization membership commands",
 	Run:   organizationF,
 }
 
@@ -363,8 +363,8 @@ func init() {
 		Run:   organizationMembersListF,
 	}
 
-	organizationMembersListCmd.Flags().StringVarP(&organizationMembersListFlags.id, "id", "i", "", "organization id")
-	organizationMembersListCmd.Flags().StringVarP(&organizationMembersListFlags.name, "name", "n", "", "organization name")
+	organizationMembersListCmd.Flags().StringVarP(&organizationMembersListFlags.id, "id", "i", "", "The organization ID")
+	organizationMembersListCmd.Flags().StringVarP(&organizationMembersListFlags.name, "name", "n", "", "The organization name")
 
 	organizationMembersCmd.AddCommand(organizationMembersListCmd)
 }
@@ -450,9 +450,9 @@ func init() {
 		Run:   organizationMembersAddF,
 	}
 
-	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "organization id")
-	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "organization name")
-	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.memberId, "member", "o", "", "member id")
+	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "The organization ID")
+	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "The organization name")
+	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.memberId, "member", "o", "", "The member ID")
 	organizationMembersAddCmd.MarkFlagRequired("member")
 
 	organizationMembersCmd.AddCommand(organizationMembersAddCmd)
@@ -533,9 +533,9 @@ func init() {
 		Run:   organizationMembersRemoveF,
 	}
 
-	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "organization id")
-	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "organization name")
-	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberId, "member", "o", "", "member id")
+	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "The organization ID")
+	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "The organization name")
+	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberId, "member", "o", "", "The member ID")
 	organizationMembersRemoveCmd.MarkFlagRequired("member")
 
 	organizationMembersCmd.AddCommand(organizationMembersRemoveCmd)

@@ -24,7 +24,7 @@ const (
 // TODO(desa): do sources belong
 type Source struct {
 	ID                 ID         `json:"id,string,omitempty"`          // ID is the unique ID of the source
-	OrganizationID     ID         `json:"organizationID"`               // OrganizationID is the organization ID that resource belongs to
+	OrganizationID     ID         `json:"orgID"`                        // OrganizationID is the organization ID that resource belongs to
 	Default            bool       `json:"default"`                      // Default specifies the default source for the application
 	Name               string     `json:"name"`                         // Name is the user-defined name for the source
 	Type               SourceType `json:"type,omitempty"`               // Type specifies which kinds of source (enterprise vs oss vs 2.0)

@@ -32,15 +32,3 @@ func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.Mac
 func TestMacroService(t *testing.T) {
 	platformtesting.MacroService(initMacroService, t)
 }
-
-func TestMacroService_FindMacroByID(t *testing.T) {
-	platformtesting.FindMacroByID(initMacroService, t)
-}
-
-func TestMacroService_UpdateMacro(t *testing.T) {
-	platformtesting.UpdateMacro(initMacroService, t)
-}
-
-func TestMacroService_DeleteMacro(t *testing.T) {
-	platformtesting.DeleteMacro(initMacroService, t)
-}

@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestSeriesIDSet_AndNot(t *testing.T) {
+func TestSeriesIDSet_NewSeriesIDSetNegate(t *testing.T) {
 	examples := [][3][]uint64{
 		[3][]uint64{
 			{1, 10, 20, 30},
@@ -55,9 +55,62 @@ func TestSeriesIDSet_AndNot(t *testing.T) {
 				expected.Add(NewSeriesID(v))
 			}
 
-			got := a.AndNot(b)
+			got := NewSeriesIDSetNegate(a, b)
 			if got.String() != expected.String() {
 				t.Fatalf("got %s, expected %s", got.String(), expected.String())
+			}
+		})
+	}
+}
+
+func TestSeriesIDSet_RemoveSet(t *testing.T) {
+	examples := [][3][]uint64{
+		[3][]uint64{
+			{1, 10, 20, 30},
+			{10, 12, 13, 14, 20},
+			{1, 30},
+		},
+		[3][]uint64{
+			{},
+			{10},
+			{},
+		},
+		[3][]uint64{
+			{1, 10, 20, 30},
+			{1, 10, 20, 30},
+			{},
+		},
+		[3][]uint64{
+			{1, 10},
+			{1, 10, 100},
+			{},
+		},
+		[3][]uint64{
+			{1, 10},
+			{},
+			{1, 10},
+		},
+	}
+
+	for i, example := range examples {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			// Build sets.
+			a, b := NewSeriesIDSet(), NewSeriesIDSet()
+			for _, v := range example[0] {
+				a.Add(NewSeriesID(v))
+			}
+			for _, v := range example[1] {
+				b.Add(NewSeriesID(v))
+			}
+
+			expected := NewSeriesIDSet()
+			for _, v := range example[2] {
+				expected.Add(NewSeriesID(v))
+			}
+
+			a.RemoveSet(b)
+			if a.String() != expected.String() {
+				t.Fatalf("got %s, expected %s", a.String(), expected.String())
 			}
 		})
 	}
@@ -552,6 +605,78 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 			if set.Contains(NewSeriesID(lookup)) {
 				set.Remove(NewSeriesID(lookup))
 			}
+		}
+	})
+}
+
+// BenchmarkSeriesIDSet_MassRemove benchmarks the cost of removing a large set of values.
+func BenchmarkSeriesIDSet_MassRemove(b *testing.B) {
+	var size = uint64(1000000)
+	// Setup...
+	set = NewSeriesIDSet()
+	for i := uint64(0); i < size; i++ {
+		set.Add(NewSeriesID(i))
+	}
+
+	// Remove one at a time
+	b.Run(fmt.Sprint("cardinality_1000000_remove_each"), func(b *testing.B) {
+		clone := set.Clone()
+		for i := 0; i < b.N; i++ {
+			for j := uint64(0); j < size/2; j++ {
+				clone.RemoveNoLock(NewSeriesID(j))
+			}
+
+			b.StopTimer()
+			clone = set.Clone()
+			b.StartTimer()
+		}
+	})
+
+	// This is the case where a target series id set exists.
+	b.Run(fmt.Sprint("cardinality_1000000_remove_set_exists"), func(b *testing.B) {
+		clone := set.Clone()
+		other := NewSeriesIDSet()
+		for j := uint64(0); j < size/2; j++ {
+			other.AddNoLock(NewSeriesID(j))
+		}
+
+		for i := 0; i < b.N; i++ {
+			clone.RemoveSet(other)
+			b.StopTimer()
+			clone = set.Clone()
+			b.StartTimer()
+		}
+	})
+
+	// Make a target series id set and negate it
+	b.Run(fmt.Sprint("cardinality_1000000_remove_set"), func(b *testing.B) {
+		clone := set.Clone()
+		for i := 0; i < b.N; i++ {
+			other := NewSeriesIDSet()
+			for j := uint64(0); j < size/2; j++ {
+				other.AddNoLock(NewSeriesID(j))
+			}
+
+			clone.RemoveSet(other)
+			b.StopTimer()
+			clone = set.Clone()
+			b.StartTimer()
+		}
+	})
+
+	// This is the case where a new result set is created.
+	b.Run(fmt.Sprint("cardinality_1000000_remove_set_new"), func(b *testing.B) {
+		clone := set.Clone()
+		other := NewSeriesIDSet()
+		for j := uint64(0); j < size/2; j++ {
+			other.AddNoLock(NewSeriesID(j))
+		}
+
+		for i := 0; i < b.N; i++ {
+			_ = NewSeriesIDSetNegate(clone, other)
+			b.StopTimer()
+			clone = set.Clone()
+			b.StartTimer()
 		}
 	})
 }

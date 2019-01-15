@@ -341,12 +341,6 @@ func (r *queryTable) Cols() []flux.ColMeta {
 // Do applies f to itself. This is because Row is a flux.ColReader.
 // It is used to implement flux.Table.
 func (r *queryTable) Do(f func(flux.ColReader) error) error {
-	return r.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (r *queryTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	return f(r)
 }
 

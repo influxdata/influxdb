@@ -15,7 +15,7 @@ describe('Logs.V2.queryBuilder', () => {
     config = buildTableQueryConfig({
       id: '1',
       organization: 'default',
-      organizationID: '1',
+      orgID: '1',
       name: 'telegraf',
       rp: 'autogen',
       retentionRules: [],

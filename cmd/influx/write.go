@@ -18,9 +18,9 @@ import (
 
 var writeCmd = &cobra.Command{
 	Use:   "write line protocol or @/path/to/points.txt",
-	Short: "Write points to influxdb",
-	Long: `Write a single line of line protocol to influx db,
-		or add an entire file specified with an @ prefix`,
+	Short: "Write points to InfluxDB",
+	Long: `Write a single line of line protocol to InfluxDB,
+or add an entire file specified with an @ prefix.`,
 	Args: cobra.ExactArgs(1),
 	RunE: fluxWriteF,
 }
@@ -34,31 +34,31 @@ var writeFlags struct {
 }
 
 func init() {
-	writeCmd.PersistentFlags().StringVar(&writeFlags.OrgID, "org-id", "", "id of the organization that owns the bucket")
+	writeCmd.PersistentFlags().StringVar(&writeFlags.OrgID, "org-id", "", "The ID of the organization that owns the bucket")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
 		writeFlags.OrgID = h
 	}
 
-	writeCmd.PersistentFlags().StringVarP(&writeFlags.Org, "org", "o", "", "name of the organization that owns the bucket")
+	writeCmd.PersistentFlags().StringVarP(&writeFlags.Org, "org", "o", "", "The name of the organization that owns the bucket")
 	viper.BindEnv("ORG")
 	if h := viper.GetString("ORG"); h != "" {
 		writeFlags.Org = h
 	}
 
-	writeCmd.PersistentFlags().StringVar(&writeFlags.BucketID, "bucket-id", "", "ID of destination bucket")
+	writeCmd.PersistentFlags().StringVar(&writeFlags.BucketID, "bucket-id", "", "The ID of destination bucket")
 	viper.BindEnv("BUCKET_ID")
 	if h := viper.GetString("BUCKET_ID"); h != "" {
 		writeFlags.BucketID = h
 	}
 
-	writeCmd.PersistentFlags().StringVarP(&writeFlags.Bucket, "bucket", "b", "", "name of destination bucket")
+	writeCmd.PersistentFlags().StringVarP(&writeFlags.Bucket, "bucket", "b", "", "The name of destination bucket")
 	viper.BindEnv("BUCKET_NAME")
 	if h := viper.GetString("BUCKET_NAME"); h != "" {
 		writeFlags.Bucket = h
 	}
 
-	writeCmd.PersistentFlags().StringVarP(&writeFlags.Precision, "precision", "p", "ns", "precision of the timestamps of the lines")
+	writeCmd.PersistentFlags().StringVarP(&writeFlags.Precision, "precision", "p", "ns", "Precision of the timestamps of the lines")
 	viper.BindEnv("PRECISION")
 	if p := viper.GetString("PRECISION"); p != "" {
 		writeFlags.Precision = p

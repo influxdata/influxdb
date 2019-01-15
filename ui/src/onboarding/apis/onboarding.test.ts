@@ -53,8 +53,7 @@ describe('Onboarding.Apis', () => {
 
   describe('createTelegrafConfig', () => {
     it('should return the newly created config', async () => {
-      const org = 'default'
-      const result = await createTelegrafConfig(org, telegrafConfig)
+      const result = await createTelegrafConfig(telegrafConfig)
 
       expect(result).toEqual(telegrafConfig)
     })

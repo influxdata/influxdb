@@ -102,7 +102,7 @@ func TestService_handleGetDashboards(t *testing.T) {
   "dashboards": [
     {
       "id": "da7aba5e5d81e550",
-      "organizationID": "0000000000000001",
+      "orgID": "0000000000000001",
       "name": "hello",
       "description": "oh hello there!",
       "labels": [
@@ -143,7 +143,7 @@ func TestService_handleGetDashboards(t *testing.T) {
     },
     {
       "id": "0ca2204eca2204e0",
-      "organizationID": "0000000000000001",
+      "orgID": "0000000000000001",
       "name": "example",
       "description": "",
 			"labels": [
@@ -200,6 +200,109 @@ func TestService_handleGetDashboards(t *testing.T) {
   },
   "dashboards": []
 }`,
+			},
+		},
+		{
+			name: "get all dashboards belonging to org 1",
+			fields: fields{
+				&mock.DashboardService{
+					FindDashboardsF: func(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
+						return []*platform.Dashboard{
+							{
+								ID:             platformtesting.MustIDBase16("da7aba5e5d81e550"),
+								OrganizationID: 1,
+								Name:           "hello",
+								Description:    "oh hello there!",
+								Meta: platform.DashboardMeta{
+									CreatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+									UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
+								},
+								Cells: []*platform.Cell{
+									{
+										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
+										X:  1,
+										Y:  2,
+										W:  3,
+										H:  4,
+									},
+								},
+							},
+						}, 1, nil
+					},
+				},
+				&mock.LabelService{
+					FindLabelsFn: func(ctx context.Context, f platform.LabelFilter) ([]*platform.Label, error) {
+						labels := []*platform.Label{
+							{
+								ResourceID: f.ResourceID,
+								Name:       "label",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+						}
+						return labels, nil
+					},
+				},
+			},
+			args: args{
+				map[string][]string{
+					"orgID": []string{"0000000000000001"},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "self": "/api/v2/dashboards?orgID=0000000000000001"
+  },
+  "dashboards": [
+    {
+      "id": "da7aba5e5d81e550",
+      "orgID": "0000000000000001",
+      "name": "hello",
+      "description": "oh hello there!",
+      "meta": {
+        "createdAt": "2009-11-10T23:00:00Z",
+        "updatedAt": "2009-11-11T00:00:00Z"
+	  },
+	  "labels": [
+		  {
+			"resourceID": "da7aba5e5d81e550",
+			"name": "label",
+			"properties": {
+			  "color": "fff000"
+			}
+		  }
+	  ],
+      "cells": [
+        {
+          "id": "da7aba5e5d81e550",
+          "x": 1,
+          "y": 2,
+          "w": 3,
+          "h": 4,
+          "links": {
+            "self": "/api/v2/dashboards/da7aba5e5d81e550/cells/da7aba5e5d81e550",
+            "view": "/api/v2/dashboards/da7aba5e5d81e550/cells/da7aba5e5d81e550/view"
+          }
+        }
+      ],
+      "links": {
+        "self": "/api/v2/dashboards/da7aba5e5d81e550",
+        "org": "/api/v2/orgs/0000000000000001",
+        "members": "/api/v2/dashboards/da7aba5e5d81e550/members",
+        "owners": "/api/v2/dashboards/da7aba5e5d81e550/owners",
+        "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells",
+        "log": "/api/v2/dashboards/da7aba5e5d81e550/log",
+        "labels": "/api/v2/dashboards/da7aba5e5d81e550/labels"
+      }
+    }
+  ]
+}
+`,
 			},
 		},
 	}
@@ -301,7 +404,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 				body: `
 {
   "id": "020f755c3c082000",
-  "organizationID": "0000000000000001",
+  "orgID": "0000000000000001",
   "name": "hello",
   "description": "",
   "labels": [],
@@ -453,7 +556,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 				body: `
 {
   "id": "020f755c3c082000",
-  "organizationID": "0000000000000001",
+  "orgID": "0000000000000001",
   "name": "hello",
   "description": "howdy there",
   "labels": [],
@@ -691,7 +794,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 				body: `
 {
   "id": "020f755c3c082000",
-	"organizationID": "0000000000000001",
+  "orgID": "0000000000000001",
   "name": "example",
   "description": "",
   "labels": [],

@@ -7,11 +7,12 @@ import TableRow from 'src/dashboards/components/dashboard_index/TableRow'
 import {Label} from 'src/clockface'
 
 // Dummy Data
-import {dashboardWithLabels, dashboard} from 'mocks/dummyData'
+import {dashboardWithLabels, dashboard, orgs} from 'mocks/dummyData'
 
 const setup = (override = {}) => {
   const props = {
     dashboard,
+    orgs,
     onDeleteDashboard: jest.fn(),
     onCloneDashboard: jest.fn(),
     onExportDashboard: jest.fn(),

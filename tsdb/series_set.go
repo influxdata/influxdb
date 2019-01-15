@@ -27,6 +27,17 @@ func NewSeriesIDSet(a ...SeriesID) *SeriesIDSet {
 	return ss
 }
 
+// NewSeriesIDSetNegate returns a new SeriesIDSet containing all the elements in a
+// that are not present in b. That is, the set difference between a and b.
+func NewSeriesIDSetNegate(a, b *SeriesIDSet) *SeriesIDSet {
+	a.RLock()
+	defer a.RUnlock()
+	b.RLock()
+	defer b.RUnlock()
+
+	return &SeriesIDSet{bitmap: roaring.AndNot(a.bitmap, b.bitmap)}
+}
+
 // Bytes estimates the memory footprint of this SeriesIDSet, in bytes.
 func (s *SeriesIDSet) Bytes() int {
 	var b int
@@ -170,15 +181,13 @@ func (s *SeriesIDSet) And(other *SeriesIDSet) *SeriesIDSet {
 	return &SeriesIDSet{bitmap: roaring.And(s.bitmap, other.bitmap)}
 }
 
-// AndNot returns a new SeriesIDSet containing elements that were present in s,
-// but not present in other.
-func (s *SeriesIDSet) AndNot(other *SeriesIDSet) *SeriesIDSet {
+// RemoveSet removes all values in other from s, if they exist.
+func (s *SeriesIDSet) RemoveSet(other *SeriesIDSet) {
 	s.RLock()
 	defer s.RUnlock()
 	other.RLock()
 	defer other.RUnlock()
-
-	return &SeriesIDSet{bitmap: roaring.AndNot(s.bitmap, other.bitmap)}
+	s.bitmap.AndNot(other.bitmap)
 }
 
 // ForEach calls f for each id in the set. The function is applied to the IDs

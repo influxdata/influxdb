@@ -205,7 +205,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 		},
 		{
 			name: "FindTaskByID with auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, err := svc.FindTaskByID(ctx, taskID)
 				return err
@@ -213,7 +213,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 		},
 		{
 			name: "FindTasks with bad auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.OrgsResource, OrgID: taskID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &taskID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindTasks(ctx, influxdb.TaskFilter{
 					Organization: &orgID,
@@ -226,7 +226,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 		},
 		{
 			name: "FindTasks with auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindTasks(ctx, influxdb.TaskFilter{
 					Organization: &orgID,
@@ -236,7 +236,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 		},
 		{
 			name: "FindTasks without org",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindTasks(ctx, influxdb.TaskFilter{})
 				return err
@@ -244,7 +244,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 		},
 		{
 			name: "UpdateTask with bad auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				flux := `option task = {
  name: "my_task",
@@ -263,9 +263,9 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "UpdateTask with auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{
-				influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.TasksResource, OrgID: orgID},
-				influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.BucketsResource, OrgID: r.Org.ID, ID: &r.Bucket.ID},
-				influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.BucketsResource, OrgID: r.Org.ID, ID: &r.Bucket.ID},
+				influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}},
+				influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.BucketsResourceType, OrgID: &orgID, ID: &r.Bucket.ID}},
+				influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.BucketsResourceType, OrgID: &orgID, ID: &r.Bucket.ID}},
 			}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				flux := `option task = {
@@ -281,7 +281,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		},
 		{
 			name: "UpdateTask with bad bucket",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				flux := `option task = {
  name: "my_task",
@@ -310,7 +310,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "DeleteTask readonly auth",
-			auth: &influxdb.Authorization{Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				err := svc.DeleteTask(ctx, taskID)
 				if err == nil {
@@ -321,7 +321,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "DeleteTask with auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				err := svc.DeleteTask(ctx, taskID)
 				return err
@@ -329,7 +329,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "FindLogs with bad auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.OrgsResource, OrgID: taskID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.OrgsResourceType, OrgID: &taskID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindLogs(ctx, influxdb.LogFilter{
 					Org: &orgID,
@@ -342,7 +342,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "FindLogs with auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindLogs(ctx, influxdb.LogFilter{
 					Org: &orgID,
@@ -360,7 +360,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "FindRuns with bad auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.OrgsResource, OrgID: taskID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.OrgsResourceType, OrgID: &taskID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindRuns(ctx, influxdb.RunFilter{
 					Org: &orgID,
@@ -373,7 +373,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "FindRuns with auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindRuns(ctx, influxdb.RunFilter{
 					Org: &orgID,
@@ -402,7 +402,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "FindRunByID with auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, err := svc.FindRunByID(ctx, taskID, 10)
 				return err
@@ -410,7 +410,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "CancelRun with bad auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.OrgsResource, OrgID: taskID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.OrgsResourceType, OrgID: &taskID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				err := svc.CancelRun(ctx, 2, 10)
 				if err == nil {
@@ -421,7 +421,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "CancelRun with auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				err := svc.CancelRun(ctx, 2, 10)
 				return err
@@ -429,7 +429,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "RetryRun with bad auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.OrgsResource, OrgID: taskID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.OrgsResourceType, OrgID: &taskID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, err := svc.RetryRun(ctx, 2, 10)
 				if err == nil {
@@ -440,7 +440,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "RetryRun with auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, err := svc.RetryRun(ctx, 2, 10)
 				return err
@@ -448,7 +448,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "ForceRun with bad auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.OrgsResource, OrgID: taskID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.OrgsResourceType, OrgID: &taskID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, err := svc.ForceRun(ctx, 2, 10000)
 				if err == nil {
@@ -459,7 +459,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 		},
 		{
 			name: "ForceRun with auth",
-			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.TasksResource, OrgID: orgID}}},
+			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, err := svc.ForceRun(ctx, 2, 10000)
 				return err

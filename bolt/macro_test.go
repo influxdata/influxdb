@@ -38,5 +38,6 @@ func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.Mac
 }
 
 func TestMacroService(t *testing.T) {
+	t.Parallel()
 	platformtesting.MacroService(initMacroService, t)
 }

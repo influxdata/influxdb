@@ -1193,19 +1193,19 @@ func DeleteAuthorization(
 
 func allUsersPermission(orgID platform.ID) []platform.Permission {
 	return []platform.Permission{
-		{Action: platform.WriteAction, Resource: platform.UsersResource, OrgID: orgID},
-		{Action: platform.ReadAction, Resource: platform.UsersResource, OrgID: orgID},
+		{Action: platform.WriteAction, Resource: platform.Resource{Type: platform.UsersResourceType, OrgID: &orgID}},
+		{Action: platform.ReadAction, Resource: platform.Resource{Type: platform.UsersResourceType, OrgID: &orgID}},
 	}
 }
 
 func createUsersPermission(orgID platform.ID) []platform.Permission {
 	return []platform.Permission{
-		{Action: platform.WriteAction, Resource: platform.UsersResource, OrgID: orgID},
+		{Action: platform.WriteAction, Resource: platform.Resource{Type: platform.UsersResourceType, OrgID: &orgID}},
 	}
 }
 
 func deleteUsersPermission(orgID platform.ID) []platform.Permission {
 	return []platform.Permission{
-		{Action: platform.WriteAction, Resource: platform.UsersResource, OrgID: orgID},
+		{Action: platform.WriteAction, Resource: platform.Resource{Type: platform.UsersResourceType, OrgID: &orgID}},
 	}
 }

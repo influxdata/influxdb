@@ -6,9 +6,9 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/inputs"
-	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/flux/stdlib/universe"
 )
 
 func init() {
@@ -19,13 +19,13 @@ func init() {
 				Operations: []*flux.Operation{
 					{
 						ID: "from0",
-						Spec: &inputs.FromOpSpec{
+						Spec: &influxdb.FromOpSpec{
 							BucketID: bucketID.String(),
 						},
 					},
 					{
 						ID: "range0",
-						Spec: &transformations.RangeOpSpec{
+						Spec: &universe.RangeOpSpec{
 							Start: flux.Time{
 								Relative:   -time.Hour,
 								IsRelative: true,
@@ -35,7 +35,7 @@ func init() {
 					},
 					{
 						ID: "filter0",
-						Spec: &transformations.FilterOpSpec{
+						Spec: &universe.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Block: &semantic.FunctionBlock{
 									Parameters: &semantic.FunctionParameters{
@@ -79,33 +79,33 @@ func init() {
 					},
 					{
 						ID: "keyValues0",
-						Spec: &transformations.KeyValuesOpSpec{
+						Spec: &universe.KeyValuesOpSpec{
 							KeyColumns: []string{"host"},
 						},
 					},
 					{
 						ID: "group0",
-						Spec: &transformations.GroupOpSpec{
+						Spec: &universe.GroupOpSpec{
 							Columns: []string{"_measurement", "_key"},
 							Mode:    "by",
 						},
 					},
 					{
 						ID: "distinct0",
-						Spec: &transformations.DistinctOpSpec{
+						Spec: &universe.DistinctOpSpec{
 							Column: execute.DefaultValueColLabel,
 						},
 					},
 					{
 						ID: "group1",
-						Spec: &transformations.GroupOpSpec{
+						Spec: &universe.GroupOpSpec{
 							Columns: []string{"_measurement"},
 							Mode:    "by",
 						},
 					},
 					{
 						ID: "rename0",
-						Spec: &transformations.RenameOpSpec{
+						Spec: &universe.RenameOpSpec{
 							Columns: map[string]string{
 								"_key":   "key",
 								"_value": "value",
@@ -114,7 +114,7 @@ func init() {
 					},
 					{
 						ID: "yield0",
-						Spec: &transformations.YieldOpSpec{
+						Spec: &universe.YieldOpSpec{
 							Name: "0",
 						},
 					},

@@ -34,23 +34,21 @@ func NewMacroHandler() *MacroHandler {
 		Logger: zap.NewNop(),
 	}
 
-	h.HandlerFunc("GET", "/api/v2/macros", h.handleGetMacros)
-	h.HandlerFunc("POST", "/api/v2/macros", h.handlePostMacro)
-	h.HandlerFunc("GET", "/api/v2/macros/:id", h.handleGetMacro)
-	h.HandlerFunc("PATCH", "/api/v2/macros/:id", h.handlePatchMacro)
-	h.HandlerFunc("PUT", "/api/v2/macros/:id", h.handlePutMacro)
-	h.HandlerFunc("DELETE", "/api/v2/macros/:id", h.handleDeleteMacro)
+	entityPath := fmt.Sprintf("%s/:id", macroPath)
+
+	h.HandlerFunc("GET", macroPath, h.handleGetMacros)
+	h.HandlerFunc("POST", macroPath, h.handlePostMacro)
+	h.HandlerFunc("GET", entityPath, h.handleGetMacro)
+	h.HandlerFunc("PATCH", entityPath, h.handlePatchMacro)
+	h.HandlerFunc("PUT", entityPath, h.handlePutMacro)
+	h.HandlerFunc("DELETE", entityPath, h.handleDeleteMacro)
 
 	return h
 }
 
-type macrosLinks struct {
-	Self string `json:"self"`
-}
-
 type getMacrosResponse struct {
-	Macros []macroResponse `json:"macros"`
-	Links  macrosLinks     `json:"links"`
+	Macros []macroResponse       `json:"macros"`
+	Links  *platform.PagingLinks `json:"links"`
 }
 
 func (r getMacrosResponse) ToPlatform() []*platform.Macro {
@@ -61,12 +59,11 @@ func (r getMacrosResponse) ToPlatform() []*platform.Macro {
 	return macros
 }
 
-func newGetMacrosResponse(macros []*platform.Macro) getMacrosResponse {
+func newGetMacrosResponse(macros []*platform.Macro, f platform.MacroFilter, opts platform.FindOptions) getMacrosResponse {
+	num := len(macros)
 	resp := getMacrosResponse{
-		Macros: make([]macroResponse, 0, len(macros)),
-		Links: macrosLinks{
-			Self: "/api/v2/macros",
-		},
+		Macros: make([]macroResponse, 0, num),
+		Links:  newPagingLinks(macroPath, opts, f, num),
 	}
 
 	for _, macro := range macros {
@@ -76,16 +73,53 @@ func newGetMacrosResponse(macros []*platform.Macro) getMacrosResponse {
 	return resp
 }
 
+type getMacrosRequest struct {
+	filter platform.MacroFilter
+	opts   platform.FindOptions
+}
+
+func decodeGetMacrosRequest(ctx context.Context, r *http.Request) (*getMacrosRequest, error) {
+	qp := r.URL.Query()
+	req := &getMacrosRequest{}
+
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	req.opts = *opts
+
+	if orgID := qp.Get("orgID"); orgID != "" {
+		id, err := platform.IDFromString(orgID)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.OrganizationID = id
+	}
+
+	if org := qp.Get("org"); org != "" {
+		req.filter.Organization = &org
+	}
+
+	return req, nil
+}
+
 func (h *MacroHandler) handleGetMacros(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	macros, err := h.MacroService.FindMacros(ctx)
+	req, err := decodeGetMacrosRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	macros, err := h.MacroService.FindMacros(ctx, req.filter, req.opts)
 	if err != nil {
 		EncodeError(ctx, kerrors.InternalErrorf("could not read macros: %v", err), w)
 		return
 	}
 
-	err = encodeResponse(ctx, w, http.StatusOK, newGetMacrosResponse(macros))
+	err = encodeResponse(ctx, w, http.StatusOK, newGetMacrosResponse(macros, req.filter, req.opts))
 	if err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
@@ -134,6 +168,7 @@ func (h *MacroHandler) handleGetMacro(w http.ResponseWriter, r *http.Request) {
 
 type macroLinks struct {
 	Self string `json:"self"`
+	Org  string `json:"org"`
 }
 
 type macroResponse struct {
@@ -146,6 +181,7 @@ func newMacroResponse(m *platform.Macro) macroResponse {
 		Macro: m,
 		Links: macroLinks{
 			Self: fmt.Sprintf("/api/v2/macros/%s", m.ID),
+			Org:  fmt.Sprintf("/api/v2/orgs/%s", m.OrganizationID),
 		},
 	}
 }
@@ -363,19 +399,33 @@ func (s *MacroService) FindMacroByID(ctx context.Context, id platform.ID) (*plat
 	return macro, nil
 }
 
-// FindMacros returns all macros in the store
-func (s *MacroService) FindMacros(ctx context.Context) ([]*platform.Macro, error) {
+// FindMacros returns a list of macros that match filter.
+//
+// Additional options provide pagination & sorting.
+func (s *MacroService) FindMacros(ctx context.Context, filter platform.MacroFilter, opts ...platform.FindOptions) ([]*platform.Macro, error) {
 	url, err := newURL(s.Addr, macroPath)
 	if err != nil {
 		return nil, err
+	}
+
+	query := url.Query()
+	if filter.OrganizationID != nil {
+		query.Add("orgID", filter.OrganizationID.String())
+	}
+	if filter.Organization != nil {
+		query.Add("org", *filter.Organization)
+	}
+	if filter.ID != nil {
+		query.Add("id", filter.ID.String())
 	}
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-
+	req.URL.RawQuery = query.Encode()
 	SetToken(s.Token, req)
+
 	hc := newClient(url.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)

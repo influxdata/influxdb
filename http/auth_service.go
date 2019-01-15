@@ -85,32 +85,52 @@ func (a *authResponse) toPlatform() *platform.Authorization {
 		UserID:      a.UserID,
 	}
 	for _, p := range a.Permissions {
-		res.Permissions = append(res.Permissions, p.Permission)
+		res.Permissions = append(res.Permissions, platform.Permission{Action: p.Action, Resource: p.Resource.Resource})
 	}
 	return res
 }
 
 type permissionResponse struct {
-	platform.Permission
-	Name string `json:"name,omitempty"`
+	Action   platform.Action  `json:"action"`
+	Resource resourceResponse `json:"resource"`
+}
+
+type resourceResponse struct {
+	platform.Resource
+	Name         string `json:"name,omitempty"`
+	Organization string `json:"org,omitempty"`
 }
 
 func newPermissionsResponse(ctx context.Context, ps []platform.Permission, svc platform.LookupService) ([]permissionResponse, error) {
 	res := make([]permissionResponse, len(ps))
 	for i, p := range ps {
 		res[i] = permissionResponse{
-			Permission: p,
+			Action: p.Action,
+			Resource: resourceResponse{
+				Resource: p.Resource,
+			},
 		}
 
-		if p.ID != nil {
-			name, err := svc.Name(ctx, p.Resource, *p.ID)
+		if p.Resource.ID != nil {
+			name, err := svc.Name(ctx, p.Resource.Type, *p.Resource.ID)
 			if platform.ErrorCode(err) == platform.ENotFound {
 				continue
 			}
 			if err != nil {
 				return nil, err
 			}
-			res[i].Name = name
+			res[i].Resource.Name = name
+		}
+
+		if p.Resource.OrgID != nil {
+			name, err := svc.Name(ctx, platform.OrgsResourceType, *p.Resource.OrgID)
+			if platform.ErrorCode(err) == platform.ENotFound {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			res[i].Resource.Organization = name
 		}
 	}
 	return res, nil
@@ -672,12 +692,14 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	if err != nil {
 		return err
 	}
+	if err != nil {
+		return err
+	}
 
 	newAuth, err := newPostAuthorizationRequest(a)
 	if err != nil {
 		return err
 	}
-
 	octets, err := json.Marshal(newAuth)
 	if err != nil {
 		return err

@@ -11,11 +11,11 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/inputs"
-	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/flux/stdlib/universe"
 	platform "github.com/influxdata/influxdb"
-	pinputs "github.com/influxdata/influxdb/query/functions/inputs"
+	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb/v1"
 	"github.com/influxdata/influxql"
 )
 
@@ -83,7 +83,7 @@ func (t *transpilerState) Transpile(ctx context.Context, id int, s influxql.Stat
 	if err != nil {
 		return err
 	}
-	t.op("yield", &transformations.YieldOpSpec{Name: strconv.Itoa(id)}, op)
+	t.op("yield", &universe.YieldOpSpec{Name: strconv.Itoa(id)}, op)
 	return nil
 }
 
@@ -121,7 +121,7 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 
 	// TODO(jsternberg): Read the range from the condition expression. 1.x doesn't actually do this so it isn't
 	// urgent to implement this functionality so we can use the default range.
-	op = t.op("range", &transformations.RangeOpSpec{
+	op = t.op("range", &universe.RangeOpSpec{
 		Start: flux.Time{
 			Relative:   -time.Hour,
 			IsRelative: true,
@@ -159,7 +159,7 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 				Right: expr,
 			}
 		}
-		op = t.op("filter", &transformations.FilterOpSpec{
+		op = t.op("filter", &universe.FilterOpSpec{
 			Fn: &semantic.FunctionExpression{
 				Block: &semantic.FunctionBlock{
 					Parameters: &semantic.FunctionParameters{
@@ -176,7 +176,7 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 	// TODO(jsternberg): Add the condition filter for the where clause.
 
 	// Create the key values op spec from the
-	var keyValues transformations.KeyValuesOpSpec
+	var keyValues universe.KeyValuesOpSpec
 	switch expr := stmt.TagKeyExpr.(type) {
 	case *influxql.ListLiteral:
 		keyValues.KeyColumns = expr.Vals
@@ -196,17 +196,17 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 
 	// Group by the measurement and key, find distinct values, then group by the measurement
 	// to join all of the different keys together. Finish by renaming the columns. This is static.
-	return t.op("rename", &transformations.RenameOpSpec{
+	return t.op("rename", &universe.RenameOpSpec{
 		Columns: map[string]string{
 			"_key":   "key",
 			"_value": "value",
 		},
-	}, t.op("group", &transformations.GroupOpSpec{
+	}, t.op("group", &universe.GroupOpSpec{
 		Columns: []string{"_measurement"},
 		Mode:    "by",
-	}, t.op("distinct", &transformations.DistinctOpSpec{
+	}, t.op("distinct", &universe.DistinctOpSpec{
 		Column: execute.DefaultValueColLabel,
-	}, t.op("group", &transformations.GroupOpSpec{
+	}, t.op("group", &universe.GroupOpSpec{
 		Columns: []string{"_measurement", "_key"},
 		Mode:    "by",
 	}, op)))), nil
@@ -218,15 +218,15 @@ func (t *transpilerState) transpileShowDatabases(ctx context.Context, stmt *infl
 	// the default retention policy when evaluating which bucket we are querying and we do not have to consult
 	// the sources in the statement.
 
-	spec := &pinputs.DatabasesOpSpec{}
+	spec := &v1.DatabasesOpSpec{}
 	op := t.op("databases", spec)
 
 	// SHOW DATABASES has one column, name
-	return t.op("extractcol", &transformations.KeepOpSpec{
+	return t.op("extractcol", &universe.KeepOpSpec{
 		Columns: []string{
 			"name",
 		},
-	}, t.op("rename", &transformations.RenameOpSpec{
+	}, t.op("rename", &universe.RenameOpSpec{
 		Columns: map[string]string{
 			"databaseName": "name",
 		},
@@ -239,7 +239,7 @@ func (t *transpilerState) transpileShowRetentionPolicies(ctx context.Context, st
 	// the default retention policy when evaluating which bucket we are querying and we do not have to consult
 	// the sources in the statement.
 
-	spec := &pinputs.DatabasesOpSpec{}
+	spec := &v1.DatabasesOpSpec{}
 	op := t.op("databases", spec)
 	var expr semantic.Expression = &semantic.BinaryExpression{
 		Operator: ast.EqualOperator,
@@ -250,7 +250,7 @@ func (t *transpilerState) transpileShowRetentionPolicies(ctx context.Context, st
 		Right: &semantic.StringLiteral{Value: stmt.Database},
 	}
 
-	op = t.op("filter", &transformations.FilterOpSpec{
+	op = t.op("filter", &universe.FilterOpSpec{
 		Fn: &semantic.FunctionExpression{
 			Block: &semantic.FunctionBlock{
 				Parameters: &semantic.FunctionParameters{
@@ -264,7 +264,7 @@ func (t *transpilerState) transpileShowRetentionPolicies(ctx context.Context, st
 	}, op)
 
 	return t.op("keep",
-		&transformations.KeepOpSpec{
+		&universe.KeepOpSpec{
 			Columns: []string{
 				"name",
 				"duration",
@@ -274,17 +274,17 @@ func (t *transpilerState) transpileShowRetentionPolicies(ctx context.Context, st
 			},
 		},
 		t.op("set",
-			&transformations.SetOpSpec{
+			&universe.SetOpSpec{
 				Key:   "replicaN",
 				Value: "2",
 			},
 			t.op("set",
-				&transformations.SetOpSpec{
+				&universe.SetOpSpec{
 					Key:   "shardGroupDuration",
 					Value: "0",
 				},
 				t.op("rename",
-					&transformations.RenameOpSpec{
+					&universe.RenameOpSpec{
 						Columns: map[string]string{
 							"retentionPolicy": "name",
 							"retentionPeriod": "duration",
@@ -360,7 +360,7 @@ func (t *transpilerState) from(m *influxql.Measurement) (flux.OperationID, error
 		return "", err
 	}
 
-	spec := &inputs.FromOpSpec{
+	spec := &influxdb.FromOpSpec{
 		BucketID: mapping.BucketID.String(),
 	}
 	return t.op("from", spec), nil

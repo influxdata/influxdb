@@ -1,5 +1,4 @@
-import {Organization} from 'src/types/v2/orgs'
-import {Task as TaskAPI} from 'src/api'
+import {Task as TaskAPI, Organization} from 'src/api'
 
 export interface Task extends TaskAPI {
   organization: Organization

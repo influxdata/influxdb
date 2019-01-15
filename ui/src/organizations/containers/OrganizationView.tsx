@@ -11,6 +11,7 @@ import {
   getMembers,
   getTasks,
   getOwners,
+  getCollectors,
 } from 'src/organizations/apis'
 
 // Actions
@@ -25,13 +26,14 @@ import Members from 'src/organizations/components/Members'
 import Buckets from 'src/organizations/components/Buckets'
 import Dashboards from 'src/organizations/components/Dashboards'
 import Tasks from 'src/organizations/components/Tasks'
+import Collectors from 'src/organizations/components/Collectors'
 import Scrapers from 'src/organizations/components/Scrapers'
 import OrgOptions from 'src/organizations/components/OrgOptions'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
 // Types
 import {AppState, Dashboard} from 'src/types/v2'
-import {ResourceOwner, Bucket, Organization, Task} from 'src/api'
+import {ResourceOwner, Bucket, Organization, Task, Telegraf} from 'src/api'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -123,6 +125,22 @@ class OrganizationView extends PureComponent<Props> {
                   {(tasks, loading) => (
                     <Spinner loading={loading}>
                       <Tasks tasks={tasks} orgName={org.name} />
+                    </Spinner>
+                  )}
+                </GetOrgResources>
+              </TabbedPageSection>
+              <TabbedPageSection
+                id="org-view-tab--collectors"
+                url="collectors_tab"
+                title="Collectors"
+              >
+                <GetOrgResources<Telegraf[]>
+                  organization={org}
+                  fetcher={getCollectors}
+                >
+                  {(collectors, loading) => (
+                    <Spinner loading={loading}>
+                      <Collectors collectors={collectors} />
                     </Spinner>
                   )}
                 </GetOrgResources>

@@ -26,7 +26,7 @@ export default class OrgOptions extends PureComponent<Props> {
         <TabbedPageHeader>
           <h1>Scrapers</h1>
           <Button
-            text="Create Bucket"
+            text="Create Scraper"
             icon={IconFont.Plus}
             color={ComponentColor.Primary}
           />
@@ -38,7 +38,7 @@ export default class OrgOptions extends PureComponent<Props> {
   private get emptyState(): JSX.Element {
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text="No Buckets match your query" />
+        <EmptyState.Text text="No Scrapers match your query" />
       </EmptyState>
     )
   }

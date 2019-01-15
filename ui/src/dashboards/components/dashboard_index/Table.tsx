@@ -18,7 +18,7 @@ import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import {Sort} from 'src/clockface'
-import {Dashboard} from 'src/types/v2'
+import {Dashboard, Organization} from 'src/types/v2'
 
 interface Props {
   searchTerm: string
@@ -31,6 +31,7 @@ interface Props {
   onUpdateDashboard: (dashboard: Dashboard) => void
   onSetDefaultDashboard: (dashboardLink: string) => void
   onEditLabels: (dashboard: Dashboard) => void
+  orgs: Organization[]
 }
 
 interface DatedDashboard extends Dashboard {
@@ -106,6 +107,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onDeleteDashboard,
       onUpdateDashboard,
       onEditLabels,
+      orgs,
     } = this.props
 
     const {sortKey, sortDirection} = this.state
@@ -125,6 +127,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onDeleteDashboard={onDeleteDashboard}
               onUpdateDashboard={onUpdateDashboard}
               onEditLabels={onEditLabels}
+              orgs={orgs}
             />
           )}
         </SortingHat>

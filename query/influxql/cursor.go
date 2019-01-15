@@ -6,8 +6,8 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxql"
 )
 
@@ -67,7 +67,7 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 		}
 	}
 
-	range_ := t.op("range", &transformations.RangeOpSpec{
+	range_ := t.op("range", &universe.RangeOpSpec{
 		Start:       flux.Time{Absolute: tr.MinTime()},
 		Stop:        flux.Time{Absolute: tr.MaxTime()},
 		TimeColumn:  execute.DefaultTimeColLabel,
@@ -75,7 +75,7 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 		StopColumn:  execute.DefaultStopColLabel,
 	}, from)
 
-	id := t.op("filter", &transformations.FilterOpSpec{
+	id := t.op("filter", &universe.FilterOpSpec{
 		Fn: &semantic.FunctionExpression{
 			Block: &semantic.FunctionBlock{
 				Parameters: &semantic.FunctionParameters{

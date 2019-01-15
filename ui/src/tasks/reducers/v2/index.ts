@@ -47,7 +47,7 @@ export default (state: State = defaultState, action: Action): State => {
         newScript: '',
       }
     case 'SET_ALL_TASK_OPTIONS':
-      const {name, every, cron, organizationID, offset} = action.payload
+      const {name, every, cron, orgID, offset} = action.payload
       let taskScheduleType = TaskSchedule.interval
       if (cron) {
         taskScheduleType = TaskSchedule.cron
@@ -60,7 +60,7 @@ export default (state: State = defaultState, action: Action): State => {
           name,
           cron,
           interval: every,
-          orgID: organizationID,
+          orgID,
           taskScheduleType,
           offset,
         },

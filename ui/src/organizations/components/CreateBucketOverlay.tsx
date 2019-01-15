@@ -107,12 +107,12 @@ export default class BucketOverlay extends PureComponent<Props, State> {
 
   private handleCreateBucket = (): void => {
     const {onCreateBucket, org} = this.props
-    const organizationID = org.id
+    const orgID = org.id
     const organization = org.name
 
     const bucket = {
       ...this.state.bucket,
-      organizationID,
+      orgID,
       organization,
     }
 

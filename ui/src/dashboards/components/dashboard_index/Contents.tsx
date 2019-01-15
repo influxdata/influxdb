@@ -9,11 +9,12 @@ import Table from 'src/dashboards/components/dashboard_index/Table'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Dashboard} from 'src/types/v2'
+import {Dashboard, Organization} from 'src/types/v2'
 import {Notification} from 'src/types/notifications'
 
 interface Props {
   dashboards: Dashboard[]
+  orgs: Organization[]
   defaultDashboardLink: string
   onSetDefaultDashboard: (dashboardLink: string) => void
   onCreateDashboard: () => void
@@ -39,6 +40,7 @@ export default class DashboardsIndexContents extends Component<Props> {
       onUpdateDashboard,
       onEditLabels,
       searchTerm,
+      orgs,
     } = this.props
 
     return (
@@ -54,6 +56,7 @@ export default class DashboardsIndexContents extends Component<Props> {
           onSetDefaultDashboard={onSetDefaultDashboard}
           onUpdateDashboard={onUpdateDashboard}
           onEditLabels={onEditLabels}
+          orgs={orgs}
         />
       </div>
     )

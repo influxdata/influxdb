@@ -27,13 +27,13 @@ var replFlags struct {
 }
 
 func init() {
-	replCmd.PersistentFlags().StringVar(&replFlags.OrgID, "org-id", "", "ID of organization to query")
+	replCmd.PersistentFlags().StringVar(&replFlags.OrgID, "org-id", "", "The ID of organization to query")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
 		replFlags.OrgID = h
 	}
 
-	replCmd.PersistentFlags().StringVarP(&replFlags.Org, "org", "o", "", "name of the organization")
+	replCmd.PersistentFlags().StringVarP(&replFlags.Org, "org", "o", "", "The name of the organization")
 	viper.BindEnv("ORG")
 	if h := viper.GetString("ORG"); h != "" {
 		replFlags.Org = h

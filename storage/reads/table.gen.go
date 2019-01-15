@@ -7,10 +7,9 @@
 package reads
 
 import (
-	"sync"
-
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/memory"
+	"sync"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
@@ -73,12 +72,6 @@ func (t *floatTable) Statistics() flux.Statistics {
 }
 
 func (t *floatTable) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *floatTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -168,12 +161,6 @@ func (t *floatGroupTable) Close() {
 }
 
 func (t *floatGroupTable) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *floatGroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -311,12 +298,6 @@ func (t *integerTable) Statistics() flux.Statistics {
 }
 
 func (t *integerTable) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *integerTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -406,12 +387,6 @@ func (t *integerGroupTable) Close() {
 }
 
 func (t *integerGroupTable) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *integerGroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -549,12 +524,6 @@ func (t *unsignedTable) Statistics() flux.Statistics {
 }
 
 func (t *unsignedTable) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *unsignedTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -644,12 +613,6 @@ func (t *unsignedGroupTable) Close() {
 }
 
 func (t *unsignedGroupTable) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *unsignedGroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -787,12 +750,6 @@ func (t *stringTable) Statistics() flux.Statistics {
 }
 
 func (t *stringTable) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *stringTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -882,12 +839,6 @@ func (t *stringGroupTable) Close() {
 }
 
 func (t *stringGroupTable) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *stringGroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -1025,12 +976,6 @@ func (t *booleanTable) Statistics() flux.Statistics {
 }
 
 func (t *booleanTable) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *booleanTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()
@@ -1120,12 +1065,6 @@ func (t *booleanGroupTable) Close() {
 }
 
 func (t *booleanGroupTable) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *booleanGroupTable) DoArrow(f func(flux.ArrowColReader) error) error {
 	t.mu.Lock()
 	defer func() {
 		t.closeDone()

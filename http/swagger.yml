@@ -661,7 +661,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"              
+                $ref: "#/components/schemas/Error"
   /macros:
     get:
       tags:
@@ -671,10 +671,14 @@ paths:
         - $ref: '#/components/parameters/TraceSpan'
         - in: query
           name: org
-          required: true
+          description: specifies the organization name of the resource
           schema:
             type: string
-          description: filter macros to a specific organization name
+        - in: query
+          name: orgID
+          description: specifies the organization id of the resource
+          schema:
+            type: string
       responses:
         '200':
           description: all macros for an organization
@@ -4146,9 +4150,7 @@ paths:
                 type: object
                 properties:
                   labels:
-                    type: array
-                    items:
-                      type: string
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -4829,30 +4831,42 @@ components:
     Permission:
       required: [action, resource]
       properties:
-        id:
-          type: string
-          nullable: true
-          description: if id is set that is a permission for a specific resource. if it is not set it is a permission for all resources of that resource type.
-        name:
-          type: string
-          nullable: true
-          description: optional name of the resource if the resource has a name field.
         action:
           type: string
           enum:
             - read
             - write
         resource:
-          type: string
-          enum:
-            - authorizations
-            - buckets
-            - dashboards
-            - orgs
-            - sources
-            - tasks
-            - telegrafs
-            - users
+          type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum:
+                - authorizations
+                - buckets
+                - dashboards
+                - orgs
+                - sources
+                - tasks
+                - telegrafs
+                - users
+            id:
+              type: string
+              nullable: true
+              description: if id is set that is a permission for a specific resource. if it is not set it is a permission for all resources of that resource type.
+            name:
+              type: string
+              nullable: true
+              description: optional name of the resource if the resource has a name field.
+            orgID:
+              type: string
+              nullable: true
+              description: if orgID is set that is a permission for all resources owned my that org. if it is not set it is a permission for all resources of that resource type.
+            org:
+              type: string
+              nullable: true
+              description: optional name of the organization of the organization with orgID.
     Authorization:
       required: [orgID, permissions]
       properties:
@@ -4946,7 +4960,7 @@ components:
           type: string
         name:
           type: string
-        organizationID:
+        orgID:
           type: string
         organization:
           type: string
@@ -5161,7 +5175,7 @@ components:
         id:
           readOnly: true
           type: string
-        organizationID:
+        orgID:
           description: The ID of the organization that owns this Task.
           type: string
         name:
@@ -6152,7 +6166,7 @@ components:
             type: string
     CreateProtoResourcesRequest:
       properties:
-        organizationID:
+        orgID:
           type: string
     Proto:
       properties:
@@ -6196,6 +6210,9 @@ components:
         id:
           readOnly: true
           type: string
+        orgID:
+          type: string
+          description: id of the organization that owns the dashboard
         name:
           type: string
           description: user-facing name of the dashboard
@@ -6234,7 +6251,7 @@ components:
               type: string
         id:
           type: string
-        organizationID:
+        orgID:
           type: string
         default:
           type: boolean
@@ -6344,6 +6361,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TelegrafRequestPlugin"
+        organizationID:
+          type: string
     TelegrafRequestPlugin:
       type: object
       discriminator:

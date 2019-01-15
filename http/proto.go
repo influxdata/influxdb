@@ -121,7 +121,7 @@ func (h *ProtoHandler) handleGetProtos(w http.ResponseWriter, r *http.Request) {
 
 type createProtoResourcesRequest struct {
 	ProtoID        platform.ID `json:"-"`
-	OrganizationID platform.ID `json:"organizationID"`
+	OrganizationID platform.ID `json:"orgID"`
 }
 
 // Decode turns an http request into a createProtoResourceRequest.
