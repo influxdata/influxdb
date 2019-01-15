@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
+import {Button, ComponentColor, ComponentSize, ButtonType} from 'src/clockface'
 
 import './DragAndDrop.scss'
 
@@ -133,29 +134,33 @@ class DragAndDrop extends PureComponent<Props, State> {
     if (submitOnDrop) {
       return (
         <span className="drag-and-drop--buttons">
-          <button
-            className="btn btn-sm btn-default"
+          <Button
+            color={ComponentColor.Default}
+            text="Cancel"
+            size={ComponentSize.Medium}
+            type={ButtonType.Button}
             onClick={this.handleCancelFile}
-            type="button"
-          >
-            Cancel
-          </button>
+          />
         </span>
       )
     }
 
     return (
       <span className="drag-and-drop--buttons">
-        <button className="btn btn-sm btn-success" onClick={this.handleSubmit}>
-          {submitText}
-        </button>
-        <button
-          className="btn btn-sm btn-default"
+        <Button
+          color={ComponentColor.Primary}
+          text={submitText}
+          size={ComponentSize.Medium}
+          type={ButtonType.Submit}
+          onClick={this.handleSubmit}
+        />
+        <Button
+          color={ComponentColor.Default}
+          text="Cancel"
+          size={ComponentSize.Medium}
+          type={ButtonType.Submit}
           onClick={this.handleCancelFile}
-          type="button"
-        >
-          Cancel
-        </button>
+        />
       </span>
     )
   }
