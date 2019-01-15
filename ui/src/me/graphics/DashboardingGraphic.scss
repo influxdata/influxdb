@@ -1,0 +1,149 @@
+/*
+  Getting Started Dashboard Graphic
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+$dashboarding-graphic-anim-time: 0.5s;
+
+.dashboarding-graphic--bg {
+  transition: fill 0.25s ease;
+  fill: $g2-kevlar;
+}
+
+.dashboarding-graphic--cell {
+  fill: $g5-pepper;
+  transition: fill 0.25s ease;
+}
+
+.dashboarding-graphic--single-stat {
+  fill: $g5-pepper;
+  transition: fill $dashboarding-graphic-anim-time ease;
+}
+
+.dashboarding-graphic--axes {
+  stroke-width: 1.5px;
+  stroke: $g5-pepper;
+  fill: transparent;
+  transition: fill $dashboarding-graphic-anim-time ease, stroke $dashboarding-graphic-anim-time ease;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-miterlimit: 10;
+}
+
+.dashboarding-graphic--line {
+  fill: none;
+  stroke-width: 1.5px;
+  stroke: $g5-pepper;
+  transition: stroke $dashboarding-graphic-anim-time ease;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-miterlimit: 10;
+}
+
+.line-a,
+.line-b,
+.line-c,
+.line-d {
+  transition: all $dashboarding-graphic-anim-time ease;
+}
+
+.line-a {
+  stroke-dasharray: 122;
+  stroke-dashoffset: 122;
+}
+
+.line-b {
+  stroke-dasharray: 161;
+  stroke-dashoffset: 161;
+}
+
+.line-c {
+  stroke-dasharray: 102;
+  stroke-dashoffset: 102;
+}
+
+.line-d {
+  stroke-dasharray: 99;
+  stroke-dashoffset: 99;
+}
+
+.dashboarding-graphic--bar {
+  fill: $g5-pepper;
+  transition: all $dashboarding-graphic-anim-time ease;
+  height: 0;
+}
+
+/* Hover State */
+.getting-started--card:hover {
+  .dashboarding-graphic--bg {
+    fill: $g3-castle;
+  }
+  .dashboarding-graphic--cell {
+    fill: $g6-smoke;
+  }
+  .single-stat-a {
+    fill: $c-pool;
+  }
+  .single-stat-b {
+    fill: $c-dreamsicle;
+  }
+  .single-stat-c {
+    fill: $c-honeydew;
+  }
+  .single-stat-d {
+    fill: $c-comet;
+  }
+  .table-a {
+    fill: $c-pool;
+  }
+  .table-b {
+    fill: $c-comet;
+  }
+  .line-a,
+  .line-b,
+  .line-c,
+  .line-d {
+    stroke-dashoffset: 0;
+  }
+  .line-a {
+    stroke: $c-honeydew;
+  }
+  .line-b {
+    stroke: $c-pool;
+  }
+  .line-c {
+    stroke: $c-comet;
+  }
+  .line-d {
+    stroke: $c-thunder;
+  }
+  .dashboarding-graphic--axes {
+    stroke: $g7-graphite;
+  }
+  .dashboarding-graphic--bar {
+    fill: $c-pool;
+  }
+  .bar-a {
+    height: 15.2px;
+  }
+  .bar-b {
+    height: 32.2px;
+  }
+  .bar-c {
+    height: 25.8px;
+  }
+  .bar-d {
+    height: 4px;
+  }
+  .bar-e {
+    height: 2px;
+  }
+  .bar-f {
+    height: 7.6px;
+  }
+  .bar-g {
+    height: 4px;
+  }
+}
