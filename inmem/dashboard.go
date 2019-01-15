@@ -3,7 +3,6 @@ package inmem
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -40,13 +39,21 @@ func (s *Service) FindDashboardByID(ctx context.Context, id platform.ID) (*platf
 }
 
 func filterDashboardFn(filter platform.DashboardFilter) func(d *platform.Dashboard) bool {
+	if filter.OrganizationID != nil {
+		return func(d *platform.Dashboard) bool {
+			return d.OrganizationID == *filter.OrganizationID
+		}
+	}
+
 	if len(filter.IDs) > 0 {
-		var sm sync.Map
+		m := map[platform.ID]struct{}{}
 		for _, id := range filter.IDs {
-			sm.Store(id.String(), true)
+			if id != nil {
+				m[*id] = struct{}{}
+			}
 		}
 		return func(d *platform.Dashboard) bool {
-			_, ok := sm.Load(d.ID.String())
+			_, ok := m[d.ID]
 			return ok
 		}
 	}

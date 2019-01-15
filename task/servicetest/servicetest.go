@@ -219,6 +219,21 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		t.Fatalf("expected task status to be inactive, got %q", f.Status)
 	}
 
+	// Update task: just update an option.
+	newStatus = string(backend.TaskActive)
+	newFlux = fmt.Sprintf(scriptDifferentName, 98)
+	f, err = sys.ts.UpdateTask(sys.Ctx, origID, platform.TaskUpdate{Options: options.Options{Name: "task-changed #98"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Flux != newFlux {
+		diff := cmp.Diff(f.Flux, newFlux)
+		t.Fatalf("flux unexpected updated: %s", diff)
+	}
+	if f.Status != newStatus {
+		t.Fatalf("expected task status to be active, got %q", f.Status)
+	}
+
 	// Delete task.
 	if err := sys.ts.DeleteTask(sys.Ctx, origID); err != nil {
 		t.Fatal(err)
@@ -802,7 +817,8 @@ func creds(t *testing.T, s *System) (orgID, userID platform.ID, token string) {
 	return o, u, tok
 }
 
-const scriptFmt = `
+const (
+	scriptFmt = `
 import "http"
 
 option task = {
@@ -812,6 +828,21 @@ option task = {
 	concurrency: 100,
 }
 
-from(bucket:"b") |> http.to(url:"http://example.com")`
+from(bucket:"b")
+	|> http.to(url: "http://example.com")`
+
+	scriptDifferentName = `
+import "http"
+
+option task = {
+	name: "task-changed #%d",
+	cron: "* * * * *",
+	offset: 5s,
+	concurrency: 100,
+}
+
+from(bucket: "b")
+	|> http.to(url: "http://example.com")`
+)
 
 var idGen = snowflake.NewIDGenerator()

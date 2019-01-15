@@ -59,7 +59,7 @@ export const NEW_DEFAULT_DASHBOARD_CELL: NewDefaultCell = {
   h: 4,
 }
 
-type EmptyDefaultDashboard = Pick<
+export type EmptyDefaultDashboard = Pick<
   Dashboard,
   Exclude<keyof Dashboard, 'templates' | 'links' | 'organization' | 'cells'>
 > & {
@@ -70,6 +70,12 @@ export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
   id: '0',
   name: '',
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
+}
+
+export const DashboardTemplate: EmptyDefaultDashboard = {
+  id: '0',
+  name: 'Create a New Dashboard',
+  cells: [],
 }
 
 type NewDefaultDashboard = Pick<

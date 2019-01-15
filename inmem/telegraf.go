@@ -2,7 +2,6 @@ package inmem
 
 import (
 	"context"
-	"fmt"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -32,7 +31,7 @@ func (s *Service) findTelegrafConfigByID(ctx context.Context, id platform.ID) (*
 	if !found {
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
-			Msg:  fmt.Sprintf("telegraf config with ID %v not found", id),
+			Msg:  platform.ErrTelegrafConfigNotFound,
 		}
 	}
 	tc := new(platform.TelegrafConfig)
@@ -69,23 +68,21 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, filter platform.Teleg
 	}
 	for _, item := range m {
 		tc, err := s.findTelegrafConfigByID(ctx, item.ResourceID)
-		if err != nil {
+		if err != nil && platform.ErrorCode(err) != platform.ENotFound {
 			return nil, 0, &platform.Error{
 				// return internal error, for any mapping issue
 				Err: err,
 			}
 		}
-		// Restrict results by organization ID, if it has been provided
-		if filter.OrganizationID != nil && filter.OrganizationID.Valid() && tc.OrganizationID != *filter.OrganizationID {
-			continue
-		}
-		tcs = append(tcs, tc)
-	}
-	if len(tcs) == 0 {
-		return nil, 0, &platform.Error{
-			Msg: "inconsistent user resource mapping and telegraf config",
+		if tc != nil {
+			// Restrict results by organization ID, if it has been provided
+			if filter.OrganizationID != nil && filter.OrganizationID.Valid() && tc.OrganizationID != *filter.OrganizationID {
+				continue
+			}
+			tcs = append(tcs, tc)
 		}
 	}
+
 	return tcs, len(tcs), nil
 }
 

@@ -45,9 +45,10 @@ func TestService_handleGetDashboards(t *testing.T) {
 					FindDashboardsF: func(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
 						return []*platform.Dashboard{
 							{
-								ID:          platformtesting.MustIDBase16("da7aba5e5d81e550"),
-								Name:        "hello",
-								Description: "oh hello there!",
+								ID:             platformtesting.MustIDBase16("da7aba5e5d81e550"),
+								OrganizationID: 1,
+								Name:           "hello",
+								Description:    "oh hello there!",
 								Meta: platform.DashboardMeta{
 									CreatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 									UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
@@ -63,7 +64,8 @@ func TestService_handleGetDashboards(t *testing.T) {
 								},
 							},
 							{
-								ID: platformtesting.MustIDBase16("0ca2204eca2204e0"),
+								ID:             platformtesting.MustIDBase16("0ca2204eca2204e0"),
+								OrganizationID: 1,
 								Meta: platform.DashboardMeta{
 									CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
 									UpdatedAt: time.Date(2012, time.November, 10, 24, 0, 0, 0, time.UTC),
@@ -100,6 +102,7 @@ func TestService_handleGetDashboards(t *testing.T) {
   "dashboards": [
     {
       "id": "da7aba5e5d81e550",
+      "organizationID": "0000000000000001",
       "name": "hello",
       "description": "oh hello there!",
       "labels": [
@@ -130,6 +133,9 @@ func TestService_handleGetDashboards(t *testing.T) {
       ],
       "links": {
         "self": "/api/v2/dashboards/da7aba5e5d81e550",
+        "org": "/api/v2/orgs/0000000000000001",
+        "members": "/api/v2/dashboards/da7aba5e5d81e550/members",
+        "owners": "/api/v2/dashboards/da7aba5e5d81e550/owners",
         "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells",
         "log": "/api/v2/dashboards/da7aba5e5d81e550/log",
         "labels": "/api/v2/dashboards/da7aba5e5d81e550/labels"
@@ -137,6 +143,7 @@ func TestService_handleGetDashboards(t *testing.T) {
     },
     {
       "id": "0ca2204eca2204e0",
+      "organizationID": "0000000000000001",
       "name": "example",
       "description": "",
 			"labels": [
@@ -155,6 +162,9 @@ func TestService_handleGetDashboards(t *testing.T) {
       "cells": [],
       "links": {
         "self": "/api/v2/dashboards/0ca2204eca2204e0",
+        "org": "/api/v2/orgs/0000000000000001",
+        "members": "/api/v2/dashboards/0ca2204eca2204e0/members",
+        "owners": "/api/v2/dashboards/0ca2204eca2204e0/owners",
         "log": "/api/v2/dashboards/0ca2204eca2204e0/log",
         "cells": "/api/v2/dashboards/0ca2204eca2204e0/cells",
         "labels": "/api/v2/dashboards/0ca2204eca2204e0/labels"
@@ -259,7 +269,8 @@ func TestService_handleGetDashboard(t *testing.T) {
 					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*platform.Dashboard, error) {
 						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Dashboard{
-								ID: platformtesting.MustIDBase16("020f755c3c082000"),
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								OrganizationID: 1,
 								Meta: platform.DashboardMeta{
 									CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
 									UpdatedAt: time.Date(2012, time.November, 10, 24, 0, 0, 0, time.UTC),
@@ -290,6 +301,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 				body: `
 {
   "id": "020f755c3c082000",
+  "organizationID": "0000000000000001",
   "name": "hello",
   "description": "",
   "labels": [],
@@ -312,6 +324,9 @@ func TestService_handleGetDashboard(t *testing.T) {
   ],
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000",
+    "org": "/api/v2/orgs/0000000000000001",
+    "members": "/api/v2/dashboards/020f755c3c082000/members",
+    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
     "log": "/api/v2/dashboards/020f755c3c082000/log",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
     "labels": "/api/v2/dashboards/020f755c3c082000/labels"
@@ -417,9 +432,10 @@ func TestService_handlePostDashboard(t *testing.T) {
 			},
 			args: args{
 				dashboard: &platform.Dashboard{
-					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
-					Name:        "hello",
-					Description: "howdy there",
+					ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+					OrganizationID: 1,
+					Name:           "hello",
+					Description:    "howdy there",
 					Cells: []*platform.Cell{
 						{
 							ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
@@ -437,6 +453,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 				body: `
 {
   "id": "020f755c3c082000",
+  "organizationID": "0000000000000001",
   "name": "hello",
   "description": "howdy there",
   "labels": [],
@@ -459,6 +476,9 @@ func TestService_handlePostDashboard(t *testing.T) {
   ],
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000",
+    "org": "/api/v2/orgs/0000000000000001",
+    "members": "/api/v2/dashboards/020f755c3c082000/members",
+    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
     "log": "/api/v2/dashboards/020f755c3c082000/log",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
     "labels": "/api/v2/dashboards/020f755c3c082000/labels"
@@ -632,8 +652,9 @@ func TestService_handlePatchDashboard(t *testing.T) {
 					UpdateDashboardF: func(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
 						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							d := &platform.Dashboard{
-								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
-								Name: "hello",
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								OrganizationID: 1,
+								Name:           "hello",
 								Meta: platform.DashboardMeta{
 									CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
 									UpdatedAt: time.Date(2012, time.November, 10, 25, 0, 0, 0, time.UTC),
@@ -670,6 +691,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 				body: `
 {
   "id": "020f755c3c082000",
+	"organizationID": "0000000000000001",
   "name": "example",
   "description": "",
   "labels": [],
@@ -692,6 +714,9 @@ func TestService_handlePatchDashboard(t *testing.T) {
   ],
   "links": {
     "self": "/api/v2/dashboards/020f755c3c082000",
+    "org": "/api/v2/orgs/0000000000000001",
+    "members": "/api/v2/dashboards/020f755c3c082000/members",
+    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
     "log": "/api/v2/dashboards/020f755c3c082000/log",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
     "labels": "/api/v2/dashboards/020f755c3c082000/labels"

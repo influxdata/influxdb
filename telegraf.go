@@ -15,6 +15,9 @@ import (
 // ErrTelegrafConfigInvalidOrganizationID is the error message for a missing or invalid organization ID.
 const ErrTelegrafConfigInvalidOrganizationID = "invalid organization ID"
 
+// ErrTelegrafConfigNotFound is the error message for a missing telegraf config.
+const ErrTelegrafConfigNotFound = "telegraf config not found"
+
 // ops for buckets error and buckets op logs.
 var (
 	OpFindTelegrafConfigByID = "FindTelegrafConfigByID"
@@ -55,6 +58,7 @@ type TelegrafConfigStore interface {
 // TelegrafConfigFilter represents a set of filter that restrict the returned telegraf configs.
 type TelegrafConfigFilter struct {
 	OrganizationID *ID
+	Organization   *string
 	UserResourceMappingFilter
 }
 

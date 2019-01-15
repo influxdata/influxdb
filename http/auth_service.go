@@ -141,10 +141,25 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 		return
 	}
 
-	user, err := getAuthorizedUser(r, h.UserService)
-	if err != nil {
-		EncodeError(ctx, platform.ErrUnableToCreateToken, w)
-		return
+	var user *platform.User
+	// allow the user id to be specified optionally, if it is not set
+	// we use the id from the authorizer
+	if req.UserID == nil {
+		u, err := getAuthorizedUser(r, h.UserService)
+		if err != nil {
+			EncodeError(ctx, platform.ErrUnableToCreateToken, w)
+			return
+		}
+
+		user = u
+	} else {
+		u, err := h.UserService.FindUserByID(ctx, *req.UserID)
+		if err != nil {
+			EncodeError(ctx, platform.ErrUnableToCreateToken, w)
+			return
+		}
+
+		user = u
 	}
 
 	auth := req.toPlatform(user.ID)
@@ -167,7 +182,7 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newAuthResponse(auth, org, user, perms)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
@@ -175,6 +190,7 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 type postAuthorizationRequest struct {
 	Status      platform.Status       `json:"status"`
 	OrgID       platform.ID           `json:"orgID"`
+	UserID      *platform.ID          `json:"userID,omitempty"`
 	Description string                `json:"description"`
 	Permissions []platform.Permission `json:"permissions"`
 }
@@ -195,6 +211,10 @@ func newPostAuthorizationRequest(a *platform.Authorization) (*postAuthorizationR
 		Description: a.Description,
 		Permissions: a.Permissions,
 		Status:      a.Status,
+	}
+
+	if a.UserID.Valid() {
+		res.UserID = &a.UserID
 	}
 
 	res.SetDefaults()

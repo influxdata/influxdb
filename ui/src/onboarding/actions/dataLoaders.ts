@@ -55,6 +55,11 @@ export type Action =
   | RemovePluginBundle
   | SetPluginConfiguration
   | SetConfigArrayValue
+  | SetScrapingInterval
+  | SetScrapingBucket
+  | AddScrapingURL
+  | RemoveScrapingURL
+  | UpdateScrapingURL
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -201,6 +206,59 @@ export const removeBundlePlugins = (
   payload: {bundle},
 })
 
+interface SetScrapingInterval {
+  type: 'SET_SCRAPING_INTERVAL'
+  payload: {interval: string}
+}
+
+export const setScrapingInterval = (interval: string): SetScrapingInterval => ({
+  type: 'SET_SCRAPING_INTERVAL',
+  payload: {interval},
+})
+
+interface SetScrapingBucket {
+  type: 'SET_SCRAPING_BUCKET'
+  payload: {bucket: string}
+}
+
+export const setScrapingBucket = (bucket: string): SetScrapingBucket => ({
+  type: 'SET_SCRAPING_BUCKET',
+  payload: {bucket},
+})
+
+interface AddScrapingURL {
+  type: 'ADD_SCRAPING_URL'
+  payload: {url: string}
+}
+
+export const addScrapingURL = (url: string): AddScrapingURL => ({
+  type: 'ADD_SCRAPING_URL',
+  payload: {url},
+})
+
+interface RemoveScrapingURL {
+  type: 'REMOVE_SCRAPING_URL'
+  payload: {url: string}
+}
+
+export const removeScrapingURL = (url: string): RemoveScrapingURL => ({
+  type: 'REMOVE_SCRAPING_URL',
+  payload: {url},
+})
+
+interface UpdateScrapingURL {
+  type: 'UPDATE_SCRAPING_URL'
+  payload: {index: number; url: string}
+}
+
+export const updateScrapingURL = (
+  index: number,
+  url: string
+): UpdateScrapingURL => ({
+  type: 'UPDATE_SCRAPING_URL',
+  payload: {index, url},
+})
+
 export const addPluginBundleWithPlugins = (bundle: BundleName) => dispatch => {
   dispatch(addPluginBundle(bundle))
   const plugins = pluginsByBundle[bundle]
@@ -237,32 +295,12 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
       dataLoaders: {telegrafPlugins},
       steps: {
         setupParams: {org, bucket},
+        organizationID,
       },
     },
   } = getState()
 
-  const telegrafConfigsFromServer = await getTelegrafConfigs(org)
-
-  let plugins = []
-  telegrafPlugins.forEach(tp => {
-    if (tp.configured === ConfigurationState.Configured) {
-      plugins = [...plugins, tp.plugin || createNewPlugin(tp.name)]
-    }
-  })
-
-  let body = {
-    name: 'new config',
-    agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
-    plugins,
-  }
-
-  if (telegrafConfigsFromServer.length) {
-    const id = _.get(telegrafConfigsFromServer, '0.id', '')
-
-    await updateTelegrafConfig(id, body)
-    dispatch(setTelegrafConfigID(id))
-    return
-  }
+  const telegrafConfigsFromServer = await getTelegrafConfigs(organizationID)
 
   const influxDB2Out = {
     name: TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2,
@@ -275,7 +313,27 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     },
   }
 
-  plugins = [...plugins, influxDB2Out]
+  let plugins: Plugin[] = [influxDB2Out]
+  telegrafPlugins.forEach(tp => {
+    if (tp.configured === ConfigurationState.Configured) {
+      plugins = [...plugins, tp.plugin || createNewPlugin(tp.name)]
+    }
+  })
+
+  let body = {
+    name: 'new config',
+    agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
+    plugins,
+    organizationID,
+  }
+
+  if (telegrafConfigsFromServer.length) {
+    const id = _.get(telegrafConfigsFromServer, '0.id', '')
+
+    await updateTelegrafConfig(id, body)
+    dispatch(setTelegrafConfigID(id))
+    return
+  }
 
   body = {
     ...body,

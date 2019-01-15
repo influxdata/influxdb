@@ -22,8 +22,6 @@ require (
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/bouk/httprouter v0.0.0-20160817010721-ee8b3818a7f5
-	github.com/caarlos0/ctrlc v1.0.0 // indirect
-	github.com/campoy/unique v0.0.0-20180121183637-88950e537e7e // indirect
 	github.com/cenkalti/backoff v2.1.1+incompatible // indirect
 	github.com/cespare/xxhash v1.1.0
 	github.com/containerd/continuity v0.0.0-20181203112020-004b46473808 // indirect
@@ -38,7 +36,6 @@ require (
 	github.com/docker/go-units v0.3.3 // indirect
 	github.com/duosecurity/duo_api_golang v0.0.0-20190107154727-539434bf0d45 // indirect
 	github.com/elazarl/go-bindata-assetfs v1.0.0
-	github.com/fatih/color v1.7.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/getkin/kin-openapi v0.1.1-0.20190103155524-1fa206970bc1
 	github.com/ghodss/yaml v1.0.0
@@ -53,10 +50,8 @@ require (
 	github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c
 	github.com/google/go-cmp v0.2.0
 	github.com/google/go-github v17.0.0+incompatible
-	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181103185306-d547d1d9531e // indirect
-	github.com/goreleaser/goreleaser v0.94.0
-	github.com/goreleaser/nfpm v0.9.7 // indirect
+	github.com/goreleaser/goreleaser v0.97.0
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/hashicorp/go-hclog v0.0.0-20181001195459-61d530d6c27f // indirect
 	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
@@ -85,7 +80,6 @@ require (
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
 	github.com/keybase/go-crypto v0.0.0-20181127160227-255a5089e85a // indirect
-	github.com/mattn/go-colorable v0.0.9 // indirect
 	github.com/mattn/go-isatty v0.0.4
 	github.com/mattn/go-zglob v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
@@ -130,14 +124,15 @@ require (
 	github.com/yudai/pp v2.0.1+incompatible // indirect
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
-	golang.org/x/net v0.0.0-20181023162649-9b4f9f5ad519
+	golang.org/x/net v0.0.0-20181106065722-10aee1819953
 	golang.org/x/oauth2 v0.0.0-20181017192945-9dcd33a902f4
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
 	golang.org/x/sys v0.0.0-20181205085412-a5c9d58dba9a
 	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
 	golang.org/x/tools v0.0.0-20181221154417-3ad2d988d5e2
 	google.golang.org/api v0.0.0-20181021000519-a2651947f503
-	google.golang.org/grpc v1.15.0
+	google.golang.org/genproto v0.0.0-20190108161440-ae2f86662275 // indirect
+	google.golang.org/grpc v1.16.0
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	gopkg.in/ldap.v2 v2.5.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce // indirect
@@ -149,9 +144,6 @@ require (
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
-replace (
-	github.com/Sirupsen/logrus => github.com/sirupsen/logrus v1.2.0
-	github.com/goreleaser/goreleaser => github.com/influxdata/goreleaser v0.86.2-0.20181010170531-0fd209ba67f5
-)
+replace github.com/Sirupsen/logrus => github.com/sirupsen/logrus v1.2.0
 
 replace github.com/influxdata/platform => /dev/null

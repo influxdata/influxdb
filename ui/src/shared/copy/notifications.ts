@@ -527,16 +527,21 @@ export const dashboardDeleteFailed = (
   message: `Failed to delete Dashboard ${name}: ${errorMessage}.`,
 })
 
-export const cellAdded = (): Notification => ({
+export const cellAdded = (
+  cellName?: string,
+  dashboardName?: string
+): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
-  duration: 1900,
-  message: `Added new cell to dashboard.`,
+  message: `Added new cell ${cellName + ' '}to dashboard ${dashboardName}`,
 })
 
-export const cellAddFailed = (): Notification => ({
+export const cellAddFailed = (
+  cellName?: string,
+  dashboardName?: string
+): Notification => ({
   ...defaultErrorNotification,
-  message: 'Failed to add cell to dashboard',
+  message: `Failed to add cell ${cellName + ' '}to dashboard ${dashboardName}`,
 })
 
 export const cellDeleted = (): Notification => ({

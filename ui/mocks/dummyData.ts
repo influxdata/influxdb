@@ -515,3 +515,109 @@ export const authResponse = {
   },
   request: {},
 }
+
+export const setSetupParamsResponse = {
+  data: {
+    user: {
+      links: {
+        log: '/api/v2/users/033bc62520fe3000/log',
+        self: '/api/v2/users/033bc62520fe3000',
+      },
+      id: '033bc62520fe3000',
+      name: 'iris',
+    },
+    bucket: {
+      links: {
+        labels: '/api/v2/buckets/033bc62534fe3000/labels',
+        log: '/api/v2/buckets/033bc62534fe3000/log',
+        org: '/api/v2/orgs/033bc62534be3000',
+        self: '/api/v2/buckets/033bc62534fe3000',
+      },
+      id: '033bc62534fe3000',
+      organizationID: '033bc62534be3000',
+      organization: 'default',
+      name: 'defbuck',
+      retentionRules: [],
+      labels: [],
+    },
+    org: {
+      links: {
+        buckets: '/api/v2/buckets?org=default',
+        dashboards: '/api/v2/dashboards?org=default',
+        labels: '/api/v2/orgs/033bc62534be3000/labels',
+        log: '/api/v2/orgs/033bc62534be3000/log',
+        members: '/api/v2/orgs/033bc62534be3000/members',
+        secrets: '/api/v2/orgs/033bc62534be3000/secrets',
+        self: '/api/v2/orgs/033bc62534be3000',
+        tasks: '/api/v2/tasks?org=default',
+      },
+      id: '033bc62534be3000',
+      name: 'default',
+    },
+    auth: {
+      id: '033bc62534fe3001',
+      token:
+        'GSEx9BfvjlwQZfjoMgYX9rARwK2Nzc2jaiLdZso9E6X9K1ymldtQ3DwYbCqV3ClJ47sXdI1nLzsP2C1S4u76hA==',
+      status: 'active',
+      description: "iris's Token",
+      orgID: '033bc62534be3000',
+      org: 'default',
+      userID: '033bc62520fe3000',
+      user: 'iris',
+      permissions: [
+        {action: 'read', resource: 'authorizations', orgID: '033bc62534be3000'},
+        {
+          action: 'write',
+          resource: 'authorizations',
+          orgID: '033bc62534be3000',
+        },
+        {action: 'read', resource: 'buckets', orgID: '033bc62534be3000'},
+        {action: 'write', resource: 'buckets', orgID: '033bc62534be3000'},
+        {action: 'read', resource: 'dashboards', orgID: '033bc62534be3000'},
+        {action: 'write', resource: 'dashboards', orgID: '033bc62534be3000'},
+        {action: 'read', resource: 'orgs', orgID: '033bc62534be3000'},
+        {action: 'write', resource: 'orgs', orgID: '033bc62534be3000'},
+        {action: 'read', resource: 'sources', orgID: '033bc62534be3000'},
+        {action: 'write', resource: 'sources', orgID: '033bc62534be3000'},
+        {action: 'read', resource: 'tasks', orgID: '033bc62534be3000'},
+        {action: 'write', resource: 'tasks', orgID: '033bc62534be3000'},
+        {action: 'read', resource: 'telegrafs', orgID: '033bc62534be3000'},
+        {action: 'write', resource: 'telegrafs', orgID: '033bc62534be3000'},
+        {action: 'read', resource: 'users', orgID: '033bc62534be3000'},
+        {action: 'write', resource: 'users', orgID: '033bc62534be3000'},
+      ],
+      links: {
+        self: '/api/v2/authorizations/033bc62534fe3001',
+        user: '/api/v2/users/033bc62520fe3000',
+      },
+    },
+  },
+  status: 201,
+  statusText: 'Created',
+  headers: {
+    'access-control-allow-origin': 'http://localhost:9999',
+    date: 'Fri, 11 Jan 2019 22:49:33 GMT',
+    'access-control-allow-headers':
+      'Accept, Content-Type, Content-Length, Accept-Encoding, Authorization',
+    'transfer-encoding': 'chunked',
+    'access-control-allow-methods': 'POST, GET, OPTIONS, PUT, DELETE',
+    'content-type': 'application/json; charset=utf-8',
+  },
+  config: {
+    transformRequest: {},
+    transformResponse: {},
+    timeout: 0,
+    xsrfCookieName: 'XSRF-TOKEN',
+    xsrfHeaderName: 'X-XSRF-TOKEN',
+    maxContentLength: -1,
+    headers: {
+      Accept: 'application/json, text/plain, */*',
+      'Content-Type': 'application/json',
+    },
+    method: 'post',
+    data:
+      '{"username":"iris","password":"iris","org":"default","bucket":"defbuck"}',
+    url: '/api/v2/setup',
+  },
+  request: {},
+}

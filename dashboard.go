@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"net/url"
 	"sort"
 	"time"
 )
@@ -67,11 +68,12 @@ type DashboardService interface {
 
 // Dashboard represents all visual and query data for a dashboard.
 type Dashboard struct {
-	ID          ID            `json:"id,omitempty"`
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	Cells       []*Cell       `json:"cells"`
-	Meta        DashboardMeta `json:"meta"`
+	ID             ID            `json:"id,omitempty"`
+	OrganizationID ID            `json:"organizationID,omitempty"`
+	Name           string        `json:"name"`
+	Description    string        `json:"description"`
+	Cells          []*Cell       `json:"cells"`
+	Meta           DashboardMeta `json:"meta"`
 }
 
 // DashboardMeta contains meta information about dashboards
@@ -121,7 +123,25 @@ type Cell struct {
 
 // DashboardFilter is a filter for dashboards.
 type DashboardFilter struct {
-	IDs []*ID
+	IDs            []*ID
+	OrganizationID *ID
+	Organization   *string
+}
+
+// QueryParams turns a dashboard filter into query params
+func (f DashboardFilter) QueryParams() url.Values {
+	qp := url.Values{}
+	for _, id := range f.IDs {
+		if id != nil {
+			qp.Add("id", id.String())
+		}
+	}
+
+	if f.OrganizationID != nil {
+		qp.Add("orgID", f.OrganizationID.String())
+	}
+
+	return qp
 }
 
 // DashboardUpdate is the patch structure for a dashboard.

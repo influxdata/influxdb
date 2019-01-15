@@ -77,8 +77,8 @@ func getOnboardingRequest() (req *platform.OnboardingRequest) {
 	fmt.Println(promptWithColor(`Welcome to InfluxDB 2.0!`, colorYellow))
 	req.User = getInput(ui, "Please type your primary username", "")
 	req.Password = getPassword(ui)
-	req.Org = getInput(ui, "Please type your primary organization name.", "")
-	req.Bucket = getInput(ui, "Please type your primary bucket name.", "")
+	req.Org = getInput(ui, "Please type your primary organization name", "")
+	req.Bucket = getInput(ui, "Please type your primary bucket name", "")
 	for {
 		rpStr := getInput(ui, "Please type your retention period in hours (exp 168 for 1 week).\r\nOr press ENTER for infinite.", strconv.Itoa(platform.InfiniteRetention))
 		rp, err := strconv.Atoi(rpStr)

@@ -155,7 +155,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			h := NewTelegrafHandler(zaptest.NewLogger(t), mock.NewUserResourceMappingService(), mock.NewLabelService(), tt.svc, mock.NewUserService())
+			h := NewTelegrafHandler(zaptest.NewLogger(t), mock.NewUserResourceMappingService(), mock.NewLabelService(), tt.svc, mock.NewUserService(), &mock.OrganizationService{})
 			h.ServeHTTP(w, tt.r)
 
 			res := w.Result()
@@ -678,10 +678,11 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			mapping := mock.NewUserResourceMappingService()
 			labels := mock.NewLabelService()
 			users := mock.NewUserService()
+			orgs := &mock.OrganizationService{}
 
 			tt.r.Header.Set("Accept", tt.acceptHeader)
 			w := httptest.NewRecorder()
-			h := NewTelegrafHandler(logger, mapping, labels, tt.svc, users)
+			h := NewTelegrafHandler(logger, mapping, labels, tt.svc, users, orgs)
 
 			h.ServeHTTP(w, tt.r)
 

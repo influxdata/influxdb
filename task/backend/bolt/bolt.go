@@ -205,16 +205,28 @@ func (s *Store) UpdateTask(ctx context.Context, req backend.UpdateTaskRequest) (
 			return backend.ErrTaskNotFound
 		}
 		res.OldScript = string(v)
-
-		newScript := req.Script
+		if res.OldScript == "" {
+			return errors.New("task script not stored properly")
+		}
+		var newScript string
+		if !req.Options.IsZero() || req.Script != "" {
+			if err = req.UpdateFlux(res.OldScript); err != nil {
+				return err
+			}
+			newScript = req.Script
+		}
 		if req.Script == "" {
 			// Need to build op from existing script.
-			op, err = options.FromScript(string(v))
+			op, err = options.FromScript(res.OldScript)
 			if err != nil {
 				return err
 			}
-			newScript = string(v)
+			newScript = res.OldScript
 		} else {
+			op, err = options.FromScript(req.Script)
+			if err != nil {
+				return err
+			}
 			if err := bt.Put(encodedID, []byte(req.Script)); err != nil {
 				return err
 			}

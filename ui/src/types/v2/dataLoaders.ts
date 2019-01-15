@@ -37,6 +37,12 @@ import {
 import {RemoteDataState} from 'src/types'
 import {WritePrecision} from 'src/api'
 
+interface Scraper {
+  interval: string
+  bucket: string
+  urls: string[]
+}
+
 export interface DataLoadersState {
   telegrafPlugins: TelegrafPlugin[]
   pluginBundles: BundleName[]
@@ -46,6 +52,7 @@ export interface DataLoadersState {
   lpStatus: RemoteDataState
   lineProtocolBody: string
   precision: WritePrecision
+  scraper: Scraper
 }
 
 export enum ConfigurationState {
@@ -58,6 +65,7 @@ export enum DataLoaderType {
   CSV = 'CSV',
   Streaming = 'Streaming',
   LineProtocol = 'Line Protocol',
+  Scraping = 'Scraping',
   Empty = '',
 }
 

@@ -9,6 +9,7 @@ import {
   ComponentSize,
   IconFont,
   DropdownChild,
+  ButtonType,
 } from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -41,6 +42,7 @@ class DropdownButton extends Component<Props> {
         onClick={onClick}
         disabled={this.isDisabled}
         title={title}
+        type={ButtonType.Button}
       >
         {this.icon}
         <span className="dropdown--selected">{children}</span>

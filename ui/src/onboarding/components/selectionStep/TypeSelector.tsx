@@ -18,6 +18,7 @@ export interface Props {
 const DATA_SOURCES_OPTIONS = [
   DataLoaderType.Streaming,
   DataLoaderType.LineProtocol,
+  DataLoaderType.Scraping,
 ]
 
 const DATA_SOURCES_LOGOS = {

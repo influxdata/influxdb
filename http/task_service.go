@@ -385,7 +385,6 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		EncodeError(ctx, err, w)
 		return
 	}
-
 	task, err := h.TaskService.UpdateTask(ctx, req.TaskID, req.Update)
 	if err != nil {
 		EncodeError(ctx, err, w)

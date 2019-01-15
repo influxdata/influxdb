@@ -2,9 +2,6 @@
 import React, {ReactElement, PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
-// APIs
-import {trySources} from 'src/onboarding/apis'
-
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {getMe} from 'src/shared/apis/v2/user'
@@ -14,7 +11,6 @@ import {RemoteDataState} from 'src/types'
 
 interface State {
   loading: RemoteDataState
-  isUserSignedIn: boolean
 }
 
 interface OwnProps {
@@ -33,19 +29,13 @@ export class Signin extends PureComponent<Props, State> {
 
     this.state = {
       loading: RemoteDataState.NotStarted,
-      isUserSignedIn: false,
     }
   }
 
   public async componentDidMount() {
-    const isSourcesAllowed = await trySources()
-    const isUserSignedIn = isSourcesAllowed
-    this.setState({loading: RemoteDataState.Done, isUserSignedIn})
+    this.setState({loading: RemoteDataState.Done})
     this.checkForLogin()
     this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
-    if (!isUserSignedIn) {
-      this.props.router.push('/signin')
-    }
   }
 
   public componentWillUnmount() {
@@ -73,7 +63,6 @@ export class Signin extends PureComponent<Props, State> {
       await getMe()
     } catch (error) {
       clearInterval(this.intervalID)
-      this.setState({isUserSignedIn: false})
       this.props.router.push('/signin')
     }
   }

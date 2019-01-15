@@ -128,26 +128,30 @@ func CreateDashboard(
 				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 				},
 			},
 			args: args{
 				dashboard: &platform.Dashboard{
-					ID:   MustIDBase16(dashTwoID),
-					Name: "dashboard2",
+					ID:             MustIDBase16(dashTwoID),
+					OrganizationID: 1,
+					Name:           "dashboard2",
 				},
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "dashboard2",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "dashboard2",
 						Meta: platform.DashboardMeta{
 							CreatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 							UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
@@ -167,25 +171,29 @@ func CreateDashboard(
 				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 				},
 			},
 			args: args{
 				dashboard: &platform.Dashboard{
-					Name: "dashboard2",
+					OrganizationID: 1,
+					Name:           "dashboard2",
 				},
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "dashboard2",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "dashboard2",
 						Meta: platform.DashboardMeta{
 							CreatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 							UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
@@ -248,8 +256,9 @@ func AddDashboardCell(
 				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 				},
 				Views: []*platform.View{
@@ -269,7 +278,8 @@ func AddDashboardCell(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID: MustIDBase16(dashOneID),
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
 						Meta: platform.DashboardMeta{
 							UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
@@ -294,8 +304,9 @@ func AddDashboardCell(
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 				},
 				Views: []*platform.View{
@@ -313,7 +324,8 @@ func AddDashboardCell(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID: MustIDBase16(dashOneID),
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
 						Meta: platform.DashboardMeta{
 							UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
@@ -338,8 +350,9 @@ func AddDashboardCell(
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 				},
 				Views: []*platform.View{
@@ -362,8 +375,9 @@ func AddDashboardCell(
 				},
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 				},
 			},
@@ -415,12 +429,14 @@ func FindDashboardByID(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "dashboard2",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "dashboard2",
 					},
 				},
 			},
@@ -429,8 +445,9 @@ func FindDashboardByID(
 			},
 			wants: wants{
 				dashboard: &platform.Dashboard{
-					ID:   MustIDBase16(dashTwoID),
-					Name: "dashboard2",
+					ID:             MustIDBase16(dashTwoID),
+					OrganizationID: 1,
+					Name:           "dashboard2",
 				},
 			},
 		},
@@ -439,12 +456,14 @@ func FindDashboardByID(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "dashboard2",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "dashboard2",
 					},
 				},
 			},
@@ -483,8 +502,9 @@ func FindDashboards(
 	t *testing.T,
 ) {
 	type args struct {
-		IDs         []*platform.ID
-		findOptions platform.FindOptions
+		IDs            []*platform.ID
+		organizationID *platform.ID
+		findOptions    platform.FindOptions
 	}
 
 	type wants struct {
@@ -502,12 +522,14 @@ func FindDashboards(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "abc",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "xyz",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
 					},
 				},
 			},
@@ -517,12 +539,59 @@ func FindDashboards(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "abc",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "xyz",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find all dashboards by org 10",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
+					},
+					{
+						ID:             2,
+						OrganizationID: 10,
+						Name:           "hello",
+					},
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+					},
+					{
+						ID:             3,
+						OrganizationID: 10,
+						Name:           "world",
+					},
+				},
+			},
+			args: args{
+				findOptions:    platform.DefaultDashboardFindOptions,
+				organizationID: idPtr(10),
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:             2,
+						OrganizationID: 10,
+						Name:           "hello",
+					},
+					{
+						ID:             3,
+						OrganizationID: 10,
+						Name:           "world",
 					},
 				},
 			},
@@ -532,14 +601,16 @@ func FindDashboards(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID: MustIDBase16(dashOneID),
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
 						Meta: platform.DashboardMeta{
 							CreatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
 						Name: "abc",
 					},
 					{
-						ID: MustIDBase16(dashTwoID),
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
 						Meta: platform.DashboardMeta{
 							CreatedAt: time.Date(2004, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
@@ -555,15 +626,17 @@ func FindDashboards(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "xyz",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
 						Meta: platform.DashboardMeta{
 							CreatedAt: time.Date(2004, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
 					},
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "abc",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
 						Meta: platform.DashboardMeta{
 							CreatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
@@ -576,14 +649,16 @@ func FindDashboards(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID: MustIDBase16(dashOneID),
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
 						Meta: platform.DashboardMeta{
 							UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
 						Name: "abc",
 					},
 					{
-						ID: MustIDBase16(dashTwoID),
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
 						Meta: platform.DashboardMeta{
 							UpdatedAt: time.Date(2010, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
@@ -599,14 +674,16 @@ func FindDashboards(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID: MustIDBase16(dashOneID),
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
 						Meta: platform.DashboardMeta{
 							UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
 						Name: "abc",
 					},
 					{
-						ID: MustIDBase16(dashTwoID),
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
 						Meta: platform.DashboardMeta{
 							UpdatedAt: time.Date(2010, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
@@ -620,12 +697,14 @@ func FindDashboards(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "abc",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "xyz",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
 					},
 				},
 			},
@@ -638,8 +717,9 @@ func FindDashboards(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "xyz",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
 					},
 				},
 			},
@@ -649,12 +729,14 @@ func FindDashboards(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "abc",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "xyz",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
 					},
 				},
 			},
@@ -668,12 +750,14 @@ func FindDashboards(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "abc",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "xyz",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
 					},
 				},
 			},
@@ -683,12 +767,14 @@ func FindDashboards(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "abc",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "xyz",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
 					},
 				},
 			},
@@ -713,6 +799,10 @@ func FindDashboards(
 			filter := platform.DashboardFilter{}
 			if tt.args.IDs != nil {
 				filter.IDs = tt.args.IDs
+			}
+
+			if tt.args.organizationID != nil {
+				filter.OrganizationID = tt.args.organizationID
 			}
 
 			dashboards, _, err := s.FindDashboards(ctx, filter, tt.args.findOptions)
@@ -749,12 +839,14 @@ func DeleteDashboard(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						Name: "A",
-						ID:   MustIDBase16(dashOneID),
+						Name:           "A",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
 					},
 					{
-						Name: "B",
-						ID:   MustIDBase16(dashTwoID),
+						Name:           "B",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
 					},
 				},
 			},
@@ -764,8 +856,9 @@ func DeleteDashboard(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						Name: "B",
-						ID:   MustIDBase16(dashTwoID),
+						Name:           "B",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
 					},
 				},
 			},
@@ -775,12 +868,14 @@ func DeleteDashboard(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						Name: "A",
-						ID:   MustIDBase16(dashOneID),
+						Name:           "A",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
 					},
 					{
-						Name: "B",
-						ID:   MustIDBase16(dashTwoID),
+						Name:           "B",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
 					},
 				},
 			},
@@ -795,12 +890,14 @@ func DeleteDashboard(
 				},
 				dashboards: []*platform.Dashboard{
 					{
-						Name: "A",
-						ID:   MustIDBase16(dashOneID),
+						Name:           "A",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
 					},
 					{
-						Name: "B",
-						ID:   MustIDBase16(dashTwoID),
+						Name:           "B",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
 					},
 				},
 			},
@@ -854,12 +951,14 @@ func UpdateDashboard(
 				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "dashboard2",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "dashboard2",
 					},
 				},
 			},
@@ -869,7 +968,8 @@ func UpdateDashboard(
 			},
 			wants: wants{
 				dashboard: &platform.Dashboard{
-					ID: MustIDBase16(dashOneID),
+					ID:             MustIDBase16(dashOneID),
+					OrganizationID: 1,
 					Meta: platform.DashboardMeta{
 						UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 					},
@@ -883,12 +983,14 @@ func UpdateDashboard(
 				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "dashboard2",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "dashboard2",
 					},
 				},
 			},
@@ -898,9 +1000,10 @@ func UpdateDashboard(
 			},
 			wants: wants{
 				dashboard: &platform.Dashboard{
-					ID:          MustIDBase16(dashOneID),
-					Name:        "dashboard1",
-					Description: "changed",
+					ID:             MustIDBase16(dashOneID),
+					OrganizationID: 1,
+					Name:           "dashboard1",
+					Description:    "changed",
 					Meta: platform.DashboardMeta{
 						UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 					},
@@ -913,12 +1016,14 @@ func UpdateDashboard(
 				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "dashboard2",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "dashboard2",
 					},
 				},
 			},
@@ -929,9 +1034,10 @@ func UpdateDashboard(
 			},
 			wants: wants{
 				dashboard: &platform.Dashboard{
-					ID:          MustIDBase16(dashOneID),
-					Name:        "changed",
-					Description: "changed",
+					ID:             MustIDBase16(dashOneID),
+					OrganizationID: 1,
+					Name:           "changed",
+					Description:    "changed",
 					Meta: platform.DashboardMeta{
 						UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 					},
@@ -944,12 +1050,14 @@ func UpdateDashboard(
 				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 					},
 					{
-						ID:   MustIDBase16(dashTwoID),
-						Name: "dashboard2",
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "dashboard2",
 					},
 				},
 			},
@@ -1023,8 +1131,9 @@ func RemoveDashboardCell(
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
@@ -1050,7 +1159,8 @@ func RemoveDashboardCell(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID: MustIDBase16(dashOneID),
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
 						Meta: platform.DashboardMeta{
 							UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
@@ -1119,8 +1229,9 @@ func UpdateDashboardCell(
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
@@ -1142,7 +1253,8 @@ func UpdateDashboardCell(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID: MustIDBase16(dashOneID),
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
 						Meta: platform.DashboardMeta{
 							UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
@@ -1171,8 +1283,9 @@ func UpdateDashboardCell(
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
@@ -1192,8 +1305,9 @@ func UpdateDashboardCell(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
@@ -1222,8 +1336,9 @@ func UpdateDashboardCell(
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
@@ -1245,8 +1360,9 @@ func UpdateDashboardCell(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
@@ -1330,8 +1446,9 @@ func ReplaceDashboardCells(
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
@@ -1359,8 +1476,9 @@ func ReplaceDashboardCells(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Meta: platform.DashboardMeta{
 							UpdatedAt: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC),
 						},
@@ -1396,8 +1514,9 @@ func ReplaceDashboardCells(
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
@@ -1427,8 +1546,9 @@ func ReplaceDashboardCells(
 				},
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   MustIDBase16(dashOneID),
-						Name: "dashboard1",
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
@@ -1486,8 +1606,9 @@ func GetDashboardCellView(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   1,
-						Name: "dashboard1",
+						ID:             1,
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: 100,
@@ -1514,8 +1635,9 @@ func GetDashboardCellView(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   1,
-						Name: "dashboard1",
+						ID:             1,
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: 100,
@@ -1581,8 +1703,9 @@ func UpdateDashboardCellView(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   1,
-						Name: "dashboard1",
+						ID:             1,
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: 100,
@@ -1611,8 +1734,9 @@ func UpdateDashboardCellView(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   1,
-						Name: "dashboard1",
+						ID:             1,
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: 100,
@@ -1646,8 +1770,9 @@ func UpdateDashboardCellView(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   1,
-						Name: "dashboard1",
+						ID:             1,
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: 100,
@@ -1683,8 +1808,9 @@ func UpdateDashboardCellView(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   1,
-						Name: "dashboard1",
+						ID:             1,
+						OrganizationID: 1,
+						Name:           "dashboard1",
 						Cells: []*platform.Cell{
 							{
 								ID: 100,

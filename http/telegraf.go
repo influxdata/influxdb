@@ -24,6 +24,7 @@ type TelegrafHandler struct {
 	UserResourceMappingService platform.UserResourceMappingService
 	LabelService               platform.LabelService
 	UserService                platform.UserService
+	OrganizationService        platform.OrganizationService
 }
 
 const (
@@ -44,6 +45,7 @@ func NewTelegrafHandler(
 	labelService platform.LabelService,
 	telegrafSvc platform.TelegrafConfigStore,
 	userService platform.UserService,
+	orgService platform.OrganizationService,
 ) *TelegrafHandler {
 	h := &TelegrafHandler{
 		Router: NewRouter(),
@@ -53,6 +55,7 @@ func NewTelegrafHandler(
 		TelegrafService:            telegrafSvc,
 		Logger:                     logger,
 		UserService:                userService,
+		OrganizationService:        orgService,
 	}
 	h.HandlerFunc("POST", telegrafsPath, h.handlePostTelegraf)
 	h.HandlerFunc("GET", telegrafsPath, h.handleGetTelegrafs)
@@ -194,16 +197,24 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform.TelegrafConfigFilter, error) {
 	f := &platform.TelegrafConfigFilter{}
 	urm, err := decodeUserResourceMappingFilter(ctx, r)
-	if err != nil {
+	if err == nil {
 		f.UserResourceMappingFilter = *urm
 	}
 
 	q := r.URL.Query()
 	if orgIDStr := q.Get("orgID"); orgIDStr != "" {
-		orgID, _ := platform.IDFromString(orgIDStr)
+		orgID, err := platform.IDFromString(orgIDStr)
+		if err != nil {
+			return f, &platform.Error{
+				Code: platform.EInvalid,
+				Msg:  "orgID is invalid",
+				Err:  err,
+			}
+		}
 		f.OrganizationID = orgID
+	} else if orgNameStr := q.Get("org"); orgNameStr != "" {
+		*f.Organization = orgNameStr
 	}
-
 	return f, err
 }
 
