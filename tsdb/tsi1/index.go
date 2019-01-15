@@ -592,13 +592,15 @@ func (i *Index) DropMeasurement(name []byte) error {
 		}()
 	}
 
+	// Remove any cached bitmaps for the measurement.
+	i.tagValueCache.DeleteMeasurement(name)
+
 	// Check for error
 	for i := 0; i < cap(errC); i++ {
 		if err := <-errC; err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 

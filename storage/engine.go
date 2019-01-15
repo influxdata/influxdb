@@ -377,9 +377,9 @@ func (e *Engine) DeleteBucket(orgID, bucketID platform.ID) error {
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.
 	encoded := tsdb.EncodeName(orgID, bucketID)
-	prefix := models.EscapeMeasurement(encoded[:])
+	name := models.EscapeMeasurement(encoded[:])
 
-	return e.engine.DeletePrefix(prefix, math.MinInt64, math.MaxInt64)
+	return e.engine.DeleteBucket(name, math.MinInt64, math.MaxInt64)
 }
 
 // DeleteSeriesRangeWithPredicate deletes all series data iterated over if fn returns

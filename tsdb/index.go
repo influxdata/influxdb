@@ -609,7 +609,7 @@ func DifferenceSeriesIDIterators(itr0, itr1 SeriesIDIterator) SeriesIDIterator {
 	if a := NewSeriesIDSetIterators([]SeriesIDIterator{itr0, itr1}); a != nil {
 		itr0.Close()
 		itr1.Close()
-		return NewSeriesIDSetIterator(a[0].SeriesIDSet().AndNot(a[1].SeriesIDSet()))
+		return NewSeriesIDSetIterator(NewSeriesIDSetNegate(a[0].SeriesIDSet(), a[1].SeriesIDSet()))
 	}
 
 	return &seriesIDDifferenceIterator{itrs: [2]SeriesIDIterator{itr0, itr1}}

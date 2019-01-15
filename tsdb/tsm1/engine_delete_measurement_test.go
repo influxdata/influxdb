@@ -44,7 +44,7 @@ func TestEngine_DeletePrefix(t *testing.T) {
 		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 	}
 
-	if err := e.DeletePrefix([]byte("cpu"), 0, 3); err != nil {
+	if err := e.DeleteBucket([]byte("cpu"), 0, 3); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
@@ -90,7 +90,7 @@ func TestEngine_DeletePrefix(t *testing.T) {
 	iter.Close()
 
 	// Deleting remaining series should remove them from the series.
-	if err := e.DeletePrefix([]byte("cpu"), 0, 9); err != nil {
+	if err := e.DeleteBucket([]byte("cpu"), 0, 9); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
