@@ -32,6 +32,10 @@ export default class EmptyQueryView extends PureComponent<Props> {
       fallbackNote,
     } = this.props
 
+    if (loading === RemoteDataState.NotStarted) {
+      return <EmptyGraphMessage message={emptyGraphCopy} />
+    }
+
     if (!queries.length) {
       return <EmptyGraphMessage message={emptyGraphCopy} />
     }
