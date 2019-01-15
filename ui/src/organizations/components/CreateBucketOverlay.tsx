@@ -47,7 +47,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     const {bucket, nameInputStatus, errorMessage, ruleType} = this.state
 
     return (
-      <OverlayContainer>
+      <OverlayContainer maxWidth={500}>
         <OverlayHeading
           title="Create Bucket"
           onDismiss={this.props.onCloseModal}

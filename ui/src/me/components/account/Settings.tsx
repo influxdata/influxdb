@@ -35,15 +35,15 @@ export class Settings extends PureComponent<StateProps, State> {
     const {me} = this.state
 
     return (
-      <Panel>
-        <Panel.Header title="About Me">
-          <Button text="Edit About Me" />
-        </Panel.Header>
-        <Panel.Body>
-          <Form>
-            <Grid>
-              <Grid.Row>
-                <Grid.Column widthXS={Columns.Six}>
+      <Grid>
+        <Grid.Row>
+          <Grid.Column widthXS={Columns.Six}>
+            <Panel>
+              <Panel.Header title="About Me">
+                <Button text="Edit About Me" />
+              </Panel.Header>
+              <Panel.Body>
+                <Form>
                   <Form.Element label="Username">
                     <Input
                       value={me.name}
@@ -54,12 +54,12 @@ export class Settings extends PureComponent<StateProps, State> {
                       onChange={this.handleChangeInput}
                     />
                   </Form.Element>
-                </Grid.Column>
-              </Grid.Row>
-            </Grid>
-          </Form>
-        </Panel.Body>
-      </Panel>
+                </Form>
+              </Panel.Body>
+            </Panel>
+          </Grid.Column>
+        </Grid.Row>
+      </Grid>
     )
   }
 

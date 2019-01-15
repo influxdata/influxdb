@@ -104,7 +104,7 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
     }
 
     return (
-      <Label.Container limitChildCount={4}>
+      <Label.Container limitChildCount={4} resourceName="this Task">
         {task.labels.map(label => (
           <Label
             key={label.resourceID}

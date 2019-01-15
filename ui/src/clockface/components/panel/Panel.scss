@@ -5,6 +5,7 @@
 
 $panel-gutter: $ix-marg-b * 2;
 $panel-background: $g3-castle;
+$panel-nested-background: $g4-onyx;
 
 .panel {
   display: flex;
@@ -54,4 +55,14 @@ $panel-background: $g3-castle;
 //  ----------------------------------------------------------------------------
 .panel-body hr {
   margin: $ix-marg-c 0;
+}
+
+//  Panels Nested inside Tabbed Pages
+//  ----------------------------------------------------------------------------
+.tabbed-page .panel {
+  background-color: $panel-nested-background;
+
+  .panel-footer {
+    background-color: mix($panel-nested-background, $g3-castle, 50%);
+  }
 }
