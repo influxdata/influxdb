@@ -17,7 +17,7 @@ import {
 import EditableDescription from 'src/shared/components/editable_description/EditableDescription'
 
 // Types
-import {Dashboard} from 'src/types/v2'
+import {Dashboard, Organization} from 'src/types/v2'
 import {Alignment} from 'src/clockface'
 import moment from 'moment'
 
@@ -29,6 +29,7 @@ import {
 
 interface Props {
   dashboard: Dashboard
+  orgs: Organization[]
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
@@ -65,7 +66,7 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
             />
           </ComponentSpacer>
         </IndexList.Cell>
-        <IndexList.Cell>Owner does not come back from API</IndexList.Cell>
+        <IndexList.Cell>{this.ownerName}</IndexList.Cell>
         {this.lastModifiedCell}
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Left} stackChildren={Stack.Columns}>
@@ -144,6 +145,12 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     const {dashboard} = this.props
 
     return dashboard.name || DEFAULT_DASHBOARD_NAME
+  }
+
+  private get ownerName(): string {
+    const {dashboard, orgs} = this.props
+    const ownerOrg = orgs.find(o => o.id === dashboard.orgID)
+    return ownerOrg.name
   }
 
   private get nameClassName(): string {

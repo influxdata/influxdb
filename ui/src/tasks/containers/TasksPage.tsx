@@ -166,7 +166,7 @@ class TasksPage extends PureComponent<Props, State> {
       }
       let orgIDFilter = true
       if (dropdownOrgID && dropdownOrgID !== allOrganizationsID) {
-        orgIDFilter = t.organizationID === dropdownOrgID
+        orgIDFilter = t.orgID === dropdownOrgID
       }
       return searchTermFilter && activeFilter && orgIDFilter
     })

@@ -47,7 +47,7 @@ export const getDashboard = async (id: string): Promise<Dashboard> => {
 export const createDashboard = async (
   dashboard: Partial<Dashboard>
 ): Promise<Dashboard> => {
-  const {data} = await dashboardsAPI.dashboardsPost('', dashboard)
+  const {data} = await dashboardsAPI.dashboardsPost(dashboard)
   return {...data, cells: addDashboardIDToCells(data.cells, data.id)}
 }
 

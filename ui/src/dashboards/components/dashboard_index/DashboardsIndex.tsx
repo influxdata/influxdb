@@ -50,7 +50,7 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 // Types
 import {Notification} from 'src/types/notifications'
 import {DashboardFile} from 'src/types/v2/dashboards'
-import {Links, Cell, Dashboard, AppState} from 'src/types/v2'
+import {Links, Cell, Dashboard, AppState, Organization} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -70,6 +70,7 @@ interface DispatchProps {
 interface StateProps {
   links: Links
   dashboards: Dashboard[]
+  orgs: Organization[]
 }
 
 interface OwnProps {
@@ -106,7 +107,7 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {dashboards, notify, links, handleUpdateDashboard} = this.props
+    const {dashboards, notify, links, handleUpdateDashboard, orgs} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -133,6 +134,7 @@ class DashboardIndex extends PureComponent<Props, State> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <DashboardsContents
               dashboards={dashboards}
+              orgs={orgs}
               onSetDefaultDashboard={this.handleSetDefaultDashboard}
               defaultDashboardLink={links.defaultDashboard}
               onDeleteDashboard={this.handleDeleteDashboard}
@@ -167,11 +169,12 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   private handleCreateDashboard = async (): Promise<void> => {
-    const {router, notify} = this.props
+    const {router, notify, orgs} = this.props
     try {
       const newDashboard = {
         name: DEFAULT_DASHBOARD_NAME,
         cells: [],
+        orgID: orgs[0].id,
       }
       const data = await createDashboard(newDashboard)
       router.push(`/dashboards/${data.id}`)
@@ -183,12 +186,13 @@ class DashboardIndex extends PureComponent<Props, State> {
   private handleCloneDashboard = async (
     dashboard: Dashboard
   ): Promise<void> => {
-    const {router, notify} = this.props
+    const {router, notify, orgs} = this.props
     const name = `${dashboard.name} (clone)`
     try {
       const data = await createDashboard({
         ...dashboard,
         name,
+        orgID: orgs[0].id,
       })
       router.push(`/dashboards/${data.id}`)
     } catch (error) {
@@ -296,9 +300,10 @@ class DashboardIndex extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {dashboards, links} = state
+  const {dashboards, links, orgs} = state
 
   return {
+    orgs,
     dashboards,
     links,
   }

@@ -343,7 +343,7 @@ export interface Bucket {
      * @type {string}
      * @memberof Bucket
      */
-    organizationID?: string;
+    orgID?: string;
     /**
      * rules to expire or retain data.  No rules means data never expires.
      * @type {Array<BucketRetentionRules>}
@@ -612,6 +612,12 @@ export interface Dashboard {
      * @memberof Dashboard
      */
     id?: string;
+    /**
+     * id of organization that owns dashboard
+     * @type {string}
+     * @memberof Dashboard
+     */
+    orgID?: string;
     /**
      * user-facing name of the dashboard
      * @type {string}
@@ -2526,7 +2532,7 @@ export interface Source {
      * @type {string}
      * @memberof Source
      */
-    organizationID?: string;
+    orgID?: string;
     /**
      * 
      * @type {string}
@@ -2695,7 +2701,7 @@ export interface Task {
      * @type {string}
      * @memberof Task
      */
-    organizationID?: string;
+    orgID?: string;
     /**
      * A description of the task.
      * @type {string}
@@ -2784,7 +2790,7 @@ export interface TaskCreateRequest {
      * @type {string}
      * @memberof TaskCreateRequest
      */
-    organizationID: string;
+    orgID: string;
     /**
      * Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
      * @type {string}
@@ -7696,16 +7702,11 @@ export const DashboardsApiAxiosParamCreator = function (configuration?: Configur
         /**
          * 
          * @summary Create a dashboard
-         * @param {string} org specifies the organization of the resource
          * @param {Dashboard} dashboard dashboard to create
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        dashboardsPost(org: string, dashboard: Dashboard, options: any = {}): RequestArgs {
-            // verify required parameter 'org' is not null or undefined
-            if (org === null || org === undefined) {
-                throw new RequiredError('org','Required parameter org was null or undefined when calling dashboardsPost.');
-            }
+        dashboardsPost(dashboard: Dashboard, options: any = {}): RequestArgs {
             // verify required parameter 'dashboard' is not null or undefined
             if (dashboard === null || dashboard === undefined) {
                 throw new RequiredError('dashboard','Required parameter dashboard was null or undefined when calling dashboardsPost.');
@@ -7719,10 +7720,6 @@ export const DashboardsApiAxiosParamCreator = function (configuration?: Configur
             const localVarRequestOptions = Object.assign({ method: 'POST' }, baseOptions, options);
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
-
-            if (org !== undefined) {
-                localVarQueryParameter['org'] = org;
-            }
 
             localVarHeaderParameter['Content-Type'] = 'application/json';
 
@@ -8036,13 +8033,12 @@ export const DashboardsApiFp = function(configuration?: Configuration) {
         /**
          * 
          * @summary Create a dashboard
-         * @param {string} org specifies the organization of the resource
          * @param {Dashboard} dashboard dashboard to create
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        dashboardsPost(org: string, dashboard: Dashboard, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Dashboard> {
-            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsPost(org, dashboard, options);
+        dashboardsPost(dashboard: Dashboard, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Dashboard> {
+            const localVarAxiosArgs = DashboardsApiAxiosParamCreator(configuration).dashboardsPost(dashboard, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -8270,13 +8266,12 @@ export const DashboardsApiFactory = function (configuration?: Configuration, bas
         /**
          * 
          * @summary Create a dashboard
-         * @param {string} org specifies the organization of the resource
          * @param {Dashboard} dashboard dashboard to create
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        dashboardsPost(org: string, dashboard: Dashboard, options?: any) {
-            return DashboardsApiFp(configuration).dashboardsPost(org, dashboard, options)(axios, basePath);
+        dashboardsPost(dashboard: Dashboard, options?: any) {
+            return DashboardsApiFp(configuration).dashboardsPost(dashboard, options)(axios, basePath);
         },
     };
 };
@@ -8539,14 +8534,13 @@ export class DashboardsApi extends BaseAPI {
     /**
      * 
      * @summary Create a dashboard
-     * @param {string} org specifies the organization of the resource
      * @param {Dashboard} dashboard dashboard to create
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof DashboardsApi
      */
-    public dashboardsPost(org: string, dashboard: Dashboard, options?: any) {
-        return DashboardsApiFp(this.configuration).dashboardsPost(org, dashboard, options)(this.axios, this.basePath);
+    public dashboardsPost(dashboard: Dashboard, options?: any) {
+        return DashboardsApiFp(this.configuration).dashboardsPost(dashboard, options)(this.axios, this.basePath);
     }
 
 }

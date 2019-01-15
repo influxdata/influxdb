@@ -102,7 +102,7 @@ func TestService_handleGetDashboards(t *testing.T) {
   "dashboards": [
     {
       "id": "da7aba5e5d81e550",
-      "organizationID": "0000000000000001",
+      "orgID": "0000000000000001",
       "name": "hello",
       "description": "oh hello there!",
       "labels": [
@@ -143,7 +143,7 @@ func TestService_handleGetDashboards(t *testing.T) {
     },
     {
       "id": "0ca2204eca2204e0",
-      "organizationID": "0000000000000001",
+      "orgID": "0000000000000001",
       "name": "example",
       "description": "",
 			"labels": [
@@ -301,7 +301,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 				body: `
 {
   "id": "020f755c3c082000",
-  "organizationID": "0000000000000001",
+  "orgID": "0000000000000001",
   "name": "hello",
   "description": "",
   "labels": [],
@@ -453,7 +453,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 				body: `
 {
   "id": "020f755c3c082000",
-  "organizationID": "0000000000000001",
+  "orgID": "0000000000000001",
   "name": "hello",
   "description": "howdy there",
   "labels": [],
@@ -691,7 +691,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 				body: `
 {
   "id": "020f755c3c082000",
-	"organizationID": "0000000000000001",
+	"orgID": "0000000000000001",
   "name": "example",
   "description": "",
   "labels": [],

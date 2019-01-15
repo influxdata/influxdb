@@ -2,7 +2,7 @@ export interface Bucket {
   id: string
   name: string
   organization: string
-  organizationID: string
+  orgID: string
   rp?: string
   retentionRules: RetentionRule[]
   links: BucketLinks

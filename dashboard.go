@@ -69,7 +69,7 @@ type DashboardService interface {
 // Dashboard represents all visual and query data for a dashboard.
 type Dashboard struct {
 	ID             ID            `json:"id,omitempty"`
-	OrganizationID ID            `json:"organizationID,omitempty"`
+	OrganizationID ID            `json:"orgID,omitempty"`
 	Name           string        `json:"name"`
 	Description    string        `json:"description"`
 	Cells          []*Cell       `json:"cells"`

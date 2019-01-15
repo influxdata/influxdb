@@ -295,12 +295,12 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
       dataLoaders: {telegrafPlugins},
       steps: {
         setupParams: {org, bucket},
-        organizationID,
+        orgID,
       },
     },
   } = getState()
 
-  const telegrafConfigsFromServer = await getTelegrafConfigs(organizationID)
+  const telegrafConfigsFromServer = await getTelegrafConfigs(orgID)
 
   const influxDB2Out = {
     name: TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2,
@@ -324,7 +324,7 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     name: 'new config',
     agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
     plugins,
-    organizationID,
+    orgID,
   }
 
   if (telegrafConfigsFromServer.length) {
@@ -340,7 +340,7 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     plugins,
   }
 
-  const created = await createTelegrafConfig(org, body)
+  const created = await createTelegrafConfig(orgID, body)
   dispatch(setTelegrafConfigID(created.id))
 }
 

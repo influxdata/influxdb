@@ -25,6 +25,7 @@ import {
   TelegrafPluginInputDocker,
   Task as TaskApi,
   Label,
+  Organization,
 } from 'src/api'
 
 export const links: Links = {
@@ -203,6 +204,7 @@ export const template: Template = {
 
 export const dashboard: Dashboard = {
   id: '1',
+  orgID: '02ee9e2a29d73000',
   cells: [],
   name: 'd1',
   links: {
@@ -239,6 +241,7 @@ export const dashboardWithLabels: Dashboard = {
   id: '1',
   cells: [],
   name: 'd1',
+  orgID: '02ee9e2a29d73000',
   links: {
     self: 'self/link',
     cells: 'cells/link',
@@ -263,33 +266,35 @@ export const cell: Cell = {
   },
 }
 
+export const orgs: Organization[] = [
+  {
+    links: {
+      buckets: '/api/v2/buckets?org=RadicalOrganization',
+      dashboards: '/api/v2/dashboards?org=RadicalOrganization',
+      self: '/api/v2/orgs/02ee9e2a29d73000',
+      tasks: '/api/v2/tasks?org=RadicalOrganization',
+    },
+    id: '02ee9e2a29d73000',
+    name: 'RadicalOrganization',
+  },
+]
+
 export const tasks: Task[] = [
   {
     id: '02ef9deff2141000',
-    organizationID: '02ee9e2a29d73000',
+    orgID: '02ee9e2a29d73000',
     name: 'pasdlak',
     status: TaskApi.StatusEnum.Active,
     owner: {id: '02ee9e2a19d73000', name: ''},
     flux:
       'option task = {\n  name: "pasdlak",\n  cron: "2 0 * * *"\n}\nfrom(bucket: "inbucket") \n|> range(start: -1h)',
     cron: '2 0 * * *',
-    organization: {
-      links: {
-        buckets: '/api/v2/buckets?org=RadicalOrganization',
-        dashboards: '/api/v2/dashboards?org=RadicalOrganization',
-        log: '/api/v2/orgs/02ee9e2a29d73000/log',
-        members: '/api/v2/orgs/02ee9e2a29d73000/members',
-        self: '/api/v2/orgs/02ee9e2a29d73000',
-        tasks: '/api/v2/tasks?org=RadicalOrganization',
-      },
-      id: '02ee9e2a29d73000',
-      name: 'RadicalOrganization',
-    },
+    organization: orgs[0],
     labels: [],
   },
   {
     id: '02f12c50dba72000',
-    organizationID: '02ee9e2a29d73000',
+    orgID: '02ee9e2a29d73000',
     name: 'somename',
     status: TaskApi.StatusEnum.Active,
     owner: {id: '02ee9e2a19d73000', name: ''},
@@ -300,8 +305,6 @@ export const tasks: Task[] = [
       links: {
         buckets: '/api/v2/buckets?org=RadicalOrganization',
         dashboards: '/api/v2/dashboards?org=RadicalOrganization',
-        log: '/api/v2/orgs/02ee9e2a29d73000/log',
-        members: '/api/v2/orgs/02ee9e2a29d73000/members',
         self: '/api/v2/orgs/02ee9e2a29d73000',
         tasks: '/api/v2/tasks?org=RadicalOrganization',
       },
@@ -435,6 +438,7 @@ export const influxDB2Plugin = {
 
 export const telegrafConfig = {
   id: telegrafConfigID,
+  orgID: '1',
   name: 'in n out',
   created: '2018-11-28T18:56:48.854337-08:00',
   lastModified: '2018-11-28T18:56:48.854337-08:00',
@@ -534,7 +538,7 @@ export const setSetupParamsResponse = {
         self: '/api/v2/buckets/033bc62534fe3000',
       },
       id: '033bc62534fe3000',
-      organizationID: '033bc62534be3000',
+      orgID: '033bc62534be3000',
       organization: 'default',
       name: 'defbuck',
       retentionRules: [],
