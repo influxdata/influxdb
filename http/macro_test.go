@@ -42,18 +42,20 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 					FindMacrosF: func(ctx context.Context, filter platform.MacroFilter, opts ...platform.FindOptions) ([]*platform.Macro, error) {
 						return []*platform.Macro{
 							{
-								ID:       platformtesting.MustIDBase16("6162207574726f71"),
-								Name:     "macro-a",
-								Selected: []string{"b"},
+								ID:             platformtesting.MustIDBase16("6162207574726f71"),
+								OrganizationID: platform.ID(1),
+								Name:           "macro-a",
+								Selected:       []string{"b"},
 								Arguments: &platform.MacroArguments{
 									Type:   "constant",
 									Values: platform.MacroConstantValues{"a", "b"},
 								},
 							},
 							{
-								ID:       platformtesting.MustIDBase16("61726920617a696f"),
-								Name:     "macro-b",
-								Selected: []string{"c"},
+								ID:             platformtesting.MustIDBase16("61726920617a696f"),
+								OrganizationID: platform.ID(1),
+								Name:           "macro-b",
+								Selected:       []string{"c"},
 								Arguments: &platform.MacroArguments{
 									Type:   "map",
 									Values: platform.MacroMapValues{"a": "b", "c": "d"},
@@ -66,7 +68,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body:        `{"macros":[{"id":"6162207574726f71","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71"}},{"id":"61726920617a696f","name":"macro-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/macros/61726920617a696f"}}],"links":{"self":"/api/v2/macros?descending=false&limit=20&offset=0"}}`,
+				body:        `{"macros":[{"id":"6162207574726f71","org_id":"0000000000000001","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71","org": "/api/v2/orgs/0000000000000001"}},{"id":"61726920617a696f","org_id":"0000000000000001","name":"macro-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/macros/61726920617a696f","org": "/api/v2/orgs/0000000000000001"}}],"links":{"self":"/api/v2/macros?descending=false&limit=20&offset=0"}}`,
 			},
 		},
 		{
@@ -89,48 +91,37 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 				body:        `{"links":{"self":"/api/v2/macros?descending=false&limit=1&offset=0"},"macros":[]}`,
 			},
 		},
-		// todo(leodido) > activate whenever filtering functionality is done
-		// {
-		// 	name: "get all macros belonging to an org",
-		// 	fields: fields{
-		// 		&mock.MacroService{
-		// 			FindMacrosF: func(ctx context.Context, filter platform.MacroFilter, opts ...platform.FindOptions) ([]*platform.Macro, error) {
-		// 				return []*platform.Macro{
-		// 					{
-		// 						ID:             platformtesting.MustIDBase16("6162207574726f71"),
-		// 						OrganizationID: platformtesting.MustIDBase16("0000000000000022"),
-		// 						Name:           "macro-a",
-		// 						Selected:       []string{"b"},
-		// 						Arguments: &platform.MacroArguments{
-		// 							Type:   "constant",
-		// 							Values: platform.MacroConstantValues{"a", "b"},
-		// 						},
-		// 					},
-		// 					{
-		// 						ID:             platformtesting.MustIDBase16("61726920617a696f"),
-		// 						OrganizationID: platformtesting.MustIDBase16("0000000000000016"),
-		// 						Name:           "macro-b",
-		// 						Selected:       []string{"c"},
-		// 						Arguments: &platform.MacroArguments{
-		// 							Type:   "map",
-		// 							Values: platform.MacroMapValues{"a": "b", "c": "d"},
-		// 						},
-		// 					},
-		// 				}, nil
-		// 			},
-		// 		},
-		// 	},
-		// 	args: args{
-		// 		map[string][]string{
-		// 			"orgID": []string{"0000000000000022"},
-		// 		},
-		// 	},
-		// 	wants: wants{
-		// 		statusCode:  http.StatusOK,
-		// 		contentType: "application/json; charset=utf-8",
-		// 		body:        `{"macros":[{"id":"6162207574726f71","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71"}}],"links":{"self":"/api/v2/macros?descending=false&limit=20&offset=0"}}`,
-		// 	},
-		// },
+		{
+			name: "get all macros belonging to an org",
+			fields: fields{
+				&mock.MacroService{
+					FindMacrosF: func(ctx context.Context, filter platform.MacroFilter, opts ...platform.FindOptions) ([]*platform.Macro, error) {
+						return []*platform.Macro{
+							{
+								ID:             platformtesting.MustIDBase16("6162207574726f71"),
+								OrganizationID: platformtesting.MustIDBase16("0000000000000001"),
+								Name:           "macro-a",
+								Selected:       []string{"b"},
+								Arguments: &platform.MacroArguments{
+									Type:   "constant",
+									Values: platform.MacroConstantValues{"a", "b"},
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				map[string][]string{
+					"orgID": []string{"0000000000000001"},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body:        `{"macros":[{"id":"6162207574726f71","org_id":"0000000000000001","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71","org":"/api/v2/orgs/0000000000000001"}}],"links":{"self":"/api/v2/macros?descending=false&limit=20&offset=0&orgID=0000000000000001"}}`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -188,7 +179,7 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "get a single macro",
+			name: "get a single macro by id",
 			args: args{
 				id: "75650d0a636f6d70",
 			},
@@ -196,9 +187,10 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 				&mock.MacroService{
 					FindMacroByIDF: func(ctx context.Context, id platform.ID) (*platform.Macro, error) {
 						return &platform.Macro{
-							ID:       platformtesting.MustIDBase16("75650d0a636f6d70"),
-							Name:     "macro-a",
-							Selected: []string{"b"},
+							ID:             platformtesting.MustIDBase16("75650d0a636f6d70"),
+							OrganizationID: platform.ID(1),
+							Name:           "macro-a",
+							Selected:       []string{"b"},
 							Arguments: &platform.MacroArguments{
 								Type:   "constant",
 								Values: platform.MacroConstantValues{"a", "b"},
@@ -210,7 +202,7 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/75650d0a636f6d70"}}
+				body: `{"id":"75650d0a636f6d70","org_id":"0000000000000001","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000001"}}
 `,
 			},
 		},
@@ -314,6 +306,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 				&mock.MacroService{
 					CreateMacroF: func(ctx context.Context, m *platform.Macro) error {
 						m.ID = platformtesting.MustIDBase16("75650d0a636f6d70")
+						m.OrganizationID = platform.ID(1)
 						return nil
 					},
 				},
@@ -322,6 +315,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 				macro: `
 {
   "name": "my-great-macro",
+  "org_id": "0000000000000001",
   "arguments": {
     "type": "constant",
     "values": [
@@ -338,7 +332,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  201,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","name":"my-great-macro","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"links":{"self":"/api/v2/macros/75650d0a636f6d70"}}
+				body: `{"id":"75650d0a636f6d70","org_id":"0000000000000001","name":"my-great-macro","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"links":{"self":"/api/v2/macros/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000001"}}
 `,
 			},
 		},
@@ -435,8 +429,9 @@ func TestMacroService_handlePatchMacro(t *testing.T) {
 				&mock.MacroService{
 					UpdateMacroF: func(ctx context.Context, id platform.ID, u *platform.MacroUpdate) (*platform.Macro, error) {
 						return &platform.Macro{
-							ID:   platformtesting.MustIDBase16("75650d0a636f6d70"),
-							Name: "new-name",
+							ID:             platformtesting.MustIDBase16("75650d0a636f6d70"),
+							OrganizationID: platform.ID(2),
+							Name:           "new-name",
 							Arguments: &platform.MacroArguments{
 								Type:   "constant",
 								Values: platform.MacroConstantValues{},
@@ -453,7 +448,7 @@ func TestMacroService_handlePatchMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"links":{"self":"/api/v2/macros/75650d0a636f6d70"}}
+				body: `{"id":"75650d0a636f6d70","org_id":"0000000000000002","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"links":{"self":"/api/v2/macros/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000002"}}
 `,
 			},
 		},

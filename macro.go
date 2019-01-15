@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 )
 
 // ErrMacroNotFound is the error msg for a missing macro.
@@ -64,17 +65,17 @@ type MacroFilter struct {
 //
 // It converts MacroFilter fields to url query params.
 func (f MacroFilter) QueryParams() map[string][]string {
-	qp := map[string][]string{}
+	qp := url.Values{}
 	if f.ID != nil {
-		qp["id"] = []string{f.ID.String()}
+		qp.Add("id", f.ID.String())
 	}
 
 	if f.OrganizationID != nil {
-		qp["orgID"] = []string{f.OrganizationID.String()}
+		qp.Add("orgID", f.OrganizationID.String())
 	}
 
 	if f.Organization != nil {
-		qp["org"] = []string{*f.Organization}
+		qp.Add("org", *f.Organization)
 	}
 
 	return qp

@@ -63,7 +63,7 @@ func (s *Service) FindMacros(ctx context.Context, filter platform.MacroFilter, o
 
 	if filter.ID != nil {
 		m, err := s.FindMacroByID(ctx, *filter.ID)
-		if err != nil {
+		if err != nil && platform.ErrorCode(err) != platform.ENotFound {
 			return macros, &platform.Error{
 				Err: err,
 				Op:  op,
