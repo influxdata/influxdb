@@ -98,6 +98,7 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
           limitChildCount={4}
           className="index-list--labels"
           onEdit={this.handleEditLabels}
+          resourceName="this Dashboard"
         />
       )
     }
@@ -107,6 +108,7 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
         limitChildCount={4}
         className="index-list--labels"
         onEdit={this.handleEditLabels}
+        resourceName="this Dashboard"
       >
         {dashboard.labels.map(label => (
           <Label
