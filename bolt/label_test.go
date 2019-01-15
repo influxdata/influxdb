@@ -14,10 +14,12 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}
+	c.IDGenerator = f.IDGenerator
+
 	ctx := context.Background()
 	for _, l := range f.Labels {
-		if err := c.CreateLabel(ctx, l); err != nil {
-			t.Fatalf("failed to populate labels")
+		if err := c.PutLabel(ctx, l); err != nil {
+			t.Fatalf("failed to populate labels: %v", err)
 		}
 	}
 

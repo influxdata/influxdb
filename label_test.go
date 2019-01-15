@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	platform "github.com/influxdata/influxdb"
-	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func TestLabelValidate(t *testing.T) {
@@ -20,15 +19,12 @@ func TestLabelValidate(t *testing.T) {
 		{
 			name: "valid label",
 			fields: fields{
-				ResourceID: platformtesting.MustIDBase16("020f755c3c082000"),
-				Name:       "iot",
+				Name: "iot",
 			},
 		},
 		{
-			name: "label requires a name",
-			fields: fields{
-				ResourceID: platformtesting.MustIDBase16("020f755c3c082000"),
-			},
+			name:    "label requires a name",
+			fields:  fields{},
 			wantErr: true,
 		},
 	}

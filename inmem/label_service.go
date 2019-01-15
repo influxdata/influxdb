@@ -92,6 +92,7 @@ func (s *Service) FindResourceLabels(ctx context.Context, filter platform.LabelM
 }
 
 func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
+	l.ID = s.IDGenerator.ID()
 	// label, _ := s.FindLabelBy(ctx, l.ResourceID, l.Name)
 	// if label != nil {
 	// 	return &platform.Error{
@@ -110,7 +111,7 @@ func (s *Service) CreateLabelMapping(ctx context.Context, m *platform.LabelMappi
 	return nil
 }
 
-func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+func (s *Service) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
 	// label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
 	// if err != nil {
 	// 	return nil, &platform.Error{

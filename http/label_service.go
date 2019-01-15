@@ -265,7 +265,7 @@ func newPatchLabelHandler(s platform.LabelService) http.HandlerFunc {
 			return
 		}
 
-		label, err := s.UpdateLabel(ctx, req.label, req.upd)
+		label, err := s.UpdateLabel(ctx, req.label.ID, req.upd)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -431,7 +431,7 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *platform.Label
 	return nil
 }
 
-func (s *LabelService) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+func (s *LabelService) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
 	return nil, nil
 }
 

@@ -33,7 +33,7 @@ type LabelService interface {
 	CreateLabelMapping(ctx context.Context, m *LabelMapping) error
 
 	// UpdateLabel updates a label with a changeset.
-	UpdateLabel(ctx context.Context, l *Label, upd LabelUpdate) (*Label, error)
+	UpdateLabel(ctx context.Context, id ID, upd LabelUpdate) (*Label, error)
 
 	// DeleteLabel deletes a label
 	DeleteLabel(ctx context.Context, id ID) error

@@ -3,7 +3,6 @@ package bolt
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	bolt "github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb"
@@ -124,37 +123,30 @@ func (c *Client) DeleteLabelMapping(ctx context.Context, m *platform.LabelMappin
 }
 
 func (c *Client) CreateLabel(ctx context.Context, l *platform.Label) error {
-	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.createLabel(ctx, tx, l)
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		l.ID = c.IDGenerator.ID()
+
+		return c.putLabel(ctx, tx, l)
 	})
-}
 
-func (c *Client) createLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) error {
-	unique := c.uniqueLabel(ctx, tx, l)
-
-	if !unique {
+	if err != nil {
 		return &platform.Error{
-			Code: platform.EConflict,
-			Op:   getOp(platform.OpCreateLabel),
-			Msg:  fmt.Sprintf("label %s already exists", l.Name),
+			Err: err,
+			Op:  getOp(platform.OpCreateLabel),
 		}
 	}
-
-	v, err := json.Marshal(l)
-	if err != nil {
-		return err
-	}
-
-	key, err := labelKey(l)
-	if err != nil {
-		return err
-	}
-
-	if err := tx.Bucket(labelBucket).Put(key, v); err != nil {
-		return err
-	}
-
 	return nil
+}
+
+func (c *Client) PutLabel(ctx context.Context, l *platform.Label) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		var err error
+		pe := c.putLabel(ctx, tx, l)
+		if pe != nil {
+			err = pe
+		}
+		return err
+	})
 }
 
 func labelKey(l *platform.Label) ([]byte, error) {
@@ -188,21 +180,11 @@ func (c *Client) forEachLabel(ctx context.Context, tx *bolt.Tx, fn func(*platfor
 	return nil
 }
 
-func (c *Client) uniqueLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) bool {
-	key, err := labelKey(l)
-	if err != nil {
-		return false
-	}
-
-	v := tx.Bucket(labelBucket).Get(key)
-	return len(v) == 0
-}
-
 // UpdateLabel updates a label.
-func (c *Client) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+func (c *Client) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
 	var label *platform.Label
 	err := c.db.Update(func(tx *bolt.Tx) error {
-		labelResponse, pe := c.updateLabel(ctx, tx, l, upd)
+		labelResponse, pe := c.updateLabel(ctx, tx, id, upd)
 		if pe != nil {
 			return &platform.Error{
 				Err: pe,
@@ -216,8 +198,8 @@ func (c *Client) UpdateLabel(ctx context.Context, l *platform.Label, upd platfor
 	return label, err
 }
 
-func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
-	label, err := c.findLabelByID(ctx, tx, l.ID)
+func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+	label, err := c.findLabelByID(ctx, tx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -259,12 +241,14 @@ func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) e
 		}
 	}
 
-	key, pe := labelKey(l)
-	if pe != nil {
-		return pe
+	encodedID, err := l.ID.Encode()
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
 	}
 
-	if err := tx.Bucket(labelBucket).Put(key, v); err != nil {
+	if err := tx.Bucket(labelBucket).Put(encodedID, v); err != nil {
 		return &platform.Error{
 			Err: err,
 		}
