@@ -58,50 +58,22 @@ func TestService_handleGetLabels(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/labels",
+    "self": "/api/v2/labels"
   },
   "labels": [
     {
-      "links": {
-        "org": "/api/v2/orgs/50f7ba1150f7ba11",
-        "self": "/api/v2/labels/0b501e7e557ab1ed",
-        "log": "/api/v2/labels/0b501e7e557ab1ed/log",
-        "labels": "/api/v2/labels/0b501e7e557ab1ed/labels"
-      },
       "id": "0b501e7e557ab1ed",
-      "organizationID": "50f7ba1150f7ba11",
       "name": "hello",
-      "retentionRules": [{"type": "expire", "everySeconds": 2}],
-      "labels": [
-        {
-          "resourceID": "0b501e7e557ab1ed",
-          "name": "label",
-          "properties": {
-            "color": "fff000"
-          }
-        }
-      ]
+      "properties": {
+        "color": "fff000"
+      }
     },
     {
-      "links": {
-        "org": "/api/v2/orgs/7e55e118dbabb1ed",
-        "self": "/api/v2/labels/c0175f0077a77005",
-        "log": "/api/v2/labels/c0175f0077a77005/log",
-        "labels": "/api/v2/labels/c0175f0077a77005/labels"
-      },
       "id": "c0175f0077a77005",
-      "organizationID": "7e55e118dbabb1ed",
       "name": "example",
-      "retentionRules": [{"type": "expire", "everySeconds": 86400}],
-      "labels": [
-        {
-          "resourceID": "c0175f0077a77005",
-          "name": "label",
-          "properties": {
-            "color": "fff000"
-          }
-        }
-      ]
+      "properties": {
+        "color": "fff000"
+      }
     }
   ]
 }

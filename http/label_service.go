@@ -45,7 +45,19 @@ func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
+	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	err = encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(labels))
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
 }
 
 // func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {}

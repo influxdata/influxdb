@@ -113,7 +113,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
       "name": "task1",
 			"labels": [
         {
-          "resourceID": "0000000000000001",
+          "id": "fc3dc670a4be9b9a",
           "name": "label",
           "properties": {
             "color": "fff000"
@@ -142,7 +142,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
       "name": "task2",
 			"labels": [
         {
-          "resourceID": "0000000000000002",
+          "id": "fc3dc670a4be9b9a",
           "name": "label",
           "properties": {
             "color": "fff000"
