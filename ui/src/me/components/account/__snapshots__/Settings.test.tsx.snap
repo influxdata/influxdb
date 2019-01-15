@@ -13,81 +13,81 @@ exports[`Account rendering renders! 1`] = `
     }
   }
 >
-  <Panel>
+  <Grid>
     <div
-      className="panel"
+      className="grid--container"
     >
-      <PanelHeader
-        title="About Me"
+      <Select
+        type={[Function]}
       >
-        <div
-          className="panel-header"
+        <GridRow
+          key=".0"
         >
           <div
-            className="panel-title"
+            className="grid--row"
           >
-            About Me
-          </div>
-          <div
-            className="panel-controls"
-          >
-            <ComponentSpacer
-              align="right"
+            <GridColumn
+              widthXS={6}
             >
               <div
-                className="component-spacer component-spacer--right component-spacer--horizontal"
+                className="grid--column col-xs-6"
               >
-                <Button
-                  active={false}
-                  color="default"
-                  shape="none"
-                  size="sm"
-                  status="default"
-                  text="Edit About Me"
-                  type="button"
-                >
-                  <button
-                    className="button button-sm button-default"
-                    disabled={false}
-                    tabIndex={0}
-                    title="Edit About Me"
-                    type="button"
+                <Panel>
+                  <div
+                    className="panel"
                   >
-                    Edit About Me
-                  </button>
-                </Button>
-              </div>
-            </ComponentSpacer>
-          </div>
-        </div>
-      </PanelHeader>
-      <PanelBody>
-        <div
-          className="panel-body"
-        >
-          <Form>
-            <form
-              className="form--wrapper"
-              onSubmit={[Function]}
-            >
-              <Grid>
-                <div
-                  className="grid--container"
-                >
-                  <Select
-                    type={[Function]}
-                  >
-                    <GridRow
-                      key=".0"
+                    <PanelHeader
+                      title="About Me"
                     >
                       <div
-                        className="grid--row"
+                        className="panel-header"
                       >
-                        <GridColumn
-                          widthXS={6}
+                        <div
+                          className="panel-title"
                         >
-                          <div
-                            className="grid--column col-xs-6"
+                          About Me
+                        </div>
+                        <div
+                          className="panel-controls"
+                        >
+                          <ComponentSpacer
+                            align="right"
+                          >
+                            <div
+                              className="component-spacer component-spacer--right component-spacer--horizontal"
+                            >
+                              <Button
+                                active={false}
+                                color="default"
+                                shape="none"
+                                size="sm"
+                                status="default"
+                                text="Edit About Me"
+                                type="button"
+                              >
+                                <button
+                                  className="button button-sm button-default"
+                                  disabled={false}
+                                  tabIndex={0}
+                                  title="Edit About Me"
+                                  type="button"
+                                >
+                                  Edit About Me
+                                </button>
+                              </Button>
+                            </div>
+                          </ComponentSpacer>
+                        </div>
+                      </div>
+                    </PanelHeader>
+                    <PanelBody>
+                      <div
+                        className="panel-body"
+                      >
+                        <Form>
+                          <form
+                            className="form--wrapper"
+                            onSubmit={[Function]}
                           >
                             <FormElement
                               label="Username"
@@ -148,18 +148,18 @@ exports[`Account rendering renders! 1`] = `
                                 </Input>
                               </div>
                             </FormElement>
-                          </div>
-                        </GridColumn>
+                          </form>
+                        </Form>
                       </div>
-                    </GridRow>
-                  </Select>
-                </div>
-              </Grid>
-            </form>
-          </Form>
-        </div>
-      </PanelBody>
+                    </PanelBody>
+                  </div>
+                </Panel>
+              </div>
+            </GridColumn>
+          </div>
+        </GridRow>
+      </Select>
     </div>
-  </Panel>
+  </Grid>
 </Settings>
 `;

@@ -4,135 +4,250 @@ exports[`Account rendering renders! 1`] = `
 <Tokens
   authorizationsLink="api/v2/authorizations"
 >
-  <Panel>
+  <TabbedPageHeader>
     <div
-      className="panel"
+      className="tabbed-page-section--header"
     >
-      <PanelBody>
+      <Input
+        autoFocus={false}
+        autocomplete="off"
+        disabledTitleText="This input is disabled"
+        icon="search"
+        name=""
+        onChange={[Function]}
+        placeholder="Filter Tokens..."
+        size="sm"
+        spellCheck={false}
+        status="default"
+        titleText=""
+        value=""
+        widthPixels={256}
+      >
         <div
-          className="panel-body"
+          className="input input-sm input--has-icon"
+          style={
+            Object {
+              "width": "256px",
+            }
+          }
         >
-          <Input
+          <input
+            autoComplete="off"
             autoFocus={false}
-            autocomplete="off"
-            disabledTitleText="This input is disabled"
+            className="input-field"
+            disabled={false}
             name=""
             onChange={[Function]}
-            placeholder="Filter tokens by column"
-            size="sm"
+            placeholder="Filter Tokens..."
             spellCheck={false}
-            status="default"
-            titleText=""
+            title=""
             value=""
-            widthPixels={256}
-          >
-            <div
-              className="input input-sm"
-              style={
-                Object {
-                  "width": "256px",
-                }
-              }
-            >
-              <input
-                autoComplete="off"
-                autoFocus={false}
-                className="input-field"
-                disabled={false}
-                name=""
-                onChange={[Function]}
-                placeholder="Filter tokens by column"
-                spellCheck={false}
-                title=""
-                value=""
-              />
-              <div
-                className="input-shadow"
-              />
-            </div>
-          </Input>
+          />
+          <span
+            className="input-icon icon search"
+          />
+          <div
+            className="input-shadow"
+          />
         </div>
-      </PanelBody>
-      <PanelBody>
-        <div
-          className="panel-body"
+      </Input>
+    </div>
+  </TabbedPageHeader>
+  <ResourceFetcher
+    fetcher={[Function]}
+  >
+    <Spinner
+      loading="Done"
+    >
+      <FilterList
+        list={
+          Array [
+            Object {
+              "description": "im a token",
+              "id": "030444b11fb10000",
+              "links": Object {
+                "self": "/api/v2/authorizations/030444b11fb10000",
+                "user": "/api/v2/users/030444b10a710000",
+              },
+              "orgID": "030444b10a713000",
+              "permissions": Array [
+                Object {
+                  "action": "write",
+                  "resource": Object {
+                    "type": "orgs",
+                  },
+                },
+                Object {
+                  "action": "write",
+                  "resource": Object {
+                    "type": "buckets",
+                  },
+                },
+              ],
+              "status": "active",
+              "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
+              "user": "watts",
+              "userID": "030444b10a710000",
+            },
+            Object {
+              "description": "im a token",
+              "id": "1",
+              "links": Object {
+                "self": "/api/v2/authorizations/030444b11fb10000",
+                "user": "/api/v2/users/030444b10a710000",
+              },
+              "orgID": "030444b10a713000",
+              "permissions": Array [
+                Object {
+                  "action": "write",
+                  "resource": Object {
+                    "type": "orgs",
+                  },
+                },
+                Object {
+                  "action": "write",
+                  "resource": Object {
+                    "type": "buckets",
+                  },
+                },
+              ],
+              "status": "active",
+              "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
+              "user": "watts",
+              "userID": "030444b10a710000",
+            },
+          ]
+        }
+        searchKeys={
+          Array [
+            "status",
+            "description",
+          ]
+        }
+        searchTerm=""
+      >
+        <TokenList
+          auths={
+            Array [
+              Object {
+                "description": "im a token",
+                "id": "030444b11fb10000",
+                "links": Object {
+                  "self": "/api/v2/authorizations/030444b11fb10000",
+                  "user": "/api/v2/users/030444b10a710000",
+                },
+                "orgID": "030444b10a713000",
+                "permissions": Array [
+                  Object {
+                    "action": "write",
+                    "resource": Object {
+                      "type": "orgs",
+                    },
+                  },
+                  Object {
+                    "action": "write",
+                    "resource": Object {
+                      "type": "buckets",
+                    },
+                  },
+                ],
+                "status": "active",
+                "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
+                "user": "watts",
+                "userID": "030444b10a710000",
+              },
+              Object {
+                "description": "im a token",
+                "id": "1",
+                "links": Object {
+                  "self": "/api/v2/authorizations/030444b11fb10000",
+                  "user": "/api/v2/users/030444b10a710000",
+                },
+                "orgID": "030444b10a713000",
+                "permissions": Array [
+                  Object {
+                    "action": "write",
+                    "resource": Object {
+                      "type": "orgs",
+                    },
+                  },
+                  Object {
+                    "action": "write",
+                    "resource": Object {
+                      "type": "buckets",
+                    },
+                  },
+                ],
+                "status": "active",
+                "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
+                "user": "watts",
+                "userID": "030444b10a710000",
+              },
+            ]
+          }
+          searchTerm=""
         >
-          <ResourceFetcher
-            fetcher={[Function]}
-          >
-            <Spinner
-              loading="Done"
+          <IndexList>
+            <table
+              className="index-list"
             >
-              <FilterList
-                list={
-                  Array [
-                    Object {
-                      "description": "im a token",
-                      "id": "030444b11fb10000",
-                      "links": Object {
-                        "self": "/api/v2/authorizations/030444b11fb10000",
-                        "user": "/api/v2/users/030444b10a710000",
-                      },
-                      "orgID": "030444b10a713000",
-                      "permissions": Array [
-                        Object {
-                          "action": "write",
-                          "resource": Object {
-                            "type": "orgs",
-                          },
-                        },
-                        Object {
-                          "action": "write",
-                          "resource": Object {
-                            "type": "buckets",
-                          },
-                        },
-                      ],
-                      "status": "active",
-                      "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
-                      "user": "watts",
-                      "userID": "030444b10a710000",
-                    },
-                    Object {
-                      "description": "im a token",
-                      "id": "1",
-                      "links": Object {
-                        "self": "/api/v2/authorizations/030444b11fb10000",
-                        "user": "/api/v2/users/030444b10a710000",
-                      },
-                      "orgID": "030444b10a713000",
-                      "permissions": Array [
-                        Object {
-                          "action": "write",
-                          "resource": Object {
-                            "type": "orgs",
-                          },
-                        },
-                        Object {
-                          "action": "write",
-                          "resource": Object {
-                            "type": "buckets",
-                          },
-                        },
-                      ],
-                      "status": "active",
-                      "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
-                      "user": "watts",
-                      "userID": "030444b10a710000",
-                    },
-                  ]
+              <IndexListHeader>
+                <thead
+                  className="index-list--header"
+                >
+                  <tr>
+                    <IndexListHeaderCell
+                      alignment="left"
+                      columnName="Description"
+                    >
+                      <th
+                        className="index-list--header-cell index-list--align-left"
+                        onClick={[Function]}
+                        style={
+                          Object {
+                            "width": undefined,
+                          }
+                        }
+                      >
+                        Description
+                      </th>
+                    </IndexListHeaderCell>
+                    <IndexListHeaderCell
+                      alignment="left"
+                      columnName="Status"
+                    >
+                      <th
+                        className="index-list--header-cell index-list--align-left"
+                        onClick={[Function]}
+                        style={
+                          Object {
+                            "width": undefined,
+                          }
+                        }
+                      >
+                        Status
+                      </th>
+                    </IndexListHeaderCell>
+                  </tr>
+                </thead>
+              </IndexListHeader>
+              <IndexListBody
+                columnCount={2}
+                emptyState={
+                  <EmptyState
+                    size="lg"
+                  >
+                    <EmptyStateText
+                      text="There are not any Tokens associated with this account. Contact your administrator"
+                    />
+                  </EmptyState>
                 }
-                searchKeys={
-                  Array [
-                    "status",
-                    "description",
-                  ]
-                }
-                searchTerm=""
               >
-                <TokenList
-                  auths={
-                    Array [
+                <tbody
+                  className="index-list--body"
+                >
+                  <TokenRow
+                    auth={
                       Object {
                         "description": "im a token",
                         "id": "030444b11fb10000",
@@ -159,7 +274,96 @@ exports[`Account rendering renders! 1`] = `
                         "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
                         "user": "watts",
                         "userID": "030444b10a710000",
-                      },
+                      }
+                    }
+                    key="030444b11fb10000"
+                    onClickDescription={[Function]}
+                  >
+                    <IndexListRow
+                      disabled={false}
+                    >
+                      <tr
+                        className="index-list--row"
+                      >
+                        <IndexListRowCell
+                          alignment="left"
+                          revealOnHover={false}
+                        >
+                          <td
+                            className="index-list--row-cell index-list--align-left"
+                          >
+                            <div
+                              className="index-list--cell"
+                            >
+                              <a
+                                data-test="token-description-030444b11fb10000"
+                                href="#"
+                                onClick={[Function]}
+                              >
+                                im a token
+                              </a>
+                            </div>
+                          </td>
+                        </IndexListRowCell>
+                        <IndexListRowCell
+                          alignment="left"
+                          revealOnHover={false}
+                        >
+                          <td
+                            className="index-list--row-cell index-list--align-left"
+                          >
+                            <div
+                              className="index-list--cell"
+                            >
+                              active
+                            </div>
+                          </td>
+                        </IndexListRowCell>
+                        <IndexListRowCell
+                          alignment="right"
+                          revealOnHover={true}
+                        >
+                          <td
+                            className="index-list--row-cell index-list--show-hover index-list--align-right"
+                          >
+                            <div
+                              className="index-list--cell"
+                            >
+                              <ComponentSpacer
+                                align="right"
+                              >
+                                <div
+                                  className="component-spacer component-spacer--right component-spacer--horizontal"
+                                >
+                                  <Button
+                                    active={false}
+                                    color="danger"
+                                    shape="none"
+                                    size="xs"
+                                    status="default"
+                                    text="Delete"
+                                    type="button"
+                                  >
+                                    <button
+                                      className="button button-xs button-danger"
+                                      disabled={false}
+                                      tabIndex={0}
+                                      title="Delete"
+                                      type="button"
+                                    >
+                                      Delete
+                                    </button>
+                                  </Button>
+                                </div>
+                              </ComponentSpacer>
+                            </div>
+                          </td>
+                        </IndexListRowCell>
+                      </tr>
+                    </IndexListRow>
+                  </TokenRow>
+                  <TokenRow
+                    auth={
                       Object {
                         "description": "im a token",
                         "id": "1",
@@ -186,328 +390,116 @@ exports[`Account rendering renders! 1`] = `
                         "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
                         "user": "watts",
                         "userID": "030444b10a710000",
-                      },
-                    ]
-                  }
-                  searchTerm=""
-                >
-                  <IndexList>
-                    <table
-                      className="index-list"
-                    >
-                      <IndexListHeader>
-                        <thead
-                          className="index-list--header"
-                        >
-                          <tr>
-                            <IndexListHeaderCell
-                              alignment="left"
-                              columnName="Description"
-                            >
-                              <th
-                                className="index-list--header-cell index-list--align-left"
-                                onClick={[Function]}
-                                style={
-                                  Object {
-                                    "width": undefined,
-                                  }
-                                }
-                              >
-                                Description
-                              </th>
-                            </IndexListHeaderCell>
-                            <IndexListHeaderCell
-                              alignment="left"
-                              columnName="Status"
-                            >
-                              <th
-                                className="index-list--header-cell index-list--align-left"
-                                onClick={[Function]}
-                                style={
-                                  Object {
-                                    "width": undefined,
-                                  }
-                                }
-                              >
-                                Status
-                              </th>
-                            </IndexListHeaderCell>
-                          </tr>
-                        </thead>
-                      </IndexListHeader>
-                      <IndexListBody
-                        columnCount={2}
-                        emptyState={
-                          <EmptyState
-                            size="lg"
-                          >
-                            <EmptyStateText
-                              text="Could not find any tokens"
-                            />
-                          </EmptyState>
-                        }
-                      >
-                        <tbody
-                          className="index-list--body"
-                        >
-                          <TokenRow
-                            auth={
-                              Object {
-                                "description": "im a token",
-                                "id": "030444b11fb10000",
-                                "links": Object {
-                                  "self": "/api/v2/authorizations/030444b11fb10000",
-                                  "user": "/api/v2/users/030444b10a710000",
-                                },
-                                "orgID": "030444b10a713000",
-                                "permissions": Array [
-                                  Object {
-                                    "action": "write",
-                                    "resource": Object {
-                                      "type": "orgs",
-                                    },
-                                  },
-                                  Object {
-                                    "action": "write",
-                                    "resource": Object {
-                                      "type": "buckets",
-                                    },
-                                  },
-                                ],
-                                "status": "active",
-                                "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
-                                "user": "watts",
-                                "userID": "030444b10a710000",
-                              }
-                            }
-                            key="030444b11fb10000"
-                            onClickDescription={[Function]}
-                          >
-                            <IndexListRow
-                              disabled={false}
-                            >
-                              <tr
-                                className="index-list--row"
-                              >
-                                <IndexListRowCell
-                                  alignment="left"
-                                  revealOnHover={false}
-                                >
-                                  <td
-                                    className="index-list--row-cell index-list--align-left"
-                                  >
-                                    <div
-                                      className="index-list--cell"
-                                    >
-                                      <a
-                                        data-test="token-description-030444b11fb10000"
-                                        href="#"
-                                        onClick={[Function]}
-                                      >
-                                        im a token
-                                      </a>
-                                    </div>
-                                  </td>
-                                </IndexListRowCell>
-                                <IndexListRowCell
-                                  alignment="left"
-                                  revealOnHover={false}
-                                >
-                                  <td
-                                    className="index-list--row-cell index-list--align-left"
-                                  >
-                                    <div
-                                      className="index-list--cell"
-                                    >
-                                      active
-                                    </div>
-                                  </td>
-                                </IndexListRowCell>
-                                <IndexListRowCell
-                                  alignment="right"
-                                  revealOnHover={true}
-                                >
-                                  <td
-                                    className="index-list--row-cell index-list--show-hover index-list--align-right"
-                                  >
-                                    <div
-                                      className="index-list--cell"
-                                    >
-                                      <ComponentSpacer
-                                        align="right"
-                                      >
-                                        <div
-                                          className="component-spacer component-spacer--right component-spacer--horizontal"
-                                        >
-                                          <Button
-                                            active={false}
-                                            color="danger"
-                                            shape="none"
-                                            size="xs"
-                                            status="default"
-                                            text="Delete"
-                                            type="button"
-                                          >
-                                            <button
-                                              className="button button-xs button-danger"
-                                              disabled={false}
-                                              tabIndex={0}
-                                              title="Delete"
-                                              type="button"
-                                            >
-                                              Delete
-                                            </button>
-                                          </Button>
-                                        </div>
-                                      </ComponentSpacer>
-                                    </div>
-                                  </td>
-                                </IndexListRowCell>
-                              </tr>
-                            </IndexListRow>
-                          </TokenRow>
-                          <TokenRow
-                            auth={
-                              Object {
-                                "description": "im a token",
-                                "id": "1",
-                                "links": Object {
-                                  "self": "/api/v2/authorizations/030444b11fb10000",
-                                  "user": "/api/v2/users/030444b10a710000",
-                                },
-                                "orgID": "030444b10a713000",
-                                "permissions": Array [
-                                  Object {
-                                    "action": "write",
-                                    "resource": Object {
-                                      "type": "orgs",
-                                    },
-                                  },
-                                  Object {
-                                    "action": "write",
-                                    "resource": Object {
-                                      "type": "buckets",
-                                    },
-                                  },
-                                ],
-                                "status": "active",
-                                "token": "ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==",
-                                "user": "watts",
-                                "userID": "030444b10a710000",
-                              }
-                            }
-                            key="1"
-                            onClickDescription={[Function]}
-                          >
-                            <IndexListRow
-                              disabled={false}
-                            >
-                              <tr
-                                className="index-list--row"
-                              >
-                                <IndexListRowCell
-                                  alignment="left"
-                                  revealOnHover={false}
-                                >
-                                  <td
-                                    className="index-list--row-cell index-list--align-left"
-                                  >
-                                    <div
-                                      className="index-list--cell"
-                                    >
-                                      <a
-                                        data-test="token-description-1"
-                                        href="#"
-                                        onClick={[Function]}
-                                      >
-                                        im a token
-                                      </a>
-                                    </div>
-                                  </td>
-                                </IndexListRowCell>
-                                <IndexListRowCell
-                                  alignment="left"
-                                  revealOnHover={false}
-                                >
-                                  <td
-                                    className="index-list--row-cell index-list--align-left"
-                                  >
-                                    <div
-                                      className="index-list--cell"
-                                    >
-                                      active
-                                    </div>
-                                  </td>
-                                </IndexListRowCell>
-                                <IndexListRowCell
-                                  alignment="right"
-                                  revealOnHover={true}
-                                >
-                                  <td
-                                    className="index-list--row-cell index-list--show-hover index-list--align-right"
-                                  >
-                                    <div
-                                      className="index-list--cell"
-                                    >
-                                      <ComponentSpacer
-                                        align="right"
-                                      >
-                                        <div
-                                          className="component-spacer component-spacer--right component-spacer--horizontal"
-                                        >
-                                          <Button
-                                            active={false}
-                                            color="danger"
-                                            shape="none"
-                                            size="xs"
-                                            status="default"
-                                            text="Delete"
-                                            type="button"
-                                          >
-                                            <button
-                                              className="button button-xs button-danger"
-                                              disabled={false}
-                                              tabIndex={0}
-                                              title="Delete"
-                                              type="button"
-                                            >
-                                              Delete
-                                            </button>
-                                          </Button>
-                                        </div>
-                                      </ComponentSpacer>
-                                    </div>
-                                  </td>
-                                </IndexListRowCell>
-                              </tr>
-                            </IndexListRow>
-                          </TokenRow>
-                        </tbody>
-                      </IndexListBody>
-                    </table>
-                  </IndexList>
-                  <OverlayTechnology
-                    visible={false}
+                      }
+                    }
+                    key="1"
+                    onClickDescription={[Function]}
                   >
-                    <div
-                      className="overlay-tech"
+                    <IndexListRow
+                      disabled={false}
                     >
-                      <div
-                        className="overlay--dialog"
-                        data-test="overlay-children"
-                      />
-                      <div
-                        className="overlay--mask"
-                      />
-                    </div>
-                  </OverlayTechnology>
-                </TokenList>
-              </FilterList>
-            </Spinner>
-          </ResourceFetcher>
-        </div>
-      </PanelBody>
-    </div>
-  </Panel>
+                      <tr
+                        className="index-list--row"
+                      >
+                        <IndexListRowCell
+                          alignment="left"
+                          revealOnHover={false}
+                        >
+                          <td
+                            className="index-list--row-cell index-list--align-left"
+                          >
+                            <div
+                              className="index-list--cell"
+                            >
+                              <a
+                                data-test="token-description-1"
+                                href="#"
+                                onClick={[Function]}
+                              >
+                                im a token
+                              </a>
+                            </div>
+                          </td>
+                        </IndexListRowCell>
+                        <IndexListRowCell
+                          alignment="left"
+                          revealOnHover={false}
+                        >
+                          <td
+                            className="index-list--row-cell index-list--align-left"
+                          >
+                            <div
+                              className="index-list--cell"
+                            >
+                              active
+                            </div>
+                          </td>
+                        </IndexListRowCell>
+                        <IndexListRowCell
+                          alignment="right"
+                          revealOnHover={true}
+                        >
+                          <td
+                            className="index-list--row-cell index-list--show-hover index-list--align-right"
+                          >
+                            <div
+                              className="index-list--cell"
+                            >
+                              <ComponentSpacer
+                                align="right"
+                              >
+                                <div
+                                  className="component-spacer component-spacer--right component-spacer--horizontal"
+                                >
+                                  <Button
+                                    active={false}
+                                    color="danger"
+                                    shape="none"
+                                    size="xs"
+                                    status="default"
+                                    text="Delete"
+                                    type="button"
+                                  >
+                                    <button
+                                      className="button button-xs button-danger"
+                                      disabled={false}
+                                      tabIndex={0}
+                                      title="Delete"
+                                      type="button"
+                                    >
+                                      Delete
+                                    </button>
+                                  </Button>
+                                </div>
+                              </ComponentSpacer>
+                            </div>
+                          </td>
+                        </IndexListRowCell>
+                      </tr>
+                    </IndexListRow>
+                  </TokenRow>
+                </tbody>
+              </IndexListBody>
+            </table>
+          </IndexList>
+          <OverlayTechnology
+            visible={false}
+          >
+            <div
+              className="overlay-tech"
+            >
+              <div
+                className="overlay--dialog"
+                data-test="overlay-children"
+              />
+              <div
+                className="overlay--mask"
+              />
+            </div>
+          </OverlayTechnology>
+        </TokenList>
+      </FilterList>
+    </Spinner>
+  </ResourceFetcher>
 </Tokens>
 `;
