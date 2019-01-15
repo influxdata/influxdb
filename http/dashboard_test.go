@@ -261,7 +261,7 @@ func TestService_handleGetDashboards(t *testing.T) {
   "dashboards": [
     {
       "id": "da7aba5e5d81e550",
-      "organizationID": "0000000000000001",
+      "orgID": "0000000000000001",
       "name": "hello",
       "description": "oh hello there!",
       "meta": {
@@ -794,7 +794,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 				body: `
 {
   "id": "020f755c3c082000",
-	"orgID": "0000000000000001",
+  "orgID": "0000000000000001",
   "name": "example",
   "description": "",
   "labels": [],
