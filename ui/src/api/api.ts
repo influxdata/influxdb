@@ -519,14 +519,6 @@ export interface CellUpdate {
 /**
  * 
  * @export
- * @interface Cells
- */
-export interface Cells extends Array<Cell> {
-}
-
-/**
- * 
- * @export
  * @interface ConstantMacroProperties
  */
 export interface ConstantMacroProperties {
@@ -646,16 +638,16 @@ export interface Dashboard {
     meta?: DashboardMeta;
     /**
      * 
-     * @type {Cells}
+     * @type {Array<Cell>}
      * @memberof Dashboard
      */
-    cells?: Cells;
+    cells?: Array<Cell>;
     /**
      * 
-     * @type {Labels}
+     * @type {Array<Label>}
      * @memberof Dashboard
      */
-    labels?: Labels;
+    labels?: Array<Label>;
 }
 
 /**
@@ -1092,10 +1084,10 @@ export namespace Health {
 export interface InlineResponse200 {
     /**
      * 
-     * @type {Labels}
+     * @type {Array<Label>}
      * @memberof InlineResponse200
      */
-    labels?: Labels;
+    labels?: Array<Label>;
     /**
      * 
      * @type {Links}
@@ -1222,14 +1214,6 @@ export interface Label {
      * @memberof Label
      */
     properties?: any;
-}
-
-/**
- * 
- * @export
- * @interface Labels
- */
-export interface Labels extends Array<Label> {
 }
 
 /**
@@ -2882,10 +2866,10 @@ export interface Task {
     owner?: User;
     /**
      * 
-     * @type {Labels}
+     * @type {Array<Label>}
      * @memberof Task
      */
-    labels?: Labels;
+    labels?: Array<Label>;
     /**
      * The Flux script to run for this task.
      * @type {string}
@@ -13262,6 +13246,44 @@ export const TelegrafsApiAxiosParamCreator = function (configuration?: Configura
         },
         /**
          * 
+         * @summary delete a telegraf config
+         * @param {string} telegrafID ID of telegraf config
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        telegrafsTelegrafIDDelete(telegrafID: string, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'telegrafID' is not null or undefined
+            if (telegrafID === null || telegrafID === undefined) {
+                throw new RequiredError('telegrafID','Required parameter telegrafID was null or undefined when calling telegrafsTelegrafIDDelete.');
+            }
+            const localVarPath = `/telegrafs/{telegrafID}`
+                .replace(`{${"telegrafID"}}`, encodeURIComponent(String(telegrafID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'DELETE' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary Retrieve a telegraf config
          * @param {string} telegrafID ID of telegraf config
          * @param {*} [options] Override http request option.
@@ -13601,6 +13623,21 @@ export const TelegrafsApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary delete a telegraf config
+         * @param {string} telegrafID ID of telegraf config
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        telegrafsTelegrafIDDelete(telegrafID: string, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Telegraf> {
+            const localVarAxiosArgs = TelegrafsApiAxiosParamCreator(configuration).telegrafsTelegrafIDDelete(telegrafID, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary Retrieve a telegraf config
          * @param {string} telegrafID ID of telegraf config
          * @param {*} [options] Override http request option.
@@ -13746,6 +13783,17 @@ export const TelegrafsApiFactory = function (configuration?: Configuration, base
         },
         /**
          * 
+         * @summary delete a telegraf config
+         * @param {string} telegrafID ID of telegraf config
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        telegrafsTelegrafIDDelete(telegrafID: string, zapTraceSpan?: string, options?: any) {
+            return TelegrafsApiFp(configuration).telegrafsTelegrafIDDelete(telegrafID, zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary Retrieve a telegraf config
          * @param {string} telegrafID ID of telegraf config
          * @param {*} [options] Override http request option.
@@ -13860,6 +13908,19 @@ export class TelegrafsApi extends BaseAPI {
      */
     public telegrafsPost(telegrafRequest: TelegrafRequest, options?: any) {
         return TelegrafsApiFp(this.configuration).telegrafsPost(telegrafRequest, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary delete a telegraf config
+     * @param {string} telegrafID ID of telegraf config
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TelegrafsApi
+     */
+    public telegrafsTelegrafIDDelete(telegrafID: string, zapTraceSpan?: string, options?: any) {
+        return TelegrafsApiFp(this.configuration).telegrafsTelegrafIDDelete(telegrafID, zapTraceSpan, options)(this.axios, this.basePath);
     }
 
     /**

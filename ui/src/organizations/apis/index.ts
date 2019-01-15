@@ -186,3 +186,15 @@ export const getTelegrafConfigTOML = async (
 
   return response.data as string // response.data is string with 'application/toml' header
 }
+
+export const deleteTelegrafConfig = async (
+  telegrafID: string
+): Promise<Telegraf> => {
+  try {
+    const response = await telegrafsAPI.telegrafsTelegrafIDDelete(telegrafID)
+
+    return response.data
+  } catch (error) {
+    console.error(error)
+  }
+}
