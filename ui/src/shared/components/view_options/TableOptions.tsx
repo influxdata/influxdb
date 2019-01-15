@@ -78,11 +78,13 @@ export class TableOptions extends Component<Props, {}> {
       <>
         <Grid.Column widthSM={Columns.Four}>
           <h4 className="view-options--header">Table Formatting</h4>
-          <SortBy
-            selected={sortBy}
-            fieldOptions={fieldOptions}
-            onChange={this.handleChangeSortBy}
-          />
+          {!!fieldOptions.length && (
+            <SortBy
+              selected={sortBy}
+              fieldOptions={fieldOptions}
+              onChange={this.handleChangeSortBy}
+            />
+          )}
           <TimeFormat
             timeFormat={timeFormat}
             onTimeFormatChange={onSetTimeFormat}
