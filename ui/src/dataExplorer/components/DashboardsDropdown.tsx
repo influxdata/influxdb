@@ -58,7 +58,7 @@ class DashboardsDropdown extends PureComponent<Props> {
   }
 
   private get dividerItem(): JSX.Element {
-    return <MultiSelectDropdown.Divider />
+    return <MultiSelectDropdown.Divider key={0} />
   }
 }
 export default DashboardsDropdown
