@@ -79,19 +79,24 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
     permission: Permission,
     action: Permission.ActionEnum
   ): string => {
-    return `${permission.id || permission.resource}-${action}`
+    return `${permission.resource.type}-${action}-${permission.resource.id ||
+      '*'}-${permission.resource.orgID || '*'}`
   }
 
   private id = (permission: Permission): string => {
-    return permission.id || permission.resource
+    return permission.resource.type
   }
 
-  private title = (permission): string => {
-    if (permission.name) {
-      return `${permission.resource}:${permission.name}`
+  private title = (permission: Permission): string => {
+    const org = permission.resource.org || '*'
+    const name = permission.resource.name || '*'
+    const type = permission.resource.type
+
+    if (permission.resource.name || permission.resource.org) {
+      return `${org}:${type}:${name}`
     }
 
-    return `${permission.resource}:*`
+    return `${permission.resource.type}:*`
   }
 
   private handleDismiss = () => {

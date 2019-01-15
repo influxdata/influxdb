@@ -1586,7 +1586,7 @@ paths:
           description: ID of the dashboard
         - in: path
           name: name
-          schema: 
+          schema:
             type: string
           required: true
           description: name of the label
@@ -3864,26 +3864,42 @@ components:
     Permission:
       required: [action, resource]
       properties:
-        id:
-          type: string
-          nullable: true
-          description: if id is set that is a permission for a specific resource. if it is not set it is a permission for all resources of that resource type.
         action:
           type: string
           enum:
             - read
             - write
         resource:
-          type: string
-          enum:
-            - authorizations
-            - buckets
-            - dashboards
-            - orgs
-            - sources
-            - tasks
-            - telegrafs
-            - users
+          type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum:
+                - authorizations
+                - buckets
+                - dashboards
+                - orgs
+                - sources
+                - tasks
+                - telegrafs
+                - users
+            id:
+              type: string
+              nullable: true
+              description: if id is set that is a permission for a specific resource. if it is not set it is a permission for all resources of that resource type.
+            name:
+              type: string
+              nullable: true
+              description: optional name of the resource if the resource has a name field.
+            orgID:
+              type: string
+              nullable: true
+              description: if orgID is set that is a permission for all resources owned my that org. if it is not set it is a permission for all resources of that resource type.
+            org:
+              type: string
+              nullable: true
+              description: optional name of the organization of the organization with orgID.
     Authorization:
       required: [orgID, permissions]
       properties:
@@ -5906,4 +5922,4 @@ components:
           type: object
           description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
           example: {"color": "#ffb3b3", "description": "this is a description"}
-      
+
