@@ -185,15 +185,11 @@ describe('timeMachineReducer', () => {
           hidden: false,
         },
         {
-          text: '',
+          text: 'bar',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {
-            buckets: [],
-            tags: [{key: '_measurement', values: []}],
-            functions: [],
-          },
+          builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
         },
       ])

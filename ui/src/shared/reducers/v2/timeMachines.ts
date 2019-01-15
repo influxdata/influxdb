@@ -348,8 +348,13 @@ export const timeMachineReducer = (
     case 'EDIT_ACTIVE_QUERY_WITH_BUILDER': {
       const {activeQueryIndex} = state
       const draftQueries = [...state.draftQueries]
+      const query = draftQueries[activeQueryIndex]
 
-      draftQueries[activeQueryIndex] = {...defaultViewQuery(), hidden: false}
+      draftQueries[activeQueryIndex] = {
+        ...query,
+        editMode: QueryEditMode.Builder,
+        hidden: false,
+      }
 
       return {
         ...state,
