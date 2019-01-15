@@ -121,6 +121,6 @@ $overlay-min-height: 150px;
 
 .overlay--body {
   padding: $overlay-gutter;
-  padding-top: 18px; 
+  padding-top: 0; 
   min-height: $overlay-min-height;
 }
