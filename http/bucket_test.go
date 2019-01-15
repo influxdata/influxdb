@@ -60,11 +60,11 @@ func TestService_handleGetBuckets(t *testing.T) {
 					},
 				},
 				&mock.LabelService{
-					FindLabelsFn: func(ctx context.Context, f platform.LabelFilter) ([]*platform.Label, error) {
+					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
 						labels := []*platform.Label{
 							{
-								ResourceID: f.ResourceID,
-								Name:       "label",
+								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								Name: "label",
 								Properties: map[string]string{
 									"color": "fff000",
 								},
@@ -102,7 +102,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "retentionRules": [{"type": "expire", "everySeconds": 2}],
 			"labels": [
         {
-          "resourceID": "0b501e7e557ab1ed",
+          "id": "fc3dc670a4be9b9a",
           "name": "label",
           "properties": {
             "color": "fff000"
@@ -123,7 +123,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "retentionRules": [{"type": "expire", "everySeconds": 86400}],
       "labels": [
         {
-          "resourceID": "c0175f0077a77005",
+          "id": "fc3dc670a4be9b9a",
           "name": "label",
           "properties": {
             "color": "fff000"

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"path"
 
-	plat "github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb"
 	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
@@ -16,6 +16,7 @@ import (
 // LabelHandler represents an HTTP API handler for labels
 type LabelHandler struct {
 	*httprouter.Router
+	LabelService platform.LabelService
 }
 
 const (
@@ -63,14 +64,15 @@ type LabelService struct {
 	Token              string
 	InsecureSkipVerify bool
 	BasePath           string
+	OpPrefix           string
 }
 
 type labelResponse struct {
 	Links map[string]string `json:"links"`
-	Label plat.Label        `json:"label"`
+	Label platform.Label    `json:"label"`
 }
 
-func newLabelResponse(l *plat.Label) *labelResponse {
+func newLabelResponse(l *platform.Label) *labelResponse {
 	return &labelResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/labels/%s", l.ID),
@@ -81,10 +83,10 @@ func newLabelResponse(l *plat.Label) *labelResponse {
 
 type labelsResponse struct {
 	Links  map[string]string `json:"links"`
-	Labels []*plat.Label     `json:"labels"`
+	Labels []*platform.Label `json:"labels"`
 }
 
-func newLabelsResponse(ls []*plat.Label) *labelsResponse {
+func newLabelsResponse(ls []*platform.Label) *labelsResponse {
 	return &labelsResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/labels"),
@@ -94,7 +96,7 @@ func newLabelsResponse(ls []*plat.Label) *labelsResponse {
 }
 
 // newGetLabelsHandler returns a handler func for a GET to /labels endpoints
-func newGetLabelsHandler(s plat.LabelService) http.HandlerFunc {
+func newGetLabelsHandler(s platform.LabelService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -121,7 +123,7 @@ func newGetLabelsHandler(s plat.LabelService) http.HandlerFunc {
 }
 
 type getLabelsRequest struct {
-	filter plat.LabelMappingFilter
+	filter platform.LabelMappingFilter
 }
 
 func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsRequest, error) {
@@ -133,7 +135,7 @@ func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsReq
 		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
-	var i plat.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -143,7 +145,7 @@ func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsReq
 }
 
 // newPostLabelHandler returns a handler func for a POST to /labels endpoints
-func newPostLabelHandler(s plat.LabelService) http.HandlerFunc {
+func newPostLabelHandler(s platform.LabelService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -180,7 +182,7 @@ func newPostLabelHandler(s plat.LabelService) http.HandlerFunc {
 }
 
 type postLabelRequest struct {
-	Mapping plat.LabelMapping
+	Mapping platform.LabelMapping
 }
 
 func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelRequest, error) {
@@ -190,12 +192,12 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
-	var rid plat.ID
+	var rid platform.ID
 	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
-	mapping := &plat.LabelMapping{}
+	mapping := &platform.LabelMapping{}
 	if err := json.NewDecoder(r.Body).Decode(mapping); err != nil {
 		return nil, err
 	}
@@ -214,46 +216,46 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 }
 
 type patchLabelRequest struct {
-	label *plat.Label
-	upd   plat.LabelUpdate
+	label *platform.Label
+	upd   platform.LabelUpdate
 }
 
 func decodePatchLabelRequest(ctx context.Context, r *http.Request) (*patchLabelRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &plat.Error{
-			Code: plat.EInvalid,
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
 			Msg:  "url missing label id",
 		}
 	}
 
 	name := params.ByName("lid")
 	if name == "" {
-		return nil, &plat.Error{
-			Code: plat.EInvalid,
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
 			Msg:  "label name is missing",
 		}
 	}
 
-	var rid plat.ID
+	var rid platform.ID
 	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
-	upd := &plat.LabelUpdate{}
+	upd := &platform.LabelUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(upd); err != nil {
 		return nil, err
 	}
 
 	return &patchLabelRequest{
-		label: &plat.Label{ID: rid, Name: name},
+		label: &platform.Label{ID: rid, Name: name},
 		upd:   *upd,
 	}, nil
 }
 
 // newPatchLabelHandler returns a handler func for a PATCH to /labels endpoints
-func newPatchLabelHandler(s plat.LabelService) http.HandlerFunc {
+func newPatchLabelHandler(s platform.LabelService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -280,7 +282,7 @@ func newPatchLabelHandler(s plat.LabelService) http.HandlerFunc {
 }
 
 // newDeleteLabelHandler returns a handler func for a DELETE to /labels endpoints
-func newDeleteLabelHandler(s plat.LabelService) http.HandlerFunc {
+func newDeleteLabelHandler(s platform.LabelService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -290,7 +292,7 @@ func newDeleteLabelHandler(s plat.LabelService) http.HandlerFunc {
 			return
 		}
 
-		mapping := &plat.LabelMapping{
+		mapping := &platform.LabelMapping{
 			LabelID:    req.LabelID,
 			ResourceID: req.ResourceID,
 		}
@@ -305,34 +307,34 @@ func newDeleteLabelHandler(s plat.LabelService) http.HandlerFunc {
 }
 
 type deleteLabelRequest struct {
-	ResourceID plat.ID
-	LabelID    plat.ID
+	ResourceID platform.ID
+	LabelID    platform.ID
 }
 
 func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabelRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &plat.Error{
-			Code: plat.EInvalid,
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
 			Msg:  "url missing resource id",
 		}
 	}
 
-	var rid plat.ID
+	var rid platform.ID
 	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
 	id = params.ByName("lid")
 	if id == "" {
-		return nil, &plat.Error{
-			Code: plat.EInvalid,
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
 			Msg:  "label id is missing",
 		}
 	}
 
-	var lid plat.ID
+	var lid platform.ID
 	if err := lid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -343,8 +345,16 @@ func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabe
 	}, nil
 }
 
+func (s *LabelService) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
+	return nil, nil
+}
+
+func (s *LabelService) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
+	return nil, nil
+}
+
 // FindLabels returns a slice of labels
-func (s *LabelService) FindResourceLabels(ctx context.Context, filter plat.LabelMappingFilter) ([]*plat.Label, error) {
+func (s *LabelService) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
 	url, err := newURL(s.Addr, resourceIDPath(s.BasePath, filter.ResourceID))
 	if err != nil {
 		return nil, err
@@ -376,7 +386,11 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter plat.Label
 	return r.Labels, nil
 }
 
-func (s *LabelService) CreateLabelMapping(ctx context.Context, m *plat.LabelMapping) error {
+func (s *LabelService) CreateLabel(ctx context.Context, l *platform.Label) error {
+	return nil
+}
+
+func (s *LabelService) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
 	if err := m.Validate(); err != nil {
 		return err
 	}
@@ -417,7 +431,32 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *plat.LabelMapp
 	return nil
 }
 
-func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *plat.LabelMapping) error {
+func (s *LabelService) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+	return nil, nil
+}
+
+func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
+	// url, err := newURL(s.Addr, labelIDPath(s.BasePath, m.ResourceID, m.LabelID))
+	// if err != nil {
+	// 	return err
+	// }
+	//
+	// req, err := http.NewRequest("DELETE", url.String(), nil)
+	// if err != nil {
+	// 	return err
+	// }
+	// SetToken(s.Token, req)
+	//
+	// hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	// resp, err := hc.Do(req)
+	// if err != nil {
+	// 	return err
+	// }
+	// return CheckError(resp)
+	return nil
+}
+
+func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
 	url, err := newURL(s.Addr, labelNamePath(s.BasePath, m.ResourceID, m.LabelID))
 	if err != nil {
 		return err
@@ -437,6 +476,6 @@ func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *plat.LabelMapp
 	return CheckError(resp)
 }
 
-func labelNamePath(basePath string, resourceID plat.ID, labelID plat.ID) string {
+func labelNamePath(basePath string, resourceID platform.ID, labelID platform.ID) string {
 	return path.Join(basePath, resourceID.String(), "labels", labelID.String())
 }

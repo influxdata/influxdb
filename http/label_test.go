@@ -2,82 +2,63 @@ package http
 
 import (
 	"context"
+	"io/ioutil"
+	http "net/http"
 	"net/http/httptest"
 	"testing"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func TestService_handleGetLabels(t *testing.T) {
-  type fields struct {
-    LabelService  platform.LabelService
-  }
-  type args struct {
-    queryParams map[string][]string
-  }
-  type wants struct {
-    statusCode  int
-    contentType string
-    body        string
-  }
+	type fields struct {
+		LabelService platform.LabelService
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
 
-  tests := []struct {
-    name   string
-    fields fields
-    args   args
-    wants  wants
-  }{
-    {
-      name: "get all labels",
-      fields: fields{
-        &mock.LabelService{
-          FindLabelsFn: func(ctx context.Context, filter platform.LabelFilter, opts ...platform.FindOptions) ([]*platform.Label, int, error) {
-            return []*platform.Label{
-              {
-                ID:              platformtesting.MustIDBase16("0b501e7e557ab1ed"),
-                Name:            "hello",
-                OrganizationID:  platformtesting.MustIDBase16("50f7ba1150f7ba11"),
-                RetentionPeriod: 2 * time.Second,
-              },
-              {
-                ID:              platformtesting.MustIDBase16("c0175f0077a77005"),
-                Name:            "example",
-                OrganizationID:  platformtesting.MustIDBase16("7e55e118dbabb1ed"),
-                RetentionPeriod: 24 * time.Hour,
-              },
-            }, 2, nil
-          },
-        },
-        &mock.LabelService{
-          FindLabelsFn: func(ctx context.Context, f platform.LabelFilter) ([]*platform.Label, error) {
-            labels := []*platform.Label{
-              {
-                ResourceID: f.ResourceID,
-                Name:       "label",
-                Properties: map[string]string{
-                  "color": "fff000",
-                },
-              },
-            }
-            return labels, nil
-          },
-        },
-      },
-      args: args{
-        map[string][]string{
-          "limit": {"1"},
-        },
-      },
-      wants: wants{
-        statusCode:  http.StatusOK,
-        contentType: "application/json; charset=utf-8",
-        body: `
+	tests := []struct {
+		name   string
+		fields fields
+		wants  wants
+	}{
+		{
+			name: "get all labels",
+			fields: fields{
+				&mock.LabelService{
+					FindLabelsFn: func(ctx context.Context, filter platform.LabelFilter) ([]*platform.Label, error) {
+						return []*platform.Label{
+							{
+								ID:   platformtesting.MustIDBase16("0b501e7e557ab1ed"),
+								Name: "hello",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+							{
+								ID:   platformtesting.MustIDBase16("c0175f0077a77005"),
+								Name: "example",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+						}, nil
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
 {
   "links": {
-    "self": "/api/v2/labels?descending=false&limit=1&offset=0",
-    "next": "/api/v2/labels?descending=false&limit=1&offset=1"
+    "self": "/api/v2/labels",
   },
   "labels": [
     {
@@ -125,74 +106,57 @@ func TestService_handleGetLabels(t *testing.T) {
   ]
 }
 `,
-      },
-    },
-    {
-      name: "get all labels when there are none",
-      fields: fields{
-        &mock.LabelService{
-          FindLabelsFn: func(ctx context.Context, filter platform.LabelFilter, opts ...platform.FindOptions) ([]*platform.Label, int, error) {
-            return []*platform.Label{}, 0, nil
-          },
-        },
-        &mock.LabelService{},
-      },
-      args: args{
-        map[string][]string{
-          "limit": {"1"},
-        },
-      },
-      wants: wants{
-        statusCode:  http.StatusOK,
-        contentType: "application/json; charset=utf-8",
-        body: `
+			},
+		},
+		{
+			name: "get all labels when there are none",
+			fields: fields{
+				&mock.LabelService{
+					FindLabelsFn: func(ctx context.Context, filter platform.LabelFilter) ([]*platform.Label, error) {
+						return []*platform.Label{}, nil
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
 {
   "links": {
-    "self": "/api/v2/labels?descending=false&limit=1&offset=0"
+    "self": "/api/v2/labels"
   },
   "labels": []
 }`,
-      },
-    },
-  }
+			},
+		},
+	}
 
-  for _, tt := range tests {
-    t.Run(tt.name, func(t *testing.T) {
-      mappingService := mock.NewUserResourceMappingService()
-      labelService := tt.fields.LabelService
-      userService := mock.NewUserService()
-      h := NewLabelHandler(mappingService, labelService, userService)
-      h.LabelService = tt.fields.LabelService
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewLabelHandler()
+			h.LabelService = tt.fields.LabelService
 
-      r := httptest.NewRequest("GET", "http://any.url", nil)
+			r := httptest.NewRequest("GET", "http://any.url", nil)
 
-      qp := r.URL.Query()
-      for k, vs := range tt.args.queryParams {
-        for _, v := range vs {
-          qp.Add(k, v)
-        }
-      }
-      r.URL.RawQuery = qp.Encode()
+			w := httptest.NewRecorder()
 
-      w := httptest.NewRecorder()
+			h.handleGetLabels(w, r)
 
-      h.handleGetLabels(w, r)
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
 
-      res := w.Result()
-      content := res.Header.Get("Content-Type")
-      body, _ := ioutil.ReadAll(res.Body)
-
-      if res.StatusCode != tt.wants.statusCode {
-        t.Errorf("%q. handleGetLabels() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
-      }
-      if tt.wants.contentType != "" && content != tt.wants.contentType {
-        t.Errorf("%q. handleGetLabels() = %v, want %v", tt.name, content, tt.wants.contentType)
-      }
-      if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil || tt.wants.body != "" && !eq {
-        t.Errorf("%q. handleGetLabels() = ***%v***", tt.name, diff)
-      }
-    })
-  }
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handleGetLabels() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. handleGetLabels() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil || tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetLabels() = ***%v***", tt.name, diff)
+			}
+		})
+	}
 }
 
 func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.LabelService, string, func()) {
@@ -201,7 +165,7 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 	svc.IDGenerator = f.IDGenerator
 
 	ctx := context.Background()
-	for _, u := range f.Users {
+	for _, u := range f.Labels {
 		if err := svc.PutLabel(ctx, u); err != nil {
 			t.Fatalf("failed to populate labels")
 		}

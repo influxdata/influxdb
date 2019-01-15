@@ -31,7 +31,7 @@ func NewLabelService() *LabelService {
 			return nil, nil
 		},
 		FindResourceLabelsFn: func(context.Context, platform.LabelMappingFilter) ([]*platform.Label, error) {
-			return nil, nil
+			return []*platform.Label{}, nil
 		},
 		CreateLabelFn:        func(context.Context, *platform.Label) error { return nil },
 		CreateLabelMappingFn: func(context.Context, *platform.LabelMapping) error { return nil },

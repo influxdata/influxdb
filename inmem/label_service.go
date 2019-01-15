@@ -60,104 +60,125 @@ func (s *Service) filterLabels(ctx context.Context, fn func(m *platform.Label) b
 	return labels, nil
 }
 
+func (s *Service) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
+	return nil, nil
+}
+
 func (s *Service) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
-	if filter.ResourceID.Valid() && filter.Name != "" {
-		l, err := s.FindLabelBy(ctx, filter.ResourceID, filter.Name)
-		if err != nil {
-			return nil, err
-		}
-		return []*platform.Label{l}, nil
-	}
+	return nil, nil
+}
 
-	filterFunc := func(label *platform.Label) bool {
-		return (!filter.ResourceID.Valid() || (filter.ResourceID == label.ResourceID)) &&
-			(filter.Name == "" || (filter.Name == label.Name))
-	}
-
-	labels, err := s.filterLabels(ctx, filterFunc)
-	if err != nil {
-		return nil, err
-	}
-
-	return labels, nil
+func (s *Service) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
+	// if filter.ResourceID.Valid() && filter.Name != "" {
+	// 	l, err := s.FindLabelBy(ctx, filter.ResourceID, filter.Name)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	return []*platform.Label{l}, nil
+	// }
+	//
+	// filterFunc := func(label *platform.Label) bool {
+	// 	return (!filter.ResourceID.Valid() || (filter.ResourceID == label.ResourceID)) &&
+	// 		(filter.Name == "" || (filter.Name == label.Name))
+	// }
+	//
+	// labels, err := s.filterLabels(ctx, filterFunc)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	//
+	// return labels, nil
+	return nil, nil
 }
 
 func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
-	label, _ := s.FindLabelBy(ctx, l.ResourceID, l.Name)
-	if label != nil {
-		return &platform.Error{
-			Code: platform.EConflict,
-			Op:   OpPrefix + platform.OpCreateLabel,
-			Msg:  fmt.Sprintf("label %s already exists", l.Name),
-		}
-	}
+	// label, _ := s.FindLabelBy(ctx, l.ResourceID, l.Name)
+	// if label != nil {
+	// 	return &platform.Error{
+	// 		Code: platform.EConflict,
+	// 		Op:   OpPrefix + platform.OpCreateLabel,
+	// 		Msg:  fmt.Sprintf("label %s already exists", l.Name),
+	// 	}
+	// }
+	//
+	// s.labelKV.Store(encodeLabelKey(l.ResourceID, l.Name), *l)
+	// return nil
+	return nil
+}
 
-	s.labelKV.Store(encodeLabelKey(l.ResourceID, l.Name), *l)
+func (s *Service) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
 	return nil
 }
 
 func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
-	label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
-	if err != nil {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Op:   OpPrefix + platform.OpUpdateLabel,
-			Err:  err,
-		}
-	}
-
-	if label.Properties == nil {
-		label.Properties = make(map[string]string)
-	}
-
-	for k, v := range upd.Properties {
-		if v == "" {
-			delete(label.Properties, k)
-		} else {
-			label.Properties[k] = v
-		}
-	}
-
-	if err := label.Validate(); err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
-			Op:   OpPrefix + platform.OpUpdateLabel,
-			Err:  err,
-		}
-	}
-
-	s.labelKV.Store(encodeLabelKey(label.ResourceID, label.Name), *label)
-
-	return label, nil
+	// label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
+	// if err != nil {
+	// 	return nil, &platform.Error{
+	// 		Code: platform.ENotFound,
+	// 		Op:   OpPrefix + platform.OpUpdateLabel,
+	// 		Err:  err,
+	// 	}
+	// }
+	//
+	// if label.Properties == nil {
+	// 	label.Properties = make(map[string]string)
+	// }
+	//
+	// for k, v := range upd.Properties {
+	// 	if v == "" {
+	// 		delete(label.Properties, k)
+	// 	} else {
+	// 		label.Properties[k] = v
+	// 	}
+	// }
+	//
+	// if err := label.Validate(); err != nil {
+	// 	return nil, &platform.Error{
+	// 		Code: platform.EInvalid,
+	// 		Op:   OpPrefix + platform.OpUpdateLabel,
+	// 		Err:  err,
+	// 	}
+	// }
+	//
+	// s.labelKV.Store(encodeLabelKey(label.ResourceID, label.Name), *label)
+	//
+	// return label, nil
+	return nil, nil
 }
 
 func (s *Service) PutLabel(ctx context.Context, l *platform.Label) error {
-	s.labelKV.Store(encodeLabelKey(l.ResourceID, l.Name), *l)
+	s.labelKV.Store(l.ID.String, *l)
 	return nil
 }
 
-func (s *Service) DeleteLabel(ctx context.Context, l platform.Label) error {
-	label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
-	if label == nil && err != nil {
-		return &platform.Error{
-			Code: platform.ENotFound,
-			Op:   OpPrefix + platform.OpDeleteLabel,
-			Err:  platform.ErrLabelNotFound,
-		}
-	}
-
-	s.labelKV.Delete(encodeLabelKey(l.ResourceID, l.Name))
+func (s *Service) DeleteLabel(ctx context.Context, id platform.ID) error {
 	return nil
 }
 
-func (s *Service) deleteLabel(ctx context.Context, filter platform.LabelFilter) error {
-	labels, err := s.FindLabels(ctx, filter)
-	if labels == nil && err != nil {
-		return err
-	}
-	for _, l := range labels {
-		s.labelKV.Delete(encodeLabelKey(l.ResourceID, l.Name))
-	}
+func (s *Service) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	// label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
+	// if label == nil && err != nil {
+	// 	return &platform.Error{
+	// 		Code: platform.ENotFound,
+	// 		Op:   OpPrefix + platform.OpDeleteLabel,
+	// 		Err:  platform.ErrLabelNotFound,
+	// 	}
+	// }
+	//
+	// s.labelKV.Delete(encodeLabelKey(l.ResourceID, l.Name))
+	// return nil
+	return nil
+}
 
+func (s *Service) deleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	// labels, err := s.FindLabels(ctx, filter)
+	// if labels == nil && err != nil {
+	// 	return err
+	// }
+	// for _, l := range labels {
+	// 	s.labelKV.Delete(encodeLabelKey(l.ResourceID, l.Name))
+	// }
+	//
+	// return nil
 	return nil
 }

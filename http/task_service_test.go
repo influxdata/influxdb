@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
+	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -76,11 +77,11 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					},
 				},
 				labelService: &mock.LabelService{
-					FindLabelsFn: func(ctx context.Context, f platform.LabelFilter) ([]*platform.Label, error) {
+					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
 						labels := []*platform.Label{
 							{
-								ResourceID: f.ResourceID,
-								Name:       "label",
+								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								Name: "label",
 								Properties: map[string]string{
 									"color": "fff000",
 								},

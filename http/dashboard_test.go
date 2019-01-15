@@ -76,11 +76,11 @@ func TestService_handleGetDashboards(t *testing.T) {
 					},
 				},
 				&mock.LabelService{
-					FindLabelsFn: func(ctx context.Context, f platform.LabelFilter) ([]*platform.Label, error) {
+					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
 						labels := []*platform.Label{
 							{
-								ResourceID: f.ResourceID,
-								Name:       "label",
+								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								Name: "label",
 								Properties: map[string]string{
 									"color": "fff000",
 								},
@@ -107,7 +107,7 @@ func TestService_handleGetDashboards(t *testing.T) {
       "description": "oh hello there!",
       "labels": [
         {
-          "resourceID": "da7aba5e5d81e550",
+          "id": "fc3dc670a4be9b9a",
           "name": "label",
           "properties": {
             "color": "fff000"
@@ -148,7 +148,7 @@ func TestService_handleGetDashboards(t *testing.T) {
       "description": "",
 			"labels": [
         {
-          "resourceID": "0ca2204eca2204e0",
+          "id": "fc3dc670a4be9b9a",
           "name": "label",
           "properties": {
             "color": "fff000"
@@ -184,7 +184,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 					},
 				},
 				&mock.LabelService{
-					FindLabelsFn: func(ctx context.Context, f platform.LabelFilter) ([]*platform.Label, error) {
+					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
 						return []*platform.Label{}, nil
 					},
 				},
