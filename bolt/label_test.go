@@ -24,7 +24,7 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, l := range f.Labels {
-			if err := c.DeleteLabel(ctx, *l); err != nil {
+			if err := c.DeleteLabel(ctx, l.ID); err != nil {
 				t.Logf("failed to remove label: %v", err)
 			}
 		}

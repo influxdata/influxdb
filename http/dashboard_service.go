@@ -332,7 +332,7 @@ func newGetDashboardsResponse(ctx context.Context, dashboards []*platform.Dashbo
 
 	for _, dashboard := range dashboards {
 		if dashboard != nil {
-			labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: dashboard.ID})
+			labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: dashboard.ID})
 			res.Dashboards = append(res.Dashboards, newDashboardResponse(dashboard, labels))
 		}
 	}
@@ -390,7 +390,7 @@ func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: dashboard.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: dashboard.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -542,7 +542,7 @@ func (h *DashboardHandler) handlePatchDashboard(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: dashboard.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: dashboard.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return

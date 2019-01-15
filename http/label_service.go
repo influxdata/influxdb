@@ -13,6 +13,51 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// LabelHandler represents an HTTP API handler for labels
+type LabelHandler struct {
+	*httprouter.Router
+}
+
+const (
+	labelsPath   = "/api/v2/labels"
+	labelsIDPath = "/api/v2/labels/:id"
+)
+
+// NewLabelHandler returns a new instance of LabelHandler
+func NewLabelHandler() *LabelHandler {
+	h := &LabelHandler{
+		Router: NewRouter(),
+	}
+
+	h.HandlerFunc("POST", labelsPath, h.handlePostLabel)
+	h.HandlerFunc("GET", labelsPath, h.handleGetLabels)
+
+	// h.HandlerFunc("GET", labelsIDPath, h.handleGetLabel)
+	h.HandlerFunc("PATCH", labelsIDPath, h.handlePatchLabel)
+	h.HandlerFunc("DELETE", labelsIDPath, h.handleDeleteLabel)
+
+	return h
+}
+
+func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
+
+}
+
+// func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {}
+
+func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
+
+}
+
+// LabelService connects to Influx via HTTP using tokens to manage labels
 type LabelService struct {
 	Addr               string
 	Token              string

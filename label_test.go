@@ -25,13 +25,6 @@ func TestLabelValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "label requires a resourceid",
-			fields: fields{
-				Name: "iot",
-			},
-			wantErr: true,
-		},
-		{
 			name: "label requires a name",
 			fields: fields{
 				ResourceID: platformtesting.MustIDBase16("020f755c3c082000"),
@@ -42,8 +35,7 @@ func TestLabelValidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := platform.Label{
-				ResourceID: tt.fields.ResourceID,
-				Name:       tt.fields.Name,
+				Name: tt.fields.Name,
 			}
 			if err := m.Validate(); (err != nil) != tt.wantErr {
 				t.Errorf("Label.Validate() error = %v, wantErr %v", err, tt.wantErr)

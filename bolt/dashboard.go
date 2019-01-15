@@ -823,12 +823,12 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 		}
 	}
 
-	err = c.deleteLabels(ctx, tx, platform.LabelFilter{ResourceID: id})
-	if err != nil {
-		return &platform.Error{
-			Err: err,
-		}
-	}
+	// err = c.deleteLabels(ctx, tx, platform.LabelFilter{ResourceID: id})
+	// if err != nil {
+	// 	return &platform.Error{
+	// 		Err: err,
+	// 	}
+	// }
 
 	// TODO(desa): add DeleteKeyValueLog method and use it here.
 	err = c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{

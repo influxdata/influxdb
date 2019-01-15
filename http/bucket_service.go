@@ -220,7 +220,7 @@ type bucketsResponse struct {
 func newBucketsResponse(ctx context.Context, opts platform.FindOptions, f platform.BucketFilter, bs []*platform.Bucket, labelService platform.LabelService) *bucketsResponse {
 	rs := make([]*bucketResponse, 0, len(bs))
 	for _, b := range bs {
-		labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: b.ID})
+		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: b.ID})
 		rs = append(rs, newBucketResponse(b, labels))
 	}
 	return &bucketsResponse{
@@ -305,7 +305,7 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: b.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: b.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -452,7 +452,7 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: b.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: b.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return

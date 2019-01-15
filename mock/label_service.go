@@ -10,10 +10,11 @@ var _ platform.LabelService = &LabelService{}
 
 // LabelService is a mock implementation of platform.LabelService
 type LabelService struct {
-	FindLabelsFn  func(context.Context, platform.LabelFilter) ([]*platform.Label, error)
-	CreateLabelFn func(context.Context, *platform.Label) error
-	UpdateLabelFn func(context.Context, *platform.Label, platform.LabelUpdate) (*platform.Label, error)
-	DeleteLabelFn func(context.Context, platform.Label) error
+	FindLabelsFn         func(context.Context, platform.LabelFilter) ([]*platform.Label, error)
+	FindResourceLabelsFn func(context.Context, platform.LabelMappingFilter) ([]*platform.Label, error)
+	CreateLabelFn        func(context.Context, *platform.Label) error
+	UpdateLabelFn        func(context.Context, *platform.Label, platform.LabelUpdate) (*platform.Label, error)
+	DeleteLabelFn        func(context.Context, platform.ID) error
 }
 
 // NewLabelService returns a mock of LabelService
@@ -23,15 +24,23 @@ func NewLabelService() *LabelService {
 		FindLabelsFn: func(context.Context, platform.LabelFilter) ([]*platform.Label, error) {
 			return nil, nil
 		},
+		FindResourceLabelsFn: func(context.Context, platform.LabelMappingFilter) ([]*platform.Label, error) {
+			return nil, nil
+		},
 		CreateLabelFn: func(context.Context, *platform.Label) error { return nil },
 		UpdateLabelFn: func(context.Context, *platform.Label, platform.LabelUpdate) (*platform.Label, error) { return nil, nil },
-		DeleteLabelFn: func(context.Context, platform.Label) error { return nil },
+		DeleteLabelFn: func(context.Context, platform.ID) error { return nil },
 	}
 }
 
 // FindLabels finds mappings that match a given filter.
 func (s *LabelService) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
 	return s.FindLabelsFn(ctx, filter)
+}
+
+// FindResourceLabels finds mappings that match a given filter.
+func (s *LabelService) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
+	return s.FindResourceLabelsFn(ctx, filter)
 }
 
 // CreateLabel creates a new Label.
@@ -45,6 +54,6 @@ func (s *LabelService) UpdateLabel(ctx context.Context, l *platform.Label, upd p
 }
 
 // DeleteLabel removes a Label.
-func (s *LabelService) DeleteLabel(ctx context.Context, l platform.Label) error {
-	return s.DeleteLabelFn(ctx, l)
+func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
+	return s.DeleteLabelFn(ctx, id)
 }

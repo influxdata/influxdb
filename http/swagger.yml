@@ -1680,6 +1680,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /labels:
+    post:
+      tags:
+        - Labels
+      summary: Create a label
+      requestBody:
+          description: label to create
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Label"
+      responses:
+        '201':
+          description: Added label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Label"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags:
+        - Labels
+      summary: Get all labels
+      responses:
+        '200':
+          description: all labels
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Labels"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /dashboards:
     post:
       tags:
