@@ -45,11 +45,11 @@ class SaveAsButton extends PureComponent<Props, State> {
           icon={IconFont.Export}
           text="Save As"
           onClick={this.handleShowOverlay}
-          color={ComponentColor.Success}
+          color={ComponentColor.Primary}
           titleText="Save your query as a Dashboard Cell or a Task"
         />
         <OverlayTechnology visible={isOverlayVisible}>
-          <OverlayContainer>
+          <OverlayContainer maxWidth={600}>
             <OverlayHeading
               title="Save As"
               onDismiss={this.handleHideOverlay}
@@ -61,6 +61,7 @@ class SaveAsButton extends PureComponent<Props, State> {
                     active={saveAsOption === SaveAsOption.Dashboard}
                     value={SaveAsOption.Dashboard}
                     onClick={this.handleSetSaveAsOption}
+                    data-test="cell-radio-button"
                   >
                     Dashboard Cell
                   </Radio.Button>
@@ -68,20 +69,28 @@ class SaveAsButton extends PureComponent<Props, State> {
                     active={saveAsOption === SaveAsOption.Task}
                     value={SaveAsOption.Task}
                     onClick={this.handleSetSaveAsOption}
+                    data-test="task-radio-button"
                   >
                     Task
                   </Radio.Button>
                 </Radio>
               </div>
-              {saveAsOption === SaveAsOption.Dashboard && (
-                <SaveAsCellForm dismiss={this.handleHideOverlay} />
-              )}
-              {saveAsOption === SaveAsOption.Task && <SaveAsTaskForm />}
+              {this.saveAsForm}
             </OverlayBody>
           </OverlayContainer>
         </OverlayTechnology>
       </>
     )
+  }
+
+  private get saveAsForm(): JSX.Element {
+    const {saveAsOption} = this.state
+
+    if (saveAsOption === SaveAsOption.Dashboard) {
+      return <SaveAsCellForm dismiss={this.handleHideOverlay} />
+    } else if (saveAsOption === SaveAsOption.Task) {
+      return <SaveAsTaskForm dismiss={this.handleHideOverlay} />
+    }
   }
 
   private handleShowOverlay = () => {

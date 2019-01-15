@@ -1,12 +1,13 @@
 import React, {PureComponent} from 'react'
 
 import {Page} from 'src/pageLayout'
-import {ComponentColor, Button} from 'src/clockface'
+import {ComponentColor, Button, ComponentStatus} from 'src/clockface'
 
 import 'src/tasks/components/TasksPage.scss'
 
 interface Props {
   title: string
+  canSubmit: boolean
   onCancel: () => void
   onSave: () => void
 }
@@ -27,6 +28,11 @@ export default class TaskHeader extends PureComponent<Props> {
           <Button
             color={ComponentColor.Success}
             text="Save"
+            status={
+              this.props.canSubmit
+                ? ComponentStatus.Default
+                : ComponentStatus.Disabled
+            }
             onClick={this.props.onSave}
           />
         </Page.Header.Right>
