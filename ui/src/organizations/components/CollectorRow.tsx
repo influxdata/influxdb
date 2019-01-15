@@ -7,20 +7,31 @@ import {
   IndexList,
   ConfirmationButton,
   Alignment,
+  Button,
+  ComponentColor,
 } from 'src/clockface'
-import {ResourceOwner} from 'src/api'
+import {Telegraf} from 'src/api'
 
 interface Props {
-  scraper: ResourceOwner
+  collector: Telegraf
+  bucket: string
 }
 
 export default class BucketRow extends PureComponent<Props> {
   public render() {
+    const {collector, bucket} = this.props
     return (
       <>
         <IndexList.Row>
-          <IndexList.Cell>name</IndexList.Cell>
-          <IndexList.Cell>bucket</IndexList.Cell>
+          <IndexList.Cell>{collector.name}</IndexList.Cell>
+          <IndexList.Cell>{bucket}</IndexList.Cell>
+          <IndexList.Cell>
+            <Button
+              size={ComponentSize.Small}
+              color={ComponentColor.Secondary}
+              text={'Download Config'}
+            />
+          </IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
               size={ComponentSize.ExtraSmall}

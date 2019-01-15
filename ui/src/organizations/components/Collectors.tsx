@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
-import ScraperList from 'src/organizations/components/ScraperList'
+import CollectorList from 'src/organizations/components/CollectorList'
 
 import {
   Button,
@@ -15,30 +15,34 @@ import {
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Telegraf} from 'src/api'
 
-interface Props {}
+interface Props {
+  collectors: Telegraf[]
+}
 
 @ErrorHandling
 export default class OrgOptions extends PureComponent<Props> {
   public render() {
+    const {collectors} = this.props
     return (
       <>
         <TabbedPageHeader>
-          <h1>Scrapers</h1>
+          <h1>Collectors</h1>
           <Button
-            text="Create Scraper"
+            text="Create Collector"
             icon={IconFont.Plus}
             color={ComponentColor.Primary}
           />
         </TabbedPageHeader>
-        <ScraperList emptyState={this.emptyState} />
+        <CollectorList collectors={collectors} emptyState={this.emptyState} />
       </>
     )
   }
   private get emptyState(): JSX.Element {
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text="No Scrapers match your query" />
+        <EmptyState.Text text="No Collectors match your query" />
       </EmptyState>
     )
   }
