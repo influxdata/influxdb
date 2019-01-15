@@ -1,0 +1,138 @@
+/*
+  Getting Started Collector Graphic
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+$collector-graphic-anim-time: 0.5s;
+
+.collector-graphic--bg {
+  fill: $g2-kevlar;
+  transition: fill 0.25s ease;
+}
+
+.collector-graphic--dot {
+  fill: $g5-pepper;
+  transition: fill $collector-graphic-anim-time ease;
+}
+
+.collector-graphic--bucket {
+  fill: $g5-pepper;
+  transition: fill 0.25s ease;
+}
+
+.collector-graphic--bucket-hole {
+  fill: $g2-kevlar;
+  transition: fill 0.25s ease;
+}
+
+.collector-graphic--data {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-miterlimit: 10;
+  transition: all $collector-graphic-anim-time ease;
+}
+
+.data-a,
+.data-b,
+.data-c,
+.data-d,
+.data-e {
+  stroke-width: 2px;
+}
+
+.data-a {
+  stroke: $c-rainforest;
+  stroke-dasharray: 146;
+  stroke-dashoffset: 146;
+}
+
+.data-b {
+  stroke: $c-thunder;
+  stroke-dasharray: 102;
+  stroke-dashoffset: 102;
+}
+
+.data-c {
+  stroke: $c-pool;
+  stroke-dasharray: 81;
+  stroke-dashoffset: 81;
+}
+
+.data-d {
+  stroke: $c-comet;
+  stroke-dasharray: 102;
+  stroke-dashoffset: 102;
+}
+
+.data-e {
+  stroke: $c-dreamsicle;
+  stroke-dasharray: 146;
+  stroke-dashoffset: 146;
+}
+
+@keyframes cubo-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.collector-graphic--cubo {
+  animation: cubo-spin 5s linear infinite;
+  transform-origin: 161px 161.6px;
+  transition: opacity $collector-graphic-anim-time ease;
+  opacity: 0;
+}
+
+.collector-graphic--cubo-line {
+  transition: stroke 0.25s ease;
+  stroke-width: 1.5px;
+  stroke: $g2-kevlar;
+  fill: none;
+}
+
+/* Hover State */
+.getting-started--card:hover {
+  .collector-graphic--bucket {
+    fill: $g13-mist;
+  }
+  .collector-graphic--bucket-hole {
+    fill: $g9-mountain;
+  }
+  .collector-graphic--bg {
+    fill: $g3-castle;
+  }
+  .dot-a {
+    fill: $c-rainforest;
+  }
+  .dot-b {
+    fill: $c-thunder;
+  }
+  .dot-c {
+    fill: $c-pool;
+  }
+  .dot-d {
+    fill: $c-comet;
+  }
+  .dot-e {
+    fill: $c-dreamsicle;
+  }
+  .data-a,
+  .data-b,
+  .data-c,
+  .data-d,
+  .data-e {
+    stroke-dashoffset: 0;
+  }
+  .collector-graphic--cubo {
+    opacity: 1;
+  }
+  .collector-graphic--cubo-line {
+    stroke: $g9-mountain;
+  }
+}

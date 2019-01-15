@@ -6,6 +6,7 @@ import {Link} from 'react-router'
 import GradientBorder from 'src/shared/components/cells/GradientBorder'
 import DashboardingGraphic from 'src/me/graphics/DashboardingGraphic'
 import ExploreGraphic from 'src/me/graphics/ExploreGraphic'
+import CollectorGraphic from 'src/me/graphics/CollectorGraphic'
 
 // Styles
 import 'src/me/components/GettingStarted.scss'
@@ -17,7 +18,7 @@ export default class GettingStarted extends PureComponent {
         <div className="getting-started--container">
           <Link to={`/data-explorer`} className="getting-started--card">
             <GradientBorder />
-            <div className="getting-started--image" />
+            <CollectorGraphic />
             <h3 className="getting-started--title">
               Configure a<br />
               Data Collector
