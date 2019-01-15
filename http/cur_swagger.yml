@@ -3900,7 +3900,7 @@ components:
           type: string
         rp:
           type: string
-        organizationID:
+        orgID:
           type: string
         retentionRules:
           type: array
@@ -4075,7 +4075,7 @@ components:
           type: string
     TaskCreateRequest:
       properties:
-        organizationID:
+        orgID:
           description: The ID of the organization that owns this Task.
           type: string
         status:
@@ -4088,7 +4088,7 @@ components:
         flux:
           description: The Flux script to run for this task.
           type: string
-      required: [organizationID, flux]
+      required: [orgID, flux]
     TaskUpdateRequest:
       properties:
         status:
@@ -4107,7 +4107,7 @@ components:
         id:
           readOnly: true
           type: string
-        organizationID:
+        orgID:
           description: The ID of the organization that owns this Task.
           type: string
         name:

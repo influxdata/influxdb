@@ -343,7 +343,7 @@ export interface Bucket {
      * @type {string}
      * @memberof Bucket
      */
-    organizationID?: string;
+    orgID?: string;
     /**
      * rules to expire or retain data.  No rules means data never expires.
      * @type {Array<BucketRetentionRules>}
@@ -2532,7 +2532,7 @@ export interface Source {
      * @type {string}
      * @memberof Source
      */
-    organizationID?: string;
+    orgID?: string;
     /**
      * 
      * @type {string}
@@ -2701,7 +2701,7 @@ export interface Task {
      * @type {string}
      * @memberof Task
      */
-    organizationID?: string;
+    orgID?: string;
     /**
      * A description of the task.
      * @type {string}
@@ -2790,7 +2790,7 @@ export interface TaskCreateRequest {
      * @type {string}
      * @memberof TaskCreateRequest
      */
-    organizationID: string;
+    orgID: string;
     /**
      * Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
      * @type {string}
