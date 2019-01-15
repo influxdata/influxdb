@@ -34,7 +34,7 @@ export const INITIAL_STATE: DataLoadersState = {
   precision: WritePrecision.Ns,
   telegrafConfigID: null,
   pluginBundles: [],
-  scraper: {interval: '', bucket: '', urls: []},
+  scraperTarget: {bucket: '', url: ''},
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
@@ -261,48 +261,28 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
           return {...tp}
         }),
       }
-    case 'SET_SCRAPING_INTERVAL':
-      const {interval} = action.payload
-
-      return {
-        ...state,
-        scraper: {...state.scraper, interval},
-      }
-    case 'SET_SCRAPING_BUCKET':
+    case 'SET_SCRAPER_TARGET_BUCKET':
       const {bucket} = action.payload
-
       return {
         ...state,
-        scraper: {...state.scraper, bucket},
+        scraperTarget: {...state.scraperTarget, bucket},
       }
-    case 'ADD_SCRAPING_URL':
+    case 'SET_SCRAPER_TARGET_URL':
       const {url} = action.payload
       return {
         ...state,
-        scraper: {
-          ...state.scraper,
-          urls: [...state.scraper.urls, url],
+        scraperTarget: {
+          ...state.scraperTarget,
+          url,
         },
       }
-    case 'REMOVE_SCRAPING_URL':
+    case 'SET_SCRAPER_TARGET_ID':
+      const {id} = action.payload
       return {
         ...state,
-        scraper: {
-          ...state.scraper,
-          urls: state.scraper.urls.filter(url => url !== action.payload.url),
-        },
-      }
-    case 'UPDATE_SCRAPING_URL':
-      return {
-        ...state,
-        scraper: {
-          ...state.scraper,
-          urls: state.scraper.urls.map((url, i) => {
-            if (i === action.payload.index) {
-              return action.payload.url
-            }
-            return url
-          }),
+        scraperTarget: {
+          ...state.scraperTarget,
+          id,
         },
       }
     case 'SET_LINE_PROTOCOL_BODY':

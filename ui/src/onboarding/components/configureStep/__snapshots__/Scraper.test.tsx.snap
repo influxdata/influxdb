@@ -1,36 +1,11 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`Scraping rendering renders! 1`] = `
+exports[`ScraperTarget rendering renders! 1`] = `
 <Grid>
   <GridRow>
     <GridColumn
-      offsetMD={1}
-      widthMD={5}
-      widthXS={6}
-    >
-      <FormElement
-        label="Interval"
-      >
-        <Input
-          autoFocus={true}
-          autocomplete="off"
-          disabledTitleText="This input is disabled"
-          name=""
-          onChange={[Function]}
-          placeholder=""
-          size="md"
-          spellCheck={false}
-          status="default"
-          titleText="Interval"
-          type="text"
-          value=""
-        />
-      </FormElement>
-    </GridColumn>
-    <GridColumn
-      offsetMD={1}
-      widthMD={5}
-      widthXS={6}
+      offsetXS={2}
+      widthXS={8}
     >
       <FormElement
         label="Bucket"
@@ -50,25 +25,27 @@ exports[`Scraping rendering renders! 1`] = `
       </FormElement>
     </GridColumn>
     <GridColumn
-      offsetMD={1}
-      widthMD={10}
-      widthXS={12}
+      offsetXS={2}
+      widthXS={8}
     >
-      <MultipleInput
-        helpText=""
-        onAddRow={[MockFunction]}
-        onDeleteRow={[MockFunction]}
-        onEditRow={[MockFunction]}
-        tags={
-          Array [
-            Object {
-              "name": "",
-              "text": "",
-            },
-          ]
-        }
-        title="Add URL"
-      />
+      <FormElement
+        label="Target URL"
+      >
+        <Input
+          autoFocus={true}
+          autocomplete="off"
+          disabledTitleText="This input is disabled"
+          name=""
+          onChange={[Function]}
+          placeholder=""
+          size="md"
+          spellCheck={false}
+          status="default"
+          titleText="Target URL"
+          type="text"
+          value=""
+        />
+      </FormElement>
     </GridColumn>
   </GridRow>
 </Grid>

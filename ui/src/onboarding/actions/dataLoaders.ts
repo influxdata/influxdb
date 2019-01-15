@@ -7,6 +7,8 @@ import {
   createTelegrafConfig,
   getTelegrafConfigs,
   updateTelegrafConfig,
+  createScraperTarget,
+  updateScraperTarget,
 } from 'src/onboarding/apis/index'
 
 // Utils
@@ -35,6 +37,7 @@ import {
   TelegrafRequest,
   TelegrafPluginOutputInfluxDBV2,
 } from 'src/api'
+import {Dispatch} from 'redux'
 
 type GetState = () => AppState
 
@@ -58,11 +61,9 @@ export type Action =
   | RemovePluginBundle
   | SetPluginConfiguration
   | SetConfigArrayValue
-  | SetScrapingInterval
-  | SetScrapingBucket
-  | AddScrapingURL
-  | RemoveScrapingURL
-  | UpdateScrapingURL
+  | SetScraperTargetBucket
+  | SetScraperTargetURL
+  | SetScraperTargetID
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -209,57 +210,36 @@ export const removeBundlePlugins = (
   payload: {bundle},
 })
 
-interface SetScrapingInterval {
-  type: 'SET_SCRAPING_INTERVAL'
-  payload: {interval: string}
-}
-
-export const setScrapingInterval = (interval: string): SetScrapingInterval => ({
-  type: 'SET_SCRAPING_INTERVAL',
-  payload: {interval},
-})
-
-interface SetScrapingBucket {
-  type: 'SET_SCRAPING_BUCKET'
+interface SetScraperTargetBucket {
+  type: 'SET_SCRAPER_TARGET_BUCKET'
   payload: {bucket: string}
 }
 
-export const setScrapingBucket = (bucket: string): SetScrapingBucket => ({
-  type: 'SET_SCRAPING_BUCKET',
+export const setScraperTargetBucket = (
+  bucket: string
+): SetScraperTargetBucket => ({
+  type: 'SET_SCRAPER_TARGET_BUCKET',
   payload: {bucket},
 })
 
-interface AddScrapingURL {
-  type: 'ADD_SCRAPING_URL'
+interface SetScraperTargetURL {
+  type: 'SET_SCRAPER_TARGET_URL'
   payload: {url: string}
 }
 
-export const addScrapingURL = (url: string): AddScrapingURL => ({
-  type: 'ADD_SCRAPING_URL',
+export const setScraperTargetURL = (url: string): SetScraperTargetURL => ({
+  type: 'SET_SCRAPER_TARGET_URL',
   payload: {url},
 })
 
-interface RemoveScrapingURL {
-  type: 'REMOVE_SCRAPING_URL'
-  payload: {url: string}
+interface SetScraperTargetID {
+  type: 'SET_SCRAPER_TARGET_ID'
+  payload: {id: string}
 }
 
-export const removeScrapingURL = (url: string): RemoveScrapingURL => ({
-  type: 'REMOVE_SCRAPING_URL',
-  payload: {url},
-})
-
-interface UpdateScrapingURL {
-  type: 'UPDATE_SCRAPING_URL'
-  payload: {index: number; url: string}
-}
-
-export const updateScrapingURL = (
-  index: number,
-  url: string
-): UpdateScrapingURL => ({
-  type: 'UPDATE_SCRAPING_URL',
-  payload: {index, url},
+export const setScraperTargetID = (id: string): SetScraperTargetID => ({
+  type: 'SET_SCRAPER_TARGET_ID',
+  payload: {id},
 })
 
 export const addPluginBundleWithPlugins = (bundle: BundleName) => dispatch => {
@@ -422,5 +402,30 @@ export const writeLineProtocolAction = (
     dispatch(setLPStatus(RemoteDataState.Done))
   } catch (error) {
     dispatch(setLPStatus(RemoteDataState.Error))
+  }
+}
+
+export const saveScraperTarget = () => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const {
+    onboarding: {
+      dataLoaders: {
+        scraperTarget: {url, id},
+      },
+      steps: {bucketID, orgID},
+    },
+  } = getState()
+
+  try {
+    if (id) {
+      await updateScraperTarget(id, url, bucketID)
+    } else {
+      const newTarget = await createScraperTarget(url, orgID, bucketID)
+      dispatch(setScraperTargetID(newTarget.id))
+    }
+  } catch (error) {
+    console.error()
   }
 }

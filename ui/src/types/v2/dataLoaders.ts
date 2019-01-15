@@ -37,10 +37,10 @@ import {
 import {RemoteDataState} from 'src/types'
 import {WritePrecision} from 'src/api'
 
-interface Scraper {
-  interval: string
+interface ScraperTarget {
   bucket: string
-  urls: string[]
+  url: string
+  id?: string
 }
 
 export interface DataLoadersState {
@@ -52,7 +52,7 @@ export interface DataLoadersState {
   lpStatus: RemoteDataState
   lineProtocolBody: string
   precision: WritePrecision
-  scraper: Scraper
+  scraperTarget: ScraperTarget
 }
 
 export enum ConfigurationState {

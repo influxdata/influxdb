@@ -3,21 +3,19 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Form, Dropdown} from 'src/clockface'
+import {Form} from 'src/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 // Actions
 import {
-  setScrapingInterval,
-  addScrapingURL,
-  removeScrapingURL,
-  updateScrapingURL,
-  setScrapingBucket,
+  setScraperTargetBucket,
+  setScraperTargetURL,
+  saveScraperTarget,
 } from 'src/onboarding/actions/dataLoaders'
 import {AppState} from 'src/types/v2/index'
 import {SetupParams} from 'src/onboarding/apis'
-import Scraper from 'src/onboarding/components/configureStep/Scraper'
+import ScraperTarget from 'src/onboarding/components/configureStep/ScraperTarget'
 
 interface OwnProps {
   onClickNext: () => void
@@ -26,44 +24,52 @@ interface OwnProps {
 }
 
 interface DispatchProps {
-  setScrapingInterval: typeof setScrapingInterval
-  setScrapingBucket: typeof setScrapingBucket
-  addScrapingURL: typeof addScrapingURL
-  removeScrapingURL: typeof removeScrapingURL
-  updateScrapingURL: typeof updateScrapingURL
+  onSetScraperTargetBucket: typeof setScraperTargetBucket
+  onSetScraperTargetURL: typeof setScraperTargetURL
+  onSaveScraperTarget: typeof saveScraperTarget
 }
 
 interface StateProps {
-  interval: string
   bucket: string
-  urls: string[]
+  url: string
   setupParams: SetupParams
 }
 
 type Props = OwnProps & DispatchProps & StateProps
 
 export class Scraping extends PureComponent<Props> {
+  public componentDidMount() {
+    const {bucket, setupParams, onSetScraperTargetBucket} = this.props
+    if (!bucket) {
+      onSetScraperTargetBucket(setupParams.bucket)
+    }
+  }
+
   public render() {
-    const {bucket, onClickBack, onClickSkip} = this.props
+    const {
+      bucket,
+      onClickBack,
+      onClickSkip,
+      onSetScraperTargetURL,
+      url,
+    } = this.props
+
     return (
       <Form onSubmit={this.handleSubmit}>
         <div className="wizard-step--scroll-area">
           <FancyScrollbar autoHide={false}>
             <div className="wizard-step--scroll-content">
-              <h3 className="wizard-step--title">Add Scraper</h3>
+              <h3 className="wizard-step--title">Add Scraper Target</h3>
               <h5 className="wizard-step--sub-title">
                 Scrapers collect data from multiple targets at regular intervals
                 and to write to a bucket
               </h5>
-              <Scraper
+              <ScraperTarget
                 bucket={bucket}
-                dropdownBuckets={this.dropdownBuckets}
-                onChooseInterval={this.handleChange}
-                onDropdownHandle={this.handleBucket}
-                onAddRow={this.handleAddRow}
-                onRemoveRow={this.handleRemoveRow}
-                onUpdateRow={this.handleEditRow}
-                tags={this.tags}
+                buckets={this.buckets}
+                onSelectBucket={this.handleSelectBucket}
+                onChangeURL={onSetScraperTargetURL}
+                url={url}
               />
             </div>
           </FancyScrollbar>
@@ -72,53 +78,28 @@ export class Scraping extends PureComponent<Props> {
           onClickBack={onClickBack}
           onClickSkip={onClickSkip}
           showSkip={true}
-          autoFocusNext={true}
+          autoFocusNext={false}
           skipButtonText={'Skip'}
         />
       </Form>
     )
   }
-  private get dropdownBuckets(): JSX.Element[] {
-    const {setupParams} = this.props
 
-    const buckets = [setupParams.bucket]
+  private get buckets(): string[] {
+    const {
+      setupParams: {bucket},
+    } = this.props
 
-    // This is a hacky fix
-    return buckets.map(b => (
-      <Dropdown.Item key={b} value={b} id={b}>
-        {b}
-      </Dropdown.Item>
-    ))
+    return bucket ? [bucket] : []
   }
 
-  private handleChange = (value: string) => {
-    this.props.setScrapingInterval(value)
+  private handleSelectBucket = (bucket: string) => {
+    this.props.onSetScraperTargetBucket(bucket)
   }
 
-  private handleAddRow = (item: string) => {
-    this.props.addScrapingURL(item)
-  }
+  private handleSubmit = async () => {
+    await this.props.onSaveScraperTarget()
 
-  private handleRemoveRow = (item: string) => {
-    this.props.removeScrapingURL(item)
-  }
-
-  private handleEditRow = (index: number, item: string) => {
-    this.props.updateScrapingURL(index, item)
-  }
-
-  private get tags(): Array<{name: string; text: string}> {
-    const {urls} = this.props
-    return urls.map(v => {
-      return {text: v, name: v}
-    })
-  }
-
-  private handleBucket = (bucket: string) => {
-    this.props.setScrapingBucket(bucket)
-  }
-
-  private handleSubmit = () => {
     this.props.onClickNext()
   }
 }
@@ -127,20 +108,19 @@ const mstp = ({
   onboarding: {
     steps: {setupParams},
     dataLoaders: {
-      scraper: {interval, bucket, urls},
+      scraperTarget: {bucket, url},
     },
   },
-}: AppState) => {
-  return {setupParams, interval, bucket, urls}
+}: AppState): StateProps => {
+  return {setupParams, bucket, url}
 }
 
 const mdtp: DispatchProps = {
-  setScrapingInterval,
-  setScrapingBucket,
-  addScrapingURL,
-  removeScrapingURL,
-  updateScrapingURL,
+  onSetScraperTargetBucket: setScraperTargetBucket,
+  onSetScraperTargetURL: setScraperTargetURL,
+  onSaveScraperTarget: saveScraperTarget,
 }
+
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp

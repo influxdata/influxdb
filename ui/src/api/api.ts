@@ -2512,6 +2512,111 @@ export namespace Run {
 /**
  * 
  * @export
+ * @interface ScraperTargetRequest
+ */
+export interface ScraperTargetRequest {
+    /**
+     * name of the scraper target
+     * @type {string}
+     * @memberof ScraperTargetRequest
+     */
+    name?: string;
+    /**
+     * type of the metrics to be parsed
+     * @type {string}
+     * @memberof ScraperTargetRequest
+     */
+    type?: ScraperTargetRequest.TypeEnum;
+    /**
+     * url of the metrics endpoint
+     * @type {string}
+     * @memberof ScraperTargetRequest
+     */
+    url?: string;
+    /**
+     * id of the organization
+     * @type {string}
+     * @memberof ScraperTargetRequest
+     */
+    orgID?: string;
+    /**
+     * id of the bucket to be written
+     * @type {string}
+     * @memberof ScraperTargetRequest
+     */
+    bucketID?: string;
+}
+
+/**
+ * @export
+ * @namespace ScraperTargetRequest
+ */
+export namespace ScraperTargetRequest {
+    /**
+     * @export
+     * @enum {string}
+     */
+    export enum TypeEnum {
+        Prometheus = 'prometheus'
+    }
+}
+
+/**
+ * 
+ * @export
+ * @interface ScraperTargetResponse
+ */
+export interface ScraperTargetResponse extends ScraperTargetRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof ScraperTargetResponse
+     */
+    id?: string;
+    /**
+     * name of the organization
+     * @type {string}
+     * @memberof ScraperTargetResponse
+     */
+    organization?: string;
+    /**
+     * name of the bucket
+     * @type {string}
+     * @memberof ScraperTargetResponse
+     */
+    bucket?: string;
+    /**
+     * 
+     * @type {Links}
+     * @memberof ScraperTargetResponse
+     */
+    links?: Links;
+}
+
+/**
+ * @export
+ * @namespace ScraperTargetResponse
+ */
+export namespace ScraperTargetResponse {
+}
+
+/**
+ * 
+ * @export
+ * @interface ScraperTargetResponses
+ */
+export interface ScraperTargetResponses {
+    /**
+     * 
+     * @type {Array<ScraperTargetResponse>}
+     * @memberof ScraperTargetResponses
+     */
+    configurations?: Array<ScraperTargetResponse>;
+}
+
+/**
+ * 
+ * @export
  * @interface Source
  */
 export interface Source {
@@ -10685,6 +10790,340 @@ export class QueryApi extends BaseAPI {
      */
     public querySuggestionsNameGet(name: string, options?: any) {
         return QueryApiFp(this.configuration).querySuggestionsNameGet(name, options)(this.axios, this.basePath);
+    }
+
+}
+
+/**
+ * ScraperTargetsApi - axios parameter creator
+ * @export
+ */
+export const ScraperTargetsApiAxiosParamCreator = function (configuration?: Configuration) {
+    return {
+        /**
+         * 
+         * @summary get all scraper targets
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsGet(options: any = {}): RequestArgs {
+            const localVarPath = `/scrapertargets`;
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary create a scraper target
+         * @param {ScraperTargetRequest} scraperTargetRequest scraper target to create
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsPost(scraperTargetRequest: ScraperTargetRequest, options: any = {}): RequestArgs {
+            // verify required parameter 'scraperTargetRequest' is not null or undefined
+            if (scraperTargetRequest === null || scraperTargetRequest === undefined) {
+                throw new RequiredError('scraperTargetRequest','Required parameter scraperTargetRequest was null or undefined when calling scrapertargetsPost.');
+            }
+            const localVarPath = `/scrapertargets`;
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'POST' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"ScraperTargetRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(scraperTargetRequest || {}) : (scraperTargetRequest || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary delete a scraper target
+         * @param {string} scraperTargetID id of the scraper target
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'scraperTargetID' is not null or undefined
+            if (scraperTargetID === null || scraperTargetID === undefined) {
+                throw new RequiredError('scraperTargetID','Required parameter scraperTargetID was null or undefined when calling scrapertargetsScraperTargetIDDelete.');
+            }
+            const localVarPath = `/scrapertargets/{scraperTargetID}`
+                .replace(`{${"scraperTargetID"}}`, encodeURIComponent(String(scraperTargetID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'DELETE' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary update a scraper target
+         * @param {string} scraperTargetID id of the scraper target
+         * @param {ScraperTargetRequest} scraperTargetRequest scraper target update to apply
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'scraperTargetID' is not null or undefined
+            if (scraperTargetID === null || scraperTargetID === undefined) {
+                throw new RequiredError('scraperTargetID','Required parameter scraperTargetID was null or undefined when calling scrapertargetsScraperTargetIDPatch.');
+            }
+            // verify required parameter 'scraperTargetRequest' is not null or undefined
+            if (scraperTargetRequest === null || scraperTargetRequest === undefined) {
+                throw new RequiredError('scraperTargetRequest','Required parameter scraperTargetRequest was null or undefined when calling scrapertargetsScraperTargetIDPatch.');
+            }
+            const localVarPath = `/scrapertargets/{scraperTargetID}`
+                .replace(`{${"scraperTargetID"}}`, encodeURIComponent(String(scraperTargetID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'PATCH' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"ScraperTargetRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(scraperTargetRequest || {}) : (scraperTargetRequest || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+    }
+};
+
+/**
+ * ScraperTargetsApi - functional programming interface
+ * @export
+ */
+export const ScraperTargetsApiFp = function(configuration?: Configuration) {
+    return {
+        /**
+         * 
+         * @summary get all scraper targets
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsGet(options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ScraperTargetResponses> {
+            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapertargetsGet(options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary create a scraper target
+         * @param {ScraperTargetRequest} scraperTargetRequest scraper target to create
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsPost(scraperTargetRequest: ScraperTargetRequest, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ScraperTargetResponse> {
+            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapertargetsPost(scraperTargetRequest, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary delete a scraper target
+         * @param {string} scraperTargetID id of the scraper target
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapertargetsScraperTargetIDDelete(scraperTargetID, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary update a scraper target
+         * @param {string} scraperTargetID id of the scraper target
+         * @param {ScraperTargetRequest} scraperTargetRequest scraper target update to apply
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ScraperTargetResponse> {
+            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapertargetsScraperTargetIDPatch(scraperTargetID, scraperTargetRequest, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+    }
+};
+
+/**
+ * ScraperTargetsApi - factory interface
+ * @export
+ */
+export const ScraperTargetsApiFactory = function (configuration?: Configuration, basePath?: string, axios?: AxiosInstance) {
+    return {
+        /**
+         * 
+         * @summary get all scraper targets
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsGet(options?: any) {
+            return ScraperTargetsApiFp(configuration).scrapertargetsGet(options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary create a scraper target
+         * @param {ScraperTargetRequest} scraperTargetRequest scraper target to create
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsPost(scraperTargetRequest: ScraperTargetRequest, options?: any) {
+            return ScraperTargetsApiFp(configuration).scrapertargetsPost(scraperTargetRequest, options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary delete a scraper target
+         * @param {string} scraperTargetID id of the scraper target
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options?: any) {
+            return ScraperTargetsApiFp(configuration).scrapertargetsScraperTargetIDDelete(scraperTargetID, zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary update a scraper target
+         * @param {string} scraperTargetID id of the scraper target
+         * @param {ScraperTargetRequest} scraperTargetRequest scraper target update to apply
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        scrapertargetsScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options?: any) {
+            return ScraperTargetsApiFp(configuration).scrapertargetsScraperTargetIDPatch(scraperTargetID, scraperTargetRequest, zapTraceSpan, options)(axios, basePath);
+        },
+    };
+};
+
+/**
+ * ScraperTargetsApi - object-oriented interface
+ * @export
+ * @class ScraperTargetsApi
+ * @extends {BaseAPI}
+ */
+export class ScraperTargetsApi extends BaseAPI {
+    /**
+     * 
+     * @summary get all scraper targets
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ScraperTargetsApi
+     */
+    public scrapertargetsGet(options?: any) {
+        return ScraperTargetsApiFp(this.configuration).scrapertargetsGet(options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary create a scraper target
+     * @param {ScraperTargetRequest} scraperTargetRequest scraper target to create
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ScraperTargetsApi
+     */
+    public scrapertargetsPost(scraperTargetRequest: ScraperTargetRequest, options?: any) {
+        return ScraperTargetsApiFp(this.configuration).scrapertargetsPost(scraperTargetRequest, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary delete a scraper target
+     * @param {string} scraperTargetID id of the scraper target
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ScraperTargetsApi
+     */
+    public scrapertargetsScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options?: any) {
+        return ScraperTargetsApiFp(this.configuration).scrapertargetsScraperTargetIDDelete(scraperTargetID, zapTraceSpan, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary update a scraper target
+     * @param {string} scraperTargetID id of the scraper target
+     * @param {ScraperTargetRequest} scraperTargetRequest scraper target update to apply
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ScraperTargetsApi
+     */
+    public scrapertargetsScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options?: any) {
+        return ScraperTargetsApiFp(this.configuration).scrapertargetsScraperTargetIDPatch(scraperTargetID, scraperTargetRequest, zapTraceSpan, options)(this.axios, this.basePath);
     }
 
 }
