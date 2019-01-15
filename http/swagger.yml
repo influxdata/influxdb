@@ -661,7 +661,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"              
+                $ref: "#/components/schemas/Error"
   /macros:
     get:
       tags:
@@ -4146,9 +4146,7 @@ paths:
                 type: object
                 properties:
                   labels:
-                    type: array
-                    items:
-                      type: string
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
