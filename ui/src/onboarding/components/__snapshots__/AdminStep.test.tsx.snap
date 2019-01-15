@@ -86,6 +86,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 widthXS={6}
               >
                 <FormElement
+                  errorMessage={false}
                   label="Confirm Password"
                 >
                   <Input
