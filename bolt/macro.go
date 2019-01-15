@@ -235,9 +235,13 @@ func (c *Client) CreateMacro(ctx context.Context, macro *platform.Macro) error {
 
 // ReplaceMacro puts a macro in the store
 func (c *Client) ReplaceMacro(ctx context.Context, macro *platform.Macro) error {
+	op := getOp(platform.OpReplaceMacro)
 	return c.db.Update(func(tx *bolt.Tx) error {
 		if err := c.putMacroOrgsIndex(ctx, tx, macro); err != nil {
-			return err
+			return &platform.Error{
+				Op:  op,
+				Err: err,
+			}
 		}
 		return c.putMacro(ctx, tx, macro)
 	})
@@ -359,18 +363,25 @@ func (c *Client) DeleteMacro(ctx context.Context, id platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		m, pe := c.findMacroByID(ctx, tx, id)
 		if pe != nil {
-			return pe
+			return &platform.Error{
+				Op:  op,
+				Err: pe,
+			}
 		}
 
 		encID, err := id.Encode()
 		if err != nil {
 			return &platform.Error{
+				Op:  op,
 				Err: err,
 			}
 		}
 
 		if err := c.removeMacroOrgsIndex(ctx, tx, m); err != nil {
-			return platform.NewError(platform.WithErrorErr(err))
+			return &platform.Error{
+				Op:  op,
+				Err: err,
+			}
 		}
 
 		if err := tx.Bucket(macroBucket).Delete(encID); err != nil {
