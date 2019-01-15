@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Form, Radio} from 'src/clockface'
+import {Grid, Form, Radio, ButtonShape} from 'src/clockface'
 import RetentionDuration from 'src/organizations/components/RetentionDuration'
 
 // Utils
@@ -27,24 +27,26 @@ export default class Retention extends PureComponent<Props> {
 
     return (
       <>
-        <Form.Element label="How often to clear data?">
-          <Radio>
-            <Radio.Button
-              active={type === BucketRetentionRules.TypeEnum.Expire}
-              onClick={this.handleRadioClick}
-              value={BucketRetentionRules.TypeEnum.Expire}
-            >
-              Periodically
-            </Radio.Button>
-            <Radio.Button
-              active={type === null}
-              onClick={this.handleRadioClick}
-              value={null}
-            >
-              Never
-            </Radio.Button>
-          </Radio>
-        </Form.Element>
+        <Grid.Column>
+          <Form.Element label="How often to clear data?">
+            <Radio shape={ButtonShape.StretchToFit}>
+              <Radio.Button
+                active={type === BucketRetentionRules.TypeEnum.Expire}
+                onClick={this.handleRadioClick}
+                value={BucketRetentionRules.TypeEnum.Expire}
+              >
+                Periodically
+              </Radio.Button>
+              <Radio.Button
+                active={type === null}
+                onClick={this.handleRadioClick}
+                value={null}
+              >
+                Never
+              </Radio.Button>
+            </Radio>
+          </Form.Element>
+        </Grid.Column>
         <RetentionDuration
           type={type}
           retentionSeconds={retentionSeconds}

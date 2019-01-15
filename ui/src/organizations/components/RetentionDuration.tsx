@@ -31,7 +31,7 @@ export default class RetentionDuration extends PureComponent<Props> {
 
     return (
       <>
-        <Grid.Column widthXS={Columns.Two}>
+        <Grid.Column widthSM={Columns.Three}>
           <Form.Element label="Days">
             <Input
               name={DurationKey.Days}
@@ -41,7 +41,7 @@ export default class RetentionDuration extends PureComponent<Props> {
             />
           </Form.Element>
         </Grid.Column>
-        <Grid.Column widthXS={Columns.Two}>
+        <Grid.Column widthSM={Columns.Three}>
           <Form.Element label="Hours">
             <Input
               name={DurationKey.Hours}
@@ -52,7 +52,7 @@ export default class RetentionDuration extends PureComponent<Props> {
             />
           </Form.Element>
         </Grid.Column>
-        <Grid.Column widthXS={Columns.Two}>
+        <Grid.Column widthSM={Columns.Three}>
           <Form.Element label="Minutes">
             <Input
               name={DurationKey.Minutes}
@@ -63,7 +63,7 @@ export default class RetentionDuration extends PureComponent<Props> {
             />
           </Form.Element>
         </Grid.Column>
-        <Grid.Column widthXS={Columns.Two}>
+        <Grid.Column widthSM={Columns.Three}>
           <Form.Element label="Seconds">
             <Input
               name={DurationKey.Seconds}

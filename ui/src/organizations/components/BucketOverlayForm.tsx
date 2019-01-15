@@ -60,25 +60,24 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                 />
               </Form.Element>
             </Grid.Column>
-            <Grid.Column>
-              <Retention
-                type={ruleType}
-                retentionSeconds={retentionSeconds}
-                onChangeRuleType={onChangeRuleType}
-                onChangeRetentionRule={onChangeRetentionRule}
-              />
-            </Grid.Column>
+            <Retention
+              type={ruleType}
+              retentionSeconds={retentionSeconds}
+              onChangeRuleType={onChangeRuleType}
+              onChangeRetentionRule={onChangeRetentionRule}
+            />
+          </Grid.Row>
+          <Grid.Row>
             <Grid.Column>
               <Form.Footer>
                 <Button
                   text="Cancel"
-                  color={ComponentColor.Danger}
                   onClick={onCloseModal}
                   type={ButtonType.Button}
                 />
                 <Button
                   text={buttonText}
-                  color={ComponentColor.Primary}
+                  color={this.submitButtonColor}
                   type={ButtonType.Submit}
                 />
               </Form.Footer>
@@ -87,5 +86,15 @@ export default class BucketOverlayForm extends PureComponent<Props> {
         </Grid>
       </Form>
     )
+  }
+
+  private get submitButtonColor(): ComponentColor {
+    const {buttonText} = this.props
+
+    if (buttonText === 'Save Changes') {
+      return ComponentColor.Success
+    }
+
+    return ComponentColor.Primary
   }
 }
