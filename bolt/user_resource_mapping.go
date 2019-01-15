@@ -25,7 +25,7 @@ func filterMappingsFn(filter platform.UserResourceMappingFilter) func(m *platfor
 		return (!filter.UserID.Valid() || (filter.UserID == mapping.UserID)) &&
 			(!filter.ResourceID.Valid() || (filter.ResourceID == mapping.ResourceID)) &&
 			(filter.UserType == "" || (filter.UserType == mapping.UserType)) &&
-			(filter.Resource == "" || (filter.Resource == mapping.Resource))
+			(filter.ResourceType == "" || (filter.ResourceType == mapping.ResourceType))
 	}
 }
 
@@ -84,7 +84,7 @@ func (c *Client) CreateUserResourceMapping(ctx context.Context, m *platform.User
 			return err
 		}
 
-		if m.Resource == platform.OrgsResource {
+		if m.ResourceType == platform.OrgsResourceType {
 			return c.createOrgDependentMappings(ctx, tx, m)
 		}
 
@@ -125,10 +125,10 @@ func (c *Client) createOrgDependentMappings(ctx context.Context, tx *bolt.Tx, m 
 	}
 	for _, b := range bs {
 		m := &platform.UserResourceMapping{
-			Resource:   platform.BucketsResource,
-			ResourceID: b.ID,
-			UserType:   m.UserType,
-			UserID:     m.UserID,
+			ResourceType: platform.BucketsResourceType,
+			ResourceID:   b.ID,
+			UserType:     m.UserType,
+			UserID:       m.UserID,
 		}
 		if err := c.createUserResourceMapping(ctx, tx, m); err != nil {
 			return err
@@ -200,7 +200,7 @@ func (c *Client) DeleteUserResourceMapping(ctx context.Context, resourceID platf
 			return err
 		}
 
-		if m.Resource == platform.OrgsResource {
+		if m.ResourceType == platform.OrgsResourceType {
 			return c.deleteOrgDependentMappings(ctx, tx, m)
 		}
 
@@ -252,9 +252,9 @@ func (c *Client) deleteOrgDependentMappings(ctx context.Context, tx *bolt.Tx, m 
 	}
 	for _, b := range bs {
 		if err := c.deleteUserResourceMapping(ctx, tx, platform.UserResourceMappingFilter{
-			Resource:   platform.BucketsResource,
-			ResourceID: b.ID,
-			UserID:     m.UserID,
+			ResourceType: platform.BucketsResourceType,
+			ResourceID:   b.ID,
+			UserID:       m.UserID,
 		}); err != nil {
 			return err
 		}

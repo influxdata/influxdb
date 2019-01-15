@@ -48,16 +48,16 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 					FindMappingsFn: func(ctx context.Context, filter platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error) {
 						ms := []*platform.UserResourceMapping{
 							{
-								ResourceID: filter.ResourceID,
-								Resource:   filter.Resource,
-								UserType:   filter.UserType,
-								UserID:     1,
+								ResourceID:   filter.ResourceID,
+								ResourceType: filter.ResourceType,
+								UserType:     filter.UserType,
+								UserID:       1,
 							},
 							{
-								ResourceID: filter.ResourceID,
-								Resource:   filter.Resource,
-								UserType:   filter.UserType,
-								UserID:     2,
+								ResourceID:   filter.ResourceID,
+								ResourceType: filter.ResourceType,
+								UserType:     filter.UserType,
+								UserID:       2,
 							},
 						}
 						return ms, len(ms), nil
@@ -112,16 +112,16 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 					FindMappingsFn: func(ctx context.Context, filter platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error) {
 						ms := []*platform.UserResourceMapping{
 							{
-								ResourceID: filter.ResourceID,
-								Resource:   filter.Resource,
-								UserType:   filter.UserType,
-								UserID:     1,
+								ResourceID:   filter.ResourceID,
+								ResourceType: filter.ResourceType,
+								UserType:     filter.UserType,
+								UserID:       1,
 							},
 							{
-								ResourceID: filter.ResourceID,
-								Resource:   filter.Resource,
-								UserType:   filter.UserType,
-								UserID:     2,
+								ResourceID:   filter.ResourceID,
+								ResourceType: filter.ResourceType,
+								UserType:     filter.UserType,
+								UserID:       2,
 							},
 						}
 						return ms, len(ms), nil
@@ -166,14 +166,14 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		resourceTypes := []platform.Resource{
-			platform.BucketsResource,
-			platform.DashboardsResource,
-			platform.OrgsResource,
-			platform.SourcesResource,
-			platform.TasksResource,
-			platform.TelegrafsResource,
-			platform.UsersResource,
+		resourceTypes := []platform.ResourceType{
+			platform.BucketsResourceType,
+			platform.DashboardsResourceType,
+			platform.OrgsResourceType,
+			platform.SourcesResourceType,
+			platform.TasksResourceType,
+			platform.TelegrafsResourceType,
+			platform.UsersResourceType,
 		}
 
 		for _, resourceType := range resourceTypes {
@@ -311,14 +311,14 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		resourceTypes := []platform.Resource{
-			platform.BucketsResource,
-			platform.DashboardsResource,
-			platform.OrgsResource,
-			platform.SourcesResource,
-			platform.TasksResource,
-			platform.TelegrafsResource,
-			platform.UsersResource,
+		resourceTypes := []platform.ResourceType{
+			platform.BucketsResourceType,
+			platform.DashboardsResourceType,
+			platform.OrgsResourceType,
+			platform.SourcesResourceType,
+			platform.TasksResourceType,
+			platform.TelegrafsResourceType,
+			platform.UsersResourceType,
 		}
 
 		for _, resourceType := range resourceTypes {

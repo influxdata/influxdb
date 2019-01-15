@@ -44,7 +44,7 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth 
 			return errors.New("bucket service returned nil bucket")
 		}
 
-		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.ReadAction, platform.BucketsResource, bucket.OrganizationID)
+		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.ReadAction, platform.BucketsResourceType, bucket.OrganizationID)
 		if err != nil {
 			return errors.Wrapf(err, "could not create read bucket permission")
 		}
@@ -60,7 +60,7 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth 
 			return errors.Wrapf(err, "could not find bucket %v", writeBucketFilter)
 		}
 
-		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResource, bucket.OrganizationID)
+		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, bucket.OrganizationID)
 		if err != nil {
 			return errors.Wrapf(err, "could not create write bucket permission")
 		}

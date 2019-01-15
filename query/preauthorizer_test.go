@@ -66,7 +66,7 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 	}
 
 	orgID := platform.ID(1)
-	p, err := platform.NewPermissionAtID(*id, platform.ReadAction, platform.BucketsResource, orgID)
+	p, err := platform.NewPermissionAtID(*id, platform.ReadAction, platform.BucketsResourceType, orgID)
 	if err != nil {
 		t.Fatalf("Error creating read bucket permission query: %v", err)
 	}

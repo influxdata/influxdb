@@ -804,8 +804,8 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 
 	// TODO(desa): add DeleteKeyValueLog method and use it here.
 	err = c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
-		ResourceID: id,
-		Resource:   platform.DashboardsResource,
+		ResourceID:   id,
+		ResourceType: platform.DashboardsResourceType,
 	})
 	if err != nil {
 		return &platform.Error{

@@ -101,7 +101,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.writeUserPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.UsersResource, o.ID)
+		p, err := platform.NewPermission(platform.WriteAction, platform.UsersResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -109,7 +109,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.readUserPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.UsersResource, o.ID)
+		p, err := platform.NewPermission(platform.ReadAction, platform.UsersResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -117,7 +117,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.writeBucketsPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.BucketsResource, o.ID)
+		p, err := platform.NewPermission(platform.WriteAction, platform.BucketsResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -125,7 +125,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.readBucketsPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.BucketsResource, o.ID)
+		p, err := platform.NewPermission(platform.ReadAction, platform.BucketsResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -138,7 +138,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		p, err := platform.NewPermissionAtID(id, platform.WriteAction, platform.BucketsResource, o.ID)
+		p, err := platform.NewPermissionAtID(id, platform.WriteAction, platform.BucketsResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -152,7 +152,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		p, err := platform.NewPermissionAtID(id, platform.ReadAction, platform.BucketsResource, o.ID)
+		p, err := platform.NewPermissionAtID(id, platform.ReadAction, platform.BucketsResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -160,7 +160,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.writeTasksPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.TasksResource, o.ID)
+		p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -168,7 +168,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.readTasksPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.TasksResource, o.ID)
+		p, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -176,7 +176,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.writeTelegrafsPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.TelegrafsResource, o.ID)
+		p, err := platform.NewPermission(platform.WriteAction, platform.TelegrafsResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -184,7 +184,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.readTelegrafsPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.TelegrafsResource, o.ID)
+		p, err := platform.NewPermission(platform.ReadAction, platform.TelegrafsResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -192,7 +192,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.writeOrganizationsPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.OrgsResource, o.ID)
+		p, err := platform.NewPermission(platform.WriteAction, platform.OrgsResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -200,7 +200,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.readOrganizationsPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.OrgsResource, o.ID)
+		p, err := platform.NewPermission(platform.ReadAction, platform.OrgsResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -208,7 +208,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.writeDashboardsPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.DashboardsResource, o.ID)
+		p, err := platform.NewPermission(platform.WriteAction, platform.DashboardsResourceType, o.ID)
 		if err != nil {
 			return err
 		}
@@ -216,7 +216,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if authorizationCreateFlags.readDashboardsPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.DashboardsResource, o.ID)
+		p, err := platform.NewPermission(platform.ReadAction, platform.DashboardsResourceType, o.ID)
 		if err != nil {
 			return err
 		}

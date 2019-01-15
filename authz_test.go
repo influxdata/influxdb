@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	platform "github.com/influxdata/influxdb"
+	influxdbtesting "github.com/influxdata/influxdb/testing"
 )
 
 func TestAuthorizer_PermissionAllowed(t *testing.T) {
@@ -14,19 +15,43 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		allowed     bool
 	}{
 		{
-			name: "bad org id in permission",
+			name: "global permission",
 			permission: platform.Permission{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    0,
-				ID:       IDPtr(0),
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    influxdbtesting.IDPtr(1),
+				},
 			},
 			permissions: []platform.Permission{
 				{
-					Action:   platform.WriteAction,
-					Resource: platform.BucketsResource,
-					OrgID:    1,
-					ID:       IDPtr(1),
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type: platform.BucketsResourceType,
+					},
+				},
+			},
+			allowed: true,
+		},
+		{
+			name: "bad org id in permission",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(0),
+					ID:    influxdbtesting.IDPtr(0),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(1),
+					},
 				},
 			},
 			allowed: false,
@@ -34,17 +59,21 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		{
 			name: "bad resource id in permission",
 			permission: platform.Permission{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    1,
-				ID:       IDPtr(0),
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    influxdbtesting.IDPtr(0),
+				},
 			},
 			permissions: []platform.Permission{
 				{
-					Action:   platform.WriteAction,
-					Resource: platform.BucketsResource,
-					OrgID:    1,
-					ID:       IDPtr(1),
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(1),
+					},
 				},
 			},
 			allowed: false,
@@ -52,17 +81,21 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		{
 			name: "bad resource id in permissions",
 			permission: platform.Permission{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    1,
-				ID:       IDPtr(1),
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    influxdbtesting.IDPtr(1),
+				},
 			},
 			permissions: []platform.Permission{
 				{
-					Action:   platform.WriteAction,
-					Resource: platform.BucketsResource,
-					OrgID:    1,
-					ID:       IDPtr(0),
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(0),
+					},
 				},
 			},
 			allowed: false,
@@ -70,17 +103,21 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		{
 			name: "matching action resource and ID",
 			permission: platform.Permission{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    1,
-				ID:       IDPtr(1),
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    influxdbtesting.IDPtr(1),
+				},
 			},
 			permissions: []platform.Permission{
 				{
-					Action:   platform.WriteAction,
-					Resource: platform.BucketsResource,
-					OrgID:    1,
-					ID:       IDPtr(1),
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(1),
+					},
 				},
 			},
 			allowed: true,
@@ -88,16 +125,20 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		{
 			name: "matching action resource with total",
 			permission: platform.Permission{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    1,
-				ID:       IDPtr(1),
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    influxdbtesting.IDPtr(1),
+				},
 			},
 			permissions: []platform.Permission{
 				{
-					Action:   platform.WriteAction,
-					Resource: platform.BucketsResource,
-					OrgID:    1,
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+					},
 				},
 			},
 			allowed: true,
@@ -105,15 +146,19 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		{
 			name: "matching action resource no ID",
 			permission: platform.Permission{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    1,
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+				},
 			},
 			permissions: []platform.Permission{
 				{
-					Action:   platform.WriteAction,
-					Resource: platform.BucketsResource,
-					OrgID:    1,
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+					},
 				},
 			},
 			allowed: true,
@@ -121,17 +166,21 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		{
 			name: "matching action resource differing ID",
 			permission: platform.Permission{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    1,
-				ID:       IDPtr(1),
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    influxdbtesting.IDPtr(1),
+				},
 			},
 			permissions: []platform.Permission{
 				{
-					Action:   platform.WriteAction,
-					Resource: platform.BucketsResource,
-					OrgID:    1,
-					ID:       IDPtr(2),
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(2),
+					},
 				},
 			},
 			allowed: false,
@@ -139,17 +188,21 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		{
 			name: "differing action same resource",
 			permission: platform.Permission{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    1,
-				ID:       IDPtr(1),
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    influxdbtesting.IDPtr(1),
+				},
 			},
 			permissions: []platform.Permission{
 				{
-					Action:   platform.ReadAction,
-					Resource: platform.BucketsResource,
-					OrgID:    1,
-					ID:       IDPtr(1),
+					Action: platform.ReadAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(1),
+					},
 				},
 			},
 			allowed: false,
@@ -157,17 +210,21 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		{
 			name: "same action differing resource",
 			permission: platform.Permission{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    1,
-				ID:       IDPtr(1),
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    influxdbtesting.IDPtr(1),
+				},
 			},
 			permissions: []platform.Permission{
 				{
-					Action:   platform.WriteAction,
-					Resource: platform.TasksResource,
-					OrgID:    1,
-					ID:       IDPtr(1),
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.TasksResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+						ID:    influxdbtesting.IDPtr(1),
+					},
 				},
 			},
 			allowed: false,
@@ -188,8 +245,6 @@ func TestPermission_Valid(t *testing.T) {
 	type fields struct {
 		Action   platform.Action
 		Resource platform.Resource
-		ID       *platform.ID
-		OrgID    platform.ID
 	}
 	tests := []struct {
 		name    string
@@ -199,36 +254,44 @@ func TestPermission_Valid(t *testing.T) {
 		{
 			name: "valid bucket permission with ID",
 			fields: fields{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				ID:       validID(),
-				OrgID:    1,
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					ID:    validID(),
+					OrgID: influxdbtesting.IDPtr(1),
+				},
 			},
 		},
 		{
 			name: "valid bucket permission with nil ID",
 			fields: fields{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				ID:       nil,
-				OrgID:    1,
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					ID:    nil,
+					OrgID: influxdbtesting.IDPtr(1),
+				},
 			},
 		},
 		{
 			name: "invalid bucket permission with an invalid ID",
 			fields: fields{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				ID:       func() *platform.ID { id := platform.InvalidID(); return &id }(),
-				OrgID:    1,
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					ID:    func() *platform.ID { id := platform.InvalidID(); return &id }(),
+					OrgID: influxdbtesting.IDPtr(1),
+				},
 			},
 			wantErr: true,
 		},
 		{
 			name: "invalid permission without an action",
 			fields: fields{
-				Resource: platform.BucketsResource,
-				OrgID:    1,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+				},
 			},
 			wantErr: true,
 		},
@@ -236,15 +299,6 @@ func TestPermission_Valid(t *testing.T) {
 			name: "invalid permission without a resource",
 			fields: fields{
 				Action: platform.WriteAction,
-				OrgID:  1,
-			},
-			wantErr: true,
-		},
-		{
-			name: "invalid permission without a valid orgID",
-			fields: fields{
-				Action: platform.WriteAction,
-				OrgID:  0,
 			},
 			wantErr: true,
 		},
@@ -254,8 +308,6 @@ func TestPermission_Valid(t *testing.T) {
 			p := &platform.Permission{
 				Action:   tt.fields.Action,
 				Resource: tt.fields.Resource,
-				ID:       tt.fields.ID,
-				OrgID:    tt.fields.OrgID,
 			}
 			if err := p.Valid(); (err != nil) != tt.wantErr {
 				t.Errorf("Permission.Valid() error = %v, wantErr %v", err, tt.wantErr)
@@ -265,20 +317,22 @@ func TestPermission_Valid(t *testing.T) {
 }
 
 func TestPermissionAllResources_Valid(t *testing.T) {
-	var resources = []platform.Resource{
-		platform.UsersResource,
-		platform.OrgsResource,
-		platform.TasksResource,
-		platform.BucketsResource,
-		platform.DashboardsResource,
-		platform.SourcesResource,
+	var resources = []platform.ResourceType{
+		platform.UsersResourceType,
+		platform.OrgsResourceType,
+		platform.TasksResourceType,
+		platform.BucketsResourceType,
+		platform.DashboardsResourceType,
+		platform.SourcesResourceType,
 	}
 
-	for _, r := range resources {
+	for _, rt := range resources {
 		p := &platform.Permission{
-			Action:   platform.WriteAction,
-			Resource: r,
-			OrgID:    1,
+			Action: platform.WriteAction,
+			Resource: platform.Resource{
+				Type: rt,
+				ID:   influxdbtesting.IDPtr(1),
+			},
 		}
 
 		if err := p.Valid(); err != nil {
@@ -295,9 +349,11 @@ func TestPermissionAllActions(t *testing.T) {
 
 	for _, a := range actions {
 		p := &platform.Permission{
-			Action:   a,
-			Resource: platform.TasksResource,
-			OrgID:    1,
+			Action: a,
+			Resource: platform.Resource{
+				Type:  platform.TasksResourceType,
+				OrgID: influxdbtesting.IDPtr(1),
+			},
 		}
 
 		if err := p.Valid(); err != nil {
@@ -310,8 +366,6 @@ func TestPermission_String(t *testing.T) {
 	type fields struct {
 		Action   platform.Action
 		Resource platform.Resource
-		OrgID    platform.ID
-		ID       *platform.ID
 		Name     *string
 	}
 	tests := []struct {
@@ -322,21 +376,46 @@ func TestPermission_String(t *testing.T) {
 		{
 			name: "valid permission with no id",
 			fields: fields{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    1,
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+				},
 			},
 			want: `write:orgs/0000000000000001/buckets`,
 		},
 		{
 			name: "valid permission with an id",
 			fields: fields{
-				Action:   platform.WriteAction,
-				Resource: platform.BucketsResource,
-				OrgID:    1,
-				ID:       validID(),
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(1),
+					ID:    validID(),
+				},
 			},
 			want: `write:orgs/0000000000000001/buckets/0000000000000064`,
+		},
+		{
+			name: "valid permission with no id or org id",
+			fields: fields{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type: platform.BucketsResourceType,
+				},
+			},
+			want: `write:buckets`,
+		},
+		{
+			name: "valid permission with no org id",
+			fields: fields{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type: platform.BucketsResourceType,
+					ID:   influxdbtesting.IDPtr(1),
+				},
+			},
+			want: `write:buckets/0000000000000001`,
 		},
 	}
 	for _, tt := range tests {
@@ -344,8 +423,6 @@ func TestPermission_String(t *testing.T) {
 			p := platform.Permission{
 				Action:   tt.fields.Action,
 				Resource: tt.fields.Resource,
-				ID:       tt.fields.ID,
-				OrgID:    tt.fields.OrgID,
 			}
 			if got := p.String(); got != tt.want {
 				t.Errorf("Permission.String() = %v, want %v", got, tt.want)
@@ -356,9 +433,5 @@ func TestPermission_String(t *testing.T) {
 
 func validID() *platform.ID {
 	id := platform.ID(100)
-	return &id
-}
-
-func IDPtr(id platform.ID) *platform.ID {
 	return &id
 }

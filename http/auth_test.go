@@ -227,13 +227,15 @@ func TestService_handleGetAuthorization(t *testing.T) {
 								OrgID:  platformtesting.MustIDBase16("020f755c3c083000"),
 								Permissions: []platform.Permission{
 									{
-										Action:   platform.ReadAction,
-										Resource: platform.BucketsResource,
-										OrgID:    platformtesting.MustIDBase16("020f755c3c083000"),
-										ID: func() *platform.ID {
-											id := platformtesting.MustIDBase16("020f755c3c084000")
-											return &id
-										}(),
+										Action: platform.ReadAction,
+										Resource: platform.Resource{
+											Type:  platform.BucketsResourceType,
+											OrgID: platformtesting.IDPtr(platformtesting.MustIDBase16("020f755c3c083000")),
+											ID: func() *platform.ID {
+												id := platformtesting.MustIDBase16("020f755c3c084000")
+												return &id
+											}(),
+										},
 									},
 								},
 								Token: "hello",
@@ -260,8 +262,14 @@ func TestService_handleGetAuthorization(t *testing.T) {
 					},
 				},
 				LookupService: &mock.LookupService{
-					NameFn: func(ctx context.Context, resource platform.Resource, id platform.ID) (string, error) {
-						return "b1", nil
+					NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
+						switch resource {
+						case platform.BucketsResourceType:
+							return "b1", nil
+						case platform.OrgsResourceType:
+							return "o1", nil
+						}
+						return "", fmt.Errorf("bad resource type %s", resource)
 					},
 				},
 			},
@@ -284,10 +292,13 @@ func TestService_handleGetAuthorization(t *testing.T) {
   "permissions": [
     {
       "action": "read",
-      "id": "020f755c3c084000",
-      "name": "b1",
-      "orgID": "020f755c3c083000",
-      "resource": "buckets"
+      "resource": {
+				"type": "buckets",
+				"orgID": "020f755c3c083000",
+				"id": "020f755c3c084000",
+				"name": "b1",
+				"org": "o1"
+			}
     }
   ],
   "status": "",
@@ -371,6 +382,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 		AuthorizationService platform.AuthorizationService
 		UserService          platform.UserService
 		OrganizationService  platform.OrganizationService
+		LookupService        platform.LookupService
 	}
 	type args struct {
 		session       *platform.Authorization
@@ -396,6 +408,17 @@ func TestService_handlePostAuthorization(t *testing.T) {
 						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						c.Token = "new-test-token"
 						return nil
+					},
+				},
+				LookupService: &mock.LookupService{
+					NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
+						switch resource {
+						case platform.BucketsResourceType:
+							return "b1", nil
+						case platform.OrgsResourceType:
+							return "o1", nil
+						}
+						return "", fmt.Errorf("bad resource type %s", resource)
 					},
 				},
 				UserService: &mock.UserService{
@@ -430,9 +453,11 @@ func TestService_handlePostAuthorization(t *testing.T) {
 					Description: "can write to authorization resource",
 					Permissions: []platform.Permission{
 						{
-							Action:   platform.WriteAction,
-							OrgID:    platformtesting.MustIDBase16("020f755c3c083000"),
-							Resource: platform.AuthorizationsResource,
+							Action: platform.WriteAction,
+							Resource: platform.Resource{
+								Type:  platform.AuthorizationsResourceType,
+								OrgID: platformtesting.IDPtr(platformtesting.MustIDBase16("020f755c3c083000")),
+							},
 						},
 					},
 				},
@@ -442,9 +467,11 @@ func TestService_handlePostAuthorization(t *testing.T) {
 					Description: "only read dashboards sucka",
 					Permissions: []platform.Permission{
 						{
-							Action:   platform.ReadAction,
-							OrgID:    platformtesting.MustIDBase16("020f755c3c083000"),
-							Resource: platform.DashboardsResource,
+							Action: platform.ReadAction,
+							Resource: platform.Resource{
+								Type:  platform.DashboardsResourceType,
+								OrgID: platformtesting.IDPtr(platformtesting.MustIDBase16("020f755c3c083000")),
+							},
 						},
 					},
 				},
@@ -465,8 +492,11 @@ func TestService_handlePostAuthorization(t *testing.T) {
   "permissions": [
     {
       "action": "read",
-      "orgID": "020f755c3c083000",
-      "resource": "dashboards"
+			"resource": {
+				"type": "dashboards",
+				"orgID": "020f755c3c083000",
+				"org": "o1"
+			}
     }
   ],
   "status": "active",
@@ -509,6 +539,17 @@ func TestService_handlePostAuthorization(t *testing.T) {
 						}, nil
 					},
 				},
+				LookupService: &mock.LookupService{
+					NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
+						switch resource {
+						case platform.BucketsResourceType:
+							return "b1", nil
+						case platform.OrgsResourceType:
+							return "o1", nil
+						}
+						return "", fmt.Errorf("bad resource type %s", resource)
+					},
+				},
 			},
 			args: args{
 				session: &platform.Authorization{
@@ -519,8 +560,10 @@ func TestService_handlePostAuthorization(t *testing.T) {
 					Description: "can write to authorization resource",
 					Permissions: []platform.Permission{
 						{
-							Action:   platform.WriteAction,
-							Resource: platform.AuthorizationsResource,
+							Action: platform.WriteAction,
+							Resource: platform.Resource{
+								Type: platform.AuthorizationsResourceType,
+							},
 						},
 					},
 				},
@@ -531,9 +574,11 @@ func TestService_handlePostAuthorization(t *testing.T) {
 					Description: "only read dashboards sucka",
 					Permissions: []platform.Permission{
 						{
-							Action:   platform.ReadAction,
-							Resource: platform.DashboardsResource,
-							OrgID:    platformtesting.MustIDBase16("020f755c3c083000"),
+							Action: platform.ReadAction,
+							Resource: platform.Resource{
+								Type:  platform.DashboardsResourceType,
+								OrgID: platformtesting.IDPtr(platformtesting.MustIDBase16("020f755c3c083000")),
+							},
 						},
 					},
 				},
@@ -556,14 +601,17 @@ func TestService_handlePostAuthorization(t *testing.T) {
   "status": "active",
   "description": "only read dashboards sucka",
   "permissions": [
-		{
-  	  "action": "read",
-  	  "orgID": "020f755c3c083000",
-  	  "resource": "dashboards"
-  	}
+    {
+      "action": "read",
+			"resource": {
+				"type": "dashboards",
+				"orgID": "020f755c3c083000",
+				"org": "o1"
+			}
+    }
 	]
 }
-`,
+	`,
 			},
 		},
 	}
@@ -574,6 +622,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			h.AuthorizationService = tt.fields.AuthorizationService
 			h.UserService = tt.fields.UserService
 			h.OrganizationService = tt.fields.OrganizationService
+			h.LookupService = tt.fields.LookupService
 
 			req, err := newPostAuthorizationRequest(tt.args.authorization)
 			if err != nil {
@@ -764,6 +813,17 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	authZ.AuthorizationService = svc
 	authZ.UserService = svc
 	authZ.OrganizationService = svc
+	authZ.LookupService = &mock.LookupService{
+		NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
+			switch resource {
+			case platform.BucketsResourceType:
+				return "b1", nil
+			case platform.OrgsResourceType:
+				return "o1", nil
+			}
+			return "", fmt.Errorf("bad resource type %s", resource)
+		},
+	}
 
 	authN := NewAuthenticationHandler()
 	authN.AuthorizationService = svc

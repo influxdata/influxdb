@@ -63,12 +63,12 @@ func NewTelegrafHandler(
 	h.HandlerFunc("DELETE", telegrafsIDPath, h.handleDeleteTelegraf)
 	h.HandlerFunc("PUT", telegrafsIDPath, h.handlePutTelegraf)
 
-	h.HandlerFunc("POST", telegrafsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResource, platform.Member))
-	h.HandlerFunc("GET", telegrafsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResource, platform.Member))
+	h.HandlerFunc("POST", telegrafsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResourceType, platform.Member))
+	h.HandlerFunc("GET", telegrafsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResourceType, platform.Member))
 	h.HandlerFunc("DELETE", telegrafsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
-	h.HandlerFunc("POST", telegrafsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResource, platform.Owner))
-	h.HandlerFunc("GET", telegrafsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResource, platform.Owner))
+	h.HandlerFunc("POST", telegrafsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResourceType, platform.Owner))
+	h.HandlerFunc("GET", telegrafsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TelegrafsResourceType, platform.Owner))
 	h.HandlerFunc("DELETE", telegrafsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", telegrafsIDLabelsPath, newGetLabelsHandler(h.LabelService))
@@ -221,9 +221,9 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 func decodeUserResourceMappingFilter(ctx context.Context, r *http.Request) (*platform.UserResourceMappingFilter, error) {
 	q := r.URL.Query()
 	f := &platform.UserResourceMappingFilter{
-		Resource: platform.TelegrafsResource,
+		ResourceType: platform.TelegrafsResourceType,
 	}
-	if idStr := q.Get("resourceId"); idStr != "" {
+	if idStr := q.Get("resourceID"); idStr != "" {
 		id, err := platform.IDFromString(idStr)
 		if err != nil {
 			return nil, err
@@ -231,7 +231,7 @@ func decodeUserResourceMappingFilter(ctx context.Context, r *http.Request) (*pla
 		f.ResourceID = *id
 	}
 
-	if idStr := q.Get("userId"); idStr != "" {
+	if idStr := q.Get("userID"); idStr != "" {
 		id, err := platform.IDFromString(idStr)
 		if err != nil {
 			return nil, err
