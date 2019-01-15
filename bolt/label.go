@@ -75,21 +75,6 @@ func filterLabelsFn(filter platform.LabelFilter) func(l *platform.Label) bool {
 	}
 }
 
-// func (c *Client) findLabel(ctx context.Context, tx *bolt.Tx, resourceID platform.ID, name string) (*platform.Label, error) {
-// 	key, err := labelKey(&platform.Label{ResourceID: resourceID, Name: name})
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	l := &platform.Label{}
-// 	v := tx.Bucket(labelBucket).Get(key)
-// 	if err := json.Unmarshal(v, l); err != nil {
-// 		return nil, err
-// 	}
-//
-// 	return l, nil
-// }
-
 // FindLabels returns a list of labels that match a filter.
 func (c *Client) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
 	ls := []*platform.Label{}
@@ -124,6 +109,18 @@ func (c *Client) findLabels(ctx context.Context, tx *bolt.Tx, filter platform.La
 	}
 
 	return ls, nil
+}
+
+func (c *Client) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
+	return nil, nil
+}
+
+func (c *Client) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	return nil
+}
+
+func (c *Client) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	return nil
 }
 
 func (c *Client) CreateLabel(ctx context.Context, l *platform.Label) error {

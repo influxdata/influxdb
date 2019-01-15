@@ -13,8 +13,10 @@ type LabelService struct {
 	FindLabelsFn         func(context.Context, platform.LabelFilter) ([]*platform.Label, error)
 	FindResourceLabelsFn func(context.Context, platform.LabelMappingFilter) ([]*platform.Label, error)
 	CreateLabelFn        func(context.Context, *platform.Label) error
+	CreateLabelMappingFn func(context.Context, *platform.LabelMapping) error
 	UpdateLabelFn        func(context.Context, *platform.Label, platform.LabelUpdate) (*platform.Label, error)
 	DeleteLabelFn        func(context.Context, platform.ID) error
+	DeleteLabelMappingFn func(context.Context, *platform.LabelMapping) error
 }
 
 // NewLabelService returns a mock of LabelService
@@ -27,9 +29,11 @@ func NewLabelService() *LabelService {
 		FindResourceLabelsFn: func(context.Context, platform.LabelMappingFilter) ([]*platform.Label, error) {
 			return nil, nil
 		},
-		CreateLabelFn: func(context.Context, *platform.Label) error { return nil },
-		UpdateLabelFn: func(context.Context, *platform.Label, platform.LabelUpdate) (*platform.Label, error) { return nil, nil },
-		DeleteLabelFn: func(context.Context, platform.ID) error { return nil },
+		CreateLabelFn:        func(context.Context, *platform.Label) error { return nil },
+		CreateLabelMappingFn: func(context.Context, *platform.LabelMapping) error { return nil },
+		UpdateLabelFn:        func(context.Context, *platform.Label, platform.LabelUpdate) (*platform.Label, error) { return nil, nil },
+		DeleteLabelFn:        func(context.Context, platform.ID) error { return nil },
+		DeleteLabelMappingFn: func(context.Context, *platform.LabelMapping) error { return nil },
 	}
 }
 
@@ -48,6 +52,11 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *platform.Label) error
 	return s.CreateLabelFn(ctx, l)
 }
 
+// CreateLabelMapping creates a new Label mapping.
+func (s *LabelService) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	return s.CreateLabelMappingFn(ctx, m)
+}
+
 // UpdateLabel updates a label.
 func (s *LabelService) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
 	return s.UpdateLabelFn(ctx, l, upd)
@@ -56,4 +65,9 @@ func (s *LabelService) UpdateLabel(ctx context.Context, l *platform.Label, upd p
 // DeleteLabel removes a Label.
 func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
 	return s.DeleteLabelFn(ctx, id)
+}
+
+// DeleteLabelMapping removes a Label mapping.
+func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	return s.DeleteLabelMappingFn(ctx, m)
 }

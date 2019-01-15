@@ -35,7 +35,7 @@ const (
 	telegrafsIDOwnersPath     = "/api/v2/telegrafs/:id/owners"
 	telegrafsIDOwnersIDPath   = "/api/v2/telegrafs/:id/owners/:userID"
 	telegrafsIDLabelsPath     = "/api/v2/telegrafs/:id/labels"
-	telegrafsIDLabelsNamePath = "/api/v2/telegrafs/:id/labels/:name"
+	telegrafsIDLabelsNamePath = "/api/v2/telegrafs/:id/labels/:lid"
 )
 
 // NewTelegrafHandler returns a new instance of TelegrafHandler.

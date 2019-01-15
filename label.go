@@ -26,11 +26,17 @@ type LabelService interface {
 	// CreateLabel creates a new label
 	CreateLabel(ctx context.Context, l *Label) error
 
+	// CreateLabel maps a resource to an existing label
+	CreateLabelMapping(ctx context.Context, m *LabelMapping) error
+
 	// UpdateLabel updates a label with a changeset.
 	UpdateLabel(ctx context.Context, l *Label, upd LabelUpdate) (*Label, error)
 
 	// DeleteLabel deletes a label
 	DeleteLabel(ctx context.Context, id ID) error
+
+	// DeleteLabelMapping deletes a label mapping
+	DeleteLabelMapping(ctx context.Context, m *LabelMapping) error
 }
 
 // Label is a tag set on a resource, typically used for filtering on a UI.
@@ -57,6 +63,18 @@ func (l *Label) Validate() error {
 type LabelMapping struct {
 	LabelID    ID
 	ResourceID ID
+}
+
+// Validate returns an error if the mapping is invalid.
+func (l *LabelMapping) Validate() error {
+	if !l.ResourceID.Valid() {
+		return &Error{
+			Code: EInvalid,
+			Msg:  "resourceID is required",
+		}
+	}
+
+	return nil
 }
 
 // LabelUpdate represents a changeset for a label.

@@ -70,11 +70,10 @@ type labelResponse struct {
 	Label plat.Label        `json:"label"`
 }
 
-// TODO: remove "dashboard" from this
 func newLabelResponse(l *plat.Label) *labelResponse {
 	return &labelResponse{
 		Links: map[string]string{
-			"resource": fmt.Sprintf("/api/v2/%ss/%s", "dashboard", l.ResourceID),
+			"self": fmt.Sprintf("/api/v2/labels/%s", l.ID),
 		},
 		Label: *l,
 	}
@@ -85,11 +84,10 @@ type labelsResponse struct {
 	Labels []*plat.Label     `json:"labels"`
 }
 
-func newLabelsResponse(opts plat.FindOptions, f plat.LabelFilter, ls []*plat.Label) *labelsResponse {
-	// TODO: Remove "dashboard" from this
+func newLabelsResponse(ls []*plat.Label) *labelsResponse {
 	return &labelsResponse{
 		Links: map[string]string{
-			"resource": fmt.Sprintf("/api/v2/%ss/%s", "dashboard", f.ResourceID),
+			"self": fmt.Sprintf("/api/v2/labels"),
 		},
 		Labels: ls,
 	}
@@ -106,14 +104,13 @@ func newGetLabelsHandler(s plat.LabelService) http.HandlerFunc {
 			return
 		}
 
-		opts := plat.FindOptions{}
-		labels, err := s.FindLabels(ctx, req.filter)
+		labels, err := s.FindResourceLabels(ctx, req.filter)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
-		if err := encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(opts, req.filter, labels)); err != nil {
+		if err := encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(labels)); err != nil {
 			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
 			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
 			// is called is distinct from the time that a potential logger is set.
@@ -124,11 +121,10 @@ func newGetLabelsHandler(s plat.LabelService) http.HandlerFunc {
 }
 
 type getLabelsRequest struct {
-	filter plat.LabelFilter
+	filter plat.LabelMappingFilter
 }
 
 func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsRequest, error) {
-	qp := r.URL.Query()
 	req := &getLabelsRequest{}
 
 	params := httprouter.ParamsFromContext(ctx)
@@ -142,10 +138,6 @@ func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsReq
 		return nil, err
 	}
 	req.filter.ResourceID = i
-
-	if name := qp.Get("name"); name != "" {
-		req.filter.Name = name
-	}
 
 	return req, nil
 }
@@ -161,17 +153,17 @@ func newPostLabelHandler(s plat.LabelService) http.HandlerFunc {
 			return
 		}
 
-		if err := req.Label.Validate(); err != nil {
+		if err := req.Mapping.Validate(); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
-		if err := s.CreateLabel(ctx, &req.Label); err != nil {
+		if err := s.CreateLabelMapping(ctx, &req.Mapping); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
-		if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(&req.Label)); err != nil {
+		if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(&req.Mapping)); err != nil {
 			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
 			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
 			// is called is distinct from the time that a potential logger is set.
@@ -182,7 +174,7 @@ func newPostLabelHandler(s plat.LabelService) http.HandlerFunc {
 }
 
 type postLabelRequest struct {
-	Label plat.Label
+	Mapping plat.LabelMapping
 }
 
 func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelRequest, error) {
@@ -197,19 +189,19 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 		return nil, err
 	}
 
-	label := &plat.Label{}
-	if err := json.NewDecoder(r.Body).Decode(label); err != nil {
+	mapping := &plat.LabelMapping{}
+	if err := json.NewDecoder(r.Body).Decode(mapping); err != nil {
 		return nil, err
 	}
 
-	label.ResourceID = rid
+	mapping.ResourceID = rid
 
-	if err := label.Validate(); err != nil {
+	if err := mapping.Validate(); err != nil {
 		return nil, err
 	}
 
 	req := &postLabelRequest{
-		Label: *label,
+		Mapping: *mapping,
 	}
 
 	return req, nil
@@ -226,11 +218,11 @@ func decodePatchLabelRequest(ctx context.Context, r *http.Request) (*patchLabelR
 	if id == "" {
 		return nil, &plat.Error{
 			Code: plat.EInvalid,
-			Msg:  "url missing resource id",
+			Msg:  "url missing label id",
 		}
 	}
 
-	name := params.ByName("name")
+	name := params.ByName("lid")
 	if name == "" {
 		return nil, &plat.Error{
 			Code: plat.EInvalid,
@@ -249,7 +241,7 @@ func decodePatchLabelRequest(ctx context.Context, r *http.Request) (*patchLabelR
 	}
 
 	return &patchLabelRequest{
-		label: &plat.Label{ResourceID: rid, Name: name},
+		label: &plat.Label{ID: rid, Name: name},
 		upd:   *upd,
 	}, nil
 }
@@ -292,12 +284,12 @@ func newDeleteLabelHandler(s plat.LabelService) http.HandlerFunc {
 			return
 		}
 
-		label := plat.Label{
+		mapping := &plat.LabelMapping{
+			LabelID:    req.LabelID,
 			ResourceID: req.ResourceID,
-			Name:       req.Name,
 		}
 
-		if err := s.DeleteLabel(ctx, label); err != nil {
+		if err := s.DeleteLabelMapping(ctx, mapping); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
@@ -308,7 +300,7 @@ func newDeleteLabelHandler(s plat.LabelService) http.HandlerFunc {
 
 type deleteLabelRequest struct {
 	ResourceID plat.ID
-	Name       string
+	LabelID    plat.ID
 }
 
 func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabelRequest, error) {
@@ -321,27 +313,32 @@ func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabe
 		}
 	}
 
-	name := params.ByName("name")
-	if name == "" {
-		return nil, &plat.Error{
-			Code: plat.EInvalid,
-			Msg:  "label name is missing",
-		}
-	}
-
 	var rid plat.ID
 	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
+	id = params.ByName("lid")
+	if id == "" {
+		return nil, &plat.Error{
+			Code: plat.EInvalid,
+			Msg:  "label id is missing",
+		}
+	}
+
+	var lid plat.ID
+	if err := lid.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
 	return &deleteLabelRequest{
-		Name:       name,
+		LabelID:    lid,
 		ResourceID: rid,
 	}, nil
 }
 
 // FindLabels returns a slice of labels
-func (s *LabelService) FindLabels(ctx context.Context, filter plat.LabelFilter, opt ...plat.FindOptions) ([]*plat.Label, error) {
+func (s *LabelService) FindResourceLabels(ctx context.Context, filter plat.LabelMappingFilter) ([]*plat.Label, error) {
 	url, err := newURL(s.Addr, resourceIDPath(s.BasePath, filter.ResourceID))
 	if err != nil {
 		return nil, err
@@ -373,17 +370,17 @@ func (s *LabelService) FindLabels(ctx context.Context, filter plat.LabelFilter, 
 	return r.Labels, nil
 }
 
-func (s *LabelService) CreateLabel(ctx context.Context, l *plat.Label) error {
-	if err := l.Validate(); err != nil {
+func (s *LabelService) CreateLabelMapping(ctx context.Context, m *plat.LabelMapping) error {
+	if err := m.Validate(); err != nil {
 		return err
 	}
 
-	url, err := newURL(s.Addr, resourceIDPath(s.BasePath, l.ResourceID))
+	url, err := newURL(s.Addr, resourceIDPath(s.BasePath, m.ResourceID))
 	if err != nil {
 		return err
 	}
 
-	octets, err := json.Marshal(l)
+	octets, err := json.Marshal(m)
 	if err != nil {
 		return err
 	}
@@ -407,15 +404,15 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *plat.Label) error {
 		return err
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(l); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(m); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *LabelService) DeleteLabel(ctx context.Context, l plat.Label) error {
-	url, err := newURL(s.Addr, labelNamePath(s.BasePath, l.ResourceID, l.Name))
+func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *plat.LabelMapping) error {
+	url, err := newURL(s.Addr, labelNamePath(s.BasePath, m.ResourceID, m.LabelID))
 	if err != nil {
 		return err
 	}
@@ -434,6 +431,6 @@ func (s *LabelService) DeleteLabel(ctx context.Context, l plat.Label) error {
 	return CheckError(resp)
 }
 
-func labelNamePath(basePath string, resourceID plat.ID, name string) string {
-	return path.Join(basePath, resourceID.String(), "labels", name)
+func labelNamePath(basePath string, resourceID plat.ID, labelID plat.ID) string {
+	return path.Join(basePath, resourceID.String(), "labels", labelID.String())
 }

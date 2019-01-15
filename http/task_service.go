@@ -47,7 +47,7 @@ const (
 	tasksIDRunsIDLogsPath  = "/api/v2/tasks/:id/runs/:rid/logs"
 	tasksIDRunsIDRetryPath = "/api/v2/tasks/:id/runs/:rid/retry"
 	tasksIDLabelsPath      = "/api/v2/tasks/:id/labels"
-	tasksIDLabelsNamePath  = "/api/v2/tasks/:id/labels/:name"
+	tasksIDLabelsNamePath  = "/api/v2/tasks/:id/labels/:lid"
 )
 
 // NewTaskHandler returns a new instance of TaskHandler.

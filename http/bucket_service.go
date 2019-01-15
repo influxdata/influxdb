@@ -39,7 +39,7 @@ const (
 	bucketsIDOwnersPath     = "/api/v2/buckets/:id/owners"
 	bucketsIDOwnersIDPath   = "/api/v2/buckets/:id/owners/:userID"
 	bucketsIDLabelsPath     = "/api/v2/buckets/:id/labels"
-	bucketsIDLabelsNamePath = "/api/v2/buckets/:id/labels/:name"
+	bucketsIDLabelsNamePath = "/api/v2/buckets/:id/labels/:lid"
 )
 
 // NewBucketHandler returns a new instance of BucketHandler.

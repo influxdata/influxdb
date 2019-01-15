@@ -34,7 +34,7 @@ const (
 	viewsIDOwnersPath     = "/api/v2/views/:id/owners"
 	viewsIDOwnersIDPath   = "/api/v2/views/:id/owners/:userID"
 	viewsIDLabelsPath     = "/api/v2/views/:id/labels"
-	viewsIDLabelsNamePath = "/api/v2/views/:id/labels/:name"
+	viewsIDLabelsNamePath = "/api/v2/views/:id/labels/:lid"
 )
 
 // NewViewHandler returns a new instance of ViewHandler.
