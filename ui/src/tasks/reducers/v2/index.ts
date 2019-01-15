@@ -18,7 +18,7 @@ export interface State {
   taskOptions: TaskOptions
 }
 
-const defaultTaskOptions: TaskOptions = {
+export const defaultTaskOptions: TaskOptions = {
   name: '',
   interval: '',
   offset: '',

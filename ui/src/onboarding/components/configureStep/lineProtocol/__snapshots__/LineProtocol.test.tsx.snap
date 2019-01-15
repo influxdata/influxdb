@@ -29,6 +29,7 @@ exports[`LineProtocol rendering renders! 1`] = `
         </h5>
         <Connect(LineProtocolTabs)
           bucket="a"
+          handleSubmit={[Function]}
           org="a"
           tabs={
             Array [

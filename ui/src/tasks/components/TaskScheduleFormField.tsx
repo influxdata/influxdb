@@ -2,10 +2,9 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {ComponentSpacer, Input, InputType} from 'src/clockface'
+import {Input, InputType, Grid, Form, Columns} from 'src/clockface'
 
 // Types
-import {Alignment} from 'src/clockface'
 import {TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 
 interface Props {
@@ -22,31 +21,33 @@ export default class TaskScheduleFormFields extends PureComponent<Props> {
 
     return (
       <>
-        <ComponentSpacer align={Alignment.Left} stretchToFitWidth={true}>
-          <label className="task-form--form-label">
-            {schedule === TaskSchedule.interval ? 'Interval' : 'Cron'}
-          </label>
-          <Input
-            name={schedule}
-            type={InputType.Text}
-            placeholder={
-              schedule === TaskSchedule.interval ? '1d3h30s' : '0 2 * * *'
-            }
-            value={schedule === TaskSchedule.interval ? interval : cron}
-            onChange={this.props.onChangeInput}
-          />
-        </ComponentSpacer>
+        <Grid.Column widthXS={Columns.Six}>
+          <Form.Element
+            label={schedule === TaskSchedule.interval ? 'Interval' : 'Cron'}
+          >
+            <Input
+              name={schedule}
+              type={InputType.Text}
+              placeholder={
+                schedule === TaskSchedule.interval ? '1d3h30s' : '0 2 * * *'
+              }
+              value={schedule === TaskSchedule.interval ? interval : cron}
+              onChange={this.props.onChangeInput}
+            />
+          </Form.Element>
+        </Grid.Column>
 
-        <ComponentSpacer align={Alignment.Left} stretchToFitWidth={true}>
-          <label className="task-form--form-label">Offset</label>
-          <Input
-            name="offset"
-            type={InputType.Text}
-            value={offset}
-            placeholder="20m"
-            onChange={onChangeInput}
-          />
-        </ComponentSpacer>
+        <Grid.Column widthXS={Columns.Six}>
+          <Form.Element label="Offset">
+            <Input
+              name="offset"
+              type={InputType.Text}
+              value={offset}
+              placeholder="20m"
+              onChange={onChangeInput}
+            />
+          </Form.Element>
+        </Grid.Column>
       </>
     )
   }

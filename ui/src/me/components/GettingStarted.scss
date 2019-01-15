@@ -1,0 +1,92 @@
+/*
+  Getting Started Widget
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+$getting-started--gutter: $ix-marg-b;
+
+.getting-started {
+  margin-top: $ix-marg-b;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.getting-started--container {
+  width: 100%;
+  padding-bottom: 100%;
+  margin-bottom: $getting-started--gutter;
+  position: relative;
+}
+
+.getting-started--card {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: $g4-onyx;
+  border-radius: $radius;
+  text-align: center;
+  padding: $ix-marg-c;
+  transition: background-color 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  &:hover {
+    background-color: $g5-pepper;
+    cursor: pointer;
+
+    .gradient-border {
+      opacity: 1;
+    }
+  }
+}
+
+.getting-started--title {
+  font-weight: 500;
+  color: $g11-sidewalk;
+  font-size: 20px;
+  transition: color 0.25s ease;
+  margin: 0;
+  margin-bottom: $ix-marg-e;
+
+  .getting-started--card:hover & {
+    color: $g20-white;
+  }
+}
+
+.getting-started--image {
+  width: 100%;
+  height: 70%;
+  background-size: cover;
+
+  > svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+@media screen and (min-width: $grid--breakpoint-sm) {
+  .getting-started--container {
+    width: calc(33.3333% - #{$getting-started--gutter});
+    padding-bottom: calc(50% - #{$getting-started--gutter});
+    margin-bottom: 0;
+  }
+  .getting-started--title {
+    font-size: 14px;
+    margin: 0;
+  }
+}
+
+@media screen and (min-width: $grid--breakpoint-md) {
+  .getting-started--container {
+    width: calc(33.3333% - #{$getting-started--gutter});
+    padding-bottom: calc(33.3333% - #{$getting-started--gutter});
+  }
+  .getting-started--title {
+    font-size: 19px;
+    margin-bottom: $ix-marg-d;
+  }
+}

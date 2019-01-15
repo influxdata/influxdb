@@ -1,0 +1,87 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`TaskForm rendering renders 1`] = `
+<Form>
+  <Grid>
+    <GridRow>
+      <GridColumn
+        widthXS={12}
+      >
+        <FormElement
+          label="Name"
+        >
+          <Input
+            autoFocus={false}
+            autocomplete="off"
+            disabledTitleText="This input is disabled"
+            name="name"
+            onChange={[MockFunction]}
+            placeholder="Name your task"
+            size="sm"
+            spellCheck={false}
+            status="default"
+            titleText=""
+            value=""
+          />
+        </FormElement>
+      </GridColumn>
+      <GridColumn
+        widthXS={12}
+      >
+        <FormElement
+          label="Owner"
+        >
+          <TaskOptionsOrgDropdown
+            onChangeTaskOrgID={[MockFunction]}
+            orgs={Array []}
+          />
+        </FormElement>
+      </GridColumn>
+      <GridColumn
+        widthXS={12}
+      >
+        <FormElement
+          label="Schedule Task"
+        >
+          <ComponentSpacer
+            align="left"
+            stackChildren="rows"
+          >
+            <Radio
+              color="primary"
+              shape="stretch"
+              size="sm"
+            >
+              <RadioButton
+                active={false}
+                disabled={false}
+                disabledTitleText="This option is disabled"
+                id="interval"
+                onClick={[Function]}
+                titleText="Interval"
+                value="interval"
+              >
+                Interval
+              </RadioButton>
+              <RadioButton
+                active={false}
+                disabled={false}
+                disabledTitleText="This option is disabled"
+                id="cron"
+                onClick={[Function]}
+                titleText="Cron"
+                value="cron"
+              >
+                Cron
+              </RadioButton>
+            </Radio>
+          </ComponentSpacer>
+        </FormElement>
+      </GridColumn>
+      <TaskScheduleFormFields
+        onChangeInput={[MockFunction]}
+      />
+    </GridRow>
+  </Grid>
+</Form>
+`;

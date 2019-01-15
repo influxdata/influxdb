@@ -1,0 +1,65 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`SaveAsButton rendering renders 1`] = `
+<Fragment>
+  <Button
+    active={false}
+    color="primary"
+    icon="export"
+    onClick={[Function]}
+    shape="none"
+    size="sm"
+    status="default"
+    text="Save As"
+    titleText="Save your query as a Dashboard Cell or a Task"
+    type="button"
+  />
+  <OverlayTechnology
+    visible={false}
+  >
+    <OverlayContainer
+      maxWidth={600}
+    >
+      <OverlayHeading
+        onDismiss={[Function]}
+        title="Save As"
+      />
+      <OverlayBody>
+        <div
+          className="save-as--options"
+        >
+          <Radio
+            color="primary"
+            shape="none"
+            size="sm"
+          >
+            <RadioButton
+              active={true}
+              data-test="cell-radio-button"
+              disabled={false}
+              disabledTitleText="This option is disabled"
+              onClick={[Function]}
+              value="dashboard"
+            >
+              Dashboard Cell
+            </RadioButton>
+            <RadioButton
+              active={false}
+              data-test="task-radio-button"
+              disabled={false}
+              disabledTitleText="This option is disabled"
+              onClick={[Function]}
+              value="task"
+            >
+              Task
+            </RadioButton>
+          </Radio>
+        </div>
+        <Connect(SaveAsCellForm)
+          dismiss={[Function]}
+        />
+      </OverlayBody>
+    </OverlayContainer>
+  </OverlayTechnology>
+</Fragment>
+`;

@@ -387,7 +387,7 @@ func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.Serie
 
 		// Remove tombstones set in previous file.
 		if ftss != nil && ftss.Cardinality() > 0 {
-			ss = ss.AndNot(ftss)
+			ss.RemoveSet(ftss)
 		}
 
 		// Fetch tag value series set for this file and merge into overall set.

@@ -6,10 +6,12 @@ import {connect} from 'react-redux'
 import 'src/me/containers/MePage.scss'
 
 // Components
+import {Grid, Columns} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import Resources from 'src/me/components/Resources'
 import Header from 'src/me/components/UserPageHeader'
 import Docs from 'src/me/components/Docs'
+import GettingStarted from 'src/me/components/GettingStarted'
 
 // Types
 import {MeState, AppState} from 'src/types/v2'
@@ -30,19 +32,25 @@ export class MePage extends PureComponent<StateProps> {
 
     return (
       <Page className="user-page" titleTag="My Account">
-        <Header title={`Howdy, ${me.name}!`} />
+        <Header userName={me.name} />
         <Page.Contents fullWidth={false} scrollable={true}>
-          <div className="col-xs-8">
-            <Panel>
-              <Panel.Header title="Getting Started" />
-              <Panel.Body>
-                <span>Put Getting Started Stuff Here</span>
-              </Panel.Body>
-            </Panel>
-            <Docs />
-          </div>
-          <div className="col-xs-4">
-            <Resources me={me} />
+          <div className="col-xs-12">
+            <Grid>
+              <Grid.Row>
+                <Grid.Column widthSM={Columns.Eight} widthMD={Columns.Nine}>
+                  <Panel>
+                    <Panel.Header title="Getting started with InfluxDB 2.0" />
+                    <Panel.Body>
+                      <GettingStarted />
+                    </Panel.Body>
+                  </Panel>
+                  <Docs />
+                </Grid.Column>
+                <Grid.Column widthSM={Columns.Four} widthMD={Columns.Three}>
+                  <Resources me={me} />
+                </Grid.Column>
+              </Grid.Row>
+            </Grid>
           </div>
         </Page.Contents>
       </Page>

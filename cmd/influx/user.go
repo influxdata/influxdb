@@ -36,8 +36,8 @@ func init() {
 		Run:   userUpdateF,
 	}
 
-	userUpdateCmd.Flags().StringVarP(&userUpdateFlags.id, "id", "i", "", "user id (required)")
-	userUpdateCmd.Flags().StringVarP(&userUpdateFlags.name, "name", "n", "", "user name")
+	userUpdateCmd.Flags().StringVarP(&userUpdateFlags.id, "id", "i", "", "The user ID (required)")
+	userUpdateCmd.Flags().StringVarP(&userUpdateFlags.name, "name", "n", "", "The user name")
 	userUpdateCmd.MarkFlagRequired("id")
 
 	userCmd.AddCommand(userUpdateCmd)
@@ -133,7 +133,7 @@ func init() {
 		Run:   userCreateF,
 	}
 
-	userCreateCmd.Flags().StringVarP(&userCreateFlags.name, "name", "n", "", "user name (required)")
+	userCreateCmd.Flags().StringVarP(&userCreateFlags.name, "name", "n", "", "The user name (required)")
 	userCreateCmd.MarkFlagRequired("name")
 
 	userCmd.AddCommand(userCreateCmd)
@@ -182,8 +182,8 @@ func init() {
 		Run:   userFindF,
 	}
 
-	userFindCmd.Flags().StringVarP(&userFindFlags.id, "id", "i", "", "user ID")
-	userFindCmd.Flags().StringVarP(&userFindFlags.name, "name", "n", "", "user name")
+	userFindCmd.Flags().StringVarP(&userFindFlags.id, "id", "i", "", "The user ID")
+	userFindCmd.Flags().StringVarP(&userFindFlags.name, "name", "n", "", "The user name")
 
 	userCmd.AddCommand(userFindCmd)
 }
@@ -242,7 +242,7 @@ func init() {
 		Run:   userDeleteF,
 	}
 
-	userDeleteCmd.Flags().StringVarP(&userDeleteFlags.id, "id", "i", "", "user id (required)")
+	userDeleteCmd.Flags().StringVarP(&userDeleteFlags.id, "id", "i", "", "The user ID (required)")
 	userDeleteCmd.MarkFlagRequired("id")
 
 	userCmd.AddCommand(userDeleteCmd)

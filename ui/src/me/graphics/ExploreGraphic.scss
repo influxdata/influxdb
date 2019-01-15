@@ -1,0 +1,90 @@
+/*
+  Getting Started Explore Graphic
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+$explore-graphic-anim-time: 0.5s;
+
+.explore-graphic--bg {
+  transition: fill 0.25s ease;
+  fill: $g2-kevlar;
+}
+
+.explore-graphic--hex {
+  fill: $g5-pepper;
+  transition: fill 0.25s ease;
+}
+
+.hex-a,
+.hex-b {
+  transition: fill $explore-graphic-anim-time ease;
+}
+
+.explore-graphic--text {
+  stroke: transparent;
+  fill: none;
+  transition: stroke $explore-graphic-anim-time ease;
+}
+
+.explore-graphic--diagnostic {
+  fill: transparent;
+  transition: fill $explore-graphic-anim-time ease;
+}
+
+.explore-graphic--flows {
+  opacity: 0;
+  transition: opacity $explore-graphic-anim-time ease;
+}
+
+@keyframes flow {
+  0% {
+    stroke-dashoffset: 0px;
+  }
+  100% {
+    stroke-dashoffset: 8px;
+  }
+}
+
+.explore-graphic--flow {
+  fill: none;
+  stroke-width: 2px;
+  stroke-dasharray: 4px;
+  stroke-dashoffset: 0px;
+  animation: flow 1s linear infinite;
+}
+
+.flow-a {
+  stroke: $c-honeydew;
+}
+
+.flow-b {
+  stroke: $c-pool;
+  animation-direction: reverse;
+}
+
+
+/* Hover State */
+.getting-started--card:hover {
+  .explore-graphic--bg {
+    fill: $g3-castle;
+  }
+  .explore-graphic--hex {
+    fill: $g6-smoke;
+  }
+  .explore-graphic--text {
+    stroke: $g13-mist;
+  }
+  .hex-a,
+  .diagnostic-a {
+    fill: $c-pool;
+  }
+  .hex-b,
+  .diagnostic-b {
+    fill: $c-honeydew;
+  }
+  .explore-graphic--flows {
+    opacity: 1;
+  }
+}

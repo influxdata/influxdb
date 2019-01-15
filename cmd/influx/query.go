@@ -13,9 +13,9 @@ import (
 
 var queryCmd = &cobra.Command{
 	Use:   "query [query literal or @/path/to/query.flux]",
-	Short: "Execute an Flux query",
+	Short: "Execute a Flux query",
 	Long: `Execute a literal Flux query provided as a string,
-		or execute a literal Flux query contained in a file by specifying the file prefixed with an @ sign.`,
+or execute a literal Flux query contained in a file by specifying the file prefixed with an @ sign.`,
 	Args: cobra.ExactArgs(1),
 	Run:  fluxQueryF,
 }
@@ -25,7 +25,7 @@ var queryFlags struct {
 }
 
 func init() {
-	queryCmd.PersistentFlags().StringVar(&queryFlags.OrgID, "org-id", "", "Organization ID")
+	queryCmd.PersistentFlags().StringVar(&queryFlags.OrgID, "org-id", "", "The organization ID")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
 		queryFlags.OrgID = h

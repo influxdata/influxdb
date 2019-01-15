@@ -15,47 +15,7 @@ import {Authorization, Permission} from 'src/api'
 // Actions
 import {NotificationAction} from 'src/types'
 
-const {Orgs, Users, Buckets, Tasks} = Permission.ResourceEnum
 const {Write, Read} = Permission.ActionEnum
-
-export interface TestPermission {
-  resource: Permission.ResourceEnum
-  actions: Permission.ActionEnum[]
-  id?: string
-  name?: string
-  orgID?: string
-  orgName?: string
-}
-
-const testPerms: TestPermission[] = [
-  {
-    resource: Users,
-    actions: [Write, Read],
-  },
-  {
-    resource: Orgs,
-    id: '1',
-    name: 'myorg',
-    actions: [Read],
-  },
-  {
-    resource: Buckets,
-    id: '2',
-    name: 'telegraf',
-    actions: [Read],
-  },
-  {
-    resource: Tasks, // resource will be Task `task`
-    name: 'task1',
-    actions: [Read],
-  },
-  {
-    resource: Tasks, // resource will be Task `task`
-    id: '2',
-    name: 'task1',
-    actions: [Read],
-  },
-]
 
 interface Props {
   onNotify: NotificationAction
@@ -67,7 +27,7 @@ const actions = [Read, Write]
 
 export default class ViewTokenOverlay extends PureComponent<Props> {
   public render() {
-    const {description} = this.props.auth
+    const {description, permissions} = this.props.auth
     const {onNotify} = this.props
 
     return (
@@ -79,7 +39,7 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
             mode={PermissionsWidgetMode.Read}
             heightPixels={500}
           >
-            {testPerms.map((p, i) => {
+            {permissions.map((p, i) => {
               return (
                 <PermissionsWidget.Section
                   key={i}
@@ -105,12 +65,10 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
   }
 
   private selected = (
-    permission: TestPermission,
+    permission: Permission,
     action: Permission.ActionEnum
   ): PermissionsWidgetSelection => {
-    const isSelected = permission.actions.some(a => a === action)
-
-    if (isSelected) {
+    if (permission.action === action) {
       return PermissionsWidgetSelection.Selected
     }
 
@@ -118,13 +76,13 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
   }
 
   private itemID = (
-    permission: TestPermission,
+    permission: Permission,
     action: Permission.ActionEnum
   ): string => {
     return `${permission.id || permission.resource}-${action}`
   }
 
-  private id = (permission: TestPermission): string => {
+  private id = (permission: Permission): string => {
     return permission.id || permission.resource
   }
 

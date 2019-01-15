@@ -4,7 +4,6 @@ import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
-import TimeMachineControls from 'src/shared/components/TimeMachineControls'
 import {DraggableResizer, Stack} from 'src/clockface'
 import TimeMachineBottom from 'src/shared/components/TimeMachineBottom'
 import TimeMachineVis from 'src/shared/components/TimeMachineVis'
@@ -64,7 +63,6 @@ class TimeMachine extends Component<Props, State> {
             >
               <DraggableResizer.Panel>
                 <div className="time-machine--top">
-                  <TimeMachineControls queriesState={queriesState} />
                   <TimeMachineVis queriesState={queriesState} />
                 </div>
               </DraggableResizer.Panel>

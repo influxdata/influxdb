@@ -21,23 +21,19 @@ interface Props {
   setLineProtocolBody: typeof setLineProtocolBody
   onURLChange: (url: string) => void
   urlInput: string
+  handleSubmit?: () => void
 }
 
 export default class extends PureComponent<Props> {
   public render() {
-    const {
-      setLineProtocolBody,
-      lineProtocolBody,
-      activeLPTab,
-      urlInput,
-    } = this.props
+    const {lineProtocolBody, activeLPTab, urlInput} = this.props
 
     switch (activeLPTab) {
       case LineProtocolTab.UploadFile:
         return (
           <DragAndDrop
             submitText="Upload File"
-            handleSubmit={setLineProtocolBody}
+            handleSubmit={this.handleSetLineProtocol}
             submitOnDrop={true}
             submitOnUpload={true}
           />
@@ -47,7 +43,7 @@ export default class extends PureComponent<Props> {
           <TextArea
             value={lineProtocolBody}
             placeholder="Write text here"
-            onChange={setLineProtocolBody}
+            onChange={this.handleSetLineProtocol}
           />
         )
       case LineProtocolTab.EnterURL:
@@ -80,5 +76,13 @@ export default class extends PureComponent<Props> {
   private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const {value} = e.target
     this.props.onURLChange(value)
+  }
+
+  private handleSetLineProtocol = async (lpBody: string) => {
+    const {setLineProtocolBody, handleSubmit} = this.props
+    await setLineProtocolBody(lpBody)
+    if (handleSubmit) {
+      handleSubmit()
+    }
   }
 }

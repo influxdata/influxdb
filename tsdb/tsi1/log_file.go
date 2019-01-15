@@ -593,6 +593,24 @@ func (f *LogFile) DeleteSeriesID(id tsdb.SeriesID) error {
 	return f.FlushAndSync()
 }
 
+// DeleteSeriesIDList marks a tombstone for all the series IDs. DeleteSeriesIDList
+// should be preferred to repeatedly calling DeleteSeriesID for many series ids.
+func (f *LogFile) DeleteSeriesIDList(ids []tsdb.SeriesID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	for _, id := range ids {
+		e := LogEntry{Flag: LogEntrySeriesTombstoneFlag, SeriesID: id}
+		if err := f.appendEntry(&e); err != nil {
+			return err
+		}
+		f.execEntry(&e)
+	}
+
+	// Flush buffer and sync to disk.
+	return f.FlushAndSync()
+}
+
 // SeriesN returns the total number of series in the file.
 func (f *LogFile) SeriesN() (n uint64) {
 	f.mu.RLock()
