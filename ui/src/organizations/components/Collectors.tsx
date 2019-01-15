@@ -1,10 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
+// Utils
+import {downloadTextFile} from 'src/shared/utils/download'
+
 // Components
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CollectorList from 'src/organizations/components/CollectorList'
-
 import {
   Button,
   ComponentColor,
@@ -13,12 +15,22 @@ import {
   EmptyState,
 } from 'src/clockface'
 
+// Actions
+import * as NotificationsActions from 'src/types/actions/notifications'
+
+// Constants
+import {getTelegrafConfigFailed} from 'src/shared/copy/v2/notifications'
+
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Telegraf} from 'src/api'
+import {getTelegrafConfigTOML} from 'src/organizations/apis/index'
+import {notify} from 'src/shared/actions/notifications'
 
 interface Props {
   collectors: Telegraf[]
+  onChange: () => void
+  notify: NotificationsActions.PublishNotificationActionCreator
 }
 
 @ErrorHandling
@@ -35,7 +47,11 @@ export default class OrgOptions extends PureComponent<Props> {
             color={ComponentColor.Primary}
           />
         </TabbedPageHeader>
-        <CollectorList collectors={collectors} emptyState={this.emptyState} />
+        <CollectorList
+          collectors={collectors}
+          emptyState={this.emptyState}
+          onDownloadConfig={this.handleDownloadConfig}
+        />
       </>
     )
   }
@@ -45,5 +61,14 @@ export default class OrgOptions extends PureComponent<Props> {
         <EmptyState.Text text="No Collectors match your query" />
       </EmptyState>
     )
+  }
+
+  private handleDownloadConfig = async (telegrafID: string) => {
+    try {
+      const config = await getTelegrafConfigTOML(telegrafID)
+      downloadTextFile(config, 'config.toml')
+    } catch (error) {
+      notify(getTelegrafConfigFailed())
+    }
   }
 }
