@@ -671,10 +671,14 @@ paths:
         - $ref: '#/components/parameters/TraceSpan'
         - in: query
           name: org
-          required: true
+          description: specifies the organization name of the resource
           schema:
             type: string
-          description: filter macros to a specific organization name
+        - in: query
+          name: orgID
+          description: specifies the organization id of the resource
+          schema:
+            type: string
       responses:
         '200':
           description: all macros for an organization
