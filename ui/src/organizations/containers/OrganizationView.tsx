@@ -28,8 +28,8 @@ import Dashboards from 'src/organizations/components/Dashboards'
 import Tasks from 'src/organizations/components/Tasks'
 import Collectors from 'src/organizations/components/Collectors'
 import Scrapers from 'src/organizations/components/Scrapers'
-import OrgOptions from 'src/organizations/components/OrgOptions'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
+import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 
 // Types
 import {AppState, Dashboard} from 'src/types/v2'
@@ -51,13 +51,18 @@ type Props = StateProps & WithRouterProps & DispatchProps
 @ErrorHandling
 class OrganizationView extends PureComponent<Props> {
   public render() {
-    const {org, params, onUpdateOrg} = this.props
+    const {org, params} = this.props
 
     return (
       <Page titleTag={org.name}>
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <Page.Title title={org.name ? org.name : 'Organization'} />
+            <RenamablePageTitle
+              name={org.name}
+              maxLength={70}
+              placeholder="Name this Organization"
+              onRename={this.handleUpdateOrg}
+            />
           </Page.Header.Left>
           <Page.Header.Right />
         </Page.Header>
@@ -152,18 +157,19 @@ class OrganizationView extends PureComponent<Props> {
               >
                 <Scrapers />
               </TabbedPageSection>
-              <TabbedPageSection
-                id="org-view-tab--options"
-                url="options_tab"
-                title="Options"
-              >
-                <OrgOptions org={org} onUpdateOrg={onUpdateOrg} />
-              </TabbedPageSection>
             </TabbedPage>
           </div>
         </Page.Contents>
       </Page>
     )
+  }
+
+  private handleUpdateOrg = (name: string): void => {
+    const {org, onUpdateOrg} = this.props
+
+    const updatedOrg = {...org, name}
+
+    onUpdateOrg(updatedOrg)
   }
 
   private getOwnersAndMembers = async (org: Organization) => {
