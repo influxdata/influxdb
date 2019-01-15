@@ -34,11 +34,10 @@ func NewMacroHandler() *MacroHandler {
 		Logger: zap.NewNop(),
 	}
 
-	path := fmt.Sprintf("%s", macroPath)
 	entityPath := fmt.Sprintf("%s/:id", macroPath)
 
-	h.HandlerFunc("GET", path, h.handleGetMacros)
-	h.HandlerFunc("POST", path, h.handlePostMacro)
+	h.HandlerFunc("GET", macroPath, h.handleGetMacros)
+	h.HandlerFunc("POST", macroPath, h.handlePostMacro)
 	h.HandlerFunc("GET", entityPath, h.handleGetMacro)
 	h.HandlerFunc("PATCH", entityPath, h.handlePatchMacro)
 	h.HandlerFunc("PUT", entityPath, h.handlePutMacro)
@@ -169,6 +168,7 @@ func (h *MacroHandler) handleGetMacro(w http.ResponseWriter, r *http.Request) {
 
 type macroLinks struct {
 	Self string `json:"self"`
+	Org  string `json:"org"`
 }
 
 type macroResponse struct {
@@ -181,6 +181,7 @@ func newMacroResponse(m *platform.Macro) macroResponse {
 		Macro: m,
 		Links: macroLinks{
 			Self: fmt.Sprintf("/api/v2/macros/%s", m.ID),
+			Org:  fmt.Sprintf("/api/v2/orgs/%s", m.OrganizationID),
 		},
 	}
 }
